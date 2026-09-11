@@ -37,8 +37,10 @@ Four things that claim does NOT cover, none of them hidden:
     the exception — claim 10 compares the variables in it, so `_env_block`
     reads it as `NAME: value` lines and REFUSES any other spelling.
   * A recognised key's VALUE is only interpreted where a claim needs it —
-    `if:`, `needs:`, `continue-on-error:`, `uses:`, and `env:` as above.
-    Every other value is text.
+    `if:`, `needs:`, `continue-on-error:`, `uses:`, `working-directory:`, and
+    `env:` as above. Every other value is text. `shell:` and a STEP-level
+    `continue-on-error:` are the two that decide something and are still read
+    as text; neither is written on a mirrored pair today.
   * This is not YAML. Anchors, merge keys, flow mappings and multi-document
     files are all refused, not supported. Valid YAML this repo does not use
     reds CI with *I do not understand this file*, and the fix is to teach the
@@ -59,13 +61,14 @@ the hosted step it names.
 
 CLAIM 10 IS WHERE THE ROSTER STOPS AND THE COMMANDS START. It takes the pairs
 claim 9 leaves and asks the one question a roster cannot: do the two halves run
-this check the SAME WAY. IT HAS TWO ARMS and each is narrow on purpose. The
+this check the SAME WAY. IT HAS THREE ARMS and each is narrow on purpose. The
 FLAG arm: `cargo` invocations only, the flags in `SEMANTIC_FLAGS` only,
 between the two sides of one `HOSTED MIRROR` pair only, and only for a cargo
 subcommand BOTH sides run. The ENV arm, described below, is per PAIR rather
-than per command and reads the names in `SEMANTIC_ENV` only. Neither turns
-claim 9's coarse job correspondence into a claim about equal argv,
-which would be false.
+than per command and reads the names in `SEMANTIC_ENV` only. The DIRECTORY arm
+is per local ROW and reads the directories either half NAMES. None of the three
+turns claim 9's coarse job correspondence into a claim about equal argv, which
+would be false.
 
 TWO HOLES FOLLOW ON THE FLAG ARM, both by construction. A pair whose halves
 name different cargo subcommands is not compared at all, and a flag outside
@@ -111,6 +114,47 @@ WHAT IT GENUINELY CANNOT SEE, four things, none of them hidden:
     sentence passes here. The flag arm answers this shape with `_presence`'s
     every-invocation rule; the env arm has no equivalent, because a variable
     is a name and a value rather than a per-invocation set.
+
+IT HAS A THIRD ARM, OVER THE DIRECTORY, and it closes the same shape one axis
+out: `working-directory:` sat in `STEP_KEYS` with its VALUE DISCARDED while the
+local half spelled the same fact as `(cd interval-transcendentals && …)`. Two
+spellings of one fact compared by nothing, which is precisely what an `env:`
+block and an inline prefix were — change either half and the pair stayed green.
+BOTH HALVES WRITE BOTH SPELLINGS, so both are read on both: hosted's
+`working-directory:` and the `cd` in its own `run:` block, the local half's
+`cd` (a subshell, a `bash -c` string, or a function the row only names).
+ITS EXTENT IS THE LOCAL ROW, which is the one place the three arms differ:
+several markers can cite ONE row and run their hosted steps in DIFFERENT
+directories, so the hosted sides of a row's markers are unioned and the
+comparison is set equality — every directory named on either side must be
+named on the other. The population is why it is worth an arm: every directory
+either half names today is a cargo root `Cargo.toml` EXCLUDES from the
+workspace, so a row that moves on one half only runs a different check under
+the same name. The arm has NO exemption vocabulary, alone among the three, and
+`PAIR_EXEMPT`'s header says why.
+
+WHAT THE DIRECTORY ARM REFUSES rather than reads as "this half stays put",
+because those two answers are one empty set: `pushd`/`popd`, a `cd` whose
+argument is an expansion or `-`, an ascent above the row's own root, a `cd`
+with no argument, a `cd` it cannot attribute to a command, two `cd`s on one
+logical line with no subshell boundary between them, a step declaring BOTH
+spellings at once, and a `defaults:` block on a cited pair's job or workflow
+(`defaults.run.working-directory` moves every step under it and appears on
+none of them). None of the eight exists today; each Bails and each names the
+site.
+
+WHAT IT GENUINELY CANNOT SEE, and the list is the env arm's own, one noun
+changed:
+  * WHICH command runs in which directory. A row's directories are a SET, so
+    moving a command between two directories the row already names says
+    nothing here. Reading it the other way means evaluating subshell scope and
+    `&&`-list order — a shell, not a recogniser — and the arm would then be
+    refusing shapes rather than comparing rows.
+  * A directory decided OUTSIDE these two files: a `cd` inside a script either
+    half invokes, or one `--manifest-path` names. Neither half writes a
+    `--manifest-path` today; `scripts/doc-gate.sh` does, inside a script, which
+    is a third spelling of this fact sitting where claim 2 covers the file and
+    nothing covers the directory.
 
 CLAIM 4 HAS TWO ARMS OVER ONE POPULATION: does a script under `scripts/` or
 `demos/` run at all, and does its `--selftest` mode run. They are one question
@@ -512,6 +556,17 @@ SEMANTIC_FLAGS = {
 # `RUSTDOCFLAGS` IS NOT SET ANYWHERE TODAY and is listed anyway, on
 # `SEMANTIC_FLAGS`'s own rule: this is an absence detector, and the population
 # it is about is the variables that are not there yet.
+#
+# WHAT IS OUT OF SCOPE HERE, SAID AT THE TABLE RATHER THAN LEFT TO BE FOUND:
+# a semantics-bearing variable whose name is outside this list is invisible to
+# the env arm, and the candidates that would make that matter are named rather
+# than imagined — `RUST_MIN_STACK`, `PROPTEST_CASES`, a `NEXTEST_*` runtime
+# knob. NONE IS SET IN EITHER HALF, measured 2026-09-11: `NEXTEST_VERSION` is a
+# pin read by claim 11 and not a knob on what the run does, and the other two
+# appear nowhere. The population is empty, so widening the allowlist would be
+# adding names against no subject — and an allowlist grown that way is a
+# roster, which is the thing this whole file is about. The day one is set, it
+# is added here in the diff that sets it.
 SEMANTIC_ENV = ("RUSTFLAGS", "RUSTDOCFLAGS")
 SEMANTIC_ENV_PREFIX = "CAD_"
 
@@ -4395,7 +4450,13 @@ def selftest() -> None:
           "or step `env:` block and an inline prefix, on a pair that runs cargo and on one "
           "that runs none — the same variable set to two values, a standing, exported or "
           "unattributable assignment, a $GITHUB_ENV write, a mirrored pair cited at a `uses:` "
-          "step, an argv whose flag has no value or whose quote never "
+          "step, a DIRECTORY named by one half of a mirrored row and not the other — a "
+          "`working-directory:` deleted, a `cd` deleted, and either of them moved onto the OTHER "
+          "directory the same row already runs in — a `pushd`, a `cd` to an expansion, to `-`, to "
+          "nothing, above the row's own root, one this reader cannot attribute to a command, two "
+          "on one line with no subshell between them, a step declaring both spellings at once, and "
+          "a `defaults:` block on a cited job or its workflow, an argv whose flag has no value or "
+          "whose quote never "
           "closes, a PAIR_EXEMPT entry that expired, inverted, lost its pair or lost the token it "
           "excused, a tool pin bumped in ci.yml while the local half went on naming the old version, "
           "a local literal that drifted onto a DIFFERENT pin's value beside the tool it is not, and a "
@@ -4409,7 +4470,10 @@ def selftest() -> None:
           "through a function the local row names — every rung of the precedence ladder "
           "outranking the one below it, an opaque value on EITHER half, an expression "
           "standing where a prefix would, a throughput knob on either half, "
-          "and a redirection or a substitution sitting between a cargo command and its flags")
+          "a redirection or a substitution sitting between a cargo command and its flags, and a "
+          "directory the two halves spell differently and mean identically — a hosted `cd` "
+          "against a `working-directory:`, a local `bash -c 'cd …'` bare or behind a row "
+          "dispatcher, two subshells on one line, `./x/` against `x`, and a `cd .`")
 
 
 def _sub(t: str, path: str, a: str, b: str) -> None:
@@ -4508,7 +4572,9 @@ def main() -> int:
           "invocations, of a cargo subcommand both halves run, nor sets a semantics-bearing "
           "ENVIRONMENT variable on one half only or to a different value on the two halves — "
           "however each half spells it, an `env:` block on the workflow, the job or the step, "
-          "or an inline prefix on the command — and every version literal in the "
+          "or an inline prefix on the command — nor runs in a DIRECTORY the other half never "
+          "names, however each half spells that, a `working-directory:` or a `cd`, and every "
+          "version literal in the "
           f"tracked files under {PIN_TREE}/ is a version {HOSTED_HALF} pins today or is declared in "
           "PIN_FREE as something else, with every line that names a pinned tool carrying that "
           "tool\u2019s current pin, and every `--selftest` mode outside scripts/gates/ is passed that "
