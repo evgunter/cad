@@ -356,3 +356,69 @@ the part of that ground TCOST's charter is actually about.
 CI run `34563223900`: **33 success, 5 skipped, 0 failure** — the first
 fully green FIX run of the day, and the confirmation that VIEW's #2332
 cleared the rustdoc gate on `main`.
+
+### `tour-scenes-lift-componentwise-not-through-map` closed (PR 2341, 2026-09-11)
+
+**The filing's measurement was wrong in three ways, and the lane
+re-took it rather than inheriting it.** Population: **31 sites in 9
+files**, not the 26 in 8 the title lists. The filing's grep was
+single-line, so it missed every constructor `rustfmt` had broken across
+lines — three more in `twopeg.rs`, one each in `bossplate.rs` and
+`curvedcut.rs`, and the whole of `crosslap.rs`, a file the row never
+names. `paths.rs`, which the title lists, **does not exist and never
+did**. And `lily.rs` had been partly swept since the filing, so several
+of the line numbers named nothing.
+
+**Nothing moved, and that was measured rather than argued**: the
+release render's entire output tree is byte-identical to the merge
+base's — every STL, STEP, `scenes.json` and UV chart — and so is the
+k-probe sweep's 1 590 255-sample CSV. That second one is the row that
+could have moved, since `lily` is in the probe subset and its frame
+lifting changed.
+
+**The `from_frame` choice is inert in this corpus, which the row
+presented as consequential.** Both sites take `map`, because a frame
+this file composed at `f64` crosses once as a value — but `Scalar` is
+implemented for `f64` and `Probe` only, `Probe` is a transparent `f64`
+wrapper, and the tour never instantiates at `Interval`. At every scalar
+the tour actually runs the two spellings are bit-identical.
+
+Library gaps, filed rather than worked around in silence per
+`memories/demo-purpose.md`: `diechamfer.rs:100` keeps its tuples
+because `Point3` has no order and `Vec3` no sup-norm door —
+`work/props/point3-has-no-order-and-vec3-no-sup-norm-door.md`, the next
+instance of the class `vec3-point3-const-and-conversion-doors` closed
+on 2026-09-05. PROPS has no open PR; checked before filing this time.
+
+Kept beyond the letter of the sweep, deliberately: four sentences of
+crate doc in `main.rs` stating the layer rule and pointing at `lily`'s
+full statement. The rule now holds corpus-wide and a reader landing in
+`az.rs` had no pointer to it — that is the invariant the sweep
+establishes, and stating it is where a comment earns its place.
+
+### An orchestrator error that cost a lane a CI window
+
+The lane's PR sat from 04:31 to 04:40 with **no run at all**, and it
+reported the cause as GitHub suppressing workflow triggers for PRs
+opened through an app token. **That is not what happened**, and the
+measurement refutes it: PR 2334 was created at 04:07:58Z and its run
+was created at 04:08:02Z, four seconds later, on a head pushed before
+the PR existed; PR 2335 the same, at 04:11:30Z and 04:11:34Z. Opening a
+PR through the MCP tool triggers CI.
+
+What actually happened is the CONFLICTING-no-run class already recorded
+in `memories/agent-lane-operations.md` — and **this orchestrator caused
+the conflict.** The claim that moved this row from
+`work/code-quality/` into `work/fix/` landed on `main` from the
+orchestrator branch *while the lane was moving the same file*, which is
+precisely the merge conflict `work/README.md`'s one-file-one-item rule
+exists to produce. A CONFLICTING PR gets no run, silently, and none
+retroactively when the conflict clears.
+
+The rule that follows, and it is narrower than "do not touch item
+files": **the claim and the dispatch are one act.** A row claimed into
+this program is claimed in the commit that dispatches its lane, or the
+lane is told to do the move itself and the orchestrator keeps its hands
+off the file — never both. The lane did the right thing (it made its PR
+the claiming PR, per `work/README.md`) and paid for the orchestrator
+doing it too.
