@@ -110,6 +110,20 @@ Three properties every fuzzer needs, together:
   over the whole EFFORT = 1 population is a fine TRIPWIRE — it reds when
   the smoke level stops being one — but it is never the dial.
 
+  **A DIAL IS NOT A GATE, and the two populations are not the same.**
+  This rule is about FUZZING, and it can only reach a row whose counts
+  are multiples of `effort()`. A suite may be marked and gated without
+  being on the dial at all — 14 of the tree's 56 marked suites are not
+  (2026-09-11), including the most expensive one, whose cost is a fixed
+  budget constant the dial does not touch. For those "always run at
+  EFFORT = 1" is a no-op: there is no shallow mode to fall back to, so
+  the choice really is run or skip, and this rule does not decide it.
+  Such a suite is either cheap enough to run every time — nearly all of
+  them are — or it is placed deliberately, with its cost stated. **Do
+  not let this rule wave one through**: a marked suite that cannot be
+  turned down is a budget decision, and budget decisions are argued per
+  row.
+
   **The premise is that the binary is compiled ANYWAY, and there is one
   place it is not.** A kernel fuzz row costs only execution, because
   `build + archive` compiles it into the nextest archive whether or not

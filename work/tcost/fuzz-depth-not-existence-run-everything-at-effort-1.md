@@ -137,6 +137,52 @@ being argued about here lives in the cheap half of the run.
   `consider-proptest-for-randomized-sweeps` is the evidence it is small:
   finds are rare and diagnosis has not been burdensome.
 
+## EFFORT and depth, and the population gap between them (Ev, 2026-09-11)
+
+Ev asked whether effort and depth are different things here. **As words,
+no** — `effort()` is the dial and depth is what it buys, which is the
+vocabulary the harness already uses (*"Depth is bought deliberately, not
+paid for on every run — set `CAD_FUZZ_EFFORT=100`"*). Nothing in this
+proposal has two mechanisms hiding behind two names.
+
+**But the question found a real gap, and it is between the two
+POPULATIONS rather than between the two words.** This clause binds
+fuzzing, and it can only reach a row whose counts are multiples of
+`effort()`. The GATE's population is wider. Swept at `486557f5`:
+
+**14 of the 56 marked suites touch the fuzz harness not at all** — no
+`fuzz::`, no `scaled(`, no `effort()`:
+
+`bvh/tests/determinism.rs`, `bvh/tests/proximity.rs`,
+`editor-core/tests/m10_3_r1_probes_interval.rs`,
+`editor-core/tests/m4_pr1_eval.rs`, `editor-core/tests/m4_pr6_floats.rs`,
+`editor-core/tests/u8a_parse.rs`, `geom/tests/curves/boxes.rs`,
+`geom-brep/tests/cert5_r2_probes.rs`,
+`geom-core/tests/r1_p2_onb_probes.rs`, `mesh/tests/mesh8r2_probes.rs`,
+`profile/tests/canonical_invariance.rs`, `profile/tests/path_property.rs`,
+`step-import/tests/tcost_k3_import_certificate.rs`,
+`sweep/tests/tcost_k3_certificate.rs`.
+
+**The most expensive row in the whole gated set is in that list.**
+`m10_3_r1_probes_interval.rs` has no dial at all: its cost is
+`CHAMBER_LEAVES`, a fixed budget constant `CAD_FUZZ_EFFORT` does not
+touch. So for the one row that decides this proposal's price, "run
+everything at EFFORT = 1" is a **no-op** — there is no shallow mode to
+fall back to, and the choice really is run or skip.
+
+That is worth saying out loud because it is the seam where this ruling
+could quietly do the wrong thing: a rule whose whole safety argument is
+*"a broken marker costs depth, not existence"* has nothing to offer a
+suite with no depth to lose. The clause now says so and refuses to wave
+one through — such a suite is either cheap enough to always run (nearly
+all thirteen of the others are) or is a budget decision argued per row.
+
+It also sharpens the blocker: the diagnosis below is not "can we turn
+this row down". It has no dial, the leaf budget is not one either (a
+measured threshold with a deliberate margin and a floor assertion that
+reds on a cut), and so the only question left about it is whether its
+66-83 s is real.
+
 ## The one place the premise breaks: a separate cargo root
 
 Ev asked (in chat, 2026-09-11) whether the measurement includes *"the
