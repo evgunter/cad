@@ -141,6 +141,41 @@ with a link that goes nowhere. No error, because they are not at
 **This is why I recommend the rule change.** It costs one clause and
 leaves the tool, the notes and #1330's reason alone.
 
+## Ev, 2026-09-11: take the links AND delete the pass — and the spelling settles the last objection
+
+Ev's reading: better linking *and* a redundant pass deleted is a win,
+not a trade. **Measured, it is** — and the rendering objection above
+belongs to a spelling, not to the plan.
+
+Both forms of the same link, rendered rather than argued:
+
+| spelling | `--all-features`, `-D warnings` | default features, lint inert |
+|---|---|---|
+| ``[`crate::pane::viewport`]`` | resolves | prose reads `[crate::pane::viewport]` — **literal brackets leak** |
+| ``[`pane::viewport`](crate::pane::viewport)`` | resolves to `../pane/viewport/index.html` | prose reads `pane::viewport` — **identical to today**, dud href only |
+
+So the plan is: **make the lint inert on the default viewer pass,
+delete that pass as dominated, and spell these thirteen in the
+reference form.** All three of the costs recorded above dissolve except
+one — the notes at `theme.rs:9-12`, `vocab.rs:51-52` and
+`forms.rs:18-20` retire, which is a gain rather than a cost, since what
+they document stops being true.
+
+**The one real residue.** Deleting the pass means a future
+`cfg(not(feature = "app"))` arm gets no doc pass at all, silently —
+today there are zero, so the pass is dominated, but that is a property
+of this tree and not a guarantee. Either keep the pass with the lint
+inert (costs CI, keeps every non-link lint over such an arm) or delete
+it and guard that no such arm can arrive unnoticed. The choice is
+small; making it silently is the part that is not.
+
+**On spelling two ways.** `[`crate::X`]` is 1022 sites repo-wide and
+the closing PR's lane declined the reference form on consistency
+grounds. The reason to split is now measured rather than aesthetic, and
+it is narrow: the reference form is for a link crossing into a
+feature-gated half some pass does not render. That is a rule, not a
+preference, and it belongs at the site.
+
 ## The recommendation, corrected
 
 **It is the second, and the quantifier is CONDITIONAL — not existential,
