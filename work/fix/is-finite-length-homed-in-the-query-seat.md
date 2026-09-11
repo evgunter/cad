@@ -5,6 +5,7 @@ title: is_finite_length is a bare-scalar predicate homed in the kernel query sea
 status: review
 opened: 2026-09-04
 branch: fix/is-finite-length-home
+pr: 2349
 ---
 
 
