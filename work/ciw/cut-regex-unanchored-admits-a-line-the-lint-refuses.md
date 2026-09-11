@@ -2,8 +2,10 @@
 id: cut-regex-unanchored-admits-a-line-the-lint-refuses
 kind: issue
 title: The cut script's CUT_RE is anchored only at the start, so it admits a stamp line tess-lint refuses
-status: open
+status: review
 opened: 2026-09-08
+pr: 2324
+branch: ciw/cut-anchor
 ---
 
 
