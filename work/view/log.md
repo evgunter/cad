@@ -8571,3 +8571,49 @@ doc comments that said their first sentence twice were repaired in
 place (`datums.rs:201`, `:273`, `sketch.rs:1015`).
 
 **VIEW stands at 73 open / 73 closed, with nothing waiting on Ev.**
+
+## 2026-09-11 — #2343 merged; the out-of-fence table is not a repoint
+
+**#2343 on main** (merge `a2447044`): the skip-mode CI hole, FIX's third
+face of the silent-coverage class, and the ninth proxy instance. Docs
+tier, 21 jobs, `docs-only ok` and `gate ok` both success.
+
+**A convention defect found while reviewing #2348, and it is the
+orchestrator's rather than a lane's.** Implementer-discipline §6 has
+lanes REPORT another program's shifted citations and the orchestrator
+place them. Two lanes have now reported the same CHROME row with
+different answers — #2320 said `app.rs:1722-1723` → `1750-1751`, #2348
+said `1722` → `1732` — each correct about its own diff and neither
+correct once both land. An out-of-fence table is a statement about one
+diff against one base and expires as soon as another diff touches the
+file. **The table's value is the population it identifies, not the
+numbers beside it**; placing it means re-deriving by subject at placing
+time. Written into `plan.md`.
+
+**With a second half that is sharper**: the table asserts *should read
+X* for citations it never checked against their subjects. CHROME's
+`app-rs-doc-comment-merge-scars.md:24` cites `app.rs:1722-1723` for a
+sentence about `perform_batch`, which is at `app.rs:918` at that
+branch's base and at its head. Shifting that number makes the row worse
+while looking like a correction — the exact thing
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` names, which
+this program already refuses in fence and had no rule for out of it.
+
+**The proxy class reached ten and eleven in one census, both in #2348's
+lane, and it self-reported all of them.** Its citation pattern required
+a repo-rooted path where the tracker also writes bare filenames and
+line-only continuations; it then applied the correction as a SECOND
+pass over rows the first had already moved, double-shifting fifteen —
+and the content check meant to catch that compares the old file's line
+against the new file's line, so it verifies the shift MAP rather than
+the starting point and returned true on every wrong answer. **That is
+the best find of the session**: a check that cannot fail for the reason
+it was written.
+
+An eleventh, which reached a published PR comment: the resolver paired
+a line number from one citation with a filename token from elsewhere in
+the same row, reporting `.github/workflows/ci.yml:4030` as
+`README.md:4030` — and the correcting comment then named a third wrong
+file. Sent back. The verdict (strike those rows) was right both times;
+the stated reason was false both times, and it was published as a
+verification claim.
