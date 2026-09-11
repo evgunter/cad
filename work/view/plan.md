@@ -823,6 +823,37 @@ citations-after-the-split`, open); for the log half there is none, and
 the only instrument is a successor reading `git log` before believing
 the tail. Dispatches are written accordingly.
 
+### Two rules from the delta round-trip dispatch (2026-09-11)
+
+**A round trip that crosses a unit conversion cannot be closed by a
+spelling.** `crates/viewer/src/pane/view.rs`'s δ field seeds its draft
+with `format!("{in_force:.3}")` where `in_force = delta * 1.0e3`, and
+that same draft is what `lost_focus` parses and commits — so the seed
+has to round-trip. The obvious reading is that `{:.3}` is too coarse
+and a better format string fixes it. It does not. Measured over ~28,600
+sampled δ: seeding the **shortest round-trip spelling** and parsing it
+back through the `* 1.0e3` / `* 1.0e-3` pair still returns a different
+`f64` for **3,983 of them (~14%)** — e.g. `1e-09` → `1.0000000000000002e-06`
+→ `1.0000000000000003e-09`. The residue is 1 ULP, so it is not a visible
+wrong number, but on a commit path a different δ is a re-tessellation
+for a focus-and-leave that changed nothing. **The lossy step is the
+conversion, not the formatting**, so the only shapes that close it are
+the ones where an untouched field commits nothing. Generalises: before
+tightening a precision to fix a round trip, check whether the round trip
+crosses an operation that is lossy at every precision.
+
+**When the type's own doc already states the invariant, satisfying it
+is not a preference.** `crates/viewer/src/drafts.rs:33-37` documents
+`delta_mm` as the field *"in millimetres **as typed**. `None` whenever
+it does not"* — `Some` is documented to mean *typed*. `view.rs:81`'s
+`get_or_insert_with` makes `Some` mean *the field has focus*. The item
+filed against this called the make-untouched-unrepresentable shape the
+*preferred* one on taste grounds; it is in fact the one that makes the
+code match a written contract that is currently false, which is a
+different and much stronger argument. Generalises: when weighing fix
+shapes, read the doc comment on the **type** as well as the one on the
+function — a contract stated there converts a preference into a defect.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or

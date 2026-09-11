@@ -9026,3 +9026,49 @@ run went green, but a report that says *here is the PR* without a
 say to wait for it.
 
 **VIEW stands at 71 open / 78 closed, nothing waiting on Ev.**
+
+## 2026-09-11 — #2360 merged; the tracker was re-cut under us, and one lane dispatched
+
+**#2360 merged** (`bf6bdca140`), docs-only tier verified from the job
+list: **21 jobs, `docs-only ok` success, `gate ok` success**, the other
+17 skipped by the change filter. Its body was widened to cover #2361
+before the merge, so the three units it ratifies and the two
+corrections it records are all in the description rather than in a
+commit message.
+
+**`main` was re-cut while VIEW was mid-wave.** #2370 and #2371 split
+`work/issues/` and `work/code-quality/` into eleven programs; VIEW's own
+directory came through unchanged, but the slate now has neighbours it
+did not have this morning (`work/door/`, `work/wire/`, `work/suite/`
+among them). The merge into the orchestrator branch was clean. Worth
+recording because a dispatch written against the old layout would cite
+paths that moved — the standing rule about re-deriving item files from
+`main` before dispatching now also means re-deriving which *program*
+owns them.
+
+**A VIEW row arrived from outside.** The FIX orchestrator filed
+`seeded-draft-is-the-commit-path-and-does-not-round-trip` onto this
+slate (found by PR #2366's lane sweeping out of fence for
+fixed-precision renderers, verified and re-framed by FIX before
+filing). It is the sharpest row on the slate: the δ field's seeded
+draft **is** its commit path, so focusing the field and clicking away
+commits a value nobody typed — silently quantising δ to the nearest
+micrometre, or, below 500 nm, producing a refusal about a number the UI
+itself put in the box.
+
+Dispatched as `view/delta-round-trip` with two findings the item does
+not have, both recorded as rules in `plan.md`: that the item's
+seed-an-exact-spelling shape is arithmetically unachievable because the
+lossy step is the unit conversion (~14% of sampled δ fail to
+round-trip even at the shortest round-trip spelling), and that
+`drafts.rs`'s own doc already says `Some` means *as typed* while
+`get_or_insert_with` makes it mean *has focus* — which turns the item's
+stated *preference* into a written contract the code breaks.
+
+**Ev is handing off two rows personally** —
+`work/door/boolean-op-has-a-third-hand-written-complete-list` and
+`work/door/viewer-pathverb-all-hand-written-seventeen`. Both sit in
+DOOR rather than VIEW; neither is to be dispatched from here. The
+dispatch says so explicitly.
+
+**VIEW stands at 72 open / 78 closed, nothing waiting on Ev.**
