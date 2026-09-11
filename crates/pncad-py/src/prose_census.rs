@@ -1394,15 +1394,6 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
          work/issues/debug-in-prose-at-blend-and-step-import.md",
     ),
     (
-        "crates/sweep/src/blend/mod.rs",
-        "BlendError",
-        "site",
-        2,
-        "`BlendSite::Link` and `::Joint` are struct variants — a live panic,\
-         FILLET's, filed at\
-         work/issues/debug-in-prose-at-blend-and-step-import.md",
-    ),
-    (
         "crates/topo/src/boolean/voids.rs",
         "VoidInsertError",
         "e",
