@@ -57,19 +57,7 @@
 //!   it buys the door above is that [`datum_distance`] is arithmetic
 //!   all the way down.
 //!
-//!   **[`is_finite_length`] is a second thing here that is not a
-//!   selection question**, and unlike the one above it is public. It
-//!   takes a bare scalar, reads no [`Body`] and reaches no funnel: it
-//!   is the value-channel question that comes BEFORE a direction's
-//!   length is classified. Whether the predicate belongs here at all —
-//!   `geom-core` holds `Real`, `is_poison` and `Vec3::normalize`'s own
-//!   overflow note — is an open question for this seat's owner, filed
-//!   as `is-finite-length-homed-in-the-query-seat`; a live consequence
-//!   of the answer is that `profile`, which depends on `geom-core`
-//!   alone, cannot ask this question at all today
-//!   (`work/seat/two-d-director-doors-skip-the-finiteness-question`).
-//!
-//!   **[`decide_unit_direction`] is a THIRD, and it is a funnel site**
+//!   **[`decide_unit_direction`] is a SECOND, and it is a funnel site**
 //!   — the only public decide site in this module whose predicate NAME
 //!   comes from the caller rather than from here. It is the
 //!   workspace's one `Margin::norm3` decide-then-normalize body: this
@@ -106,6 +94,7 @@ use geom_brep::{SurfaceKey, SurfaceKind};
 use geom_core::k_stats::decide;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3,
+    is_finite_length,
 };
 
 use crate::body::Body;
@@ -452,61 +441,6 @@ impl core::fmt::Display for UnitVec3Error {
 }
 
 impl std::error::Error for UnitVec3Error {}
-
-/// **Is `x` a finite number at this scalar?** — asked through the
-/// value channel every [`Real`] has, with no bracket read and no
-/// threshold invented.
-///
-/// A finite value less itself is exactly zero; `∞ − ∞` and `NaN − NaN`
-/// are the scalar's poison. So the self-difference IS the question,
-/// which is why the equal-operands lint is allowed here and nowhere
-/// near it. An enclosure answers YES however wide it is (a finite
-/// interval's self-difference is a finite interval around zero, and an
-/// enclosure whose upper end overflowed still contains its truth) —
-/// the honest scope: this catches the point scalars, which is where an
-/// infinite length turns into a definite wrong answer.
-///
-/// One rule, one spelling, one CALLER — **and the claim is exactly
-/// that literal one**: [`decide_unit_direction`] is the workspace's
-/// only `Margin::norm3` decide-then-normalize spelling, and it is
-/// where this question is asked before that decision. It is NOT a
-/// claim that every length a direction is normalized by is asked
-/// about, and the difference is where the live holes are.
-///
-/// **Direction doors that decide a length and never ask whether it is
-/// finite**, each admitting a `1e200` component out of a DECIDED path
-/// (measured, and each one its own crate's to fix — the class is
-/// `work/seat/two-d-director-doors-skip-the-finiteness-question`):
-///
-/// - `geom-core`'s `linalg::frame::definitely_positive`
-///   ([`Margin::of`] on a norm, then `normalize` at four sites):
-///   `mirror_across_plane(p, (1e200, 0, 0), tol)` returns the
-///   IDENTITY — a mirror that mirrors nothing — and the door is
-///   public through `pncad-py`'s `Frame.mirror_across_plane`.
-/// - `sweep`'s `revolve::axis::AxisFrame::build` ([`Margin::norm2`],
-///   then `normalize`): a `RevolveAxis` of `(1e200, 0)` builds with a
-///   `(0, 0)` direction. `sweep` depends on this crate, so the
-///   predicate is reachable there — that hole is one line and a
-///   refusal arm.
-/// - this crate's own `sector_shape` (`Margin::of` on the shorter
-///   arm, then `normalize` on both): the same arithmetic collapses
-///   both arms to zero.
-/// - `profile`'s two 2-D director doors (`unit_from_components`,
-///   `arc_fillet::carrier_tangent`), which cannot reach this
-///   predicate at all: `profile` depends on `geom-core` alone and
-///   this crate sits above it.
-///
-/// One further site normalizes without deciding at all, which is a
-/// different shape and the declined half of the direction family:
-/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
-/// normalized OUTPUT). Its `Frame::rotate_then_translate` used to be
-/// the other; it decides here now, under its own role word, and
-/// refuses on the AXIS rather than downstream on the frame it built.
-pub fn is_finite_length<T: Real>(x: T) -> bool {
-    #[allow(clippy::eq_op)]
-    let residual = x - x;
-    !residual.is_poison()
-}
 
 /// **The direction-length decision, once**: is the length a finite
 /// number, which side of zero is it on, and — only then — the

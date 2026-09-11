@@ -10,7 +10,7 @@ opened: 2026-09-04
 ## The finding
 
 `geom-core`'s `Vec3::normalize` documents a symmetric pair of failure
-modes (`crates/geom-core/src/linalg/vec.rs:227-230`): components above
+modes (`crates/geom-core/src/linalg/vec.rs:238-242`): components above
 ~1e154 overflow `norm_squared` to +∞, components below ~1e-162
 underflow it to 0. PR #1738 closed the overflow end — `unit()` and
 `UnitVec3::new` both ask `is_finite_length` before deciding — and left
