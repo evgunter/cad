@@ -334,9 +334,14 @@ fn r1p5_the_axis_gates_third_outcome_is_unreachable_from_the_sweeps() {
     .expect("a quarter revolve")
     .body;
 
+    // ε is the ladder's, K is the run's: the gate's verdicts are what
+    // this row pins, and a verdict is `Err` exactly when a margin lands
+    // in (ε, K·ε) — so the escalate edge is the assertion's other half
+    // and has to be the K the run is configured at, not the default.
+    let k = tol.get().k;
     let mut escalations = 0;
     for e in [1e-30, 1e-24, 1e-20, 1e-18, 1e-17, 1e-16, 1e-14, 1e-12] {
-        let verdict = topo::is_axial(&wedge, Band::new(e, 10.0 * e).expect("band"));
+        let verdict = topo::is_axial(&wedge, Band::new(e, k * e).expect("band"));
         println!("[r1p5] wedge at eps={e:e}: {verdict:?}");
         match verdict {
             Ok(true) => {}
