@@ -548,9 +548,12 @@ demo-only and test-only units record no A/B row.
    `torus-sizing-reads-no-phi-window`; out-of-fence findings filed as
    `nurbs-cert-spends-the-bound-twice` and
    `sphere-sizing-margin-is-the-coupling-factor`.
-2. **`StableName` keying** — intern or hash-key the naming table so an
-   insert is O(1) in chain depth; every emitted and persisted name
-   byte-identical.
+2. **`StableName` keying** — landed (PR 2311): `NameRef`, a shared
+   handle with a per-table order stamp sealed at first operand use,
+   every name and byte unchanged; `die` 33.7 → 18.8 ms, the emitter
+   60 % → 27 % of boolean time with the per-name cost flat in chain
+   depth. Residual on the slate:
+   `naming-a-boolean-chain-is-theta-names-per-step`.
 3. **Per-face patches in local ids** — landed (PR 2308): lanes return
    `Patch { interior, triangles: [PatchVertex; 3] }` with
    `PatchVertex::{Shared, Local}`, bases assigned by an arena-order

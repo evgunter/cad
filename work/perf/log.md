@@ -395,3 +395,16 @@ on background monitors once and were corrected to foreground polling
 — corrections, not relaxations; the pairs stand. A reviewer's shared-
 target-dir hazard (one target serving two trees' example binaries by
 path-independent hash) is already in `memories/agent-lane-operations.md`.
+
+## PERF-2 merged (2026-09-11, PR 2311) — block PERF-B1 concludes
+
+Fix pass on `cb0621a0` (CI green): the seal walk's debug tripwire
+(mutation-checked both ways, 1.5 % with assertions on), a `table.rs`
+test module, epoch saturation, the four bypassing readers routed
+through the sharing doors, `NameTable`'s `Debug` without the cache
+flag, clones re-sealing, `names/README.md` present-tense, the residual
+filed (`naming-a-boolean-chain-is-theta-names-per-step`). Final: `die`
+33.7 → 18.8 ms, `name_emitter` 18.5 → 4.7 ms. All three B1 units are
+on main; the block record and the three A/B rows go to
+`docs/MODEL-AB-LOG.md` on their own branch off main now that no
+unstarted slot remains to leak.
