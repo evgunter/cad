@@ -78,3 +78,37 @@ than a user-visible row that silently shrinks. What makes it worth a
 file rather than a sentence is that two of the five assert
 exhaustiveness in their own prose, so the failure mode is a test whose
 doc says "every dimension" while it covers four of five.
+
+## Three more sites, and the blind spot that hid them (2026-09-11, the DOOR orchestrator)
+
+Added by the review of PR #2391. **The sweep behind the list above was
+shaped for `[…]` arrays**, the PR body disclosed that, and the file did
+not — which matters, because `work/README.md` is explicit that the file
+is what survives and a sentence in a merged PR body is not a schedule.
+The disclosure belongs here:
+
+**Blind spot: the sweep matched bracketed arrays only.** A complete
+enumeration written as consecutive statements has no brackets and was
+invisible to it. Re-run with a fourteen-line window over any spelling,
+three more turn up, each a complete hand-written enumeration of all four
+variants that asserts its own exhaustiveness in prose and would go
+silently four-of-five on a fifth dimension:
+
+- `crates/pncad-py/src/tests.rs:32-35` — `dimension_tags_are_stable`,
+  four consecutive `assert_eq!`s over `dimension_tag`. **Thirteen lines
+  above `:45`**, which the list above already names.
+- `crates/pncad-py/src/tests.rs:62-65` —
+  `canonical_units_match_the_gq5_ratification`, the same shape over
+  `canonical_unit`.
+- `crates/viewer/tests/panel_display.rs:876-881` — four hand-written
+  `FieldWriting::of` calls under the comment *"Each dimension keeps its
+  own tick"*. **This one is in `crates/viewer`**, the crate the closed
+  row was about, so the row's own territory was not swept clean by the
+  PR that closed it.
+
+**And this file's own count is a floor.** The heading above says five;
+with these it is eight, and the second sweep has a blind spot too — it
+cannot see an enumeration spread across more than fourteen lines, or one
+routed through a helper that takes a dimension and is called four times.
+Whoever takes this row states the population its own instrument finds
+rather than inheriting either number.
