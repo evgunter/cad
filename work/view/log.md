@@ -8757,3 +8757,44 @@ this unit reported `1722` → `1732`, both right about their own diff and
 neither right once both land. So a repoint is re-derived at PLACING
 time, by subject, and a citation already wrong at the base is disclosed
 rather than moved to a new wrong number.
+
+## 2026-09-11 — #2348 merged; one of thirty-one
+
+**`view/silent-withdrawals` is on main** (#2348, merge `88bacdd2fe`),
+green on the full code tier at `606555b9c8`: 38 check runs, twelve
+`test (…)`, five `k-lint (gate, …)`, `rustfmt + rustdoc (gate) +
+wasm32` and `gate ok` all success, six change-filter skips, no
+placeholders — read from the job list. `prune` reports the killed
+free-move gesture with its cause instead of throwing it away at the
+instant it has it, and `clear`'s silence is now a decision written at
+`clear` rather than an oversight.
+
+**The `clear` fork was settled on a typing fact, not the wording
+argument the item offered, and the lane was right to move it.** A
+`Withdrawn` carries a `DisplayFault` about a document, and the only
+document left to ask at `clear` is the replacement — where the ids mean
+other nodes, because `next_id` is a counter the `Doc` owns
+(`crates/editor-core/src/doc.rs:315`, `:380`). The lane implemented the
+item's own proposal and measured it: reopening the same file reports
+EMPTY while a hide, a placement and a drag in flight are all taken, and
+`NewDocument` reports `NoSuchNode { node: 0 }`. A report that cannot
+tell *nothing went* from *everything went* is worse than the silence.
+
+**The out-of-fence census came back one placeable of thirty-one**, and
+that is the result rather than an embarrassment: fifteen past EOF,
+seven subject-elsewhere, eight quotations. Written into `plan.md` with
+the reason the instrument could not see it — a shift map is arithmetic
+on an integer and cannot be wrong in its own terms.
+
+**Three corrections to my own messages, all the lane's and all
+standing.** `check-ci-mirror-parity.py` was never in its validation
+table, so there was no old result to carry and I said there was. The
+workspace count did NOT move as I predicted — `crates/mesh/src/
+nurbs_cert_fuzz.rs` changed by 71/13 lines and still declares three
+`#[test]`s, so 6848 held, and the lane checked rather than reporting
+the same number twice and hoping. And earlier: its "CI is blocked on
+your credential" was wrong, it was blocked on having nothing real to
+push — which it named as its own worst error of the lane, because it
+had offered a force-push to route around a diagnosis it had not
+checked. It was offered and refused; the merge that was owed on the
+merits was the answer, and it is what fired Actions.

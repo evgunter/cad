@@ -518,6 +518,20 @@ in two: entries whose citation names its subject at the old number, and
 entries that do not — the second group disclosed as already stale and
 never presented as a repoint.
 
+**And the measured answer, once #2348's lane actually ran the subject
+check over its own table: of 31 out-of-fence citations, ONE was a true
+shift.** Fifteen cite past the end of the file — relics of the
+pre-split 5,696-line `app.rs` against a 2029-line one — seven are in
+range with the subject elsewhere, and eight are quotations, rows whose
+text prints a citation as an EXAMPLE of a convention or quotes a
+diagnostic captured at a named sha. The arithmetic was confident on all
+thirty-one, because **a shift map is arithmetic on an integer and
+cannot be wrong in its own terms**: no diff can move a line that is not
+in the file, and nothing in `base[i]` vs `head[i + shift]` asks whether
+`i` exists. The cheapest check that catches the largest class is `wc
+-l`. Every out-of-fence table this program has emitted is suspect in
+the same way, #2320's included.
+
 **The resolver failure mode, which is the same proxy class one level
 down**: #2348's census mapped a line number belonging to one citation
 onto a filename token found elsewhere in the same row, so
