@@ -1654,3 +1654,42 @@ fuzz-dial` stays open: it is the one place the reproducibility floor this
 ruling assumes is not actually met.
 
 Board: eight live rows.
+
+## Unit: the gate's mount arm (2026-09-11)
+
+`gated-marker-path-mount` closed on candidate 2, the cheap one, on Ev's
+direction. `--gated-check` refuses a marker on any `crates/*/src` file
+another `src` file `#[path]`-mounts, naming the mounting file and line.
+Candidate 1 (resolve the mount) is on the record as sized and declined:
+refusing is exact, resolving has to be RIGHT, and a one-level resolver
+would derive a wrong prefix on a nested mount — this defect one level
+deeper.
+
+**The census had grown, and re-deriving it is what caught a reader bug.**
+The row named three mounts on 2026-09-03; there are seven at `76d4bb0d`
+(the original three, plus three new `geom-core/src/sym/` ones, plus the
+`mesh` lib mount the row had set aside). None carries a marker, so the
+tree is green from the first run — the guard changed, not the tree.
+
+Two shapes the reader had to get right, both live:
+
+- **Intervening attributes.** `crates/mesh/src/lib.rs:288` writes
+  `#[cfg(test)]`, `#[path]`, `#[allow(...)]`, then `mod`. The first draft
+  required the two to be adjacent, missed it, and reported a clean tree.
+  The census — seven expected, six found — is what caught it. Same lesson
+  as the sibling row the same day: **on both arms the first draft was a
+  reader that silently saw nothing, and both were caught by counting the
+  output against a census rather than by reading the diff.**
+- **A mount target need not be under `src/`.** That mesh mount reaches
+  `crates/mesh/tests/common/witness_bodies.rs`, which is now refused too
+  — stricter than the row's own note, and it names the mounting line,
+  which is the fact an author needs.
+
+Planted both directions in `gated-suite-paths.sh`, announced cross-fence
+as before: a marker on a mounted file must red (its paths otherwise
+valid, so the red can only be this arm), and a mounted file with no
+marker must pass — the live tree's own state, and what a gate firing
+there would red `main` over.
+
+Both gate-defect rows are now closed. Board: six live rows — the four
+latency rows, the demotions row, and `r1-probe-seeds-are-not-on-the-fuzz-dial`.
