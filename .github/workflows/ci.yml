@@ -216,9 +216,10 @@ concurrency:
 # (`build`, `build-interval`), each `cargo nextest archive` + artifact
 # upload, and thin RUN jobs that download the archive and only execute.
 #
-# cargo-nextest is the archive/run vehicle, PINNED here (single source of
-# truth for the version): 0.9.140, published 2026-07-05 — ~4 weeks old at
-# adoption (2026-08-03), past the 2-week dependency-age rule; a dev/CI
+# cargo-nextest is the archive/run vehicle, PINNED at this workflow's
+# `env:` block (the single source of truth for the version). The adoption
+# record: 0.9.140, published 2026-07-05 — ~4 weeks old at adoption
+# (2026-08-03), past the 2-week dependency-age rule; a dev/CI
 # tool only, never in any shipped build graph. Install is the official
 # get.nexte.st prebuilt at the pinned URL — no third-party action — via
 # the in-repo composite `.github/actions/install-nextest`, which caches
@@ -344,7 +345,7 @@ env:
 
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
-# rustup's toolchain-file override then auto-installs the pinned 1.97.0 with
+# rustup's toolchain-file override then auto-installs the pinned channel with
 # its components on the first cargo invocation. The pinned compiler (D9 / L2)
 # has a single source of truth — the toolchain file.
 #
@@ -525,7 +526,7 @@ jobs:
         run: rm -rf local-scripts .claude
       - name: classify the change set
         id: classify
-        # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned 1.97.0
+        # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned toolchain's
         # download: the script only runs `cargo metadata --no-deps`, which
         # parses the workspace manifests and neither builds nor resolves the
         # registry, so the compiler version is irrelevant — and if a future
@@ -1510,7 +1511,7 @@ jobs:
         run: |
           scripts/gates/bit-identity-consumer.sh --selftest
           scripts/gates/bit-identity-consumer.sh
-      - name: bit-identity debug-only guard (topo/source.rs)
+      - name: bit-identity debug-only guard (the subject list)
         run: |
           scripts/gates/bit-identity-debug-only.sh --selftest
           scripts/gates/bit-identity-debug-only.sh
@@ -2130,7 +2131,7 @@ jobs:
       #
       # Target install goes through `rustup target add` rather than the
       # toolchain action's `targets:` input on purpose: rust-toolchain.toml
-      # pins 1.97.0, and `rustup` resolves that directory override, so the
+      # pins the channel, and `rustup` resolves that directory override, so the
       # std artifacts land on the toolchain cargo will actually use.
       #
       # `!cancelled()` on both, for this job's stated reason: a formatting
@@ -3087,7 +3088,7 @@ jobs:
       # `default` leg — see the matrix comment on why not `env:`).
       #
       # `--no-fail-fast`, AND THE RUN SAYS SO (#1128). nextest's default is
-      # fail-fast — measured against the pinned 0.9.140, not inferred. The
+      # fail-fast — measured against cargo-nextest 0.9.140, not inferred. The
       # measurement, reproducible as written: a six-test crate with two
       # planted failures, run `--test-threads 1`, reports
       # `Cancelling due to test failure`, `1/6 tests run: 0 passed, 1 failed`
