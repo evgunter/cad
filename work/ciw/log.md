@@ -2602,3 +2602,80 @@ root, which is knowable and correctly recorded as "no directory"; the
 second normalises outside the tree, which the reader cannot resolve
 because it does not know where the row started. The test runs on
 `normpath`'s result, not on the spelling.
+
+## 2026-09-11 — unit 1 merged: the wasm viewer row denies, spelled through clippy
+
+PR 2326 (`1d5d6ff7`), run `34562914978` green, step 41 s under its new
+name. Item closed; two rows filed.
+
+**The unit inverted its own item, by measurement.** The item asserted
+that `cargo clippy -p viewer … -- -D warnings` is *scoped to `viewer`*
+while the `RUSTFLAGS` spelling denies across the whole path-dep graph —
+and flagged, honestly, that it was asserting this *"from how cargo caps
+lints, not from having run it."* Both lanes ran it. A dead item planted
+in `crates/editor-core` (a path dep, not `viewer`) exits 101 under
+**both** spellings; so does a `&Vec` param. The two differ on one axis
+only — clippy's own lints — which makes clippy strictly wider at the same
+cost (65 s vs 66 s cold, 4 vCPU). The clippy-only axis is real and
+measured: a `needless_return` in a wasm-only arm reds clippy and exits
+**0** under `RUSTFLAGS='-Dwarnings' cargo check` on the same probe.
+
+That is the item's own hedge paying for itself, and the bullet has been
+corrected where it stands rather than only in a `## Taken` section — a
+file that contradicts itself in place is quotable as a falsehood.
+
+**The flip's own fix was one spelling deep.** Both review lanes and this
+orchestrator independently found that `-D` in `SEMANTIC_FLAGS` matched
+only `-D warnings`; `-Dwarnings` is one token, never matched the key, and
+is the spelling the repo itself prefers (`RUSTFLAGS='-Dwarnings'`).
+Measured before the fix: both halves attached and the local half dropping
+the deny entirely → **rc=0, silent**, in exactly the population the table
+exists for. `ATTACHED_D_RE` now sits beside `ATTACHED_J_RE`. Re-verified
+here across five cases: the silent drop reds, and neither attached/attached
+nor attached-vs-spaced produces a false red.
+
+**And the fix turned up the same defect one file over, pre-existing.**
+The selftest derives one case per allowlisted flag and writes every
+value-taking one **spaced** — so `ATTACHED_J_RE`, the precedent this fix
+was modelled on, **had no case at all**. A guard for a guard, unguarded.
+Three cases added, `-j` included.
+
+**The blast radius was measured, not argued, and the seed key contains
+it.** `VIEWER_TOOLKIT_SEEDS = {viewer, pncad, bvh}` keyed on members whose
+own files changed: `editor-core` → false, `geom` → false, `bvh` → true,
+`Cargo.lock`/`TIER=all` → true. So a lane touching only kernel crates
+**cannot** be red on this viewer-named row. The second-order case is real
+and disclosed at the site: such a lane can introduce a wasm-arm lint
+nothing reads, and the next `bvh` or `TIER=all` lane eats the red for
+someone else's change. **Ev's 2026-08-27 viewer-CI-posture ruling is about
+cost — which changes fire — and this PR changes the verdict, not the
+trigger; `run_viewer_toolkit` is untouched. Not an `[ev]` question.**
+
+**The comment block, measured by both lanes.** 109 lines on `main` → 149
+at first push → **128** after the fix pass, defending four YAML lines and
+one command. Four consecutive paragraphs all saying "do not quote a
+number from here" collapsed to one; three history sentences deleted per
+§4; a three-line self-contradiction resolved (the block said the step
+builds "from nothing" while its neighbour said `rust-cache` restores it —
+a 17 s reading against a 66 s cold build settles that); a dangling
+"the same four runs" removed with its antecedent; and the measurement now
+prints its command and says RE-TAKE, which is the instrument its own
+neighbour fifteen lines up already used.
+
+The lane declined to get it to parity, and was right to: the remaining
++19 is a pre-existing paragraph it folded content into rather than
+rewrote, and rewriting someone else's prose unasked is not this unit's
+call. The `fmt` job is 615 comment lines over ~90 non-comment and
+`ci.yml` is 77% comments — that is a program-level row, not a unit's.
+
+**Also corrected**: two live `2 vCPU` premises (`:2747`, `:2863`) that
+outlived the runner switch — the population was six sites, not the three
+the first push stated — and the `--all-targets` cause, which is two
+independent items (`ThreadEvaluator` and `viewer::prefs::file`), not one.
+
+Filed: `a-source-attribute-can-silence-a-ci-deny-unread` (measured: one
+`#![allow(dead_code)]` at `crates/viewer/src/lib.rs`'s root returns the
+row to exit 0 with zero diagnostics, and nothing in the tree reads for
+it), and `kernel-wasm-row-denies-no-warnings` extended with the
+`--exclude pncad` hole and the unquantified overlap between the two
+wasm32 rows.
