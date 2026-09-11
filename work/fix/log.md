@@ -1018,3 +1018,252 @@ more `ValidationError` arms make the assumption this unit broke, two of
 them wrappers contributing four words (`"tier 3: {error}"`) over a
 carrier that names no repair in 0 of 2 and 1 of 9 of its literals. Six
 arms carrying `Indeterminate` are sound and are not on the list.
+
+### `direction-underflow-reports-zero-length` closed (PR 2359, 2026-09-11), and two residues filed that the PR only disclosed
+
+PR 2359 merged at 09:45 and **the item never left `review`** — the
+board carried a merged unit as in-flight until this orchestrator pass.
+Closed now. Worth naming rather than quietly fixing: the merge
+commit's own predecessor is `work: record PR 2359 on the underflow
+item`, so the lane wrote the header once, before merge, and nothing
+wrote it after. A unit that records its PR at open and closes at merge
+needs the second write to be somebody's, and on this program it is the
+orchestrator's.
+
+**Two residues were disclosed in the PR body and nowhere else**, which
+is exactly the shape `work/README.md` legislates against — a residue
+that lives in prose is invisible to the re-homing sweep and dies with
+the directory. Both now have files:
+
+- `underflow-gate-owed-at-five-more-doors` — the sweep's rows 2–6.
+  Re-verified against this head (all five `is_finite_length` call
+  sites still stand where the sweep put them), and narrowed to **four**
+  arms, because row 5's content turned out to be the second residue
+  rather than a missing arm.
+- `path-error-numbers-below-1e-9-render-as-zero` — row 5, and the PR
+  under-reported it. It filed the finding as *"the `num()` formatter
+  prints `1e-180` as `0`"*, which reads as an underflow symptom. It is
+  not. Executing `num`'s exact body over a range shows the threshold
+  is a hard-coded absolute `1e-9` (`tol = 1e-9 * x.abs().max(1.0)`,
+  where the `max` pins it for every `|x| <= 1`), so **`1e-12` and
+  `1e-30` render as `0` just as `1e-180` does, and `-1e-30` renders as
+  `-0`**. The kernel's unit is the metre, `num` is applied to `margin`
+  and `arm`, and a picometre margin is precisely the quantity a
+  tangency refusal exists to report. Three `Display` impls, 38 call
+  sites.
+
+The general lesson, since this is the second time this program has
+found it: **a lane's disposition column is a hypothesis about a site
+it did not take.** "Not this unit" was right in all five rows; the
+one-line characterisation attached to the row that got the most
+scrutiny was still wrong, in the direction of making the defect look
+narrower and more exotic than it is. The residue rows are worth
+re-executing at filing time, not transcribing.
+
+### `collapsed-string-continuations-ship-space-runs-to-users` closed (PR 2364, 2026-09-11)
+
+Twenty-seven rendered messages stop carrying a mid-sentence run of
+spaces. Every repair is one backslash; CI green on the full matrix
+(38 checks, twelve `test (…)`, five `k-lint (gate, …)`, nothing
+narrowed — verified against the check-runs API, not from the lane's
+report).
+
+**The item's own list was a third wrong in both directions**, which is
+the second time this program has caught that in one day. It named ten
+`src` sites; its own pattern returns 27 at the merge base, the line
+numbers had drifted, nine of its hits are **not the defect** (column
+alignment in printed tables, indentation after an explicit `\n`,
+Rust-source fixtures where the indent is the thing being matched), and
+nine genuine sites its pattern **cannot see at all** — three because
+the run follows an em dash or a colon rather than the
+`[a-z,.;)]` the pattern requires, three because they are in
+`demos/tour/`, outside the `crates/` it searched.
+
+**The worst site was not on the list and is not an assertion.**
+`crates/viewer/src/pane/create.rs:1133,1140` are
+`on_disabled_hover_text` and `on_hover_text` — text a GUI user reads
+with nothing wrong, carrying an 18-to-22-space gap.
+`editor-core/src/refactor.rs:304` is a `Display for SplitError`,
+shipped on an ordinary refusal.
+
+**The guard question is now answerable, and both of the closed row's
+guesses about it were wrong.** It routed the guard to CIW and proposed
+a threshold of four spaces.
+
+- **Not CIW's.** `work/ciw/program.md`'s `keep_out` says
+  `scripts/gates/*` is code-quality Track K's. And the grep option is
+  wrong regardless: the needle is *inside* string literals and
+  `gate_rust_code` builds the code-only view — the obstacle PR 1809
+  already routed around by writing its census in Rust. That census is
+  `crates/pncad-py/src/prose_census.rs` and it is the home.
+- **Four is inside the noise.** The lane classified every hit by hand
+  and measured both directions: at run ≥3 the pattern is 67% false, at
+  ≥4 it is 37% false, at ≥9 it is 7%. Every one of the 27 real sites
+  carries a run of **≥10** — a collapsed continuation swallows a whole
+  source indent and the shallowest here is ten columns — while
+  deliberate alignment clusters at 3 to 8. The closed row's threshold
+  sat inside the alignment cluster, which is exactly why its own hit
+  list was a third false.
+
+Filed as `collapsed-continuation-guard-belongs-in-the-prose-census`
+with the spec, the table, and the two things the lane refused to
+overclaim: that the final `= : -> |` exclusion is fitted to 43 hits
+and may not generalise, and that the source-text fixtures fall out
+under the run floor **by luck rather than by design** and will not
+keep doing so.
+
+**A measured false-positive rate is what a guard proposal owes and
+almost never carries.** The closed row asked for a gate and supplied a
+regex; what made the question decidable was a pass that ran the regex,
+looked at every hit, and reported where the classes actually separate.
+Worth asking for by default the next time a row proposes a mechanical
+guard.
+
+### `validate-drops-the-material-sign-refusal-silently` closed (PR 2365, 2026-09-11) — the item was wrong, and the lane was right to refuse the fix it asked for
+
+The row said `validate.rs`'s `Ok(Unencoded) | Err(_) => {}` was *"a
+refusal examined and discarded"*, *"arguably worse"* than the flatten
+class, and *"the shape A5's letter exists to forbid"*. I dispatched it
+question-first — establish reachability, and read A5 rather than the
+row's summary of it. Both instructions earned their place.
+
+**`Err(_)` IS reachable** — executed, not argued. The lane swapped the
+arm for a push and ran `sweep`'s
+`f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable`: five
+faces refuse (`FaceKey(1v5)`, `(11v9)`, `(14v7)`, `(17v3)`,
+`(18v15)`). So the arm is not deletable.
+
+**A5 is not about this.** A5 is `crates/editor-core/ASSEMBLY.md:164`,
+*"the at-rest gate"* — `assembly::assemble`, product gathering,
+`MintedDeclaration`/`RefusedRef`. It governs `editor-core`, not tier
+3's check 6, and forbids nothing here. It arguably cuts the other way:
+A5 has a *third* verdict (`Uncertified`) precisely so "not decided"
+need not be forced into the refusal channel.
+
+**And the raise the row asked for would have been a real regression —
+which the tree already documents at the site.**
+`crates/geom-brep/src/props/curved.rs:1174` says in terms:
+*"[`boundary_material_sign`]'s callers must treat an error as exempt
+(the check-7 posture)"*, and then names the exact failure: *"tier 3's
+curved check 6 raises a `CurvedSenseInverted` from the wrong ±1 and,
+check 7 being gated on `errors.is_empty()`, SUPPRESSES the honest
+`NotIsoRectangle` the flux lane raises on the same face."* The
+mutation run reproduced that sentence exactly — with the raise in,
+five `CurvedSenseInverted`s were the whole error vector and the
+`VolumeUncomputable` was gone. **The row proposed introducing a bug
+the code had already written down.**
+
+**So what landed is legibility plus a real pin.** The arm splits in
+two, each stating its own invariant — an ANSWER of "no side encoded"
+and an EXEMPT refusal are different events. No behaviour change.
+
+The durable half is the test. `m5_pr12_fix_pass.rs`'s one witness
+asserted through `format!("{errs:?}").contains("VolumeUncomputable")
+&& contains("NotIsoRectangle")` — a substring match over a Debug dump,
+which passes on any output carrying those words anywhere. It is now
+structural and pins **both halves including the negative**: no
+`CurvedSenseInverted`, AND a `VolumeUncomputable` carrying
+`NotIsoRectangle`. The exemption was load-bearing and unpinned; now
+turning it into a raise goes red.
+
+### The pattern under three items in one day
+
+`direction-underflow`'s residue characterisation, the
+collapsed-continuation site list, and now this row's A5 claim. Each
+was filed by a competent lane from a real sweep; each got the *shape*
+right and the *characterisation* wrong, in the direction of making the
+defect sound sharper than it was. The row that claimed the strongest
+authority — a named design clause — was the one that had not read it.
+
+The cheap defence is already in the reviewer brief and is worth
+promoting to how this program dispatches: **the dispatch is a
+hypothesis.** A row citing a clause gets "read the clause, not the
+row's summary" in its brief; a row citing a site list gets "re-derive
+it". Both instructions paid for themselves today, and neither costs a
+lane more than minutes.
+
+**Flagged, not actioned:** open PR **#2339** (PERF-6) also edits
+`validate.rs`, at or before ~line 2900 against this diff's ~4163. No
+textual conflict; whoever lands second should look.
+
+### Three more closed (PRs 2366, 2367, 2368, 2026-09-11)
+
+**`path-error-numbers-below-1e-9-render-as-zero` (PR 2366).** `num`'s
+absolute floor is gone: `tol = 1e-9 * x.abs()`, so the shortening is
+the same proposition at every magnitude. The lane went one step past
+the item and was right to. Fixing only the floor renders `1e-12` as
+`0.000000000001` — eleven zeros mid-sentence — so notation now follows
+the `Debug` form's own choice, fixed where `{:?}` is fixed and
+exponential where it is exponential. **That is not taste: the repo had
+already ruled on it in the other direction.**
+`crates/sweep/src/blend/mod.rs:276` records E3 review item 3, where one
+side printing `0.000000001` against a sibling's `1e-9` was the
+divergence that got fixed, **toward** `{:e}`. I checked the citation
+before accepting the widening. It also repairs a latent sibling:
+`num(1e300)` was 301 digits of refusal sentence. No pin moved, and the
+lane grepped for long-zero spellings to establish that rather than
+inferring it from a green run.
+
+**`debug-in-prose-at-blend-and-step-import` (PR 2367) — the live
+panic is closed.** Red-on-base proved in both directions against the
+real `reads_as_prose`, not a copy. The sentence was not invented:
+`prose_census.rs:2018` had already written down the target string for
+this exact site, and the lane took it. `EdgeKey`/`VertexKey` turn out
+to be **tuple**-shaped (`slotmap::new_key_type!`), so every sibling arm
+rendering `{edge:?}` directly is safe — this arm was the only live one
+in the file because it is the only one whose payload is an enum with
+struct variants.
+
+**`verb-error-arity-renders-verbkind-through-debug` (PR 2368), and the
+item was wrong about the defect.** It called `VerbKind` and `Arity`
+"both fieldless". `VerbKind` is not: it carries `Boolean(BooleanOp)`.
+So `{verb:?}` was writing **`Boolean(Subtract)`** into a user's
+sentence — the enum's internal coordinate, naming a `Boolean` door
+that does not exist in the kernel. Those three rows now say `Union` /
+`Intersect` / `Subtract`, which are the production doors. This was a
+wrong word reaching a user, not the style finding the row described.
+
+### The class nobody filed: rosters and pins that sample the safe case
+
+Two lanes found this independently today, in different crates, and it
+is worth more than either instance.
+
+- **PR 2367:** `recourse_tests::seeds()` sampled `Escalated` with
+  `BlendSite::Chain` — the **sole brace-free arm of three**. What
+  decides the rendering is the payload's variant, one level below the
+  variant the roster enumerates, so a roster that looked exhaustive
+  tested only the case that cannot fail. Both rosters in the fence had
+  it; both now seed all three sites.
+- **PR 2368:** `crates/verbs/tests/run_door.rs`'s byte pin covered six
+  sentences, every one a fieldless verb through a fieldless door —
+  **the one axis where `Display` and `Debug` agree exactly**. It could
+  not tell which trait had run. It grew a row that can.
+
+This is the reviewer brief's Q3 (*"a premise that excludes the failing
+mode"*) showing up twice in one wave, and in both cases the roster was
+*complete at its own level* and blind one level down. Neither would
+have been found by asking "is this tested" — only by asking "what
+input makes this row go red".
+
+**Standing instruction for this program's briefs, from here:** when a
+unit changes how a value is RENDERED, the lane owes an answer to *does
+any existing pin discriminate the old rendering from the new one* —
+and if the honest answer is no, the pin is part of the defect, not
+part of the baseline.
+
+### The characterisation drift, now at four of five
+
+Every unit in this wave but one had an item whose *shape* was right
+and whose *characterisation* was wrong, always making the defect
+sound narrower or more exotic than it was: the underflow residue's
+`num()` line, the collapsed-continuation site list, the validate row's
+A5 citation, and the verbkind row's "both fieldless". These rows are
+filed by competent lanes from real sweeps. The failure is not care;
+it is that a disposition line about a site you did **not** take is
+written from a reading, and nothing re-reads it before a lane builds
+on it.
+
+The two brief instructions that caught all four cost minutes each and
+are now standing for this program: **a row citing a clause gets "read
+the clause, not the row's summary"; a row citing a site list gets
+"re-derive it at your merge base".**

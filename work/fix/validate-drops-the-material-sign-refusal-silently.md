@@ -1,11 +1,12 @@
 ---
 id: validate-drops-the-material-sign-refusal-silently
 kind: issue
-title: validate.rs folds boundary_material_sign's Err into its Unencoded arm and raises nothing — a refusal examined and discarded
-status: review
+title: tier 3's curved check 6 EXEMPTS a refused material-sign derivation, and the code could not be read to say so
+status: closed
 opened: 2026-09-11
 branch: fix/validate-material-sign-refusal
 pr: 2365
+closed: 2026-09-11
 ---
 
 

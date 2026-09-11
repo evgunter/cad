@@ -2,10 +2,11 @@
 id: path-error-numbers-below-1e-9-render-as-zero
 kind: issue
 title: every PathError number below ~2e-9 renders as 0 (and a negative one as -0): num()'s absolute tolerance swallows exactly the margins these messages exist to report
-status: review
+status: closed
 opened: 2026-09-11
 branch: fix/num-absolute-floor
 pr: 2366
+closed: 2026-09-11
 ---
 
 

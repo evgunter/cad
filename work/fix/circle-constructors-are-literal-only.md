@@ -68,3 +68,46 @@ step with no doc telling them it is deliberate.
 `crates/editor-core/src/program.rs`, which `territory --base main`
 reports as **docm**'s. Filed on FIX's slate because FIX owns the
 polygon unit this was severed from; re-home by editing the header.
+
+## Disposition: 2, and the doc owes one more sentence than the row asks for (FIX orchestrator, 2026-09-11)
+
+**Taking disposition 2** — add no constructors, say at
+`LoopProgram::circle` that the struct literal is the parametric door
+and why. The row's reasoning is right and I checked its load-bearing
+claim rather than taking it:
+
+`circle` (`crates/editor-core/src/program.rs:1606`) and `circle_split`
+(`:1618`) are **pure struct-literal wrappers**. Neither expands:
+
+```rust
+pub fn circle(cx: f64, cy: f64, r: f64) -> Result<Self, DimensionError> {
+    Ok(LoopProgram::Circle { centre: [len_lit(cx)?, len_lit(cy)?], radius: len_lit(r)? })
+}
+```
+
+`CircleSplit` is its own variant carrying `n` and `phase`; the split
+happens at lowering, not in the constructor. So the polygon precedent
+does not transfer — `polygon` expanded into five steps, which is what
+made an unreachable builder mint a second expansion and then a third.
+There is no expansion here to hide and nothing that can drift. Adding
+`circle_expr` would put a third spelling of the circle door in the
+tree to save a `lit()` per argument.
+
+**What the row missed, and what the doc actually owes.** The
+constructors are not pure sugar. Their whole body is `len_lit(..)?`
+and `Expr::literal(phase, Dimension::Angle)?` — they are the
+**dimension-checking** door, and they return `DimensionError`. An
+author who writes the struct literal instead is not merely choosing a
+different spelling; they are taking a door with no dimension check at
+the point of construction.
+
+So a doc that says only *"the struct literal is the parametric door"*
+is incomplete and mildly misleading. It has to say where the
+dimensions of a parametric `centre`/`radius`/`phase` get checked
+instead. **Establish that before writing the sentence** — if the
+answer is "at evaluation", say so and name the site; if the answer is
+"nowhere", this row stops being a documentation unit and becomes a
+real gap, and it should be re-filed as one rather than papered over
+with the sentence it was about to get.
+
+That check is the unit. The sentence is the easy half.
