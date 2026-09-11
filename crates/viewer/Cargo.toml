@@ -199,15 +199,15 @@ wasm-bindgen-futures = { version = "0.4.76", optional = true }
 # memories/test-suite-cost.md) — used by the R2 review consumer suite.
 test-utils = { path = "../test-utils" }
 
-# `tests/index_memo.rs` includes `editor-core`'s corpus test tree by
-# path (the differential over every parametric corpus document), and
-# that tree names these crates directly. Dev-only: nothing shipped
-# reaches them through this crate.
+# `tests/all.rs` mounts `editor-core`'s corpus test tree (the
+# `corpus` and `fixture` symlinks beside it; `tests/index_memo.rs` is
+# the differential over every parametric corpus document), and that
+# tree names these crates directly. Dev-only: nothing shipped reaches
+# them through this crate, and none of them is a serde edge.
 geom-core = { path = "../geom-core" }
 topo = { path = "../topo" }
 geom-brep = { path = "../geom-brep" }
 profile = { path = "../profile", features = ["test-support"] }
-serde_json = { workspace = true }
 
 # --- the colourblind check's oracle (tests/theme.rs) ---
 #

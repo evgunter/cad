@@ -2163,6 +2163,12 @@ NOT_BOUND = {
     # tier 3 refuses it at rest.
     "EdgeDescription": INTERIOR,
     "Extruded": INTERIOR,
+    # The pick index's memo across pictures (PERF-5): a cache handle
+    # the viewer's index worker owns, threaded through
+    # `NodePick::build_with`. Python reaches the pick vocabulary through
+    # `NodePick`/`pick_face`, which answer the same either way; what
+    # the memo changes is the cost, not the answer.
+    "PickMemo": INTERIOR,
     "Extrusion": INTERIOR,
     "FilletLegShape": INTERIOR,
     "Filleted": INTERIOR,

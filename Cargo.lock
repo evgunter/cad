@@ -4205,7 +4205,6 @@ dependencies = [
  "pollster 1.0.1",
  "profile",
  "rfd",
- "serde_json",
  "test-utils",
  "toml",
  "topo",

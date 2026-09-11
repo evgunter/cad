@@ -207,6 +207,15 @@ fn every_suite_file_is_aggregated() {
 ///   pinned here so a second one moves this number. The four
 ///   operations are DEFINED in this file and called in none of it, so
 ///   its read column is empty; a definition is not a read. 1 + 1 = 2.
+/// - **`memo.rs` — 4 carriers, no reads.** The patch memo's key
+///   FOLDS ε: `FaceInputs::eps` (the field declaration), its
+///   initialiser `eps: ambient.eps` (two tokens — the field, and a
+///   raw f64 taken from the ambient `Tolerance`, NOT from `Eps`: it
+///   is bytes for a digest, never a band), and the key writer's
+///   `w.f64(self.eps)`. Nothing here decides against ε; the fold is
+///   what makes an ε change miss every face, so the memo can never
+///   serve a patch meshed under another band. 1 + 2 + 1 = 4, and no
+///   operation.
 /// - **`curved.rs` — 6 carriers, no reads.** Two hand-offs out of
 ///   `SizingTols` (`walk::loop_polygon`, `require_swept_rectangle`),
 ///   two `eps` parameters, one hand-off to `entries_off_bbox`, and
@@ -391,8 +400,9 @@ fn the_eps_inventory_is_pinned() {
     // The four operations, in the order the read column reports them.
     const OPS: [&str; 4] = ["separates", "coincident", "dominates", "pad"];
     // (file, ε CARRIER tokens, one READ count per op above).
-    const PINNED: [(&str, usize, [usize; 4]); 5] = [
+    const PINNED: [(&str, usize, [usize; 4]); 6] = [
         ("curved.rs", 6, [0, 0, 0, 0]),
+        ("memo.rs", 4, [0, 0, 0, 0]),
         ("sizing.rs", 2, [0, 0, 0, 0]),
         ("tessellate.rs", 2, [0, 0, 0, 0]),
         ("trimmed.rs", 1, [0, 0, 0, 1]),
