@@ -517,7 +517,17 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // (declared union), so undeclared and non-union ops pay nothing.
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
-    let connected = match bool_connect(&mut red, a, b, band, tol) {
+    // The join carves both reduction operands through the Euler
+    // operators; one scope per operand body, and what certifies the
+    // result is `gate` below, over the body they are finished into.
+    // The pair is guardless because the join takes the whole
+    // reduction — `BooleanReduction::enter_join_surgery` carries the
+    // argument — and `red` is a local of this pipeline, so a refusal
+    // on the way drops it.
+    red.enter_join_surgery();
+    let connected = bool_connect(&mut red, a, b, band, tol);
+    red.leave_join_surgery(connected.is_ok());
+    let connected = match connected {
         Ok(c) => c,
         Err(
             err @ (BooleanError::Join(_)
@@ -546,7 +556,14 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
-    let mut body = fin.body;
+    // The zip, the merge, the re-description and the closing mint are
+    // one door's surgery (`crate::surgery`): the operators inside them
+    // do not each re-derive the whole body, and `gate` below — tier 1
+    // AND tier 2 over the result, on every build — is what this door
+    // pays instead. The guard owns the borrow, so a refusal on the way
+    // closes the scope by dropping it.
+    let mut finished = fin.body;
+    let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
     let mut vertex_merges = Vec::new();
     let mut desc = Descendants::default();
@@ -584,6 +601,8 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // untouched bit-identically.
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
+    body.sweep_and_close();
+    let body = finished;
     gate(&body)?;
     volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
@@ -2061,7 +2080,7 @@ fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
                 }
             }
         }
-        *out = rebuilt.ok_or(corrupt("re-cut produced no body"))?;
+        out.adopt(rebuilt.ok_or(corrupt("re-cut produced no body"))?);
     }
     Ok((out_a, out_b))
 }

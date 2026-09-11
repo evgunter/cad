@@ -2228,6 +2228,34 @@ pub(crate) mod staleness_posture {
                 Maintains,
                 "calls `merge_coplanar_faces_declared`, which re-mints the staged result",
             ),
+            // ---- Maintains: the doors that re-mint their own staged
+            // result. They carry prose here rather than in
+            // `review_m1_pr5_internal::ALLOWED` because they assert
+            // tier 1 through a surgery scope (`crate::surgery`) and so
+            // are no longer allowlisted there; the two tables still
+            // have to cover this one population between them. ----
+            (
+                "merge_coplanar_faces_declared",
+                Maintains,
+                "re-mints the staged result before it is adopted, whenever the operand \
+                 carried rows",
+            ),
+            (
+                "replace_faces_offset",
+                Maintains,
+                "re-mints the clone whole-body before adopting it",
+            ),
+            (
+                "offset_planes_together",
+                Maintains,
+                "re-mints the moved faces' rows on the clone (`mint_pcurves_of`) before \
+                 adopting it",
+            ),
+            (
+                "offset_charts_together",
+                Maintains,
+                "the axial spelling of `offset_planes_together`, with the same re-mint",
+            ),
             (
                 "replace_face_offset",
                 Maintains,
@@ -2363,6 +2391,11 @@ pub(crate) mod staleness_posture {
                 "set_surface_field_source",
                 Neither,
                 "ParamSource metadata: a per-field side record beside the surface",
+            ),
+            (
+                "begin_surgery",
+                Neither,
+                "opens a debug-only surgery scope: no arena key, no pcurve row",
             ),
             ("set_null_face_pair", Neither, "null-face annotation"),
             ("clear_null_face_pair", Neither, "removes that annotation"),
