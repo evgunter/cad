@@ -891,6 +891,19 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 ///
 /// The radius is gated definitely positive on the same funnel predicate
 /// the `Center` leg mode uses: an anchor at the centre names no tangent.
+///
+/// **Finiteness before sign.** `|P − O|` past `Vec2::normalize`'s
+/// ~1e154 overflow band is ∞, which is maximally DEFINITE to the
+/// classifier: deciding the sign first answers `Positive` and the
+/// `turn / radius` scale below is `±0`, so the stored ray is the zero
+/// vector. An anchor at `(1e200, 0)` about the origin returned
+/// `Ok(Dir { unit: (-0, 0), ang: π })` before this question went
+/// first — an angle asserted over a ray of nothing.
+///
+/// **K consequence.** The refusal precedes the funnel, so such an
+/// anchor contributes no `path_arc_center_radius` sample; the one it
+/// used to contribute was a `+∞` margin recorded as a definite
+/// `Positive`.
 pub(crate) fn carrier_tangent<T: Decide>(
     p: Point2<T>,
     centre: Point2<T>,
@@ -899,6 +912,9 @@ pub(crate) fn carrier_tangent<T: Decide>(
 ) -> Result<Dir<T>, PathError<T>> {
     let v = p - centre;
     let radius = v.norm_squared().sqrt();
+    if !geom_core::is_finite_length(radius) {
+        return Err(PathError::NonFiniteDirection { dx: v.x, dy: v.y });
+    }
     match decide("path_arc_center_radius", Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),

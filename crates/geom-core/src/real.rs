@@ -608,34 +608,26 @@ pub trait Real:
 /// reach of the crates below it — `profile` depends on this crate
 /// alone — and a rule with two spellings is two rules.
 ///
-/// One rule, one spelling, one CALLER — **and the claim is exactly
-/// that literal one**: `topo::query::decide_unit_direction` is the
-/// workspace's only `Margin::norm3` decide-then-normalize spelling,
-/// and it is where this question is asked before that decision. It is
-/// NOT a claim that every length a direction is normalized by is asked
-/// about, and the difference is where the live holes are.
+/// **Every decide-then-normalize direction door in the workspace asks
+/// this first**, and the claim is the enumeration, not a generality:
 ///
-/// **Direction doors that decide a length and never ask whether it is
-/// finite**, each admitting a `1e200` component out of a DECIDED path
-/// (measured; each one its own crate's to fix, and every one of them
-/// can now reach this predicate — the class is
-/// `work/fix/two-d-director-doors-skip-the-finiteness-question`):
-///
+/// - `topo::query::decide_unit_direction` — the one
+///   [`Margin::norm3`](crate::Margin::norm3) spelling, behind the
+///   datum door and the evaluation layer's `unit()`;
 /// - this crate's own [`linalg::frame`](crate::linalg::frame)
-///   `definitely_positive` ([`Margin::of`](crate::Margin::of) on a
-///   norm, then `normalize` at four sites):
-///   `mirror_across_plane(p, (1e200, 0, 0), tol)` returns the IDENTITY
-///   — a mirror that mirrors nothing — and the door is public through
-///   `pncad-py`'s `Frame.mirror_across_plane`.
-/// - `sweep`'s `revolve::axis::AxisFrame::build`
-///   ([`Margin::norm2`](crate::Margin::norm2), then `normalize`): a
-///   `RevolveAxis` of `(1e200, 0)` builds with a `(0, 0)` direction.
-/// - `topo`'s own `sector_shape` (`Margin::of` on the shorter arm,
-///   then `normalize` on both): the same arithmetic collapses both
-///   arms to zero.
+///   `definitely_positive`, the one funnel its four normalizing sites
+///   share;
+/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+/// - `topo`'s `sector_shape`, which asks it of each bounding chord
+///   separately because its arm is their `min` and a `min` hides a
+///   non-finite chord behind a finite one;
 /// - `profile`'s two 2-D director doors (`unit_from_components`,
-///   `arc_fillet::carrier_tangent`), the two that could not ask this
-///   question at all while it lived above them.
+///   `arc_fillet::carrier_tangent`).
+///
+/// Each refuses with its own typed arm and its own sentence — one
+/// rule, one spelling, one recourse, five wordings of it — because
+/// what a caller can DO about an overflowed direction differs by
+/// door while the question does not.
 ///
 /// One further site normalizes without deciding at all, which is a
 /// different shape and the declined half of the direction family:

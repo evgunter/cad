@@ -153,7 +153,9 @@
 //! the boolean's `dir_start`).
 
 use geom_brep::OutwardNormal;
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decide, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3, is_finite_length,
+};
 
 use crate::validate::decide;
 
@@ -172,6 +174,25 @@ const SECTOR_REFLEX: &str = "sector_reflex";
 /// Rung 3's K name: the straight/spike disambiguation (`cos θ` levered
 /// at the arm), reached only when rung 2 is not definitely signed.
 const SECTOR_STRAIGHT: &str = "sector_straight";
+
+/// Why [`sector_shape`] refused.
+///
+/// Two causes, kept apart because their recourses are different
+/// sentences: a bounding chord whose length is not a NUMBER is not a
+/// coincidence at any tolerance and no tolerance lever reaches it,
+/// while everything the rungs themselves refuse is a band question
+/// carrying a classifier payload.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SectorFault {
+    /// A bounding chord's length is not a finite number: its
+    /// components overflow the norm (past ~1e154), or one of them is
+    /// not a number. Carries nothing — which of the two chords it was
+    /// is not a distinction a caller can act on, and the recourse is
+    /// the same either way.
+    NonFiniteChord,
+    /// A rung refused or escalated, named by the rung inside.
+    Rung(Indeterminate),
+}
 
 /// What the sector-shape rungs decided about one corner.
 #[derive(Clone, Copy, Debug)]
@@ -204,12 +225,36 @@ pub(crate) struct SectorShape<T: Real> {
 /// strut vertex), which is what makes a θ ≈ 0 / ≈ 2π reading
 /// legitimate rather than a spike.
 ///
+/// **Rung 0: are both chord lengths NUMBERS?** Asked before rung 1,
+/// and asked of each chord separately, because rung 1's arm is their
+/// `min` and `min` hides a non-finite chord behind a finite one. A
+/// chord past [`Vec3::normalize`]'s ~1e154 overflow band has an
+/// infinite norm; an infinite margin is maximally definite, so rung 1
+/// passes and the chord normalizes to the ZERO vector. Measured on
+/// this body before the question went first: with one finite chord,
+/// one overflowed, and `full_circle` set, the door returned `Ok` with
+/// `unit_next` and the bisector both the zero vector — a subdivision
+/// direction of nothing, out of a decided path. With `full_circle`
+/// clear, or with both chords overflowed, it refused — but at rung 3,
+/// as a spike or a poisoned straightness margin, naming neither the
+/// chord nor a recourse that could work.
+///
+/// **K consequence.** Rung 0 refuses before the funnel, so a
+/// non-finite chord contributes no sample under `sector_arm` (nor,
+/// where it used to reach them, under `sector_reflex` or
+/// `sector_straight`). Those samples were a `+∞` margin recorded as a
+/// definite `Positive` and two NaN margins recorded as escalations.
+/// Rung 0 emits no sample of its own: it is a value-channel question,
+/// not a classification, so it adds no row to `docs/K-REPORT.md`.
+///
 /// # Errors
 ///
-/// [`Indeterminate`], named by the rung that produced it: a `decide`
-/// escalation passed through unchanged, or a [`MarginDiag::Invalid`]
-/// diagnostic when a definite verdict is one this predicate does not
-/// admit (non-positive arm; a spike between distinct edges). Each lane
+/// [`SectorFault::NonFiniteChord`] when either bounding chord's
+/// length is not a finite number; otherwise [`SectorFault::Rung`]
+/// named by the rung that produced it — a `decide` escalation passed
+/// through unchanged, or a [`MarginDiag::Invalid`] diagnostic when a
+/// definite verdict is one this predicate does not admit
+/// (non-positive arm; a spike between distinct edges). Each lane
 /// wraps this in its own error type — the two wrappings are the only
 /// thing that was ever genuinely per-lane here.
 pub(crate) fn sector_shape<T: Decide>(
@@ -218,12 +263,16 @@ pub(crate) fn sector_shape<T: Decide>(
     normal: OutwardNormal<T>,
     full_circle: bool,
     band: Band,
-) -> Result<SectorShape<T>, Indeterminate> {
-    let arm = dir_own.norm().min(dir_next.norm());
+) -> Result<SectorShape<T>, SectorFault> {
+    let (norm_own, norm_next) = (dir_own.norm(), dir_next.norm());
+    if !is_finite_length(norm_own) || !is_finite_length(norm_next) {
+        return Err(SectorFault::NonFiniteChord);
+    }
+    let arm = norm_own.min(norm_next);
     match decide(SECTOR_ARM, Margin::of(arm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(invalid(band, SECTOR_ARM)),
-        Err(diag) => return Err(diag),
+        Err(diag) => return Err(SectorFault::Rung(diag)),
     }
     let (unit_own, unit_next) = (dir_own.normalize(), dir_next.normalize());
     // Wideness: sin θ = (b̂ × â)·n metered at the arm. Positive ⇒
@@ -259,7 +308,7 @@ pub(crate) fn sector_shape<T: Decide>(
                 // A spike corner between two distinct edges: refuse,
                 // never guess an interior direction.
                 Ok(Sign::Positive | Sign::Zero) => return Err(invalid(band, SECTOR_STRAIGHT)),
-                Err(diag) => return Err(diag),
+                Err(diag) => return Err(SectorFault::Rung(diag)),
             }
         }
     };
@@ -279,12 +328,12 @@ pub(crate) fn sector_shape<T: Decide>(
 /// addition plus a four-crate sweep — deliberately not folded into the
 /// unit that shared these rungs, and recorded here so the next pass
 /// finds the home rather than the method.
-fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
-    Indeterminate {
+fn invalid(band: Band, predicate: &'static str) -> SectorFault {
+    SectorFault::Rung(Indeterminate {
         margin: MarginDiag::Invalid,
         band,
         predicate: Some(predicate),
-    }
+    })
 }
 
 #[cfg(test)]
@@ -322,7 +371,7 @@ mod tests {
         own: Vec3<f64>,
         next: Vec3<f64>,
         full_circle: bool,
-    ) -> Result<SectorShape<f64>, Indeterminate> {
+    ) -> Result<SectorShape<f64>, SectorFault> {
         let n = OutwardNormal::from_chart(v(0.0, 0.0, 1.0), true);
         sector_shape(own, next, n, full_circle, band())
     }
@@ -371,8 +420,52 @@ mod tests {
     fn spike_between_distinct_edges_refuses_named() {
         let e = shape(v(1.0, 0.0, 0.0), v(1.0, 0.0, 0.0), false)
             .expect_err("a spike has no valid interior direction");
-        assert_eq!(e.predicate, Some("sector_straight"));
-        assert_eq!(e.margin, MarginDiag::Invalid);
+        assert_eq!(e, invalid(band(), "sector_straight"));
+    }
+
+    /// **Rung 0: a chord whose length is not a NUMBER.** A chord past
+    /// `Vec3::normalize`'s ~1e154 overflow band has an infinite norm,
+    /// which is maximally definite to the arm rung, and then
+    /// normalizes to the zero vector.
+    ///
+    /// Measured on this body at the merge base, all four shapes:
+    ///
+    /// - one chord finite, one overflowed, `full_circle` SET —
+    ///   `Ok(SectorShape { arm: 3.0, unit_own: (0,1,0), unit_next:
+    ///   (0,0,0), bisector: Some((0,0,0)) })`. A subdivision
+    ///   direction of nothing, reported as success. `min` is why the
+    ///   arm looked healthy: it hid the infinite norm behind the
+    ///   finite one, which is why rung 0 asks each chord separately
+    ///   rather than asking the arm.
+    /// - the other three shapes refused, but at rung 3
+    ///   (`sector_straight`), as a spike or a poisoned straightness
+    ///   margin — a refusal naming neither the chord nor a recourse
+    ///   that could work.
+    ///
+    /// The `full_circle` flag is carried through every row because it
+    /// is what separated the silent shape from the loud ones: a row
+    /// that only tested the loud shapes would have gone green on the
+    /// merge base.
+    #[test]
+    fn a_chord_with_no_finite_length_refuses_at_rung_zero() {
+        let big = 1e200;
+        for full_circle in [false, true] {
+            for (own, next) in [
+                (v(big, 0.0, 0.0), v(big, 0.0, 0.0)),
+                (v(0.0, 3.0, 0.0), v(big, 0.0, 0.0)),
+                (v(big, 0.0, 0.0), v(0.0, 3.0, 0.0)),
+                (v(f64::NAN, 0.0, 0.0), v(0.0, 3.0, 0.0)),
+            ] {
+                assert_eq!(
+                    shape(own, next, full_circle).err(),
+                    Some(SectorFault::NonFiniteChord),
+                    "{own:?} / {next:?} / full_circle={full_circle}"
+                );
+            }
+        }
+        // A finite pair still climbs the rungs — the row above cannot
+        // be passing because rung 0 refuses everything.
+        assert!(shape(v(0.0, 3.0, 0.0), v(2.0, 0.0, 0.0), false).is_ok());
     }
 
     /// The SAME reading on a one-edge orbit is the legitimate strut
@@ -393,8 +486,7 @@ mod tests {
     fn degenerate_arm_refuses_named() {
         let e = shape(v(1.0, 0.0, 0.0), v(0.0, 0.0, 0.0), false)
             .expect_err("a collapsed chord cannot meter the corner");
-        assert_eq!(e.predicate, Some("sector_arm"));
-        assert_eq!(e.margin, MarginDiag::Invalid);
+        assert_eq!(e, invalid(band(), "sector_arm"));
     }
 
     /// **The anti-re-fork row.** The three sector-shape K names are

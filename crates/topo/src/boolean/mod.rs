@@ -711,6 +711,17 @@ pub enum BooleanError {
         /// The shared edge whose two faces coincide.
         edge: EdgeKey,
     },
+    /// A vertex sector's bounding chord has **no finite length**: its
+    /// components overflow the norm (past ~1e154), or one of them is
+    /// not a number. Distinct from [`BooleanError::Escalated`] on
+    /// purpose — nothing about this is a band question, and no
+    /// tolerance lever reaches it.
+    NonFiniteSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
     /// A reduction/classification predicate escalated (in-band margin):
     /// the operand pair is ill-conditioned at this ε — a genuine
     /// sliver (F6). Never a snap, never a guess.
@@ -1213,6 +1224,8 @@ pub enum BooleanErrorKind {
     ScaffoldingOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
+    /// [`BooleanError::NonFiniteSectorChord`].
+    NonFiniteSectorChord,
     /// [`BooleanError::Escalated`].
     Escalated,
     /// [`BooleanError::UndeclaredCoincidence`].
@@ -1302,6 +1315,7 @@ impl BooleanError {
             }
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
+            Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
             Self::Escalated { .. } => BooleanErrorKind::Escalated,
             Self::UndeclaredCoincidence { .. } => BooleanErrorKind::UndeclaredCoincidence,
             Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
@@ -1557,6 +1571,12 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean: the result's pcurve mint pass refused (curved results carry \
                  certified per-half-edge pcurves at rest): {source}"
+            ),
+            Self::NonFiniteSectorChord { vertex, face } => write!(
+                f,
+                "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
+                 finite length \u{2014} its components overflow the norm, or one of them \
+                 is not a number; scale the geometry into the session's range"
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -2728,6 +2748,7 @@ mod tests {
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
+                BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",
                 BooleanErrorKind::Escalated => "Escalated",
                 BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
                 BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",

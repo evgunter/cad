@@ -9,7 +9,9 @@
 //! (span and apex margins — a vertex check alone cannot see an arc
 //! bulging across the axis).
 
-use geom_core::{Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{
+    Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3, is_finite_length,
+};
 use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
@@ -42,16 +44,33 @@ pub(super) struct AxisFrame<T: Real> {
 impl<T: Decide> AxisFrame<T> {
     /// Classifies the axis direction and builds the frame.
     ///
+    /// **Finiteness before sign.** An axis direction past
+    /// `Vec2::normalize`'s ~1e154 overflow band has an infinite norm,
+    /// which is maximally DEFINITE to the classifier: deciding the
+    /// sign first answers `Positive`, `normalize` then divides by ∞,
+    /// and the frame is built with `dir_sk = (0, 0)` — every radial
+    /// coordinate zero, every axial coordinate zero, out of a decided
+    /// path. So the length is asked whether it is a NUMBER first.
+    ///
+    /// **K consequence.** The refusal precedes the funnel, so a
+    /// non-finite axis contributes no `revolve_axis_direction` sample.
+    /// The sample it used to contribute was a `+∞` margin recorded as
+    /// a definite `Positive`.
+    ///
     /// # Errors
     ///
-    /// [`RevolveError::DegenerateAxis`] on a definitely-zero (or
-    /// coincident-with-zero) direction; [`RevolveError::AxisEscalated`]
-    /// on a sliver/poisoned length.
+    /// [`RevolveError::NonFiniteAxis`] on a direction whose length is
+    /// not a finite number; [`RevolveError::DegenerateAxis`] on a
+    /// definitely-zero (or coincident-with-zero) direction;
+    /// [`RevolveError::AxisEscalated`] on a sliver length.
     pub(super) fn build(
         place: Affine3<T>,
         axis: &RevolveAxis<T>,
         band: Band,
     ) -> Result<Self, RevolveError> {
+        if !is_finite_length(axis.dir.norm()) {
+            return Err(RevolveError::NonFiniteAxis);
+        }
         match decide("revolve_axis_direction", Margin::norm2(axis.dir), band)
             .map_err(|source| RevolveError::AxisEscalated { source })?
         {

@@ -826,13 +826,24 @@ class CheckRefusal(PncadError):
 
 class FrameError(PncadError):
     """A frame constructor refused its inputs — a direction that was
-    not DEFINITELY usable, or a tolerance yielding no usable band.
+    not DEFINITELY usable, a direction whose length is not a finite
+    number, or a tolerance yielding no usable band.
 
     `variant` is `degenerate_aim`, `degenerate_tangent`,
     `degenerate_roll_reference`, `degenerate_reference_ladder`,
-    `degenerate_mirror_normal`, or `band`. WHICH input was degenerate
-    is that word and nothing else: the tag is minted per input, so
-    there is no second attribute spelling the same fact.
+    `degenerate_mirror_normal`, the matching `non_finite_*` word for
+    the same five inputs, or `band`. WHICH input was degenerate is
+    that word and nothing else: the tag is minted per input, so there
+    is no second attribute spelling the same fact.
+
+    The `non_finite_*` words are a different situation from the
+    `degenerate_*` ones and are kept apart for that reason: the
+    direction is not zero and not in any band — its components
+    overflow the norm (past ~1e154) or one of them is not a number —
+    so lowering the tolerance cannot reach it and the recourse is to
+    scale the geometry into the session's range. Like an exactly-zero
+    degenerate refusal it carries no classifier payload: nothing was
+    classified.
 
     A degenerate refusal carries the classifier's payload when the
     margin landed in the ambiguity band, and carries none of it when
