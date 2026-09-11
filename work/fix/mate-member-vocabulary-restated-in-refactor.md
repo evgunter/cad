@@ -2,11 +2,12 @@
 id: mate-member-vocabulary-restated-in-refactor
 kind: issue
 title: refactor.rs restates the member vocabulary the same way the viewer did, and says so in its own comment
-status: review
+status: closed
 opened: 2026-09-04
 refs: [1405, 1748]
 branch: fix/refactor-member-vocabulary
 pr: 2338
+closed: 2026-09-11
 ---
 
 Found by CHROME's style lane while reviewing PR 1748, under the

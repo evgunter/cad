@@ -255,6 +255,12 @@ TIER_BLIND = (
     # checkout. Sited under `if: run_build` the change class that can break it
     # is the class that would skip it.
     "scripts/check-status-capture.py",
+    # The install-wrapper check. Its inputs are every workflow file, every
+    # composite action and every tracked shell script — `local-scripts/`
+    # among them, a tree that classifies TIER=docs and that every hosted job
+    # but `mirror` deletes at checkout. Sited under `if: run_build` the
+    # change class that can break it is the class that would skip it.
+    "scripts/check-install-wrappers.py",
     # The render-lane parity check. Its inputs are `.github/workflows/render.yml`
     # and `local-scripts/render-hosted.sh` — the second in a tree that
     # classifies TIER=docs and that every hosted job but `mirror` deletes at
@@ -357,18 +363,16 @@ MIRROR_EXEMPT = {
         "its `--selftest`, which ci.yml's tier-blind `mirror` job runs: it "
         "needs no root and no archive, so a developer runs it directly",
     ),
-    "scripts/criterion-emit.py": (
-        "hosted",
-        "the criterion benchmark lane's history writer. The lane is hosted-only "
-        "for the reason nightly.yml states at its key: the entries are "
-        "comparable only because one box class produced all of them, and a "
-        "developer box's milliseconds committed as a trend point are exactly "
-        "the failure memories/perf-measurement-lane.md was written about. The "
-        "HARNESS is not one-sided — `cd benches && cargo bench` is the right "
-        "local act and every number in this document came from it; what does "
-        "not mirror is stapling an environment block to a local reading and "
-        "committing it",
-    ),
+    # (`scripts/criterion-emit.py` was declared hosted-only here until
+    # 2026-09-11. The entry confessed two things at once: the LANE is
+    # hosted-only — a developer box's milliseconds committed as a trend point
+    # are what memories/perf-measurement-lane.md exists to distrust — while
+    # the same sentence admitted the HARNESS is not one-sided. The half that
+    # was not one-sided was the `--selftest`, which ran in nightly.yml alone;
+    # wiring it into both halves' `discipline` rows made both halves name the
+    # path, which expired the confession. The lane half of the reason now
+    # lives at ci-local.sh's row, which is the half that has to explain why it
+    # runs the guard and not the measurement.)
 }
 
 # Declared asymmetries in claim 2 (gate MODES). Empty, and that is the point:

@@ -362,7 +362,9 @@ use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::{
+    Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2, is_finite_length,
+};
 
 use crate::path::program::{ClosedLoop, Step, Target};
 use crate::sugar::{
@@ -1131,6 +1133,34 @@ pub enum PathError<T: Real> {
         /// The refused y component.
         dy: T,
     },
+    /// A vector a direction is derived from has **no finite length**:
+    /// its components overflow the norm (past ~1e154), or one of them
+    /// is not a number. Two doors raise it — the components director
+    /// ([`PartialPath::toward`]) and the arc carrier's tangent, whose
+    /// vector is the anchor's displacement from the centre.
+    ///
+    /// Distinct from [`PathError::ZeroDirection`] on purpose: the
+    /// direction is **not** zero, and that arm's recourse — scale the
+    /// components UP — is exactly backwards here.
+    ///
+    /// **The recourse is the ratio, not the geometry, wherever the
+    /// caller holds the numbers.** Both doors read only the ratio of
+    /// the components, so dividing the pair through by a common
+    /// factor is free and always sufficient. At
+    /// [`PartialPath::toward`] the caller spells the components and
+    /// can do exactly that; at the arc carrier's tangent they are a
+    /// displacement the caller does not hold directly, and moving the
+    /// authored geometry into range is the way to reach the same
+    /// division. Naming only the second would send a `toward` caller
+    /// to move geometry that does not need moving — the
+    /// wrong-recourse twin of the wrong-cause defect in
+    /// `memories/refusal-text-is-not-cause.md`.
+    NonFiniteDirection {
+        /// The refused x component.
+        dx: T,
+        /// The refused y component.
+        dy: T,
+    },
     /// A `Via` mode's through-point is within ε_input of the CHORD LINE:
     /// the three points name no arc. On the chord the construction
     /// degenerates to the straight segment; off the far end it
@@ -1281,6 +1311,8 @@ pub enum PathErrorKind {
     ArcContinueOffCarrier,
     /// [`PathError::ZeroDirection`].
     ZeroDirection,
+    /// [`PathError::NonFiniteDirection`].
+    NonFiniteDirection,
     /// [`PathError::ArcViaCollinear`].
     ArcViaCollinear,
     /// [`PathError::DegenerateArcChord`].
@@ -1330,6 +1362,7 @@ impl<T: Real> PathError<T> {
             Self::ArcContinueNeedsArcCarrier => PathErrorKind::ArcContinueNeedsArcCarrier,
             Self::ArcContinueOffCarrier { .. } => PathErrorKind::ArcContinueOffCarrier,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
+            Self::NonFiniteDirection { .. } => PathErrorKind::NonFiniteDirection,
             Self::ArcViaCollinear { .. } => PathErrorKind::ArcViaCollinear,
             Self::DegenerateArcChord { .. } => PathErrorKind::DegenerateArcChord,
             Self::ArcCenterNotEquidistant { .. } => PathErrorKind::ArcCenterNotEquidistant,
@@ -1591,6 +1624,16 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "a director spelled as components must name a direction (got \
                  ({dx}, {dy}), whose norm is within tolerance of zero): only the ratio \
                  of the components is read, so scaling them up costs nothing",
+                dx = num(dx),
+                dy = num(dy)
+            ),
+            Self::NonFiniteDirection { dx, dy } => write!(
+                f,
+                "a direction derived from ({dx}, {dy}) has no finite length \u{2014} its \
+                 components overflow the norm, or one of them is not a number; only the \
+                 ratio of the components is read, so divide them through by a common \
+                 factor \u{2014} or, where they are derived from authored geometry rather \
+                 than spelled, scale that geometry into the session's range",
                 dx = num(dx),
                 dy = num(dy)
             ),
@@ -2840,6 +2883,18 @@ impl Open {
 /// a norm within ε_input of zero cannot be normalized without
 /// amplifying its own noise into the ray. Only the RATIO of the
 /// components carries meaning, so the recourse is free — scale them up.
+///
+/// **Finiteness before sign.** Components past [`Vec2::normalize`]'s
+/// ~1e154 overflow band make the norm ∞, which is maximally DEFINITE
+/// to the classifier: deciding the sign first answers `Positive` and
+/// the two divisions below hand back `(0, 0)`. `(1e200, 0)` returned
+/// `Ok(Dir { unit: (0, 0), ang: 0 })` before this question went first
+/// — a stored director naming no direction, out of a decided path.
+///
+/// **K consequence.** The refusal precedes the funnel, so a
+/// non-finite pair contributes no `path_director_norm` sample; the
+/// one it used to contribute was a `+∞` margin recorded as a definite
+/// `Positive`.
 fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, PathError<T>> {
     let band = linear_band(tol)?;
     // `powi(2)`, never `dx * dx`: a director's components straddle zero
@@ -2849,6 +2904,9 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
     // poisons this `sqrt`. Gated by ci.yml's "interval-square powi(2)
     // allowlist".
     let norm = (dx.powi(2) + dy.powi(2)).sqrt();
+    if !is_finite_length(norm) {
+        return Err(PathError::NonFiniteDirection { dx, dy });
+    }
     match decide("path_director_norm", Margin::of(norm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::ZeroDirection { dx, dy }),
@@ -4114,5 +4172,91 @@ mod tests {
             arc_fillet::carrier_tangent::<f64>(Point2::new(4.0, 2.0), centre, ArcSweep::Ccw, band)
                 .expect("a real tangent");
         assert_eq!((t.unit.x, t.unit.y), (0.0, 1.0), "the stored ray is unit");
+    }
+
+    /// **The overflow end of both 2-D director doors.** Components
+    /// past `Vec2::normalize`'s ~1e154 band make the norm ∞, which is
+    /// maximally DEFINITE to the classifier, and the division that
+    /// follows collapses the ray to zero. Measured at the merge base,
+    /// both doors reported SUCCESS:
+    ///
+    /// - `unit_from_components(1e200, 0.0, witness)` →
+    ///   `Ok(Dir { unit: (0, 0), ang: 0 })`;
+    /// - `carrier_tangent((1e200, 0), origin, Ccw, band)` →
+    ///   `Ok(Dir { unit: (-0, 0), ang: π })` — an angle asserted over
+    ///   a ray of nothing. This door had never been executed at the
+    ///   overflow end before this row.
+    ///
+    /// Both now refuse [`PathError::NonFiniteDirection`], whose
+    /// sentence is NOT [`PathError::ZeroDirection`]'s: the direction
+    /// is not zero, and "scale the components up" is the wrong way
+    /// round.
+    #[test]
+    fn both_director_doors_refuse_a_length_that_is_not_a_number() {
+        let tol = Tol::witness();
+        let band = linear_band::<f64>(tol).expect("the linear band");
+        for (dx, dy) in [(1e200, 0.0), (0.0, 1e200), (1e200, 1e200), (f64::NAN, 1.0)] {
+            assert!(
+                matches!(
+                    unit_from_components::<f64>(dx, dy, tol),
+                    Err(PathError::NonFiniteDirection { .. })
+                ),
+                "components ({dx}, {dy})"
+            );
+            let got = arc_fillet::carrier_tangent(
+                Point2::new(dx, dy),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            );
+            assert!(
+                matches!(got, Err(PathError::NonFiniteDirection { .. })),
+                "carrier anchor ({dx}, {dy}): {got:?}"
+            );
+        }
+        // A finite pair still climbs: the rows above cannot be passing
+        // because the doors refuse everything.
+        assert!(unit_from_components::<f64>(3.0, 4.0, tol).is_ok());
+        assert!(
+            arc_fillet::carrier_tangent(
+                Point2::new(3.0, 4.0),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            )
+            .is_ok()
+        );
+        // The sentence names the cause and a recourse that can work
+        // AT BOTH DOORS, and is not the zero-direction sentence.
+        let s = PathError::NonFiniteDirection {
+            dx: 1e200_f64,
+            dy: 0.0,
+        }
+        .to_string();
+        assert!(s.contains("no finite length"), "{s}");
+        // The arm is shared by a door whose components are SPELLED
+        // (`toward`) and one whose vector is DERIVED (the arc
+        // carrier's tangent). Only the ratio is read at either, so the
+        // free recourse — divide the pair through — must be named
+        // first; sending a `toward` caller to move geometry instead
+        // would be a refusal naming the wrong recourse.
+        assert!(
+            s.contains("only the ratio of the components is read"),
+            "{s}"
+        );
+        assert!(s.contains("divide them through by a common factor"), "{s}");
+        assert!(
+            s.contains("scale that geometry into the session's range"),
+            "{s}"
+        );
+        assert!(!s.contains("scaling them up costs nothing"), "{s}");
+        assert_eq!(
+            PathError::NonFiniteDirection {
+                dx: 1e200_f64,
+                dy: 0.0
+            }
+            .kind(),
+            PathErrorKind::NonFiniteDirection
+        );
     }
 }

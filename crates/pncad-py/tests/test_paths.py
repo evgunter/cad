@@ -370,6 +370,12 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
         self.refuses("nonpositive_circle_radius", lambda: circle(ORIGIN, 0 * m))
         self.refuses("circle_split_count", lambda: circle_split(ORIGIN, 1 * m, 1, 0 * rad))
         self.refuses("zero_direction", lambda: Open.toward(0.0, 0.0))
+        # A director past the ~1e154 overflow band is NOT a zero
+        # direction and does not get that word: the norm overflows to
+        # infinity, which reads maximally definite to the sign gate,
+        # and the door used to return a stored ray of (0, 0) through
+        # this very call.
+        self.refuses("non_finite_direction", lambda: Open.toward(1e200, 0.0))
         self.refuses(
             "nonpositive_fillet_radius",
             lambda: Open.at(ORIGIN)

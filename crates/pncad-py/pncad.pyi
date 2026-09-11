@@ -826,13 +826,32 @@ class CheckRefusal(PncadError):
 
 class FrameError(PncadError):
     """A frame constructor refused its inputs — a direction that was
-    not DEFINITELY usable, or a tolerance yielding no usable band.
+    not DEFINITELY usable, a direction whose length is not a finite
+    number, or a tolerance yielding no usable band.
 
     `variant` is `degenerate_aim`, `degenerate_tangent`,
     `degenerate_roll_reference`, `degenerate_reference_ladder`,
-    `degenerate_mirror_normal`, or `band`. WHICH input was degenerate
-    is that word and nothing else: the tag is minted per input, so
-    there is no second attribute spelling the same fact.
+    `degenerate_mirror_normal`, `non_finite_aim`,
+    `non_finite_tangent`, `non_finite_roll_reference`,
+    `non_finite_mirror_normal`, or `band`. WHICH input was refused is
+    that word and nothing else: the tag is minted per input, so there
+    is no second attribute spelling the same fact.
+
+    **The two families are not the same length.** There are five
+    `degenerate_*` words and only four `non_finite_*` ones: the
+    reference LADDER is a pair of unit constants the kernel supplies,
+    not a vector you hand in, so it can be degenerate (neither rung is
+    off the tangent line) but never non-finite. No
+    `non_finite_reference_ladder` exists and none can be produced.
+
+    The `non_finite_*` words are a different situation from the
+    `degenerate_*` ones and are kept apart for that reason: the
+    direction is not zero and not in any band — its components
+    overflow the norm (past ~1e154) or one of them is not a number —
+    so lowering the tolerance cannot reach it and the recourse is to
+    scale the geometry into the session's range. Like an exactly-zero
+    degenerate refusal it carries no classifier payload: nothing was
+    classified.
 
     A degenerate refusal carries the classifier's payload when the
     margin landed in the ambiguity band, and carries none of it when
@@ -5499,9 +5518,11 @@ class CheckEvidence:
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,
     which is a fact about the CERTIFICATE and never a claim that the
-    two overlap. `separation_unavailable` (`reason`) — the machinery
-    could not be built over the product, so there is no verdict for any
-    pair."""
+    two overlap. `separation_unavailable` (`reason`,
+    `boolean_variant`) — the machinery could not be built over the
+    product, so there is no verdict for any pair, and
+    `boolean_variant` is which kernel boolean refusal that was, in the
+    vocabulary `EvaluationError.inner_kind` publishes."""
 
     @property
     def variant(self) -> str: ...
@@ -5517,6 +5538,8 @@ class CheckEvidence:
     def reason(self) -> Optional[str]: ...
     @property
     def inner_variant(self) -> Optional[str]: ...
+    @property
+    def boolean_variant(self) -> Optional[str]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class CheckFinding:

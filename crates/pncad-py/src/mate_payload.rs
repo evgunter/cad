@@ -343,6 +343,9 @@ fn with_frame(base: MateFaultPayload, error: &FrameError) -> MateFaultPayload {
             indeterminate: Some(diag),
             ..
         } => with_escalation(base, diag),
+        // A length that is not a number carries no classification
+        // either: the arm refused before any margin was classified.
+        FrameError::NonFiniteLength { .. } => base,
         FrameError::Band(inner) => with_band(base, inner),
     }
 }

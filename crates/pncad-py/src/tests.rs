@@ -618,7 +618,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         RecipeNodeId, Subgroup,
     };
     use pncad::geom_core::{
-        Band, BandError, BandField, FrameError, FrameInput, Indeterminate, MarginDiag,
+        Band, BandError, BandField, FrameError, FrameInput, FrameVector, Indeterminate, MarginDiag,
     };
 
     let id = RecipeNodeId;
@@ -684,6 +684,34 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             },
         },
         &["mate", "side", "inner_variant"],
+    );
+    // The same empty payload for a non-finite length, and for a
+    // sharper reason: nothing was CLASSIFIED, so there is no margin
+    // to publish rather than a margin that happened to be definite.
+    // `MateFrame::placement` calls `point_at` directly, so both of
+    // that door's non-finite words reach Python through this arm —
+    // the roll-reference one is pinned here because it is the site
+    // the unit found silently returning a degenerate frame.
+    carries(
+        &F::Frame {
+            mate: id(1),
+            side: MateSide::B,
+            error: FrameError::NonFiniteLength {
+                input: FrameVector::RollReference,
+            },
+        },
+        &["mate", "side", "inner_variant"],
+    );
+    assert_eq!(
+        mate_payload(&F::Frame {
+            mate: id(1),
+            side: MateSide::B,
+            error: FrameError::NonFiniteLength {
+                input: FrameVector::RollReference,
+            },
+        })
+        .inner_variant,
+        Some("non_finite_roll_reference"),
     );
     // An enclosure straddles rather than landing: two bounds and no
     // value, the `MarginDiag` fork the frame door publishes.
@@ -2948,7 +2976,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
         reason: "boxes refused".into(),
     };
-    carries(&unavailable, &["reason"]);
+    carries(&unavailable, &["reason", "boolean_variant"]);
 
     // The two arms that hold another door's refusal: its sentence and
     // its own word, which is the half a caller branches on.
@@ -2970,6 +2998,13 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     assert_eq!(
         check_payload(&E::Escalated { source: refused }).inner_variant,
         Some("zero_volume")
+    );
+    // The boolean class beside the sentence, and the two words are
+    // read off the same evidence: a consumer branching on this one
+    // never parses the prose to learn which refusal it was.
+    assert_eq!(
+        check_payload(&unavailable).boolean_variant,
+        Some("classification_invariant")
     );
 
     // The numbers and the sentence themselves, not just which fields
@@ -3083,13 +3118,24 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 #[test]
 fn every_validation_finding_carries_every_word_its_arm_has() {
     use crate::validation::{Finding, project};
-    use pncad::topo::{CensusContact, CensusSubject, EntityId, ValidationError};
+    use pncad::topo::{
+        CensusContact, CensusSubject, CensusUnsupportedCause, ContactRefusal, EntityId,
+        ValidationError,
+    };
 
     // The arm whose subject is ONE entity: the recourse is that
     // carrier's, so the kind of carrier is the word a caller acts on.
     assert_eq!(
         project(&ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Edge(Default::default())),
+            // The cause is threaded, not read: this crate projects
+            // the SUBJECT and has no word for the cause yet, which is
+            // LIB's row. `what` is production's own string, from
+            // `topo::boolean::contact_verify`'s Rest-ladder arm.
+            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
+                what: "a declared face's surface kind is outside the Rest ladder's \
+                       inventory (plane, sphere, cylinder)",
+            }),
         }),
         Finding {
             variant: "census_unsupported",
@@ -3472,6 +3518,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join",
             "join_desync",
             "merge",
+            "non_finite_sector_chord",
             "non_maximal_faces",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
@@ -3717,6 +3764,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_reference_ladder",
             "degenerate_roll_reference",
             "degenerate_tangent",
+            "non_finite_aim",
+            "non_finite_mirror_normal",
+            "non_finite_roll_reference",
+            "non_finite_tangent",
         ],
         delegates: &[],
     },
@@ -3911,6 +3962,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "transform",
             "tube",
             "undeclared_contact",
+            "underflowed_direction",
             "union_declare_step",
             "unschedulable_cycle",
             "verb_arity",
@@ -4034,6 +4086,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "junction_tangent",
             "no_corner_for_fillet",
             "no_corner_of_pair",
+            "non_finite_direction",
             "nonpositive_circle_radius",
             "nonpositive_fillet_radius",
             "nonpositive_leg",
@@ -4211,6 +4264,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "full_range_angle",
             "hole_touches_axis",
             "multiple_axis_runs",
+            "non_finite_axis",
             "non_manifold_axis_contact",
             "op",
             "pcurve",
