@@ -1047,6 +1047,19 @@ jobs:
         run: |
           python3 scripts/check-status-capture.py --selftest
           python3 scripts/check-status-capture.py
+      # THE LANE ROSTER THE HELPER WORKS FROM, HELD AGAINST THE ONE
+      # render.yml DECLARES: every lane fact in
+      # `local-scripts/render-hosted.sh` — the lanes, what `--lane all`
+      # expands to, each artifact, each committed directory, the jobs the
+      # poll waits for — is a statement about render.yml, and this
+      # compares them. Sited here for the same reason as the row above:
+      # its inputs are a workflow file and `local-scripts/`, a tree that
+      # classifies TIER=docs and that every hosted job but this one
+      # deletes at checkout.
+      - name: render lane parity (the helper knows the lanes render.yml declares)
+        run: |
+          python3 scripts/check-render-lane-parity.py --selftest
+          python3 scripts/check-render-lane-parity.py
       # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
       # its own rather than by association. `scripts/ci-filter.py` decides
       # whether every `if: run_build` job below runs at all, and its `docs`
