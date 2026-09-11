@@ -162,13 +162,22 @@ impl ViewerBehavior<'_> {
                     .hint_text("name")
                     .desired_width(90.0),
             );
-            for (dimension, label) in [
-                (Dimension::Length, "Length"),
-                (Dimension::Angle, "Angle"),
-                (Dimension::Count, "Count"),
-                (Dimension::Scalar, "Scalar"),
-            ] {
-                ui.radio_value(&mut self.drafts.new_param_dimension, Some(dimension), label);
+            // One button per dimension the KERNEL has, in its order
+            // and under its own word for it: the form offers the
+            // vocabulary and writes no copy of it — neither the
+            // membership, which is `Dimension::ALL`, nor the words,
+            // which are the `Display` that `editor_core::expr` calls
+            // the one home of the dimension-in-prose rule. A fifth
+            // dimension therefore arrives in this row with no edit
+            // here, and it arrives as the noun a person would say
+            // rather than as a capitalised variant identifier, which
+            // is what these four buttons used to read as.
+            for dimension in Dimension::ALL {
+                ui.radio_value(
+                    &mut self.drafts.new_param_dimension,
+                    Some(dimension),
+                    dimension.to_string(),
+                );
             }
             // The form authors in the canonical unit — a new
             // parameter's declaration names that notation
