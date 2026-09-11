@@ -1609,3 +1609,88 @@ finding whose stated mechanism does not hold. The lane disclosed its
 own uncertainty on exactly this point ("did not verify intent rather
 than inheritance"), which is what the no-review posture asks for and
 what made the check cheap to run.
+
+### `cert-check-renders-through-debug` (PR 2379) — the wave's one real rendering change, and the one that found its own pins
+
+`CertCheck` now says its own words through a `Display` on its
+declaring row, exhaustive and wildcard-free, and `CertifyError`'s
+three arms forward. 21 variants, arms re-derived at **370, 412, 420**
+(the item said 369 for the first).
+
+**The decision went to the PHRASE, not the identifier** — `the
+out-of-halfplane component`, not `SeamHalfplane` — and the argument
+that settled it is one the item did not have. The item reasoned from
+"these are not doors anyone CALLS", which is true and is why
+PR 2368 went the other way for `VerbKind`. The lane found something
+stronger in the file itself: **every other arm of that same `Display`
+is English prose, and one of them already names a member of this very
+taxonomy in prose** — `NotSecondOrderSeparated` writes *"the
+tangency's second-order margin (relative transverse normal curvature,
+tangent_second_order)"*, which is `CertCheck::TangentSecondOrder`
+(`certify.rs:386`). The file had already decided; the three
+`{check:?}` arms were the ones out of step. Checked before merging.
+
+**And the hardcoded noun was measurably wrong.** `ResidualExceeded`
+wrote *"{check} **residual** at sample …"* for all fifteen checks that
+reach it, and **five of those meter no residual** — two sup bounds, a
+parallelism defect, a component, an excess. So the word carries the
+KIND of quantity and the sentence keeps only the grammar. That is a
+wrong word reaching a user, the same shape PR 2368 found under a row
+filed as a style finding, and it was invisible to the item.
+
+**Instruction 3 did the most work here of anywhere in the wave.**
+Four existing pins carried the rendered word, all `to_string()`
+(Display), all re-baselined, all discriminating. **Two of the four
+were on no list and the lane's own first grep missed them too** —
+`SEAM_HALFPLANE_ESCALATED` matches neither "residual at sample" nor
+"not a sampled check". What found them was sweeping all 21
+identifiers inside string literals, and the blind spot is stated
+rather than buried. Two further pins read `Debug`
+(`poleguard.rs:143`, `recognize_pins.rs:344`, both
+`format!("{e:?}")`) and correctly stay green: they pin the
+coordinate, which this unit deliberately leaves alone. **Telling those
+two classes apart is the whole of instruction 3** — had they been
+Display pins they would have been part of the defect.
+
+Three new rows in `certify.rs`'s own module so the unit does not lean
+on a downstream corpus, each proven red-capable **by mutation rather
+than by argument**. One of them asserts that no check's phrase IS its
+identifier — which is what makes every row able to tell `Display` from
+`Debug`, and is the direct answer to PR 2368's weak-pin lesson.
+
+**A judgement call the lane flagged for overruling, and I checked it
+rather than accepting it.** `check_residual` takes both a
+`&'static str` predicate name and a `CertCheck`, hand-paired at 18
+call sites — the shape of two vocabularies that drift. The lane
+judged it not a defect because the pairing is deliberately
+many-to-one, and filed nothing. Verified: `CertCheck::Surface1Residual`
+is reached as `carrier_on_surface_1` (`certify.rs:1681`) and as
+`tangent_on_surface_1` (`:1723`), one per certification lane. Two
+vocabularies serving different purposes — a funnel name against a
+taxonomy coordinate — not one restated twice. The judgement stands and
+no file is owed.
+
+### Wave closed: five dispatched, five merged, and what the slate looks like
+
+PRs **2372, 2373, 2374, 2377, 2379**. Slate **19 → 17 open** (four
+closed, two new rows filed: `census-witness-string-repeats-the-subject`
+and `fixed-band-literals-are-an-unscoped-class`), **35 closed**.
+
+**Four of five units closed by refuting their own row**, and the fifth
+(`band-helper`) closed its half only after correcting counts that were
+wrong in three successive tellings. Every one of these rows was filed
+by a competent lane from a real sweep. The defects were real in all
+five; the *characterisations* were wrong in four, always in the
+direction of sounding sharper or narrower than the truth.
+
+**What the no-review posture actually cost and bought.** Nothing was
+caught late, and nothing merged that a reviewer would have stopped —
+but that is not because the risk was absent. It is because every
+brief carried "execute, do not read" and every lane reported its own
+uncertainty, which is what let the orchestrator check the four
+load-bearing claims cheaply before each merge (the `Band::linear`
+equivalence chain, the `CensusSubject` settlement, `Expr::literal`'s
+refusals, the many-to-one `check_residual` pairing). **The posture
+works on the condition that the disclosed-uncertainty half is
+actually honoured.** A lane that smooths over its doubts under this
+posture ships unreviewed and unexamined at once.
