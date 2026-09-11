@@ -2,10 +2,11 @@
 id: wasm-row-warning-debt-comment-names-a-closed-item-and-a-deleted-symbol
 kind: issue
 title: ci.yml's wasm-row warning-debt comment describes a state that has been resolved, and names a symbol that no longer exists
-status: review
+status: closed
 opened: 2026-09-10
 pr: 2326
 branch: ciw/wasm-warning-debt
+closed: 2026-09-11
 ---
 
 

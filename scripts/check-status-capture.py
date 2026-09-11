@@ -93,7 +93,15 @@ SHELL_SUFFIXES = (".sh", ".bash")
 SHEBANG_RE = re.compile(rb"^#!.*\b(?:ba)?sh\b")
 
 RUN_KEY = re.compile(r"^(?P<lead>\s*(?:-\s+)?)run:(?P<rest>.*)$")
-BLOCK_SCALAR = re.compile(r"^\s*\|[-+]?\s*$")
+# A LITERAL BLOCK HEADER IS MORE THAN `|`: YAML allows an indentation
+# indicator and a chomping indicator in either order and a comment after
+# them, so `|2`, `|2-`, `|-2` and `| # note` are all `run: |`. Matched as
+# only `|[-+]`, those four fell through to the INLINE arm, where the header
+# text scanned as one harmless word and the BODY WAS NEVER READ — a body
+# that parses to nothing, reported as agreement. Anything else opening with
+# `|`, `&` or `*` Bails rather than being read as a command.
+BLOCK_SCALAR = re.compile(r"^\s*\|(?:[1-9][-+]?|[-+][1-9]?)?\s*(?:#.*)?$")
+YAML_STRUCTURE = "|>&*"
 
 # Reserved words that OPEN a compound command, and the ones that CLOSE one. A
 # compound is a single command; its closer resolves back to its opener, which
@@ -460,6 +468,41 @@ def count_reads(body: str, first_line: int = 1) -> int:
     return sum(1 for u in scan_units(body, first_line) if u.reads)
 
 
+def _plain(path: str, lineno: int, scalar: str) -> str:
+    """The shell inside an inline `run:` scalar, YAML quoting removed.
+
+    `run: "cargo test … m4_pr8_latency::"` is a QUOTED YAML scalar, and
+    handing it to the shell reader with its quotes on makes the whole command
+    one quoted word: a single-quoted body then reads as ZERO commands, so a
+    `PIPESTATUS` defect written that way is not a violation and not a Bail —
+    it is nothing at all. A scalar that opens with a quote and does not close
+    at its end is a YAML shape this reader does not know, and refuses.
+    """
+    if scalar[:1] not in ("'", '"'):
+        return scalar
+    quote, out, i = scalar[0], "", 1
+    while i < len(scalar):
+        ch = scalar[i]
+        if ch == quote:
+            if quote == "'" and scalar[i + 1 : i + 2] == "'":
+                out += "'"  # YAML doubles a single quote to escape it
+                i += 2
+                continue
+            if i == len(scalar) - 1:
+                return out
+            break
+        if quote == '"' and ch == "\\" and i + 1 < len(scalar):
+            out += scalar[i + 1]
+            i += 2
+            continue
+        out += ch
+        i += 1
+    raise Bail(
+        f"{path}:{lineno}: a `run:` scalar that opens with {quote!r} and does "
+        "not close at its end; this reader does not know that YAML shape"
+    )
+
+
 def yaml_bodies(path: str, text: str) -> list[tuple[int, str]]:
     """Every `run:` shell body in a workflow or composite action, as
     (first line, body)."""
@@ -479,7 +522,12 @@ def yaml_bodies(path: str, text: str) -> list[tuple[int, str]]:
                 raise Bail(f"{path}:{i + 1}: a `run:` with no scalar and no block")
             if stripped.startswith(">"):
                 raise Bail(f"{path}:{i + 1}: a folded `run: >` scalar is not read")
-            bodies.append((i + 1, stripped))
+            if stripped[0] in YAML_STRUCTURE:
+                raise Bail(
+                    f"{path}:{i + 1}: a `run:` value opening with {stripped[0]!r} "
+                    "that this reader does not recognise as a block header"
+                )
+            bodies.append((i + 1, _plain(path, i + 1, stripped)))
             i += 1
             continue
         body: list[str] = []
@@ -1039,6 +1087,50 @@ def selftest() -> int:
         else:
             print("  ok  (red  )  the defect in an inline `run: cmd` scalar")
 
+        # A QUOTED inline scalar is shell too. Read with its quoting on, a
+        # single-quoted body is one word and the defect inside it is neither
+        # a violation nor a refusal — it is nothing at all.
+        _write(pop, ".github/workflows/ci.yml",
+               "jobs:\n  a:\n    steps:\n"
+               '      - run: \'cmd | tee f || s=$?; s=${PIPESTATUS[0]:-$s}\'\n'
+               '      - run: "cmd | tee g || s=$?; s=${PIPESTATUS[0]:-$s}"\n')
+        _add(pop, ".github")
+        outcome, failures = _tree_outcome(pop)
+        if outcome != RED or len(failures) != 2:
+            bad += 1
+            print(f"SELFTEST FAIL: quoted `run:` scalars, got {outcome} {failures}")
+        else:
+            print("  ok  (red  )  the defect in a QUOTED inline `run:` scalar, "
+                  "single- and double-quoted")
+
+        # A block header carrying an indentation or chomping indicator, or a
+        # trailing comment, is still `run: |`. Read as an inline scalar, the
+        # header is one harmless word and the body is never read at all.
+        for header in ("|2", "|2-", "|-2", "| # install"):
+            _write(pop, ".github/workflows/ci.yml",
+                   "jobs:\n  a:\n    steps:\n"
+                   f"      - run: {header}\n"
+                   "          cmd | tee f || s=$?\n"
+                   "          s=${PIPESTATUS[0]:-$s}\n")
+            _add(pop, ".github")
+            outcome, failures = _tree_outcome(pop)
+            if outcome != RED:
+                bad += 1
+                print(f"SELFTEST FAIL: `run: {header}` body not read, "
+                      f"got {outcome} {failures}")
+            else:
+                print(f"  ok  (red  )  the defect under a `run: {header}` header")
+
+        # An anchor is a YAML shape this reader does not know.
+        _write(pop, ".github/workflows/ci.yml",
+               "jobs:\n  a:\n    steps:\n      - run: &r |\n          cmd\n")
+        _add(pop, ".github")
+        if _tree_outcome(pop)[0] != BAIL:
+            bad += 1
+            print("SELFTEST FAIL: a `run: &anchor |` was read as agreement")
+        else:
+            print("  ok  (bail )  a `run:` value this reader cannot recognise")
+
         # A composite action's `run:` is the same CI, by a path the workflow
         # glob does not reach.
         _write(pop, ".github/workflows/ci.yml", _WF_STUB)
@@ -1082,8 +1174,8 @@ def selftest() -> int:
         print(f"\n{bad} selftest row(s) failed.")
         return 1
     print(f"\nselftest: {len(MUTANTS)} mutants x {len(routes)} routes "
-          f"({'; '.join(routes)}), each asserted on its own tree, plus 6 "
-          "population and refusal rows — all as specified.")
+          f"({'; '.join(routes)}), each asserted on its own tree, plus the "
+          "population and refusal rows above — all as specified.")
     return 0
 
 

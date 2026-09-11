@@ -101,102 +101,73 @@ was written against the instance rather than the property**, in four of
 seven units and from both ends, and what caught every one of them was
 injecting the failure and watching the row stay green — never reading.
 
-## The third slate
+## The third slate landed (2026-09-11)
 
-The 2026-09-11 re-read, against the tree rather than inherited, as the
-last two re-reads were. Twenty-one rows were open at the start of it and
-the premises of the seven that became units were re-checked on `main` at
-`c04546d` first; the two corrections that re-check produced are in the
-unit entries below.
+All seven units merged — 1 (#2326), 2 (#2324), 3 (#2330), 4 (#2329),
+5 (#2345), 6 (#2325), 7 (#2327). What each landed is the run of entries
+from 2026-09-11 in `log.md`; the item files are the record.
 
-Units, in order:
+**Twelve rows closed, thirty-one filed.** That is the number the next
+slate has to answer, and the log's close-out entry says why it is a
+receipt rather than a backlog — every one of the 31 carries a
+measurement — and why it is still a problem: a program that opens 2.6
+rows per row closed does not converge.
 
-1. **The wasm row's warning-debt flip.**
-   `wasm-row-warning-debt-comment-names-a-closed-item-and-a-deleted-symbol`.
-   The comment at `ci.yml:2165-2174` sets its own trigger — *"this row
-   becomes `-D warnings` when that item closes"* — and **the trigger has
-   fired**: `work/view/viewer-items-unreferenced-at-wasm32.md` is closed
-   on PR 2272, and PR 2278 deleted `ViewerApp::deliver_status` outright,
-   so one of the two warnings the comment names in the present tense no
-   longer exists (`WINDOW_TITLE` survives at `app.rs:129`, `cfg`-ed).
-   Take the flip and rewrite the paragraph as the reason the row denies,
-   or keep `check` and write *that* reason — the item's two shapes, and
-   the item names three places where the obvious edit and the intended
-   guard differ. First because it is the only row in this workflow that
-   cannot fail on a warning and the written reason for that has expired.
-2. **The cut script's anchor, and its false header.**
-   `cut-regex-unanchored-admits-a-line-the-lint-refuses` and
-   `cut-script-header-claims-no-cross-language-gate-exists` — one file,
-   `scripts/tess_budget_cut.sh`, and the second is the header six lines
-   above the first's regex. The defect is one-way and has no in-script
-   recourse: a trailing-junk stamp line is read as a valid stamp by
-   `CUT_RE` (refuse to re-stamp) and as harness breakage by
-   `tess_lint::split_cut`, so the repair arm the script has for every
-   other malformed shape cannot reach this one. **The fix reds a pin on
-   purpose**: `tools/tess-lint/tests/cut_line_pin.rs`'s `TRAILING_CASE`
-   row pins the disagreement and its own alarm names this item and the
-   two edits that close it. `tools/*` is Track K's by this program's
-   `keep_out`, so that edit is announced as invited rather than taken
-   quietly.
-3. **The criterion selftest's siting.**
-   `criterion-selftest-nightly-only`. Re-verified: `--selftest` is
-   invoked from exactly one place in the tree, `nightly.yml:1849`, so a
-   PR that breaks it merges green and the break surfaces at the next
-   fire, to nobody. Its comment cites `opt-level-calibrate.py` as the
-   precedent for nightly-only siting and **that precedent moved** when
-   the second slate's unit 3 put the calibrator's selftest in the
-   per-PR gate. A row in `discipline`, its mirror in `ci-local.sh`, the
-   `MIRROR_EXEMPT` entry deleted with its hosted-only reason re-stated
-   where it belongs. This is a promotion, not a demotion, so it is
-   verified by the gate that now carries it — no dispatch is owed.
-4. **The working directory a mirrored pair runs in.**
-   `mirror-pairs-context-beyond-env` clause (1). Claim 10 now compares
-   cargo flags and environment; `working-directory:` is in `STEP_KEYS`
-   and its value is discarded, against a local half that spells the same
-   fact as `(cd … && …)`. Five sites on today's `ci.yml` (`:1743`
-   `benches`, four under `interval-transcendentals`), and the pairs that
-   carry one are the two cargo roots `--workspace` excludes — exactly
-   the population where a wrong directory runs a different check under
-   the same row name. Clause (2) closed in its own PR; clause (3) is a
-   population and not this unit.
-5. **The apt preamble recogniser.** `apt-preamble-bypass-is-unguarded`,
-   left open by PR 2277 with its own shapes written. The class that unit
-   closed can reopen one step at a time and every check in the tree
-   passes it. The hazard the item names is the one to settle in the
-   unit: the cheap arm widens what a `run:` block means to
-   `check-ci-mirror-parity.py`, whose header calls that opacity
-   deliberate.
-6. **`render-hosted.sh`'s lane roster.**
-   `render-hosted-knows-four-lanes-and-there-are-six` (PR 2319, filed by
-   the DEMOS lane that found it and declined to half-fix it). `--lane
-   mc` has been unreachable since #2284 and `gui` since #2318; the
-   header states the stale count three times. The fix is the one
-   `render.yml`'s own header took at #2318 — a reading of the lanes
-   declared, not a count in prose.
-7. **The pin-reading residue.** `session-start-hook-restates-ci-pins`,
-   `seal-oracle-toolchain-read-first-match` and
-   `pinned-version-named-in-present-tense-prose` — what the first
-   slate's unit 1 and this program's `ci-pin.py` did not reach.
-   **CIW takes the hook** (Ev's orchestrator, 2026-09-11), so
-   `paths` widens to `.claude/hooks/*` in the unit that first edits it;
-   the item's real content is what the hook does when a `ci-pin.py` read
-   fails, since it provisions the container before any session runs and
-   a refusal there ends the session rather than one CI row. The prose
-   half is a tense and needs no mechanism; `slowest-tests.py`'s two
-   sites are S-TCOST's and stay reported, not edited.
-   `debug-only-gate-step-name-understates-its-subjects` rides along —
-   one step title in `ci.yml`, and PR 2030 has landed.
+**Nineteen of the 31 are four subjects**, and that is what makes a fourth
+slate tractable rather than a pile:
 
-**Review posture** (Ev, 2026-09-04 and 2026-09-06; restated by the
-orchestrator's dispatcher, 2026-09-11): no A/B row and no A/B protocol,
-on any unit of this slate including the ones that earn a correctness
-lane. One subagent style review per unit against
-`docs/prompts/reviewer-style-lane.md`; a correctness reviewer where the
-unit earns one, named in its PR with the reason. **Units 1, 4 and 5
-earn one** and are marked so at dispatch — unit 1 changes what a gating
-row executes on every branch, and 4 and 5 each widen a gating claim over
-a derived population in a checker whose last three units returned a
-MAJOR apiece.
+- **The parity checker (7 rows).** `mirror-parity-checker-growth`
+  (2983 → 4908 lines in three days, +892 in one PR, claim 10's block
+  ~63% of a docstring serving twelve claims), `mirror-three-copy-reader-
+  preamble`, `population-layer-duplicated-across-two-checkers`,
+  `three-shell-splitters-nothing-compares`,
+  `mirror-readers-blind-through-bash-c` (live: an allowlisted flag OR
+  variable inside a `bash -c` string passes silently — confirmed on
+  `main`), `semantic-env-is-fail-open-where-pin-free-is-fail-closed`,
+  `mirror-step-keys-still-discarded`.
+- **Selftests that cannot see their own failure (4 rows).**
+  `criterion-selftest-fixture-is-one-scalar-in-five-fields`,
+  `calibrator-cpuinfo-parser-selftest-cannot-see-a-broken-parse` (the
+  parity obligation is broken on two of three hand-kept copies, and both
+  blind ones are in the merge gate), `calibrator-record-writes-without-
+  its-selftest`, `perf-history-writers-are-guarded-three-different-ways`.
+- **The provisioning surface no gate reads (4 rows).**
+  `session-start-hook-is-exercised-by-nothing` — the largest of them:
+  the file provisions every container and every hosted job deletes it —
+  with `python-lint-row-is-locally-unverifiable-on-this-image`,
+  `tool-versions-outside-the-env-block-have-no-source-of-truth`, and
+  `two-anchored-pin-readers-two-homes`.
+- **One argument, three to five prose homes (4 rows).**
+  `prose-digits-are-records-nothing-reconciles`,
+  `tier-blind-rationale-has-five-prose-spellings`,
+  `eps-klint-and-shard-counts-are-prose`,
+  `criterion-lane-asymmetry-argued-in-four-prose-homes`.
+
+**The fourth slate's shape follows from that**, and is not yet ordered:
+the parity checker's cluster is one unit or an `[ev]` design question
+about splitting a 4900-line gate, not seven rows; the selftest cluster is
+one unit over one shared fixture discipline; the provisioning cluster
+needs the `[ev]` question of whether anything may gate `.claude/`; and
+the prose cluster is cheap and should ride along rather than lead.
+`shellcheck-is-not-run` and `doc-gate-error-sites-outside-the-gate-
+population` are still waiting on the decisions named below.
+
+**Two rows arrived from outside** and are not this program's findings:
+`no-ci-row-runs-the-suite-at-a-non-default-k` and
+`view-made-the-skip-mode-viewer-doc-pass-lint-inert`. Read them against
+the tree before dispatching either; this slate's re-read moved two
+premises and every unit corrected at least one dispatch fact.
+
+**The review posture earned its keep and should not change.** No A/B, no
+A/B protocol, style review per unit, a correctness lane where the unit
+earns one — units 1, 4 and 5 at dispatch, and **unit 6 in flight**, when
+what it delivered stopped being what was dispatched. Nine blockers were
+found across five units and **every one came from injecting the failure
+and watching the row stay green**, not from reading. Two more came from
+the orchestrator re-injecting mutants a lane had reported dead without
+ever applying them: **assert the mutation changed the file**, because a
+no-op edit and a surviving mutant look identical.
+
 ## Not dispatched, and why
 
 - `interval-only-selection-premise-restored` — a cost lever pointing at
@@ -242,6 +213,14 @@ MAJOR apiece.
 - `inherited-red-is-not-attributed-to-its-merge` — unchanged from the
   first slate: three numbers named in the item, none taken, and the
   item forbids designing before they are.
+- `guard-size-was-never-argued` — filed by unit 5 against itself, and
+  the one row here that is about this program rather than the tree. The
+  item said "a few lines beside its existing invocation scan"; what
+  landed is 1770. The unit argued the deviation's SITING at length and
+  never its SIZE, which is the whole cost of the choice. It is not a
+  defect to fix; it is a question to answer before the next guard, and
+  the parity-checker cluster above is the same question with a longer
+  history.
 
 ## Closed at the 2026-09-04 re-read, with the reason in each file
 
@@ -275,9 +254,27 @@ MAJOR apiece.
 
 ## Fences
 
-- Track K keeps `scripts/gates/*` and `tools/*`; the
-  `clippy-panic-gate-blind-in-macros` / `gated-marker-*` items are K's
-  and S-TCOST's and stay in `work/issues/` for them.
+- **`scripts/gates/*` is code-quality Track K's and `tools/*` is
+  INSTR's**, and this clause said otherwise until 2026-09-11. Track K was
+  claimed whole by two programs: GATES took the gates half and INSTR
+  (`work/instr/program.md`, opened 2026-09-08) took `tools/*`. GATES then
+  closed on 2026-09-08 (`docs/DOC-LEDGER.md` sweep 7; `work/gates/` is
+  gone) and its half **reverted to code-quality**, which is `status:
+  open` under `tag: (SMELL orchestrator)`. So the `tools/*` half of the
+  old sentence was wrong and the gates half was right — the opposite of
+  what this program's own `keep_out` was corrected FROM, and the reason
+  that correction took two attempts. INSTR cedes the other direction
+  explicitly: its `keep_out` names `scripts/tess_budget_cut.sh` and its
+  siblings as CIW's. The `clippy-panic-gate-blind-in-macros` /
+  `gated-marker-*` items are code-quality's and S-TCOST's and stay in
+  `work/issues/` for them.
+- **A cross-fence edit that a file INVITES by name is still announced.**
+  Unit 2 anchored `scripts/tess_budget_cut.sh`'s `CUT_RE`, which reds a
+  row in `tools/tess-lint/tests/cut_line_pin.rs` whose own alarm names
+  the item and the two edits that close it. Taking that invitation is
+  right; taking it silently is not, and the PR said so with the alarm
+  quoted. Anything past the invitation — a NEW row in that table — is
+  the owner's, and went to `work/instr/` as an item instead.
 - S-TCOST keeps its three scripts and the CI build knobs — profile,
   cache and sharding — measured in-unit or not at all. Unit 8 cites
   S-TCOST's cache measurement; it does not fix it.

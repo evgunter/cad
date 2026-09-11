@@ -2,11 +2,12 @@
 id: criterion-selftest-nightly-only
 kind: issue
 title: criterion-emit.py --selftest is invoked only from nightly.yml - a guard exercised only on a schedule
-status: review
+status: closed
 opened: 2026-09-07
 refs: [2124]
 pr: 2330
 branch: ciw/criterion-selftest
+closed: 2026-09-11
 ---
 
 
