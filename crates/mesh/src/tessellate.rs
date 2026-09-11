@@ -339,7 +339,7 @@ fn tessellate_impl(
         // axes are deliberately not passed: imported axes carry
         // translator noise that projects valid boundaries below
         // spade's coordinate domain.
-        let run = |bounds: &mut FaceBounds| match lane {
+        let run = |bounds| match lane {
             Lane::Trimmed => crate::trimmed::tessellate_trimmed(
                 body,
                 fk,
