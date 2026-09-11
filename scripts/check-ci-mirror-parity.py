@@ -466,6 +466,14 @@ PIN_FREE = {
 #   * `--all-features` and `--no-default-features` are not in the issue's list
 #     and are the same knob as `--features` — a selection that narrows or
 #     widens under an unchanged row name.
+#   * `-D` is the lint level, and it only ever appears past `--`, which is why
+#     the paragraph above matters for it too. It decides whether a row can FAIL
+#     at all — a clippy pair that keeps the deny on one half and loses it on the
+#     other still runs the same command under the same name and reports a
+#     different verdict, which is this table's subject exactly. MEASURED when it
+#     was added: no pair in either half was one-sided on it, and dropping
+#     `-- -D warnings` from one half of the wasm viewer pair had passed silently
+#     until then.
 SEMANTIC_FLAGS = {
     "--no-fail-fast": False,
     "--all-targets": False,
@@ -478,6 +486,7 @@ SEMANTIC_FLAGS = {
     "--test-threads": True,
     "-j": True,
     "-E": True,
+    "-D": True,
 }
 
 # THE SAME ALLOWLIST RULE, ONE TOKEN-CLASS OVER: the environment a mirrored

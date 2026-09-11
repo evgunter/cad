@@ -2183,16 +2183,27 @@ jobs:
       # shape, and it stops being empty the day `viewer` grows an edge
       # on a crate the workspace row excludes.
       #
-      # WHAT IT COSTS WHEN IT FIRES: one `cargo check` over the toolkit
+      # ONE CLASS THE ARGUMENT ABOVE DOES NOT COVER, since this row
+      # started denying: the row it leans on is a `cargo check` that
+      # denies nothing, so a LINT — as against a break — in the wasm arm
+      # of a non-seed workspace crate is caught here and by nothing else,
+      # and the axis can therefore take it away. That is a property of
+      # the workspace row's spelling, not of this one; see
+      # `work/ciw/kernel-wasm-row-denies-no-warnings.md`.
+      #
+      # WHAT IT COSTS WHEN IT FIRES: one lint pass over the toolkit
       # graph at a SECOND target. Nothing in this job shares artefacts
       # with it — the rows above are host-target — so it is a cold
       # metadata build of eframe + wgpu + naga for wasm32 every time it
       # runs, and `rust-cache` carries the registry but not that graph's
       # artefacts across runs.
       #
-      # MEASURED, hosted (ubuntu-latest, 2 vCPU), on this row's own
-      # introducing PR: THE STEP is 55-57 s across four runs. Locally,
-      # 61 s from an empty CARGO_TARGET_DIR on 4 vCPU.
+      # MEASURED, hosted (ubuntu-latest, the 4 vCPU public-repo runner
+      # this file's header derives from the provenance step): THE STEP is
+      # 55-57 s as `cargo check` across four runs on its introducing PR.
+      # Locally, from an empty CARGO_TARGET_DIR on 4 vCPU, 66 s as
+      # `cargo check` against 65 s as the `cargo clippy` this row now
+      # runs — the deny and the lint pass are free at this graph size.
       #
       # NO JOB-LEVEL DELTA IS QUOTED, and that is a finding rather than
       # an omission. Across the same four runs this job ran 307 s, 342 s
@@ -2238,22 +2249,38 @@ jobs:
       # repo sets none today, so scoping costs nothing and a future entry
       # is not quietly dropped. Same spelling as serve-wasm.sh's build.
       #
-      # `check`, NOT `-D warnings`, AND THAT IS A DEBT WITH A FILE. This
-      # crate's wasm build carries two dead-code warnings today —
-      # `WINDOW_TITLE` and `ViewerApp::deliver_status`, whose users are
-      # all `cfg(not(target_family = "wasm"))` — so denying warnings here
-      # would red on those before it ever reached a real break, and
-      # fixing them is the crate owners' call, not a guard's. It leaves
-      # this as the ONE viewer row in this workflow that cannot fail on a
-      # warning, which is not a resting state:
-      # `work/view/viewer-items-unreferenced-at-wasm32.md` holds the flip,
-      # and this row becomes `-D warnings` when that item closes.
+      # `-D warnings`, THROUGH CLIPPY, AND THE SAME DENY EVERY OTHER
+      # VIEWER ROW CARRIES. The `cfg(target_family = "wasm")` arms are
+      # compiled by no other row in this workflow — that is the whole
+      # argument above — so a lint in them is one no gate reads, and the
+      # host-target `clippy (viewer app feature - eframe + wgpu)` row in
+      # this same job is this row's sibling at the other target.
       #
-      # Mirror: local-scripts/ci-local.sh's `wasm32 check (viewer app)`.
-      - name: wasm32 check (viewer app feature - the browser entry point)
+      # CLIPPY RATHER THAN `RUSTFLAGS='-Dwarnings …' cargo check`,
+      # MEASURED rather than reasoned. Both spellings deny across the
+      # WORKSPACE, not just `viewer`: cargo caps lints on registry crates
+      # and not on path dependencies, so a `dead_code` item planted in
+      # `editor-core` reds either spelling — checked both ways at the
+      # pinned toolchain. They differ on exactly one axis, clippy's own
+      # lints, which fire on path dependencies too and which no row reads
+      # at this target; and they cost the same (the measurement above).
+      # A guard strictly wider for nothing is the one to take. What
+      # follows for a reader of a red here: this row's subject is the
+      # browser entry point, but its verdict covers every workspace crate
+      # `viewer` pulls in at wasm32, so the failing crate named in the log
+      # is the one to go to.
+      #
+      # NO `--all-targets`, and that is not the sibling row's spelling
+      # dropped by accident: `crates/viewer`'s tests and examples import
+      # `ThreadEvaluator`, which `crates/viewer/src/lib.rs` re-exports
+      # under `cfg(not(target_family = "wasm"))`, so building them here
+      # ends in E0432 for a reason that has nothing to do with lints.
+      #
+      # Mirror: local-scripts/ci-local.sh's `wasm32 clippy (viewer app)`.
+      - name: wasm32 clippy (viewer app feature - the browser entry point)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
         run: |
-          RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check -p viewer --features app --target wasm32-unknown-unknown
+          RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo clippy -p viewer --features app --target wasm32-unknown-unknown -- -D warnings
 
   clippy:
     name: clippy

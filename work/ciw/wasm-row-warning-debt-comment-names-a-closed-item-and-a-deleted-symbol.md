@@ -2,7 +2,7 @@
 id: wasm-row-warning-debt-comment-names-a-closed-item-and-a-deleted-symbol
 kind: issue
 title: ci.yml's wasm-row warning-debt comment describes a state that has been resolved, and names a symbol that no longer exists
-status: open
+status: dispatched
 opened: 2026-09-10
 ---
 
@@ -101,3 +101,43 @@ and the intended guard differ.
 `wasm32 check (viewer app)` at `:1311`) carries the same command, and
 `ci.yml:2176` names it as the mirror. The CI-half parity gate reads
 both, so whatever this row becomes, that one becomes with it.
+
+## Taken: shape 1, spelled as clippy (2026-09-11)
+
+Line numbers above are the item's; the block is at `ci.yml:2144-2263`
+on `aa628e5`.
+
+**Shape 1, and the flip is spelled `cargo clippy -p viewer --features
+app --target wasm32-unknown-unknown -- -D warnings` with the existing
+`RUSTFLAGS` prefix kept.** The row is renamed `wasm32 clippy (viewer app
+feature - the browser entry point)`; the mirror becomes
+`wasm32 clippy (viewer app)` / `wasm_clippy_viewer`.
+
+**Both candidate spellings were run, and the item's reason for
+preferring one over the other is wrong.** At the pinned toolchain
+(1.97.0), a `dead_code` item planted in `crates/editor-core/src/lib.rs`
+reds BOTH: `RUSTFLAGS='-Dwarnings …' cargo check -p viewer` exits 101,
+and so does `cargo clippy -p viewer … -- -D warnings`. Clippy's own
+lints fire on path dependencies too — a planted `clippy::ptr_arg` in the
+same file reds the clippy spelling. `cargo clippy -p <pkg> -- -D
+warnings` is therefore **not** scoped to `<pkg>`: the `--` args reach
+every non-`--cap-lints` unit in the graph. The two spellings differ on
+exactly one axis, clippy's own lints, and cost the same — 66 s (check)
+against 65 s (clippy) from an empty `CARGO_TARGET_DIR` on 4 vCPU. So
+the choice was made on coverage: clippy is strictly wider for nothing,
+and it makes this row the wasm sibling of
+`clippy (viewer app feature - eframe + wgpu)`, which sits in the same
+job and is what "the ONE viewer row that cannot fail on a warning" was
+measured against.
+
+**The `--all-targets` warning is right and understated**: the failure is
+E0432, and the FIRST unit to fail is an example (`r1_e2e`), not a test.
+`crates/viewer/examples/` is in the population too.
+
+**Neither named warning exists.** `cargo check -p viewer --features app
+--target wasm32-unknown-unknown` at `aa628e5` is clean; `WINDOW_TITLE`
+carries `#[cfg(not(target_family = "wasm"))]` at `app.rs:128`, and
+`deliver_status` has no occurrence anywhere under `crates/viewer/`.
+
+Residue, each its own file:
+`work/ciw/kernel-wasm-row-denies-no-warnings.md`.
