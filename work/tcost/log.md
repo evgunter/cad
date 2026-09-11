@@ -1568,3 +1568,38 @@ instead of guessing, and it names the three things that stay this
 program's whatever they look like — the gate mechanism, the fuzz-gating
 policy, and everything under `scripts/`. A row on either slate that turns
 out to be on the wrong side moves back by `git mv`, not by a copy.
+
+## The unclear kernel row is measured, and it closes negative (2026-09-11)
+
+`edge-nurbs-computes-the-chart-image-and-discards-it` was the one row
+the re-sort could not place: a compute-and-discard candidate whose own
+body said the cost had never been measured. It is measured now, and
+both halves of the row fail.
+
+**The premise is false.** The image is not discarded —
+`edge_nurbs.rs:354-362` passes it into `certify_rung3` as
+`Some(&pcurve)`, and `ssi/certify.rs` refuses `UnsupportedCertificate`
+without it at `:810-815` and `:851-854`. Every `PlaneNurbsLimbs` field
+but `min_sin_theta` comes out of that certificate. What exists is a
+redundancy ACROSS PASSES (the mint derives its own), and collapsing that
+means the certifier trusting the stored cache, which
+`topo/src/validate.rs:3297-3299` ratifies against.
+
+**And the prize is small.** LOCAL, single-threaded medians on this
+container, an iteration tool and not a result of record: `chart_image`
+is **9.5 %** of an edge certification in release (0.461 of 4.86 ms) and
+**12.6 %** in dev, once per plane×NURBS edge per validation pass.
+
+Recorded because it is the general lesson of this re-sort, not just this
+row's: **the row was filed off a sentence in a spec, and the sentence
+had gone stale.** `docs/PCURVE-P2-SPEC.md:55-62` still says
+`edge_nurbs` *"THROWS IT AWAY"*, and the advice that sentence gives —
+prefer the existing producer to writing a third — had already been taken
+by the refactor that made `chart_image` shared. Eight days on this board
+and one instrumented lane to find that out. Filed to TRIM, whose
+territory both files are:
+`work/trim/pcurve-p2-spec-says-edge-nurbs-throws-the-image-away`.
+
+The board is eleven live rows: the four latency rows, the demotions row,
+the two gate defects, the two fuzz-policy rows, the parked proptest
+question, and the `ci-filter.py` citation fix.
