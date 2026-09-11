@@ -275,9 +275,27 @@ MAJOR apiece.
 
 ## Fences
 
-- Track K keeps `scripts/gates/*` and `tools/*`; the
-  `clippy-panic-gate-blind-in-macros` / `gated-marker-*` items are K's
-  and S-TCOST's and stay in `work/issues/` for them.
+- **`scripts/gates/*` is code-quality Track K's and `tools/*` is
+  INSTR's**, and this clause said otherwise until 2026-09-11. Track K was
+  claimed whole by two programs: GATES took the gates half and INSTR
+  (`work/instr/program.md`, opened 2026-09-08) took `tools/*`. GATES then
+  closed on 2026-09-08 (`docs/DOC-LEDGER.md` sweep 7; `work/gates/` is
+  gone) and its half **reverted to code-quality**, which is `status:
+  open` under `tag: (SMELL orchestrator)`. So the `tools/*` half of the
+  old sentence was wrong and the gates half was right — the opposite of
+  what this program's own `keep_out` was corrected FROM, and the reason
+  that correction took two attempts. INSTR cedes the other direction
+  explicitly: its `keep_out` names `scripts/tess_budget_cut.sh` and its
+  siblings as CIW's. The `clippy-panic-gate-blind-in-macros` /
+  `gated-marker-*` items are code-quality's and S-TCOST's and stay in
+  `work/issues/` for them.
+- **A cross-fence edit that a file INVITES by name is still announced.**
+  Unit 2 anchored `scripts/tess_budget_cut.sh`'s `CUT_RE`, which reds a
+  row in `tools/tess-lint/tests/cut_line_pin.rs` whose own alarm names
+  the item and the two edits that close it. Taking that invitation is
+  right; taking it silently is not, and the PR said so with the alarm
+  quoted. Anything past the invitation — a NEW row in that table — is
+  the owner's, and went to `work/instr/` as an item instead.
 - S-TCOST keeps its three scripts and the CI build knobs — profile,
   cache and sharding — measured in-unit or not at all. Unit 8 cites
   S-TCOST's cache measurement; it does not fix it.
