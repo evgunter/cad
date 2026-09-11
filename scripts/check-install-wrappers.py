@@ -6,11 +6,11 @@ it was pointed at, and the runner image ships lists this repo never asked for;
 when one of them publishes a broken index the step dies having fetched
 everything the job actually needed. `scripts/apt-install.sh` is the answer —
 it narrows the update to Ubuntu's own archive, retries a hang, and refuses
-loudly when a package really is missing — and PR 2277 routed every apt call
-site in `.github/workflows/` through it. Nothing kept them there. A step added
-tomorrow spelling `sudo apt-get update && sudo apt-get install -y foo` inline
-is exactly the state that PR removed, and every other check in the tree passes
-it: `check-ci-mirror-parity.py` reads workflows for `scripts/` and `demos/`
+loudly when a package really is missing — and every apt call site in this repo
+goes through it. NOTHING BUT THIS CHECK KEEPS THEM THERE. A step spelling
+`sudo apt-get update && sudo apt-get install -y foo` inline is the state the
+wrapper exists to replace, and no other check in the tree can see it:
+`check-ci-mirror-parity.py` reads workflows for `scripts/` and `demos/`
 INVOCATIONS, so a step that invokes no script is outside its claims 1-4 by
 construction; its claim 9 is about jobs, not steps; and no shell linter runs in
 the hosted gate at all.
@@ -854,7 +854,7 @@ GREEN, RED, BAIL = "green", "red", "bail"
 
 MUTANTS: tuple[tuple[str, str, str, tuple[int, ...]], ...] = (
     (
-        "the state PR 2277 removed, written inline again",
+        "the whole preamble inline, which is what the wrapper replaces",
         "sudo apt-get update && sudo apt-get install -y foo\n",
         RED,
         (1, 1),
@@ -1066,7 +1066,7 @@ MUTANTS: tuple[tuple[str, str, str, tuple[int, ...]], ...] = (
 # about coverage; this is what stops a row being dropped or renamed out of it
 # while the run still prints "all as specified".
 REQUIRED_MUTANTS = (
-    "the state PR 2277 removed, written inline again",
+    "the whole preamble inline, which is what the wrapper replaces",
     "the same pair split over a line continuation",
     "no `sudo` at all (a root container)",
     "`apt` rather than `apt-get`",
