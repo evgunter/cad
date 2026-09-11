@@ -19,7 +19,18 @@ plus the companion design docs its table lists.
 git show <sweep-sha>:docs/<NAME>            # print it
 git show <sweep-sha>:docs/<NAME> > /tmp/<NAME>   # restore a copy
 git log --diff-filter=D -- docs/<NAME>      # find the deleting commit
+git log --all --full-history -- docs/<NAME> # ...and if that is empty, this
 ```
+
+**Check the last one before concluding a document is gone.** A file
+this ledger does not name may have been MOVED rather than deleted (the
+tracker migration moved every plan and log out of `docs/`, sweep 4), and
+`--diff-filter=D` does not see a rename. `git log --follow --stat` from
+either path prints the move and whether the content changed with it.
+A citation to a path that no longer exists is evidence of nothing until
+that has been run: the first reader to follow `docs/PERF-PLAN.md` filed
+it as a document deleted without a record, and it had been `work/perf/plan.md`,
+byte for byte, since the day it left.
 
 Files listed under the `docs/archive/` group below need that prefix in
 the path: `git show <sweep-sha>:docs/archive/<NAME>`. The tracker
@@ -434,6 +445,31 @@ the nine `SMELL-*-LOG.md` track logs are under
 `work/code-quality/logs/`. `MODEL-AB-LOG.md` stays in `docs/` as the
 experiment log it is. `scripts/work.py lint` refuses a plan or log
 reappearing in `docs/`.
+
+**The moves, by name**, because a class rule does not answer a
+by-name lookup and the one document this ledger exists to serve is a
+reader holding a stale citation. Every pair below moved in
+`4916f90cfc5cd45c0092b9464fd1fed604f93140` (2026-09-03, PR #1619) or
+its siblings in the same migration, each with **no content change** —
+`git log --follow -- <new path>` walks straight through the rename:
+
+| was | is now |
+| --- | --- |
+| `docs/PERF-PLAN.md` | `work/perf/plan.md` |
+| `docs/<NAME>-PLAN.md` (every other program) | `work/<program>/plan.md` |
+| `docs/<NAME>-LOG.md` (every program) | `work/<program>/log.md` |
+| `docs/SMELL-{C,E,F,G,H,I,KPW,T,UV}-LOG.md` | `work/code-quality/logs/` |
+
+`PERF-PLAN.md` is named in its own row because it is the one readers
+have followed and failed to find. Measured 2026-09-11: **32 tracked
+files mention it, and five cite it by the dead PATH** — the other 27
+name the DOCUMENT, which still carries that name as its own title at
+`work/perf/plan.md` and needs nothing done to it. Repointing the five,
+and deciding whether a document keeps a name its path no longer
+carries, is `work/meta/perf-plan-citations-name-a-path-that-moved.md`.
+Two further mentions in THIS file (Sweep 1's archive note, DOCM-5's
+per-merge record) are left as written: they record what those documents
+said at the time.
 
 ## Sweep 5 — 2026-09-03: the five closed programs leave the tracker
 
