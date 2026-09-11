@@ -72,3 +72,52 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Sized (2026-09-11), while closing its sibling
+
+Sized against the code, not estimated: the sibling row
+(`gated-marker-omits-sibling-helper-imports`) landed its arm in
+`--gated-check` on 2026-09-11 and built the reader this one would use, so
+the two candidate fixes can now be priced properly. **They are not the
+same size, and they do not do the same thing** — the choice is Ev's, not
+a lane's.
+
+**Candidate 2, "make the silence loud": small, ~15 lines, no new
+concept.** In `gated_check`, walk `crates/*/src/**` for
+`#[path = "..."]` / `mod` pairs the way `_tests_sibling_files` now walks
+`tests/all.rs`, resolve each mount's target, and red on a marker sited on
+any file that another `src/` file mounts — naming the mounting line. The
+regexes exist (`_ALL_RS_PATH_RE`, `_ALL_RS_MOD_RE`), the walk exists, and
+the planter harness in `scripts/gates/gated-suite-paths.sh` takes one
+more case the way it just took two. **What it buys**: the class becomes
+a red discipline row instead of a silent one. **What it costs**: the
+three files stay ungatable, so a row that belongs in one of them is
+written where its path matches its module path instead — which is what
+TCOST-9 did by hand for the torus counterexample-search row, and which
+the row's own note calls correct for that row and not a fix for the
+class.
+
+**Candidate 1, "resolve the mount": larger, and it is the one with a
+design question in it.** `_suite_term` would follow a `#[path]` mount to
+the module path the compiler actually gives the file. The mechanical part
+is comparable in size; what is not mechanical is that a `src/` mount can
+nest (a mounted file may itself mount another) and that the mount's
+module path depends on WHERE the mounting `mod` sits in its own file's
+module tree — `solid_contain.rs:3491` mounts into
+`boolean::solid_contain`, which the current reader gets right only
+because the mounting file's path happens to name it. A reader that
+resolves one level and calls it done would derive a wrong prefix on a
+nested mount and go back to selecting nothing, silently: the same failure
+this row is about, one level deeper. **What it buys**: markers work
+everywhere, and the three files become gatable. **What it costs**: a
+module-tree walk of `crates/*/src`, which is a real reader with real
+edge cases, for three files today.
+
+**Recommendation, unchanged from the row's own text (*"neither this
+unit's to choose"*)**: take candidate 2 now — it is cheap, it converts
+the whole class from silent to loud, and it is not thrown away if
+candidate 1 ever lands. Take candidate 1 only when a row genuinely wants
+gating in a mounted file and the workaround is worse than the reader.
+
+Still true on the tree at 2026-09-11: none of the three files carries a
+marker, so nothing is broken today. The guard is.
