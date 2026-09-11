@@ -544,6 +544,40 @@ pub struct BooleanReduction<T: Real> {
 }
 
 impl<T: Real> BooleanReduction<T> {
+    /// Opens a surgery scope on each operand body — the join's
+    /// declaration that tier 1 is paid once per operand at its end
+    /// rather than once per Euler operator inside it
+    /// ([`crate::surgery`]).
+    ///
+    /// **Guardless, and this is one of the two sites in the crate
+    /// where it has to be.** A [`crate::Surgery`] would borrow
+    /// `self.a` for the scope's whole span, and the join takes the
+    /// WHOLE reduction — both bodies, the contacts, the null-edge
+    /// records — so the guard and the call cannot both exist. What
+    /// makes the pair safe here is that the reduction is a local of
+    /// the pipeline that opened it: a refusal on the way drops it, and
+    /// no later call can reach a body a scope was left open on.
+    pub(crate) fn enter_join_surgery(&mut self) {
+        self.a.enter_surgery();
+        self.b.enter_surgery();
+    }
+
+    /// Closes both scopes [`Self::enter_join_surgery`] opened, sweeping
+    /// each operand **only if the join succeeded**.
+    ///
+    /// A refusal mid-join leaves a partially carved operand that no
+    /// door undertook to certify — and the REST lane puts the pristine
+    /// clones back over it — so the sweep is the success path's.
+    pub(crate) fn leave_join_surgery(&mut self, joined: bool) {
+        if joined {
+            self.a.leave_surgery_and_sweep();
+            self.b.leave_surgery_and_sweep();
+        } else {
+            self.a.leave_surgery();
+            self.b.leave_surgery();
+        }
+    }
+
     /// The minted null edges of one operand's clone, insertion order —
     /// PR 5 (joining) walks each solid's scaffolding separately; this
     /// is the per-operand view of [`Self::null_edges`].
@@ -1871,8 +1905,15 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
-    let mut a = a_operand.clone();
-    let mut b = b_operand.clone();
+    // The reduction carves both operand clones through the Euler
+    // operators; tier 1 is paid once per clone at the end of the
+    // phase rather than once per operator (`crate::surgery`). Two
+    // guards over two locals: each owns its own borrow, so a refusal
+    // on the way closes both scopes by dropping them.
+    let mut carved_a = a_operand.clone();
+    let mut carved_b = b_operand.clone();
+    let mut a = carved_a.begin_surgery();
+    let mut b = carved_b.begin_surgery();
 
     // Reduction sweep, both directions (A's edges first — D9 order).
     let mut acc = reduce::ContactAcc::default();
@@ -1971,10 +2012,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_pairs.extend(out.pairs);
     }
 
+    a.sweep_and_close();
+    b.sweep_and_close();
     Ok(BooleanReduction {
         op,
-        a,
-        b,
+        a: carved_a,
+        b: carved_b,
         contacts,
         null_edges,
         null_pairs,
