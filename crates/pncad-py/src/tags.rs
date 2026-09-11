@@ -86,8 +86,8 @@ use pncad::sweep::{ExtrudeError, LoftError, RevolveError, SkinError, TubeError};
 use pncad::topo::param_source::ParamAttachError;
 use pncad::topo::splitting::SplitError as SplitOpError;
 use pncad::topo::{
-    BooleanErrorKind, CensusContact, CensusSubject, CensusUnsupportedCause, ChartRegionError,
-    EntityId, RingContact, ShellError, StaleDeclaration, TransformError, ValidationError,
+    BooleanErrorKind, CensusContact, CensusSubject, EntityId, RingContact, ShellError,
+    StaleDeclaration, TransformError, ValidationError,
 };
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -2294,53 +2294,6 @@ pub fn census_subject_tag(subject: &CensusSubject) -> &'static str {
     match subject {
         CensusSubject::Entity(_) => "entity",
         CensusSubject::FacePair(_, _) => "face_pair",
-    }
-}
-
-/// The stable tag for WHY a census decline declined — the refusing
-/// lane's own arm, flattened onto one vocabulary.
-///
-/// **One word per cause, deliberately flat.** The nesting
-/// `subject_kind`/`entity_kind` keeps exists because a caller acts on
-/// the outer word first (a pair is a declaration problem, an entity is
-/// a carrier problem) and reads the inner one after. Here the outer
-/// word — which lane refused — is not a fact a caller acts on; the
-/// ARM is. A `"witness_budget_exhausted"` decline wants simpler trims
-/// and a `"touching_boundary"` decline wants the geometry moved, and
-/// telling a caller both came from the chart-region lane answers no
-/// question it has.
-pub fn census_decline_tag(cause: &CensusUnsupportedCause) -> &'static str {
-    match cause {
-        CensusUnsupportedCause::ChartRegion(refusal) => chart_region_error_tag(refusal),
-        CensusUnsupportedCause::ContactLane(_) => "contact_lane",
-        CensusUnsupportedCause::FaceUnboundable => "face_unboundable",
-    }
-}
-
-/// The chart-region lane's own arm, as a word.
-///
-/// `Escalated` cannot arrive through [`census_decline_tag`] — the
-/// census's two exhaustive matches send it to `CensusEscalated`, a
-/// different refusal with a different recourse — and it is still
-/// spelled: this match is exhaustive so that a new chart-region arm
-/// stops this crate compiling in front of whoever must name it, and a
-/// wildcard for the one unreachable arm would give up that guard for
-/// every future arm too.
-pub fn chart_region_error_tag(refusal: &ChartRegionError) -> &'static str {
-    match refusal {
-        ChartRegionError::ChartDivergence { .. } => "chart_divergence",
-        ChartRegionError::NonPlanarTrim { .. } => "non_planar_trim",
-        ChartRegionError::MissingCache { .. } => "missing_cache",
-        ChartRegionError::ArmUnbounded { .. } => "arm_unbounded",
-        ChartRegionError::SeamBranch => "seam_branch",
-        ChartRegionError::PeriodFold => "period_fold",
-        ChartRegionError::CarrierTilt => "carrier_tilt",
-        ChartRegionError::TouchingBoundary => "touching_boundary",
-        ChartRegionError::DegenerateLoop { .. } => "degenerate_loop",
-        ChartRegionError::Escalated(_) => "chart_escalated",
-        ChartRegionError::RayExhausted => "ray_exhausted",
-        ChartRegionError::WitnessBudgetExhausted { .. } => "witness_budget_exhausted",
-        ChartRegionError::Corrupt => "chart_corrupt",
     }
 }
 

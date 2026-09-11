@@ -1590,7 +1590,8 @@ mod attribution {
     /// INVARIANT: the decline RELATION is a fact about what the census
     /// did to a declaration — neither certified nor contradicted it —
     /// and not about why the lane stopped. So every cause the census
-    /// can carry attributes identically.
+    /// can carry attributes identically, at every subject shape
+    /// [`super::attribute`] discriminates.
     ///
     /// The row exists because the causes are not alike: a
     /// `WitnessBudgetExhausted` decline is the search giving up on a
@@ -1599,30 +1600,76 @@ mod attribution {
     /// `TouchingBoundary` decline. It is not weaker about the
     /// DECLARATION, which is unrefuted either way, and
     /// [`AssemblyError::Uncertified`] means exactly that. A future
-    /// arm that branched here would move a kernel verdict, and this
-    /// row is what it would have to argue past.
+    /// arm that branched on the cause would move a kernel verdict,
+    /// and this row is what it would have to argue past.
+    ///
+    /// **All three `..` sites, and no reflexive comparison.** The
+    /// expected attribution is written down per subject SHAPE — the
+    /// pair arm, the lone-face arm, the other-entity arm — rather
+    /// than taken from a reference cause, so no iteration compares a
+    /// value with itself and a branch added at any of the three goes
+    /// red here.
     #[test]
     fn the_decline_relation_does_not_depend_on_which_lane_declined() {
-        let (minted, a, b, ..) = fixture();
-        let causes = [
-            topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
-            topo::CensusUnsupportedCause::ChartRegion(
-                topo::ChartRegionError::WitnessBudgetExhausted {
-                    segments: 130,
-                    cells: 0,
-                },
-            ),
-            topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::MissingCache {
-                half_edge: Default::default(),
-            }),
-            topo::CensusUnsupportedCause::ContactLane("order-k beyond the certified arm"),
-        ];
-        for cause in causes {
+        let (minted, a, b, _odd, vertex) = fixture();
+        let causes = || {
+            [
+                topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
+                topo::CensusUnsupportedCause::ChartRegion(
+                    topo::ChartRegionError::WitnessBudgetExhausted {
+                        // One past the cap, derived: the state the
+                        // guard answers, and it moves when the cap
+                        // does.
+                        segments: topo::WITNESS_BUDGET.segments + 1,
+                        cells: 0,
+                    },
+                ),
+                topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::MissingCache {
+                    half_edge: Default::default(),
+                }),
+                topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::Corrupt),
+                // `what` is production's own, from
+                // `topo::boolean::contact_verify`'s Rest-ladder arm.
+                topo::CensusUnsupportedCause::ContactLane(topo::ContactRefusal::NotCertifiable {
+                    what: "a declared face's surface kind is outside the Rest ladder's \
+                               inventory (plane, sphere, cylinder)",
+                }),
+                topo::CensusUnsupportedCause::FaceUnboundable,
+            ]
+        };
+        // Site 1 — the pair arm. `a`/`b` is `fixture`'s own minted
+        // declaration, so the expected answer is that mate, Declined.
+        let declared = minted[0].clone();
+        for cause in causes() {
             assert_eq!(
                 attribute(&unsupported_pair_because(a, b, cause.clone()), &minted),
-                attribute(&unsupported_pair(a, b), &minted),
-                "{cause:?}"
+                Attribution::Declined(declared.clone()),
+                "pair arm: {cause:?}"
             );
+        }
+        // Sites 2 and 3 — the lone-FACE arm and the other-entity
+        // catch-all. A declaration is a statement about a pair, so
+        // neither is any mate's, whatever declined.
+        for (label, subject) in [
+            ("lone face", topo::CensusSubject::Entity(EntityId::Face(a))),
+            (
+                "other entity",
+                topo::CensusSubject::Entity(EntityId::Vertex(vertex)),
+            ),
+        ] {
+            for cause in causes() {
+                assert_eq!(
+                    attribute(
+                        &ValidationError::CensusUnsupported {
+                            subject,
+                            cause: cause.clone()
+                        },
+                        &minted
+                    ),
+                    Attribution::Unattributed,
+                    "{label}: {cause:?}"
+                );
+            }
         }
     }
 
@@ -1858,8 +1905,15 @@ mod attribution {
             attribute(
                 &ValidationError::CensusUnsupported {
                     subject: topo::CensusSubject::Entity(EntityId::Vertex(vertex)),
+                    // The live case's own cause, and `what` is
+                    // production's own string, from
+                    // `topo::boolean::contact_verify`'s Rest-ladder
+                    // arm rather than a plausible-looking invention.
                     cause: topo::CensusUnsupportedCause::ContactLane(
-                        "order-k beyond the certified arm",
+                        topo::ContactRefusal::NotCertifiable {
+                            what: "a declared face's surface kind is outside the Rest \
+                                   ladder's inventory (plane, sphere, cylinder)",
+                        },
                     ),
                 },
                 &minted

@@ -226,7 +226,7 @@ class ValidationFinding:
     Two that say the same thing compare equal and hash equal.
 
     `variant` is which validator arm refused (`undeclared_contact`,
-    `census_undecidable`, `negative_volume`, …). The other six are
+    `census_undecidable`, `negative_volume`, …). The other five are
     that arm's payload and are `None` on an arm that carries none, so
     reading one never raises `AttributeError`:
 
@@ -238,17 +238,6 @@ class ValidationFinding:
     - `entity_kind` — that entity's kind (`"face"`, `"edge"`,
       `"vertex"`, `"loop"`, `"half_edge"`, `"shell"`, `"solid"`);
       `None` for a `"face_pair"`, whose two sides are faces.
-    - `decline_kind` — WHY a census decline declined: the refusing
-      lane's own arm (`"witness_budget_exhausted"`,
-      `"touching_boundary"`, `"missing_cache"`, `"chart_divergence"`,
-      `"contact_lane"`, …). The branch that matters: a
-      `witness_budget_exhausted` decline says the interior-witness
-      search STOPPED on a pair that may be perfectly decidable, and
-      the repair is simpler trims; a `touching_boundary` decline says
-      the overlap is not decidable at this ε, and the repair is the
-      geometry. `None` on every arm that carries no cause,
-      `census_lane_unsupported` included — nothing refused there, the
-      scalar had no lane to refuse with.
     - `contact_kind` — which coincidence the tier-3′ census found
       (`"vertex_on_face"`, `"edge_edge_cross"`, `"edge_face_pierce"`,
       …). The branch that matters: an `edge_face_pierce` is
@@ -275,8 +264,6 @@ class ValidationFinding:
     def subject_kind(self) -> Optional[str]: ...
     @property
     def entity_kind(self) -> Optional[str]: ...
-    @property
-    def decline_kind(self) -> Optional[str]: ...
     @property
     def contact_kind(self) -> Optional[str]: ...
     @property

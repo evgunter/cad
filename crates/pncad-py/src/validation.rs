@@ -20,13 +20,12 @@
 //! projected doors already keep.
 
 use pncad::topo::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, EntityId, RingContact, StaleDeclaration,
-    ValidationError,
+    CensusContact, CensusSubject, EntityId, RingContact, StaleDeclaration, ValidationError,
 };
 
 use crate::tags::{
-    census_contact_tag, census_decline_tag, census_subject_tag, entity_id_tag, ring_contact_tag,
-    stale_declaration_tag, validation_error_tag,
+    census_contact_tag, census_subject_tag, entity_id_tag, ring_contact_tag, stale_declaration_tag,
+    validation_error_tag,
 };
 
 /// One validator finding, as words.
@@ -48,12 +47,6 @@ pub struct Finding {
     /// `"face_pair"` subject — whose two sides are faces by
     /// construction — and for every arm with no subject.
     pub entity_kind: Option<&'static str>,
-    /// WHY a census decline declined — the refusing lane's own arm
-    /// (`"witness_budget_exhausted"`, `"touching_boundary"`,
-    /// `"contact_lane"`, …). `None` on every arm that carries no
-    /// cause, `CensusLaneUnsupported` included: nothing refused
-    /// there, the scalar simply had no lane.
-    pub decline_kind: Option<&'static str>,
     /// Which coincidence the tier-3′ census found. `None` on every arm
     /// that reports no census contact.
     pub contact_kind: Option<&'static str>,
@@ -72,7 +65,6 @@ pub fn project(err: &ValidationError) -> Finding {
         variant: validation_error_tag(err),
         subject_kind: subject.map(census_subject_tag),
         entity_kind: subject.and_then(subject_entity).map(entity_id_tag),
-        decline_kind: census_decline(err).map(census_decline_tag),
         contact_kind: census_contact(err).map(census_contact_tag),
         stale_kind: stale_declaration(err).map(stale_declaration_tag),
         ring_contact_kind: ring_contact(err).map(ring_contact_tag),
@@ -92,19 +84,6 @@ fn census_subject(err: &ValidationError) -> Option<&CensusSubject> {
     match err {
         ValidationError::CensusUnsupported { subject, .. }
         | ValidationError::CensusLaneUnsupported { subject } => Some(subject),
-        _ => None,
-    }
-}
-
-/// The decline cause an arm carries, if it carries one.
-///
-/// [`census_subject`]'s reading, at the payload beside it — and only
-/// `CensusUnsupported` has one. `CensusLaneUnsupported` shares the
-/// subject and has no cause to share: its refusal is that no lane ran
-/// at all.
-fn census_decline(err: &ValidationError) -> Option<&CensusUnsupportedCause> {
-    match err {
-        ValidationError::CensusUnsupported { cause, .. } => Some(cause),
         _ => None,
     }
 }

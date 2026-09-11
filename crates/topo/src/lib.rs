@@ -313,7 +313,8 @@ pub use chart::{Chart, ChartKind};
 pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
-    ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
+    ChartOverlap, ChartRegionError, ChartRegionLane, WITNESS_BUDGET, WitnessBudget,
+    chart_region_overlap, declared_pair_overlap,
 };
 pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,

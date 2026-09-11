@@ -381,7 +381,7 @@ class TestTheRefusalsShape(unittest.TestCase):
             first.findings[0].variant = "something_else"
 
     def test_every_finding_carries_every_attribute(self):
-        """No `getattr` trap. Seven attributes on every finding, `None`
+        """No `getattr` trap. Six attributes on every finding, `None`
         where the arm carries nothing to fill them — so a caller reads
         `subject_kind` without first branching on `variant`."""
         for finding in self.refusal().findings:
@@ -389,7 +389,6 @@ class TestTheRefusalsShape(unittest.TestCase):
                 "variant",
                 "subject_kind",
                 "entity_kind",
-                "decline_kind",
                 "contact_kind",
                 "stale_kind",
                 "ring_contact_kind",
@@ -406,9 +405,6 @@ class TestTheRefusalsShape(unittest.TestCase):
             # `None` is what says so on the arm that carries neither.
             self.assertIsNone(finding.stale_kind)
             self.assertIsNone(finding.ring_contact_kind)
-            # Nor is it a census DECLINE: no certifying lane refused
-            # here, the coincidence was simply not declared.
-            self.assertIsNone(finding.decline_kind)
 
     def test_two_distinct_arms_arrive_off_one_raise(self):
         """The claim the sequence exists for: ONE raise, several arms,
@@ -462,10 +458,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         (`src/tests.rs::every_validation_finding_carries_every_word_
         its_arm_has`), and this row is the statement that the gap is
         the DOORS' and not the projection's. What Python reaches is
-        the census pair above. `decline_kind` rides with them: it is
-        `census_unsupported`'s own payload, so the arm that carries it
-        is one of the two this suite cannot mint, and its per-cause
-        words are pinned in the same Rust row.
+        the census pair above.
 
         The two payload arms below are the same statement about the
         same doors, and each has its own reason:

@@ -511,41 +511,20 @@ pub use topo::{
 // DISCRIMINANT, and every discriminant these refusals name is
 // spellable from this list.
 //
-// All of them cross to Python as well, and this list is what made that
+// All four cross to Python as well, and this list is what made that
 // spellable. `ValidationError.findings` carries one word per failure —
 // the arm, plus `CensusContact` as `contact_kind`, `CensusSubject` as
 // `subject_kind` with the entity's kind beside it, `StaleDeclaration`
-// as `stale_kind`, `RingContact` as `ring_contact_kind`, and the
-// decline cause as `decline_kind` (flat: the chart-region ARM is the
-// word, because which LANE refused is not a fact a caller acts on) — so the
+// as `stale_kind` and `RingContact` as `ring_contact_kind` — so the
 // asymmetry these entries were written under, a Rust caller matching
 // the arm while a Python caller read the sentence, is closed for every
 // payload discriminant this refusal carries. One attribute per
 // concept, `None` on every arm that carries none. The sequence is the
 // one on this surface: `validate*` is the one door that reports many
 // refusals at once, and `failure_count` says so.
-//
-// **`CensusUnsupportedCause` and `ChartRegionError` are the fifth and
-// sixth, and they are one fact carried two rungs.**
-// `CensusUnsupported` is raised by three lanes that decline for
-// unrelated reasons: a chart-region refusal, a contact certifier's
-// typed decline, a face with no readable boundary. The cause is what
-// says which, and the rung below it — the chart-region ARM — is where
-// the branch a caller acts on actually lives. A
-// `WitnessBudgetExhausted` decline says the interior-witness search
-// STOPPED on a pair that may be perfectly decidable and wants simpler
-// trims; a `TouchingBoundary` decline says the overlap is not
-// decidable at this ε and wants the geometry moved. Those are
-// opposite repairs, and until the cause was carried both arrived as
-// one sentence about an uncertifiable inventory — which is the true
-// cause of neither. So the rule that stopped the reach one rung down
-// for `ContactFinding` stops it one rung FURTHER here, for the same
-// reason it stopped there: this is where the discriminant a caller
-// branches on sits.
 pub use topo::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, ChartRegionError, RingContact,
-    StaleDeclaration, ValidationError, validate, validate_closed, validate_geometric,
-    validate_pseudomanifold,
+    CensusContact, CensusSubject, RingContact, StaleDeclaration, ValidationError, validate,
+    validate_closed, validate_geometric, validate_pseudomanifold,
 };
 
 // --- 6. Mass properties ---------------------------------------

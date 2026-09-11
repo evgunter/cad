@@ -330,7 +330,10 @@ impl core::fmt::Display for ChartRegionError {
                 f,
                 "chart-region: no structural chart identity ({detail}) — a declared \
                  (rung-3) pair escalates: two descriptions of one locus may differ \
-                 as charts, so no chart-space overlap test exists for it"
+                 as charts, so no chart-space overlap test exists for it. Give the \
+                 pair a structural identity — one shared surface key, or two \
+                 descriptions off the same `GeomSource` — since no numeric \
+                 comparison of two charts stands in for one"
             ),
             Self::NonPlanarTrim {
                 face,
@@ -340,8 +343,11 @@ impl core::fmt::Display for ChartRegionError {
                 f,
                 "chart-region: face {face:?} half-edge {half_edge:?} is outside the \
                  planar trim inventory ({what}) — the area test is exact on straight \
-                 chart segments and refuses typed beyond them (the tilted-cut class \
-                 is the named exclusion)"
+                 chart segments and refuses typed beyond them. Re-mint the pcurve \
+                 as a straight chart segment where the geometry admits one, or read \
+                 the pair on a chart the trim is straight in; the tilted-cut class \
+                 is the named exclusion and has neither, so it waits on the curved \
+                 region lane"
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
@@ -360,14 +366,18 @@ impl core::fmt::Display for ChartRegionError {
                 f,
                 "chart-region: the pair's loops do not fit one period-wide azimuth \
                  window — different periodic branches have no common region \
-                 representation (branch normalization is a later rung)"
+                 representation (branch normalization is a later rung). Re-seat the \
+                 trims so both loops fall inside one branch, or split the pair at \
+                 the seam and ask about each half"
             ),
             Self::PeriodFold => write!(
                 f,
                 "chart-region: the cross-description angular fold could not be \
                  pinned to one whole period at this scalar — the two windows sit \
                  a genuine half-period tie apart (periodic_branch's documented \
-                 remainder); the tie declines, it never certifies"
+                 remainder); the tie declines, it never certifies. Move one \
+                 description's window off the half-period tie, or re-describe the \
+                 pair on one cylinder rather than two"
             ),
             Self::CarrierTilt => write!(
                 f,
@@ -375,23 +385,33 @@ impl core::fmt::Display for ChartRegionError {
                  definitely apart over the pair's OWN extent — the representative \
                  chart needs the two descriptions to agree everywhere the trims \
                  reach, and Door 1's 1 m lever arm does not price a contact at \
-                 its own size"
+                 its own size. Bring the two carriers into agreement over the \
+                 pair's own extent — re-fit or re-seat one of them; the \
+                 declaration cannot close a gap the geometry has"
             ),
             Self::TouchingBoundary => write!(
                 f,
                 "chart-region: the trim boundaries touch at this ε — overlap area is \
-                 not decidable in either direction"
+                 not decidable in either direction. Move the boundaries definitely \
+                 apart or definitely across each other — a touch is the one \
+                 configuration this test has no answer for — or read the pair at a \
+                 tighter ε"
             ),
             Self::DegenerateLoop { face, r#loop } => write!(
                 f,
                 "chart-region: loop {loop:?} of face {face:?} has no definite chart \
-                 orientation (degenerate polygon at this ε)"
+                 orientation (degenerate polygon at this ε). Repair the loop so its \
+                 chart image encloses area — collapsed or collinear runs are the \
+                 usual cause — or re-mint its pcurves"
             ),
             Self::Escalated(diag) => write!(f, "chart-region: escalated: {diag}"),
             Self::RayExhausted => write!(
                 f,
                 "chart-region: every schedule ray grazed — ill-conditioned \
-                 containment query at this ε"
+                 containment query at this ε. Every direction the schedule offers \
+                 lands in the band, so move the point off the boundary it grazes, \
+                 or read the pair at a tighter ε; a longer schedule does not \
+                 decide a query whose margins are all in-band"
             ),
             Self::WitnessBudgetExhausted { segments, cells } => write!(
                 f,
@@ -403,8 +423,11 @@ impl core::fmt::Display for ChartRegionError {
             ),
             Self::Corrupt => write!(
                 f,
-                "chart-region: unwalkable topology or a \
-                 self-contradictory crossing walk"
+                "chart-region: unwalkable topology or a self-contradictory crossing \
+                 walk — a kernel invariant, not an input a caller can repair. \
+                 Rebuild the body through the Euler operators, and report this: \
+                 a walk that contradicts itself is a defect in whatever wrote the \
+                 arena"
             ),
         }
     }
@@ -1899,14 +1922,23 @@ enum WitnessOutcome {
 /// undecidably thin and would be a statement about the geometry that
 /// nothing measured. A fat, decidable overlap over the segment cap is
 /// the case that separates them: it declines with zero probes issued.
-const WITNESS_BUDGET: WitnessBudget = WitnessBudget {
+pub const WITNESS_BUDGET: WitnessBudget = WitnessBudget {
     segments: 128,
     cells: 4096,
 };
 
-struct WitnessBudget {
-    segments: usize,
-    cells: usize,
+/// The interior-witness schedule's two caps, public because
+/// [`ChartRegionError::WitnessBudgetExhausted`] is: a caller resolving
+/// that refusal wants the cap its `segments` count ran into, and a
+/// fixture asserting the refusal has to DERIVE its over-cap value
+/// from here rather than restate a literal that drifts the day the cap
+/// moves.
+pub struct WitnessBudget {
+    /// The boundary-segment cap: the arrangement is not built at all
+    /// beyond it.
+    pub segments: usize,
+    /// The cell-probe cap: the walk returns the instant `spent > cells`.
+    pub cells: usize,
 }
 
 /// **The completion of the witness schedule**: the cell centres of the
@@ -3541,6 +3573,99 @@ mod tests {
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **`ChartRegionError`'s header claim, made enforceable.** The
+    /// enum's doc says *"every arm names its recourse"*, and NINE of
+    /// the thirteen did not — they stated a condition and stopped.
+    /// (Nine, not the eight a reading by eye found: `NonPlanarTrim`
+    /// ends on the exclusion it names and never says what to do about
+    /// it, and this row is what noticed.)
+    /// Nothing noticed, because the CENSUS was appending a blanket
+    /// recourse of its own to every one of them, which is the
+    /// compensation that let the claim go unmet and that named the
+    /// wrong repair for the arms it did not describe.
+    ///
+    /// **This is a floor, not a proof.** A vocabulary check cannot
+    /// tell a recourse from a sentence containing a verb, and a new
+    /// arm whose recourse uses a word not on this list fails it
+    /// honestly — extend the list in the same change. What it does
+    /// catch is the case that actually happened: an arm added with no
+    /// second clause at all.
+    #[test]
+    fn every_chart_region_arm_names_a_recourse() {
+        const RECOURSE_VERBS: &[&str] = &[
+            "give",
+            "re-seat",
+            "move",
+            "bring",
+            "repair",
+            "restrict",
+            "re-mint",
+            "simplify",
+            "rebuild",
+            "split",
+            "read",
+            "replay",
+            "re-describe",
+            "re-fit",
+            "report",
+            "lower",
+            "separate",
+            "declare",
+        ];
+        let diag = Indeterminate {
+            margin: geom_core::MarginDiag::Value(5e-9),
+            band: band(),
+            predicate: Some("chart_region_area"),
+        };
+        // Every arm, constructed. The list is exhaustive by
+        // inspection and the compiler cannot check that for a Vec, so
+        // the count is asserted against the enum's own arm count as
+        // the census's exhaustive matches spell it.
+        let arms = vec![
+            ChartRegionError::ChartDivergence { detail: "same-key" },
+            ChartRegionError::NonPlanarTrim {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                what: "a Harmonic image",
+            },
+            ChartRegionError::MissingCache {
+                half_edge: HalfEdgeKey::default(),
+            },
+            ChartRegionError::ArmUnbounded { chart: "cone" },
+            ChartRegionError::SeamBranch,
+            ChartRegionError::PeriodFold,
+            ChartRegionError::CarrierTilt,
+            ChartRegionError::TouchingBoundary,
+            ChartRegionError::DegenerateLoop {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+            },
+            ChartRegionError::Escalated(diag),
+            ChartRegionError::RayExhausted,
+            ChartRegionError::WitnessBudgetExhausted {
+                segments: WITNESS_BUDGET.segments + 1,
+                cells: 0,
+            },
+            ChartRegionError::Corrupt,
+        ];
+        assert_eq!(arms.len(), 13, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            // `Escalated` delegates to `Indeterminate`, whose Display
+            // ends in the shared coincidence recourse — it is covered
+            // by the carrier and not by a clause of its own.
+            if matches!(arm, ChartRegionError::Escalated(_)) {
+                assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+                continue;
+            }
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
+                "no recourse in: {msg}"
+            );
+        }
     }
 
     fn pt(x: f64, y: f64) -> Point2<f64> {

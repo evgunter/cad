@@ -100,6 +100,20 @@ decision with it"* is true of the first and not of the second, and the
 invariance is now a row
 (`the_decline_relation_does_not_depend_on_which_lane_declined`).
 
-The word reaches Python too, as `ValidationFinding.decline_kind`, flat:
-the chart-region ARM is the word, because which LANE refused is not a
-fact a caller acts on.
+**The carriers now owe the recourse, and pay it.** Dropping the
+census's blanket tail exposed that `ChartRegionError`'s header claim —
+*"every arm names its recourse"* — was false of NINE of its thirteen
+arms; the census had been papering over it while naming the wrong
+repair for every arm it did not describe. All nine have one now, and
+`every_chart_region_arm_names_a_recourse` is the floor that keeps the
+claim true. The one deliberate exception is `ContactRefusal::
+NotCertifiable`, which carries none because `contact.rs` ratified that
+it must not.
+
+**The Python word is NOT here.** It is LIB's row: the prelude cannot
+publish a new refusal payload without the CUR3 property row
+(`pncad/tests/all.rs::carried_refusal_payloads_are_matchable_through_the_prelude`)
+that makes "a refusal the prelude names is matchable through the
+prelude" mechanical, and without repairing the six prose copies of the
+premise this unit's own cause doc falsifies. The kernel carries the
+fact; the Python door crosses it in a LIB-owned change.
