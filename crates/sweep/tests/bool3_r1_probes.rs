@@ -16,6 +16,7 @@
 
 use crate::revolve_common;
 
+use crate::common::approx::band;
 use geom_core::{Point3, Tol, Vec3};
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
@@ -26,10 +27,6 @@ use topo::{Body, SolidContainment, point_in_solid};
 const R: f64 = 1.0;
 const MINOR: f64 = 0.3;
 const EXT: f64 = R + MINOR;
-
-fn band() -> geom_core::Band {
-    geom_core::Band::linear(Tol::witness()).unwrap()
-}
 
 fn donut() -> Body<f64> {
     let lp = ProfileLoop::new(vec![

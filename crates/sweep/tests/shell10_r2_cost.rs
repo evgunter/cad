@@ -11,7 +11,8 @@ use std::time::Instant;
 use geom_core::Vec3;
 use topo::SolidKey;
 
-use crate::shell8_common::{band, beside, cap, charts_of, tol};
+use crate::common::approx::band;
+use crate::shell8_common::{beside, cap, charts_of, tol};
 use crate::verbs_shell::{boxy, hollow_box, outer_and_void, vessel};
 
 fn median_ms(label: &str, mut f: impl FnMut()) {

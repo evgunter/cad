@@ -9,9 +9,8 @@
 use geom_core::{Point3, Vec3};
 use topo::{Body, FaceKey, HalfEdgeKey, SolidKey};
 
-use crate::shell8_common::{
-    band, beside, cap, deep_dump, faces_of, outer_and_void_of, tol, volume,
-};
+use crate::common::approx::band;
+use crate::shell8_common::{beside, cap, deep_dump, faces_of, outer_and_void_of, tol, volume};
 use crate::verbs_shell::{boxy, vessel};
 
 fn y() -> Vec3<f64> {
