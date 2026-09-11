@@ -2,10 +2,11 @@
 id: direction-underflow-reports-zero-length
 kind: issue
 title: the underflow twin: a direction under ~1e-162 is refused as zero length, which it is not
-status: review
+status: closed
 opened: 2026-09-04
 branch: fix/direction-underflow
 pr: 2359
+closed: 2026-09-11
 ---
 
 

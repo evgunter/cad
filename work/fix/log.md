@@ -1018,3 +1018,44 @@ more `ValidationError` arms make the assumption this unit broke, two of
 them wrappers contributing four words (`"tier 3: {error}"`) over a
 carrier that names no repair in 0 of 2 and 1 of 9 of its literals. Six
 arms carrying `Indeterminate` are sound and are not on the list.
+
+### `direction-underflow-reports-zero-length` closed (PR 2359, 2026-09-11), and two residues filed that the PR only disclosed
+
+PR 2359 merged at 09:45 and **the item never left `review`** — the
+board carried a merged unit as in-flight until this orchestrator pass.
+Closed now. Worth naming rather than quietly fixing: the merge
+commit's own predecessor is `work: record PR 2359 on the underflow
+item`, so the lane wrote the header once, before merge, and nothing
+wrote it after. A unit that records its PR at open and closes at merge
+needs the second write to be somebody's, and on this program it is the
+orchestrator's.
+
+**Two residues were disclosed in the PR body and nowhere else**, which
+is exactly the shape `work/README.md` legislates against — a residue
+that lives in prose is invisible to the re-homing sweep and dies with
+the directory. Both now have files:
+
+- `underflow-gate-owed-at-five-more-doors` — the sweep's rows 2–6.
+  Re-verified against this head (all five `is_finite_length` call
+  sites still stand where the sweep put them), and narrowed to **four**
+  arms, because row 5's content turned out to be the second residue
+  rather than a missing arm.
+- `path-error-numbers-below-1e-9-render-as-zero` — row 5, and the PR
+  under-reported it. It filed the finding as *"the `num()` formatter
+  prints `1e-180` as `0`"*, which reads as an underflow symptom. It is
+  not. Executing `num`'s exact body over a range shows the threshold
+  is a hard-coded absolute `1e-9` (`tol = 1e-9 * x.abs().max(1.0)`,
+  where the `max` pins it for every `|x| <= 1`), so **`1e-12` and
+  `1e-30` render as `0` just as `1e-180` does, and `-1e-30` renders as
+  `-0`**. The kernel's unit is the metre, `num` is applied to `margin`
+  and `arm`, and a picometre margin is precisely the quantity a
+  tangency refusal exists to report. Three `Display` impls, 38 call
+  sites.
+
+The general lesson, since this is the second time this program has
+found it: **a lane's disposition column is a hypothesis about a site
+it did not take.** "Not this unit" was right in all five rows; the
+one-line characterisation attached to the row that got the most
+scrutiny was still wrong, in the direction of making the defect look
+narrower and more exotic than it is. The residue rows are worth
+re-executing at filing time, not transcribing.
