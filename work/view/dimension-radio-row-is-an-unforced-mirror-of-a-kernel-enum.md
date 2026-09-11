@@ -11,7 +11,7 @@ Found by the style review of PR 2046 (`view/const-all`).
 
 ## The instance
 
-`crates/viewer/src/pane/properties.rs:156-160` builds the new-parameter
+`crates/viewer/src/pane/properties.rs:159-163` builds the new-parameter
 radio row from an inline array:
 
     for (dimension, label) in [

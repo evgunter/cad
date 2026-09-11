@@ -25,7 +25,7 @@ The button's `on_disabled_hover_text` (`app.rs:1175`) is a literal:
 
 > the document id is derived from the name
 
-`Refusal::EmptyName` renders (`crates/viewer/src/session/refuse.rs:405-409`):
+`Refusal::EmptyName` renders (`crates/viewer/src/session/refuse.rs:426-430`):
 
 > a new document needs a name; its identity is derived from it
 

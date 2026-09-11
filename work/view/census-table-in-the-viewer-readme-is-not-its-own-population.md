@@ -19,7 +19,7 @@ population it certifies is *a destructuring census under
 `crates/viewer/src` that is not a `Debug` dump*, and the table is not
 that population.
 
-`PruneReport::is_empty` (`crates/viewer/src/display.rs:592-599`)
+`PruneReport::is_empty` (`crates/viewer/src/display.rs:602-609`)
 destructures `PruneReport` — its own doc says so, in the table's own
 words: *"**Destructured rather than field-read**, so a fourth kind of
 withdrawal is E0027 here rather than a withdrawal that leaves the

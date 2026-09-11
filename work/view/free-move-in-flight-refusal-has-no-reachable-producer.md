@@ -16,15 +16,15 @@ that claim's subject one door over from where the item puts it.
 
 `gesture-drags-have-no-cancel-door` hangs its honesty argument on
 `DisplayFault::FreeMoveInFlight`, which renders as **"finish the
-free-move first"** (`crates/viewer/src/display.rs:215`) — *"an
+free-move first"** (`crates/viewer/src/display.rs:224`) — *"an
 instruction the user cannot follow, because the gesture it names has no
 pointer behind it and no door to close it."* The shape is right. The
 sentence is the wrong one, because **no route in today's chrome shows
 it to anybody.**
 
 `DisplayState::begin_free_move` raises it only when a free-move is
-already in flight (`display.rs:736-738`). The probe's field is three
-`DragValue`s on the selected instance (`pane/properties.rs:377-402`),
+already in flight (`display.rs:746-748`). The probe's field is three
+`DragValue`s on the selected instance (`pane/properties.rs:380-407`),
 each pushing `BeginFreeMove` on `drag_started`; one pointer cannot hold
 two of them, and the typed arm emits begin/preview/commit in one batch.
 Selecting another instance needs a click, which releases the drag and
@@ -34,12 +34,12 @@ cancel-door unit is the VALUE drag's, off `slot_rows` emptying for a
 dead standing. The probe's field is drawn off the shown document
 (`display::is_instance`, `display::free_move_check`), not off the landed
 evaluation, and a document change while a probe is in flight is pruned
-rather than stranded (`display.rs:849-862`), so that trace does not
+rather than stranded (`display.rs:879-892`), so that trace does not
 carry over.
 
 The honesty inversion the item describes is real and it lands on
 `Refusal::GestureInFlight` — **"finish the drag first"**
-(`crates/viewer/src/session/refuse.rs:427`) — which the same unit
+(`crates/viewer/src/session/refuse.rs:448`) — which the same unit
 traced to a state with no pointer behind the drag. That half is closed
 by the cancel doors.
 
