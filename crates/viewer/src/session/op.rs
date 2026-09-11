@@ -306,6 +306,18 @@ pub enum SessionOp {
     /// not the instance the open probe was begun on — the value
     /// gesture's rule ([`SessionOp::PreviewGesture`]) on the other
     /// drag, where the identity is one node rather than a target.
+    ///
+    /// **One node is the whole identity because an instance has one
+    /// probe**, and what that buys depends on the chrome driving it
+    /// from one gesture. The panel draws the probe as three millimetre
+    /// boxes; mapped a triple per box they are three gestures over one
+    /// probe, and this payload cannot separate them — both name the
+    /// same instance, so the second box's preview overwrites the
+    /// first's frame and its commit lands it and CLOSES the probe the
+    /// pointer is still holding. So the row is mapped once
+    /// ([`crate::widgets::vec3_row_ops`]). A second DRIVER on one
+    /// instance is still outside what this payload can refuse;
+    /// `work/view/probe-identity-stops-at-the-instance.md` owns that.
     PreviewFreeMove {
         /// The instance being probed.
         instance: RecipeNodeId,

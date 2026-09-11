@@ -1,7 +1,7 @@
 ---
 id: all-census-idiom-forces-the-visit-not-the-update
 kind: issue
-title: The ALL-census idiom forces a visit to the row, not an update to the list, at all three of its sites
+title: The ALL-census idiom forces a visit to the row, not an update to the list, at every site it has
 status: open
 opened: 2026-09-11
 ---
@@ -77,3 +77,46 @@ all three sites, plus the three docs corrected to claim what holds.
 `crates/viewer/src/vocab.rs`'s projected `ALL` is NOT in this class:
 there the list and the enum are one declaration and the question does
 not arise.
+
+## The population is not three (2026-09-11, the DOOR orchestrator)
+
+**This item was filed carrying a hand-maintained count of the sites of a
+defect about hand-maintained counts, and the count was wrong within the
+hour.** PR #2391 added a fourth (`all_is_every_dimension`,
+`crates/editor-core/tests/m4_pr1_dims.rs`) and did not amend this file;
+the review of that PR caught it. That is this item's own subject
+happening to this item, and it is the strongest argument for the
+instrument it asks for.
+
+**Measured** with a structural scan — a `match` whose every arm is
+`=> <the same integer>` — over `crates/**/*.rs`:
+
+| site | arms |
+| --- | --- |
+| `crates/topo/src/param_source.rs:312`, `:319` | 5 each |
+| `crates/topo/src/boolean/mod.rs:2559` | 3 |
+| `crates/verbs/src/verb.rs:388`, `:396` | 5 each |
+| `crates/verbs/src/verb.rs:437` (one match, wrapped) | 10 → 9 |
+| `crates/verbs/src/flow.rs:402` | 5 |
+| `crates/editor-core/tests/m4_pr1_dims.rs:184` | 4 |
+| `crates/geom-brep/src/certify.rs:2233` (one match, wrapped) | 15+ → 21 |
+
+**That is a FLOOR, not a count, and this file will not carry one.** The
+scanner reads a fourteen-line window, so a match whose arms wrap past it
+is split (two rows above are one census each) or missed entirely —
+`crates/verbs/src/flow.rs:445` (`FlowSource`), named by the review, does
+not appear above for exactly that reason. What the measurement
+establishes is only that the population is **at least nine and not
+three**, which is all this item needs to justify an instrument.
+
+Establishing the exact number is the instrument's job, not prose's.
+Whatever lands here should print its own population, so the next reader
+does not inherit a number somebody counted by hand — the failure this
+paragraph is a record of.
+
+**Two of the sites above are worth a second look on their own**, found
+incidentally and not chased: `verb.rs:437`'s match appears to carry ten
+arms against a stated total of nine, and `certify.rs:2233`'s stated 21
+is larger than the arms the scan could see. Either may be the scanner's
+windowing rather than the code's; neither was verified, and the
+instrument will answer both.

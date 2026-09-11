@@ -12,7 +12,7 @@ use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing};
-use crate::widgets::{GestureVocabulary, delete_button, drag_gesture_ops, drag_ops};
+use crate::widgets::{GestureVocabulary, delete_button, drag_gesture_ops, drag_ops, vec3_row_ops};
 
 impl ViewerBehavior<'_> {
     /// The property panel.
@@ -162,13 +162,22 @@ impl ViewerBehavior<'_> {
                     .hint_text("name")
                     .desired_width(90.0),
             );
-            for (dimension, label) in [
-                (Dimension::Length, "Length"),
-                (Dimension::Angle, "Angle"),
-                (Dimension::Count, "Count"),
-                (Dimension::Scalar, "Scalar"),
-            ] {
-                ui.radio_value(&mut self.drafts.new_param_dimension, Some(dimension), label);
+            // One button per dimension the KERNEL has, in its order
+            // and under its own word for it: the form offers the
+            // vocabulary and writes no copy of it — neither the
+            // membership, which is `Dimension::ALL`, nor the words,
+            // which are the `Display` that `editor_core::expr` calls
+            // the one home of the dimension-in-prose rule. A fifth
+            // dimension therefore arrives in this row with no edit
+            // here, and it arrives as the noun a person would say
+            // rather than as a capitalised variant identifier, which
+            // is what these four buttons used to read as.
+            for dimension in Dimension::ALL {
+                ui.radio_value(
+                    &mut self.drafts.new_param_dimension,
+                    Some(dimension),
+                    dimension.to_string(),
+                );
             }
             // The form authors in the canonical unit — a new
             // parameter's declaration names that notation
@@ -376,42 +385,40 @@ impl ViewerBehavior<'_> {
                 // one widget→gesture mapping (`drag_ops`) so the typed-
                 // input arm exists here too: typing a value performs a
                 // one-shot begin/preview/commit, exactly one committed
-                // display value. Each component's preview composes the
+                // display value. The instance has ONE probe and all
+                // three components drive it, so the row is one gesture
+                // and `vec3_row_ops` maps it once — its docs carry what
+                // a triple per box costs. Each preview composes the
                 // FULL frame from all three, so dragging x does not
                 // zero y and z. The chrome offers the translation
                 // components; the op vocabulary takes any rigid frame.
+                let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
                 ui.horizontal(|ui| {
-                    for axis in 0..3 {
-                        let mut value = mm[axis];
-                        let widget = ui.add(egui::DragValue::new(&mut value).speed(field.tick));
-                        mm[axis] = value;
-                        let frame_of =
-                            |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
-                        drag_ops(
-                            &widget,
-                            value,
-                            GestureVocabulary {
-                                begin: SessionOp::BeginFreeMove { instance: node },
-                                preview: |_| SessionOp::PreviewFreeMove {
+                    vec3_row_ops(
+                        ui,
+                        field.tick,
+                        &mut mm,
+                        GestureVocabulary {
+                            begin: SessionOp::BeginFreeMove { instance: node },
+                            preview: |mm| SessionOp::PreviewFreeMove {
+                                instance: node,
+                                frame: frame_of(mm),
+                            },
+                            commit: SessionOp::CommitFreeMove { instance: node },
+                            cancel: SessionOp::CancelFreeMove,
+                        },
+                        |mm| {
+                            vec![
+                                SessionOp::BeginFreeMove { instance: node },
+                                SessionOp::PreviewFreeMove {
                                     instance: node,
                                     frame: frame_of(mm),
                                 },
-                                commit: SessionOp::CommitFreeMove { instance: node },
-                                cancel: SessionOp::CancelFreeMove,
-                            },
-                            |_| {
-                                vec![
-                                    SessionOp::BeginFreeMove { instance: node },
-                                    SessionOp::PreviewFreeMove {
-                                        instance: node,
-                                        frame: frame_of(mm),
-                                    },
-                                    SessionOp::CommitFreeMove { instance: node },
-                                ]
-                            },
-                            self.ops,
-                        );
-                    }
+                                SessionOp::CommitFreeMove { instance: node },
+                            ]
+                        },
+                        self.ops,
+                    );
                 });
             }
         }

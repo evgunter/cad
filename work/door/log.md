@@ -254,3 +254,78 @@ and was red on the self-test's planted README fixture. And this
 program's `keep_out` did not anticipate `crates/viewer/README.md` or
 `scripts/gates/` — territory named eight foreign paths where the brief
 predicted three, all announced.
+
+## The mirror class is closed (#2391, 2026-09-11)
+
+`editor_core::Dimension::ALL` is published and the viewer's inline
+four-entry mirror is gone. **All four rows of the class are closed** —
+the head, the boolean instance, the third `editor-core` copy #2387
+found, and this one — in the two PRs `plan.md`'s **Order** ruled.
+
+**The lane refused an instruction in the brief and was right to.** The
+brief said to copy #2387 and add a viewer-side `dimension_label`.
+`BooleanOp` had no rendering, so `boolean_op_label` was its words' first
+home; `Dimension` already has one, and `crates/editor-core/src/expr.rs`
+calls its `Display` *"the one home of the dimension-in-prose rule for
+the crate"* while `tests/display_contract.rs:408` lists
+`["Length","Angle","Count","Scalar"]` as **dumps** it refuses in user
+prose — the four strings the radio row was rendering. A
+`dimension_label` would have been a fourth spelling of a word list the
+crate deliberately owns. The row reads `dimension.to_string()`, which
+also fixes a live violation of that contract in the GUI. The
+"dispatch is a hypothesis" clause earning its place, against the
+orchestrator.
+
+**The orchestrator's framing of the review question was also wrong.**
+It asked whether a radio label is "prose", on the premise that
+`expr.rs`'s rule is scoped to refusal sentences. The clause says
+*"wherever a dimension reaches a user"* and names the refusal channels
+as an enumeration of the current reachers, not as the scope. The
+question was still worth asking and the answer came from the tree
+rather than from the clause: **every vocabulary label in the viewer is
+lowercase** — all seventeen `PathVerb` words, `DatumKind`, `ShapeKind`,
+`ArcMode`, `PatternKindChoice`, `boolean_op_label`, `MATE_PRIMITIVES`,
+`BlendKindChoice`, `PatternOutputChoice` — and the only capitalised UI
+strings in the crate are three pane titles and the action buttons. The
+add-parameter row was the one vocabulary control rendering capitalised
+variant identifiers. The seven drifted GUI cells are a genuine
+re-baseline, through a mechanism verified rather than assumed
+(`ci.yml:5109-5118`: PRs report, `main` commits).
+
+**Ordering rule 5 fired again, and differently.** #2387 minted a census
+and denied it. #2391's census is honest — but the class item
+`all-census-idiom-forces-the-visit-not-the-update` was filed carrying
+"three sites", #2391 made it four, and nothing updated it. **A row about
+hand-maintained counts went stale by one within the hour of being
+filed.** Measured since, with a structural scan: the population is at
+least NINE, and the scan's own windowing means that is a floor. The item
+now carries the table, the floor, and a refusal to carry a number —
+establishing the count is the instrument's job.
+
+The same shape a third time: `dimension-all-has-readers-outside-the-viewer`
+said five, its sweep was shaped for bracketed arrays, and three more
+complete four-variant enumerations written as consecutive statements
+were invisible to it — two in `pncad-py`, **one in `crates/viewer`
+itself**, so the closed row's own territory was not swept clean by the
+PR that closed it. Both the sites and the blind spot are now in the
+file rather than only in a PR body.
+
+**Filed**: `unit-symbol-proptest-generators-under-cover-with-no-file`.
+`expr.rs:296-300` has disclosed for some time that `u8a_parse.rs`'s two
+`prop_oneof!` generators silently under-cover the unit symbols; the only
+tracker row naming that file reaches the same two blocks for their
+*Dimension* half only. Disclosed at the site, scheduled by nothing,
+which is the one thing neither `work/README.md` nor the implementer
+discipline permits.
+
+**Corrected**: this program's `keep_out` asserted "crates/editor-core/*
+is DOCM's". #2391 measured it false — DOCM's `paths:` is a specific file
+list and `expr.rs` is on nobody's — and the next DOOR lane would have
+read it. An `editor-core` path is owned or unowned file by file, and
+`work.py territory` is the only authority.
+
+**Where the program stands.** The mirror class, the reason DOOR claimed
+two rows from VIEW, is done. What remains is the five independent rows
+of the original cut plus the residue the class filed. Whether the five
+belong here or on FIX's slate is still Ev's open question, put to them
+in-chat and not blocking anything.
