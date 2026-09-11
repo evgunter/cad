@@ -7,6 +7,7 @@ opened: 2026-09-04
 branch: fix/census-pair-order
 closed: 2026-09-11
 refs: [census-witness-string-repeats-the-subject]
+pr: 2372
 ---
 
 
