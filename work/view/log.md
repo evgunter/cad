@@ -9338,3 +9338,95 @@ the program's status, not an item's. The tool was right at every step
 and both of my counts were wrong, in two different ways, in the space
 of five minutes. `work.py status` is the count of record; a number
 reached any other way is a guess wearing a number's clothes.
+
+## 2026-09-11 — `view/escape-abandons`: Escape ends a drag as a cancel
+
+**Shape 1, and the argument that settles it is not the one the item
+gave.** The item's fork was *read Escape where the triple is mapped* or
+*ratify that a probe lands whatever it previewed*. Both readings rest on
+whether the chrome has another way to abandon, and it does not: the
+cancel doors are TOOLBAR controls, so pressing one costs the pointer
+release that lands the value. `cancel_doors` is enabled during a live
+pointer drag and unreachable during one. Until this change a held drag
+had no abandon at all, and the one input that can end it other than a
+release — `egui`'s Escape abort — was translated into the commit.
+
+**The gesture triple became a `GestureVocabulary`** with a fourth
+operation (`crates/viewer/src/widgets.rs:38-49`), and
+`drag_gesture_ops` emits that one instead of the commit on a
+`drag_stopped` frame carrying an Escape press (`:125-151`). A struct
+rather than a fourth positional parameter, and not only because clippy
+counts to seven: `commit` and `cancel` are both bare `SessionOp` and
+mean opposite things, so positionally they sit one transposition away
+from a chrome that lands what the user abandoned.
+
+**Three corrections to the item, all from re-deriving its premise
+against the tree rather than reading it.**
+
+- **No `Option`.** The item said the fix *"needs a fourth operation
+  parameter and an `Option` for the vocabularies that have no cancel"*.
+  There are none: all three vocabularies the panel maps carry a cancel,
+  and `gesture_table.rs`'s `every_gesture_cancel_has_a_chrome_door`
+  matches exhaustively over `SessionOp`, so a gesture that joined the
+  enum without one would red there first. The parameter is a
+  `SessionOp`.
+- **The value gesture has the same defect, with the LARGER stake.** Same
+  function, same release arm. A free-move commit lands a display frame
+  no history holds; a value-gesture commit reaches the document and
+  costs an undo step. Measured rather than read: with the Escape branch
+  removed, both new rows report `["commit"]` where `["cancel"]` belongs.
+- **The premise the orchestrator asked me to check held.**
+  `PreviewFreeMove`'s *"the identity is one node rather than a target"*
+  was written BY #2361, in the same diff that gave the value drags their
+  names, and is still true of the tree (`op.rs:309-323` against
+  `:188-206`). It is also not what the fork turns on: the cancel side is
+  where the two gestures agree, because both cancels name nothing.
+
+**Read the key, do not infer it.** `drag_stopped` with no pointer
+release would have been a proxy — a long touch ends a drag with no
+release too (`egui-0.36.1/src/interaction.rs:143-155`) and means a
+context menu, not an abandon. The property is *the user pressed
+Escape*, so the branch asks that.
+
+**Two prose claims the change made false, both amended in the same
+diff.** `crates/viewer/README.md`'s *"There is no key for it… an Escape
+binding is that decision and not a row to add"*, and `input::PRESETS`'
+*"no key denotes an operation anywhere"*. The honest amendment is not
+that the claims survive: the crate now reads exactly one key. What
+survives is the narrower fact — `egui` ends a drag on Escape whatever
+this crate does, so the branch decides which of two things the toolkit
+already did is reported, not which operation a key denotes, and a
+keyboard vocabulary still needs every decision `PRESETS` names.
+
+**The citation census over the bands this diff moved.** Five files
+shifted. Open rows citing into them, by subject rather than by delta:
+two repointed (`the-two-drags-name-their-gestures-in-two-shapes` —
+`op.rs:301-315`→`309-323`, `widgets.rs:57-100`→`78-151`,
+`properties.rs:557-574`→`563-583`, and its *"three ops"* is now a
+four-field value;
+`a-disabled-control-says-why-in-four-shapes` — `properties.rs:208`→`211`
+and `:727`→`736`). **Three were already wrong at the merge base and are
+left alone rather than shifted onto something else**:
+`comment-symbol-names-outside-rustdocs-reach-have-no-gate`'s
+`session/op.rs:828` (the site is deleted, which that row's own note
+already says), `is-instance-collapses-absent-and-wrong-kind`'s
+`properties.rs:336` (`instance_ui` is at `:338` at the base), and
+`a-disabled-control-says-why-in-four-shapes`' `properties.rs:350-355`
+(the `ui.weak(fault.to_string())` is at `:356`; `plan.md` cites a third
+band, `:348-353`, for the same subject). `stale-file-citations-after-
+the-split`'s `op.rs` numbers are QUOTATIONS — a table of what a past
+repoint said — and are not repointed for the same reason.
+
+**Out of fence, reported not edited** (implementer-discipline §6):
+`work/door/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum`
+(`:14`) and `work/door/plan.md` (`:66`) cite
+`crates/viewer/src/pane/properties.rs:159-163`, and
+`work/census/the-prose-word-for-a-kind-has-four-spellings-and-only-
+display-is-censused` (`:36`) cites `:158-161`. **Neither is a true
+shift, and the subject check is what says so**: the inline
+`(Dimension::Length, "Length")` array both rows are about is at
+`:162-167` at my merge base and `:165-170` at my head, so DOOR's band
+names the name field and catches only the array's first element, and
+CENSUS's names the name field alone. Both were wrong before this diff;
+the +1 is real but repointing either band would move a number that was
+never about its subject.

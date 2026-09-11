@@ -27,6 +27,27 @@ use crate::props;
 use crate::session::{DocSession, SessionOp};
 use crate::sketch::{ArcSpec, PathStep, PathTarget};
 
+/// **One gesture vocabulary**: the four operations a drag on one field
+/// emits, in the words that field's own doors speak.
+///
+/// A struct rather than four parameters because [`Self::commit`] and
+/// [`Self::cancel`] are the same type and mean opposite things —
+/// positionally they sit one transposition away from a chrome that
+/// lands what the user abandoned and abandons what they landed, with
+/// nothing between the mistake and the user to catch it.
+pub(crate) struct GestureVocabulary<Preview: Fn(f64) -> SessionOp> {
+    /// Open the gesture: emitted on the press.
+    pub(crate) begin: SessionOp,
+    /// Move it: emitted on every frame the value changes under the
+    /// pointer, carrying that value. Nothing it emits is committed.
+    pub(crate) preview: Preview,
+    /// Land it: emitted when a pointer release ends the drag.
+    pub(crate) commit: SessionOp,
+    /// Abandon it: emitted when Escape ends the drag instead
+    /// ([`drag_gesture_ops`]).
+    pub(crate) cancel: SessionOp,
+}
+
 /// **The one mapping from a `DragValue` to session operations**, and
 /// the only place in this crate that turns a widget into a gesture.
 ///
@@ -44,8 +65,8 @@ use crate::sketch::{ArcSpec, PathStep, PathTarget};
 /// per frame. Two spellings of a ratified rule is one spelling too
 /// many. Any future dragged number in this file calls this; nothing but
 /// this comment enforces that, which is the honest state of it.
-/// Generalized over the GESTURE VOCABULARY (`preview`/`commit` are
-/// parameters) because the free-move probe runs the same triple over
+/// Generalized over the [`GestureVocabulary`] because the free-move
+/// probe runs the same gesture over
 /// display ops rather than document ops — one mapping, two
 /// vocabularies, and the typed-input arm (`changed() && !dragged()`)
 /// covered for BOTH, which is the arm a hand-mapped copy of this
@@ -57,13 +78,11 @@ use crate::sketch::{ArcSpec, PathStep, PathTarget};
 pub(crate) fn drag_ops(
     widget: &egui::Response,
     value: f64,
-    begin: SessionOp,
-    preview: impl Fn(f64) -> SessionOp,
-    commit: SessionOp,
+    gesture: GestureVocabulary<impl Fn(f64) -> SessionOp>,
     typed: impl Fn(f64) -> Vec<SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) {
-    if drag_gesture_ops(widget, value, begin, preview, commit, ops) {
+    if drag_gesture_ops(widget, value, gesture, ops) {
         return;
     }
     if widget.changed() && !widget.dragged() {
@@ -75,17 +94,46 @@ pub(crate) fn drag_ops(
 }
 
 /// The drag half of [`drag_ops`]'s triple: begin on press, preview on
-/// every frame the value moves, commit on release. Answers whether the
-/// release happened, i.e. whether this frame's change was a gesture's
-/// and belongs to nothing else.
+/// every frame the value moves, and on the frame the drag ends either
+/// the commit or the cancel. Answers whether the drag ended, i.e.
+/// whether this frame's change was a gesture's and belongs to nothing
+/// else.
+///
+/// **A drag has two ends and they mean opposite things.** A pointer
+/// release lands the previewed value; Escape abandons it, and the
+/// abandoning end is the only one a user has while the button is still
+/// down — the cancel doors ([`DocSession::cancel_doors`]) are toolbar
+/// controls, so reaching one costs the release that would land the
+/// value. `egui` collapses the two into one `drag_stopped`, which is
+/// why the cancel is a member of [`GestureVocabulary`] rather than a
+/// control beside the field.
+///
+/// **The key is read, not bound.** Escape is already `egui`'s abort:
+/// it clears the drag whatever this crate does, so what this branch
+/// decides is which of the two things the toolkit did the chrome
+/// reports — not which key means cancel. Read directly rather than
+/// inferred from the absence of a pointer release, because a long
+/// touch also ends a drag with no release and means something else
+/// entirely.
+///
+/// **Every gesture vocabulary has a cancel**, so
+/// [`GestureVocabulary::cancel`] is a `SessionOp` rather than an
+/// `Option`: `gesture_table.rs`'s
+/// `every_gesture_cancel_has_a_chrome_door` matches exhaustively over
+/// [`SessionOp`], so a gesture that joined the enum with no cancel
+/// would red there first.
 pub(crate) fn drag_gesture_ops(
     widget: &egui::Response,
     value: f64,
-    begin: SessionOp,
-    preview: impl Fn(f64) -> SessionOp,
-    commit: SessionOp,
+    gesture: GestureVocabulary<impl Fn(f64) -> SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) -> bool {
+    let GestureVocabulary {
+        begin,
+        preview,
+        commit,
+        cancel,
+    } = gesture;
     if widget.drag_started() {
         ops.push(begin);
     }
@@ -93,7 +141,10 @@ pub(crate) fn drag_gesture_ops(
         ops.push(preview(value));
     }
     if widget.drag_stopped() {
-        ops.push(commit);
+        let escaped = widget
+            .ctx
+            .input(|input| input.key_pressed(egui::Key::Escape));
+        ops.push(if escaped { cancel } else { commit });
         return true;
     }
     false
@@ -536,10 +587,10 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::drag_ops;
+    use super::{GestureVocabulary, drag_gesture_ops, drag_ops};
     use crate::session::SessionOp;
     use eframe::egui;
-    use pncad::document::{Frame, RecipeNodeId};
+    use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
 
     const NODE: RecipeNodeId = RecipeNodeId(7);
 
@@ -550,16 +601,39 @@ mod tests {
     /// traversal instead of of this chrome's ops.
     const TAB_BUDGET: usize = 8;
 
+    /// Which gesture vocabulary the field under test is wired with.
+    ///
+    /// The two the panel drags are mapped by the same function, so a
+    /// rule about the mapping is a rule about both, and a row that
+    /// drove only one would be reading half of what it claims.
+    #[derive(Clone, Copy)]
+    enum Vocabulary {
+        /// The free-move probe's display triple, through [`drag_ops`]
+        /// — `crate::pane::properties`'s `instance_ui`.
+        FreeMove,
+        /// The value gesture's document triple over a vector slot's
+        /// three components, through [`drag_gesture_ops`] directly —
+        /// `crate::pane::properties`'s `slot_row_ui`, which reads its
+        /// own text and so does not want the typed arm.
+        Slot,
+    }
+
     struct Probe {
         ctx: egui::Context,
+        vocabulary: Vocabulary,
         mm: [f64; 3],
         rects: [egui::Rect; 3],
     }
 
     impl Probe {
         fn new() -> Self {
+            Self::of(Vocabulary::FreeMove)
+        }
+
+        fn of(vocabulary: Vocabulary) -> Self {
             Self {
                 ctx: egui::Context::default(),
+                vocabulary,
                 mm: [0.0; 3],
                 rects: [egui::Rect::NOTHING; 3],
             }
@@ -579,6 +653,7 @@ mod tests {
             let mm = &mut self.mm;
             let rects = &mut self.rects;
             let ops_ref = &mut ops;
+            let vocabulary = self.vocabulary;
             let mut output = ctx.run_ui(input, |ui| {
                 ui.horizontal(|ui| {
                     for axis in 0..3 {
@@ -587,28 +662,54 @@ mod tests {
                         mm[axis] = value;
                         rects[axis] = widget.rect;
                         let shown = *mm;
-                        let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
-                        drag_ops(
-                            &widget,
-                            value,
-                            SessionOp::BeginFreeMove { instance: NODE },
-                            |_| SessionOp::PreviewFreeMove {
-                                instance: NODE,
-                                frame: frame_of(shown),
-                            },
-                            SessionOp::CommitFreeMove { instance: NODE },
-                            |_| {
-                                vec![
-                                    SessionOp::BeginFreeMove { instance: NODE },
-                                    SessionOp::PreviewFreeMove {
-                                        instance: NODE,
-                                        frame: frame_of(shown),
+                        match vocabulary {
+                            Vocabulary::FreeMove => {
+                                let frame_of =
+                                    |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
+                                drag_ops(
+                                    &widget,
+                                    value,
+                                    GestureVocabulary {
+                                        begin: SessionOp::BeginFreeMove { instance: NODE },
+                                        preview: |_| SessionOp::PreviewFreeMove {
+                                            instance: NODE,
+                                            frame: frame_of(shown),
+                                        },
+                                        commit: SessionOp::CommitFreeMove { instance: NODE },
+                                        cancel: SessionOp::CancelFreeMove,
                                     },
-                                    SessionOp::CommitFreeMove { instance: NODE },
-                                ]
-                            },
-                            ops_ref,
-                        );
+                                    |_| {
+                                        vec![
+                                            SessionOp::BeginFreeMove { instance: NODE },
+                                            SessionOp::PreviewFreeMove {
+                                                instance: NODE,
+                                                frame: frame_of(shown),
+                                            },
+                                            SessionOp::CommitFreeMove { instance: NODE },
+                                        ]
+                                    },
+                                    ops_ref,
+                                );
+                            }
+                            Vocabulary::Slot => {
+                                let slot = SlotId::Origin(Axis3::ALL[axis]);
+                                drag_gesture_ops(
+                                    &widget,
+                                    value,
+                                    GestureVocabulary {
+                                        begin: SessionOp::BeginGesture { node: NODE, slot },
+                                        preview: |value| SessionOp::PreviewGesture {
+                                            node: NODE,
+                                            slot,
+                                            value,
+                                        },
+                                        commit: SessionOp::CommitGesture { node: NODE, slot },
+                                        cancel: SessionOp::CancelGesture,
+                                    },
+                                    ops_ref,
+                                );
+                            }
+                        }
                     }
                 });
             });
@@ -627,14 +728,43 @@ mod tests {
         }
     }
 
+    /// What each operation DOES to the gesture, with the vocabulary
+    /// that spells it dropped: the rules below are about the shape of
+    /// the triple, and reading them off the variant names would make
+    /// each row a row about one vocabulary.
     fn kind(op: &SessionOp) -> &'static str {
         match op {
-            SessionOp::BeginFreeMove { .. } => "begin",
-            SessionOp::PreviewFreeMove { .. } => "preview",
-            SessionOp::CommitFreeMove { .. } => "commit",
-            SessionOp::CancelFreeMove => "cancel",
+            SessionOp::BeginFreeMove { .. } | SessionOp::BeginGesture { .. } => "begin",
+            SessionOp::PreviewFreeMove { .. } | SessionOp::PreviewGesture { .. } => "preview",
+            SessionOp::CommitFreeMove { .. } | SessionOp::CommitGesture { .. } => "commit",
+            SessionOp::CancelFreeMove | SessionOp::CancelGesture => "cancel",
             _ => "other",
         }
+    }
+
+    /// Lay the field out, then open a drag on its x component: the
+    /// press and the move that makes `egui` call it a drag rather than
+    /// a click.
+    fn open_a_drag(probe: &mut Probe) {
+        // Two frames: egui interacts against the PREVIOUS frame's
+        // widget rects, so nothing is hittable until one has been laid
+        // out.
+        probe.frame(Vec::new());
+        probe.frame(Vec::new());
+        let x = probe.rects[0].center();
+        probe.frame(vec![egui::Event::PointerMoved(x)]);
+        probe.frame(vec![egui::Event::PointerButton {
+            pos: x,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        }]);
+        let opened = probe.frame(vec![egui::Event::PointerMoved(x + egui::vec2(40.0, 0.0))]);
+        assert_eq!(
+            opened.iter().map(kind).collect::<Vec<_>>(),
+            ["begin", "preview"],
+            "the pointer drag opens a gesture and holds it open"
+        );
     }
 
     /// **A held pointer drag and a keyboard bump on a sibling
@@ -668,27 +798,7 @@ mod tests {
     #[test]
     fn a_keyboard_bump_begins_a_second_probe_under_a_held_drag() {
         let mut probe = Probe::new();
-        // Two frames: egui interacts against the PREVIOUS frame's
-        // widget rects, so nothing is hittable until one has been laid
-        // out.
-        probe.frame(Vec::new());
-        probe.frame(Vec::new());
-        let x = probe.rects[0].center();
-        probe.frame(vec![egui::Event::PointerMoved(x)]);
-        probe.frame(vec![egui::Event::PointerButton {
-            pos: x,
-            button: egui::PointerButton::Primary,
-            pressed: true,
-            modifiers: egui::Modifiers::NONE,
-        }]);
-        // egui decides a click-and-drag widget is being DRAGGED only
-        // once the pointer has moved, so the press alone opens nothing.
-        let opened = probe.frame(vec![egui::Event::PointerMoved(x + egui::vec2(40.0, 0.0))]);
-        assert_eq!(
-            opened.iter().map(kind).collect::<Vec<_>>(),
-            ["begin", "preview"],
-            "the pointer drag opens a probe and holds it open"
-        );
+        open_a_drag(&mut probe);
 
         let mut before_the_second_begin: Vec<&'static str> = Vec::new();
         let mut second: Option<Vec<SessionOp>> = None;
@@ -722,5 +832,82 @@ mod tests {
             "and the typed arm spells a whole triple, so the begin it opens with is the \
              one `DisplayState::begin_free_move` refuses"
         );
+    }
+
+    /// **Escape abandons a free-move probe rather than landing it.**
+    ///
+    /// `egui` aborts a drag on Escape and on nothing else, by clearing
+    /// the dragged widget — so the abort reaches
+    /// [`drag_gesture_ops`] as a `drag_stopped` frame, indistinguishable
+    /// from a release unless the key is read. The two ends of a drag
+    /// mean opposite things, and this is the one that means abandon.
+    ///
+    /// It is also the ONLY abandon a user has while the button is
+    /// still down: [`crate::session::DocSession::cancel_doors`] draws
+    /// *"Cancel free-move"* in the toolbar, and reaching a toolbar
+    /// control costs the pointer release that lands the frame.
+    ///
+    /// Where it goes red: drop the Escape branch and the probed frame
+    /// is committed into `DisplayState::moved` by the key every other
+    /// control in this chrome spells *abandon*.
+    #[test]
+    fn escape_abandons_a_free_move_drag_instead_of_landing_it() {
+        let mut probe = Probe::of(Vocabulary::FreeMove);
+        open_a_drag(&mut probe);
+        assert_eq!(
+            probe
+                .key(egui::Key::Escape)
+                .iter()
+                .map(kind)
+                .collect::<Vec<_>>(),
+            ["cancel"],
+            "the abort ends the probe, and ends it the way the user asked"
+        );
+    }
+
+    /// The same reading on the OTHER drag the panel maps, because it
+    /// is the same function: a value gesture's release arm is
+    /// [`drag_gesture_ops`]' release arm.
+    ///
+    /// The stake is larger here rather than smaller. A free-move
+    /// commit lands a display frame no history holds; a value-gesture
+    /// commit reaches the DOCUMENT — one applied edit and one undo
+    /// step for a gesture the user asked to throw away.
+    #[test]
+    fn escape_abandons_a_value_drag_instead_of_committing_it() {
+        let mut probe = Probe::of(Vocabulary::Slot);
+        open_a_drag(&mut probe);
+        assert_eq!(
+            probe
+                .key(egui::Key::Escape)
+                .iter()
+                .map(kind)
+                .collect::<Vec<_>>(),
+            ["cancel"],
+            "the abort ends the drag without an edit behind it"
+        );
+    }
+
+    /// **And the ordinary end is still a commit**, at both doors: the
+    /// rule above is about which end happened, not about ending a drag
+    /// quietly. A release that committed nothing would lose exactly
+    /// the work the rule above exists to protect.
+    #[test]
+    fn releasing_the_pointer_still_commits_both_gestures() {
+        for vocabulary in [Vocabulary::FreeMove, Vocabulary::Slot] {
+            let mut probe = Probe::of(vocabulary);
+            open_a_drag(&mut probe);
+            let released = probe.frame(vec![egui::Event::PointerButton {
+                pos: probe.rects[0].center() + egui::vec2(40.0, 0.0),
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+            assert_eq!(
+                released.iter().map(kind).collect::<Vec<_>>(),
+                ["commit"],
+                "a released drag lands what it previewed"
+            );
+        }
     }
 }
