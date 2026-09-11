@@ -8246,3 +8246,262 @@ not compile there at all.
 make the lint inert on the skip-mode viewer pass, retire the three
 module notes, amend the README's Rustdoc posture clause). It is the only
 open lane.
+
+## 2026-09-11 — `view/link-thirteen`: the thirteen are links, and the pass that forbade them stopped judging links
+
+**Ev ruled, in chat on 2026-09-11: link them, and make the lint inert
+on that pass.** `rustdoc-posture-test-names-one-axis-of-three` had put
+both options up with their costs; the ruling took the tool change and
+the links together. Both halves are here, plus the residue each one
+left.
+
+**The thirteen, re-derived at `6891829ee` rather than trusted.** The
+list had not moved: `frame.rs:6`, `:85`, `:216`, `:385`, `:554`,
+`:1766`, `:1802`; `pickindex.rs:12`, `:13`; `props.rs:40`;
+`tree.rs:278`; `vocab.rs:50` ×2. All thirteen are `` [`crate::X`] ``
+now. The three inside `#[cfg(test)]` were left, `frame.rs:2001`
+included — it sits *above* the `#[cfg(test)]` at `:2003` because it is
+the doc comment ON the test module, so it reads as production by line
+and is rendered by nothing by item.
+
+**Red before, green after, and the commands, because this PR's own CI
+cannot run the pass it changes.** `scripts/ci-filter.py --files` over a
+diff touching `crates/viewer` sets `RUN_VIEWER_TOOLKIT=true`, so
+`ci.yml:1834` takes the non-skip path and the skip-mode viewer pass
+never executes on this branch — which is exactly why these thirteen
+reds never appeared on #2304. So the evidence is local and named:
+`scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit`
+exits **1** with the links in place and the gate unchanged, naming
+**15** distinct sites (the thirteen, plus `theme.rs:7` and `:8`, linked
+when that file's note retired), and exits **0** after. The non-skip path
+CI does take, `--pr --scope '-p viewer'`, exits 0 both ways: all
+thirteen resolve at `--all-features`.
+
+**The fence: `scripts/doc-gate.sh` is CIW's** (`work/ciw/program.md:11`).
+Ev ruled the change directly, so it is authorised rather than a lane's
+decision, and the obligation that came with it was to announce it —
+cited at the site, written in the PR, and filed on CIW's slate as
+`view-made-the-skip-mode-viewer-doc-pass-lint-inert`, a notice row that
+asks CIW for nothing but a read and a close.
+
+**The pass is NOT dominated, and the item's own plan said it was.**
+*"Delete that pass as dominated"* rested on the default-features pass
+rendering a strict subset of `--all-features`. The two viewer passes are
+the `if` and the `else` of one branch (`doc-gate.sh:890-907` at the
+base) and **never run on the same invocation**: under
+`--skip-viewer-toolkit` the all-features invocation does not name
+`viewer` at all, so on a skip-mode run the default-features pass is the
+only rustdoc that reads this crate, carrying every lint that is not
+about a link target. Deleting it would have removed the crate's doc gate
+from precisely the runs it was built for. This is the same shape the
+plan warns about under *a universal without its sweep rule* — the
+universal here was *"the pass is redundant"*, and the thing it ranged
+over was lint coverage rather than pass scheduling.
+
+**The spelling stayed the house one.** The item's table recommended
+``[`X`](crate::X)`` so default-features prose would read as it does
+today. Ev on the residue: *"totally fine for `cfg(not(feature))` stuff
+to work badly — we already assume that several places."* So the leaked
+`[crate::app::…]` brackets are accepted, the 1022-site house spelling
+holds, and the crate does not grow a second link form.
+
+**Two module notes retired, not three, and the item was wrong about the
+third.** `theme.rs:9-12` and `vocab.rs:51-52` each said an intra-doc
+link into the gated half breaks the headless pass; both are gone, and
+`theme.rs`'s two bare module spans (`app`, `gpu`) became links in the
+same edit rather than being left silent behind a deleted explanation.
+**`forms.rs:18-20` stays**: its reason is `pub(crate)` items on a
+public module page, not the headless pass — `named-not-linked-…` read
+that correctly and `rustdoc-posture-…` did not, and the ruling does not
+touch it. **Where #1330's reason now lives**: in
+`crates/viewer/README.md`'s posture section, in the DEFAULT-features
+bullet of the new *what is checked where* list, which says the same
+thing in the present tense — the lint is off on that pass, so the link
+no longer breaks it.
+
+**The README ruling now names two host passes.** The heading was
+*"Rustdoc posture: the host pass is the gate"*, and *"the host pass"*
+was the exact word this row was filed about; it is *"the host
+all-features pass is the link gate"* now, with a new paragraph saying
+there are two, which one judges links, and an exhaustive three-bullet
+*checked where* — everything at `--all-features`; everything except
+`broken_intra_doc_links` at default features; and **nowhere** for a
+broken renderer-free link written on a branch that never takes the
+all-features pass, which is empty because writing one means diffing
+`crates/viewer` and that diff seeds the toolkit. The closed row
+`doc-comments-name-symbols-that-do-not-exist:216` still quotes the old
+heading and is left as written: it records the heading it applied, on
+the date it applied it.
+
+**The selftest moved with the gate, and the arm that matters is the one
+added.** Two arms inverted — a planted broken link in the fixture's
+`viewer` member no longer fires under `--skip-viewer-toolkit`, by the
+ruling. Left there, that pass would have had **no firing arm at all**
+and could have been deleted with every case still green, which is
+#2106's shape in the file whose subject is that shape. So
+`plant_bare_url_in_viewer_member` was added as the positive control on
+the same pass (a rustdoc lint that is not about a link target), and the
+same planted link under `--pr --scope "-p clean -p viewer"` as the
+control in the other direction. `--selftest` exits 0.
+
+**No line shifts where they would have cost.** The thirteen edits are
+in-place on their own lines, so `frame.rs`, `pickindex.rs`, `props.rs`
+and `tree.rs` — **155** `file:line` citations between them — are
+exactly the length they were, and lines up to 88 characters are within
+this crate's practice: at the head tree **80** doc lines under
+`crates/viewer/src` exceed 75 characters, to a maximum of **114** at
+`drafts.rs:261`. (An earlier draft of this paragraph said *"116 at
+`datums.rs:273`"*, read off the first ten rows of an unsorted list —
+the plan's *distrust the first number out* in miniature, and the real
+maximum was a line this diff has since repaired.) `theme.rs` loses 3 lines at
+`:10-12`, so its `:13` and below move by -3; `vocab.rs` loses 2 at
+`:50-55`, so its `:56` and below move by -2;
+`crates/viewer/README.md` grows 32 below `:1493` and
+`scripts/doc-gate.sh` grows 54. **The census of those bands**, by
+finding the subject rather than shifting a number: one OPEN row is
+affected and it is not ours —
+`work/chrome/chrome-weight-is-outside-the-palette.md:22` cites
+`theme.rs:425-428`, whose subject now sits at `422-425`. Reported to
+the orchestrator rather than edited, per the implementer discipline's
+§6; CHROME's slate is CHROME's. Everything else in those bands is on a
+closed row, which is a record of its own tree:
+`marks-header-…:34,46,87`, `viewer-const-all-…:105`,
+`doc-comments-…:387`, and two of CIW's, both named in the notice row.
+
+**The wider sweep is what earned the residue, and it found a dead
+symbol.** The ruling's population is path-shaped —
+`` `<app-gated mod>::<path>` `` — and running only that rule would have
+been a sweep over the pattern that surfaced the defect rather than over
+the property. Re-derived from the property (*a doc comment in the
+renderer-free half naming an item behind the `app` feature*), there are
+**five more**, spelled as a possessive across two spans:
+`blend.rs:169`, `pickcache.rs:256`, `prefs.rs:387-388`, `scene.rs:887`,
+`pickindex.rs:1582`. No sweep this crate has run can see that spelling
+— it is not among the six enumerated blind spots of
+`comment-symbol-names-outside-rustdocs-reach-have-no-gate`, whose blind
+spot 3 is a span split across two LINES and measured at zero. And one
+of the five is live: **`blend.rs:169` names `app`'s `unit_picker`, and
+there is no `unit_picker` anywhere in this workspace** — the class
+`doc-comments-name-symbols-that-do-not-exist` closed over 64 spans on
+2026-09-10, alive in the same crate because that sweep's rule could not
+match the spelling. Filed as
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`.
+
+**A second class fell out of checking that number, and it is three
+lines long.** Re-deriving the longest doc line turned up
+`sketch.rs:1015` at 125 characters, and the reason it was long is that
+it says its own first sentence twice with a `///` wedged between the
+copies: *"`/// **How big the tip marks in a profile preview are**/// **How
+big the tip marks…**, in sketch-plane metres`"*. Rustdoc renders that
+literally, on a page in the renderer-free half that BOTH host passes
+build. Swept with *a doc line carrying a second `///` or `//!` after
+column zero, outside backticks and outside an indented doc code block*
+— over every tracked `.rs` in the repository, not just this crate —
+and it is exactly **three**, all here: `datums.rs:201`, `:273` and
+`sketch.rs:1015`. All three repaired in place, no line shift. **No gate
+holds this**: it is not a broken link, so `doc-gate.sh` is green over
+it at every pass, and the sweep's blind spot is the honest one — a
+duplicated sentence that did NOT keep its `///` is invisible to this
+rule and to every other.
+
+**Two rows closed and two opened.**
+`rustdoc-posture-test-names-one-axis-of-three` is closed with the
+ruling and both corrections to its own plan recorded, `needs_ev`
+cleared. `named-not-linked-is-a-silent-disposition-at-eleven-of-
+thirteen-sites` is closed as **dissolved** — its Category A is links
+now, so there is no silent disposition left to annotate and the
+per-file note it costed is not owed. Its Category B did not dissolve
+and does not die in a Closed section: seven `#[cfg(test)]` spans, which
+the ruling cannot reach because nothing renders them, sitting beside ten
+bracketed links in the same two files with no rule saying which is
+right. Re-filed as `cfg-test-bare-spans-have-no-stated-disposition`.
+
+### The review pass on #2332, and both fixes were the same mistake
+
+**A dangling row id inside a CLOSED row.** The dissolved row's prose
+said Category B was *"re-filed as
+`bare-spans-outside-the-path-rule-have-no-stated-disposition`, together
+with a second population"*. Neither half was true of the tree: the row
+is `cfg-test-bare-spans-have-no-stated-disposition`, no row of that
+first name exists, and the possessive population is a **separate** row,
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`.
+The dangling name was this lane's own working title, kept in the prose
+after the row was split in two. `work.py lint` passes over it because
+it resolves `refs:` frontmatter and not prose — so *a receipt is a
+citation and gets no exemption* applies to a row id in a sentence, in a
+file that outlives this program's directory. Both rows are named now,
+and the row says they are two and why the rules differ.
+
+**A universal whose reason did not produce its population, in the
+section that ratifies the rule against exactly that.** The README's new
+*Nowhere* bullet argued no branch can break a renderer-free link
+without taking the all-features pass, because *writing* a link means
+diffing `crates/viewer`. The property is a link being BROKEN, and a
+link breaks when its TARGET moves — on a branch that never touches this
+crate. `cargo_scope` is the dependent closure while
+`run_viewer_toolkit` is seed-keyed (`ci.yml:1833-1836`), so such a
+branch takes skip mode with `viewer` in scope and the now-inert pass is
+the only rustdoc reading the crate. The position the bullet called
+impossible is reachable.
+
+**It is still true, and the reason is a contingency worth writing
+down.** Swept by *every intra-doc link in the renderer-free half whose
+first path segment is an external crate, against
+`VIEWER_TOOLKIT_SEEDS`*: **twelve sites, all into `pncad`**, and
+`pncad` is itself a seed (`ci-filter.py:1428`). So every branch that
+can move one of these targets buys the all-features pass. A first link
+into any crate outside that set opens the hole.
+`renderer-free-cross-crate-links-are-ungated-off-the-seed-set` owns it.
+
+**The count came in at twice the estimate, and the twelfth is the one
+that matters.** The review offered six sites; the derivation gives
+twelve — `blend.rs:425`, `display.rs:262`, `docio.rs:85`,
+`marks.rs:297`, `matetool.rs:33`, `:54`, `:153`, `:220`, `parts.rs:11`,
+`props.rs:652`, `sketch.rs:939`, `tree.rs:143`. The conclusion is
+unchanged and the sweep rule is what moved the number. **`sketch.rs:939`
+is the reason the rule says "intra-doc link" rather than "bracket"**: it
+is the reference form, `` [`ProfileVertex`](pncad::profile::ProfileVertex) ``,
+the only one in the crate and invisible to a bracket-shaped grep — the
+same spelling this unit declined to adopt, reaching up to hide from the
+sweep that would have policed it.
+
+**The backstop the ruling names cannot red, and that is measured.**
+`ci.yml:1821-1825` says the skip's lost coverage is re-taken by
+`nightly.yml`'s `rustdoc (viewer, all features)`. That row is
+`cargo doc -p viewer --all-features --no-deps` (`nightly.yml:291-293`)
+and **`nightly.yml` sets no `RUSTDOCFLAGS` at all**. Planting
+`` [`pncad::document::NoSuchItemAnywhere`] `` in `tree.rs` and running
+that exact command gives **one `warning: unresolved link` and exit 0**.
+It re-takes the RENDER and cannot re-take the LINT — enough for the
+feature-axis coverage the skip gives up, since a page that fails to
+build fails the command, and not enough for this class. So the bullet
+names it for what it is instead of citing it as cover, which is what
+the review asked for and the opposite of what the citation would have
+said. The repairs that would make it a real backstop live in
+`nightly.yml` and `scripts/ci-filter.py` — CIW's and S-TCOST's — and
+are named in the row rather than taken here.
+
+**The re-sweep before landing found a fourteenth site, and `main` red.**
+*A sweep is accurate as of your merge base, not your merge.* Re-run
+after merging `origin/main` (#2320, `view/cancel-doors`), the
+path-shaped population is **fourteen**: `session/op.rs:797` names
+`` `pane::create` `` in a production `///` comment, in a file that
+arrived with the merge. Linked with the other thirteen; the red-before
+on the merged tree is **17** distinct sites, not 15.
+
+**Sixteen of those seventeen are this branch's. The seventeenth is
+`main`'s, and it is this row's thesis firing in the wild.**
+`session/op.rs:773` carries `` [`crate::widgets::drag_gesture_ops`] ``
+— renderer-free module, `app`-gated target, spelled as a LINK — so
+`origin/main` is **red on the skip-mode viewer doc pass right now**.
+Measured at `origin/main` in a throwaway worktree with its own target
+dir: `error: unresolved link to `crate::widgets::drag_gesture_ops``,
+exit 1. It never showed on #2320's CI because that diff touched
+`crates/viewer`, so `RUN_VIEWER_TOOLKIT=true` and `ci.yml:1834` took the
+non-skip path — *"the defect fires on someone else's branch, not on the
+branch that writes it"*, which was an argument when the row was filed
+and is now a property of `main`. The next branch to reach `viewer`
+through the closure without seeding the toolkit would have worn it.
+**This PR clears it as a side effect of the ruling**, which is worth
+saying plainly: the merge is not only a docs improvement, it takes a
+standing red off `main`.
