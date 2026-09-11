@@ -2,10 +2,11 @@
 id: tour-scenes-lift-componentwise-not-through-map
 kind: issue
 title: The tour's other scenes lift f64 literals componentwise (az, letterforms, bool_bodies, cutaway, curvedcut, twopeg, paths, bossplate, bodies) — lily.rs is the worked example of the layer rule; demos/tour/Cargo.lock is stale on main
-status: review
+status: closed
 opened: 2026-09-05
 branch: fix/tour-scenes-lift
 pr: 2341
+closed: 2026-09-11
 ---
 
 

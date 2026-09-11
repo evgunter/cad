@@ -2,11 +2,12 @@
 id: literal-k-where-the-runs-k-belongs
 kind: issue
 title: a literal 10 (and one DEFAULT_K) stands in for the run's K at five band thresholds
-status: review
+status: closed
 opened: 2026-09-04
 refs: [1732]
 branch: fix/literal-k-sweep
 pr: 2346
+closed: 2026-09-11
 ---
 
 

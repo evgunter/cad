@@ -2,10 +2,11 @@
 id: boolean-kind-not-published-at-the-python-door
 kind: issue
 title: the Python checks door returns a separation refusal as prose only — no boolean_error_tag beside path_error_tag, so the FFI consumer substring-matches or nothing
-status: review
+status: closed
 opened: 2026-09-04
 branch: fix/boolean-kind-python-door
 pr: 2350
+closed: 2026-09-11
 ---
 
 
