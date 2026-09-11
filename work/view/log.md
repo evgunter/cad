@@ -7980,3 +7980,133 @@ reads `///` and `//!` and nothing else, so the same dead name at
 and is held by nothing afterwards. 26 plain-`//` own-module names under
 `crates/viewer/src`, every one live today, and zero split-span ones: a
 clean population with no gate holding it clean.
+
+## 2026-09-11 — `view/cancel-doors`: both gesture cancels get a door, and the stranding is traced
+
+`gesture-drags-have-no-cancel-door` closed. `SessionOp::CancelGesture`
+and `SessionOp::CancelFreeMove` had an arm in `perform`, coverage in six
+suites and **no emitter in the crate**; they have one each now, composed
+as `DocSession::cancel_doors` and drawn in the toolbar beside Undo and
+Redo.
+
+**The item left reachability open and named three candidates; it is the
+first of them, and it needs nothing a second pointer or a relayout would
+have to supply. The drag's own preview strands it.** `slot_rows`
+answers nothing when `standing().live()` is false, and a face whose name
+did not resolve is not live; every frame a drag moves submits its scratch
+document, so a preview taking an extrude's distance to zero lands an
+evaluation the picked face does not survive, the panel is handed no
+rows, and the field whose `drag_stopped()` is the drag's only exit is
+not drawn on the release frame. The item could not find this because it
+went looking for an OPERATION that changes what the panel draws and
+correctly found all of them click-driven. The drag is not another
+operation. Held end to end at the session layer; the last link — a group
+absent from the list is not drawn, `properties_ui`'s
+`for group in &groups` — is read and not run, because the crate has no
+headless egui harness, and the row says so in as many words.
+
+**The item's sharpest claim names the wrong sentence, and the shape it
+describes is real.** `DisplayFault::FreeMoveInFlight` (*"finish the
+free-move first"*) cannot be shown to a user at all: reaching it needs a
+free-move already in flight, which needs a free-move strand nothing has
+traced — the probe's field is drawn off the shown document, and a
+document change under an in-flight probe is pruned rather than
+stranded. The reachable inverted refusal is `Refusal::GestureInFlight`,
+*"finish the drag first"*, which the trace above reaches with no pointer
+behind the drag. Filed as
+`free-move-in-flight-refusal-has-no-reachable-producer`; the free-move
+door is owed either way, on the emitter count alone.
+
+**Where the door went, and why not a key.** The toolbar, because the
+defect is that the chrome owning the gesture can stop being drawn — a
+cancel sited beside the field would vanish with the exit it replaces.
+`input.rs` could not hold a key for it whatever we decided: it maps what
+the pointer did inside the VIEWPORT, and `input::PRESETS` records that
+this crate binds no key to any operation anywhere and what a keyboard
+vocabulary would have to settle first. So the item's "no Escape binding
+in `input.rs`" points at a module with no room for one, and the key is a
+decision rather than a row.
+
+**Both doors are one composition**, `CancelDoor::of(label, op,
+in_flight, refused)`, and out of flight each carries the `Refusal` its
+own operation answers with rather than a sentence written beside the
+button — the fix `environmental-facts-answer-usable-as-a-bool-with-the-
+reason-elsewhere` is open about one facility over, applied prospectively
+here. Drawn in every state, disabled with that reason when there is
+nothing to cancel, which is the posture the two file-dialog controls
+take. `DisplayState::probing` gains its first production reader.
+
+**The census is a match over `SessionOp`, not a search for `Cancel`.**
+`CancelEvaluation` is spelled `Cancel` and cancels a run, so a
+name-shaped rule would hand it a gesture door and keep agreeing with
+itself. `every_gesture_cancel_has_a_chrome_door` runs the exhaustive
+predicate against the door list both ways, so a third gesture cannot
+join the enum with no door and a door cannot exist with no operation
+behind it.
+
+**Six mutations, each reverted**: the drag's door removed (census +
+strand rows red), `perform`'s cancel arm no longer taking the gesture
+(strand), `blocked` inverted (three rows), the toolbar loop deleted
+(`the_cancel_doors_have_a_reader_in_the_chrome`), `CancelFreeMove`
+marked not-a-gesture-cancel (census), and `slot_rows`' dead-standing
+guard removed — the last so that the reachability half is not green over
+its own absence.
+
+**A new source reader, registered.** The chrome half of the claim cannot
+be executed, so the emitter count is held as text: one read of
+`cancel_doors` under `crates/viewer/src`. That made `gesture_table.rs` a
+source reader and `reader_census.rs` red until its ledger line was
+written — the mechanism working, announced rather than landed quietly,
+and the row's own three dispositions say who writes the line.
+
+**The citation census of the bands this diff shifted, and a refinement
+the rule needs.** `session.rs` +39 from `:595`, `app.rs` +26 from
+`:1241`, `README.md` +42 from `:977`, `reader_census.rs` +4 from `:306`;
+`op.rs` and `gesture_table.rs` grew at EOF and shifted nothing. The
+instrument was per-citation text identity — `base[i]` against
+`head[i+shift]`, machine-checked — which **certifies the mapping and
+says nothing about the subject**, and that is stated rather than dressed
+up as a re-derivation. Sixteen open rows repointed, with their bare
+`:NNN` continuations and, for
+`four-debug-walks-are-spelled-and-placed-two-ways`, the two prose counts
+its own stated rule derives (`1,780` → `1,819`, `2,000-line` →
+`2,039-line`, title included — a count fixed in one place contradicts
+itself).
+
+**Four rows in the population were deliberately NOT repointed, and this
+is the refinement**: a row whose SUBJECT is citations must be left
+alone. `stale-file-citations-after-the-split` holds a `Was | Now` table
+of numbers that were wrong; `viewer-preview-names-a-verb-by-its-variant-
+identifier` quotes another program's citations and says "at their
+pre-split paths"; `sweep-blind-spots-the-precheck-sweep-could-not-see`
+is a receipt pinned to `8604dfb3`; `the-citation-receipts-summary-
+numbers-are-not-re-derivable` audits a receipt's numbers. Shifting any
+of them re-mints `citation-repoint-shifted-a-number-the-lane-knew-was-
+wrong` — and the first draft of this lane's census did shift all four
+before the diff was read. Closed rows were excluded for the same reason:
+a closed row is a record.
+
+**Out of fence, reported and not filed** (implementer-discipline §6):
+the same shift is owed by in-band citations in `work/chrome/`
+(`app-rs-doc-comment-merge-scars`, `placed-union-has-no-session-op`),
+`work/ciw/` (`gui-wasm-build-is-not-gated-at-all`,
+`tree-wide-guards-outside-the-change-closure`), `work/docm/`
+(`check-registry-gathers-product-twice`,
+`docm1-face-frame-owes-a-reader-census-ledger-line`), `work/fix/`
+(`boolean-error-has-no-fieldless-kind`,
+`verb-and-dimension-render-through-debug`), `work/instr/`
+(`baseline-census-partition-assert-cannot-fail`), `work/tcost/`
+(`source-lacks-an-item-body-carve-and-shared-means-any-mention`) and
+`work/issues/tracker-file-line-citations-measured`. Each is in the PR
+body with its old and new number.
+
+**Residue, filed**: `preview-and-commit-carry-no-gesture-identity` — in
+the stranded state a drag on any OTHER field is refused its begin and
+then previews and commits into the stranded slot, observed with the
+extrude's `Distance` taking a datum origin's number. The door is a way
+out and does not repair that. Plus the `FreeMoveInFlight` row above.
+
+**An operational near-miss worth the line**: `git checkout -- <file>`
+to revert a mutation discarded the lane's own uncommitted work, because
+nothing was staged. Commit before mutating; the mutation evidence here
+was taken against a committed tree.

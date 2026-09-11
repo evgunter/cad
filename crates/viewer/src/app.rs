@@ -1256,7 +1256,9 @@ impl eframe::App for ViewerApp {
                     let button =
                         ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
                     let clicked = match &door.blocked {
-                        Some(refusal) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
+                        Some(refusal) => {
+                            button.on_disabled_hover_text(refusal.to_string()).clicked()
+                        }
                         None => button.clicked(),
                     };
                     if clicked {
