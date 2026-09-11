@@ -9,8 +9,8 @@ opened: 2026-09-11
 
 ## What
 
-`cargo_flags` (`scripts/check-ci-mirror-parity.py:1651`) tokenises a chunk with
-`shlex.split` and then asks `if "cargo" not in toks` (`:1678`). A `bash -c '…'` puts the
+`cargo_flags` (`scripts/check-ci-mirror-parity.py:1652`) tokenises a chunk with
+`shlex.split` and then asks `if "cargo" not in toks` (`:1679`). A `bash -c '…'` puts the
 whole command string in ONE token, so `bash -c 'cd benches && cargo fmt --all
 --check'` tokenises to three tokens and none of them is `cargo`: the invocation
 is invisible to the flag arm entirely, not read with some flags missed.

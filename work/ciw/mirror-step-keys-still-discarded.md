@@ -11,7 +11,7 @@ opened: 2026-09-11
 
 `working-directory:` left `STEP_KEYS` for claim 10 in the third slate's unit 4.
 The sweep that unit ran over the rest of `STEP_KEYS`
-(`scripts/check-ci-mirror-parity.py:811`) leaves two keys whose value decides
+(`scripts/check-ci-mirror-parity.py:812`) leaves two keys whose value decides
 what a mirrored pair MEANS and which are still read as text:
 
 1. **`continue-on-error:` on a STEP.** A hosted step that may fail without
@@ -19,15 +19,15 @@ what a mirrored pair MEANS and which are still read as text:
    `--no-fail-fast` defect one level up: the two halves report a red
    differently under one row name, which is the sentence at the top of claim
    10. The JOB-level key is read (`Job.continue_on_error`, claims 7 and 8); the
-   step-level one is not. Four live sites, `.github/workflows/ci.yml:3205`,
-   `:3241`, `:3692`, `:3718` — **none of them on a cited pair** (two are the
+   step-level one is not. Four live sites, `.github/workflows/ci.yml:3225`,
+   `:3261`, `:3712`, `:3738` — **none of them on a cited pair** (two are the
    test-cost-report step, two are `upload-artifact`), so the population on
    claim 10's own subject is zero today.
 2. **`shell:`.** It decides what a `run:` block IS. `shell: python` or
    `shell: pwsh` on one half would leave `cargo_flags`, `env_prefixes` and
    `work_dirs` reading a non-shell body as shell and answering confidently.
    Zero sites: the string `shell:` appears once in either workflow, in a
-   comment at `ci.yml:3108`.
+   comment at `ci.yml:3128`.
 
 ## The shape of the fix, and the argument against taking it now
 
