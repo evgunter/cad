@@ -1,14 +1,26 @@
-# Code quality — the plan
+# Code-quality conventions — how a finding is numbered, read and fenced
 
-Every live finding, row, ruling and sweep **that no program has claimed**
-is a file in this directory, and `work/STATUS.md` is the board. A
-claimed row moves into the claiming program's directory in the PR that
-claims it (`program.md`'s charter), so a track's rows are not all in one
-place and are not meant to be — what is here is what is unclaimed. This page is the
-rules those files run on. Nothing here is ratified and nothing here is
-a commitment: a finding is a *question worth answering*, not a defect;
-several describe deliberate, ratified positions that a scanning agent
-could not distinguish from drift, and the ratified design contract is
+**This was `work/code-quality/plan.md` and is the same text**, relocated
+here when that program's directory left the tracker on 2026-09-11
+(`docs/DOC-LEDGER.md`, sweep 11). The rules below are still in force —
+they are what every code-quality row runs on, in whichever program's
+directory it now lives, and what a new row is minted under — so they are
+kept in a document that survives rather than in a directory that did
+not. The directory framing is gone; the rules, the numbering blocks and
+the territory letters are unchanged.
+
+**Where the rows are now.** Every live finding, row, ruling and sweep
+went to one of the eleven programs of the 2026-09-11 cut
+(`docs/WORK-TRACKS-2026-09.md` addendum 3) and `work/STATUS.md` is the
+board. A row's directory is the program that owns it, and a claimed row
+moves into the claiming program's directory in the PR that claims it, so
+a track's rows are not all in one place and are not meant to be.
+
+**This page is the rules those files run on, and the block ledger of
+record.** Nothing here is ratified and nothing here is a commitment: a
+finding is a *question worth answering*, not a defect; several describe
+deliberate, ratified positions that a scanning agent could not
+distinguish from drift, and the ratified design contract is
 `docs/DESIGN.md`.
 
 ## How the numbering works
@@ -29,7 +41,7 @@ could not distinguish from drift, and the ratified design contract is
   archive. One collision the tree cannot spell away: `docs/DESIGN.md`'s
   ratified decisions are also `D1`–`D9`, and most prose citations in
   that range mean *those* — `D9` is determinism, not a row.
-- **`C<N>` is two things.** `process-observations.md`'s headings are
+- **`C<N>` is two things.** `docs/CODE-QUALITY-OBSERVATIONS.md`'s headings are
   `C1`…`C27`, and live rows are also numbered `C<N>` — `C3` is at once a
   process observation and a Track R row about `props/quad.rs`. A `C<N>`
   that is a file here is a row; a `C<N>` in prose is an observation
@@ -40,7 +52,8 @@ could not distinguish from drift, and the ratified design contract is
 - **A `W…` pointer is provenance only**: the retired wave numbering
   names no live item.
 - **Blocks.** Each track allocates row and finding numbers from the
-  block in the territories table, which `program.md` carries as well.
+  block in the territories table below, which is the block ledger of
+  record now that `work/code-quality/program.md`'s header is gone.
   Blocks are clear of every existing id and of the tree's maxima, and a
   new number is re-checked against the tree at allocation, because a
   block cannot stop a number arriving from another track. Track J's
@@ -165,8 +178,8 @@ re-derives another's scope. Dependencies *inside* a track are its own
 orchestrator's to sequence, and there are no dependencies *between*
 tracks that any lane must honour. A track could be claimed the day it
 was read, and eight of the eleven since have been — by the programs
-that own their ground, not from here; `program.md`'s territory table
-names them, and it is the check before a `smell/` lane is cut. `L`, `O`
+that own their ground; the territories table below names them, and it
+is the check before a lane is cut on any of this ground. `L`, `O`
 and `S` are not tracks: `L` is the *Last, deliberately*
 rows, `S` is the finding namespace, `O` reads as a zero; `J` is retired,
 its ground stated under *What this partition leaves out*.
@@ -198,8 +211,9 @@ its ground stated under *What this partition leaves out*.
    unit of Tracks F and G: **the fix mints a fresh instance of the defect
    it closes**, and naming that trap in your own PR body does not prevent
    it. Only a reader who did not write the fix has ever caught it.
-   Standing rules: `logs/SMELL-F-LOG.md`,
-   `memories/agent-lane-operations.md`.
+   Standing rules: this clause, which is the surviving statement of it —
+   `logs/SMELL-F-LOG.md` went to the archive at sweep 11's SHA — and
+   `memories/agent-lane-operations.md` for the lane mechanics around it.
 6. **Not in any track, and deliberately:** `L1` (`S36`, comb-and-rename
    per suite), `L2` (`S38`, comment trimming), `C2`/`H17` (`S37`'s
    rustdoc remainder, ~1115 lines across 130 files) and `C21` (two
@@ -225,16 +239,17 @@ its ground stated under *What this partition leaves out*.
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | `exch`, `lib` |
 | **V** | `crates/editor-core/` **less the DOCM program's paths** (`persist/`, `program.rs`, `doc.rs`, `edit.rs`, `node.rs`, `names/role.rs`, `eval/{parts,memo}.rs`, `resolve/` less `vdiff.rs`, `mate*`, `assembly.rs` — ceded 2026-09-03 with rows `C6`, `D365`, `D366` and the `debug-in-prose` finding, which moved to `work/docm/` keeping their ids), `crates/profile/` | `D360`–`D379` / `S430`–`S449` | `docm`, `eval` (the eval seat — `eval/{mod,wire,anchor,schedule,slots}.rs`, `verbs/*`, `names/*` less `role.rs` — 2026-09-06) and six others |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | **`tcost`, whole track, 2026-09-04** |
-| **X** | `demos/` (Rust and Markdown; its Python is not X's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | this program |
+| **X** | `demos/` (Rust and Markdown; its Python is not X's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | **`suite` and `comb` took its two live rows on 2026-09-11; the letter itself has no holder** |
 
-**Every live row on every letter left this directory on 2026-09-11**
-(`docs/WORK-TRACKS-2026-09.md` addendum 3). The *Claimed by* column above
-still records who holds each **letter** — a letter's territory outlives
-the program holding it, which is the rule this table exists for — but no
-row is here any more: the 79 that were went to the eleven programs the
-cut opened, and `program.md`'s claim table lists them by program. A new
-row on any letter is still minted here from that letter's block and goes
-straight to whoever owns the ground it lands on.
+**Every live row on every letter left `work/code-quality/` on
+2026-09-11** (`docs/WORK-TRACKS-2026-09.md` addendum 3), and the
+directory itself left the tracker the same day (`docs/DOC-LEDGER.md`,
+sweep 11). The *Claimed by* column above still records who holds each
+**letter** — a letter's territory outlives the program holding it, which
+is the rule this table exists for. **A new row on any letter is minted
+from that letter's block in this table and filed straight on the program
+that owns the ground it lands on**; there is no longer a directory for
+it to wait in, and that is the one procedural thing sweep 11 changed.
 
 **Four seams are stated rather than left to be discovered**, because
 each is a place where a reasonable reader would think the fence
@@ -270,15 +285,15 @@ ambiguous:
   edit it, it is a fence that has not been drawn, and R takes this
   ground because `mesh` is what consumes it.
 
-**Track `K` left this directory on 2026-09-06**, claimed whole by two programs opened for it (`gates` and `meter`, the fence split at `scripts/gates/` versus `tools/`), and **Track `T`'s remainder with it** (`blend`); the same rules as for `P` and `W` below apply — their blocks stay here and a new row on their ground goes straight to the claimant.
+**Track `K` left on 2026-09-06**, claimed whole by two programs opened for it (`gates` and `meter`, the fence split at `scripts/gates/` versus `tools/`), and **Track `T`'s remainder with it** (`blend`); the same rules as for `P` and `W` below apply — their blocks are in the table above and a new row on their ground goes straight to the claimant. `K`'s `scripts/gates/*` half is `guard`'s from 2026-09-11.
 
-**Track `P` and Track `W` both left this directory on 2026-09-04**,
+**Track `P` and Track `W` both left on 2026-09-04**,
 each claimed whole by a program: **P by `topo`** at its opening — P's
 fence *is* the `crates/topo/src` territory that was in no program's
 `paths`, and no `smell/p-*` lane had ever run — and **W by `tcost`**,
 whose own `paths` (`crates/*/tests/*`, `crates/test-utils/*`) are an
 exact match for W's fence. Their rows moved with their ids and their
-`track:` letters and this directory does not track them; each row's
+`track:` letters and code-quality never tracked them again; each row's
 `## Claimed by` section carries the reason.
 
 What stays true here is the fence text in the table above: **a letter's
@@ -290,20 +305,18 @@ and fixture readers, liveness and the generator — is restated in
 `movefac.rs` and `revert.rs` still carry no live row and stay inside
 P's fence.
 
-**Their number blocks stay with this program** (`D260`–`D279`/`S330`–`S349`
-for P, `D380`–`D399`/`S450`–`S469` for W, in the `blocks` header here),
-because a block is minted by the scan that raises a row and a scan is
-this program's, not a claimant's. A new row on P's or W's ground is
-minted here with the next id from its block and its `track:` letter,
-and goes straight to `work/topo/` or `work/tcost/` in the same PR — it
-does not wait in this directory, because the letter already has an
-owner.
+**Their number blocks are in the table above** (`D260`–`D279`/`S330`–`S349`
+for P, `D380`–`D399`/`S450`–`S469` for W), which is where the block
+ledger lives now that `work/code-quality/program.md`'s `blocks:` header
+is gone. A new row on P's or W's ground takes the next id from its block
+and its `track:` letter, and is filed straight on `work/topo/` or
+`work/tcost/` in the PR that mints it.
 
 The seam below is the one that outlives both moves and is why it is
 kept in full: `D261` (now `topo`'s) and `D287` (Q's) both convert their
 own readers onto a shared home that is **W's fence and `tcost`'s
-territory**, so the ceiling rule binds two programs that no longer
-share this directory.
+territory**, so the ceiling rule binds two programs that never shared a
+directory.
 
 - **`crates/test-utils/src/source.rs` and its census are W's, and three
   tracks' rows land in them.** The source-text guard class has one
@@ -326,7 +339,7 @@ share this directory.
 
 - **The rulings** — `D6`, `S14`, `S65`, `S70`, `S82`, `S107`, `S116p`,
   `D283` and `C-namespace`. Most of the tracks hold work that one of
-  these gates; each such row says so. **All nine left this directory in
+  these gates; each such row says so. **All nine left code-quality in
   the 2026-09-11 cut** and are now SCALAR's, PRED's, PIPE's, PORT's and
   CITE's; they are still never work, and no lane resolves one by
   implementing something.

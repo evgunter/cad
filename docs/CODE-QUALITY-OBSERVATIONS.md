@@ -1,4 +1,11 @@
-<!-- Moved verbatim from `docs/SMELL-SCAN-2026-08.md` §C at the tracker migration (2026-09-03); the findings it cites are items in this directory or closed records in git. -->
+<!-- Moved verbatim from `docs/SMELL-SCAN-2026-08.md` §C at the tracker
+migration (2026-09-03), and moved again from
+`work/code-quality/process-observations.md` when that directory left the
+tracker (2026-09-11, `docs/DOC-LEDGER.md` sweep 11). The text is
+unchanged both times. The findings it cites are items on one of the
+eleven programs of the 2026-09-11 cut
+(`docs/WORK-TRACKS-2026-09.md` addendum 3) or closed records in git,
+recoverable at the SHA sweep 11 names. -->
 
 # §C. Process observations
 

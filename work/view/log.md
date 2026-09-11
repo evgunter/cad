@@ -8758,6 +8758,46 @@ neither right once both land. So a repoint is re-derived at PLACING
 time, by subject, and a citation already wrong at the base is disclosed
 rather than moved to a new wrong number.
 
+## 2026-09-11 — #2348 merged; one of thirty-one
+
+**`view/silent-withdrawals` is on main** (#2348, merge `88bacdd2fe`),
+green on the full code tier at `606555b9c8`: 38 check runs, twelve
+`test (…)`, five `k-lint (gate, …)`, `rustfmt + rustdoc (gate) +
+wasm32` and `gate ok` all success, six change-filter skips, no
+placeholders — read from the job list. `prune` reports the killed
+free-move gesture with its cause instead of throwing it away at the
+instant it has it, and `clear`'s silence is now a decision written at
+`clear` rather than an oversight.
+
+**The `clear` fork was settled on a typing fact, not the wording
+argument the item offered, and the lane was right to move it.** A
+`Withdrawn` carries a `DisplayFault` about a document, and the only
+document left to ask at `clear` is the replacement — where the ids mean
+other nodes, because `next_id` is a counter the `Doc` owns
+(`crates/editor-core/src/doc.rs:315`, `:380`). The lane implemented the
+item's own proposal and measured it: reopening the same file reports
+EMPTY while a hide, a placement and a drag in flight are all taken, and
+`NewDocument` reports `NoSuchNode { node: 0 }`. A report that cannot
+tell *nothing went* from *everything went* is worse than the silence.
+
+**The out-of-fence census came back one placeable of thirty-one**, and
+that is the result rather than an embarrassment: fifteen past EOF,
+seven subject-elsewhere, eight quotations. Written into `plan.md` with
+the reason the instrument could not see it — a shift map is arithmetic
+on an integer and cannot be wrong in its own terms.
+
+**Three corrections to my own messages, all the lane's and all
+standing.** `check-ci-mirror-parity.py` was never in its validation
+table, so there was no old result to carry and I said there was. The
+workspace count did NOT move as I predicted — `crates/mesh/src/
+nurbs_cert_fuzz.rs` changed by 71/13 lines and still declares three
+`#[test]`s, so 6848 held, and the lane checked rather than reporting
+the same number twice and hoping. And earlier: its "CI is blocked on
+your credential" was wrong, it was blocked on having nothing real to
+push — which it named as its own worst error of the lane, because it
+had offered a force-push to route around a diagnosis it had not
+checked. It was offered and refused; the merge that was owed on the
+merits was the answer, and it is what fired Actions.
 ## 2026-09-11 — `view/gesture-doors`: the two gesture doors, and one fan-out
 
 Two items, both adjacent to what #2348 landed.
@@ -8814,6 +8854,58 @@ README's non-dump census table says nine and `PruneReport::is_empty`
 (`display.rs:592-599`) is a tenth it does not carry, added by #2348
 after the table was built.
 
+## 2026-09-11 — #2358 merged; a comment that warned about half-mirrors was one
+
+**`view/gesture-doors` is on main** (#2358, merge `6aee1efe96`), green
+on the full code tier at `2b1e69a0`: 38 check runs, twelve `test (…)`,
+five `k-lint (gate, …)`, `rustfmt + rustdoc (gate) + wasm32` and
+`gate ok` all success, six change-filter skips, no placeholders — read
+from the job list. `Open` and `NewDocument` refuse under an in-flight
+free move, and a fourth kind of withdrawal is now E0027 at the call
+that words it.
+
+**The find of this unit is a test that was the thing its own comment
+warned against.** `crates/viewer/tests/frame_policy.rs` carried a
+hand-written mirror of the `app`-gated notice loop whose comment read
+*"it has to model every producer that feeds the notices there — both
+withdrawal channels… A half-mirror would pass while the real loop
+dropped the other."* After #2348 added the third producer beside it, the
+mirror listed two. **The comment named the failure mode exactly and did
+not prevent it**, because a comment is not a hold. Nobody found it by
+reading; it fell out of collapsing the fan-out and meeting a caller that
+could not be collapsed. And #2348 is a PR I reviewed and merged.
+
+**The lane departed from its item on one point and was right.** The item
+said the mid-gesture table's subject widens past the value gesture and
+its name should widen with it. One predicate could serve both drags only
+by refusing the UNION, and the union is wrong in both directions — a
+commit landing under a probe is pruned and REPORTED (`killed_gesture`,
+#2348), which is a better answer than a refusal. So
+`permitted_during_free_move` is a SECOND exhaustive table refusing two
+rows. The README section widened; the name did not.
+
+**Three things the lane asked me to check, and my answers.** The
+`vocabulary!` conversion of `WithdrawalKind` cost six live README counts
+and three in `vocab.rs`: worth it, because it is the house pattern
+rather than a special case — the crate's tenth — and without it the
+reverse direction (a kind with no producer behind it) is held by
+nothing. The re-baselined `a_document_replacement_takes_all_display_
+state_and_reports_none_of_it` is exactly what `CLAUDE.md` asks for: a
+stored bit that changes is not a cost to weigh against making the code
+right; re-baseline and say what moved, which its doc now does. And the
+`git checkout --` clobber is a rule rather than a blocker — see
+`plan.md`, where it now sits, because this is the SECOND lane in a day
+to do it.
+
+**The out-of-fence census came back 0 placeable of 16**, on a
+deliberately different diff from #2348's 1-of-31. Two independent
+measurements, same verdict: those rows are damaged and were damaged
+before either branch existed.
+
+**And #2332's documented cost was paid immediately**, in the direction
+nobody was watching: the skip-mode pass exited 0 over three intra-doc
+links to items this diff had just deleted, while the full workspace pass
+exited 1. Both passes are owed by a viewer lane. In `plan.md`.
 ## 2026-09-11 — `view/gesture-identity`: the driving operations name their gesture
 
 `preview-and-commit-carry-no-gesture-identity` closed. Shape 1 of the
@@ -8878,3 +8970,59 @@ Residue: `the-two-drags-name-their-gestures-in-two-shapes` — the
 identity is a `(node, slot)`, a name, or an instance, and `drag_ops` is
 generic over the difference with nothing holding the three to each
 other.
+
+## 2026-09-11 — #2361 merged; the sharpest defect on the slate is closed
+
+**`view/gesture-identity` is on main** (#2361, merge `a88eedd036`),
+green at `a578aecb`: 38 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`, `gate ok` success, six change-filter skips, no
+placeholders — read from the job list after waiting for `gate ok` to
+post, which it had not when the lane reported. Six gesture-driving
+operations now name the gesture they drive and are refused on a
+mismatch, so a drag on one field can no longer steer — or commit into —
+another.
+
+**Two of the item's three candidate shapes moved once re-derived
+against the tree, and that is the result.** Shape 1 as written cannot
+be spelled: `PreviewGesture { node, slot, value }` has nothing to say
+for a document-parameter drag, so it is either a union payload or one
+preview and one commit per door — the lane took the second, which is
+`BeginParamGesture`'s own stated argument applied to the two operations
+that lacked it. Shape 3 cannot be built where the item puts it: a begin
+and its first preview reach the SAME batch, so at push time there is no
+refusal to react to. Shape 2 refuses the one recovery the chrome has —
+the stranded drag's own field, dragged again, names the same slot and
+lands the number the user dragged it to; a per-begin token strands the
+reader twice.
+
+**A correction to that reasoning's receipt, which the PR body got
+wrong.** The worked example it leans on for rejecting shape 3 —
+*"`BeginGesture` refuses with the affordance and the same frame's
+`PreviewGesture` refuses `NoGesture` on top of it"* — is real and says
+exactly what the argument needs, but it lives on
+`ViewerApp::perform_batch` (`crates/viewer/src/app.rs:913-914`), not on
+`Refusal::rank` as the body claims. A receipt is a citation and gets no
+exemption. The ratified text is clean: the misattribution never left
+the PR body, so this note is the correction rather than a diff.
+
+**A loop closed on the orchestrator's own earlier finding.** I told
+#2348's lane that `work/chrome/app-rs-doc-comment-merge-scars.md:24`'s
+`app.rs:1722-1723` was *"never about its subject"* because
+`perform_batch` is at `app.rs:918`. The staleness verdict was right and
+the located subject was not: that row's subject is the DOC COMMENT on
+`perform_batch`, the two stacked summaries — *"Perform one operation and
+record what it refused."* immediately above *"Perform one frame's whole
+batch of operations"* — and it sits at **`app.rs:906-907`**, pre-existing
+and untouched by any VIEW diff. So the row is live, its citation is
+stale, and the re-derived location is recorded here for whoever places
+it. That is the `plan.md` rule — *an out-of-fence table is a population,
+and placing it means re-deriving by subject at placing time* — executed
+rather than restated.
+
+**The lane reported before CI finished**, offering an all-local
+evidence table with the PR marked open. The evidence was sound and the
+run went green, but a report that says *here is the PR* without a
+`gate ok` is a report about a tree and not about a merge. Dispatches
+say to wait for it.
+
+**VIEW stands at 71 open / 78 closed, nothing waiting on Ev.**

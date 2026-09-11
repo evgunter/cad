@@ -5,7 +5,6 @@ title: decoration_seam.rs's header says the ssi::enclose crossing is pinned by n
 status: open
 opened: 2026-09-04
 track: W
-refs: [D289]
 ---
 
 
@@ -75,3 +74,13 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## Refs at code-quality's sweep (2026-09-11)
+
+`work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
+and its closed rows went with it. `D289` (*Inline ssi/enclose.rs's
+private ring alias onto RingInterval::from_certified and pin the
+crossing*, Track Q, closed 2026-09-04) recorded no closing PR — the 1533
+in its own `refs:` was CERT-M1, where it was filed, not where it landed
+— so there is no number to re-aim at and the reference is dropped. It is
+recoverable at the SHA sweep 11 names.
