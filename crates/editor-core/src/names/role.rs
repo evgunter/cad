@@ -85,14 +85,21 @@ struct Held {
 /// epoch" mean "positions from one structurally-ordered enumeration".
 static EPOCH: AtomicU32 = AtomicU32::new(1);
 
-/// A fresh sealing epoch (never `0`, which spells "unstamped").
-pub(super) fn next_epoch() -> u32 {
-    let e = EPOCH.fetch_add(1, Ordering::Relaxed);
-    if e == 0 {
-        EPOCH.fetch_add(1, Ordering::Relaxed)
-    } else {
-        e
-    }
+/// A fresh sealing epoch, or `None` once the counter is exhausted.
+///
+/// **An epoch is never reused.** Reuse is the one way the stamped
+/// compare could answer wrongly — two names from DIFFERENT walks
+/// reading as one walk's positions — so the counter SATURATES rather
+/// than wrapping, and every seal after that point declines to stamp.
+/// Unstamped is always safe: those names compare structurally, which
+/// is the answer the stamp is a cache of. `0` is never handed out
+/// because it is the spelling of "unstamped".
+pub(super) fn next_epoch() -> Option<u32> {
+    EPOCH
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |e| {
+            (e != u32::MAX).then_some(e + 1)
+        })
+        .ok()
 }
 
 impl NameRef {
@@ -119,11 +126,27 @@ impl NameRef {
     /// claimed it first, and the other table's rows simply compare
     /// structurally against it.
     pub(super) fn stamp(&self, epoch: u32, position: u32) {
-        let packed = (u64::from(epoch) << 32) | (u64::from(position) + 1);
+        // `position + 1` occupies the LOW word and must not carry into
+        // the epoch field: the single position that would is declined
+        // rather than stamped, and an unstamped name compares
+        // structurally, which is the answer this is a cache of.
+        let Some(slot) = position.checked_add(1) else {
+            return;
+        };
+        let packed = (u64::from(epoch) << 32) | u64::from(slot);
         let _ = self
             .0
             .stamp
             .compare_exchange(0, packed, Ordering::Relaxed, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+impl NameRef {
+    /// Whether a sealing walk has claimed this name — the one thing a
+    /// test needs to see that the stamp is otherwise opaque about.
+    pub(crate) fn stamped_for_tests(&self) -> bool {
+        self.0.stamp.load(Ordering::Relaxed) != 0
     }
 }
 

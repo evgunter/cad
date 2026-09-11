@@ -1072,7 +1072,7 @@ fn name_boolean_vertices<T: Decide>(
     // Candidate seam-vertex names, grouped for multiplicity: the key
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
-    let mut groups: BTreeMap<(StableName, StableName), (bool, Vec<VertexKey>)> = BTreeMap::new();
+    let mut groups: BTreeMap<(NameRef, NameRef), (bool, Vec<VertexKey>)> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // Operand pass-downs: the kept key itself, then its dead
         // fusion partners (deterministic order: KEPT-KEY identity
@@ -1098,11 +1098,15 @@ fn name_boolean_vertices<T: Decide>(
             .vertex_edges
             .get(&v)
             .ok_or_else(|| bug("seam vertex without incident edges"))?;
-        let mut a_edges: Vec<StableName> = Vec::new();
-        let mut b_edges: Vec<StableName> = Vec::new();
-        let mut a_faces: Vec<StableName> = Vec::new();
-        let mut b_faces: Vec<StableName> = Vec::new();
-        let mut seam_lines: Vec<(StableName, StableName)> = Vec::new();
+        // The parentage a seam vertex is named from is read off the
+        // incident EDGE names and put straight back into this vertex's
+        // own name, so it travels as the operand tables' handles: no
+        // copy is made and the order cache survives the trip.
+        let mut a_edges: Vec<NameRef> = Vec::new();
+        let mut b_edges: Vec<NameRef> = Vec::new();
+        let mut a_faces: Vec<NameRef> = Vec::new();
+        let mut b_faces: Vec<NameRef> = Vec::new();
+        let mut seam_lines: Vec<(NameRef, NameRef)> = Vec::new();
         // B1: a seam vertex reads its parentage off the incident EDGE
         // names, so an edge name that is itself tied makes the vertex
         // name tie-descended too.
@@ -1113,17 +1117,17 @@ fn name_boolean_vertices<T: Decide>(
             };
             from_tie |= t.is_tied(ename);
             match ename.path.first() {
-                Some(RoleSeg::FromA(x)) => a_edges.push((**x).clone()),
-                Some(RoleSeg::FromB(x)) => b_edges.push((**x).clone()),
+                Some(RoleSeg::FromA(x)) => a_edges.push(x.clone()),
+                Some(RoleSeg::FromB(x)) => b_edges.push(x.clone()),
                 // Zip-listed AND derived seams both qualify (M4 PR 5:
                 // declared merges reroute channel-cut chords into the
                 // derived-seam lane, so a seam vertex may lean on a
                 // Seam-named edge outside `naming.seam_edges`) — the
                 // NAME is the evidence either way.
                 Some(RoleSeg::Seam { a: fa, b: fb }) => {
-                    a_faces.push((**fa).clone());
-                    b_faces.push((**fb).clone());
-                    seam_lines.push(((**fa).clone(), (**fb).clone()));
+                    a_faces.push(fa.clone());
+                    b_faces.push(fb.clone());
+                    seam_lines.push((fa.clone(), fb.clone()));
                 }
                 _ => return Err(bug("seam vertex incident to an unexpected edge role")),
             }
@@ -1159,8 +1163,8 @@ fn name_boolean_vertices<T: Decide>(
             .and_then(|pa| upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(pa))).ok());
         from_tie |= partner_b.as_ref().is_some_and(|u| u.tied);
         from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
-        let partner_b_inner: Option<StableName> = partner_b.map(|u| (*u.name).clone());
-        let partner_a_inner: Option<StableName> = partner_a.map(|u| (*u.name).clone());
+        let partner_b_inner: Option<NameRef> = partner_b.map(|u| u.name);
+        let partner_a_inner: Option<NameRef> = partner_a.map(|u| u.name);
         seam_lines.sort_unstable();
         seam_lines.dedup();
         // The A side of the pair is always an A-descended name and the
@@ -1197,8 +1201,8 @@ fn name_boolean_vertices<T: Decide>(
                 let mut segs: Vec<RoleSeg> = seam_lines
                     .iter()
                     .map(|(fa, fb)| RoleSeg::Seam {
-                        a: NameRef::new(fa.clone()),
-                        b: NameRef::new(fb.clone()),
+                        a: fa.clone(),
+                        b: fb.clone(),
                     })
                     .collect();
                 segs.sort_unstable();
@@ -1225,8 +1229,8 @@ fn name_boolean_vertices<T: Decide>(
             EntityKind::Vertex,
             node,
             RoleSeg::Seam {
-                a: NameRef::new(pa.clone()),
-                b: NameRef::new(pb.clone()),
+                a: pa.clone(),
+                b: pb.clone(),
             },
         );
         if verts.len() == 1 {

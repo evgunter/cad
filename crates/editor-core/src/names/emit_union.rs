@@ -60,14 +60,20 @@ pub(crate) fn member_view(
     member: RecipeNodeId,
     table: &NameTable,
 ) -> Result<NameTable, NamingError> {
+    // The member's table is an operand read whole, so it is sealed
+    // here for the same reason `upstream_name` seals a table read one
+    // entity at a time — and each row below EMBEDS the member's own
+    // handle rather than a copy, so a member name keeps its order
+    // cache through the wrapper.
+    table.seal_order();
     let mut view = NameTable::new();
-    for (name, entry) in table.iter() {
+    for (name, entry) in table.iter_refs() {
         let keyed = StableName {
             kind: name.kind,
             node: union,
             path: vec![RoleSeg::FromMember {
                 member,
-                of: NameRef::new(name.clone()),
+                of: name.clone(),
             }],
         };
         match entry {

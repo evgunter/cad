@@ -28,6 +28,16 @@
 //! `"epsilon":` line legitimately varies per run while every other byte
 //! must not.
 //!
+//! # What it does NOT pin
+//!
+//! Cost. The keying this row was written to hold still was changed so
+//! that the naming table stops paying descent depth, and what is left
+//! is Θ(names emitted) at roughly 0.7 µs per named entity — short of
+//! the share the change was aimed at, and tracked as
+//! `naming-a-boolean-chain-is-theta-names-per-step` with the three
+//! leads that would close it. This file is the correctness half: it
+//! says the names did not move, and says nothing about what they cost.
+//!
 //! # When one moves
 //!
 //! It is a golden in the ordinary sense (`docs/prompts/implementer-discipline.md`
