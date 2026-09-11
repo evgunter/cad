@@ -167,9 +167,10 @@ cd ..
 ./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
 ./render.sh --matplotlib        # FreeCAD-free preview ONLY (renders-preview/renders/, gitignored)
 ./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
+./render-gui.sh                 # the VIEWER, photographed (renders-gui/montage-gui.png)
 ```
 
-`render.sh`, `render-wild.sh` and `render-uv.sh` each source
+`render.sh`, `render-wild.sh`, `render-uv.sh` and `render-gui.sh` each source
 `hosted-render-guard.sh` as their first act. They print a pointer at the
 push-and-pull flow above and **exit nonzero** unless the environment
 carries one of the two exact sentences the guard accepts. On a box that
@@ -581,6 +582,60 @@ shaded 3-D, and a chart domain is not a picture of the part. The parked
 SVG lanes that *would* draw the part — a projected-edge wireframe, and
 drawing-grade hidden-line removal — are filed as LONGTERM-IDEAS I4(a) and
 I4(b).
+
+## The viewer lane (`render-gui.sh`)
+
+**The fifth lane, and the first whose subject is the APPLICATION.** The
+other four draw geometry — solids, face charts, a sample cloud. This
+one opens documents in the real `viewer` binary on a virtual X server
+and photographs what a user would see: the feature tree, the properties
+panel, the named document parameters, and the status line's reading of
+the document's declarations.
+
+It photographs the tour's own assembly STORE (`out/assembly/*.pncad`),
+every document in it rather than a curated subset — which documents
+exist is the story, and a hand-picked list goes stale the first time
+the stop gains a part. The sheet reads as the assembly layer's arc: two
+leaf parts carrying their named parameters, each instantiated,
+patterned, flat-packed, and finally mated into the bench, with
+`at rest: certified (N declaration(s))` going from 0 to 2 as the mates
+arrive.
+
+**Three things about it differ from the older lanes, each for a
+reason.**
+
+*It waits rather than sleeps.* The viewer evaluates, tessellates and
+builds a BVH before its first real frame, and how long that takes
+depends on the document and the runner. So each cell polls — shoot,
+hash, shoot again — and accepts a frame only when two consecutive grabs
+are byte-identical and the window is not still blank. A fixed sleep
+would either race the app (committing a HALF-DRAWN pixel, which looks
+like a rendering bug forever after) or waste minutes per cell.
+
+*Its sheet carries the lane signature.* The older sheets are matplotlib
+compositions of FreeCAD frames, so they carry no renderer stamp and
+`check_render_provenance.py` needs an exemption list naming them. This
+sheet is tiled from cells this lane drew and then stamped like one, so
+the guard has ONE rule for the whole directory and no name to
+special-case.
+
+*Its cells are cropped to the window.* There is no window manager on
+the virtual server, so the app sits at the origin in a window smaller
+than the screen, and a root grab carries a band of empty desktop that
+would be most of what a reader sees on a contact sheet. The geometry is
+read from `xdotool` at run time rather than hard-coded, because a
+viewer default that changed would otherwise clip the app silently.
+
+**What it does NOT show, and the planned cell that did not survive.**
+This lane was planned as *"clearance and measures, as the app shows
+them"*. The app shows neither: a measure is a tree row reading
+`"Measure"` with a status and no VALUE, and `clearance` appears nowhere
+in `crates/viewer/src/`. `work/view`'s
+`the-gui-shows-no-measure-value-and-no-clearance` carries the finding,
+including the half that makes it harder than a panel change —
+`min_clearance` has no value at the `f64` scalar the viewer runs at, by
+design. The declaration count on the status line is clearance-adjacent
+and genuinely on screen, but it is a COUNT, not a distance.
 
 ## The MC density lane (`render-mc.sh`)
 
