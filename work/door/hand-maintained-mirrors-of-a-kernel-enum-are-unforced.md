@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-06
 closed: 2026-09-11
 branch: door/mirror-booleanop-all
+pr: 2387
 refs: [2046, dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum, boolean-op-has-a-third-hand-written-complete-list]
 ---
 
