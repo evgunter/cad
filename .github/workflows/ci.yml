@@ -1464,6 +1464,16 @@ jobs:
       # nightly runs main, and main is reached through this gate, so a
       # second copy at 03:00 would re-prove a tree this row already proved.
       #
+      # THAT LAST SENTENCE IS CONTESTED BY THE ROW BELOW, and a reader of this
+      # file alone would otherwise get two rules with no sign that one is
+      # disputed. The criterion emitter's selftest keeps a nightly copy
+      # BECAUSE nightly.yml's jobs also run on a `workflow_dispatch` ref — an
+      # arbitrary SHA no gate row can have proved — and that is equally true
+      # of the opt-level job, which takes the same input. So either this lane
+      # is missing a row or that one has a spare;
+      # `work/ciw/calibrator-record-writes-without-its-selftest` holds the
+      # question and neither row waits on it.
+      #
       # SITED IN THIS JOB and not in `mirror`, by `check-run-jobs.py`'s
       # argument above: the script's inputs are `scripts/*.py`, which
       # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
@@ -1471,6 +1481,37 @@ jobs:
       # No toolchain and no cargo — stdlib python against its own fixtures.
       - name: opt-level calibrator selftest (the guard over an append-only history)
         run: python3 scripts/opt-level-calibrate.py --selftest
+      # THE CRITERION HISTORY EMITTER'S OWN TESTS, sited here for the reason
+      # the row above is: the selftest is a fixture battery over the script's
+      # own code paths, so the only change that can break it is a change to
+      # `scripts/criterion-emit.py` — a `scripts/*.py` path, which
+      # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
+      # set that can break it is exactly the change set this job runs on.
+      # WHAT IT ACTUALLY HOLDS, stated at the coverage it has rather than at
+      # the coverage a reader would assume, because that number was measured:
+      # a battery of 20 single-token mutations of the script kills 9 of them.
+      # Held: the roster pin in all three of its shapes (a row renamed, added,
+      # or dropped), `collect` reading `new/` and not criterion's previous
+      # `base/`, the sample count, RUSTFLAGS, and the cpuinfo parser in both
+      # directions — a known cpuinfo parsed, and an absent one degrading to
+      # null without costing the rest of the block. NOT held: the VALUE of
+      # most collected fields, because the fixture writes one scalar into five
+      # of them, so a field dropped from the emitted block or a reader that
+      # swapped two passes this row.
+      # `work/ciw/criterion-selftest-fixture-is-one-scalar-in-five-fields`
+      # carries the measurement, the table and the repair.
+      #
+      # THE LANE IS HOSTED-ONLY AND THIS ROW IS NOT. Only a runner may commit
+      # a measurement (`local-scripts/ci-local.sh` says why at its own key),
+      # but the guard over the writer is a stdlib-python fixture battery that
+      # runs anywhere, so it belongs in both halves like every other selftest
+      # out here. No toolchain, no cargo, no benchmark build.
+      #
+      # nightly.yml KEEPS ITS OWN COPY and that is not a duplicate of this
+      # row: that job also runs on a dispatched `ref`, an arbitrary SHA this
+      # gate never saw. The argument is written at that row.
+      - name: criterion history emitter selftest (the guard over an append-only history)
+        run: python3 scripts/criterion-emit.py --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: it is what lets the wasm32 guard below run the interval
       # leg ONLY, and it is what made this lane a stand-in for the default
