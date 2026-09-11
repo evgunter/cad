@@ -15,11 +15,24 @@ INVOCATIONS, so a step that invokes no script is outside its claims 1-4 by
 construction; its claim 9 is about jobs, not steps; and no shell linter runs in
 the hosted gate at all.
 
-WHAT THIS PROVES. In every shell body this repo's CI can run — every `run:`
-under `.github/workflows/` and `.github/actions/`, and every tracked `*.sh` /
-`*.bash` file and every tracked file with a `sh`/`bash` shebang — no command
-whose head word is a WRAPPED IDIOM (`IDIOMS` below: today the apt family) runs
-at all, except in a file `PATH_EXEMPT` names with its reason.
+WHAT THIS PROVES, and the population is the enumeration rather than a
+sentence about CI. In every `run:` under `.github/workflows/` and
+`.github/actions/`, and in every tracked `*.sh` / `*.bash` file and every
+tracked file with a `sh`/`bash` shebang: no command whose head word is a
+WRAPPED IDIOM (`IDIOMS` below: today the apt family) is READ HERE, except in a
+file `PATH_EXEMPT` names with its reason. That set is not "every shell body
+this repo's CI can run" in either direction — it holds `.claude/hooks/`, which
+nothing in CI executes, and all of `local-scripts/`, which every hosted job but
+`mirror` deletes at checkout; and it misses an untracked script, a `uses:`
+action's own code and anything a container image brings.
+
+IT IS A RECOGNISER FOR CARELESSNESS, NOT A SANDBOX. "No command runs" would
+imply this file can stop one; it cannot. What it does is make every OBVIOUS
+spelling of the preamble red — the one somebody writes without thinking,
+which is the one that has actually happened here — while an author who means
+to get past it has at least the four routes in WHAT IT CANNOT SEE below. A
+guard against carelessness, honestly bounded, is worth more than a guard
+against adversaries, overstated.
 
 IT IS THE CLASS, NOT THE INCIDENT. The subject is *a preamble re-spelled
 inline where a wrapper exists for it*; apt is the instance that has a wrapper
@@ -38,16 +51,27 @@ redirections, numbers, flags and the wrapper words in `PREFIX_WORDS` are
 consumed, and the FIRST word that is none of those is the command being run.
 `echo "apt admesh"` runs `echo`.
 
-STRINGS AND HEREDOCS ARE CODE HERE, COMMENTS ARE NOT, and that is the exact
-inverse of `check-status-capture.py`, whose header calls a heredoc body and a
+STRINGS ARE CODE HERE, COMMENTS ARE NOT, and that is the exact inverse of
+`check-status-capture.py`, whose header calls a heredoc body and a
 single-quoted string data. Both are right about their own subject: a
 `PIPESTATUS` read inside a heredoc never executes, while `bash -c 'sudo
-apt-get install -y foo'` and `ssh host <<EOF … EOF` are how the preamble gets
-written when the obvious spelling is refused. So quoting is removed rather
-than obeyed, a `bash -c` string and an `eval` argument are re-scanned as shell,
-and every heredoc body is scanned as shell too. A `#` comment is the one thing
-that is prose: a tombstone quoting the shape this check forbids must stay
-green, and every workflow in this tree carries paragraphs of them.
+apt-get install -y foo'` is how the preamble gets written when the obvious
+spelling is refused. So quoting is REMOVED rather than obeyed — `'apt-get'`,
+`"apt-get"` and `$'apt-get'` are all the word `apt-get` — and a `bash -c`
+string, an `eval` argument, a `trap`'s first argument and a here-string handed
+to a shell are re-scanned as shell in their own right.
+
+A HEREDOC IS CODE WHEN A SHELL EATS IT, and data otherwise. `bash <<EOF`,
+`cat <<EOF | bash`, `ssh host <<EOF` and `. <(cat <<EOF … EOF)` all run their
+body, so the body's commands join the stream; `cat > usage.txt <<EOF` does
+not. The rule is `HEREDOC_CONSUMERS` and it is not cosmetic: scanning EVERY
+body as shell refused three live files, whose heredocs are Rust fixtures and
+usage text carrying `&'static str` and `input's own default` — apostrophes
+that are an unterminated quote when read as shell.
+
+A `#` COMMENT IS THE ONE THING THAT IS PROSE: a tombstone quoting the shape
+this check forbids must stay green, and every workflow in this tree carries
+paragraphs of them.
 
 WHY A SEPARATE SCRIPT, weighed against the two shapes the item named and the
 one that landed since. Not `scripts/gates/*`: that directory is Track K's, its
@@ -64,19 +88,33 @@ and it fails alone. Its tokenizer is NOT reused, because the two disagree about
 heredocs and quoting in exactly the places each one's property lives, and
 teaching that file both answers is the coupling both arguments exist to avoid.
 
-WHAT IT CANNOT SEE, stated because a disclosed blind spot is a work order:
+WHAT IT CANNOT SEE, stated because a disclosed blind spot is a work order.
+Each of these was executed against the real `ci.yml` and came back green:
   * A COMMAND NAME COMPOSED AT RUN TIME. `CMD=apt-get; $CMD install -y foo`
     leaves the head word `install`. `$sudo apt-get …` IS caught — an
     expansion in a PREFIX position is stepped over — but an expansion that is
-    the command name itself cannot be resolved without running the shell.
-  * WHAT A PIPE FEEDS A SHELL. `curl … | sudo bash` runs code this file never
-    sees; so does `bash ./fetched.sh`. The idiom's own row is the guard for
-    the spellings written down.
+    the command name itself cannot be resolved without running the shell, and
+    `$SHELL <<EOF … EOF` hides the consumer the same way.
+  * WHAT A PIPE FEEDS A SHELL, and what a shell is handed later.
+    `curl … | sudo bash` runs code this file never sees; so does
+    `bash ./fetched.sh`, and so does a heredoc written to a FILE that a later
+    step executes — `cat > setup.sh <<EOF` is data here, by the consumer rule
+    above, and `bash setup.sh` is a command whose script this reader does not
+    open. `eval "$(cat <<EOF … EOF)"` is the same shape with the file left
+    out: the substitution's own commands are read, the body it prints is not.
   * A `uses:` ACTION'S SIDE EFFECTS, and any shell in a file this population
     does not cover — an untracked script, a container image's entrypoint.
   * WHETHER THE WRAPPER IS USED CORRECTLY. That `scripts/apt-install.sh` is
     the only door is what is proved; the door's own behaviour is its
     `--selftest`, which ci.yml's `mirror` job runs beside this one.
+
+THE CENSUS IS A READING, NOT AN ASSERTION. The closing line names how many
+commands were scanned out of how many files, and a TOTAL collapse is caught —
+a run that scans no command at all Bails, and narrowing any of `YAML_ROOTS`,
+`SHELL_SUFFIXES`, `SHEBANG_RE`, `BLOCK_SCALAR` or `IDIOMS` is killed by a
+carrier in `--selftest`. A PARTIAL collapse is not: a reader that silently
+stopped seeing half the bodies would print a smaller number and exit 0. Read
+the number as evidence about a change, not as a claim the file makes.
 
 AN UNREADABLE INPUT IS A REFUSAL, never an empty reading: an unterminated
 quote, an unterminated heredoc, a folded `run: >` scalar, a `run:` with no
@@ -108,7 +146,17 @@ SHELL_SUFFIXES = (".sh", ".bash")
 SHEBANG_RE = re.compile(rb"^#!.*\b(?:ba)?sh\b")
 
 RUN_KEY = re.compile(r"^(?P<lead>\s*(?:-\s+)?)run:(?P<rest>.*)$")
-BLOCK_SCALAR = re.compile(r"^\s*\|[-+]?\s*$")
+# A LITERAL BLOCK HEADER IS MORE THAN `|`. YAML allows an indentation
+# indicator and a chomping indicator in either order and a comment after
+# them, so `|2`, `|2-`, `|-2` and `| # install` are all `run: |`. Matching
+# only `|[-+]` sent those four down the INLINE arm, where the header text
+# scanned as one harmless word and the body was never read at all — a body
+# that parses to nothing, reported as agreement, which is the answer this
+# file refuses everywhere else. Anything else opening with `|`, `>`, `&` or
+# `*` Bails: an unrecognised block header, an anchor or an alias is a YAML
+# shape this reader does not know.
+BLOCK_SCALAR = re.compile(r"^\s*\|(?:[1-9][-+]?|[-+][1-9]?)?\s*(?:#.*)?$")
+YAML_STRUCTURE = "|>&*"
 
 # A GitHub expression can hold quotes, pipes and braces that are not shell.
 # Masked to one opaque word before the body is read, exactly as
@@ -122,7 +170,11 @@ GH_MASK = "$__gh_expr__"
 # idiom this repo has a door for, and the door. Adding a row is adding a door,
 # never adding an opinion — the argument for each is at the wrapper it names.
 # --------------------------------------------------------------------------
-IDIOMS: dict[str, tuple[str, str]] = {
+# A row's first element is the DOOR, or `None` where the answer is that
+# there is no door: `add-apt-repository` is not a use of the wrapper, it is
+# the condition the wrapper is written against, and telling an author to
+# call the wrapper instead would be advice that does not do what they asked.
+IDIOMS: dict[str, tuple[str | None, str]] = {
     "apt-get": (
         "scripts/apt-install.sh",
         "the apt preamble. `apt-get update` fails for ANY source list on the "
@@ -144,9 +196,11 @@ IDIOMS: dict[str, tuple[str, str]] = {
     # making the install that motivated it fail in a way nobody expects. A
     # third-party archive is a design decision, not a step.
     "add-apt-repository": (
-        "scripts/apt-install.sh",
-        "adding a third-party source list, which is the condition the wrapper "
-        "is written against rather than a use of it",
+        None,
+        "adding a third-party source list. There is no door for this one: it "
+        "is the condition scripts/apt-install.sh is written against, and the "
+        "wrapper would set the new list aside again on the next install. A "
+        "third-party archive is a design decision, not a step",
     ),
 }
 
@@ -161,6 +215,15 @@ PATH_EXEMPT: dict[str, str] = {
         "`apt-get`, which is what every other entry in `IDIOMS` points at"
     ),
 }
+
+# The idiom names as WORDS, for the one question the tokenizer has to ask
+# about text it is about to swallow. Longest first, so `apt-get` is not read
+# as `apt` with a stray tail.
+IDIOM_WORD = re.compile(
+    r"(?<![\w./-])(?:"
+    + "|".join(sorted(IDIOMS, key=len, reverse=True))
+    + r")(?![\w.-])"
+)
 
 # Words that stand in FRONT of the command actually being run. Each either
 # runs its remaining argv (`env`, `exec`, `xargs`, `time`, `nice`, `timeout`,
@@ -179,10 +242,24 @@ PREFIX_WORDS = frozenset({
 # step over. Stepping over it would leave the head word
 # `sudo apt-get install -y foo`, which is no command at all.
 
-# Shells whose `-c` argument is a script. Its value is re-scanned as shell.
-SHELL_COMMANDS = frozenset({"bash", "sh", "dash", "zsh", "ksh"})
+# Commands whose `-c` argument is a SCRIPT. Its value is re-scanned as
+# shell. `su` is here for `su -c 'apt-get install -y foo'` and for
+# `sudo su root -c '…'`, which reach apt by a route no privilege prefix in
+# `PREFIX_WORDS` covers.
+SHELL_COMMANDS = frozenset({"bash", "sh", "dash", "zsh", "ksh", "su"})
+
+# Commands that RUN what a heredoc or a here-string hands them, which is the
+# question that decides whether a heredoc body is code or data. `.` and
+# `source` take a file, and `. <(cat <<EOF … EOF)` is how a heredoc becomes
+# one; `ssh` runs the body on another machine, which is still running it.
+HEREDOC_CONSUMERS = SHELL_COMMANDS | frozenset({".", "source", "ssh"})
+
+# Prefixes that take one positional of their own before the command starts:
+# `chroot /mnt apt-get install` runs apt-get, and the directory is not it.
+PREFIX_WITH_ARG = frozenset({"chroot"})
 
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*(\[[^]]*\])?\+?=")
+_FN_DEFN = re.compile(r"\(\s*\)")
 REDIRECTION = re.compile(r"^[0-9]*[<>]")
 NUMERIC = re.compile(r"^[0-9]+(\.[0-9]+)?[smhd]?$")
 
@@ -208,11 +285,16 @@ class Word:
 class Command:
     """One simple command, with the line its first word starts on."""
 
-    __slots__ = ("line", "words")
+    __slots__ = ("herestring", "line", "words")
 
     def __init__(self, line: int) -> None:
         self.line = line
         self.words: list[Word] = []
+        # The word a `<<<` hands this command on stdin. `bash <<< "apt-get
+        # install -y foo"` runs it exactly as a heredoc body would, and `<<<`
+        # is live in eight files here, so consuming it as a redirection and
+        # never looking again was a hole the `<<` arm did not have.
+        self.herestring: str | None = None
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostics only
         return f"Command(line={self.line}, words={[w.value for w in self.words]})"
@@ -221,7 +303,9 @@ class Command:
         return " ".join(w.value for w in self.words)
 
 
-def scan_commands(body: str, first_line: int = 1) -> list[Command]:
+def scan_commands(
+    body: str, first_line: int = 1, defined: set[str] | None = None
+) -> list[Command]:
     """Split a shell body into the simple commands it runs, in order.
 
     Boundaries are every unquoted list operator (`;` `&` `&&` `||`), the
@@ -230,8 +314,11 @@ def scan_commands(body: str, first_line: int = 1) -> list[Command]:
     is REMOVED rather than obeyed: the word `'apt-get'` is the word `apt-get`,
     because a check on the spelling of the quotes is not a check on what runs.
     A command substitution and a heredoc body are scanned as shell in their
-    own right, at their own line numbers.
+    own right, at their own line numbers. `defined`, when given, collects the
+    names this body DEFINES as functions.
     """
+    if defined is None:
+        defined = set()
     body = GH_EXPR.sub(GH_MASK, body)
     out: list[Command] = []
     line = first_line
@@ -240,17 +327,46 @@ def scan_commands(body: str, first_line: int = 1) -> list[Command]:
     started = False  # the current word has characters, even if they are ''
     quote: str | None = None
     quote_line = 0
+    quote_at = 0
+
+    def close_quote() -> None:
+        """A quoted string that SPANS A LINE BREAK is where an unbalanced
+        quote hides commands: the shell pairs the stray quote with the next
+        one it meets and everything between them becomes text. That reading
+        is correct about what runs and useless as a check, because the
+        commands it swallowed are never examined — measured on this tree, a
+        stray `"` in a `run:` block turned a red body green and the census
+        went UP. It cannot be told from a legitimate multi-line string, so
+        the refusal is narrowed to the case that matters: an idiom NAME
+        inside one. The tree carries 72 multi-line quoted strings today and
+        not one of them names an idiom.
+        """
+        if line == quote_line:
+            return
+        text = word.value[quote_at:]
+        if IDIOM_WORD.search(text):
+            raise Bail(
+                f"line {quote_line}: a quoted string spanning lines "
+                f"{quote_line}-{line} names a wrapped idiom. This reader "
+                "cannot tell text from commands an unbalanced quote "
+                "swallowed, and will not guess: put the name on one line, or "
+                "close the quote where it was meant to close"
+            )
     # One entry per open `(` / `$(` (kind "p") or backtick (kind "b"), saving
     # what the outer command was. Inside a substitution the shell quotes
     # afresh, which is what makes `"$(cmd "$x")"` readable.
     nest: list[tuple[str, str | None, Command, Word, bool]] = []
     heredocs: list[tuple[str, bool]] = []
+    pending_here = False
     line_start = 0  # where this logical line's commands begin in `out`
     i, n = 0, len(body)
 
     def end_word() -> None:
-        nonlocal word, started
+        nonlocal word, started, pending_here
         if started:
+            if pending_here:
+                cmd.herestring = word.value
+                pending_here = False
             cmd.words.append(word)
         word = Word()
         started = False
@@ -272,6 +388,7 @@ def scan_commands(body: str, first_line: int = 1) -> list[Command]:
 
         if quote == "'":
             if ch == "'":
+                close_quote()
                 quote = None
             else:
                 if ch == "\n":
@@ -289,6 +406,7 @@ def scan_commands(body: str, first_line: int = 1) -> list[Command]:
                 i += 2
                 continue
             if ch == '"':
+                close_quote()
                 quote = None
                 i += 1
                 continue
@@ -328,9 +446,18 @@ def scan_commands(body: str, first_line: int = 1) -> list[Command]:
             i = j if j != -1 else n
             continue
 
+        if body.startswith("$'", i) or body.startswith('$"', i):
+            quote = body[i + 1]
+            quote_line = line
+            quote_at = len(word.value)
+            started = True
+            i += 2
+            continue
+
         if ch in "'\"":
             quote = ch
             quote_line = line
+            quote_at = len(word.value)
             started = True  # `''` is a word, and an empty one
             i += 1
             continue
@@ -341,7 +468,9 @@ def scan_commands(body: str, first_line: int = 1) -> list[Command]:
             i += 1
             if heredocs:
                 code = _feeds_a_shell(out[line_start:])
-                i, line = _take_heredocs(body, i, line, heredocs, out, code)
+                i, line = _take_heredocs(
+                    body, i, line, heredocs, out, code, defined
+                )
                 heredocs = []
                 cmd = Command(line)
             line_start = len(out)
@@ -354,6 +483,7 @@ def scan_commands(body: str, first_line: int = 1) -> list[Command]:
 
         if body.startswith("<<<", i):
             end_word()
+            pending_here = True
             i += 3
             continue
 
@@ -398,14 +528,40 @@ def scan_commands(body: str, first_line: int = 1) -> list[Command]:
                     i += 1
             continue
 
-        if ch == ")" and nest and nest[-1][0] == "p":
+        if ch == ")" and nest:
             end_command()
             _, quote, cmd, word, started = nest.pop()
             i += 1
             continue
 
-        if ch in "()":
+        if ch == ")":
+            # NOTHING IS OPEN, so this closes a `case` PATTERN — `apt-get)`
+            # is a label, not a command, and reading it as one reds the
+            # natural way to dispatch on a tool's name. The pattern is
+            # dropped rather than emitted; a subshell's `)` never reaches
+            # here, because its `(` pushed.
+            end_word()
+            cmd.words.clear()
+            i += 1
+            continue
+
+        if ch == "(":
+            if _FN_DEFN.match(body, i) and started and not cmd.words:
+                # `apt-get() { scripts/apt-install.sh "$@"; }` DEFINES the
+                # name; it does not run it, and making the wrapper the only
+                # door inside one script is exactly what this check wants —
+                # so the name is recorded, and calls to it in this body are
+                # calls to the function rather than to the idiom. What the
+                # function's own BODY runs is read like any other code, which
+                # is where an `apt-get() { /usr/bin/apt-get "$@"; }` reds.
+                i = _FN_DEFN.match(body, i).end()
+                defined.add(os.path.basename(literal(word)))
+                word = Word()
+                started = False
+                continue
             end_command()
+            nest.append(("s", quote, cmd, word, started))
+            cmd, word, started = Command(line), Word(), False
             i += 1
             continue
 
@@ -489,6 +645,7 @@ def _take_heredocs(
     heredocs: list[tuple[str, bool]],
     out: list[Command],
     code: bool,
+    defined: set[str],
 ) -> tuple[int, int]:
     """Consume every pending heredoc body, scanning it as shell iff `code`.
 
@@ -523,7 +680,7 @@ def _take_heredocs(
                 raise Bail(f"heredoc `{delim}` is never terminated")
             collected.append(candidate)
         if code and collected:
-            out.extend(scan_commands("\n".join(collected), start))
+            out.extend(scan_commands("\n".join(collected), start, defined))
     return i, line
 
 
@@ -535,7 +692,7 @@ def _feeds_a_shell(line_commands: list[Command]) -> bool:
     """
     for cmd in line_commands:
         head, _rest = head_of(cmd.words)
-        if head is not None and os.path.basename(literal(head)) in SHELL_COMMANDS:
+        if head is not None and os.path.basename(literal(head)) in HEREDOC_CONSUMERS:
             return True
     return False
 
@@ -574,6 +731,12 @@ def head_of(words: list[Word]) -> tuple[Word | None, list[Word]]:
             # `>out` carries its target; a bare `>` takes the next word.
             idx += 2 if value.rstrip("<>") == "" else 1
             continue
+        if value in PREFIX_WITH_ARG:
+            idx += 1
+            while idx < len(words) and literal(words[idx]).startswith("-"):
+                idx += 1
+            idx += 1  # the directory, the user, the resource it is given
+            continue
         if value in PREFIX_WORDS or value.startswith("-") or NUMERIC.match(value):
             # `command -v apt-get` LOOKS A BINARY UP and runs nothing. A
             # check that reds on the one idiom test a script may legitimately
@@ -590,11 +753,25 @@ def head_of(words: list[Word]) -> tuple[Word | None, list[Word]]:
 def offenders(body: str, first_line: int = 1) -> list[tuple[int, str, str]]:
     """Every command in `body` that runs a wrapped idiom: (line, name, text)."""
     found: list[tuple[int, str, str]] = []
-    for cmd in scan_commands(body, first_line):
+    defined: set[str] = set()
+    commands = scan_commands(body, first_line, defined)
+    for cmd in commands:
+        values = [literal(w) for w in cmd.words]
+        if len(values) > 1 and values[0] == "function":
+            defined.add(os.path.basename(values[1]))
+    for cmd in commands:
         head, rest = head_of(cmd.words)
         if head is None:
             continue
         name = os.path.basename(literal(head))
+        if name in defined and "/" not in literal(head):
+            # A BARE name this body defines is that function, not the idiom —
+            # which is exactly how the shell resolves it. A PATH is never a
+            # function call, so `apt-get() { /usr/bin/apt-get "$@"; }` is read
+            # as what it is rather than excused by the name it wears. A
+            # `bash -c` string and a heredoc are new shells and get their own
+            # empty set, so a definition here does not excuse them either.
+            continue
         if name in IDIOMS:
             found.append((cmd.line, name, cmd.text()))
             continue
@@ -603,6 +780,12 @@ def offenders(body: str, first_line: int = 1) -> list[tuple[int, str, str]]:
             # shell and a whole script to the inner one.
             found.extend(offenders(" ".join(w.value for w in rest), cmd.line))
             continue
+        if name == "trap" and rest:
+            # A trap's first argument is deferred code, exactly as `eval`'s
+            # argument is immediate code; `trap 'apt-get clean' EXIT` runs.
+            found.extend(offenders(rest[0].value, cmd.line))
+        if name in HEREDOC_CONSUMERS and cmd.herestring is not None:
+            found.extend(offenders(cmd.herestring, cmd.line))
         if name in SHELL_COMMANDS:
             script = _dash_c_argument(rest)
             if script is not None:
@@ -650,6 +833,12 @@ def yaml_bodies(path: str, text: str) -> list[tuple[int, str]]:
                 raise Bail(f"{path}:{i + 1}: a `run:` with no scalar and no block")
             if stripped.startswith(">"):
                 raise Bail(f"{path}:{i + 1}: a folded `run: >` scalar is not read")
+            if stripped[0] in YAML_STRUCTURE:
+                raise Bail(
+                    f"{path}:{i + 1}: a `run:` value opening with {stripped[0]!r} "
+                    "that this reader does not recognise as a block header; it "
+                    "is not read rather than read as one word"
+                )
             bodies.append((i + 1, _plain(path, i + 1, stripped)))
             i += 1
             continue
@@ -796,6 +985,11 @@ def scan_tree(root: str) -> tuple[dict[str, list[tuple[int, str, str]]], int, in
 # saying which rather than passing at a shorter roster.
 # --------------------------------------------------------------------------
 CLAIM_NAMES = ("inline-idiom", "exempt-fossil", "wrapper-tracked")
+# Unpacked rather than retyped at each use: an arm added to or dropped from
+# the tuple fails at import with a ValueError naming it, instead of leaving
+# `check_tree` writing a key nothing reads and the selftest asserting over a
+# roster the code no longer runs.
+CLAIM_INLINE, CLAIM_FOSSIL, CLAIM_WRAPPER = CLAIM_NAMES
 
 
 def check_tree(root: str) -> tuple[dict[str, list[str]], int, int, int]:
@@ -809,9 +1003,10 @@ def check_tree(root: str) -> tuple[dict[str, list[str]], int, int, int]:
             continue
         for line, name, text in hits[rel]:
             wrapper, why = IDIOMS[name]
-            failures["inline-idiom"].append(
-                f"{rel}:{line}: runs `{name}` directly — `{text}`\n"
-                f"      {wrapper} is the door: {why}"
+            door = (f"{wrapper} is the door: {why}" if wrapper
+                    else f"there is no door for this: {why}")
+            failures[CLAIM_INLINE].append(
+                f"{rel}:{line}: runs `{name}` directly — `{text}`\n      {door}"
             )
 
     # CLAIM `exempt-fossil`: a confession outlives what it confessed.
@@ -821,19 +1016,19 @@ def check_tree(root: str) -> tuple[dict[str, list[str]], int, int, int]:
         used = hits.get(rel, [])
         exempt_uses += len(used)
         if rel not in tracked:
-            failures["exempt-fossil"].append(
+            failures[CLAIM_FOSSIL].append(
                 f"{rel} is exempt and is not a tracked file. Delete the entry."
             )
         elif not used:
-            failures["exempt-fossil"].append(
+            failures[CLAIM_FOSSIL].append(
                 f"{rel} is exempt — \"{why}\" — and runs no wrapped idiom at "
                 "all any more. The confession has expired: delete the entry."
             )
 
     # CLAIM `wrapper-tracked`: every door the table names still exists.
     for name, (wrapper, _why) in sorted(IDIOMS.items()):
-        if wrapper not in tracked:
-            failures["wrapper-tracked"].append(
+        if wrapper is not None and wrapper not in tracked:
+            failures[CLAIM_WRAPPER].append(
                 f"`{name}` is routed through {wrapper}, which is not a tracked "
                 "file. A prohibition pointing at a door that is gone is not a rule."
             )
@@ -979,8 +1174,107 @@ MUTANTS: tuple[tuple[str, str, str, tuple[int, ...]], ...] = (
         RED,
         (1,),
     ),
+    (
+        "a heredoc `ssh` runs on another machine",
+        "ssh host <<EOF\nsudo apt-get install -y foo\nEOF\n",
+        RED,
+        (2,),
+    ),
+    (
+        "a heredoc `.` sources through a process substitution",
+        ". <(cat <<EOF\nsudo apt-get install -y foo\nEOF\n)\n",
+        RED,
+        (2,),
+    ),
+    (
+        "a HERE-STRING handed to a shell, which `<<<` used to eat as a redirection",
+        'bash <<< "sudo apt-get install -y foo"\n',
+        RED,
+        (1,),
+    ),
+    (
+        "deferred in a `trap`, which is `eval`'s argument one clock tick later",
+        "trap 'sudo apt-get clean' EXIT\n",
+        RED,
+        (1,),
+    ),
+    (
+        "`su -c`, which no privilege prefix covers",
+        "su -c 'apt-get install -y foo'\n",
+        RED,
+        (1,),
+    ),
+    (
+        "`sudo su root -c`, the same door with two keys",
+        "sudo su root -c 'apt-get install -y foo'\n",
+        RED,
+        (1,),
+    ),
+    (
+        "`chroot`, whose first positional is a directory and not the command",
+        "chroot /mnt apt-get install -y foo\n",
+        RED,
+        (1,),
+    ),
+    (
+        "`$'…'` ANSI-C quoting, which is a quote and not an expansion",
+        "bash -c $'apt-get install -y foo'\n",
+        RED,
+        (1,),
+    ),
+    (
+        "an unbalanced quote swallowing the command, which is a REFUSAL",
+        'echo "opening\nsudo apt-get install -y foo\necho "closing\n',
+        BAIL,
+        (),
+    ),
     # ---- shapes that are CORRECT and must stay green. A check that reds on a
     # ---- correct change gets routed around, and then detects nothing at all.
+    (
+        "a multi-line quoted string that names no idiom (72 live in this tree)",
+        'echo "a sentence that runs\nover two lines"\n',
+        GREEN,
+        (),
+    ),
+    (
+        "a FUNCTION named for the idiom, routing it through the wrapper, and "
+        "the calls to it",
+        'apt-get() { scripts/apt-install.sh "$@"; }\napt-get -y foo\n',
+        GREEN,
+        (),
+    ),
+    (
+        "the same, spelled `function apt-get { … }`",
+        'function apt-get { scripts/apt-install.sh "$@"; }\napt-get -y foo\n',
+        GREEN,
+        (),
+    ),
+    (
+        "but a wrapper function that is a DISGUISE is read like any other body",
+        'apt-get() { /usr/bin/apt-get "$@"; }\napt-get -y foo\n',
+        RED,
+        (1,),
+    ),
+    (
+        "and a definition here does not excuse a NEW shell",
+        'apt-get() { scripts/apt-install.sh "$@"; }\n'
+        "bash -c 'apt-get install -y foo'\n",
+        RED,
+        (2,),
+    ),
+    (
+        "a `case` PATTERN named for the idiom, which is a label and not a command",
+        'case "$x" in apt-get) echo yes ;; esac\n',
+        GREEN,
+        (),
+    ),
+    (
+        "`apt-cache`, `apt-key`, `apt-file`, `apt-mark`: near misses, not members",
+        "apt-cache policy foo\napt-key list\napt-file search foo\napt-mark hold foo\n",
+        GREEN,
+        (),
+    ),
+
     (
         "the wrapper, which is the whole point",
         "exec scripts/apt-install.sh --no-install-recommends foo bar\n",
@@ -1067,6 +1361,14 @@ MUTANTS: tuple[tuple[str, str, str, tuple[int, ...]], ...] = (
 # while the run still prints "all as specified".
 REQUIRED_MUTANTS = (
     "the whole preamble inline, which is what the wrapper replaces",
+    "a heredoc `ssh` runs on another machine",
+    "a HERE-STRING handed to a shell, which `<<<` used to eat as a redirection",
+    "`su -c`, which no privilege prefix covers",
+    "an unbalanced quote swallowing the command, which is a REFUSAL",
+    "a FUNCTION named for the idiom, routing it through the wrapper, and "
+    "the calls to it",
+    "but a wrapper function that is a DISGUISE is read like any other body",
+    "a `case` PATTERN named for the idiom, which is a label and not a command",
     "the same pair split over a line continuation",
     "no `sudo` at all (a root container)",
     "`apt` rather than `apt-get`",
@@ -1229,9 +1531,19 @@ def selftest() -> int:
         missing = [n for n in REQUIRED_MUTANTS if n not in names]
         if missing:
             fail(f"the mutant table has lost {missing}")
-        if not dupes and not missing:
+        # AND THE PIN IS PINNED. An emptied `REQUIRED_MUTANTS` satisfies
+        # "every required row is present" vacuously and the run still prints
+        # "all as specified", so the roster is held to covering all three
+        # verdicts — a table that can no longer red, no longer stay green, or
+        # no longer refuse is not this guard's table.
+        verdicts = {w for n, _b, w, _l in MUTANTS if n in REQUIRED_MUTANTS}
+        if verdicts != {RED, GREEN, BAIL}:
+            fail(f"`REQUIRED_MUTANTS` names only {sorted(verdicts)}; it has to "
+                 "hold a row of every verdict")
+        if not dupes and not missing and verdicts == {RED, GREEN, BAIL}:
             print(f"  ok  (green)  every row in `REQUIRED_MUTANTS` is in the "
-                  f"table, and no row is in it twice ({len(names)} rows)")
+                  "table, no row is in it twice, and the required set names a "
+                  f"red, a green and a refusal ({len(names)} rows)")
 
         route_names = tuple(sorted(c.name for c in carriers))
         if route_names != ROUTE_NAMES:
@@ -1338,6 +1650,39 @@ def selftest() -> int:
         else:
             print("  ok  (red  )  the idiom in an inline `run:` scalar, plain "
                   "and YAML-quoted, beside a quoted scalar that is innocent")
+
+        # ---- THE BLOCK HEADER ITSELF. `|2`, `|2-`, `|-2` and `| # note` are
+        # ---- all `run: |`; read as inline scalars the header scanned as one
+        # ---- harmless word and the body below it was never read at all.
+        for header in ("|", "|-", "|+", "|2", "|2-", "|-2", "| # install"):
+            block = _fresh(tmp, "hdr" + header.replace(" ", "").replace("#", "c"))
+            _write(block, wrapper, _WRAPPER_STUB)
+            _write(block, ".github/workflows/ci.yml",
+                   "jobs:\n  a:\n    steps:\n"
+                   f"      - run: {header}\n"
+                   "          sudo apt-get install -y foo\n")
+            _add(block, ".")
+            outcome, sites, _f = _outcome(block)
+            if outcome != RED or sites != [".github/workflows/ci.yml:5"]:
+                fail(f"a body under `run: {header}`: {outcome} {sites}")
+            else:
+                print(f"  ok  (red  )  the idiom under a `run: {header}` header")
+
+        # An anchor or an alias where a block header belongs is a YAML shape
+        # this reader does not know, and it says so rather than reading the
+        # header text as a one-line command.
+        for odd_header in ("&anchor |", "*alias"):
+            anchored = _fresh(tmp, "anchor" + odd_header[0])
+            _write(anchored, wrapper, _WRAPPER_STUB)
+            _write(anchored, ".github/workflows/ci.yml",
+                   "jobs:\n  a:\n    steps:\n"
+                   f"      - run: {odd_header}\n"
+                   "          sudo apt-get install -y foo\n")
+            _add(anchored, ".")
+            if _outcome(anchored)[0] != BAIL:
+                fail(f"a `run: {odd_header}` was read rather than refused")
+            else:
+                print(f"  ok  (bail )  a `run: {odd_header}` is refused, not read")
 
         # A quoted scalar whose quote does not close at its end is a YAML
         # shape this reader does not know, and it refuses rather than

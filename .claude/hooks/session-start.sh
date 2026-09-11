@@ -386,9 +386,14 @@ fi
 # the update to Ubuntu's own archive for the one transaction, restores the
 # image's lists on any exit, and retries a hang. It decides on `sudo` for
 # itself, by whether the sources directory is writable.
-# DEBIAN_FRONTEND rides the call rather than the apt-get, which is where it
-# survives: `sudo` resets the environment, so a variable set in front of
-# it does not reach apt at all.
+# WHAT MAKES THIS NON-INTERACTIVE IS THE WRAPPER'S OWN `-y -qq`, not the
+# variable in front of it. `sudo` runs with `Defaults env_reset`, so a
+# variable set in front of a `sudo` never reaches the command it runs: the
+# old spelling here set DEBIAN_FRONTEND in front of `$sudo apt-get` and apt
+# never saw it, and this spelling gets it as far as apt-install.sh, whose
+# own `sudo` (no `-E`) drops it again on the non-root path. It reaches apt
+# only when this hook is already root. Kept because that case is real and
+# it costs nothing; not relied on.
 # ---------------------------------------------------------------------------
 say "admesh (external watertight oracle)"
 if command -v admesh >/dev/null 2>&1; then
