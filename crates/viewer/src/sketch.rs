@@ -647,6 +647,13 @@ pub enum PreviewError {
     },
 }
 
+// The preview's sentence is about the step the author is looking at,
+// so both halves of the (state, verb) pair are named in the author's
+// vocabulary: the verb through `profile::Verb`'s own `Display` — the
+// same word the row's combo shows, so a verb cannot be picked under
+// one name and refused under another — and the state through
+// [`tip_state_words`]. `profile`'s `ReplayError` renders the same pair
+// as the table's COORDINATE and says there why that sentence differs.
 impl core::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -660,7 +667,7 @@ impl core::fmt::Display for PreviewError {
             } => match verb {
                 Some(verb) => write!(
                     f,
-                    "loop {loop_} step {step}: {verb:?} is not well-typed there — the tip is {}",
+                    "loop {loop_} step {step}: {verb} is not well-typed there — the tip is {}",
                     tip_state_words(*state)
                 ),
                 None => write!(

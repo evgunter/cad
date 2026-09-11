@@ -1568,3 +1568,89 @@ instead of guessing, and it names the three things that stay this
 program's whatever they look like — the gate mechanism, the fuzz-gating
 policy, and everything under `scripts/`. A row on either slate that turns
 out to be on the wrong side moves back by `git mv`, not by a copy.
+
+## The unclear kernel row is measured, and it closes negative (2026-09-11)
+
+`edge-nurbs-computes-the-chart-image-and-discards-it` was the one row
+the re-sort could not place: a compute-and-discard candidate whose own
+body said the cost had never been measured. It is measured now, and
+both halves of the row fail.
+
+**The premise is false.** The image is not discarded —
+`edge_nurbs.rs:354-362` passes it into `certify_rung3` as
+`Some(&pcurve)`, and `ssi/certify.rs` refuses `UnsupportedCertificate`
+without it at `:810-815` and `:851-854`. Every `PlaneNurbsLimbs` field
+but `min_sin_theta` comes out of that certificate. What exists is a
+redundancy ACROSS PASSES (the mint derives its own), and collapsing that
+means the certifier trusting the stored cache, which
+`topo/src/validate.rs:3297-3299` ratifies against.
+
+**And the prize is small.** LOCAL, single-threaded medians on this
+container, an iteration tool and not a result of record: `chart_image`
+is **9.5 %** of an edge certification in release (0.461 of 4.86 ms) and
+**12.6 %** in dev, once per plane×NURBS edge per validation pass.
+
+Recorded because it is the general lesson of this re-sort, not just this
+row's: **the row was filed off a sentence in a spec, and the sentence
+had gone stale.** `docs/PCURVE-P2-SPEC.md:55-62` still says
+`edge_nurbs` *"THROWS IT AWAY"*, and the advice that sentence gives —
+prefer the existing producer to writing a third — had already been taken
+by the refactor that made `chart_image` shared. Eight days on this board
+and one instrumented lane to find that out. Filed to TRIM, whose
+territory both files are:
+`work/trim/pcurve-p2-spec-says-edge-nurbs-throws-the-image-away`.
+
+The board is eleven live rows: the four latency rows, the demotions row,
+the two gate defects, the two fuzz-policy rows, the parked proptest
+question, and the `ci-filter.py` citation fix.
+
+## Unit: the gate's converse check, and two rulings (2026-09-11)
+
+**`gated-marker-omits-sibling-helper-imports` is closed with the arm
+landed.** `--gated-check` now requires that every sibling helper module a
+gated `tests/` suite imports is covered by its marker's path set, by the
+same match `selected_by` makes. Two findings worth the log:
+
+- **The item's own fix sketch was wrong in the load-bearing place.** It
+  said to resolve `use crate::<h>` "the way `_all_rs_modules` already
+  does" — but that reader records `#[path]` PAIRS, and every helper tree
+  in this repo is mounted by a bare `mod common;`. Built on it the check
+  resolves nothing and passes every tree in green: this row's own defect,
+  one level up. Caught by looking at the output (zero suites resolved on
+  a tree the census said had ten), not by reading. `_tests_sibling_files`
+  is a second reader; `_all_rs_modules` is untouched and no term moved.
+- **It found three offenders on main, and they are not the ten.**
+  `review_chamfer_r1_probes`, `review_verbs_rim_lever_probes` and
+  `verbs_rim_r1_probes` in `crates/sweep`, all importing
+  `use crate::common;` and naming no part of
+  `crates/sweep/tests/common/`. All three markers were written
+  **2026-09-09** (`8ee8cf1c`), six days AFTER the census swept all 54 and
+  widened the ten it found. The class regrew at the predicted rate under
+  the review the row said would not catch it — which is the argument for
+  a mechanical check over another sweep. Fixed in the same commit.
+
+Planted both directions in `scripts/gates/gated-suite-paths.sh` (an
+announced cross-fence edit; that file is code-quality Track K's and calls
+`--gated-check` rather than deciding anything): the gate must red on an
+unnamed helper import, and must pass the near miss this directory's
+convention owes — the same import with the directory named.
+
+**`gated-marker-path-mount` is SIZED, not taken.** Its two candidate
+fixes are now priced against the code: "make the silence loud" is ~15
+lines on the reader just built; "resolve the mount" needs a module-tree
+walk of `crates/*/src` whose nested-mount case would reproduce this row's
+own failure if done by halves. The two buy different things and the
+choice is Ev's; the recommendation on the item is candidate 2 now,
+candidate 1 only when a row genuinely wants gating in a mounted file.
+
+**`consider-proptest-for-randomized-sweeps` is closed on Ev's ruling**
+(in chat, 2026-09-11): *"the fuzzers have found things only rarely and it
+seems like understanding the problem found by the fuzzer hasn't been too
+burdensome."* The whole case for migrating was shrinking — the issue says
+so itself — and shrinking is a tool for making diagnosis cheaper. The
+harness it was parked on already exists (`test_utils::fuzz`), the
+memory's fuzzing rules are untouched, and `r1-probe-seeds-are-not-on-the-
+fuzz-dial` stays open: it is the one place the reproducibility floor this
+ruling assumes is not actually met.
+
+Board: eight live rows.
