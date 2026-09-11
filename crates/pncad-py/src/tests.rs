@@ -3118,13 +3118,24 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 #[test]
 fn every_validation_finding_carries_every_word_its_arm_has() {
     use crate::validation::{Finding, project};
-    use pncad::topo::{CensusContact, CensusSubject, EntityId, ValidationError};
+    use pncad::topo::{
+        CensusContact, CensusSubject, CensusUnsupportedCause, ContactRefusal, EntityId,
+        ValidationError,
+    };
 
     // The arm whose subject is ONE entity: the recourse is that
     // carrier's, so the kind of carrier is the word a caller acts on.
     assert_eq!(
         project(&ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Edge(Default::default())),
+            // The cause is threaded, not read: this crate projects
+            // the SUBJECT and has no word for the cause yet, which is
+            // LIB's row. `what` is production's own string, from
+            // `topo::boolean::contact_verify`'s Rest-ladder arm.
+            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
+                what: "a declared face's surface kind is outside the Rest ladder's \
+                       inventory (plane, sphere, cylinder)",
+            }),
         }),
         Finding {
             variant: "census_unsupported",
