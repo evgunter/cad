@@ -2,9 +2,11 @@
 id: debug-in-prose-at-blend-and-step-import
 kind: issue
 title: sweep's BlendSite renders through Debug inside a Display — a live panic at py::typed_err on any fillet or chamfer escalation at a link or a joint
-status: open
+status: review
 opened: 2026-09-04
 refs: [step-import-source-debug-in-prose-panics-the-binding]
+branch: fix/blend-site-display
+pr: 2367
 ---
 
 
