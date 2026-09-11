@@ -118,3 +118,110 @@ is the last place a hand-run census belongs.
 
 META owns the wording; CIW invites the rewrite.
 
+
+## Four items closed in one PR — the program's first dispatch (2026-09-11)
+
+Opened 2026-09-04; **no unit had ever been cut and no `meta/` branch
+ever existed** until this one. This PR takes the four executable rows
+on the slate together, because each is a small self-contained edit to
+`scripts/work.py` or to a document this program owns, and because three
+of the four are instruments that detect the same class — a tracker fact
+nothing reads back.
+
+**Branch: `claude/charming-archimedes-hyvb4v`, not `meta/…`.** Set by
+the session harness rather than by the #396 convention, the way FIX
+recorded the same deviation at its own pickup (`work/fix/log.md`,
+2026-09-04). `meta/orchestrator` remains unused.
+
+### What landed
+
+1. **`territory-cannot-see-a-path-two-programs-both-claim`** (the
+   opener) — both candidates. `territory` reports a path the branch's
+   own program claims that another open program claims too, worded as
+   a double claim rather than a crossing; and `lint` mechanises the
+   at-rest census, naming every pair whose two `keep_out`s do not both
+   name the other.
+2. **`parked-on-an-int-is-invisible-to-the-fired-trigger-rule`** —
+   shape (a): a number in `blocked_on` resolves through `github:` and
+   reaches the fired-trigger rule.
+3. **`work-set-accepts-a-scalar-for-a-list-field`** — both fixes: `set`
+   coerces a scalar into a one-element list, and `lint` diagnoses a
+   hand-written one instead of dying on it.
+4. **`perf-plan-is-cited-by-twenty-nine-files-and-absent-from-tree-and-ledger`**
+   — closed against a measurement that overturned it (below).
+
+### The decision taken unilaterally, and it is the same one twice
+
+**Both new detectors WARN where the plan and the item asked for an
+error.** `plan.md` specified "a lint rule that errors on an unrecorded
+double claim"; the int item's shape (a) said "applies the fired-trigger
+rule", whose unblocked shape is an error. Neither could ship that way:
+
+- The double-claim rule names **ten unrecorded pairs** on landing day.
+  Every fix is a `keep_out` clause in another program's `program.md`.
+- The int resolution found **two genuinely fired triggers** on its
+  first run, `S190` and `S79`, both `work/code-quality/`'s.
+
+In each case the error would have reddened `main` for rows this program
+is forbidden to edit — by `work/README.md`'s one-file-one-item rule and
+by this program's own `keep_out`, which says a stale row in another
+program's slate is **routed, never fixed across the fence**. A check
+whose first act is to break every program's CI for a change only its
+owners can make would have been reverted or softened within the day,
+and a softened check is worse than one that shipped honest.
+
+So the rule is the plan's rule, in its warning phase, with the error
+flip named and filed rather than assumed:
+`double-claim-lint-rule-waits-on-the-tests-seam`. Nine of the ten pairs
+are the `*/tests/*` family, and whether the check learns that seam once
+or nine programs write it down is a change to what a `keep_out` means —
+Ev's, not a sequencing call, with a recommendation on the item.
+
+The int case gets a second, narrower reason written into the contract:
+an id in `blocked_on` NAMES a row and an int MATCHES one through a
+field the author did not write as a reference. A true inference is
+still an inference, and an inference does not red `main`. Naming the
+item promotes the row back under the error, which is the end state.
+
+### The measurement that overturned an item
+
+`docs/PERF-PLAN.md` was **renamed to `work/perf/plan.md` on 2026-09-03
+with zero content change** (`4916f90c`, PR #1619) — not deleted. All
+three claims in the item's title were false: 5 files cite the dead path
+and not 29 (the other 27 name the document, which still carries that
+name as its own title); it is in the tree; and the ledger does record
+the move, in sweep 4's "Moved, not deleted". The lane that filed it
+followed the ledger's own recovery recipe, `git log --diff-filter=D`,
+which is **empty for a renamed file** — so the wrong conclusion was the
+one its tools pointed at. The ledger now names the moved files
+individually and tells the next reader to run `--all --full-history`
+first.
+
+This is the second time in this program's short life that a hand-run
+census published as a measurement turned out wrong (the first was its
+own opening count, 2026-09-05), and the second time the answer was to
+mechanise it rather than patch the number. Both instruments in this PR
+reprint their census on every `work.py lint`.
+
+### Routed, not fixed (the fence, working)
+
+`S190` and `S79` (code-quality, parked on fired numbers); `github: 1374`
+claimed by both a CHROME row and a DOCM row, and `github: 1607` by both
+a CIW row and a `work/issues/` row; the `docm`+`msolve` one-sided
+`keep_out`, still one-sided six days after it was named; the `docm`+`lib`,
+`chrome`+`tcost` and `tcost`+`view` second sides; and five `PERF-PLAN`
+path citations owned by S-MESH/S-TCOST, PERF and two records. Each is
+named on a closed item's `## Closed` section AND on a live item, because
+`work/README.md` is explicit that a residue disclosed in prose is
+invisible to the re-homing sweep.
+
+### Slate after this
+
+Two registers custodied (`m6-carried-items-register`,
+`decide-flagged-dimensional-debt-inventory`), one routing record
+(`stale-track-t-citations-in-fillet-and-cert`), the two residues filed
+here, and **the overdue one**:
+`ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated`, which
+`plan.md` said on day one was "an `[ev]` PR on day one, in parallel with
+the opener and not behind it". It is now seven days behind it. That PR
+is the next action on this program and nothing else should precede it.

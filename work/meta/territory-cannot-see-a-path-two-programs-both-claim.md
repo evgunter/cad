@@ -2,8 +2,10 @@
 id: territory-cannot-see-a-path-two-programs-both-claim
 kind: issue
 title: scripts/work.py territory is silent on a path two open programs both claim — it flags only paths the branch's own program does not claim
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-11
+refs: [double-claim-lint-rule-waits-on-the-tests-seam]
 ---
 
 
@@ -149,3 +151,44 @@ globs against `git ls-files`, counting paths matched by more than one
 program, then asking for each pair whether each program's `keep_out`
 text names the other. Same matcher `work.py` uses. Measured at
 `a2bcab785`.
+
+## Closed (2026-09-11)
+
+**Both candidate fixes landed, and the lint rule landed as a warning
+rather than the error this program's plan specified.** What shipped, in
+`scripts/work.py`:
+
+- **Candidate (2), whole.** `territory` now reports a changed path
+  another open program claims EVEN IF the branch's own program claims
+  it, and says so in different words — `also claimed by X; <mine>
+  claims it too — a double claim, not a crossing` against the existing
+  `owned by X`. That is the exact silence this item was filed on:
+  FIX's lane ran the check over `crates/topo/src/transform.rs` and got
+  nothing back.
+- **Candidate (1), in its warning phase.** `lint` measures every open
+  program's `paths` against `git ls-files`, pairs the programs sharing
+  a tracked path, and names each pair whose two `keep_out`s do not both
+  name the other. The rule is the one the 2026-09-05 correction settled
+  and `plan.md` adopted — *an overlap is an error unless BOTH
+  `keep_out`s name the other* — and the census it mechanises is the
+  hand-run pass that miscounted three of its own figures.
+
+**Why it warns.** Ten of the thirteen pairs live today are unrecorded,
+and their fix is a `keep_out` clause in other programs' `program.md`
+files, which one-file-one-item puts out of this program's reach. An
+error would have reddened `main` on landing day for a change only
+twenty other programs could make. The flip, and the `*/tests/*` seam
+question this item left open (nine of the ten pairs), is
+`double-claim-lint-rule-waits-on-the-tests-seam` — filed rather than
+described, per `work/README.md`'s residue rule.
+
+**Reproduced at the landing**, so the two counts are not another
+hand-run census: 13 pairs over 513 shared paths, 3 recorded on both
+sides (`chrome`+`view`, `bool`+`curved`, `m10`+`props`), 4 one-sided,
+6 neither. The item's 2026-09-05 measurement found 16 pairs at
+`a2bcab785`; the difference is `cert`, `fillet` and `seat` closing and
+`m10`+`props` arriving, not a change of method — the check IS the
+method now, and `work.py lint` reprints it on every run.
+
+**`docm`+`msolve` is still one-sided**, six days after the correction
+named it. Routed on the new item rather than fixed here.
