@@ -587,8 +587,7 @@ mod tests {
                         mm[axis] = value;
                         rects[axis] = widget.rect;
                         let shown = *mm;
-                        let frame_of =
-                            |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
+                        let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
                         drag_ops(
                             &widget,
                             value,
@@ -699,7 +698,10 @@ mod tests {
         for _ in 0..TAB_BUDGET {
             before_the_second_begin.extend(probe.key(egui::Key::Tab).iter().map(kind));
             let bumped = probe.key(egui::Key::ArrowUp);
-            if bumped.iter().any(|op| matches!(op, SessionOp::BeginFreeMove { .. })) {
+            if bumped
+                .iter()
+                .any(|op| matches!(op, SessionOp::BeginFreeMove { .. }))
+            {
                 second = Some(bumped);
                 break;
             }
