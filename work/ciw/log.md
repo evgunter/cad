@@ -2278,3 +2278,82 @@ claim in each of the last five units.
 ownership to the orchestrator because the path is outside CIW's
 `paths`. CIW takes it (Ev's orchestrator, 2026-09-11); `paths` widens to
 `.claude/hooks/*` in unit 7, the PR that first edits it.
+
+## 2026-09-11 — unit 2 merged: the cut line's validator, anchored at both ends
+
+PR 2324 (`372f37e0`), run `34558529737` green at STEP level in both places
+that run the diff. Both items closed.
+
+**The anchor is `[^ ]*$`, and both obvious choices are wrong in opposite
+directions.** Verified by the orchestrator by injection rather than taken
+from the report, four candidate anchors against five real line shapes:
+
+| line | `[^ ]*$` | before | `$` | `[^[:space:]]*$` |
+|---|---|---|---|---|
+| `87edbba62 2026-09-10T20:56:22+00:00` (the committed baseline) | Y | Y | **N** | Y |
+| `1a2b3c4 2026-08-30 extra` (the defect) | N | **Y** | N | N |
+| `1a2b3c4 2026-08-30\textra` | Y | Y | N | **N** |
+
+Plain `$` refuses the repository's own cut line. `[^[:space:]]*$`
+refuses a line `split_cut` READS, which is the re-stamping direction —
+the already-stamped test misses and the file is re-stamped from a
+commit newer than its rows. `[^ ]*$` is `split_cut`'s letter
+transcribed (`rest.split(' ')`, exactly two fields, every byte after the
+calendar day admitted), so the two accepted sets are equal by
+construction rather than by agreement over the cases anyone listed.
+
+**The review found the unit committing its own sweep class, twice.**
+`want`'s expected substring was `"cut: "`, and every diagnostic the
+script writes begins `tess_budget_cut: ` — which CONTAINS it. So three
+rows this unit ADDED were satisfied by every message the script can
+emit, including both "no cut recorded" arms; and cases (1) and (7)
+wanted a string both skip arms print, so they were interchangeable.
+A partial match read as a whole verdict, inside the diff that fixes a
+partial match read as a whole verdict. Both mutants were green on the
+first push and red now.
+
+**And the sweep's four spellings could not match the spelling that hid
+a hit in its own file.** Each demanded an `-E`, a `VAR='^…'`, a `=~` or
+a Python `re.`; `grep -v '^# tess-budget-cut:'` at `:127` carries none.
+A blind-spot list that omits the spelling which hid a hit is not a
+blind-spot statement, it is the finding.
+
+**The mutant with no catcher was closed by the other language.**
+`EXECUTABLE_SPELLINGS` was `4` against a live count this unit took to
+`8`, so a `>=` floor was passing as four deletions of slack. Set to the
+live count, a deleted selftest case reds by name across the language
+boundary. Confirmed here on a pristine tree, deleting each new case
+alone:
+
+- case (5) deleted — **shell selftest rc=0, zero failures**; the pin
+  reds `the script executes the cut record 7 times, and 8 of those
+  spellings are what this pin is over — one has gone missing`.
+- case (6) deleted — shell green again; the pin reds `… 5 times, and
+  8 …`.
+
+That asymmetry is the entry worth keeping: **a selftest cannot notice
+its own row being deleted**, so the row that catches the deletion has to
+live somewhere the deletion is visible. It is the same remedy as unit
+6's `ROUTE_NAMES` one slate earlier, and the same sentence — *a fact
+printed in a log is not a fact anything reds on*.
+
+**Three fence corrections came out of this unit and two were the
+orchestrator's.** `tools/*` is INSTR's, not code-quality Track K's, and
+CIW's `keep_out` still said otherwise — the item filed for it is on the
+slate, retitled after its first draft asserted that `work/code-quality/`
+has no `program.md` (it does; `status: open`, `tag: (SMELL
+orchestrator)`). **`scripts/gates/*` is code-quality's again**: GATES
+closed 2026-09-08 (`docs/DOC-LEDGER.md` sweep 7, and `work/gates/` is
+gone), so that half of the clause was right all along. The orchestrator
+relayed the wrong version to another lane before checking it and had to
+retract it mid-unit. The lane's own account of how it got there is the
+useful part: `ls | head -20` stopped before `program.md` (uppercase ids
+sort first) and `grep "^paths:"` returned nothing because the file
+genuinely has no `paths:` key — **two commands, neither of which tests
+existence**, and absence was read off both.
+
+**Placed by the orchestrator, per implementer-discipline §6:**
+`work/instr/pin-table-has-no-whitespace-tail-row` — the pin's `TABLE`
+has no row whose date carries a non-space whitespace tail, so the
+`[^[:space:]]*$` mutant passes it and the property is one-row-deep and
+shell-only. INSTR's file, past the alarm's invitation.
