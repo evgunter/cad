@@ -161,6 +161,44 @@ plant_named_not_called_outside() {
     >> "$1/crates/geom-core/src/lib.rs"
 }
 
+# A HELPER THE SUITE IMPORTS AND THE MARKER DOES NOT NAME — the converse of
+# every planter above, and the only one whose failure is SILENT AND GREEN: the
+# marker resolves, the term derives, and the suite is skipped on the very diff
+# that moved its fixtures. Note the helper is mounted by a BARE `mod common;`,
+# with no `#[path]`, because that is how every helper tree in this repo is
+# mounted — a fixture that gave it an attribute would pass against a reader
+# that could not resolve the real shape.
+plant_helper_import_unnamed() {
+  local t=$1
+  printf 'mod common;\n' >> "$t/crates/geom-core/tests/all.rs"
+  mkdir -p "$t/crates/geom-core/tests/common"
+  printf 'pub fn tol() -> f64 { 1e-9 }\n' > "$t/crates/geom-core/tests/common/mod.rs"
+  {
+    printf 'test_utils::gated_to!["crates/geom-core/src/ring.rs"];\n'
+    printf 'use crate::common;\n'
+    printf '#[test]\nfn t() { let _ = common::tol(); }\n'
+  } > "$t/crates/geom-core/tests/sub/ring_fuzz.rs"
+}
+
+# THE NEAR MISS FOR IT: the same import, with the helper's directory named.
+# A gate that fired here would make the fix impossible to write, and the
+# trailing slash is load-bearing — it is what makes the path match everything
+# under the directory rather than a file no diff ever equals.
+plant_helper_import_named() {
+  local t=$1
+  printf 'mod common;\n' >> "$t/crates/geom-core/tests/all.rs"
+  mkdir -p "$t/crates/geom-core/tests/common"
+  printf 'pub fn tol() -> f64 { 1e-9 }\n' > "$t/crates/geom-core/tests/common/mod.rs"
+  {
+    printf 'test_utils::gated_to![\n'
+    printf '    "crates/geom-core/src/ring.rs",\n'
+    printf '    "crates/geom-core/tests/common/",\n'
+    printf '];\n'
+    printf 'use crate::{common, common as alias};\n'
+    printf '#[test]\nfn t() { let _ = common::tol(); let _ = alias::tol(); }\n'
+  } > "$t/crates/geom-core/tests/sub/ring_fuzz.rs"
+}
+
 # THE NEAR MISS, and every widened matcher in this directory owes one: prose
 # naming the macro is not a call, and a gate that fired on it would push
 # authors to stop writing about the mechanism in the files that use it.
@@ -184,7 +222,10 @@ gate_selftest() {
   gate_selftest_case "marker's own home" plant_marker_in_test_utils
   gate_selftest_passes "the macro NAMED but not called, outside the scanned trees and inside test-utils" \
     plant_named_not_called_outside
-  printf '%s selftest OK: passes a tree whose one marker resolves (and prose that merely names the macro); fires on a path that is not there, a directory written without its trailing slash, an absolute path, one escaping the repo, an empty path set, two markers in one file, a suite tests/all.rs does not aggregate, a marker on a file with no test, and a marker sited outside crates/<crate>/{src,tests} or inside the macro'"'"'s own crate — and passes a file that merely NAMES the macro in either place\n' "$(gate_name)"
+  gate_selftest_case 'which its marker does not name' plant_helper_import_unnamed
+  gate_selftest_passes "a sibling helper import whose directory the marker names" \
+    plant_helper_import_named
+  printf '%s selftest OK: passes a tree whose one marker resolves (and prose that merely names the macro); fires on a path that is not there, a directory written without its trailing slash, an absolute path, one escaping the repo, an empty path set, two markers in one file, a suite tests/all.rs does not aggregate, a marker on a file with no test, and a marker sited outside crates/<crate>/{src,tests} or inside the macro'"'"'s own crate, and a sibling helper the suite imports that the marker does not name — and passes a file that merely NAMES the macro in either place, and a helper import whose directory IS named\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

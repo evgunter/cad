@@ -44,7 +44,10 @@ as `DynTip`, an enum over the lattice states each carrying the typed
 whose arm can only call the one typed binder well-typed there. Typed
 method, driver arm, `Step` variant and `Verb` tag are projected from one
 `transition_table!` row, so a transition cannot exist in one surface
-and not the other. The typed surface records as it lowers: a closing
+and not the other; the row also carries the word the verb is CALLED,
+which is `Verb`'s `Display` — the authoring spelling, for a sentence
+about the step a person wrote (`Debug` is the variant identifier, which
+is what the table-coordinate sentence renders). The typed surface records as it lowers: a closing
 verb returns `ClosedLoop { loop_, program, structure }`. Replay is the
 only path from steps to geometry; serde (in `editor-core`) is transport,
 never a constructor. Two refusal classes (`ReplayErrorKind`):
