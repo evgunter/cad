@@ -2,8 +2,9 @@
 id: gated-marker-path-mount
 kind: issue
 title: a #[path]-mounted src test module derives a marker term that matches nothing, silently
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-11
 ---
 
 
@@ -121,3 +122,69 @@ gating in a mounted file and the workaround is worse than the reader.
 
 Still true on the tree at 2026-09-11: none of the three files carries a
 marker, so nothing is broken today. The guard is.
+
+## Closed (2026-09-11): candidate 2 landed — the silence is loud
+
+Taken on Ev's direction (in chat, 2026-09-11: *"can you do the cheap
+gated marker path fix?"*), as the sizing above recommended.
+`--gated-check` now refuses a marker on any `crates/*/src` file that
+another `src` file `#[path]`-mounts, naming the mounting file and line:
+
+```
+crates/topo/src/boolean/r1_probes.rs: carries a marker and is
+`#[path]`-mounted from crates/topo/src/boolean/solid_contain.rs:3491, so
+its module path is the MOUNTING module's and the term derived from this
+file's path selects no test. Move the gated rows to a file whose path
+matches its module path, and mark that
+```
+
+Candidate 1 is NOT taken and the sizing above stands as the record of
+why: resolving the mount has to be right, refusing is merely exact, and a
+one-level resolver would derive a wrong prefix on a nested mount and go
+back to selecting nothing — this defect one level deeper. The workaround
+the refusal points at is the one TCOST-9 already used by hand for the
+torus counterexample-search row.
+
+**The census was re-derived rather than trusted, and it had grown.** This
+file named three mounts on 2026-09-03. At `76d4bb0d` there are
+**seven**:
+
+| mounted file | mounted from |
+|---|---|
+| `crates/geom-core/src/sym/algebra.rs` | `crates/geom-core/src/sym.rs:388` |
+| `crates/geom-core/src/sym/report.rs` | `crates/geom-core/src/sym.rs:392` |
+| `crates/geom-core/src/sym/signed.rs` | `crates/geom-core/src/sym.rs:396` |
+| `crates/mesh/tests/common/witness_bodies.rs` | `crates/mesh/src/lib.rs:288` |
+| `crates/topo/src/boolean/r1_probes.rs` | `crates/topo/src/boolean/solid_contain.rs:3491` |
+| `crates/topo/src/boolean/torus_predicate_rows.rs` | `crates/topo/src/boolean/solid_contain.rs:3498` |
+| `crates/topo/src/chart_region_r2_probes.rs` | `crates/topo/src/chart_region.rs:3524` |
+
+The original three are all still there (the `chart_region` line moved
+3400 -> 3524). The three `geom-core/src/sym/` mounts are NEW since this
+row was written — the same regrowth its sibling row measured on the
+helper-import class, and the reason both rows wanted a mechanical check
+rather than a sweep. **None of the seven carries a marker**, so nothing
+was broken in the tree and nothing is fixed in it: the guard is what
+changed, and the tree is green under it from the first run.
+
+**Two shapes the reader had to get right, both live rather than
+hypothetical:**
+
+- **Intervening attributes.** `crates/mesh/src/lib.rs:288` writes
+  `#[cfg(test)]`, `#[path = "..."]`, `#[allow(dead_code, unreachable_pub)]`,
+  then `mod`. A reader requiring the `#[path]` and the `mod` to be
+  adjacent misses it and reports a clean tree — the first draft of this
+  reader did exactly that, and the census above is what caught it.
+- **The mount target need not be under `src/`.** That same mesh mount
+  reaches `crates/mesh/tests/common/witness_bodies.rs`, a `tests/` file
+  pulled into the LIB. It is in the refused set too, which is stricter
+  than this row's own note (which reasoned that a marker there would red
+  under the aggregation arm instead). Reaching it by this arm names the
+  mounting line, which is the fact an author needs.
+
+Planted both directions in `scripts/gates/gated-suite-paths.sh` (the
+announced cross-fence edit, as its sibling): `plant_marker_on_mounted_file`
+must red — its marker is otherwise VALID, so a red can only be this arm,
+and its fixture carries the `#[allow]` between the two lines — and
+`plant_mounted_file_unmarked` must pass, which is the live tree's own
+state and the case a gate that fired on it would red `main` over.

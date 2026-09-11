@@ -199,6 +199,44 @@ plant_helper_import_named() {
   } > "$t/crates/geom-core/tests/sub/ring_fuzz.rs"
 }
 
+# A MARKER ON A `#[path]`-MOUNTED src FILE. The term is derived from the file
+# path; the compiler's module path is the MOUNTING module's. They disagree, so
+# the term selects no test — and a term matching nothing excludes nothing, so
+# the suite runs on every pull request while reading as gated AND drops out of
+# the nightly re-take without reddening it. The marker here is otherwise
+# VALID, so a red can only be this arm.
+#
+# The `#[allow]` between the `#[path]` and the `mod` is the live shape, not
+# decoration: `crates/mesh/src/lib.rs` writes exactly that, and a reader that
+# required the two to be adjacent would report a clean tree.
+plant_marker_on_mounted_file() {
+  local t=$1
+  {
+    printf '#[cfg(test)]\n'
+    printf '#[path = "ring_probes.rs"]\n'
+    printf '#[allow(dead_code)]\n'
+    printf 'mod probes;\n'
+  } >> "$t/crates/geom-core/src/ring.rs"
+  {
+    printf 'test_utils::gated_to!["crates/geom-core/src/ring.rs"];\n'
+    printf '#[test]\nfn t() {}\n'
+  } > "$t/crates/geom-core/src/ring_probes.rs"
+}
+
+# THE NEAR MISS: the same mount with no marker on the target. This is the
+# LIVE TREE's state — seven mounted files, none marked — so a gate that fired
+# here would red main on a shape that is perfectly legal.
+plant_mounted_file_unmarked() {
+  local t=$1
+  {
+    printf '#[cfg(test)]\n'
+    printf '#[path = "ring_probes.rs"]\n'
+    printf '#[allow(dead_code)]\n'
+    printf 'mod probes;\n'
+  } >> "$t/crates/geom-core/src/ring.rs"
+  printf '#[test]\nfn t() {}\n' > "$t/crates/geom-core/src/ring_probes.rs"
+}
+
 # THE NEAR MISS, and every widened matcher in this directory owes one: prose
 # naming the macro is not a call, and a gate that fired on it would push
 # authors to stop writing about the mechanism in the files that use it.
@@ -223,9 +261,12 @@ gate_selftest() {
   gate_selftest_passes "the macro NAMED but not called, outside the scanned trees and inside test-utils" \
     plant_named_not_called_outside
   gate_selftest_case 'which its marker does not name' plant_helper_import_unnamed
+  gate_selftest_case 'is `#[path]`-mounted from' plant_marker_on_mounted_file
+  gate_selftest_passes "a #[path]-mounted src file that carries no marker" \
+    plant_mounted_file_unmarked
   gate_selftest_passes "a sibling helper import whose directory the marker names" \
     plant_helper_import_named
-  printf '%s selftest OK: passes a tree whose one marker resolves (and prose that merely names the macro); fires on a path that is not there, a directory written without its trailing slash, an absolute path, one escaping the repo, an empty path set, two markers in one file, a suite tests/all.rs does not aggregate, a marker on a file with no test, and a marker sited outside crates/<crate>/{src,tests} or inside the macro'"'"'s own crate, and a sibling helper the suite imports that the marker does not name — and passes a file that merely NAMES the macro in either place, and a helper import whose directory IS named\n' "$(gate_name)"
+  printf '%s selftest OK: passes a tree whose one marker resolves (and prose that merely names the macro); fires on a path that is not there, a directory written without its trailing slash, an absolute path, one escaping the repo, an empty path set, two markers in one file, a suite tests/all.rs does not aggregate, a marker on a file with no test, and a marker sited outside crates/<crate>/{src,tests} or inside the macro'"'"'s own crate, a sibling helper the suite imports that the marker does not name, and a marker on a `#[path]`-mounted src file whose derived term would select nothing — and passes a file that merely NAMES the macro in either place, a helper import whose directory IS named, and a mounted src file carrying no marker\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

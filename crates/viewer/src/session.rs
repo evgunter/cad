@@ -1544,7 +1544,8 @@ impl DocSession {
                 // either.
                 assert!(
                     applied.record.minted.is_none(),
-                    "a value gesture's preview minted a node, which the display                      layer's admission tests are not re-run against"
+                    "a value gesture's preview minted a node, which the display \
+                     layer's admission tests are not re-run against"
                 );
                 gesture.value = Some(slot_value);
                 self.derived.scratch = Some(applied.doc);

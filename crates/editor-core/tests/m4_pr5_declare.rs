@@ -537,7 +537,8 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
         .count();
     assert!(
         pure_seam_vertices >= 2,
-        "expected the pure-seam-vertex naming arm to fire (single-line          seam vertices), got {pure_seam_vertices}"
+        "expected the pure-seam-vertex naming arm to fire (single-line \
+         seam vertices), got {pure_seam_vertices}"
     );
 }
 

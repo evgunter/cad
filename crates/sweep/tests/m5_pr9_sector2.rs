@@ -252,7 +252,8 @@ fn a_g2_underdetermined_join_must_not_carry() {
         if matches!(c.carrier(), geom::Curve3::Line { .. }) {
             assert!(
                 matches!(c.description(), geom_brep::EdgeDescription::Chart(_)),
-                "an under-determined locus has no intrinsic description to                  carry, so the strut is a chart image: {:?}",
+                "an under-determined locus has no intrinsic description to \
+                 carry, so the strut is a chart image: {:?}",
                 c.description()
             );
             assert!(
