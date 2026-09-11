@@ -816,9 +816,10 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
             )
         }
         R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
-        R::Band => "the ambiguity band itself could not be built (a broken \
-                    ambient tolerance)"
-            .to_string(),
+        R::Band { source } => format!(
+            "the ambiguity band itself could not be built from the ambient \
+             tolerance: {source}"
+        ),
         // `SelectRefusal` is `#[non_exhaustive]`: a kernel arm this
         // binding does not know crosses with the kernel's own prose
         // and the `unclassified` tag rather than being dropped. That
