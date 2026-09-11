@@ -46,11 +46,15 @@
 //!
 //! # What it does not cover
 //!
-//! A table mirroring an enum declared in ANOTHER crate
-//! ([`crate::forms::BOOLEAN_OPS`], [`crate::forms::MATE_PRIMITIVES`])
-//! cannot use this, because the declaration it would have to be
-//! projected from is not here. That is the neighbouring MIRROR question
-//! and has its own tracker item; it is not a hole in this one.
+//! A list mirroring an enum declared in ANOTHER crate cannot use this,
+//! because the declaration it would have to be projected from is not
+//! here. The answer for a list that claims completeness is the same
+//! construction one crate over — the kernel publishes its own `ALL`
+//! beside its declaration and the form maps over it, which is what the
+//! boolean operations do — and the answer for one that claims none
+//! ([`crate::forms::MATE_PRIMITIVES`]) is neither: forcing a
+//! deliberately partial list would force the wrong thing. Either way
+//! it is not a hole in this one.
 //!
 //! A DELIBERATELY PARTIAL list is not a vocabulary either
 //! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names two of five

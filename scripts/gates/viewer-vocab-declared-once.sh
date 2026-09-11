@@ -34,9 +34,9 @@
 # reaches for. The UN-NAMED shape is any `const` array literal holding
 # two or more `Type::Variant` entries, whatever it is called. The second
 # arm is not padding: on the tree this gate was written against, THREE
-# of the four hand-written lists are un-named (`BOOLEAN_OPS`,
-# `MATE_PRIMITIVES`, `SUBJECTS_WITH_AN_EXPIRY_ISSUER`) and one is named
-# (`Theme::ALL`), so a named-only gate would be evaded by calling the
+# of the three hand-written lists are un-named (`MATE_PRIMITIVES`,
+# `SUBJECTS_WITH_AN_EXPIRY_ISSUER`) and one is named (`Theme::ALL`), so
+# a named-only gate would be evaded by calling the
 # next table `KINDS` — which is the same list with a different word on
 # it. `static` opens an item in both arms for the same reason: a `pub
 # static ALL: [Kind; 3]` is the same list with a different keyword on
@@ -234,36 +234,36 @@ TABLE_SEPARATOR='|---|---|---|'
 #
 # WHAT THE ANCHOR ALONE DOES NOT BUY, stated because it was claimed
 # here. Carrying the word holds the README against the GATE: a section
-# amended to four kinds leaves no line starting "Three kinds of list
+# amended to three kinds leaves no line starting "Two kinds of list
 # stay hand-written" and the anchor reds. It does not hold the gate
 # against ITSELF, and the missing-anchor red used to offer the way
 # around as a co-equal repair — take "change `KIND_ANCHOR`" alone, to
-# `Four kinds of list stay hand-written` with `KIND_COUNT` left at 3,
+# `Four kinds of list stay hand-written` with `KIND_COUNT` left behind,
 # and a section saying Four over three bullets went GREEN, with `3
 # kinds read from "Four kinds of list stay hand-written"` on the OK
 # line. `anchor_states_count` below is the third edge of that triangle:
 # this string's first word and `KIND_COUNT` are ONE assertion in two
 # spellings, checked against each other before the README is opened, so
 # the pair cannot be walked apart one edit at a time.
-KIND_ANCHOR='Three kinds of list stay hand-written'
+KIND_ANCHOR='Two kinds of list stay hand-written'
 
 # HOW MANY KINDS THE SECTION RATIFIES. The README says the kinds a row
 # may claim are the bolded bullets of the list `KIND_ANCHOR` announces,
 # and until this constant
-# nothing held that number: a fourth bullet plus a row claiming it both
+# nothing held that number: an extra bullet plus a row claiming it both
 # green, and the gate checked the roster's internal CONSISTENCY rather
 # than its fidelity to what was ratified. It cannot check the fidelity —
 # rewording a bullet and its matching cell together is invisible to it,
 # and that is stated in WHAT IT CANNOT CATCH above — but the COUNT it
-# can hold, and holding it means a fourth kind requires an edit to this
-# file as well as to that section. That is the right price for an
+# can hold, and holding it means a kind added or retired requires an
+# edit to this file as well as to that section. That is the right price for an
 # amendment to a ratification, and the wrong one for a docs-tier edit
 # that arrives alone.
 #
 # ITS WORD IN `KIND_ANCHOR` MOVES WITH IT — `anchor_states_count` below
 # refuses a pair that disagrees, so raising this number is two edits in
 # one diff and neither of them is optional.
-KIND_COUNT=3
+KIND_COUNT=2
 
 # The repair a diagnosis points at. One home for the two messages that
 # name it.
@@ -293,8 +293,8 @@ MACRO='crates/viewer/src/vocab.rs'
 # inside an `impl` block is never: the `const ALL` three lines below was
 # swallowed and emitted under the name `N`, or not emitted at all. Both
 # directions were live — a hand-written `ALL` under a const-generic
-# `struct` went GREEN, and a const-generic `fn` above `BOOLEAN_OPS` on
-# the real tree produced two reds naming the wrong repair. `DECL` is the
+# `struct` went GREEN, and a const-generic `fn` above a rostered table
+# on the real tree produced two reds naming the wrong repair. `DECL` is the
 # anchored declaration prefix and `OPEN` is `DECL` plus the name and its
 # `:`, so the test and the name extraction are ONE spelling rather than
 # two that can drift — this gate's own thesis, applied to itself.
@@ -739,7 +739,7 @@ table_rows() {
 # `session::select` is `session/select.rs`; `forms` is `forms.rs` — the
 # spelling the README's tables already use for a module.
 module_path() { printf '%s.rs\n' "${1//:://}"; }
-# `Theme::ALL` is declared as `const ALL`; `BOOLEAN_OPS` as itself.
+# `Theme::ALL` is declared as `const ALL`; `MATE_PRIMITIVES` as itself.
 #
 # THE TYPE IS DROPPED, AND THE ROW'S KEY IS THEREFORE MODULE AND NAME.
 # That is worth saying at the site, because the `Theme::` half looks

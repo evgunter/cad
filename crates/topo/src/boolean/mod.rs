@@ -146,6 +146,32 @@ pub enum BooleanOp {
     Subtract,
 }
 
+impl BooleanOp {
+    /// **Every operation this enum names**, in declaration order — the
+    /// one enumeration, owned where the exhaustive matches live.
+    ///
+    /// A list cannot be derived from a match in safe Rust, so SOMEONE
+    /// writes it by hand; the only question is where. Written here, it
+    /// sits in the crate whose exhaustive matches over `BooleanOp`
+    /// (`finish::kept_side`, `tables::eq15_3_lump`) fail to compile on
+    /// a fourth operation — so the author adding one is already in
+    /// this module with the list in front of them, and the
+    /// `all_is_every_operation` census below reds until they have
+    /// grown it. A copy in a downstream crate gets neither half. The
+    /// enum is closed, so a consumer's own exhaustive match does fence
+    /// THAT consumer; but nothing ties an array literal to a variant
+    /// list, so a downstream list of three stays three with no error
+    /// anywhere.
+    ///
+    /// So this is the list downstream reads instead of writing its own
+    /// — `crates/editor-core`'s wire table and the viewer's operation
+    /// buttons both iterate it — and the ordering caveat on the type
+    /// holds for it too: it is declaration order, and a consumer that
+    /// renders it renders an arbitrary order, not a ranked one.
+    pub const ALL: &'static [BooleanOp] =
+        &[BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract];
+}
+
 /// Which operand a key belongs to (keys are body-lineage-scoped;
 /// cross-body records must say which arena they index — F9).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2501,6 +2527,40 @@ fn validate_declarations<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **[`BooleanOp::ALL`] is every operation**, pinned by a
+    /// compile-time visit rather than by review — the idiom
+    /// `VerbKind::ALL` (`crates/verbs/src/verb.rs`) and
+    /// `SurfaceField::ALL` (`crates/topo/src/param_source.rs`) are
+    /// held to.
+    ///
+    /// The match below is exhaustive with no wildcard, so an operation
+    /// added to the enum fails this file until it is visited here; and
+    /// every arm names the same total, so visiting it means writing
+    /// the new count, which then reds until `ALL` has grown too. The
+    /// no-repeats half is what makes the count a census: with every
+    /// entry distinct, a `len` equal to the number of operations means
+    /// `ALL` holds each of them exactly once.
+    #[test]
+    fn all_is_every_operation() {
+        let ops = match BooleanOp::Union {
+            BooleanOp::Union => 3,
+            BooleanOp::Intersect => 3,
+            BooleanOp::Subtract => 3,
+        };
+        for (i, op) in BooleanOp::ALL.iter().enumerate() {
+            assert!(
+                !BooleanOp::ALL[..i].contains(op),
+                "{op:?} appears twice in BooleanOp::ALL"
+            );
+        }
+        assert_eq!(
+            BooleanOp::ALL.len(),
+            ops,
+            "BooleanOp::ALL has drifted from the declaration — it holds {} operations, the enum has {ops}",
+            BooleanOp::ALL.len()
+        );
+    }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the boolean coincidence
     /// pair — `UndeclaredCoincidence` (exactly-on OR in-band, per the

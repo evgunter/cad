@@ -1,10 +1,10 @@
 //! The wire form of a [`Node::Boolean`](crate::Node)'s operation.
 //!
 //! The spellings are written down exactly ONCE, in [`tag`]. Everything
-//! else here is derived from it: [`untag`] searches [`ALL`] by `tag`,
-//! and the refusal message lists the same table — so the two
-//! directions cannot disagree about a spelling, and the message cannot
-//! go stale.
+//! else here is derived from it: [`untag`] searches `BooleanOp::ALL` by
+//! `tag`, and the refusal message lists the same operations — so the
+//! two directions cannot disagree about a spelling, and the message
+//! cannot go stale.
 //!
 //! # What is enforced, and what is not
 //!
@@ -13,26 +13,26 @@
 //!   kernel breaks this build until it is given one.
 //! - **The compiler**: the read direction cannot drift from the write
 //!   direction, because it does not restate it — it calls it.
-//! - **NOT the compiler**: that a new operation reaches `ALL`. Safe
-//!   Rust has no way to tie an array literal to a variant list without
-//!   a proc macro, and the workspace has none. The gap is real and it
-//!   is the dangerous one: an operation absent from `ALL` would
-//!   serialize fine and refuse on READ, so this build would write a
-//!   file it could not open.
+//! - **The kernel, at the declaration**: which operations exist is
+//!   `BooleanOp::ALL`'s to say, not this module's. Safe Rust cannot
+//!   tie an array literal to a variant list, so a list here would be a
+//!   second census of another crate's enum with nothing reading the
+//!   two against each other; the one the kernel publishes beside the
+//!   declaration is pinned there by its own census row.
+//! - **NOT the compiler**: that two operations do not share a
+//!   spelling. `tag`'s strings are hand-written and nothing makes them
+//!   distinct; a collision resolves READS to whichever operation
+//!   `untag` reaches first, so this build would write a file it opens
+//!   as a different operation.
 //! - **Therefore, at run time and fail-loud**: [`serialize`] checks the
-//!   round trip before writing and REFUSES if the operation is missing
-//!   from `ALL`, naming the omission. The unreadable file is never
-//!   created. Pinned by test.
+//!   round trip before writing and REFUSES when the operation does not
+//!   come back, naming what this build can read. The unreadable file
+//!   is never created. Pinned by test.
 
 use super::super::super::node::BooleanOp;
 use serde::de::Error as _;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serializer};
-
-/// Every operation, listed once — the table [`untag`] searches and the
-/// refusal message quotes. A new operation belongs here as well as in
-/// [`tag`]; `serialize` refuses loudly if it reaches only one of them.
-const ALL: [BooleanOp; 3] = [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract];
 
 /// The stable wire spelling of an operation — the ONE place a spelling
 /// is written down.
@@ -47,20 +47,29 @@ fn tag(op: BooleanOp) -> &'static str {
     }
 }
 
-/// The inverse of [`tag`], DERIVED from it rather than restated.
+/// The inverse of [`tag`], DERIVED from it rather than restated, over
+/// the kernel's own enumeration of the operations.
 fn untag(spelling: &str) -> Option<BooleanOp> {
-    ALL.into_iter().find(|op| tag(*op) == spelling)
+    BooleanOp::ALL
+        .iter()
+        .copied()
+        .find(|op| tag(*op) == spelling)
 }
 
 /// The vocabulary this build can read, for a refusal to quote.
 fn known() -> String {
-    ALL.map(|op| format!("`{}`", tag(op))).join(", ")
+    BooleanOp::ALL
+        .iter()
+        .map(|op| format!("`{}`", tag(*op)))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// # Errors
 ///
-/// An operation that [`untag`] cannot read back refuses rather than
-/// writing a file this build could not open — see the module docs.
+/// An operation that [`untag`] does not read back as itself refuses
+/// rather than writing a file this build could not open — see the
+/// module docs.
 pub(crate) fn serialize<S: Serializer>(op: &BooleanOp, ser: S) -> Result<S::Ok, S::Error> {
     let spelling = tag(*op);
     if untag(spelling) != Some(*op) {

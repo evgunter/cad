@@ -2,8 +2,10 @@
 id: boolean-op-has-a-third-hand-written-complete-list
 kind: issue
 title: BooleanOp has a third hand-written complete list, in a different order, in editor-core
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-11
+branch: door/mirror-booleanop-all
 ---
 
 
@@ -66,3 +68,35 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+## Closed (2026-09-11, branch `door/mirror-booleanop-all`)
+
+`topo` publishes `BooleanOp::ALL` (`crates/topo/src/boolean/mod.rs`),
+beside the declaration and inside the crate whose exhaustive matches
+over the enum (`finish::kept_side`, `tables::eq15_3_lump`) fail to
+compile on a fourth operation — so the author who adds one is in that
+file with the list in front of them, and a census row
+(`boolean::tests::all_is_every_operation`, the idiom
+`verbs::VerbKind::ALL` and `topo::SurfaceField::ALL` are held to) reds
+until the list has grown too.
+
+The list this row named, `kernel_wire`'s `const ALL`, is deleted:
+`untag` searches `BooleanOp::ALL` and `known()` quotes it, so the
+refusal message is unchanged (the kernel's declaration order is the
+order that table was already in). The module's third bullet — "NOT the
+compiler: that a new operation reaches `ALL`" — is replaced rather
+than deleted, because the round-trip refusal in `serialize` STAYS and
+its subject has changed: with the domain taken from the kernel, what
+that check still catches is two operations sharing a `tag` spelling,
+which nothing forces to be distinct. That is the sibling
+`contact_class` module's disposition exactly ("belt-and-braces rather
+than the only guard, and it stays").
+
+`crates/editor-core/tests/boolean_op_wire.rs`'s `EVERY_OPERATION` — a
+FOURTH complete hand-written list this row did not name, in the suite
+that pins the site it did — goes the same way, to `BooleanOp::ALL`.
+
+The eight unswept neighbours this row named were swept; the hit list
+is in the PR body. Two of them are filed:
+`surface-and-curve-kind-mirrors-have-a-tautological-guard` and
+`vectorslot-all-has-no-reader`.
