@@ -20,8 +20,10 @@ is declared, make every other site read it, and leave an instrument that
 fails when a spelling is added.** A lane that has done one of these rows
 can do the next.
 
-The trap this program must not spring is `plan.md`'s ordering rule 5 in
-its purest form: a census added by hand is a new hand-written list. An
+The trap this program must not spring is the standing one in its purest
+form — **the fix mints a fresh instance of the defect it closes**, and
+naming that in your own PR body does not prevent it: a census added by
+hand is a new hand-written list. An
 instrument that enumerates by reading source text is a reader, and the
 reader needs a guard of its own — which is the lesson GUARD's
 `gate-roster-and-probe-census-have-no-reader-guards` is paying for on

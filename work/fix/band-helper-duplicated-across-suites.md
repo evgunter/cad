@@ -1,10 +1,12 @@
 ---
 id: band-helper-duplicated-across-suites
 kind: issue
-title: 36 test suites carry a byte-identical fn band() wrapper; the free half is collapsed, the rest needs a shared home
+title: test suites across six crates carry a byte-identical fn band() wrapper; sweep is collapsed, the rest needs a shared home
 status: open
 opened: 2026-09-04
 refs: [band-derivation-has-a-scalar-twin]
+branch: fix/sweep-band-helper
+pr: 2377
 ---
 
 
@@ -43,18 +45,41 @@ nothing warned. Those lost the wrapper with no import added.
 
 ## What is left, and what it needs
 
-36 copies remain: **24 in `crates/sweep`** (suites the unit did not
-touch — same binary as `common::approx::band`, so equally free, and
-mechanical), **10 in `crates/topo`**, **1 each in `crates/step-import`
-and `crates/geom-core`**.
+**Counts here were stale and are re-derived at `8851abb` (2026-09-11).**
+The figures this section used to carry (24 sweep / 10 topo / 1
+step-import / 1 geom-core) were wrong in both directions: they missed
+three crates entirely and undercounted a fourth sevenfold. Re-derive
+before acting on any of them.
 
-The topo ten are the interesting case: `crates/topo/tests/all.rs`
+The remaining run's-band copies, filtered on the body actually
+resolving the RUN's band (`Band::linear(...)`, or the `Band::new(tol.eps(),
+tol.k() * tol.eps())` spelling that is exactly equal to it):
+
+| crate | `tests/` | `src/` `#[cfg(test)]` |
+|---|---|---|
+| `topo` | 9 | 13 |
+| `geom-core` | 7 | 2 |
+| `geom-brep` | 3 | 5 |
+| `editor-core` | 1 | — |
+| `mesh` | 1 | — |
+| `step-import` | 1 | — |
+| `sweep` | 0 | — |
+
+**Two populations, not one.** The `tests/` column (22 sites) is what a
+shared per-crate test helper could absorb. The `src/` column (20 sites)
+is in-crate `#[cfg(test)] mod tests` blocks, which cannot reach a
+`tests/` helper tree at all — a different home question, and one this
+row has never scoped.
+
+The topo nine are still the interesting case: `crates/topo/tests/all.rs`
 declares `mod common;` but `crates/topo/tests/common/` has **no** band
 helper, so collapsing them means *creating* a shared home — a sharing
 decision, not a pointer change, which is why it is filed rather than
 done. `crates/geom-brep/tests/shared/tol.rs` is the worked precedent
 for exactly that move, and its own header says it exists to kill "the
-three-line wrapper, once per suite, forty-eight times".
+three-line wrapper, once per suite, forty-eight times". That crate
+already HAS the home and still carries three copies beside it, which is
+its own small finding.
 
 ## Not this class
 
@@ -102,3 +127,43 @@ by design — the `*/tests/*` family `work/README.md` names as the bulk
 of the unrecorded double-claim pairs and the reason that lint stays a
 warning. Name it in the PR body. TCOST's open PR #2351 touches only
 `scripts/` (checked 2026-09-11) — re-check before pushing.
+
+## The sweep half is collapsed (2026-09-11, `fix/sweep-band-helper`)
+
+Every `crates/sweep` site now reaches `crates/sweep/tests/common/approx.rs`'s
+`band()`; **39 wrappers removed and 43 `use` sites now reach that one
+home, across 47 files.** What it took, beyond
+the pointer change the dispatch predicted:
+
+- **The premise held.** `autotests = false`, one `[[test]] name = "all"`
+  target, and `every_suite_file_is_aggregated` proves every `tests/*.rs`
+  is a module of that binary. No sweep suite is its own test binary.
+- **Deleting a wrapper orphans its imports.** 30 files lost a `Band`
+  and/or `Tol` import that only the wrapper used. Clippy's
+  `-D warnings` is what catches these, and the **default feature lane
+  cannot see them all**: three of those 30 surface only under
+  `--features interval` — one suite is `#![cfg(feature = "interval")]`
+  at file level and two keep their rows inside a
+  `#[cfg(feature = "interval")] mod certified`.
+- **Three helper-module copies, not just per-suite ones.**
+  `tests/common/cone_nappe.rs` held a second copy inside the shared tree
+  itself; `tests/shell8_common.rs` held a third that six suites imported.
+  Both are gone and their seven consumers point at `common::approx`.
+- **The dead-wrapper re-check found one**, not six:
+  `tests/shellfix1_bitdump.rs` defined `band()` and never called it. It
+  lost the wrapper with no import added.
+- **`common/mod.rs`'s own marker rule was being broken by every copy.**
+  That file requires a suite keeping its own copy of something the
+  `common` tree holds to say why AT the copy, carrying the literal
+  ``NOT `common::``. No band copy carried one. The one deliberate
+  survivor, `tests/m9_2_chart_region_loft.rs` (a FIXED `1e-9`/`1e-8`
+  band, not the run's), now does.
+
+**Not collapsed, deliberately:** `tests/m9_2_chart_region_loft.rs` (a
+different band — see above) and `examples/p1b_r2_m2.rs` (an example
+binary, which is not a module of `tests/all.rs` and cannot name
+`crate::common` at all).
+
+**What remains is the table above** — the shared-home decision this row
+shares with `band-derivation-has-a-scalar-twin`, unchanged and still
+undispatched. The row stays `open`.

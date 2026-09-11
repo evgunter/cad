@@ -15,7 +15,8 @@
 
 use topo::{Body, FaceKey, SolidKey};
 
-use crate::shell8_common::{band, beside, charts_of, deep_dump, faces_of, tol};
+use crate::common::approx::band;
+use crate::shell8_common::{beside, charts_of, deep_dump, faces_of, tol};
 use crate::shell9_rows::rows;
 use crate::verbs_shell::vessel;
 

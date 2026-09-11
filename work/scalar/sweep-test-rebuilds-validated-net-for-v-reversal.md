@@ -4,7 +4,7 @@ kind: issue
 title: review_probes_m8_4.rs rebuilds a validated NURBS net for a v-reversal and unwraps an unreachable Result
 status: open
 opened: 2026-09-04
-refs: [D320, 1782]
+refs: [1782]
 ---
 
 ## Finding
@@ -46,3 +46,9 @@ made by reading the row against the tree on 2026-09-11, not a verdict on
 the finding, and a lane that finds it wrong says so in its PR. The id,
 the `track:` letter where the row carries one, and the body above are
 unchanged by the move.
+
+## Refs at code-quality's sweep (2026-09-11)
+
+`work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
+and its closed rows went with it. `D320` is now cited by its closing PR
+1782.
