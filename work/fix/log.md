@@ -231,3 +231,38 @@ its rendering is re-cut or reviewed, not waved through.
 `demos/tour/src/*`, ground no open program's `paths` covers, fix
 written with `lily.rs` as the worked example. Moved into this
 directory per `work/README.md`'s claim rule.
+
+### Wave dispatched 2026-09-11
+
+Three lanes, disjoint files, each one item and one PR:
+
+- `compile-fail-blocks-without-error-codes` — `fix/compile-fail-error-codes`.
+  FIX's own glob (`crates/quantity/*`), no fence crossed. The brief
+  makes the error code a MEASUREMENT rather than a guess: stable
+  rustdoc does not verify the annotation, so a wrong code would make
+  the unit a no-op wearing a fix's clothes.
+- `mate-member-vocabulary-restated-in-refactor` —
+  `fix/refactor-member-vocabulary`. FIX's own glob
+  (`crates/editor-core/src/refactor.rs`); `crates/editor-core/src/mate/*`
+  is MSOLVE's and DOCM's and the lane is fenced out of it. The sweep,
+  not the one-line predicate, is the unit: this row exists because an
+  invariant established by PR 1748's bugfix protected only the code
+  that already knew.
+- `tour-scenes-lift-componentwise-not-through-map` —
+  `fix/tour-scenes-lift`. Unowned ground. The brief carries the one
+  hazard a spelling sweep has: if a committed scene figure moves, the
+  new lifting order is not the same arithmetic and that is a finding,
+  not a re-baseline.
+
+The item files are the LANES' to edit — the orchestrator does not mark
+them `dispatched` from this branch, because one-file-one-item makes
+that a merge conflict with the PR that closes them.
+
+**A repo-history note, recorded because it cost a push.** `origin/main`
+has been re-published: its history is 336 commits rooted at
+`366591cf`, with **no merge base** against the pre-2026-09-06 refs. The
+old `fix/orchestrator` branch on the remote is an orphan from before
+that cut and cannot be merged into anything. This orchestrator works on
+`fix/orchestrator-sep11` rather than force-pushing over it; the orphan
+is left alone. Any lane that finds a branch with no merge base against
+`main` is looking at the same thing.
