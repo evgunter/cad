@@ -530,3 +530,195 @@ pub(crate) fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: Recip
         None => button.clicked(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::drag_ops;
+    use crate::session::SessionOp;
+    use eframe::egui;
+    use pncad::document::{Frame, RecipeNodeId};
+
+    const NODE: RecipeNodeId = RecipeNodeId(7);
+
+    /// How many Tab/ArrowUp pairs the row spends looking for the
+    /// focus. A budget rather than a count: which step the focus
+    /// reaches a second component on is egui's Tab order, not this
+    /// crate's, and pinning it would make the row a reading of egui's
+    /// traversal instead of of this chrome's ops.
+    const TAB_BUDGET: usize = 8;
+
+    struct Probe {
+        ctx: egui::Context,
+        mm: [f64; 3],
+        rects: [egui::Rect; 3],
+    }
+
+    impl Probe {
+        fn new() -> Self {
+            Self {
+                ctx: egui::Context::default(),
+                mm: [0.0; 3],
+                rects: [egui::Rect::NOTHING; 3],
+            }
+        }
+
+        fn frame(&mut self, events: Vec<egui::Event>) -> Vec<SessionOp> {
+            let mut ops = Vec::new();
+            let ctx = self.ctx.clone();
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mm = &mut self.mm;
+            let rects = &mut self.rects;
+            let ops_ref = &mut ops;
+            let mut output = ctx.run_ui(input, |ui| {
+                ui.horizontal(|ui| {
+                    for axis in 0..3 {
+                        let mut value = mm[axis];
+                        let widget = ui.add(egui::DragValue::new(&mut value).speed(0.5));
+                        mm[axis] = value;
+                        rects[axis] = widget.rect;
+                        let shown = *mm;
+                        let frame_of =
+                            |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
+                        drag_ops(
+                            &widget,
+                            value,
+                            SessionOp::BeginFreeMove { instance: NODE },
+                            |_| SessionOp::PreviewFreeMove {
+                                instance: NODE,
+                                frame: frame_of(shown),
+                            },
+                            SessionOp::CommitFreeMove { instance: NODE },
+                            |_| {
+                                vec![
+                                    SessionOp::BeginFreeMove { instance: NODE },
+                                    SessionOp::PreviewFreeMove {
+                                        instance: NODE,
+                                        frame: frame_of(shown),
+                                    },
+                                    SessionOp::CommitFreeMove { instance: NODE },
+                                ]
+                            },
+                            ops_ref,
+                        );
+                    }
+                });
+            });
+            output.textures_delta.clear();
+            ops
+        }
+
+        fn key(&mut self, key: egui::Key) -> Vec<SessionOp> {
+            self.frame(vec![egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }])
+        }
+    }
+
+    fn kind(op: &SessionOp) -> &'static str {
+        match op {
+            SessionOp::BeginFreeMove { .. } => "begin",
+            SessionOp::PreviewFreeMove { .. } => "preview",
+            SessionOp::CommitFreeMove { .. } => "commit",
+            SessionOp::CancelFreeMove => "cancel",
+            _ => "other",
+        }
+    }
+
+    /// **A held pointer drag and a keyboard bump on a sibling
+    /// component put two `BeginFreeMove` in one batch**, which is the
+    /// route that makes [`crate::display::DisplayFault::FreeMoveInFlight`]
+    /// something a user can be shown.
+    ///
+    /// The probe field is three `DragValue`s over one instance, each
+    /// wired through [`drag_ops`] with the free-move triple
+    /// (`crate::pane::properties`'s `instance_ui`). A pointer holds at
+    /// most one of them: egui carries `dragged`, `drag_started` and
+    /// `drag_stopped` as a single `Option<Id>` each, so no second
+    /// pointer and no touch can open a second drag. The keyboard is
+    /// the other hand. A `DragValue` enters edit mode the moment it
+    /// takes focus and answers the arrow keys there, so Tab and
+    /// ArrowUp change a component nobody is pointing at — and
+    /// `drag_ops`' typed arm spells that as a whole
+    /// begin/preview/commit, emitted while the pointer's own begin is
+    /// still unanswered.
+    ///
+    /// Every frame after the press below carries keyboard events only,
+    /// so the drag opened by the pointer is in flight at each of them:
+    /// the assertion that no commit and no cancel precedes the second
+    /// begin is what says so in the ops themselves.
+    ///
+    /// Where it goes red: give the typed arm a guard that reads the
+    /// drag state, or make the three components share one gesture
+    /// rather than each spelling the triple, and no second begin is
+    /// emitted. Either is a change to what the chrome can ask for, and
+    /// this row is the reading that says which.
+    #[test]
+    fn a_keyboard_bump_begins_a_second_probe_under_a_held_drag() {
+        let mut probe = Probe::new();
+        // Two frames: egui interacts against the PREVIOUS frame's
+        // widget rects, so nothing is hittable until one has been laid
+        // out.
+        probe.frame(Vec::new());
+        probe.frame(Vec::new());
+        let x = probe.rects[0].center();
+        probe.frame(vec![egui::Event::PointerMoved(x)]);
+        probe.frame(vec![egui::Event::PointerButton {
+            pos: x,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        }]);
+        // egui decides a click-and-drag widget is being DRAGGED only
+        // once the pointer has moved, so the press alone opens nothing.
+        let opened = probe.frame(vec![egui::Event::PointerMoved(x + egui::vec2(40.0, 0.0))]);
+        assert_eq!(
+            opened.iter().map(kind).collect::<Vec<_>>(),
+            ["begin", "preview"],
+            "the pointer drag opens a probe and holds it open"
+        );
+
+        let mut before_the_second_begin: Vec<&'static str> = Vec::new();
+        let mut second: Option<Vec<SessionOp>> = None;
+        // Tab walks the focus over the three components and the
+        // surrounding chrome; the bound is a budget, not a measurement
+        // of where the focus lands on any particular step.
+        for _ in 0..TAB_BUDGET {
+            before_the_second_begin.extend(probe.key(egui::Key::Tab).iter().map(kind));
+            let bumped = probe.key(egui::Key::ArrowUp);
+            if bumped.iter().any(|op| matches!(op, SessionOp::BeginFreeMove { .. })) {
+                second = Some(bumped);
+                break;
+            }
+            before_the_second_begin.extend(bumped.iter().map(kind));
+        }
+        let second = second.expect(
+            "a keyboard bump on a component the pointer is not holding begins a second probe",
+        );
+        assert!(
+            !before_the_second_begin.contains(&"commit")
+                && !before_the_second_begin.contains(&"cancel"),
+            "nothing answered the pointer's begin before the second one arrived, so the \
+             second lands under an open probe; the frames between carried {before_the_second_begin:?}"
+        );
+        assert_eq!(
+            second.iter().map(kind).collect::<Vec<_>>(),
+            ["begin", "preview", "commit"],
+            "and the typed arm spells a whole triple, so the begin it opens with is the \
+             one `DisplayState::begin_free_move` refuses"
+        );
+    }
+}
