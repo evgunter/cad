@@ -47,6 +47,18 @@ was repaired two days ago.
 `app_lane_skipped_startup_error_arms_not_checked_here`, is at `:322`.
 Line `:307` is `prose(&shown, "TargetFailed");`.
 
+> **Both of those numbers have since drifted, and the drift is the
+> point.** Re-derived at the CITE cut (2026-09-11): the `fn` is at
+> `error_display.rs:325`, and `:307` is now
+> `let shown = indeterminate_wording("face", &cause);`. Five days took
+> three lines. Entry 1's reading of `lib.rs:103` still holds. Nothing
+> about the finding changed — what changed is that the re-derivation
+> recorded here, written to repair stale numbers, went stale itself
+> before anyone took the row. **A taker re-derives at its own base and
+> does not trust this paragraph either**, and that is the case for
+> landing the row in cite-by-name form rather than with fresher
+> numbers.
+
 **Two of the eight entries do still resolve** and are recorded so a
 taker knows the row is not wholly rotten:
 `crates/viewer/tests/chrome_labels.rs:30` and
