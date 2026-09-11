@@ -2846,6 +2846,7 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         checks_error_tag(&ChecksError::Product {
+            kind: Some(pncad::document::ProductErrorKind::NoBodyRoots),
             reason: "no body roots".into()
         }),
         "product_unavailable"
