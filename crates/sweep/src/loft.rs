@@ -331,7 +331,11 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     let outer = &bloops[0];
     let qs = &bq[0];
     let n = outer.len();
-    let mut body = Body::<T>::new();
+    // One surgery scope for the whole assembly: the tier-1
+    // postcondition is this door's, paid once over the finished body
+    // (`topo::surgery`), and the tier-2 check below subsumes it.
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qs[0])?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
@@ -539,15 +543,16 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     // every wall boundary stores its exact line-in-UV image. ----
     topo::mint_pcurves(&mut body, tol).map_err(LoftError::Pcurve)?;
 
+    body.close_already_checked();
     #[cfg(debug_assertions)]
     debug_assert_eq!(
-        topo::validate_closed(&body),
+        topo::validate_closed(&built),
         Ok(()),
         "loft postcondition: result is not tier-2 valid (kernel bug)",
     );
 
     Ok(Lofted {
-        body,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,
