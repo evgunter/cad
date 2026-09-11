@@ -208,7 +208,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::NotALength { .. } => "not_a_length",
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
-        R::Band => "band",
+        R::Band { .. } => "band",
         _ => "unclassified",
     }
 }
@@ -1245,6 +1245,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::Unnamed { .. } => "unnamed",
         NamingError::MissingUpstream { .. } => "missing_upstream",
         NamingError::Emission { .. } => "emission",
+        NamingError::Band { .. } => "band",
         NamingError::Escalated { .. } => "escalated",
     }
 }

@@ -1235,6 +1235,7 @@ fn resolution_status_tags_are_stable() {
 #[test]
 fn select_refusal_tags_are_stable() {
     use crate::tags::select_refusal_tag;
+    use pncad::geom_core::BandError;
     use pncad::document::{Dimension, RecipeNodeId};
     use pncad::select::{EntityKind, InterrogateError, SelectRefusal};
 
@@ -1271,7 +1272,15 @@ fn select_refusal_tags_are_stable() {
         }),
         "not_a_length"
     );
-    assert_eq!(select_refusal_tag(&SelectRefusal::Band), "band");
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::Band {
+            source: BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            },
+        }),
+        "band"
+    );
 }
 
 /// LIB-PYG5: `ContactClass` is `#[non_exhaustive]` kernel-side, so
@@ -3933,6 +3942,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "naming_error_tag",
         values: &[
+            "band",
             "duplicate",
             "emission",
             "escalated",

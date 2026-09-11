@@ -63,7 +63,7 @@
 //! and deliberately NOT built: a wrong margin design shipped into a
 //! public API is far more expensive than a follow-up unit.
 
-use geom_core::{Band, Decide, Sign};
+use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
 use crate::eval::{DatumValue, Evaluation, NodeResult, ValuePayload};
@@ -258,9 +258,22 @@ pub enum SelectRefusal {
     },
     /// The stated value expression did not evaluate.
     BadValue(crate::expr::EvalError),
-    /// The ambiguity band itself could not be built (a broken ambient
-    /// tolerance — the same fail-loud rung `names::discriminate` uses).
-    Band,
+    /// The ambiguity band itself could not be built from the ambient
+    /// tolerance (the same fail-loud rung `names::discriminate` uses).
+    ///
+    /// The cause is NOT unique, which is why it rides along: a
+    /// validated [`Tolerance`](geom_core::tolerance::Tolerance) —
+    /// ε finite and strictly positive, K finite and strictly above 1 —
+    /// still reaches [`BandError::InvalidValue`] when K·ε overflows to
+    /// infinity (ε within a factor K of `f64::MAX`) and
+    /// [`BandError::Empty`] when K·ε rounds back down onto ε (ε
+    /// subnormal, K within an ulp of 1). Those are opposite ends of
+    /// the same axis and want opposite repairs, so the query reports
+    /// which one it hit rather than the fact that it hit one.
+    Band {
+        /// The band constructor's own diagnostic.
+        source: BandError,
+    },
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -344,9 +357,10 @@ impl core::fmt::Display for SelectRefusal {
             Self::BadValue(error) => {
                 write!(f, "select: the stated value did not evaluate: {error}")
             }
-            Self::Band => f.write_str(
-                "select: the ambiguity band itself could not be built — the ambient tolerance \
-                 is broken, so no comparison below it can be trusted",
+            Self::Band { source } => write!(
+                f,
+                "select: the ambiguity band itself could not be built from the ambient \
+                 tolerance, so no comparison below it can be trusted: {source}"
             ),
         }
     }

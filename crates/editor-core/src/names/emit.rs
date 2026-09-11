@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use geom_core::Indeterminate;
+use geom_core::{BandError, Indeterminate};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::role::{EntityKind, StableName};
@@ -54,6 +54,20 @@ pub enum NamingError {
     Emission {
         /// What was inconsistent.
         what: &'static str,
+    },
+    /// The N2 classification band could not be built from the ambient
+    /// tolerance, so no discriminator below it can be decided.
+    ///
+    /// The cause is NOT unique — a validated
+    /// [`Tolerance`](geom_core::tolerance::Tolerance) still reaches
+    /// [`BandError::InvalidValue`] when K·ε overflows to infinity and
+    /// [`BandError::Empty`] when K·ε rounds back down onto a subnormal
+    /// ε — so the constructor's own diagnostic rides along rather than
+    /// being relabelled as an emission inconsistency, which this is
+    /// not: nothing about the result body is wrong here.
+    Band {
+        /// The band constructor's own diagnostic.
+        source: BandError,
     },
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
@@ -103,6 +117,11 @@ impl core::fmt::Display for NamingError {
             Self::Emission { what } => write!(
                 f,
                 "a mint-time emission fact was inconsistent with the result body: {what}"
+            ),
+            Self::Band { source } => write!(
+                f,
+                "the N2 classification band could not be built from the ambient tolerance, so \
+                 no discriminator below it can be decided: {source}"
             ),
             Self::Escalated { predicate, source } => write!(
                 f,
