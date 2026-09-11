@@ -255,6 +255,22 @@ pub(super) fn setopfinish<T: Decide>(
 ) -> Result<FinishOut<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
 
+    // **The phase boundary, asserted.** The join holds a scope on each
+    // operand body through the one guardless pair in `boolean`
+    // (`BooleanReduction::enter_join_surgery`), and nothing about a
+    // guardless pair is checked by the compiler — so a close deleted
+    // there shows up here, as an operand arriving still inside a
+    // scope. The depth is per-BODY and these two are the pipeline's
+    // own clones, so the answer is 0 whatever door the pipeline itself
+    // is nested in.
+    debug_assert_eq!(
+        (red.a.open_surgery_scopes(), red.b.open_surgery_scopes()),
+        (0, 0),
+        "setopfinish: a reduction operand arrived with a surgery scope still open — the \
+         join opened one and did not close it, and every operator run on that body from \
+         here on skips D1's tier-1 postcondition",
+    );
+
     // ---- Promotion, both solids (F9 roles as data). ----
     let (a_sides, a_in_out) = promote_solid(&mut red.a, completed, Operand::A)?;
     let (b_sides, b_in_out) = promote_solid(&mut red.b, completed, Operand::B)?;

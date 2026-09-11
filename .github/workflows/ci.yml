@@ -2465,6 +2465,26 @@ jobs:
             cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
           fi
 
+      # THE SCALPEL, EXERCISED. D1's whole-body tier-1 postcondition
+      # runs once per public door; `topo/per-op-postcondition` puts it
+      # back after every operator, and it is the only way a door-level
+      # failure is localized to the operator that caused it
+      # (work/perf/d1-per-op-tier1-sweep-price, Ev, PR 2305). A scalpel
+      # nothing runs is a scalpel nobody knows is blunt: the two-arm
+      # corruption row asserts the OPERATOR's name in the panic under
+      # this feature and the DOOR's without it, so the arm below is the
+      # only place the first half is ever taken.
+      #
+      # It rides this job because this job already compiles the
+      # workspace with the feature on (`--all-features` includes it),
+      # so the marginal cost is the test binary's link and a handful of
+      # rows. Plain `cargo test`, not nextest: this job installs no
+      # extra tooling and one filtered module does not need a runner.
+      - name: the per-op postcondition scalpel (topo)
+        run: |
+          cargo test -p topo --lib --features topo/per-op-postcondition -- \
+            --nocapture surgery::tests::
+
   # ============================================================
   # CACHE PRIMING — the two jobs below are the ONLY compiling jobs on the
   # push side of the PUSH RUN line above, and they gate nothing. Read that
