@@ -5,6 +5,7 @@ title: VerbError::Arity renders VerbKind and Arity through Debug at a user surfa
 status: review
 opened: 2026-09-11
 branch: fix/verbkind-display
+pr: 2368
 ---
 
 
