@@ -78,3 +78,33 @@ about the SPELLING of a kind's prose rather than about a missing
 `Display` on an error, and neither names the census's structural
 blindness to spellings 2-4. Whoever routes this should decide whether
 it merges into the FIX row or stands apart.
+
+## Two facts from PR 2347 (2026-09-11, placed by the FIX orchestrator)
+
+**1. `profile::path::Verb` joined spelling 1, and took a form this row
+should note.** Its `Display` is declared **on the macro row** that
+declares the variant — `verb LineTo(Target<T>) = "line_to" …` — so the
+word cannot drift from the variant it names, and deleting the row takes
+the word with it. That is strictly stronger than an `impl Display`
+written beside the enum, and it is the repo's own spelling:
+`crates/viewer/src/vocab.rs`'s `vocabulary!` spends `=` on exactly
+this. Where a vocabulary is macro-generated, this is the shape that
+makes spelling 1 unforgeable rather than merely conventional.
+
+**2. A fifth instance of spelling 2 that this row does not list.**
+`tip_state_words` (`crates/viewer/src/sketch.rs:826`) is a
+viewer-local prose vocabulary for a kernel enum, silent under a rename
+— and unlike `PathVerb::label` it is **not** macro-generated, so there
+is no table to hang a word on and no exhaustiveness forcing it. It is
+the same shape as the 23 `label()`/`name()` sites the row counts, in
+the position where the fix is least obvious.
+
+Also worth recording against this row's census half: `prose_census.rs`
+was the wrong instrument for PR 2347's defect and could not have found
+it. The census judges **brace-shapedness** — the struct-dump class — so
+a fieldless enum with no `Display` reads as `Prose` by its verdict; it
+does not expand `macro_rules!` bodies; and none of the `Dimension`
+sites sat inside a `Display` impl at all. The row's title is right that
+only spelling 1 is censused, and the sharper statement is that the
+census cannot see this defect **even for spelling 1's own types**,
+because brace-shapedness is not the property at issue.

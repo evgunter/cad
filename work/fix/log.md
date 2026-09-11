@@ -571,3 +571,68 @@ close recorded 117 at `7514cc6`), 11 fixed, 6 classes dispositioned.
 Blind spot worth carrying: a ratio spelled as **two literals** — the
 ~50-site `Band::new(1e-9, 1e-8)` family — is separable only by reading,
 not by any pattern.
+
+### `verb-and-dimension-render-through-debug` closed (PR 2347, 2026-09-11)
+
+**Half 2 was already discharged, with a zero diff.** All four
+`Dimension` labels render through `Display` on `main` today, carried by
+PR 2053 (VIEW, 2026-09-06); the item's citations were stale because
+`app.rs` moved to `pane/properties.rs` and `session.rs` to
+`session/refuse.rs`. That is the **fifth** unit of this wave whose item
+turned out to be the unreliable half. The pattern is no longer worth
+re-noting per unit; what is worth noting is that in every case the
+*executed* re-measurement was cheap and the *written* claim was free —
+which is the whole argument for briefing every lane to re-measure.
+
+**Half 1, and the one real decision in it.** `Verb`'s `Display` is
+declared **on the macro row** (`verb LineTo(Target<T>) = "line_to" …`)
+rather than as a hand-written `match` beside the table. A match would be
+compile-caught in both directions, so this is not about safety — it is
+that the word is then a second place the vocabulary is written. The `=`
+spelling is the repo's own; `viewer/src/vocab.rs`'s `vocabulary!` uses
+it for exactly this and cites `transition_table!` as its precedent.
+
+**The word is the algebra's spelling, not English prose** — `line_to`,
+not "line to". Three reasons, and the third is the one I would not have
+predicted: the viewer already renders the near-identical sentence from
+`PathVerb::label()` with these words, so a verb *picked* as `line_to`
+and *refused* as `LineTo` was two names for one thing; and
+`profile`'s own ratified rule permits `Debug` where "a prose paraphrase
+would not find it", which `line_to` satisfies because it is the method
+identifier the row declares. A prettier word would have broken the rule
+the crate already carries.
+
+Accepted as reported: `FarEndTo` and `CloseTo` render `to (far end)`
+and `to Start (close)`, which read slightly oddly mid-sentence. They
+are the chrome's own labels, and diverging would reintroduce the
+two-names problem the change exists to remove. Consistency wins.
+
+Accepted, with the comment correction that came with it: the
+`sketch.rs` site now renders the verb as prose while the state half
+stays `Debug` for the table-coordinate argument. `program.rs`'s comment
+previously read as universal and now says which sentence is which — a
+comment narrowed to what it actually defends, which is the repair, not
+a concession.
+
+**Findings placed:**
+
+- `work/fix/verb-error-arity-renders-verbkind-through-debug.md` —
+  `crates/verbs/src/run.rs:226`, a **seventh** crate. Homed here because
+  `crates/verbs/*` is unowned. It is justified in place and pinned, and
+  that justification ("the doors' own names") is precisely the argument
+  a `Display` would make explicit.
+- Two facts appended to
+  `work/issues/the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused.md`
+  — the macro-row form of spelling 1, and `tip_state_words` as a fifth
+  instance of spelling 2 with no table to hang a word on. The
+  PathVerb-mirror question already has rows on VIEW's and
+  code-quality's slates; nothing new filed there.
+
+**The instrument note worth keeping.** `prose_census.rs` could not have
+found this defect and was correctly not leaned on. It judges
+brace-shapedness — the struct-dump class — so a fieldless enum with no
+`Display` reads as `Prose` by its verdict; it does not expand
+`macro_rules!` bodies; and none of the `Dimension` sites sat inside a
+`Display` impl. A guard that exists for a neighbouring class is not
+coverage for this one, and the lane saying so beats a lane quietly
+assuming it.
