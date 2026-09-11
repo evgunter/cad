@@ -386,8 +386,8 @@ fn build_range(boxes: &[Aabb], nodes: &mut Vec<Node>, items: &mut [usize], base:
     // the same tree — same shape, same leaf membership, same hulls.
     // The cost is what changes: a sort per level makes the build
     // O(n log²n), a partition makes it O(n log n). Measured on 4·10⁶
-    // boxes (the scale a display tessellation of one curved body
-    // reaches): 20.5 s → 9.2 s.
+    // boxes: 20.5 s → 9.2 s — the regime where the log factor is
+    // worth a second, whatever body a tessellation reaches it with.
     items.select_nth_unstable_by(mid, |&a, &b| {
         let ca = boxes.get(a).map_or(f64::NAN, |x| x.centroid(axis));
         let cb = boxes.get(b).map_or(f64::NAN, |x| x.centroid(axis));
