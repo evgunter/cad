@@ -1059,3 +1059,62 @@ one-line characterisation attached to the row that got the most
 scrutiny was still wrong, in the direction of making the defect look
 narrower and more exotic than it is. The residue rows are worth
 re-executing at filing time, not transcribing.
+
+### `collapsed-string-continuations-ship-space-runs-to-users` closed (PR 2364, 2026-09-11)
+
+Twenty-seven rendered messages stop carrying a mid-sentence run of
+spaces. Every repair is one backslash; CI green on the full matrix
+(38 checks, twelve `test (…)`, five `k-lint (gate, …)`, nothing
+narrowed — verified against the check-runs API, not from the lane's
+report).
+
+**The item's own list was a third wrong in both directions**, which is
+the second time this program has caught that in one day. It named ten
+`src` sites; its own pattern returns 27 at the merge base, the line
+numbers had drifted, nine of its hits are **not the defect** (column
+alignment in printed tables, indentation after an explicit `\n`,
+Rust-source fixtures where the indent is the thing being matched), and
+nine genuine sites its pattern **cannot see at all** — three because
+the run follows an em dash or a colon rather than the
+`[a-z,.;)]` the pattern requires, three because they are in
+`demos/tour/`, outside the `crates/` it searched.
+
+**The worst site was not on the list and is not an assertion.**
+`crates/viewer/src/pane/create.rs:1133,1140` are
+`on_disabled_hover_text` and `on_hover_text` — text a GUI user reads
+with nothing wrong, carrying an 18-to-22-space gap.
+`editor-core/src/refactor.rs:304` is a `Display for SplitError`,
+shipped on an ordinary refusal.
+
+**The guard question is now answerable, and both of the closed row's
+guesses about it were wrong.** It routed the guard to CIW and proposed
+a threshold of four spaces.
+
+- **Not CIW's.** `work/ciw/program.md`'s `keep_out` says
+  `scripts/gates/*` is code-quality Track K's. And the grep option is
+  wrong regardless: the needle is *inside* string literals and
+  `gate_rust_code` builds the code-only view — the obstacle PR 1809
+  already routed around by writing its census in Rust. That census is
+  `crates/pncad-py/src/prose_census.rs` and it is the home.
+- **Four is inside the noise.** The lane classified every hit by hand
+  and measured both directions: at run ≥3 the pattern is 67% false, at
+  ≥4 it is 37% false, at ≥9 it is 7%. Every one of the 27 real sites
+  carries a run of **≥10** — a collapsed continuation swallows a whole
+  source indent and the shallowest here is ten columns — while
+  deliberate alignment clusters at 3 to 8. The closed row's threshold
+  sat inside the alignment cluster, which is exactly why its own hit
+  list was a third false.
+
+Filed as `collapsed-continuation-guard-belongs-in-the-prose-census`
+with the spec, the table, and the two things the lane refused to
+overclaim: that the final `= : -> |` exclusion is fitted to 43 hits
+and may not generalise, and that the source-text fixtures fall out
+under the run floor **by luck rather than by design** and will not
+keep doing so.
+
+**A measured false-positive rate is what a guard proposal owes and
+almost never carries.** The closed row asked for a gate and supplied a
+regex; what made the question decidable was a pass that ran the regex,
+looked at every hit, and reported where the classes actually separate.
+Worth asking for by default the next time a row proposes a mechanical
+guard.
