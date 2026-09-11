@@ -2,10 +2,11 @@
 id: unify-discipline-machinery-onto-registry
 kind: issue
 title: checks/disciplines - unify the shared machinery onto the registry (planned)
-status: open
+status: closed
 opened: 2026-08-25
+closed: 2026-09-11
 github: 981
-refs: [978, 979]
+refs: [978, 979, 984, debug-in-prose-residue-after-finding-sink]
 ---
 
 ## From GitHub issue 981
@@ -71,3 +72,84 @@ and answer:
 
 That question is the next action on this row. It is a reading pass,
 not a refactor, and its output is either a spec or a `parked` header.
+
+## Reading pass, 2026-09-11 — the answer is neither arm: step 1 already landed
+
+The one question was *is there now a second real consumer of the
+finding/menu sink, in the DS8 sense?* Read at the merge base, in the
+code rather than in this row's summary, the answer is **yes — and the
+sink itself is already built**. Step 1 is not spec-able because it is
+done. It landed as **PR #984**, before this row was ever homed here.
+
+**The receipt is the module's own header.**
+`crates/editor-core/src/finding.rs:1-6` opens:
+
+> **The document layer's finding sink** (DISCIPLINES-DESIGN DS8;
+> #981 part 1): one composition and one list rendering for the
+> layer's finding surfaces — the checks report and refusal, the
+> undeclared-contact refusal, and the assembly at-rest gate […]
+
+`#981` is this row's own `github:` number. The file names itself as
+part 1 of this plan.
+
+**Three consumers, not two, and all three are wired — not merely
+declared.** The trait is `finding::Finding`
+(`crates/editor-core/src/finding.rs:41`), with one composition
+(`compose`, :57) and one list rendering (`render_list`, :73):
+
+- `impl crate::finding::Finding for CheckFinding` —
+  `crates/editor-core/src/checks.rs:381`; called at `checks.rs:467`
+  (`compose`), `:492` and `:619` (`render_list`). This is step 1's
+  named `checks::CheckFinding` arm.
+- `impl crate::finding::Finding for UndeclaredContactFinding<'_>` —
+  `crates/editor-core/src/eval/mod.rs:1376`; called at
+  `eval/mod.rs:1676`, inside `Display for NodeErrorKind`'s
+  `UndeclaredContact` arm. That arm's payload is exactly what
+  `refusal_menu` builds at
+  `crates/editor-core/src/eval/wire.rs:3606-3657` — the boxed
+  `names::FlushFinding` and the ladder's `diag`. This is step 1's
+  named `refusal_menu` / `FlushFinding` arm.
+- `impl crate::finding::Finding for AtRestFinding` —
+  `crates/editor-core/src/assembly.rs:450`; called at
+  `assembly.rs:466`, `:781`, `:793`. The third consumer, which this
+  row never named.
+
+**DS8 read directly** (`docs/DISCIPLINES-DESIGN.md:485-508`), not
+through this row's summary: *"they adopt shared machinery only where a
+second consumer makes the sharing real (the finding/menu/severity sink
+at the document layer is the first such seam — `refusal_menu` in
+`editor-core/src/eval/wire.rs` already renders discipline refusals
+through one door)"* (:492-496). `refusal_menu` was consumer one at the
+time of writing; `CheckFinding` and `AtRestFinding` are two and three
+today. The DS8 condition is met and was met by the unit that landed
+the sink.
+
+One deliberate narrowing, recorded here because DS8's phrase is
+*finding/menu/severity* and what landed is finding/menu only:
+`finding.rs:12-22` fences severity and check identity out of the sink
+by name — *"no severity and no check identity — those are report
+plumbing (`crate::checks`), not part of what a finding says"* — along
+with a recourse enum and refusal-to-run types. This row's own step-1
+text says "the finding/menu sink" and matches what landed; the
+narrowing is argued at the site and is not re-opened here.
+
+**Step 2 is unchanged and is DOCM's.** `work/docm/plan.md:94-96`
+carries it verbatim as a rider — verified at the merge base, the line
+exists and reads as the orchestrator disposition quotes it. No
+parameter-coincidence item exists anywhere under `work/` (grepped
+`parameter.coincidence` over the whole tracker: three hits, all
+prose — this file, `work/fix/plan.md:85-91`, and that DOCM rider), so
+there is no id and no PR number a `parked` header could name and lint
+could see fire. Per `work/README.md`'s `parked` rule and this unit's
+brief, that makes `parked` the wrong status rather than one to invent
+a trigger for.
+
+**Residue is already filed and is not this row's to carry.** The
+finding sink's prose-debt residue is
+`work/docm/debug-in-prose-residue-after-finding-sink.md` (issue 985,
+open, on DOCM's slate), whose body records PR #984 as "#981 part 1"
+and lists what it left. Nothing further is owed here.
+
+So the row closes: step 1 shipped at PR #984 with three consumers on
+the sink, step 2 rides DOCM's plan, and the DS1 predicate move stays
+explicitly not planned.
