@@ -648,7 +648,7 @@ area `kernel`; prefix `fix/`; tag `(FIX orchestrator)`; ab_band `1700-1799`.
 | item | kind | status | title | blocked on | PR |
 |---|---|---|---|---|---|
 | `band-derivation-has-a-scalar-twin` | issue | open | the linear band's derivation has a scalar twin: ~15 sites compute (eps, K*eps) as bare f64s and never build a Band |  |  |
-| `band-helper-duplicated-across-suites` | issue | open | 36 test suites carry a byte-identical fn band() wrapper; the free half is collapsed, the rest needs a shared home |  |  |
+| `band-helper-duplicated-across-suites` | issue | open | test suites across six crates carry a byte-identical fn band() wrapper; sweep is collapsed, the rest needs a shared home |  | #2377 |
 | `census-containment-flatten-fabricates-its-diagnostic` | issue | open | the containment census flattens three ContainError arms onto CensusEscalated with a SYNTHESIZED indeterminate — the message names a margin nothing measured |  |  |
 | `census-witness-string-repeats-the-subject` | issue | open | two census witness STRINGS repeat the subject in the slot documented for the witnessing position |  |  |
 | `cert-check-renders-through-debug` | issue | open | CertifyError renders CertCheck through Debug at a user surface — the Display class in an eighth crate, on no program's ground |  |  |
