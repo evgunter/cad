@@ -288,3 +288,94 @@ sweep could have reached:
   re-derived.
 
 Q8 earned its keep on the first review of this program.
+
+## E1's full review returned: APPROVE-WITH-FIXES, and one finding outgrew the PR (2026-09-11)
+
+Full review of PR 2375 delivered — **0 MAJOR, 3 MINOR, 3 NOTE**, plus
+nine style findings and all eight style-lane questions exercised. **Every
+one of the five dispatched claims survived falsification**, including the
+two the orchestrator had verified by reading: `compose` is bit-identical
+term-by-term AND under a differential harness over 200 000 random `Frame`
+pairs drawn from `f64::from_bits`; `map(T::from_f64)` at `f64` moves no
+bits; the public surface did not move (both demo roots checked
+separately, which `--workspace` does not cover); the sweep table was
+honest. The code is right. The fix pass is test strength and prose.
+
+**The review's instrument is the story.** An eleven-mutation harness,
+and two mutations went UNCAUGHT by a unit whose tests looked complete:
+
+- **M1** — a `linear_f64` that snaps every column entry to `+0.0`
+  passes all three tests, because the fixture's `-0.0` is in
+  `translation` only. The test claims to pin twelve components and pins
+  three.
+- **M9** — permuting the product's columns inside `Mat3::mul` leaves all
+  three tests green, because the compose oracle is built from
+  `Mat3::Mul`, the operator under test. An oracle sharing an
+  implementation with its subject is not an oracle. The fix rebuilds it
+  from explicit scalar arithmetic.
+
+Both are in the fix pass with the mutations to re-run as the receipt.
+This is the answer to *"can this test fail"* (Q3) doing exactly what it
+is for, on a unit that would have merged green.
+
+**And one finding is bigger than the PR it came from.** In `--release`
+the differential harness diverges in exactly one place: the **sign bit of
+a generated NaN**, where one summand is a propagated NaN and another is
+x86's QNaN-indefinite from `(-0.0) * inf`. Both spellings called the
+identical `Mat3::mul`, so it is LLVM commuting `fadd` across two inline
+sites — **a standing fact about every `Mat3`/`Affine3` product, not about
+this PR**: NaN payload and sign are not stable under code motion, so D9's
+fixed evaluation order buys determinism for **non-NaN outputs only**.
+
+Not a live bug: every door that cites D9 for a bit claim is reached with
+finite inputs and this kernel refuses non-finite geometry at its gates.
+It is a premise nobody wrote down, on the one axis where a reader assumes
+the opposite. Filed on PROPS
+(`nan-sign-is-not-stable-under-code-motion-so-d9s-fixed-order-covers-non-nan-only`)
+with the qualifier's home argued to be `geom-core/src/linalg/`'s docs
+rather than `docs/DESIGN.md` — and with the explicit note that if a taker
+judges otherwise, amending D9's text IS a design-doc change and goes to
+Ev as one. **Flagged to Ev in chat** rather than left in a tracker file.
+
+**The geom-core array-door row grew.** The review's differently-shaped
+sweep found the class is **five** non-test sites, not two — and
+`crates/geom-brep/src/ssi/system.rs:92,96` **already carry the missing
+door, privately and by hand** (`fn v3(&[f64;3]) -> Vec3<f64>`,
+`fn p3(...) -> Point3<f64>`). A consumer has built `geom-core`'s absent
+function where it could not be shared, which is stronger evidence than
+any count. The item is amended, and it now says a fix landing only the
+matrix pair and leaving `Vec3`/`Point3` is a **half-fix** and must be
+labelled one.
+
+**Three more filed:**
+
+- `frame-linear-generic-door-has-no-consumers` — after this PR,
+  `pub fn linear<T>` has zero call sites workspace-wide, proven
+  mechanically (dropping `pub` warns "never used"). *"A public generic
+  door kept alive by its own test is exactly what the item was retiring
+  at the other end."* Deliberately NOT done in the fix pass: it is a
+  public-API removal, the review classed it non-gating, and a fix pass
+  repairs what its review found — it does not widen a PR into a surface
+  decision. Three answers argued on the row.
+- `placement-rs-states-its-exactness-rule-in-nine-paragraphs` — S6/S8/S9
+  together: one rule in nine doc paragraphs none of which is the
+  authority for any other (this PR added two of the nine), a
+  `#[must_use]` inconsistency inside the file, and a 60% prose ratio
+  with `rotate_then_translate` at 38 doc lines over a 21-line body.
+  Nothing in it is wrong, which is the finding.
+- `work/issues/inert-allow-attributes-on-test-modules-…` — the instance
+  (this PR's inert `#[allow]`) is in the fix pass; the class is **124 of
+  257 `#[cfg(test)]` modules** carrying the attribute with nobody knowing
+  which are load-bearing. In `work/issues/` because it spans every
+  crate's `src/` and GUARD's `paths` are `scripts/gates/*` only — the
+  genuinely-undecided-owner case the directory is for, not a waiting
+  room. The count's own blind spots are stated on the row.
+
+**One reviewer finding accepted against this orchestrator.** MINOR 3:
+the lane disclosed its residue with no schedule and said so ("this
+residue has no tracker file"). The reviewer is right that this is the
+"recorded as a pickup" shape the style brief refuses, and right that the
+obligation was the ORCHESTRATOR's, not the lane's — and that it should
+read as an unmet obligation rather than be absorbed. It was met, but
+after the PR body was written; the fix pass now cites the item file so a
+reader of the PR can follow it.

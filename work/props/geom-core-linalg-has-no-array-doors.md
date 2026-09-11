@@ -48,11 +48,48 @@ edit — they are the evidence, not the work):
   exist. A neighbour of the class rather than a member: it needs no new
   door, only the existing ones.
 
+## Widened by PR 2375's style review: FIVE non-test sites, and one crate
+## has already written the door by hand
+
+The review swept differently — a 6-line-window scan for `[0]`/`[1]`/`[2]`
+triples over **all** `crates/*/src` with `#[cfg(test)]` classified, plus
+a `from_f64`-cluster scan and the inverse `[x.x, x.y, x.z]` scan — and
+found the class is five sites, not the two the lane's report named.
+Confidence `sure`, the reviewer's.
+
+The one that changes the shape of this row:
+**`crates/geom-brep/src/ssi/system.rs:92` and `:96` already carry the
+missing function, privately and by hand** —
+
+```rust
+fn v3(x: &[f64; 3]) -> Vec3<f64>
+fn p3(x: &[f64; 3]) -> Point3<f64>
+```
+
+— i.e. a third crate has written `geom-core`'s absent door for itself
+rather than gone without it. That is the strongest possible evidence the
+door belongs in the library: not "several sites would be shorter" but
+"a consumer has already built it where it could not be shared."
+
+The full non-test list: `ssi/system.rs:92`, `ssi/system.rs:96`,
+`crates/geom-brep/src/ssi.rs:827`, `crates/viewer/src/datums.rs:550`,
+`crates/editor-core/src/mate.rs:141`, plus `placement.rs`'s two
+remaining lowerings.
+
+**The scope this fixes.** The row was filed as a `Mat3`/`Affine3` array
+door; the review's reading is that the schedule must carry the
+**`Vec3`/`Point3` array pair with it**, because that pair is what
+`ssi/system.rs` hand-rolled and what four of the five sites want. A fix
+that lands `to_cols_array`/`from_cols_array` on the matrix types and
+leaves the vector types alone is a **half-fix** in the style brief's
+sense, and should be labelled one.
+
 **Where else to look.** `rg 'Vec3::new\(|Mat3::from_cols\(' crates/*/src`
 over any struct storing `[f64; 3]`. The lane's own blind spots, stated:
 lifts through intermediate locals, variable- or slice-indexed lifts in
 loops, lifts into types outside `Vec2/Vec3/Point2/Point3/Mat3/Affine3`,
-and everything outside `crates/editor-core/src/`.
+and everything outside `crates/editor-core/src/`. The review's sweep
+closes the last of those; the first three are still open.
 
 **What it is NOT.** Not a request to make the arrays go away: the stored
 array form is the persisted shape and is D7/D9 territory. The ask is a
