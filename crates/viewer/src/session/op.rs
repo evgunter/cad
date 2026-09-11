@@ -794,7 +794,7 @@ impl OpOutcome {
 /// button — to `on_disabled_hover_text`, which is the shape
 /// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
 /// reason-elsewhere.md` is open about. The one this follows is
-/// `pane::create`'s catalogue entry: *carrying the op's own refusal —
+/// [`crate::pane::create`]'s catalogue entry: *carrying the op's own refusal —
 /// read off the entry, not minted here*. So [`CancelDoor::blocked`] is
 /// a [`Refusal`] and not a sentence, and the disabled control's words
 /// are the refused operation's own.
