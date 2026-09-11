@@ -46,12 +46,16 @@ in which case the row closes as ratified rather than fixed.
 
 ## Closed (`view/escape-abandons`): fixed, shape 1, at both drags
 
-`widgets::drag_gesture_ops` takes a fourth operation and emits it, not
-the commit, on a `drag_stopped` frame carrying an Escape press
-(`crates/viewer/src/widgets.rs:106-129`). The three call sites pass
+The gesture triple became a `GestureVocabulary`
+(`crates/viewer/src/widgets.rs:38-49`) with a fourth operation, and
+`widgets::drag_gesture_ops` emits that one, not the commit, on a
+`drag_stopped` frame carrying an Escape press
+(`crates/viewer/src/widgets.rs:125-151`). A struct rather than a fourth
+positional parameter because `commit` and `cancel` are the same type
+and mean opposite things. The three fields the call sites fill are
 `CancelGesture` for the parameter drag, `CancelFreeMove` for the probe
 and `CancelGesture` for the slot drag
-(`crates/viewer/src/pane/properties.rs:107`, `:397`, `:575`).
+(`crates/viewer/src/pane/properties.rs:108`, `:400`, `:580`).
 
 **Three things the fork's own text got wrong, all found by re-deriving
 it against the tree.**

@@ -9351,9 +9351,14 @@ pointer drag and unreachable during one. Until this change a held drag
 had no abandon at all, and the one input that can end it other than a
 release — `egui`'s Escape abort — was translated into the commit.
 
-**`drag_gesture_ops` takes a fourth operation** and emits it instead of
-the commit on a `drag_stopped` frame carrying an Escape press
-(`crates/viewer/src/widgets.rs:106-129`).
+**The gesture triple became a `GestureVocabulary`** with a fourth
+operation (`crates/viewer/src/widgets.rs:38-49`), and
+`drag_gesture_ops` emits that one instead of the commit on a
+`drag_stopped` frame carrying an Escape press (`:125-151`). A struct
+rather than a fourth positional parameter, and not only because clippy
+counts to seven: `commit` and `cancel` are both bare `SessionOp` and
+mean opposite things, so positionally they sit one transposition away
+from a chrome that lands what the user abandoned.
 
 **Three corrections to the item, all from re-deriving its premise
 against the tree rather than reading it.**
@@ -9396,10 +9401,11 @@ keyboard vocabulary still needs every decision `PRESETS` names.
 **The citation census over the bands this diff moved.** Five files
 shifted. Open rows citing into them, by subject rather than by delta:
 two repointed (`the-two-drags-name-their-gestures-in-two-shapes` —
-`op.rs:301-315`→`309-323`, `widgets.rs:57-100`→`57-129`,
-`properties.rs:557-574`→`559-577`, and its *"three ops"* is now four;
-`a-disabled-control-says-why-in-four-shapes` — `properties.rs:208`→`209`
-and `:727`→`730`). **Three were already wrong at the merge base and are
+`op.rs:301-315`→`309-323`, `widgets.rs:57-100`→`78-151`,
+`properties.rs:557-574`→`563-583`, and its *"three ops"* is now a
+four-field value;
+`a-disabled-control-says-why-in-four-shapes` — `properties.rs:208`→`211`
+and `:727`→`736`). **Three were already wrong at the merge base and are
 left alone rather than shifted onto something else**:
 `comment-symbol-names-outside-rustdocs-reach-have-no-gate`'s
 `session/op.rs:828` (the site is deleted, which that row's own note
@@ -9419,7 +9425,7 @@ repoint said — and are not repointed for the same reason.
 display-is-censused` (`:36`) cites `:158-161`. **Neither is a true
 shift, and the subject check is what says so**: the inline
 `(Dimension::Length, "Length")` array both rows are about is at
-`:162-167` at my merge base and `:163-168` at my head, so DOOR's band
+`:162-167` at my merge base and `:165-170` at my head, so DOOR's band
 names the name field and catches only the array's first element, and
 CENSUS's names the name field alone. Both were wrong before this diff;
 the +1 is real but repointing either band would move a number that was

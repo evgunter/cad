@@ -34,14 +34,14 @@ for the value drag's two, and `DisplayState` compares a bare
 `RecipeNodeId` (`crates/viewer/src/display.rs:778-780`, `:806-812`), and nothing
 says these are the same kind of fact.
 
-`crates/viewer/src/widgets.rs:57-129` is where it shows: `drag_ops` is
+`crates/viewer/src/widgets.rs:78-151` is where it shows: `drag_ops` is
 generic over the gesture vocabulary precisely so one mapping serves
-both drags, and it now hands four ops built by the caller — the cancel
-joined the triple when Escape stopped reading as a release — with
-nothing holding their targets to each other. The caller does hold them
-to each other: `pane/properties.rs:559-577` builds the three that name
-a target from one `node` and one `row.slot`, and the cancel names
-none. But that is a convention, not a type.
+both drags, and the `GestureVocabulary` it takes (`:38-49`) is four
+operations built by the caller with nothing holding their targets to
+each other. The caller does hold them to each other:
+`pane/properties.rs:563-583` builds the three that name a target from
+one `node` and one `row.slot`, and the cancel names none. But that is a
+convention, not a type.
 
 ## Why it is not this unit's
 

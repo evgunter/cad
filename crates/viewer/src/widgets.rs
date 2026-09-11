@@ -27,6 +27,27 @@ use crate::props;
 use crate::session::{DocSession, SessionOp};
 use crate::sketch::{ArcSpec, PathStep, PathTarget};
 
+/// **One gesture vocabulary**: the four operations a drag on one field
+/// emits, in the words that field's own doors speak.
+///
+/// A struct rather than four parameters because [`Self::commit`] and
+/// [`Self::cancel`] are the same type and mean opposite things —
+/// positionally they sit one transposition away from a chrome that
+/// lands what the user abandoned and abandons what they landed, with
+/// nothing between the mistake and the user to catch it.
+pub(crate) struct GestureVocabulary<Preview: Fn(f64) -> SessionOp> {
+    /// Open the gesture: emitted on the press.
+    pub(crate) begin: SessionOp,
+    /// Move it: emitted on every frame the value changes under the
+    /// pointer, carrying that value. Nothing it emits is committed.
+    pub(crate) preview: Preview,
+    /// Land it: emitted when a pointer release ends the drag.
+    pub(crate) commit: SessionOp,
+    /// Abandon it: emitted when Escape ends the drag instead
+    /// ([`drag_gesture_ops`]).
+    pub(crate) cancel: SessionOp,
+}
+
 /// **The one mapping from a `DragValue` to session operations**, and
 /// the only place in this crate that turns a widget into a gesture.
 ///
@@ -44,8 +65,8 @@ use crate::sketch::{ArcSpec, PathStep, PathTarget};
 /// per frame. Two spellings of a ratified rule is one spelling too
 /// many. Any future dragged number in this file calls this; nothing but
 /// this comment enforces that, which is the honest state of it.
-/// Generalized over the GESTURE VOCABULARY (`preview`/`commit` are
-/// parameters) because the free-move probe runs the same triple over
+/// Generalized over the [`GestureVocabulary`] because the free-move
+/// probe runs the same gesture over
 /// display ops rather than document ops — one mapping, two
 /// vocabularies, and the typed-input arm (`changed() && !dragged()`)
 /// covered for BOTH, which is the arm a hand-mapped copy of this
@@ -57,14 +78,11 @@ use crate::sketch::{ArcSpec, PathStep, PathTarget};
 pub(crate) fn drag_ops(
     widget: &egui::Response,
     value: f64,
-    begin: SessionOp,
-    preview: impl Fn(f64) -> SessionOp,
-    commit: SessionOp,
-    cancel: SessionOp,
+    gesture: GestureVocabulary<impl Fn(f64) -> SessionOp>,
     typed: impl Fn(f64) -> Vec<SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) {
-    if drag_gesture_ops(widget, value, begin, preview, commit, cancel, ops) {
+    if drag_gesture_ops(widget, value, gesture, ops) {
         return;
     }
     if widget.changed() && !widget.dragged() {
@@ -87,8 +105,8 @@ pub(crate) fn drag_ops(
 /// down — the cancel doors ([`DocSession::cancel_doors`]) are toolbar
 /// controls, so reaching one costs the release that would land the
 /// value. `egui` collapses the two into one `drag_stopped`, which is
-/// why the cancel is a parameter here rather than a control beside the
-/// field.
+/// why the cancel is a member of [`GestureVocabulary`] rather than a
+/// control beside the field.
 ///
 /// **The key is read, not bound.** Escape is already `egui`'s abort:
 /// it clears the drag whatever this crate does, so what this branch
@@ -98,20 +116,24 @@ pub(crate) fn drag_ops(
 /// touch also ends a drag with no release and means something else
 /// entirely.
 ///
-/// **Every gesture vocabulary has a cancel**, so the parameter is a
-/// `SessionOp` rather than an `Option`: `gesture_table.rs`'s
+/// **Every gesture vocabulary has a cancel**, so
+/// [`GestureVocabulary::cancel`] is a `SessionOp` rather than an
+/// `Option`: `gesture_table.rs`'s
 /// `every_gesture_cancel_has_a_chrome_door` matches exhaustively over
 /// [`SessionOp`], so a gesture that joined the enum with no cancel
 /// would red there first.
 pub(crate) fn drag_gesture_ops(
     widget: &egui::Response,
     value: f64,
-    begin: SessionOp,
-    preview: impl Fn(f64) -> SessionOp,
-    commit: SessionOp,
-    cancel: SessionOp,
+    gesture: GestureVocabulary<impl Fn(f64) -> SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) -> bool {
+    let GestureVocabulary {
+        begin,
+        preview,
+        commit,
+        cancel,
+    } = gesture;
     if widget.drag_started() {
         ops.push(begin);
     }
@@ -565,7 +587,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{drag_gesture_ops, drag_ops};
+    use super::{GestureVocabulary, drag_gesture_ops, drag_ops};
     use crate::session::SessionOp;
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
@@ -647,13 +669,15 @@ mod tests {
                                 drag_ops(
                                     &widget,
                                     value,
-                                    SessionOp::BeginFreeMove { instance: NODE },
-                                    |_| SessionOp::PreviewFreeMove {
-                                        instance: NODE,
-                                        frame: frame_of(shown),
+                                    GestureVocabulary {
+                                        begin: SessionOp::BeginFreeMove { instance: NODE },
+                                        preview: |_| SessionOp::PreviewFreeMove {
+                                            instance: NODE,
+                                            frame: frame_of(shown),
+                                        },
+                                        commit: SessionOp::CommitFreeMove { instance: NODE },
+                                        cancel: SessionOp::CancelFreeMove,
                                     },
-                                    SessionOp::CommitFreeMove { instance: NODE },
-                                    SessionOp::CancelFreeMove,
                                     |_| {
                                         vec![
                                             SessionOp::BeginFreeMove { instance: NODE },
@@ -672,14 +696,16 @@ mod tests {
                                 drag_gesture_ops(
                                     &widget,
                                     value,
-                                    SessionOp::BeginGesture { node: NODE, slot },
-                                    |value| SessionOp::PreviewGesture {
-                                        node: NODE,
-                                        slot,
-                                        value,
+                                    GestureVocabulary {
+                                        begin: SessionOp::BeginGesture { node: NODE, slot },
+                                        preview: |value| SessionOp::PreviewGesture {
+                                            node: NODE,
+                                            slot,
+                                            value,
+                                        },
+                                        commit: SessionOp::CommitGesture { node: NODE, slot },
+                                        cancel: SessionOp::CancelGesture,
                                     },
-                                    SessionOp::CommitGesture { node: NODE, slot },
-                                    SessionOp::CancelGesture,
                                     ops_ref,
                                 );
                             }
