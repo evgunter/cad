@@ -2357,3 +2357,96 @@ existence**, and absence was read off both.
 has no row whose date carries a non-space whitespace tail, so the
 `[^[:space:]]*$` mutant passes it and the property is one-row-deep and
 shell-only. INSTR's file, past the alarm's invitation.
+
+## 2026-09-11 — unit 6 merged: the render helper reads its lanes, and a guard holds it
+
+PR 2325 (`bc4cd8dd`), run `34559749871` green, 39 jobs. Item closed. Six
+claims where the dispatch asked for a lane map and two prose counts.
+
+**The unit was dispatched small and delivered large, and that is why it
+got a correctness lane it was not promised.** The brief asked it to teach
+`--lane` two missing lanes and replace three stale counts with a reading
+of what `render.yml` declares. What landed is one `LANE_TABLE` five
+derived lists read from, a new gating script, a per-PR row, a mirror and
+a `TIER_BLIND` entry. The posture says a correctness reviewer is a
+per-unit judgement, and the judgement here was made **after** delivery on
+the standing trigger (a gating claim over a derived population) rather
+than at dispatch. Worth repeating: a unit's shape at delivery is a fact
+about the unit, not about the brief.
+
+**The MAJOR is this program's signature defect, committed inside the unit
+built to prevent it.** `--print-lane-table` printed three of the five
+lists that derive from `LANE_TABLE`, and the two it missed were
+`lanes_of` — the function that decides what `--lane all` means — and the
+`--lane` validation loop. Re-hardcode `lanes_of` to the pre-PR four lanes
+and the guard exited **0**, printing `render lane parity: 6 lanes
+(freecad, gui, kernel, mc, uv, wild) … all as specified`. That is the
+unit's own headline defect — *`--lane all` took four of six lanes and
+said nothing* — coming back green under a success line naming six lanes.
+
+It is word for word the failure recorded two days earlier on the second
+slate's unit 6: *"all as specified", one route fewer than the header
+specifies*. **Neither review found it by reading**; it took injecting the
+mutant on a pristine tree. The remedy is the same one and it is now used
+twice: `CLAIMS` is a roster asserted against the mutant table AND against
+`check()`'s own source, and the success sentence is built from the roster
+rather than from `len(MUTANTS)`.
+
+**The lane refused one of the orchestrator's remedies, correctly.** The
+fix pass said to read `ci.yml`'s job names so claim 4's over-match arm
+would cover the default poll target. That cannot work: `ci.yml:4282` is
+`name: k-lint (gate, ${{ matrix.row }})`, a template with no static name,
+so the very job the injection used is unreadable from the file. The lane
+turned claim 4 into a **roster comparison** instead — the regex's
+alternatives must BE the jobs that upload lane artifacts, every one and
+nothing else — which needs no job population from either workflow and is
+strictly stronger. `workflow_job_names` was deleted, taking a separate
+finding (it returned `on:` trigger keys as job names) with it.
+
+**Verified by the orchestrator on a clean tree, each mutant applied alone
+with an assertion that the edit took** — a precaution that earned itself
+immediately, since two of the first attempts silently failed to apply and
+a no-op edit is indistinguishable from a surviving mutant:
+
+- `lanes_of all` re-hardcoded → `claim 5: --lane all expands to
+  ['kernel','freecad','uv','wild'] …, not to its own lane table`
+- the predicate stops accepting `all` → `claim 5: … does not accept
+  --lane all`
+- the predicate accepts anything → `claim 5: … accepts --lane
+  __no_such_lane__`
+- `gui` dropped from the table → `claim 1: render.yml declares lane(s)
+  ['gui'] that … the lane table does not carry`
+- `RENDER_JOBS_RE` widened to `k-lint (gate, dev-probe)` → `claim 4:
+  RENDER_JOBS_RE names [...], which upload no lane artifact`
+
+**The second defect was LATENT, not live, and the correction matters.**
+The poll regex named neither job that draws the `gui` lane — real, and
+`gui` genuinely is a third job. But on `main` `--lane gui` died at
+validation and `lanes_of all` never yielded it, so nothing could reach
+the mis-poll. **This PR is what would have made it live.** The first PR
+body and the guard's docstring both said "live"; both corrected. A defect
+a fix would activate is a better argument for the guard than a defect
+already running, and it is a different sentence.
+
+**Two orchestrator premises were wrong again.** `demos/*.sh` and
+`demos/*.py` ARE in CIW's `paths`, so those edits were never a fence
+crossing — only `demos/README.md` matches no program anywhere. And the
+stale-count population was six sites, not three, two of them outside the
+helper.
+
+**A finding about this program's own instruments**, from the style lane:
+`local-scripts/measured-claim-sweep.py:80-84` documents its blind spot as
+*"a usage heredoc is invisible … `render-hosted.sh` carried one that this
+instrument could not see"* — which is exactly where the stale lane list
+lived. The unit hand-rolled greps and neither ran the tool nor said why
+not. Run at the fix pass: the `.sh` heredoc hole has **two** instances in
+this tree, `render-hosted.sh:237` (now derived) and
+`setup-build-env.sh:89` (visible, its body is `#`-prefixed). That is the
+whole hole on this surface, which is worth knowing rather than guessing.
+
+Filed by the unit: `tier-blind-rationale-has-five-prose-spellings` and
+`eps-klint-and-shard-counts-are-prose` (noting that `ci-filter.py`'s
+`EPS_ROWS`/`KLINT_ROWS` already solve the roster half, so what is
+unguarded is exactly the prose counts), plus
+`verify-lane-set-is-a-property-nothing-declares` and
+`provenance-lane-dirs-is-not-the-lane-roster` from the first pass.
