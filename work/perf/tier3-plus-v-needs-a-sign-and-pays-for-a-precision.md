@@ -4,6 +4,7 @@ kind: issue
 title: tier 3's +V check needs a sign and pays for a precision target
 status: open
 opened: 2026-09-10
+parent: PERF-6
 ---
 
 
