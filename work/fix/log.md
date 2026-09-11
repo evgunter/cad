@@ -1018,3 +1018,85 @@ more `ValidationError` arms make the assumption this unit broke, two of
 them wrappers contributing four words (`"tier 3: {error}"`) over a
 carrier that names no repair in 0 of 2 and 1 of 9 of its literals. Six
 arms carrying `Indeterminate` are sound and are not on the list.
+
+### `direction-underflow-reports-zero-length` closed (PR 2359, 2026-09-11)
+
+The other end of the symmetry `Vec3::normalize`'s own note documents. A
+direction of `[1e-180, 0, 0]` was refused as *"has zero length"* — the
+one thing about it that is false. It now refuses as underflowed, with
+the recourse that can actually work.
+
+**The primitives question came back with the OPPOSITE answer to PR
+2356's, and that is what decided the design.** The brief asked what the
+comparison and reduction primitives do with a subnormal versus an exact
+zero, because `Real::min` propagating `NaN` but not infinity had
+generated a whole table of surprises at the overflow end. Executed:
+`max(0,1e-320)=1e-320`, `min(0,1e-320)=0`, `partial_cmp` → `Greater`,
+`1e-320 == 0.0` false, `1e-320/1e-320 = 1` exactly. **No asymmetry, no
+flush-to-zero** — the primitives treat a subnormal like any other
+finite number. The only place the distinction dies is the
+**multiplication inside `norm_squared`**, which flushes the square to
+zero. So the discriminator has to read the components and **cannot be
+recovered from the norm**, which the item's proposed
+`norm_squared == 0` assumed it could.
+
+**And it cannot be spelled the item's way at all**: `Real` has no
+`PartialEq` and no ordering, so `norm_squared == 0` is not expressible
+at the generic scalar. The gate that landed is
+
+```
+is_underflowed_length(len, witness) = is_finite_length(len / witness)
+                                   && !is_finite_length(witness / len)
+```
+
+with `witness` the largest `|component|`, bounded by
+`max|cᵢ| ≤ |v| ≤ √3·max|cᵢ|`. **No threshold and no bracket** — it
+reads the value channel, so a subnormal needs no special case.
+Verified at adjudication, all four cases: normal (both ratios finite →
+false), underflow (`witness/len = ∞` → true), a genuinely zero vector
+(`0/0 = NaN` → the first conjunct is false, which is the discriminator
+the item wanted), overflow (`len/witness = ∞` → false, handled by the
+finiteness gate instead). The row covers subnormals down to
+`f64::from_bits(1)` and asserts the counterfactual —
+`!v.normalize().norm().is_finite()` — so it ties the refusal to the
+harm it prevents rather than to its own text.
+
+**A declared blind spot was wrong as filed.** The item says the
+interval lane was not measured and *"may escalate instead of deciding
+`Zero`"*. It does not: `1e-180` squares to `[0, 1e-323]`, the norm
+encloses `[0, 3.1e-162]`, which straddles zero but sits **wholly inside
+the band**, so `decide` answers `Zero` definitely. Measured, not argued.
+
+**Three rows filed from it**, and the middle one is the find of the
+unit:
+
+- `five-director-doors-skip-the-underflow-question` — yes, they need
+  it, with evidence per door. `definitely_positive` currently tells an
+  underflowed normal to *"lower the tolerance"*, a recourse that cannot
+  work. It is a unit rather than a thread because `is_underflowed_length`
+  needs the witness and `definitely_positive` takes `length: T` only.
+- `num-formatter-prints-an-underflowed-component-as-zero` —
+  `unit_from_components` refuses `ZeroDirection` with the **right**
+  sentence, and the payload renders `got (0, 0)` because `profile`'s
+  `num()` prints `1e-180` as `0`. Not an arm choosing wrong words: a
+  **formatter lying in a payload field**, which no work on refusal
+  vocabulary reaches and which every sweep that reads match arms or
+  `Display` impls is blind to. The lane found it by rendering a value.
+- `finiteness-refusals-diverge-by-scalar-lane` — one document answers
+  `UnderflowedDirection` at `f64` and `DegenerateDirection` at
+  `Interval`. The ratified point-scalar posture working as written, but
+  its first **user-visible** consequence rather than a documented
+  scope. What is owed is a decision — is a refusal's identity allowed
+  to be lane-dependent? — and the lane pinned the current behaviour in
+  two rows so the answer lands somewhere definite either way.
+
+Merged without a reviewer: green at the full code tier, red-first rows
+verified both directions, and the one thing worth checking — the
+predicate's four cases — checked at adjudication rather than taken on
+the lane's word.
+
+**Live overlap recorded, not summoned**: open PR #2116 (MSOLVE-6) edits
+`editor-core/src/eval/mod.rs` and `eval/wire.rs`, which this PR also
+edits. Different regions; whichever lands second owes a merge-forward,
+which is the normal surfacing mechanism and needs no comment on their
+thread.
