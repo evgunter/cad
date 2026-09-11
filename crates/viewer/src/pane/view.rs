@@ -109,9 +109,7 @@ fn delta_field(
 ) {
     let drafted = draft.is_some();
     let in_force_mm = in_force.get() * 1.0e3;
-    let mut text = draft
-        .take()
-        .unwrap_or_else(|| format!("{in_force_mm:.3}"));
+    let mut text = draft.take().unwrap_or_else(|| format!("{in_force_mm:.3}"));
     let field = ui
         .horizontal(|ui| {
             let field = ui.add(egui::TextEdit::singleline(&mut text).desired_width(56.0));
