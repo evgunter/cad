@@ -603,7 +603,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while the two `const` tables mirror an enum in another crate, cannot be projected from a declaration that is not here, and say so. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build them, and the two that spend them — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
 
@@ -1239,7 +1239,7 @@ than assumed, and not fixable by making the body parse: `src/vocab.rs`
 records the experiment and
 `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
 
-Three kinds of list stay hand-written, and each is a different answer
+Two kinds of list stay hand-written, and each is a different answer
 rather than an exception:
 
 - **A registry of struct constants** (`Theme::ALL`) is not an
@@ -1250,9 +1250,13 @@ rather than an exception:
   two of five `Subject`s, each tool's seat list names its own seats,
   and `MATE_PRIMITIVES` offers three of four mate primitives because
   the fourth exists to be refused. Each says why in its own doc.
-- **A mirror of an enum declared in another crate** (`BOOLEAN_OPS`)
-  cannot be projected from a declaration that is not here. That is the
-  neighbouring MIRROR question and has its own tracker item.
+
+A list that mirrors a vocabulary ANOTHER crate owns is not a third
+kind, and the boolean form is why: a mirror claiming completeness has
+an answer one crate over, where the owner publishes its own `ALL`
+beside the declaration and this crate maps over it, writing only the
+words a button needs at an exhaustive match. What stays here is the
+partial case above, which wants no such list.
 
 **A gate holds this, and the table below is its allowlist.**
 `scripts/gates/viewer-vocab-declared-once.sh` scans `crates/viewer/src`
@@ -1265,7 +1269,7 @@ a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
 the ten are quiet without an entry. What the gate reads is this
 section rather than a list of its own: the ROWS below are the
 allowlist, and the KINDS they may claim are the bullets of the
-three-kinds list above — the list the sentence *"Three kinds of list
+two-kinds list above — the list the sentence *"Two kinds of list
 stay hand-written"* announces, and no other. That sentence is matched
 only where it OPENS a paragraph, so quoting it in prose, as this one
 just did, is a mention and not a second announcement. Both halves are
@@ -1289,7 +1293,7 @@ list to a renderer and to the gate, and at four spaces it is the
 bullet's own nested content, or the paragraph's, or a code block.
 
 The gate pins the announcing sentence and carries the NUMBER of bullets
-as its own constant, and it refuses those two to disagree — so a fourth
+as its own constant, and it refuses those two to disagree — so a third
 kind is an amendment argued here, rewording that sentence's number word
 and adding a bullet, AND an edit to that file moving both of its copies
 of the count, not a new word in a table cell.
@@ -1326,7 +1330,6 @@ is what covers it.
 
 | List | Module | Kind |
 |---|---|---|
-| `BOOLEAN_OPS` | `forms` | A mirror of an enum declared in another crate |
 | `MATE_PRIMITIVES` | `forms` | A deliberately partial list |
 | `SUBJECTS_WITH_AN_EXPIRY_ISSUER` | `frame` | A deliberately partial list |
 | `Theme::ALL` | `theme` | A registry of struct constants |
@@ -1334,7 +1337,7 @@ is what covers it.
 **This table is the roster**, not a summary of one. `Module` is the
 module the `const` is declared in, `List` is how it is written there
 (an associated constant carries its type, `Theme::ALL`), and `Kind` is
-the bullet of the three-kinds list above that ratifies it, word for
+the bullet of the two-kinds list above that ratifies it, word for
 word.
 
 The type in `List` is for a reader, not for the gate: what the gate
