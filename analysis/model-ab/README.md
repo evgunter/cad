@@ -128,15 +128,21 @@ than averaging it. Both carry `--selftest`, which executes the blinding claims
 in both directions — including that the leak scan fires when redaction is
 removed.
 
-**This branch's `docs/MODEL-AB-LOG.md` predates the v6 stream** (branch head is
-2026-08-26; the first v6 pair is 2026-08-27), so point `--src` at a current
-checkout:
+Main was merged in on 2026-09-11, so the in-tree `docs/MODEL-AB-LOG.md` is
+current and `--src` can be left at its default; pass it only to read a log from
+somewhere else. Run from the repo root:
 
 ```sh
-python3 blind_reviews.py --src /path/to/main/docs/MODEL-AB-LOG.md
-python3 unblind_adjudication.py --key keys/blind-key-<stamp>.csv \
-    --coded labels/v6-unilateral-adjudication.csv --coder-model <model>
+python3 analysis/model-ab/blind_reviews.py
+python3 analysis/model-ab/unblind_adjudication.py \
+    --key analysis/model-ab/keys/blind-key-<stamp>.csv \
+    --coded analysis/model-ab/labels/v6-unilateral-adjudication.csv \
+    --coder-model <model>
 ```
+
+Note that the branch carries the whole tree now, and the rest of the analysis
+pipeline still reads the numbers it was cut against — merging main updates the
+log, not `core-rows.csv`.
 
 ### Known defect in `blind_extract.py`, not fixed here
 

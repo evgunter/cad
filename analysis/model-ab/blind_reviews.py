@@ -404,8 +404,7 @@ def selftest():
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--src", default=DEFAULT_SRC,
-                    help="path to MODEL-AB-LOG.md (this branch's copy predates v6; "
-                         "point it at a current checkout)")
+                    help="path to MODEL-AB-LOG.md (default: the in-tree copy)")
     ap.add_argument("--since", default=DEFAULT_SINCE, help="earliest row date (inclusive)")
     ap.add_argument("--until", default=None, help="latest row date (inclusive)")
     ap.add_argument("--out-dir", default=OUT_DIR)
