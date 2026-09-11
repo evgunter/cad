@@ -61,3 +61,46 @@ are the reason the watch is a watch and not a repair.
 
 `work.py lint`: ok, 0 problems, 23 warnings (all pre-existing, none on
 `work/cite/`).
+
+## Ev's rulings, and three rows off the slate (2026-09-11)
+
+Four decisions came back in one sitting. All four shrink the program.
+
+**`C-namespace` — CLOSED, no prefix.** *"I'd be plenty happy to just
+leave the ambiguity as all are temporary items anyway where the context
+is clear."* Re-lettering was offered and declined. Recorded on the row
+with the reason it is safe: the collision set is bounded and shrinking —
+the observations are a closed historical list, the seven colliding rows
+are open items that get deleted at close.
+
+**`build-slot-banner-leaks-the-holders-command-line` — CLOSED.** *"No
+memory, just script fix."* The four `note_holder` call sites no longer
+pass `$*`; the banner and the holder file carry pid, time and mode word
+only. Verified by running the script on its actual failure path, not by
+reading it. `local-scripts/*` is CIW's; landed from here under the same
+authorisation as the cross-fence citation repairs, announced in the PR.
+
+**`lane-scratchpad-is-shared-between-worktrees` — DEFERRED (shape 3).**
+*"I lean against this kind of rule because it's not at all specific to
+this project."* Correct: the `CARGO_TARGET_DIR` rule it leans on is
+specific in everything load-bearing about it (cargo's semantics across
+worktrees, this repo's `.gitignore`, merge-only history, two named
+incidents); *name your scratch files for your lane* reads the same in any
+repo. Deferred rather than closed — a lane that LOSES work to this is a
+new fact.
+
+**`S176` and `doc-line-citations-rot-silently` — the sweep is off.** Ev:
+*"aren't we already citing by name?"* Measured: yes, 96% of the 1,508
+citations in open rows already carry a backticked identifier or a quoted
+phrase within one line of the number, 90–100% per program. So S176's
+remedy is not "start naming things" but "delete the redundant number",
+and only the 4% unanchored need a decision at all. This program's own
+evidence from today confirms the anchor works: every bad citation the
+lanes hit was recoverable BECAUSE the name was there — `forms.rs:190`
+was the wrong file and the wrong line, and one grep for the quoted
+sentence found it. The number rotted; the name held. That is Ev's
+2026-09-09 point (a drifted line costs a lookup, not a wrong answer)
+arrived at from the other end.
+
+So the disposition for both `H` rows is to state the convention as
+**already-practiced** and close, not to sweep. Written up next.

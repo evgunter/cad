@@ -2,12 +2,31 @@
 id: C-namespace
 kind: ruling
 title: The C-namespace collision — process observations and schedule rows share the C<N> prefix
-status: open
+status: closed
 opened: 2026-08-20
-needs_ev: true
+closed: 2026-09-11
 ---
 
-## Question
+## Ruling (Ev, 2026-09-11): leave the ambiguity, no prefix
+
+**No side takes a new prefix and nothing is re-lettered.** Ev, asked with
+the seven live pairs in front of him: *"i'd be plenty happy to just leave
+the ambiguity as all are temporary items anyway where the context is
+clear… i don't care which side you re-letter if you do choose to
+re-letter."* The option to re-letter was offered and declined.
+
+The reason it is safe to decline, recorded so the next reader does not
+re-raise it: **the collision set is bounded and shrinking.** The
+observations are a closed historical list — `C1`–`C27`, from finished
+scans, which does not grow — and each of the seven colliding schedule
+rows is an open work item that is deleted when it closes. So the
+ambiguity has an end date that arrives on its own, and a prefix rule
+would govern only rows that may never be allocated. The standing
+instruction in `work/code-quality/plan.md`'s *How the numbering works* —
+*"Read a citation by the file it names, never by its letter"* — is the
+whole disposition.
+
+## Question (as asked)
 
 After the merge renumbered the second scan's observations to
 **C18–C25**, the schedule's Track C rows still occupy **C15** and
