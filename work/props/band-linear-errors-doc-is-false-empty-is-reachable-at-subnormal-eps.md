@@ -89,9 +89,20 @@ Measured (`num.py`, `num2.py` in the review lane's scratch):
 > all give `K·ε == ε`. 1.5 is the first that does not (ties-to-even).
 
 The true condition: **`Empty` is reachable iff ε is subnormal with
-ε < 2⁻¹⁰²³ ≈ 1.11e-308, AND K < 1 + 1/(2n), where ε = n·2⁻¹⁰⁷⁴.** The
-ulp framing made the hazard sound like a knife-edge; it is a region, and
-the project's own default K = 10 sits outside it only because ε does.
+ε < 2⁻¹⁰²³ ≈ 1.11e-308, AND K < 1 + 1/(2n), where ε = n·2⁻¹⁰⁷⁴** — or,
+as PR 2378's fix pass states it exactly, iff `fl(K·n) == n`. The ulp
+framing made the hazard sound like a knife-edge; it is a region.
+
+**And the region needs TWO knobs turned, which this file said wrongly
+the first time.** An earlier revision here claimed the default K = 10
+*"sits outside it only because ε does"* — backwards. At **K = 10 the
+collapse arm is unreachable at every ε**, subnormal included
+(10 · 5e-324 = 5e-323 ≠ 5e-324). Reaching it needs `CAD_AMBIGUITY_K`
+below 1.5 **as well as** a subnormal `CAD_TOLERANCE_EPS`. That bounds
+the hazard considerably and it is the honest framing: K = 10 is the
+permanent ratified default (`docs/K-REPORT.md`, #89 closed), so no
+default run can meet this. The two arms are also disjoint — no tolerance
+reaches both.
 
 ### 2. `Band::angular_at` has the same false sentence, and it is WORSE
 
