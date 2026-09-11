@@ -103,12 +103,15 @@ require_hosted_render() {
         echo
         echo "To LOOK at the new cells before merging, take the run's artifact:"
         echo
-        echo "  local-scripts/render-hosted.sh --lane <lane>"
+        echo "  local-scripts/render-hosted.sh              # every lane"
+        echo "  local-scripts/render-hosted.sh --lane <lane>  # one of them"
+        echo "  local-scripts/render-hosted.sh --help         # which lanes exist"
         echo
         echo "If the branch has no CI run yet (not pushed, no PR), render on"
         echo "demand instead:"
         echo
-        echo "  local-scripts/render-hosted.sh --on-demand --lane <lane|all>"
+        echo "  local-scripts/render-hosted.sh --on-demand              # every lane"
+        echo "  local-scripts/render-hosted.sh --on-demand --lane <lane>"
         echo
         echo "That triggers .github/workflows/render.yml on your PUSHED branch"
         echo "and polls it; that run re-baselines too, so it also ends in a"

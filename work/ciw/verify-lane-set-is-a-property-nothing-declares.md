@@ -24,6 +24,18 @@ same format, same reproducibility") and declares it nowhere a reader can
 key on. The workflow's `if:` conditions select lanes; nothing in it says
 which lanes are reproducible.
 
+**"Nothing" is too strong, and the correction is the interesting half.**
+`local-scripts/ci-local.sh:552-558` (`uv_sheet_drift`) re-renders the uv
+and mc sheets on a developer's box and `git diff --exit-code`s
+`demos/renders-uv/ demos/renders-mc/` — a row that MECHANICALLY exercises
+byte-reproducibility for two of the three lanes `VERIFY_LANES` names,
+every time the local gate runs a code-tier change set. What it does not
+do is compare itself to `VERIFY_LANES`, or cover `wild`, or run hosted;
+and its own comment says why it pairs those two lanes (one tour run
+feeds both), not that it is holding a property list to anything. So the
+accurate statement is: the property is exercised for uv and mc and
+asserted nowhere, and `VERIFY_LANES` is held to nothing at all.
+
 **Why it was left rather than guarded**, written at the site in the same
 words: a lane missing from the list is a lane `--verify` silently does
 not prove, and `--verify` prints how many files it checked, so the drop

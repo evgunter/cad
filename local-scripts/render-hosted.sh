@@ -65,7 +65,7 @@
 # on, and a pipeline that re-encoded or re-stamped anything would launder
 # them. actions/upload-artifact zips and `gh run download` unzips, both
 # lossless — and `--verify` proves it end to end rather than asserting
-# it, by round-tripping the renderer-free lanes (matplotlib Agg or
+# it, by round-tripping the lanes `VERIFY_LANES` names (matplotlib Agg or
 # stdlib text, pinned, no GL anywhere, so byte-identity is a real
 # expectation) and diffing what came back against what is committed.
 set -euo pipefail
@@ -80,15 +80,10 @@ say() { echo "==> $*"; }
 # install, the closing `git status` and the usage text. A lane is one
 # row, and there is no second list for a new lane to fall behind.
 #
-# A ROSTER, NOT A COUNT. render.yml's own header made this move first and
-# for this reason: a count goes stale the next time a lane is added and
-# nothing reds when it does. This file spent the whole life of the `mc`
-# lane saying "all four lanes" in its header and in its usage text while
-# refusing `--lane mc` outright, which is what a count buys.
-#
-# AND THE ROSTER ITSELF IS CHECKED, because a roster goes stale the same
-# way — silently. `scripts/check-render-lane-parity.py` reads this table
-# out of this file (`--print-lane-table`) and reads the lanes, artifact
+# A ROSTER, NOT A COUNT, and the roster itself is checked. A count goes
+# stale the next time a lane is added and nothing reds when it does; so
+# does a roster. `scripts/check-render-lane-parity.py` reads this table
+# out of this file (`--print-lane-table`), reads the lanes, artifact
 # names and committed directories out of render.yml, and reds when the
 # two disagree. It runs in ci.yml's `mirror` job, the one hosted job that
 # does not delete `local-scripts/`.
@@ -106,11 +101,12 @@ gui     renders-gui     demos/renders-gui
 # off-box, so a pulled file may be compared to the committed one at all.
 # render.yml states that property in prose, per lane, and declares it
 # nowhere a reader can key on, so check-render-lane-parity.py cannot hold
-# this list to anything and does not pretend to. What it costs if it goes
-# stale is bounded and visible: a lane missing here is a lane `--verify`
-# silently does not prove, and `--verify` says how many files it checked.
-# A lane wrongly added reds on the first GL-stack difference, loudly and
-# in the right direction.
+# this list to anything and does not pretend to
+# (`work/ciw/verify-lane-set-is-a-property-nothing-declares`). What it
+# costs if it goes stale is bounded and visible: a lane missing here is a
+# lane `--verify` silently does not prove, and `--verify` says how many
+# files it checked. A lane wrongly added reds on the first GL-stack
+# difference, loudly and in the right direction.
 VERIFY_LANES="uv mc wild"
 
 lane_names() {
@@ -135,10 +131,17 @@ lanes_of() {
     if [ "$1" = all ]; then lane_names | tr '\n' ' '; else echo "$1"; fi
 }
 lane_dirs() { local l; for l in $(lane_names); do dir_for "$l"; done; }
+# THE ONE PREDICATE `--lane` IS VALIDATED AGAINST. Everything a lane
+# argument may be: a row of the table, or `all`.
+lane_accepted() {
+    local l
+    for l in $(lane_names) all; do [ "$l" != "$1" ] || return 0; done
+    return 1
+}
 lane_choices() {  # "kernel|…|all", the spelling the usage and the refusal share
     local sep="$1" out="" l
-    for l in $(lane_names); do out="${out:+$out$sep}$l"; done
-    echo "$out${sep}all"
+    for l in $(lane_names) all; do out="${out:+$out$sep}$l"; done
+    echo "$out"
 }
 lane_install_roster() {
     local l _a d
@@ -147,11 +150,27 @@ lane_install_roster() {
     done <<<"$LANE_TABLE"
 }
 print_lane_table() {
-    local l
+    local l c
     for l in $(lane_names); do
         printf 'lane %s %s %s\n' "$l" "$(artifact_for "$l")" "$(dir_for "$l")"
     done
     printf 'jobs-re %s\n' "$RENDER_JOBS_RE"
+    # THE TWO DERIVED LISTS THE ROWS ABOVE DO NOT REACH, and they are the
+    # two that decide behaviour: what `all` expands to (the download's
+    # population — four of six lanes, silently, is what this file shipped)
+    # and what `--lane` accepts (the refusal's). Printed by RUNNING them:
+    # `lanes-all` is `lanes_of all` itself, and each `accepts` row is
+    # `lane_accepted`'s own answer for one candidate, the impossible
+    # candidate included. So the guard holds what the run does, not a
+    # second spelling of it.
+    printf 'lanes-all %s\n' "$(lanes_of all)"
+    for c in $(lane_names) all __no_such_lane__; do
+        if lane_accepted "$c"; then
+            printf 'accepts %s yes\n' "$c"
+        else
+            printf 'accepts %s no\n' "$c"
+        fi
+    done
 }
 
 # `--print-lane-table` is the one mode that answers without a checkout,
@@ -229,8 +248,8 @@ usage: local-scripts/render-hosted.sh [options]
                                         render.yml input's own default)
   --no-install                          download to a temp dir, do not touch the tree
   --verify                              round-trip proof: assert the pulled bytes
-                                        equal the committed ones (the
-                                        renderer-free lanes: $VERIFY_LANES)
+                                        equal the committed ones (the lanes
+                                        VERIFY_LANES names: $VERIFY_LANES)
   --budget-min <n>                      give up polling after n minutes
                                         (default: $POLL_BUDGET_MIN, printed from
                                         the variable so it cannot drift)
@@ -261,11 +280,8 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-lane_known=0
-for _l in $(lane_names) all; do [ "$_l" != "$LANE" ] || lane_known=1; done
-[ "$lane_known" = 1 ] \
+lane_accepted "$LANE" \
     || die "--lane must be one of $(lane_choices ', ') (got '$LANE')"
-unset lane_known _l
 command -v gh >/dev/null || die "gh is not installed (https://cli.github.com)"
 gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
 
@@ -463,8 +479,8 @@ done
 
 # THE ROUND-TRIP PROOF. Not a claim that hosted pixels match local ones
 # — the FreeCAD lanes' do not, and render.yml says so — but that the
-# ARTIFACT PATH is lossless: a byte-reproducible lane (wild: matplotlib
-# Agg, pinned deps, no GL; uv: stdlib text) that came back through
+# ARTIFACT PATH is lossless: a lane in `VERIFY_LANES` above (matplotlib
+# Agg with pinned deps and no GL, or stdlib text) that came back through
 # upload/zip/download/unzip must be byte-identical to what is committed,
 # stamp chunks and all. If that ever stops holding, the provenance guard
 # is being fed laundered files and every other lane's pull is suspect.

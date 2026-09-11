@@ -19,12 +19,14 @@ become a kernel dependency.
 ## Run
 
 **Renders are hosted, and the hosted lane is the canonical producer.**
-Every committed frame in `renders/`, `renders-freecad/` and
-`renders-wild/` is the hosted workflow's output — llvmpipe under Xvfb,
-FreeCAD 1.1.2 AppImage — and byte-stability ("a clean re-render leaves
-`git status` clean") is defined against that producer. A locally-drawn
-frame carries this box's GL stack, **will** differ byte-wise, and must
-never be committed; the guard below and `check_render_provenance.py`
+Every committed cell of every lane `.github/workflows/render.yml`
+declares is that workflow's output, and byte-stability ("a clean
+re-render leaves `git status` clean") is defined against that producer.
+The lanes that DRAW — the ones whose trees `check_render_provenance.py`'s
+`LANE_DIRS` reads — come off a software GL or Vulkan stack under Xvfb
+with the FreeCAD 1.1.2 AppImage; the rest are renderer-free text and
+reproduce on any box. A locally-drawn frame carries this box's GL
+stack, **will** differ byte-wise, and must never be committed; the guard below and `check_render_provenance.py`
 enforce the commit side.
 
 **You do not need to render at all — CI does it and commits the result.**
