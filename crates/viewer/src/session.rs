@@ -69,7 +69,7 @@ use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, PatternOutputChoice};
-use crate::display::{DisplayState, DisplayView};
+use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
 use crate::generation::Generation;
@@ -88,7 +88,7 @@ pub mod select;
 
 pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
-pub use op::{OpOutcome, SessionOp};
+pub use op::{CancelDoor, OpOutcome, SessionOp};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{NodeKindWanted, Refusal, admits};
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
@@ -590,6 +590,45 @@ impl DocSession {
     /// button.
     pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
         DeleteAffordance::of(self.committed_doc(), node)
+    }
+
+    /// **The chrome's cancel doors, one per gesture** — the exits
+    /// that are not the widget the gesture was opened on, and the only
+    /// exits a gesture whose widget is no longer drawn has left
+    /// ([`CancelDoor`] carries that argument).
+    ///
+    /// **Two, and the population is the operations that cancel a
+    /// GESTURE** rather than everything the enum spells `Cancel`:
+    /// [`SessionOp::CancelEvaluation`] cancels a run, not a gesture,
+    /// and has its own control beside the spinner that reports the
+    /// run. The census is held from the operation vocabulary's side by
+    /// `crates/viewer/tests/gesture_table.rs`'s
+    /// `every_gesture_cancel_has_a_chrome_door`, whose match over
+    /// `SessionOp` is exhaustive — so a third gesture cannot join the
+    /// enum with no door, which is the protection
+    /// [`SessionOp::permitted_during_value_gesture`] gives the
+    /// mid-gesture policy one concept over.
+    ///
+    /// Each door reads the state of its OWN gesture: this session's
+    /// value drag, and [`crate::display::DisplayState::probing`] for
+    /// the free-move probe. The two are independent and can be in
+    /// flight together, so one control standing for both would have
+    /// nothing to say about which it closed.
+    pub fn cancel_doors(&self) -> [CancelDoor; 2] {
+        [
+            CancelDoor::of(
+                "Cancel drag",
+                SessionOp::CancelGesture,
+                self.gesture.is_some(),
+                Refusal::NoGesture,
+            ),
+            CancelDoor::of(
+                "Cancel free-move",
+                SessionOp::CancelFreeMove,
+                self.display.probing().is_some(),
+                Refusal::Display(DisplayFault::NoFreeMove),
+            ),
+        ]
     }
 
     /// The ε this session decides at.
