@@ -1235,8 +1235,8 @@ fn resolution_status_tags_are_stable() {
 #[test]
 fn select_refusal_tags_are_stable() {
     use crate::tags::select_refusal_tag;
-    use pncad::geom_core::BandError;
     use pncad::document::{Dimension, RecipeNodeId};
+    use pncad::geom_core::BandError;
     use pncad::select::{EntityKind, InterrogateError, SelectRefusal};
 
     let name = Box::new(pncad::prelude::StableName {
