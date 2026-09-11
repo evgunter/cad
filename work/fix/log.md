@@ -314,3 +314,45 @@ the cheap reading of it is not:
 is reported with its evidence and NOT acted on — not filed, not
 summoned, not fixed. The orchestrator places it, after reading the open
 PR list.
+
+### `mate-member-vocabulary-restated-in-refactor` closed (PR 2338, 2026-09-11)
+
+**The item's premise was refuted by the tree.** `refactor.rs` already
+asks `member_of`; PR 1749 landed the call and the comment together, and
+what this row described as an unfixed predicate was fixed a week ago.
+That is the fourth unit of this program whose *item* turned out to be
+the unreliable half — the pattern the 2026-09-04 entry named, still
+holding.
+
+What was actually owed is the other half of "done", and it is the
+finding worth keeping: **1749's unification landed unpinned.**
+Reverting the predicate to the pre-1749 `matches!(…InstantiatePart…)`
+spelling and running the suite gives 1197 passed, 0 failed — all four
+rows 1749 shipped *with* its fix pass on both spellings. The fix was
+real and nothing held it, so the next lane to touch that predicate
+could have undone it in silence.
+
+The new row reaches the direction the existing ones cannot. The
+nested-pattern row's head is a `Pattern`, so a gate matching
+`Node::InstantiatePart` skips it and is right **by accident** — it
+cannot tell asking the vocabulary from matching a spelling.
+`a_stranded_operand_over_an_instance_head_contributes_no_crossing` puts
+a live `InstantiatePart` at the head and strands the operand, so only
+the walk knows the reference resolves to nothing; a head-spelling gate
+mints an `InterfaceCrossing` for a mate that never solved, which AQ8's
+(b)-SKIP forbids. Red on the old spelling, green on the landed one,
+with the compile verified to have tracked the edit rather than served a
+stale binary.
+
+Limit stated and accepted: the row proves the a-side of the
+`is_mate_edge_end(a) && is_mate_edge_end(b)` conjunction; the b-side is
+symmetric by construction, not by a row.
+
+Fence named: `crates/editor-core/tests/fix_pattern_mate_crossing.rs` is
+TCOST's and TINT's glob — one row appended to an EXISTING file, so no
+new test target and no new per-binary codegen+link constant, which is
+the part of that ground TCOST's charter is actually about.
+
+CI run `34563223900`: **33 success, 5 skipped, 0 failure** — the first
+fully green FIX run of the day, and the confirmation that VIEW's #2332
+cleared the rustdoc gate on `main`.
