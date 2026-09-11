@@ -1385,10 +1385,13 @@ jobs:
   # runner it wedges alone, and the `timeout-minutes` on its render step
   # bounds even that.
   #
-  # WHAT IT NEEDS FROM `scene-inputs` is only the tour output, taken
-  # through the same `tour-out` artifact the montages read, and gated on
-  # the same `tour_ok` output for the same reason: a uv sheet or a wild
-  # montage that failed says nothing about whether the viewer can draw.
+  # WHAT IT NEEDS FROM `scene-inputs` is the tour's own document store,
+  # `demos/out/assembly` — the lane opens those `.pncad` documents in the
+  # viewer rather than reading any tessellated scene, which is what makes
+  # it evidence about the application and not about a mesh. It arrives in
+  # the same `tour-out` artifact the montages read, gated on the same
+  # `tour_ok` output for the same reason: a uv sheet or a wild montage
+  # that failed says nothing about whether the viewer can draw.
   #
   # NO LOCAL MIRROR: a software Vulkan ICD, Xvfb, xdotool and a release build
   # of the eframe/wgpu toolkit, none of which a developer box is asked to
@@ -1458,34 +1461,26 @@ jobs:
           path: demos/out
 
       # THE HEADLESS VIEWER STACK. This is the only lane that opens a real
-      # window, so the list is longer than a renderer-free lane's; each
-      # entry is here against an observed failure rather than by reading a
-      # dependency graph.
+      # window, so the list is longer than a renderer-free lane's, and it
+      # is EMPIRICAL: every entry is here against a failure someone saw,
+      # not against a reading of a dependency graph.
       #
-      #   * mesa-vulkan-drivers — lavapipe, mesa's software Vulkan ICD.
-      #     `viewer` draws its viewport through wgpu and a hosted runner
-      #     has no GPU, so with no ICD installed there is no adapter, no
-      #     device, and nothing ever reaches the window. Same package and
-      #     same reason as ci.yml's `install a software Vulkan adapter
-      #     (lavapipe)` row, which gates the viewer's pipeline smoke rows.
-      #   * libxkbcommon-x11-0 — without it winit PANICS before the window
-      #     exists, so the lane dies with nothing to photograph and no
-      #     statement made about the viewer at all.
-      #   * libegl1, libgl1-mesa-dri — the loaders the toolkit opens on
-      #     its way to a backend. `libEGL warning: DRI3 error` on stderr
-      #     is that path failing over on a box with no DRI3 and is
-      #     expected noise in this lane's log, not a symptom.
-      #   * xvfb — the X server. There is no display on a runner, and
-      #     unlike the FreeCAD lanes the window IS the artifact here.
-      #   * xdotool — there is no window manager under Xvfb, so the window
-      #     is found and driven by hand.
-      #   * imagemagick — captures the window and composes the cells into
-      #     the sheet.
+      # WHAT EACH PACKAGE IS FOR IS WRITTEN ONCE, in demos/render-gui.sh's
+      # header, beside the code that calls the thing — including the two
+      # failures that are easy to misread (winit panicking before the
+      # window exists without libxkbcommon-x11-0, and `libEGL warning:
+      # DRI3 error` being expected noise on a server with no DRI3 device
+      # rather than a symptom). A second copy here would be a second copy
+      # to drift; xdotool is the one entry that header does not list, and
+      # it is what finds the window and reports the geometry every shot is
+      # cropped to, there being no window manager to ask.
       #
-      # `WGPU_BACKEND=gl` IS DELIBERATELY NOT SET. It was tried and is a
-      # dead end on this stack; the backend is wgpu's own choice over the
-      # ICD the first entry installs, and pinning it to GL takes the lane
-      # away from the adapter the rest of the repo's viewer rows use.
+      # `WGPU_BACKEND=gl` IS DELIBERATELY NOT SET. It is a dead end on
+      # this stack — it refuses at surface creation — so the backend is
+      # left to wgpu's own choice over the ICD `mesa-vulkan-drivers`
+      # installs, which is the same lavapipe ci.yml's `install a software
+      # Vulkan adapter (lavapipe)` row puts the viewer's pipeline smoke
+      # rows on.
       #
       # RECOMMENDS ARE NOT SUPPRESSED, unlike ci.yml's lavapipe row: this
       # list is the set measured working, and `--no-install-recommends`
@@ -1528,11 +1523,11 @@ jobs:
       # invocation where the FreeCAD lanes wrap theirs in `xvfb-run`. The
       # script owns the window: it launches the viewer, finds the window
       # with xdotool and captures it with imagemagick, and all three have
-      # to name the same display. Handing it one from out here would put
-      # a second owner on that decision — and `xvfb-run -a` takes :99
-      # first, so a script that opens its own server is then racing this
-      # job for a display number. One owner; this job installs the server
-      # and says nothing about which display it is.
+      # to name the same display. It opens `Xvfb :99` itself and REFUSES
+      # if another server already holds that number — and `xvfb-run -a`
+      # takes :99 first — so wrapping this call would not be a harmless
+      # belt: it would be the thing that breaks the lane. This job
+      # installs the server and says nothing about which display it is.
       #
       # A TIMEOUT OF ITS OWN, and it is the load-bearing one in this job.
       # A window that never appears leaves xdotool waiting on it with
@@ -1562,9 +1557,12 @@ jobs:
             echo "### gui lane — hosted vs committed"
             echo
             echo "The \`viewer\` binary itself, wgpu on lavapipe under Xvfb on"
-            echo "\`${{ runner.os }}\`. Byte-identity holds against a repeat HOSTED"
-            echo "render and NOT across graphics stacks, so a diff is a real"
-            echo "finding here and a local render of this lane is not comparable."
+            echo "\`${{ runner.os }}\`. Two consecutive passes on one box were"
+            echo "measured byte-identical, which is what makes this comparison"
+            echo "worth making; that reading is NOT a hosted one and no hosted"
+            echo "repeat has been taken yet. It does not hold across graphics"
+            echo "stacks either way, so a local render of this lane is not"
+            echo "comparable with what is committed here."
             echo
             echo '```'
             git diff --stat -- demos/renders-gui/ || true
