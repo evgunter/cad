@@ -9538,8 +9538,10 @@ an instance has one probe.
 47 rows carry a citation into those four files; mapping every one
 through the diff gives 45 citations that actually move, across 24 rows
 — 46 counting the one written bare, below, which a filename-anchored
-scan cannot see. Six of those 24 rows are open, this item among them. Repointed, subject checked at the base and
-at the head: `a-disabled-control-says-why-in-four-shapes`'
+scan cannot see. Six of those 24 rows are open, this item among them.
+
+**Repointed**, subject checked at the base and at the head:
+`a-disabled-control-says-why-in-four-shapes`'
 `pane/properties.rs:736` → `:734` (the `on_disabled_hover_text`
 literal), and `the-two-drags-name-their-gestures-in-two-shapes`' four —
 `op.rs:309-323` → `:321-335`, `widgets.rs:78-151` → `:93-166`,
