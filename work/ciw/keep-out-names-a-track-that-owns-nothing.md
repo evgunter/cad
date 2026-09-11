@@ -2,8 +2,10 @@
 id: keep-out-names-a-track-that-owns-nothing
 kind: issue
 title: CIW's keep_out gives tools/* to code-quality Track K; INSTR has owned it since 2026-09-08
-status: open
+status: closed
 opened: 2026-09-11
+closed: 2026-09-11
+pr: 2327
 ---
 
 
@@ -84,3 +86,29 @@ code-quality owns `scripts/gates/*` and has a `program.md`. Ids are
 stable (`work/README.md`), and this one was already in circulation
 when the error was caught, so it stays and this paragraph is the
 correction. The title and the body are what carry the finding.
+
+## Closed (2026-09-11, PR 2327)
+
+`work/ciw/program.md`'s `keep_out` now reads *"scripts/gates/* is
+code-quality Track K's, tools/* is INSTR's"*. Both halves are true of
+today's tree and were verified at the close: `work/instr/program.md`
+lists `tools/*` first in `paths` (opened 2026-09-08), and
+`work/code-quality/program.md:76` reclaims `scripts/gates/*` after GATES
+left the tracker (`docs/DOC-LEDGER.md` sweep 7, 2026-09-08).
+
+**The id is a fossil and stays one.** Ids are stable, this one was
+already in circulation, and its title asserted something false — that
+the clause named a track owning nothing. Only the `tools/*` half was
+wrong. The first draft's three supporting facts were all incorrect and
+the orchestrator acted on them before checking, sending another lane an
+instruction that would have written a closed program into this header.
+What produced them is worth keeping: `ls | head -20` stopped before
+`program.md` (uppercase ids sort first) and `grep "^paths:"` returned
+nothing because `work/code-quality/program.md` genuinely has no `paths:`
+key — **two commands, neither of which tests existence**, and absence
+read off both.
+
+One narrower fact survives and is why the `scripts/gates/*` half was
+worth keeping rather than deleting: code-quality declares no `paths:`,
+so `scripts/work.py territory` attributes nothing to it, and a prose
+clause in another program's `keep_out` is the only notice a lane gets.

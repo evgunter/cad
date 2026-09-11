@@ -2,10 +2,11 @@
 id: mirror-pairs-context-beyond-env
 kind: issue
 title: a mirrored pair's working directory and action inputs are still compared by nothing
-status: review
+status: closed
 opened: 2026-09-10
 pr: 2329
 branch: ciw/mirror-workdir-parity
+closed: 2026-09-11
 ---
 
 
