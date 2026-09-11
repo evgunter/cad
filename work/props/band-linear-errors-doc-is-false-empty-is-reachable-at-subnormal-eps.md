@@ -1,7 +1,7 @@
 ---
 id: band-linear-errors-doc-is-false-empty-is-reachable-at-subnormal-eps
 kind: issue
-title: Band::linear's # Errors says BandError arises only on K-epsilon overflow; BandError::Empty is reachable from a VALIDATED tolerance at subnormal epsilon with no overflow
+title: Band::linear's AND Band::angular_at's # Errors both say BandError arises only on K-epsilon overflow; BandError::Empty is reachable from a validated tolerance with no overflow, and angular_at reaches it at an ORDINARY epsilon
 status: open
 opened: 2026-09-11
 refs: [2378]
@@ -71,3 +71,55 @@ the validator's invariants, and the home for a `geom-core` version is
 may or may not be right, but that is a separate question and this row
 does not ask it — a doc that describes the validator it has is the fix
 here.
+
+
+## Corrected and widened by PR 2378's full review (2026-09-11)
+
+Two amendments, both from the review that attacked the lane's numbers
+rather than accepting them. **The finding stands; two of its sentences
+were wrong.**
+
+### 1. The collapse boundary is much wider than "K within an ulp of 1"
+
+The original filing (and PR 2378's own rustdoc) framed the reachable set
+as ε subnormal with K = 1 + 2⁻⁵². That is one point in it, not its edge.
+Measured (`num.py`, `num2.py` in the review lane's scratch):
+
+> At ε = 5e-324, **every K < 1.5 collapses the band** — 1.1, 1.25 and 1.4
+> all give `K·ε == ε`. 1.5 is the first that does not (ties-to-even).
+
+The true condition: **`Empty` is reachable iff ε is subnormal with
+ε < 2⁻¹⁰²³ ≈ 1.11e-308, AND K < 1 + 1/(2n), where ε = n·2⁻¹⁰⁷⁴.** The
+ulp framing made the hazard sound like a knife-edge; it is a region, and
+the project's own default K = 10 sits outside it only because ε does.
+
+### 2. `Band::angular_at` has the same false sentence, and it is WORSE
+
+`crates/geom-core/src/predicate.rs:393-402`. Same *"only when … overflows"*
+claim, and `BandError::Empty` is reachable there from a **physically
+ordinary** tolerance:
+
+> ε = 1e-9 (the session-box default order) with `lever_arm = 1e300` gives
+> `zero = ε/lever_arm = 1e-309` — subnormal — and any K in
+> `[1 + 2⁻⁵², 1 + 2.5e-15)` collapses it.
+
+No absurd tolerance is required. What is extreme is the **lever arm**,
+and a lever arm is a **caller argument** supplied per predicate, not a
+run configuration an operator sets once. `Band::angular_at`'s own doc
+tells callers to name the arm the decision turns on and lists the
+session-box extent as the conservative universal choice — so a large arm
+is the documented road, not a misuse.
+
+**Class-not-instance: a fix pass that corrects only `Band::linear` ships
+a half-fix and should be labelled one.** The instrument is every
+`# Errors` section in `predicate.rs`, not the one line PR 2378 happened
+to need.
+
+### Who else read the wrong sentence
+
+`grep -rn "BandError" crates/ --include=*.rs | grep -v geom-core` shows
+**15+ enums** carrying a `BandError` across `topo`, `geom-brep`,
+`profile` and `mesh`. Every one of those authors read this `# Errors`
+section to decide what their variant owes. That is the reach of the
+defect, and it is the argument for fixing the sentence at its home
+rather than at the sites that cite it.

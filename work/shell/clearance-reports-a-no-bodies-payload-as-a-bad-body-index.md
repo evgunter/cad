@@ -1,7 +1,7 @@
 ---
 id: clearance-reports-a-no-bodies-payload-as-a-bad-body-index
 kind: issue
-title: clearance.rs relabels InterrogateError::NoBodies (a datum node has no bodies) as SelectionRefusal::NoSuchBody { index }, reporting a payload problem as an index problem
+title: clearance.rs discards two typed causes - InterrogateError::NoBodies reported as a bad body index, and a BandError dropped into the unit variant ToleranceHasNoBand
 status: open
 opened: 2026-09-11
 refs: [2378]
@@ -47,3 +47,52 @@ is destroyed one frame up is a bool in enum clothing.
 `crates/editor-core/src/names/interrogate.rs` is in **no open program's
 `paths`**, so a fix reaching the error type itself draws the fence in
 the PR that mints it.
+
+
+## A second, stronger instance in the same file (2026-09-11, from PR 2378's full review)
+
+`crates/editor-core/src/clearance.rs:1076`:
+
+```rust
+let Ok(band) = Band::linear(query.tol) else {
+    return ClearanceReport::refused(ClearanceRefusal::ToleranceHasNoBand);
+};
+```
+
+`ClearanceRefusal::ToleranceHasNoBand` is a **unit variant**
+(`clearance.rs:583`) whose payload renders as `String::new()` (`:632`)
+and whose tag is a flat `"tolerance_has_no_band"` (`:649`). The
+`BandError` is destroyed.
+
+**This is bit-for-bit the defect WIRE's PR 2378 just repaired at four
+sites**, still live here. And it is not a cosmetic loss: PR 2378
+established by measurement that `Band::linear` has **two** reachable
+failure arms wanting **opposite** repairs — overflow at ε near
+`f64::MAX`, collapse at subnormal ε — so a refusal naming neither sends
+half its readers the wrong way. See
+`work/props/band-linear-errors-doc-is-false-empty-is-reachable-at-subnormal-eps.md`
+for the numbers.
+
+**Why two sweeps missed it**, which is the transferable part. PR 2378
+swept `crates/editor-core/src/` for the class and triaged
+`clearance.rs:1979` — 900 lines below this — without seeing this one,
+because **the discard is a `let-else`, not a `map_err`**. The sweep's
+instrument was keyed to one spelling of discarding; the class is "a
+typed cause is destroyed", which has more spellings than `map_err`. The
+instrument that finds it:
+
+```
+grep -rn "Band::linear\|Band::angular_at\|Band::new" crates/editor-core/src/
+```
+
+Ten sites in `editor-core`; this is the one live discard among them.
+
+## Two findings, one file, one unit
+
+Both rows are `clearance.rs` and both are a destroyed cause, so they are
+one unit's work. The `NoBodies` one raises a kind that points the reader
+at the **wrong argument**; this one raises an honest kind and destroys
+the **distinguishing detail**. PR 2378's argument for carrying is worth
+reading before re-deciding either: the sharp half is that a `Result`
+whose `Err` is destroyed one frame up is a bool in enum clothing, and
+strictly worse than the panic D9 declined.

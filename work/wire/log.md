@@ -486,3 +486,98 @@ pathological ε would poison every other suite. It said so rather than
 writing an assertion that cannot go red — but the reviewer is asked to
 verify the constraint is real, because "no door exists" is exactly the
 claim a lane is least placed to check about its own unit.
+
+## E3's full review: 5 MAJOR, and the fresh-instance bullet earned its keep (2026-09-11)
+
+Full review of PR 2378 delivered — **APPROVE-WITH-FIXES, 5 MAJOR / 6
+MINOR / 5 NOTE**, all eight style questions exercised plus the stance
+bullet that landed on `main` mid-review. The **decision is right** and
+the shipped code is correct and green; every MAJOR is a false sentence
+or a test that does not guard what it claims.
+
+**The bullet was sent to the lane mid-review and immediately produced
+the sharpest finding.** `docs/prompts/reviewer-style-lane.md` gained
+*"when the diff is itself a fix for a structural finding, check whether
+the fix mints a fresh instance of the defect it closes"* — and PR 2378
+mints two:
+
+- **M4, on the public Python contract.** `pncad-py/src/tags.rs:211` and
+  `:1248` map `Band { .. } => "band"` **flat**, while `py/select.rs:705`
+  says in as many words *"The fields are the contract; the message is
+  prose."* The unit moved the cause into `message` and left `reason` as
+  information-free as before, so **a Python caller branching on `reason`
+  still cannot tell an overflow from a collapse — which is the unit's
+  entire thesis.** `band_error_tag` already returns the three words, the
+  PR body cites it as precedent, and `TAG_INVENTORY`'s own doctrine
+  twenty lines from the entry the PR added forbids exactly this
+  flattening. The fix pass delegates and widens the inventory; that is
+  LIB's ground and the crossing is already being made, so it is
+  announced rather than avoided.
+- **M1, at the test layer.** The unit's premise is about `Band::linear`;
+  its test exercises `Band::new(ε, K·ε)`, a hand re-derivation of the
+  `linear → from_zero_threshold → from_thresholds → new` chain. The
+  reviewer mutated `from_thresholds` to make `Empty` unreachable from
+  `Band::linear` **entirely** and the test stayed **green**. Line 322
+  does it again, hand-copying `Tolerance::validate`'s predicate instead
+  of calling it. A unit whose thesis is *"a proxy for the cause is not
+  the cause"* asserted over a proxy where the real thing was available.
+
+**Two of the orchestrator's own filed sentences were wrong and are
+corrected.** The review attacked the numbers instead of accepting them:
+
+- **The collapse region is not a knife-edge.** At ε = 5e-324, **every
+  K < 1.5** collapses the band — 1.1, 1.25, 1.4 all give `K·ε == ε`;
+  1.5 is the first that does not. True condition: ε subnormal with
+  ε < 2⁻¹⁰²³ **and** K < 1 + 1/(2n) for ε = n·2⁻¹⁰⁷⁴. The "K within an
+  ulp of 1" framing — the lane's, this log's and the PROPS item's — made
+  a region sound like a point.
+- **`Band::angular_at` carries the same false `# Errors` sentence and it
+  is WORSE**: ε = 1e-9 (the ordinary session-box order) with
+  `lever_arm = 1e300` gives a subnormal `zero`, reachable with a
+  perfectly normal tolerance. What is extreme is the **lever arm**,
+  which is a caller argument per predicate, not a run configuration —
+  and `angular_at`'s own doc tells callers to pass a large one. The
+  PROPS item is amended and now says a fix correcting only `linear` is a
+  **half-fix**.
+
+**M3 is the methodology finding and it has been filed as a class.** The
+unit's sweep missed a live instance **in a file it swept**:
+`clearance.rs:1076` discards a `BandError` into the unit variant
+`ToleranceHasNoBand` — bit-for-bit the pre-PR defect — 900 lines above
+the site the sweep did triage. It was invisible because **the discard is
+a `let-else`, not a `map_err`**. The instrument was a spelling; the
+class is *a typed cause is destroyed*, which is also spelled `let-else`,
+`expect`, a narrowing `impl From`, `.ok()`, and a unit variant at the
+rendering site — the last being the shape the CI red found, and the one
+the lane had itself written down as a lesson before missing it again.
+
+Filed as `work/issues/every-band-construction-is-the-class-not-every-map-err.md`,
+with the transferable rule: **sweep for the construction of the thing
+whose cause can be lost — every `Band::linear`/`angular_at`/`new` call —
+not for the syntax of one way of losing it.** That row also asks whether
+amending `docs/prompts/implementer-discipline.md` §5 is an `[ev]`
+question, since it is read by every lane by path, which is close to the
+`memories/` rule.
+
+The `clearance.rs` instance went onto SHELL's existing row, which now
+carries both of that file's destroyed causes as one unit's work.
+
+**Style S1, which the orchestrator declined to mandate.** The unit
+spells the new field `source`. The tree's dominant shape is a
+**newtype** (eighteen sites, including `eval/wire.rs:702` inside WIRE's
+own fence), and where a named field is used the tree spells it
+**`error`** — including `mate/solve.rs:673`'s `MateFault::Band { error }`,
+which is **MSOLVE-3's fix, the precedent this item cites.** Against
+that, `source` is locally consistent with `PairInBand` and `Escalated`
+in the two enums edited. Within-file against tree-wide, on a PR about
+spelling discipline: the lane picks and argues it in the body rather
+than being told, because either is cheap now and neither is later.
+
+**Fence crossings, and the largest source change was undisclosed.**
+`names/geompred.rs` (+28/−5, where `SelectRefusal` and its `Display`
+live) is named **nowhere** in the PR body; `tests/display_contract.rs`
+(+80) is never announced as crossing S-TCOST's/S-TINT's glob; LIB is
+never named as `pncad-py`'s owner. All three in the fix pass. This is
+the third unit in a row to touch an unowned `names/` file, which settles
+the standing question: **WIRE's `paths` should be
+`crates/editor-core/src/names/*`**, and that edit rides the next unit.
