@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-04
 refs: [1732]
 branch: fix/literal-k-sweep
+pr: 2346
 ---
 
 
