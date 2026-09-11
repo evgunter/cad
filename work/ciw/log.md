@@ -2525,3 +2525,80 @@ evidence for it this program has: the lane's first refusal message in
 1.97.0, and ci.yml pins no such version"* — the reconciler built by the
 first slate's unit 1 catching a live instance of the defect this unit
 exists to remove, inside the diff removing it. Reproduced at review.
+
+## 2026-09-11 — unit 4 merged: the working directory a mirrored pair runs in
+
+PR 2329 (`c89cc7f0`), run `34562766594` green. Item closed. Claim 10
+grows a third arm; four residues filed.
+
+**The dispatch's framing was wrong and the lane said so.** The brief
+posed the defect as `working-directory:` (hosted) against a local `cd`.
+It is symmetric: **both halves write both spellings, and hosted's inline
+`cd` carries six of the nine rows.** An arm built to the brief would have
+covered three pairs and missed two thirds of the live population. The
+brief also said to reuse the env arm's command-word anchor — necessary
+but not sufficient, because the live benches row is
+`run_row "rustfmt (benches)" bash -c 'cd benches && …'`, whose command
+word is the row *dispatcher*, so anchoring alone finds no `cd` on the one
+row that most needs reading.
+
+**Two MAJORs, both the named trap, both found only by injection.**
+
+1. **An unreadable shell string returned the empty set** — which is what
+   a half that stays put returns. The guard fired on token *identity*
+   (`cd`/`pushd`/`popd`) and `SHELL_C` on an exact shell name; everything
+   else fell through. Four spellings passed pairs whose halves ran in
+   **different cargo roots**: `bash -lc`, `/bin/bash -c`, `eval "cd …"`,
+   `env -C`. This also falsified a claim the PR body made — it said all
+   three of those "would `Bail` if they were not" absent. They did not.
+   The pre-existing comment was honest; the body had upgraded it.
+2. **The `)` boundary test mis-grouped silently.** It tested the RAW line
+   for a `)`, so a paren from `$(…)` or from inside quotes stood in for a
+   subshell boundary. `cd demos/tour && … && echo $(pwd) && cd demos/wild`
+   passed **reporting agreement**, while the row genuinely ran its second
+   half in `demos/tour/demos/wild`. The lane had called this "the least
+   principled thing in the diff" and said its failure direction was a
+   loud Bail; it was a silent wrong answer, and its own words at the fix
+   pass are the entry worth keeping: *"That was the least-examined thing
+   in the diff and it was the one that mattered."*
+
+Re-verified here on a clean clone, each mutation asserted to have
+applied: all four BLOCKING-1 spellings refuse, the `$(pwd)` case refuses,
+and the trailing-comment case — which was a **false red on the live
+benches row** — is green again.
+
+**What the review could not break, and it was the risk at dispatch.** The
+shared refactor (`_command_word` extracted from `env_prefixes`,
+`row_anchor` lifted from `marker_row`) is inert: a unit-level
+differential over 36 inputs covering every rung of the walk moved **zero**
+answers at base vs head, and a whole-checker differential with 14 of them
+planted on a live mirrored row moved zero. All eight refusals are
+reachable and name their site. The population was re-derived
+independently and matched exactly: 9 rows, 13 pairs.
+
+**A live hole in an existing gating claim, found while building another
+one.** Adding an allowlisted flag INSIDE a `bash -c` string leaves the
+checker at rc=0 — confirmed here on `main`, so it is live today and not
+an artifact of the branch. The review then widened it: the lane's item
+said an allowlisted *variable* in that position Bails loudly, which holds
+only when the assignment is the **first** token; `bash -c 'cd benches &&
+RUSTFLAGS=-Awarnings cargo fmt …'` is silent, and the live row begins
+`cd benches &&`. So **both arms are blind through `bash -c`**, and the
+item is renamed `mirror-readers-blind-through-bash-c`.
+
+**The accumulation is now a filed row with numbers rather than a
+recurring complaint.** `check-ci-mirror-parity.py`: 2983 lines at
+`eb4bae11` (2026-09-09) → 3593 → 4016 → **4908** here, +892 in this PR
+alone, with claim 10's block ~63% of a module docstring serving twelve
+claims. The item this unit came from named accumulation as the
+counter-argument to taking all three clauses at once, and nothing in the
+PR measured it until review did. `mirror-parity-checker-growth` carries
+those numbers and is a candidate for a unit of its own, not a line in
+someone else's.
+
+**One reviewer sub-point the lane refused, correctly.** `cd sub/..` and
+`cd ../x` are not the same unknown: the first normalises to the row's own
+root, which is knowable and correctly recorded as "no directory"; the
+second normalises outside the tree, which the reader cannot resolve
+because it does not know where the row started. The test runs on
+`normpath`'s result, not on the spelling.
