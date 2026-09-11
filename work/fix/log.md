@@ -636,3 +636,74 @@ brace-shapedness — the struct-dump class — so a fieldless enum with no
 `Display` impl. A guard that exists for a neighbouring class is not
 coverage for this one, and the lane saying so beats a lane quietly
 assuming it.
+
+### `is-finite-length-homed-in-the-query-seat` closed (PR 2349, 2026-09-11)
+
+`is_finite_length` now lives in `crates/geom-core/src/real.rs`, beside
+the `Real` it is generic over and the `is_poison` it asks through, and
+`topo::query` kept **no** re-export — one name, one place a reader can
+find it. The header paragraph calling it the seat's second *public*
+exception is deleted, and `decide_unit_direction`, which that header
+called "a THIRD", is renumbered.
+
+**The `pub` that PR #1738 added had zero remaining external users.**
+SEAT-DN (#1987) had already collapsed `UnitVec3::new` and
+`eval::wire::unit()` onto `decide_unit_direction`, so the only code
+caller in the tree was that one body. The move cost nothing because the
+thing it was moving had already stopped being reached — which is worth
+recording as a small case of the standing pattern: the *written* state
+(a public predicate with a documented exception) outlived the
+*executed* state by two units.
+
+**Nothing moved, and the establishing facts are the right ones**: the
+four-line body transcribed byte-identical, `UnitVec3Error`'s three
+`Display` arms and `NodeErrorKind::NonFiniteDirection` outside the diff
+entirely, no funnel site renamed so no K row can move, and no golden,
+k-lint baseline, render or census file in the diff.
+
+One addition, disclosed and kept: a direct row at the new home, because
+after the move `geom-core` held a public predicate **its own crate
+never exercised**. That is a real gap the move created and closing it
+in the same PR is right.
+
+Also kept: a doc paragraph on `Vec2::normalize` and `Vec3::normalize`
+saying what the overflow end costs a door that decides the sign first.
+The 2-D half is not decoration — rows 4 and 5 of the door class are
+`profile`'s 2-D directors.
+
+**The unlock fired.** `two-d-director-doors-skip-the-finiteness-question`
+is updated: its two `topo::query::is_finite_length` spellings are now
+`geom_core::is_finite_length`, and its "What separates them" section is
+answered — all five doors can reach the predicate, so the per-crate
+reachability split collapses. What still differs per door is only the
+refusal: a typed arm, its sentence, and its K/census consequence, plus
+a new public `PathError` arm for the two `profile` rows.
+
+### Our own fence named a dead owner (2026-09-11)
+
+The lane found `work/fix/program.md`'s `keep_out` saying
+*"crates/geom/src/* and geom-core are S-CERT's until its exit"*.
+S-CERT is closed and that ground is PROPS's glob. Repaired here, along
+with the `eval/wire.rs` clause, which cited LIB **and SEAT** for a path
+no open program's `paths` covers.
+
+That is the second instance in one day — `work/topo/program.md` says
+`topo/src/query.rs` is SEAT's, which is what parked the homing question
+on a program that cannot answer. Filed as META's
+`work/meta/keep-out-prose-can-name-a-program-that-no-longer-exists.md`,
+and deliberately shaped against META's open #2337: that PR's `_names`
+check warns rather than errors because many ids are ordinary English
+(`view`, `shell`, `fix`), and **this detector has the opposite shape** —
+it matches names that are NOT live ids, and the interesting ones
+(`SEAT`, `S-CERT`, `S-MATE`) are closed programs' own spellings, which
+`docs/DOC-LEDGER.md` already records for another reason. `work/topo/`'s
+clause is TOPO's to repair and was not touched.
+
+**A lane edited a sibling FIX item and asked whether that was allowed.**
+It repaired a `vec.rs` line range in
+`direction-underflow-reports-zero-length` that its own diff had shifted.
+Ruling for this program: **yes, when the sibling is not dispatched** —
+a citation the lane's own diff invalidated is the lane's to fix, and
+`work/README.md`'s conflict hazard is about two parties editing one
+item at once, not about touching a quiet row. A lane must not touch a
+row that is `dispatched` or `review`, because that one has a lane.
