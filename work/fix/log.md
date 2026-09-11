@@ -207,3 +207,27 @@ half 1.
 ## Announced from LIB (2026-09-09): a derive word on the four `checks.rs` enums, and `Hash` by symbol in `quantity`
 
 LIB-MIRROR (PR #2271) adds `Hash` to `CheckId`, `CheckKind`, `Severity` and `Advisory` (`checks.rs:51,128,141,161`, `CheckId` keeping its `PartialOrd, Ord`), and gives `UnitDef`, `LengthUnit` and `AngleUnit` a hand-written `Hash` over the row's symbol plus `Eq` (`quantity/src/units.rs:563-585`, test at `quantity/src/tests.rs:528`) — the seal makes the symbol determine the row, so the hash agrees with the derived `PartialEq`; all under Ev's (A) ruling on `[ev]` #2265.
+
+## Orchestrator resumed 2026-09-11: the board re-sorted against the repo
+
+**Three rows were lying.** `boolean-error-has-no-fieldless-kind` (1806),
+`nurbs-net-point-map-helper` (1742) and `prose-gate-has-no-mechanical-guard`
+(1809) all sat at `review` with their PRs **merged on 2026-09-04** — the
+board showed three units in flight and there were none. Each is closed
+here with a `## Closed` section saying what landed. The shape is the
+one this program keeps finding: an executed result was reliable and a
+written record beside it was not, and the record here was the tracker's
+own.
+
+**Review posture for this stretch (Ev, in-chat, 2026-09-11):** light
+style review or none, at the orchestrator's discretion, because the
+units are very small; **no A/B row** (unchanged from the 2026-09-04
+posture — band 1700-1799 stays unclaimed, `docs/MODEL-AB-LOG.md`
+untouched). A unit that turns out to move a kernel ANSWER rather than
+its rendering is re-cut or reviewed, not waved through.
+
+**Claimed from `work/code-quality/` (Ev, in-chat):**
+`tour-scenes-lift-componentwise-not-through-map` — a style sweep over
+`demos/tour/src/*`, ground no open program's `paths` covers, fix
+written with `lily.rs` as the worked example. Moved into this
+directory per `work/README.md`'s claim rule.
