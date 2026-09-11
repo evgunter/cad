@@ -5,6 +5,7 @@ title: validate.rs folds boundary_material_sign's Err into its Unencoded arm and
 status: review
 opened: 2026-09-11
 branch: fix/validate-material-sign-refusal
+pr: 2365
 ---
 
 
