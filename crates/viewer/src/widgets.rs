@@ -35,7 +35,15 @@ use crate::sketch::{ArcSpec, PathStep, PathTarget};
 /// positionally they sit one transposition away from a chrome that
 /// lands what the user abandoned and abandons what they landed, with
 /// nothing between the mistake and the user to catch it.
-pub(crate) struct GestureVocabulary<Preview: Fn(f64) -> SessionOp> {
+///
+/// **The value [`Self::preview`] carries is the GESTURE's, not a
+/// widget's.** A slot and a parameter each drag one number, so for
+/// those two the distinction is invisible; the free-move probe drags a
+/// rigid frame written as three millimetre boxes, and every preview it
+/// emits carries the WHOLE frame ([`vec3_row_ops`]). The type is
+/// therefore the caller's, and the bound that says so lives on
+/// [`drag_ops`] and [`drag_gesture_ops`] where the value is applied.
+pub(crate) struct GestureVocabulary<Preview> {
     /// Open the gesture: emitted on the press.
     pub(crate) begin: SessionOp,
     /// Move it: emitted on every frame the value changes under the
@@ -75,11 +83,18 @@ pub(crate) struct GestureVocabulary<Preview: Fn(f64) -> SessionOp> {
 /// The DRAG half is [`drag_gesture_ops`], which the slot field calls
 /// directly: a field that reads its own text decides for itself what
 /// was typed, so `changed()` is not what tells it.
-pub(crate) fn drag_ops(
+///
+/// **`widget` is the gesture's hand, which is not always one widget.**
+/// Everything below is read off one `Response`, and a gesture written
+/// as several boxes hands over the union of theirs ([`vec3_row_ops`]):
+/// `dragged()` then means *the pointer is holding this gesture*
+/// rather than *this box*, which is the question the typed arm is
+/// asking.
+pub(crate) fn drag_ops<Value: Copy>(
     widget: &egui::Response,
-    value: f64,
-    gesture: GestureVocabulary<impl Fn(f64) -> SessionOp>,
-    typed: impl Fn(f64) -> Vec<SessionOp>,
+    value: Value,
+    gesture: GestureVocabulary<impl Fn(Value) -> SessionOp>,
+    typed: impl Fn(Value) -> Vec<SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) {
     if drag_gesture_ops(widget, value, gesture, ops) {
@@ -122,10 +137,10 @@ pub(crate) fn drag_ops(
 /// `every_gesture_cancel_has_a_chrome_door` matches exhaustively over
 /// [`SessionOp`], so a gesture that joined the enum with no cancel
 /// would red there first.
-pub(crate) fn drag_gesture_ops(
+pub(crate) fn drag_gesture_ops<Value>(
     widget: &egui::Response,
-    value: f64,
-    gesture: GestureVocabulary<impl Fn(f64) -> SessionOp>,
+    value: Value,
+    gesture: GestureVocabulary<impl Fn(Value) -> SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) -> bool {
     let GestureVocabulary {
@@ -148,6 +163,51 @@ pub(crate) fn drag_gesture_ops(
         return true;
     }
     false
+}
+
+/// **Three boxes, ONE gesture**: a row of draggable components over a
+/// single value, mapped through [`drag_ops`] exactly once.
+///
+/// The free-move probe is this shape — three millimetre fields over
+/// one instance's frame, all three driving the one probe that instance
+/// has. Spelling the triple once per box is what makes the second box
+/// a SECOND gesture, and the boxes are reachable one at a time only by
+/// the pointer: a `DragValue` enters keyboard-edit mode the frame it
+/// takes focus, so Tab and an arrow key change a component while the
+/// pointer holds another. Mapped per box, that frame emits a whole
+/// begin/preview/commit through the typed arm — a begin the open probe
+/// refuses and a commit that lands and CLOSES the probe the pointer is
+/// still holding, which is a refusal describing a state its own batch
+/// destroyed. Mapped once, the same frame is what it is: another hand
+/// on the open gesture, one preview, nothing ended.
+///
+/// So the union is the point. `egui::Response`'s `|` is its own
+/// summary of a row (`Response::union`), and under it `drag_started`,
+/// `dragged`, `drag_stopped` and `changed` answer for the ROW: the
+/// pointer opens the gesture from whichever box it pressed, every
+/// component that moves previews into it, and the drag ends once.
+///
+/// **The previewed value is composed AFTER all three are drawn**, so a
+/// component changed this frame is in the value this frame previews —
+/// the caller's `gesture.preview` and `typed` take the whole `[f64; 3]`
+/// rather than one box's number.
+///
+/// It does not draw the label: the probe names its row above it, in a
+/// sentence that carries the unit ([`vec3_row`] is the creation forms'
+/// labelled version, which emits no operations at all).
+pub(crate) fn vec3_row_ops(
+    ui: &mut egui::Ui,
+    speed: f64,
+    components: &mut [f64; 3],
+    gesture: GestureVocabulary<impl Fn([f64; 3]) -> SessionOp>,
+    typed: impl Fn([f64; 3]) -> Vec<SessionOp>,
+    ops: &mut Vec<SessionOp>,
+) {
+    let [x, y, z] = components;
+    let row = ui.add(egui::DragValue::new(x).speed(speed))
+        | ui.add(egui::DragValue::new(y).speed(speed))
+        | ui.add(egui::DragValue::new(z).speed(speed));
+    drag_ops(&row, *components, gesture, typed, ops);
 }
 
 /// One labeled row of three draggable components — every creation
@@ -587,7 +647,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{GestureVocabulary, drag_gesture_ops, drag_ops};
+    use super::{GestureVocabulary, drag_gesture_ops, vec3_row_ops};
     use crate::session::SessionOp;
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
@@ -608,8 +668,10 @@ mod tests {
     /// drove only one would be reading half of what it claims.
     #[derive(Clone, Copy)]
     enum Vocabulary {
-        /// The free-move probe's display triple, through [`drag_ops`]
-        /// — `crate::pane::properties`'s `instance_ui`.
+        /// The free-move probe's display triple, through
+        /// [`vec3_row_ops`] — `crate::pane::properties`'s
+        /// `instance_ui`, which wires its three components as ONE
+        /// gesture.
         FreeMove,
         /// The value gesture's document triple over a vector slot's
         /// three components, through [`drag_gesture_ops`] directly —
@@ -622,7 +684,11 @@ mod tests {
         ctx: egui::Context,
         vocabulary: Vocabulary,
         mm: [f64; 3],
-        rects: [egui::Rect; 3],
+        /// The whole row's rect, which is what the two vocabularies
+        /// share: the free-move arm draws its three boxes inside
+        /// [`vec3_row_ops`] and hands back no per-box response, so a
+        /// pointer aims at the row and [`Probe::aim`] picks the box.
+        row: egui::Rect,
     }
 
     impl Probe {
@@ -635,8 +701,16 @@ mod tests {
                 ctx: egui::Context::default(),
                 vocabulary,
                 mm: [0.0; 3],
-                rects: [egui::Rect::NOTHING; 3],
+                row: egui::Rect::NOTHING,
             }
+        }
+
+        /// Where to press for the FIRST of the row's three boxes: the
+        /// middle of its first third, the boxes being three of a size.
+        /// Which box the pointer takes does not matter to the rules
+        /// below — that the keyboard can reach a different one does.
+        fn aim(&self) -> egui::Pos2 {
+            self.row.left_center() + egui::vec2(self.row.width() / 6.0, 0.0)
         }
 
         fn frame(&mut self, events: Vec<egui::Event>) -> Vec<SessionOp> {
@@ -651,67 +725,68 @@ mod tests {
                 ..Default::default()
             };
             let mm = &mut self.mm;
-            let rects = &mut self.rects;
+            let row = &mut self.row;
             let ops_ref = &mut ops;
             let vocabulary = self.vocabulary;
             let mut output = ctx.run_ui(input, |ui| {
-                ui.horizontal(|ui| {
-                    for axis in 0..3 {
-                        let mut value = mm[axis];
-                        let widget = ui.add(egui::DragValue::new(&mut value).speed(0.5));
-                        mm[axis] = value;
-                        rects[axis] = widget.rect;
-                        let shown = *mm;
-                        match vocabulary {
-                            Vocabulary::FreeMove => {
-                                let frame_of =
-                                    |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
-                                drag_ops(
-                                    &widget,
-                                    value,
-                                    GestureVocabulary {
-                                        begin: SessionOp::BeginFreeMove { instance: NODE },
-                                        preview: |_| SessionOp::PreviewFreeMove {
-                                            instance: NODE,
-                                            frame: frame_of(shown),
-                                        },
-                                        commit: SessionOp::CommitFreeMove { instance: NODE },
-                                        cancel: SessionOp::CancelFreeMove,
+                let laid_out = ui.horizontal(|ui| match vocabulary {
+                    Vocabulary::FreeMove => {
+                        let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
+                        vec3_row_ops(
+                            ui,
+                            0.5,
+                            mm,
+                            GestureVocabulary {
+                                begin: SessionOp::BeginFreeMove { instance: NODE },
+                                preview: |mm| SessionOp::PreviewFreeMove {
+                                    instance: NODE,
+                                    frame: frame_of(mm),
+                                },
+                                commit: SessionOp::CommitFreeMove { instance: NODE },
+                                cancel: SessionOp::CancelFreeMove,
+                            },
+                            |mm| {
+                                vec![
+                                    SessionOp::BeginFreeMove { instance: NODE },
+                                    SessionOp::PreviewFreeMove {
+                                        instance: NODE,
+                                        frame: frame_of(mm),
                                     },
-                                    |_| {
-                                        vec![
-                                            SessionOp::BeginFreeMove { instance: NODE },
-                                            SessionOp::PreviewFreeMove {
-                                                instance: NODE,
-                                                frame: frame_of(shown),
-                                            },
-                                            SessionOp::CommitFreeMove { instance: NODE },
-                                        ]
+                                    SessionOp::CommitFreeMove { instance: NODE },
+                                ]
+                            },
+                            ops_ref,
+                        );
+                    }
+                    Vocabulary::Slot => {
+                        // Three components, three SLOTS, three
+                        // gestures: the value drag's identity is the
+                        // field, so each box spells its own triple and
+                        // the sibling case is refused at the door
+                        // (`gesture_table.rs`'s
+                        // `a_drag_on_another_field_cannot_steer_the_open_one`).
+                        for (axis, component) in mm.iter_mut().enumerate() {
+                            let widget = ui.add(egui::DragValue::new(component).speed(0.5));
+                            let slot = SlotId::Origin(Axis3::ALL[axis]);
+                            drag_gesture_ops(
+                                &widget,
+                                *component,
+                                GestureVocabulary {
+                                    begin: SessionOp::BeginGesture { node: NODE, slot },
+                                    preview: |value| SessionOp::PreviewGesture {
+                                        node: NODE,
+                                        slot,
+                                        value,
                                     },
-                                    ops_ref,
-                                );
-                            }
-                            Vocabulary::Slot => {
-                                let slot = SlotId::Origin(Axis3::ALL[axis]);
-                                drag_gesture_ops(
-                                    &widget,
-                                    value,
-                                    GestureVocabulary {
-                                        begin: SessionOp::BeginGesture { node: NODE, slot },
-                                        preview: |value| SessionOp::PreviewGesture {
-                                            node: NODE,
-                                            slot,
-                                            value,
-                                        },
-                                        commit: SessionOp::CommitGesture { node: NODE, slot },
-                                        cancel: SessionOp::CancelGesture,
-                                    },
-                                    ops_ref,
-                                );
-                            }
+                                    commit: SessionOp::CommitGesture { node: NODE, slot },
+                                    cancel: SessionOp::CancelGesture,
+                                },
+                                ops_ref,
+                            );
                         }
                     }
                 });
+                *row = laid_out.response.rect;
             });
             output.textures_delta.clear();
             ops
@@ -751,7 +826,7 @@ mod tests {
         // out.
         probe.frame(Vec::new());
         probe.frame(Vec::new());
-        let x = probe.rects[0].center();
+        let x = probe.aim();
         probe.frame(vec![egui::Event::PointerMoved(x)]);
         probe.frame(vec![egui::Event::PointerButton {
             pos: x,
@@ -767,70 +842,108 @@ mod tests {
         );
     }
 
-    /// **A held pointer drag and a keyboard bump on a sibling
-    /// component put two `BeginFreeMove` in one batch**, which is the
-    /// route that makes [`crate::display::DisplayFault::FreeMoveInFlight`]
-    /// something a user can be shown.
+    /// **A keyboard bump on a sibling component STEERS the held drag**
+    /// rather than opening a second probe under it.
     ///
-    /// The probe field is three `DragValue`s over one instance, each
-    /// wired through [`drag_ops`] with the free-move triple
-    /// (`crate::pane::properties`'s `instance_ui`). A pointer holds at
-    /// most one of them: egui carries `dragged`, `drag_started` and
-    /// `drag_stopped` as a single `Option<Id>` each, so no second
-    /// pointer and no touch can open a second drag. The keyboard is
-    /// the other hand. A `DragValue` enters edit mode the moment it
-    /// takes focus and answers the arrow keys there, so Tab and
-    /// ArrowUp change a component nobody is pointing at — and
-    /// `drag_ops`' typed arm spells that as a whole
-    /// begin/preview/commit, emitted while the pointer's own begin is
-    /// still unanswered.
+    /// The probe field is three `DragValue`s over one instance, and a
+    /// pointer holds at most one of them: egui carries `dragged`,
+    /// `drag_started` and `drag_stopped` as a single `Option<Id>` each,
+    /// so no second pointer and no touch can open a second drag. The
+    /// keyboard is the other hand. A `DragValue` enters edit mode the
+    /// moment it takes focus and answers the arrow keys there, so Tab
+    /// and ArrowUp change a component nobody is pointing at.
+    ///
+    /// The instance has one probe and all three components drive it,
+    /// so that keystroke belongs to the gesture already open —
+    /// [`vec3_row_ops`] maps the row once and the frame it previews is
+    /// composed from all three, so the bump arrives as a preview
+    /// carrying the pointer's component and the keyboard's together.
     ///
     /// Every frame after the press below carries keyboard events only,
     /// so the drag opened by the pointer is in flight at each of them:
-    /// the assertion that no commit and no cancel precedes the second
-    /// begin is what says so in the ops themselves.
+    /// the assertion that nothing but previews is emitted is what says
+    /// so in the ops themselves.
     ///
-    /// Where it goes red: give the typed arm a guard that reads the
-    /// drag state, or make the three components share one gesture
-    /// rather than each spelling the triple, and no second begin is
-    /// emitted. Either is a change to what the chrome can ask for, and
-    /// this row is the reading that says which.
+    /// Where it goes red: spell the triple per box again and the
+    /// sibling bump takes the typed arm instead — a begin the open
+    /// probe refuses `FreeMoveInFlight`, a preview that overwrites the
+    /// pointer's frame, and a commit that lands it and closes the
+    /// probe the pointer is still holding, leaving the user a refusal
+    /// describing a state its own batch destroyed.
     #[test]
-    fn a_keyboard_bump_begins_a_second_probe_under_a_held_drag() {
+    fn a_keyboard_bump_steers_the_held_drag_rather_than_beginning_a_second_probe() {
         let mut probe = Probe::new();
         open_a_drag(&mut probe);
+        let held = probe
+            .mm
+            .iter()
+            .position(|component| *component != 0.0)
+            .expect("the pointer drag moved the component it is holding");
 
-        let mut before_the_second_begin: Vec<&'static str> = Vec::new();
-        let mut second: Option<Vec<SessionOp>> = None;
+        let mut emitted: Vec<&'static str> = Vec::new();
+        let mut steered: Option<Frame> = None;
         // Tab walks the focus over the three components and the
         // surrounding chrome; the bound is a budget, not a measurement
         // of where the focus lands on any particular step.
         for _ in 0..TAB_BUDGET {
-            before_the_second_begin.extend(probe.key(egui::Key::Tab).iter().map(kind));
+            emitted.extend(probe.key(egui::Key::Tab).iter().map(kind));
             let bumped = probe.key(egui::Key::ArrowUp);
-            if bumped
+            emitted.extend(bumped.iter().map(kind));
+            if let Some(frame) = bumped.iter().find_map(|op| match op {
+                SessionOp::PreviewFreeMove { frame, .. } => Some(*frame),
+                _ => None,
+            }) && frame
+                .translation
                 .iter()
-                .any(|op| matches!(op, SessionOp::BeginFreeMove { .. }))
+                .enumerate()
+                .any(|(axis, moved)| axis != held && *moved != 0.0)
             {
-                second = Some(bumped);
+                steered = Some(frame);
                 break;
             }
-            before_the_second_begin.extend(bumped.iter().map(kind));
         }
-        let second = second.expect(
-            "a keyboard bump on a component the pointer is not holding begins a second probe",
+        let steered =
+            steered.expect("a keyboard bump reaches a component the pointer is not holding");
+        assert!(
+            !emitted.contains(&"begin")
+                && !emitted.contains(&"commit")
+                && !emitted.contains(&"cancel"),
+            "the keyboard drives the open gesture and neither opens nor ends one; the \
+             frames under the held drag carried {emitted:?}"
         );
         assert!(
-            !before_the_second_begin.contains(&"commit")
-                && !before_the_second_begin.contains(&"cancel"),
-            "nothing answered the pointer's begin before the second one arrived, so the \
-             second lands under an open probe; the frames between carried {before_the_second_begin:?}"
+            steered.translation[held] != 0.0,
+            "and what it previews is the WHOLE frame — the pointer's own component is \
+             still in it, at {:?}",
+            steered.translation
         );
+    }
+
+    /// **And with no drag open the same keystroke still spells the
+    /// whole triple**, which is the half the rule above must not buy.
+    ///
+    /// A typed value is one committed display value and needs its own
+    /// begin and its own commit: deleting the typed arm, or guarding
+    /// it on anything wider than *is this gesture already open*, would
+    /// satisfy the row above by making the field unusable from the
+    /// keyboard alone.
+    #[test]
+    fn a_keyboard_bump_with_no_drag_open_still_spells_the_whole_triple() {
+        let mut probe = Probe::new();
+        probe.frame(Vec::new());
+        probe.frame(Vec::new());
+        let mut bumped: Vec<SessionOp> = Vec::new();
+        for _ in 0..TAB_BUDGET {
+            probe.key(egui::Key::Tab);
+            bumped = probe.key(egui::Key::ArrowUp);
+            if !bumped.is_empty() {
+                break;
+            }
+        }
         assert_eq!(
-            second.iter().map(kind).collect::<Vec<_>>(),
+            bumped.iter().map(kind).collect::<Vec<_>>(),
             ["begin", "preview", "commit"],
-            "and the typed arm spells a whole triple, so the begin it opens with is the \
-             one `DisplayState::begin_free_move` refuses"
+            "no pointer anywhere, so the keystroke is a whole gesture of its own"
         );
     }
 
@@ -898,7 +1011,7 @@ mod tests {
             let mut probe = Probe::of(vocabulary);
             open_a_drag(&mut probe);
             let released = probe.frame(vec![egui::Event::PointerButton {
-                pos: probe.rects[0].center() + egui::vec2(40.0, 0.0),
+                pos: probe.aim() + egui::vec2(40.0, 0.0),
                 button: egui::PointerButton::Primary,
                 pressed: false,
                 modifiers: egui::Modifiers::NONE,

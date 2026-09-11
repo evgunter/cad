@@ -1028,6 +1028,23 @@ commits — into whichever gesture happens to be open, with the new
 field's number. The subject of a driving operation is the field the
 user has hold of, and naming it is what makes the mismatch refusable.
 
+**The probe's target is coarser than a field, and the chrome is what
+makes that enough.** `PreviewFreeMove` names an instance because an
+instance has exactly one probe — not one of the three millimetre boxes
+the panel draws for it. Mapped a triple per box those boxes are three
+gestures over one probe and the payload cannot separate them, both
+naming the same instance: the second box's begin is refused
+`FreeMoveInFlight`, its preview then overwrites the first's frame, and
+its commit lands it and CLOSES the probe the pointer is still holding —
+a refusal describing a state its own batch destroyed. The keyboard is
+what reaches that second box while the pointer holds the first, because
+a `DragValue` enters edit mode the frame it takes focus. So the row is
+mapped ONCE, as a row (`widgets::vec3_row_ops`), and a keystroke on a
+sibling box is another hand on the open gesture rather than a second
+gesture. What the payload still cannot refuse is a second DRIVER on one
+instance, of which this chrome has one;
+`work/view/probe-identity-stops-at-the-instance.md` owns that.
+
 **The two cancels are the exception and name nothing**: their subject
 is the session's state, because the state they exist for is a drag
 whose field is no longer drawn (the cancel-door section below).
