@@ -129,7 +129,6 @@ in `work/perf/` or the program named.
 |---|---|---|---|---|
 | Pick index re-tessellates every root on every edit | `viewer/src/pickcache.rs:266,285`, `pickindex.rs:742`, `editor-core/src/resolve/pick.rs:354` | 83–97 % of the edit wait on a large document | stop | `index-rebuilds-every-root-on-every-edit` |
 | Display budget's probe can exceed the picture it sizes | `viewer/src/scene.rs:952` | 0.2–4.1 s frozen on open | stop | `fit-delta-probe-can-exceed-the-picture-it-sizes` |
-| D1 per-op whole-body tier 1, shipped in release | `topo/src/euler.rs:62`, `:2405`; `attach.rs:93,332` | 45–72 % of a rebuild in the shipped release profile; 31 % of editor-core's suite | stop (ratified — `[ev]`) | `d1-per-op-tier1-sweep-price` |
 | `StableName` is a boxed `BTreeMap` key | `editor-core/src/names/role.rs:396`, `table.rs:69,96-107`, `emit_topo.rs:518-524` | ~40 % of `die`'s rebuild, quadratic in chain depth | faster | `stablename-key-is-quadratic-on-a-boolean-chain` |
 | `assemble`'s aggregate tier-3′ census | `editor-core/src/product.rs:650` | n^1.96 in solids; 1.3 s at 161 | faster | `assemble-aggregate-census-is-quadratic-in-solids` |
 | Gate then measure pays two certified quadratures | `demos/tour/src/main.rs:402,423`; the Python pair | ~half of the tour's 2.2–2.7 s of mass props | stop | `gate-then-measure-pays-two-quadratures` |
@@ -145,10 +144,6 @@ in `work/perf/` or the program named.
 
 Two constraints stated rather than a fix assumed:
 
-- **The per-op debug validate is D1, not an oversight.** Making it
-  cheaper is a design change; the question is in front of Ev as
-  `[ev]` PR 2305 with the price above, recommending once-per-door
-  with replay localization.
 
 ## 2. CPU-first roadmap
 
@@ -578,10 +573,12 @@ demo-only and test-only units record no A/B row.
   fluxes (idiom 2).
 - Tier 3's +V check with a sign-sufficient door.
 - `assemble`'s aggregate census behind the BVH pre-filter.
-- D1 once-per-door — ruled (PR 2305) and implemented as PERF-4 (PR
-  2313, under review): a debug-only surgery depth on `Body`, sweeps at
-  the outermost scope, the `per-op-postcondition` feature as the
-  scalpel.
+- D1 once-per-door — landed (PR 2313, Ev's ruling on PR 2305): the
+  tier-1 sweep runs once per public door (a `Surgery` guard on `Body`,
+  the `per-op-postcondition` feature as the scalpel, run per PR).
+  `die` 86 → 44 ms in the shipped profile against a 39 ms no-tier-1
+  floor; `demos/wild` 261 → 46 ms; editor-core's test wall 56 → 20 s.
+  Residue on the slate: `door-scopes-outside-topo-are-unguarded`.
 
 **On the trigger list, unchanged:** CDT bulk loading (the corpus does
 not reach the quadratic; the `spade` `HashSet` fix precedes adoption

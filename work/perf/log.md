@@ -420,3 +420,19 @@ tess-budget baseline, so the CSV is re-cut on the merged tree with the
 sweep, never merged by hand), undrafts, confirms the ε sweep green at
 1e-12, and the orchestrator merges. If the sweep stays red after
 PERF-6, that is a PERF-6 gap to report, not a demo to bend.
+
+## PERF-4 merged (2026-09-11, PR 2313) — D1's clause is once per door
+
+Fix pass on `d630d261` (CI green, plus the new per-PR scalpel step in
+`clippy (--all-features)`): 13 of 15 guardless sites take the
+`Surgery` guard, the surviving pair is `pub(crate)` and `&mut self`
+with the reason at each of its two sites, `DOORS_MEASURED` 48, the
+vacuous walk arms replaced, `revolve/full` matched to `partial`, five
+rotted premises rewritten, the repaired-mid-door class named in D1 and
+`euler.rs`, the residue item sized to what cannot fire (the `Err`-arm
+close, the lexical read's population, a deleted sweep is not a leaked
+scope). Two self-found reds on the way: a panic-hook flake (one
+process-global mutex now) and rustdoc links to private items.
+`docs/DESIGN.md` D1/D9 now state the once-per-door rule with the
+ruling cited. Block PERF-B2 slot 0 done; PERF-5 under dual review,
+PERF-6 implementing.
