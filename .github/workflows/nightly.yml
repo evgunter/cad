@@ -1771,7 +1771,10 @@ jobs:
   # box's own milliseconds are the measurement `memories/perf-measurement-lane.md`
   # exists to distrust, and committing one here would launder it as a trend
   # point. Running `cd benches && cargo bench` locally is the right local act
-  # and it writes nothing.
+  # and it writes nothing. That is a statement about the MEASUREMENT and not
+  # about the emitter's guard: `scripts/criterion-emit.py --selftest` runs in
+  # both halves of the merge gate, and the step below says why it also runs
+  # here.
   criterion:
     name: criterion benchmarks (reporting)
     runs-on: ubuntu-latest
@@ -1831,17 +1834,26 @@ jobs:
       # this job and of no other; it is stdlib python against a temp-dir
       # fixture, so it costs no minutes.
       #
-      # THIS IS THE ONLY PLACE IT RUNS, AND THAT IS A KNOWN DEFECT, not the
-      # argument it used to be. The paragraph here once cited
-      # `scripts/opt-level-calibrate.py` as the precedent that a reporting
-      # lane's selftest is not a PR-gate row. That precedent is gone: that
-      # script's `--selftest` runs per-PR in ci.yml's `discipline`, on the
-      # reasoning that a guard sited only in a scheduled workflow is exercised
-      # only on a schedule — a PR that breaks it merges green and the break
-      # surfaces at the next fire, to nobody. The same is true of this row
-      # today. `work/ciw/criterion-selftest-nightly-only` carries the move,
-      # which is not a one-liner: it expires this script's MIRROR_EXEMPT
-      # entry in scripts/check-ci-mirror-parity.py.
+      # THIS IS NOT THE ONLY PLACE IT RUNS. ci.yml's `discipline` job runs the
+      # same selftest on every pull request, and local-scripts/ci-local.sh
+      # mirrors that row: a guard sited only in a scheduled workflow is
+      # exercised only on a schedule, so a PR that broke this one would merge
+      # green and surface the break at the next fire, to nobody.
+      #
+      # THIS COPY STAYS BECAUSE THE TWO ROWS PROVE DIFFERENT TREES. The gate
+      # row proves the tree a pull request proposes; this one proves the tree
+      # that is about to EMIT, and those coincide only on a scheduled run of
+      # `main`. The `workflow_dispatch` ref input at the top of this file runs
+      # this job at an ARBITRARY SHA — that is what it is for, and any SHA old
+      # enough to be worth bisecting carries whatever the emitter said then,
+      # which no gate row can have proved. Such a run writes no history (the
+      # commit step below refuses a dispatched ref), so what the selftest
+      # defends there is the ARTIFACT a bisector reads as a measurement. And
+      # `main` itself is a composition of merges, each gated against the base
+      # it was opened on rather than against the others. The row is stdlib
+      # python against a temp-dir fixture: it costs no minutes, and it is the
+      # last thing between a broken emitter and a history that cannot be
+      # edited afterwards.
       - name: emit the history entry
         env:
           CRITERION_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest

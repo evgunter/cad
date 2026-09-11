@@ -1457,6 +1457,30 @@ jobs:
       # No toolchain and no cargo — stdlib python against its own fixtures.
       - name: opt-level calibrator selftest (the guard over an append-only history)
         run: python3 scripts/opt-level-calibrate.py --selftest
+      # THE CRITERION HISTORY EMITTER'S OWN TESTS, sited here for the reason
+      # the row above is: the selftest is a fixture battery over the script's
+      # own code paths, so the only change that can break it is a change to
+      # `scripts/criterion-emit.py` — a `scripts/*.py` path, which
+      # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
+      # set that can break it is exactly the change set this job runs on.
+      # What it drives is the population no real run produces on demand: the
+      # criterion directory reader, the roster pin that fails when a benchmark
+      # is renamed or dropped, and the environment block — and the emit mode
+      # those feed writes the entry nightly.yml APPENDS to the history under
+      # docs/perf-data/criterion/, where a malformed entry cannot be
+      # overwritten out.
+      #
+      # THE LANE IS HOSTED-ONLY AND THIS ROW IS NOT. Only a runner may commit
+      # a measurement (`local-scripts/ci-local.sh` says why at its own key),
+      # but the guard over the writer is a stdlib-python fixture battery that
+      # runs anywhere, so it belongs in both halves like every other selftest
+      # out here. No toolchain, no cargo, no benchmark build.
+      #
+      # nightly.yml KEEPS ITS OWN COPY and that is not a duplicate of this
+      # row: that job also runs on a dispatched `ref`, an arbitrary SHA this
+      # gate never saw. The argument is written at that row.
+      - name: criterion history emitter selftest (the guard over an append-only history)
+        run: python3 scripts/criterion-emit.py --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: it is what lets the wasm32 guard below run the interval
       # leg ONLY, and it is what made this lane a stand-in for the default
