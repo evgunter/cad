@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-06
 closed: 2026-09-11
 branch: door/mirror-dimension-all
+pr: 2391
 refs: [dimension-all-has-readers-outside-the-viewer]
 ---
 

@@ -9,7 +9,7 @@ opened: 2026-09-11
 
 Found by the sweep for
 `dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum` (PR
-PRNUM), which published `editor_core::Dimension::ALL` and retired the
+2391), which published `editor_core::Dimension::ALL` and retired the
 one mirror that row named. The sweep was scoped to `crates/viewer/src`
 by the unit's brief; re-run over `crates/` it returns five more
 complete hand-written enumerations of the same four variants, none of
