@@ -581,3 +581,74 @@ never named as `pncad-py`'s owner. All three in the fix pass. This is
 the third unit in a row to touch an unowned `names/` file, which settles
 the standing question: **WIRE's `paths` should be
 `crates/editor-core/src/names/*`**, and that edit rides the next unit.
+
+## The E block is merged (2026-09-11)
+
+All three E units landed on `main`, each green on the full code tier and
+each verified at the CHECK-RUN level before merge rather than on a
+lane's summary — 33 success / 5 skipped, twelve `test (…)` jobs and five
+`k-lint (gate, …)` rows on every one, so nothing was narrowed.
+
+| unit | PR | merge |
+| --- | --- | --- |
+| `wire-expected-phrases-spell-family-words-as-literals` | 2376 | `2d47435f` |
+| `placement-lifts-its-affine-by-hand-beside-affine3-map` | 2375 | `cec951ed` |
+| `names-flush-and-select-discard-a-refusal-with-map-err-underscore` | 2378 | `477a2cb7` |
+
+**Three items closed, twenty filed.** Every residue has its own file, on
+the slate of whichever program owns the ground — PROPS (4), SHELL (2),
+FIX (1), LIB (1), `work/issues/` (2), and the rest here. Nothing was left
+as a sentence in a merged PR body.
+
+### What the block actually bought, beyond three diffs
+
+**Two of the three items were wrong about their own subject**, and each
+lane corrected the row rather than implementing the row:
+
+- `placement-lifts-…`'s suggested one-liner does not compile.
+- `wire-expected-phrases-…`'s counts were wrong in both directions and
+  internally inconsistent before the tree moved.
+- `names-flush-and-select-…` was class E and is H, because answering its
+  delegated question required refuting a doc in a third crate.
+
+**The reviews found two units reminting the defect they closed**, which
+is the stance bullet that landed on `main` the same day — twice
+independently before it existed, and once (PR 2378's flat Python tag)
+after it was relayed mid-review. It is now three for three across this
+block. Worth saying plainly: **on this program's evidence the bullet is
+not a tendency, it is the default**, and the only thing that caught any
+of the three was a reader who had not written the fix.
+
+**Two reviews found a test that could not go red**, both by mutation
+rather than by reading: PR 2375's compose oracle was built from the
+operator under test, and PR 2378's band test asserted over a hand
+re-derivation of the chain whose door it claimed to guard. Neither was
+visible in the diff. Q3 is the highest-yield question this block
+exercised and the only instrument that answered it was a mutation
+harness.
+
+**Three of this orchestrator's own filed sentences were wrong** and were
+corrected from lane and reviewer measurements: the band-collapse region
+is not a knife-edge (every K < 1.5 at the smallest ε); the default
+K = 10 puts it out of reach at **every** ε, so it needs two knobs turned
+and not one — this file's earlier claim that K = 10 "sits outside it only
+because ε does" was backwards; and `Band::angular_at` carries the same
+false sentence and is worse.
+
+### The standing fence question, now settled by repetition
+
+Three units in a row touched `names/` files in **no open program's
+`paths`** (`geompred.rs`, `emit.rs`, `discriminate.rs`, `emit_topo.rs`,
+`names/README.md`), each drawing the fence in its own PR. That is the
+convention working, and it is also three PRs paying for a `program.md`
+edit with no design content in it. **WIRE's `paths` take
+`crates/editor-core/src/names/*`** at the next unit.
+
+### Next
+
+The lift pair (`profile-has-no-scalar-lift-door` then
+`profile-embed-lift-has-two-homes-anchor-and-loft`) as one sequence, with
+the door announced to S-BOOL and the ordering announced to S-TINT, whose
+`D385` converts the two test copies afterwards. `frame-f64-placement-…`
+and `product-gather-…` follow, the second still waiting on Ev's read of
+the carry-the-tie recommendation.
