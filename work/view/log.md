@@ -8209,3 +8209,40 @@ under the `getrandom_backend` flag, and that is what this lane ran.
 **Out of fence, reported**: `crates/test-utils/tests/reader_census.rs:82`
 says the ledger is "Sorted by path" and nothing enforces it — `found.sort()`
 at `:592` sorts the tree walk, not the ledger.
+
+## 2026-09-11 — #2320 merged; the proxy class is written down
+
+**`view/cancel-doors` is on main** (#2320, merge `4f621cf31`), green on
+the full code tier: 39 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`, `gate ok` success, one `neutral` on
+`render drift (gui)` and five skips that belong to closures this diff
+does not open. Read from the job list rather than a summary. Its two
+lane worktrees and their private target dirs are reclaimed.
+
+**The eighth instance of the proxy class was mine, and the class is now
+a rule in `plan.md` rather than eight scattered post-mortems.** A sweep
+rule fails when its classifier is a PROXY for the property the claim is
+about — and a proxy agrees with itself over the population it can see,
+so it reads complete from the inside every time. The eight are
+tabulated at the sweep-rule paragraph: a constant standing in for a
+fact (#2278), a boolean for a three-way question (#2282), `^`-anchors
+for markdown's 1–3 spaces of indent (#2172, re-minted #2287), an
+attribute's presence for existence at the target (#2288), full paths
+for the bare filenames the tracker writes and the name `store` for the
+field (#2293 twice), "the host pass" for a gate that runs two (#2304),
+and `add_enabled` + `on_disabled_hover_text` for a DISPOSITION (#2320 —
+the dispatch was mine, the correction the lane's). The check that
+catches all eight is the same one: name the property first and the
+pattern second, then ask what a member could look like that the pattern
+cannot match.
+
+**Both of #2320's command corrections are in `plan.md`** — the viewer
+suite has two targets and the WGPU adapter red lives in `--lib`, and at
+wasm32 the CI row is `cargo check` because `clippy --all-targets` does
+not compile there at all.
+
+**Still running**: `view/link-thirteen`, building Ev's rustdoc ruling
+(link the thirteen bare spans with the house `[`crate::X`]` spelling,
+make the lint inert on the skip-mode viewer pass, retire the three
+module notes, amend the README's Rustdoc posture clause). It is the only
+open lane.
