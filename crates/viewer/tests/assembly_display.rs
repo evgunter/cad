@@ -778,3 +778,93 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     );
     assert!(session.display().hidden().is_empty());
 }
+
+/// **A document REPLACEMENT takes every hide and every placement and
+/// reports none of them — by decision, not by omission.**
+///
+/// `DisplayState::prune`'s withdrawals are news because they are a
+/// SIDE EFFECT of an act about something else: the user mated two
+/// parts and lost a hand placement they never offered to give up.
+/// `Open` and `NewDocument` are the act itself — display state is
+/// state of a session over ONE document (G3), so a user who replaces
+/// the document has asked for exactly this, and a per-instance notice
+/// would report the act back to the person who performed it.
+///
+/// The clause at `DisplayState::clear` carries the argument, including
+/// the half that makes it a typing fact rather than a taste in
+/// wording: a `Withdrawn` names an instance and a fault ABOUT a
+/// document, and the only document left to ask is the replacement,
+/// where these ids mean other nodes or none.
+///
+/// This row is what goes red if the silence is ever widened back into
+/// an oversight — it asserts both halves, that everything went and
+/// that nothing was said about it.
+#[test]
+fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
+    let tol = Tol::witness();
+    let bench = asm::bench("replacequiet", tol);
+    let mut session = asm::open_bench(&bench, tol);
+
+    // One of each kind of display state the door can take: a hide, a
+    // COMMITTED free-move placement, and a drag still in flight.
+    assert!(
+        session
+            .perform(SessionOp::SetInstanceHidden {
+                instance: bench.post_a,
+                hidden: true,
+            })
+            .refusal
+            .is_none()
+    );
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            frame: Frame::translation([0.02, 0.0, 0.0]),
+        },
+        SessionOp::CommitFreeMove,
+        SessionOp::BeginFreeMove {
+            instance: bench.shelf_i,
+        },
+        SessionOp::PreviewFreeMove {
+            frame: Frame::translation([0.0, 0.03, 0.0]),
+        },
+    ] {
+        let outcome = session.perform(op.clone());
+        assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+    }
+    assert_eq!(session.display().hidden().len(), 1);
+    assert!(session.display().free_move_of(bench.post_b).is_some());
+    assert_eq!(session.display().probing(), Some(bench.shelf_i));
+    let before = session.display().revision();
+
+    // Reopening the SAME file is still a replacement: the session's
+    // subject is installed afresh, and the ids it carries are minted
+    // by that document rather than inherited from the one that went.
+    let outcome = session.perform(SessionOp::Open(bench.asm_path.clone()));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        outcome.superseded.is_empty()
+            && outcome.dropped_hides.is_empty()
+            && outcome.killed_gesture.is_none(),
+        "a replacement reports no withdrawal of any of the three kinds: \
+         {:?} / {:?} / {:?}",
+        outcome.superseded,
+        outcome.dropped_hides,
+        outcome.killed_gesture
+    );
+    assert!(
+        session.display().hidden().is_empty()
+            && session.display().free_move_of(bench.post_b).is_none()
+            && session.display().probing().is_none(),
+        "…and it took all three anyway, which is the asymmetry this row \
+         records as decided"
+    );
+    assert!(
+        session.display().revision() > before,
+        "the reset was visible, so the chrome's rebuild key moved — the \
+         one thing the quiet door still says, and it says it to the \
+         chrome rather than to the user"
+    );
+}

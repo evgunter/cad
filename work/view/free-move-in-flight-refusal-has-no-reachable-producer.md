@@ -23,7 +23,7 @@ sentence is the wrong one, because **no route in today's chrome shows
 it to anybody.**
 
 `DisplayState::begin_free_move` raises it only when a free-move is
-already in flight (`display.rs:708-710`). The probe's field is three
+already in flight (`display.rs:736-738`). The probe's field is three
 `DragValue`s on the selected instance (`pane/properties.rs:377-402`),
 each pushing `BeginFreeMove` on `drag_started`; one pointer cannot hold
 two of them, and the typed arm emits begin/preview/commit in one batch.
@@ -34,7 +34,7 @@ cancel-door unit is the VALUE drag's, off `slot_rows` emptying for a
 dead standing. The probe's field is drawn off the shown document
 (`display::is_instance`, `display::free_move_check`), not off the landed
 evaluation, and a document change while a probe is in flight is pruned
-rather than stranded (`display.rs:821-827`), so that trace does not
+rather than stranded (`display.rs:849-862`), so that trace does not
 carry over.
 
 The honesty inversion the item describes is real and it lands on

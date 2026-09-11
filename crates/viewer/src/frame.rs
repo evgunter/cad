@@ -582,12 +582,13 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// **What an accepted edit WITHDREW from the display state**, as a
 /// notice for [`frame_status`]'s rank 2.
 ///
-/// # One value, not two functions
+/// # One value, not a function per kind
 ///
-/// A supersession and a dropped hide are the same class of fact —
-/// display state an accepted edit took away, each carrying the
-/// [`DisplayFault`] the prune withdrew it on — and they were two free
-/// functions composing prose that differed in four format literals.
+/// A supersession, a dropped hide and a killed gesture are the same
+/// class of fact — display state an accepted edit took away, each
+/// carrying the [`DisplayFault`] the prune withdrew it on — and the
+/// first two were free functions composing prose that differed in four
+/// format literals.
 /// They are a typed value with a `Display` here, which is the shape
 /// the crate's other notices already have ([`crate::tools::ToolNotice`],
 /// [`crate::prefs::Notice`]) and the shape [`crate::tree::RowStatus`] is the model for:
@@ -623,7 +624,7 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 ///
 /// A refusal in the same frame outranks it and it is then not shown,
 /// which rank 1 already says. The two cannot come from one operation:
-/// a refused op returns before the prune that fills these lists.
+/// a refused op returns before the prune that fills the report.
 ///
 /// # The cause is the fault's own sentence
 ///
@@ -638,7 +639,8 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// alone names something the tree no longer draws without saying that
 /// is why.
 ///
-/// The frame around the faults counts and does not name: every fault
+/// The frame around the faults counts where there is anything to count,
+/// and never names: every fault
 /// [`crate::display::DisplayState::prune`] can put here names its own
 /// SUBJECT — the four arms `free_move_check` and `display_check`
 /// answer with — so naming the id again in the preamble would say it
@@ -653,7 +655,7 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// established at `prune` and stated here.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Withdrawal<'a> {
-    /// Which of the two this is.
+    /// Which of the three this is.
     pub kind: WithdrawalKind,
     /// What went. **Never empty** — the constructors are the only
     /// door and each answers `None` for an empty set, so the
@@ -701,6 +703,23 @@ pub enum WithdrawalKind {
     /// itself, unaltered, and what the chrome adds is the chrome's own
     /// subject — what the drawn scene now shows.
     DroppedHide,
+    /// **Neither of the above, and the only one the user's hand was
+    /// on.** A drag was in flight and the document stopped admitting
+    /// the instance under it, so the gesture ended where it stood.
+    ///
+    /// Nothing substituted for it: the placement it would have landed
+    /// was never asked of the document, so this is not a
+    /// supersession — and no hide was involved, so it is not that
+    /// either. What it leaves behind is the instance drawn where the
+    /// document puts it, and a hand that was steering something a
+    /// moment ago.
+    ///
+    /// **Exactly one, never a set.** A session holds one free-move
+    /// gesture, so this kind has no plural to word — which is why the
+    /// rendering below counts the other two and not this one, and why
+    /// [`Withdrawal::killed_gesture`] takes an `Option` rather than a
+    /// slice.
+    KilledGesture,
 }
 
 impl<'a> Withdrawal<'a> {
@@ -712,6 +731,20 @@ impl<'a> Withdrawal<'a> {
     /// The frame's dropped hides, or `None` when it dropped none.
     pub fn dropped_hide(withdrawn: &'a [Withdrawn]) -> Option<Self> {
         Self::of(WithdrawalKind::DroppedHide, withdrawn)
+    }
+
+    /// The gesture the frame killed, or `None` when it killed none.
+    ///
+    /// **An `Option`, not a slice**, because there is at most one
+    /// gesture to kill ([`WithdrawalKind::KilledGesture`]). It becomes
+    /// the one-element slice the rendering shares with the other two
+    /// kinds, so the cause is rendered by its own `Display` here
+    /// exactly as it is there.
+    pub fn killed_gesture(killed: Option<&'a Withdrawn>) -> Option<Self> {
+        Self::of(
+            WithdrawalKind::KilledGesture,
+            killed.map_or(&[][..], core::slice::from_ref),
+        )
     }
 
     /// The `None` decision, in one place: an empty set is silence.
@@ -735,17 +768,22 @@ impl core::fmt::Display for Withdrawal<'_> {
             withdrawn,
         } = self;
         let fused = |w: &Withdrawn| matches!(w.cause, DisplayFault::FusedGeometry { .. });
+        // The two kinds that are over a SET word themselves by
+        // counting it. The third is over the one gesture that can be
+        // in flight, so it has no plural and is NOT given one: a
+        // `many` string its own constructor cannot reach is prose
+        // nothing can ever print.
         let (kind, one, many, consequence) = match which {
             WithdrawalKind::Superseded => (
                 "free move",
                 "a committed placement was discarded",
-                "committed placements were discarded",
+                Some("committed placements were discarded"),
                 "",
             ),
             WithdrawalKind::DroppedHide => (
                 "hide",
                 "a hide was dropped",
-                "hides were dropped",
+                Some("hides were dropped"),
                 if withdrawn.iter().all(fused) {
                     " and the hidden geometry is drawn again"
                 } else if withdrawn.iter().any(fused) {
@@ -754,10 +792,14 @@ impl core::fmt::Display for Withdrawal<'_> {
                     " with the instance it was on"
                 },
             ),
+            WithdrawalKind::KilledGesture => {
+                ("free move", "the drag in flight was ended", None, "")
+            }
         };
-        match withdrawn.len() {
-            1 => write!(f, "{kind}: {one}{consequence} — ")?,
-            count => write!(f, "{kind}: {count} {many}{consequence} — ")?,
+        let count = withdrawn.len();
+        match many.filter(|_| count > 1) {
+            Some(many) => write!(f, "{kind}: {count} {many}{consequence} — ")?,
+            None => write!(f, "{kind}: {one}{consequence} — ")?,
         }
         // Each cause rendered by its own `Display`, in the order the
         // prune found them, joined with [`NOTICE_SEPARATOR`] rather
@@ -2573,5 +2615,44 @@ mod tests {
 
         // Silence has exactly one meaning here: nothing was discarded.
         assert_eq!(superseded_text(&[]), None);
+    }
+
+    #[test]
+    fn a_killed_gesture_is_its_own_sentence_and_has_no_plural() {
+        let killed = constrained(3, &[5]);
+        let notice = Withdrawal::killed_gesture(Some(&killed))
+            .expect("a drag the document ended is news")
+            .to_string();
+        assert_eq!(
+            notice,
+            format!("free move: the drag in flight was ended — {}", killed.cause),
+            "the drag the user's hand was on, and the fault that ended it \
+             rendered by its own `Display` — the same shape the other two \
+             kinds use, and a sentence neither of them can say"
+        );
+        assert_ne!(
+            notice,
+            superseded_text(core::slice::from_ref(&killed)).expect("news"),
+            "NOT the supersession's sentence: nothing substituted for a \
+             placement the document was never asked for, so the two must \
+             not read alike when both are on one line"
+        );
+
+        // The plural this kind has no way to reach is also the plural it
+        // is given no words for: one gesture is in flight at a time, so
+        // `Option` is the whole domain and a set-shaped door would be a
+        // count no caller could produce.
+        assert_eq!(Withdrawal::killed_gesture(None), None);
+        assert_eq!(
+            Withdrawal::killed_gesture(Some(&killed))
+                .expect("news")
+                .notice()
+                .subject(),
+            Subject::Document,
+            "a killed gesture is about the document that ended it, so the \
+             next act the document accepts is what retires it — the same \
+             retirement as its two siblings, which is what lets one line \
+             carry all three"
+        );
     }
 }

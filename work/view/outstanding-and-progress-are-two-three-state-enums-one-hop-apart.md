@@ -12,11 +12,11 @@ After #2055 the crate carries two three-valued enums, one hop apart,
 that share two of their three variant names:
 
     crates/viewer/src/session.rs:514   enum Outstanding { Current, Evaluating, Canceled }
-    crates/viewer/src/frame.rs:1478    enum Progress    { Evaluating, Canceled { indexing: bool }, Indexing }
+    crates/viewer/src/frame.rs:1520    enum Progress    { Evaluating, Canceled { indexing: bool }, Indexing }
 
 and the function between them is close to their identity:
 
-    crates/viewer/src/frame.rs:1515-1522
+    crates/viewer/src/frame.rs:1557-1564
     Outstanding::Evaluating => Some(Progress::Evaluating),
     Outstanding::Canceled   => Some(Progress::Canceled { indexing }),
     Outstanding::Current if indexing => Some(Progress::Indexing),

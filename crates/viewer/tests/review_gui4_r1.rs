@@ -819,10 +819,12 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         "…and nothing is marked distinct"
     );
 
-    // A gesture in flight when a mate lands on its instance dies — and
-    // the death is NOT reported in `superseded` (which carries only
-    // committed values). The next gesture op is the only place a caller
-    // learns it, and it is typed.
+    // A gesture in flight when a mate lands on its instance dies, and
+    // the death is REPORTED — in `killed_gesture`, not in `superseded`,
+    // because nothing substituted for a placement the document was
+    // never asked for. The fault that killed it travels with it, so
+    // the chrome can say why instead of the user learning it by
+    // starting another gesture and reading that refusal.
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
@@ -838,9 +840,25 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
         outcome.superseded.is_empty(),
-        "an in-flight gesture's death is not reported as a supersession — \
-         recorded here as the current behaviour, not endorsed: {:?}",
+        "an in-flight gesture's death is not a SUPERSESSION: nothing \
+         substituted for it, and it committed nothing to substitute \
+         for: {:?}",
         outcome.superseded
+    );
+    let killed = outcome
+        .killed_gesture
+        .as_ref()
+        .expect("the killed gesture is reported, with the fault that killed it");
+    assert_eq!(killed.instance, bench.post_b);
+    assert!(
+        matches!(
+            killed.cause,
+            DisplayFault::MateConstrained { instance, ref mates }
+                if instance == bench.post_b && mates.len() == 1
+        ),
+        "the cause is the landing mate, carried from the predicate that \
+         decided rather than re-derived: {}",
+        killed.cause
     );
     assert!(
         session.display().probing().is_none(),
