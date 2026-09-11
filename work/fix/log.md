@@ -480,3 +480,39 @@ And `kind-mirrors-have-no-single-declaration` is updated with the thing
 four instances have now established: **the pairing direction is
 closable by a derive and by nothing else.** Three hand-copied guards is
 the evidence, not an argument.
+
+### A sequencing decision taken, not asked (2026-09-11)
+
+`two-d-director-doors-skip-the-finiteness-question` is the most
+valuable row left on this slate — five doors that decide a length's
+SIGN without asking whether the length is a finite NUMBER, so a `1e200`
+component takes a definite-positive decision and then normalizes to the
+zero vector. Measured outcomes include
+`mirror_across_plane(origin, (1e200,0,0))` returning `Ok(IDENTITY)` — a
+mirror that mirrors nothing, silently — and two of the five are
+reachable from a public door with no pre-validation.
+
+**It is not dispatchable yet, and its own body says why**:
+`is-finite-length-homed-in-the-query-seat` *"is the ruling that unlocks
+four of these five rows at once"*. `profile` depends on `geom-core`
+alone and cannot reach `topo`, so while the predicate lives in
+`topo::query` two of the five doors cannot ask the question in its one
+spelling — and a second spelling is what this family's ruling is
+against.
+
+So the homing unit is dispatched first, with the decision taken rather
+than asked: **`is_finite_length` moves to `geom-core`.** The alternative
+— leave it in the query seat and carry the header sentence — is
+recorded here as rejected, on reachability: it does not merely cost
+tidiness, it leaves live silently-wrong behaviour closed to the one
+spelling. (Ev, 2026-09-06: sequencing decisions with a recommendation
+do not wait.)
+
+**The item was parked on a program that no longer exists.** It asks the
+question of SEAT — *"where it lives is SEAT's call, not a passing
+program's"* — and `work/topo/program.md`'s `keep_out` still names
+`topo/src/query.rs` as SEAT's ground. There is no `work/seat/`. A row
+whose owner closed is not blocked, it is unowned, and this one has been
+sitting on a dead trigger since the sweep that re-homed it. Worth a
+check across the board: `keep_out` prose naming a closed program is
+invisible to lint, which resolves ids and not sentences.
