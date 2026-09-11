@@ -266,3 +266,29 @@ that cut and cannot be merged into anything. This orchestrator works on
 `fix/orchestrator-sep11` rather than force-pushing over it; the orphan
 is left alone. Any lane that finds a branch with no merge base against
 `main` is looking at the same thing.
+
+### An inherited red, found by a lane that could not have caused it (2026-09-11)
+
+The `compile-fail-blocks-without-error-codes` lane's run is the first
+**code-tier** run over `main` since `c1ea73a2f` (#2320) landed a doc
+link from the ungated `viewer::session` into the `app`-gated
+`viewer::widgets`. Every `main` push in between classified below the
+code tier, so the job that reads intra-doc links was `skipped` on all
+of them and the break sat green for a week. Filed on the owning
+program's slate as
+`work/view/viewer-doc-link-crosses-the-app-feature-gate.md` and VIEW
+summoned on its open PR; FIX does not absorb it.
+
+Two things follow for this program's remaining waves:
+
+- **`gate ok` is red for every code-tier PR in the repo** until VIEW
+  lands the fix. Under Ev's 2026-08-31 ruling that does not block a
+  merge once the red is annotated with its issue — but every FIX lane
+  from here must say, explicitly, that the ONLY failing jobs are that
+  one, and re-check rather than assume it.
+- The silent-coverage class has a third face worth naming beside the
+  two in `memories/agent-lane-operations.md` (a green job name over a
+  skipped step; a run queued with zero jobs): **a run of green `main`
+  pushes none of which executed the step at all.** A red reachable only
+  from a code-tier change is invisible for as long as the repo is
+  landing docs, and `main` being green is not evidence it ran.
