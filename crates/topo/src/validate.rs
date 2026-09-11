@@ -2475,7 +2475,7 @@ pub fn validate_geometric_certificate<
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
     validate_geometric_certificate_declared(body, &[], tol)
 }
 
@@ -2590,14 +2590,19 @@ fn structural_declared_via<T: crate::props::PropsQuadLane>(
 fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     // ONE certified quadrature, held and then handed on: the check
-    // decides on this object and the caller receives this object.
-    let certificate = crate::props::mass_properties_certified(body, band, tol);
+    // decides on this object and the caller receives this object —
+    // refined to the round where THIS check's certification is
+    // complete, which is where the enclosure's sign stops being in
+    // doubt, and continuable from there by a caller who wants the
+    // number.
+    let certificate =
+        crate::props::sign_certified(body, band, tol, |e| plus_v_decide(e, band).is_settled());
     let errors = plus_v_invariant(&certificate, band);
     if errors.is_empty() {
         Ok(certificate_of_a_clean_verdict(Some(certificate)))
@@ -2623,9 +2628,9 @@ pub(crate) type Check7Certificate<T> =
 /// state is a bug in the composition above, not a reachable input —
 /// D9's bug-state half, announced rather than papered over with a
 /// fabricated value.
-fn certificate_of_a_clean_verdict<T: geom_core::Decide>(
-    certificate: Check7Certificate<T>,
-) -> crate::props::MassProperties<T> {
+fn certificate_of_a_clean_verdict<C>(
+    certificate: Option<Result<C, crate::props::MassPropsError>>,
+) -> C {
     match certificate {
         Some(Ok(props)) => props,
         Some(Err(_)) | None => unreachable!(
@@ -2682,12 +2687,13 @@ pub fn validate_geometric_declared<T: crate::props::PropsQuadLane + geom_core::C
 ///
 /// As [`validate_geometric_declared`].
 pub fn validate_geometric_certificate_declared<
+    'b,
     T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     // The structural half runs WITH check 2's plane x NURBS lane
     // injected, which is what keeps this composed door re-deriving the
     // M7-8 certificate class at rest; the public structural door,
@@ -2754,37 +2760,114 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
     )
 }
 
-/// **Check 7's verdict**, given the mass properties however they were
+/// **What check 7 has decided, and whether refining could change it.**
+///
+/// The +V invariant reads a volume ENCLOSURE and refuses only on a
+/// definite disagreement, so its verdict on a bracket `[lo, hi]` is
+/// settled as soon as that bracket excludes zero — and refinement only
+/// tightens a bracket, never moves the truth out of it:
+///
+/// - `hi` definitely negative ⇒ the body's volume is `≤ hi < 0`, and
+///   no finer round produces an upper end above the volume. REFUSE.
+/// - `lo` definitely positive ⇒ the body's volume is `≥ lo > 0`, so
+///   every finer round's upper end is above `lo` too and none of them
+///   can read definitely negative. PASS.
+/// - otherwise the bracket straddles zero (or its margin is in-band),
+///   and a finer round may still decide it.
+///
+/// The two ends are read under two names, because they are two
+/// questions: `positive_volume` is the refusal this check has always
+/// made, on the same quantity and the same lever it always made it on;
+/// `positive_volume_enclosure` is the question the coupling to the
+/// reporting target used to leave unasked — *is the sign already
+/// certain?* — and it is the one an orientation gate actually consumes.
+///
+/// The lever is the surface area (`V/A`, a length: the mean boundary
+/// displacement the volume defect corresponds to). Closed-form bodies
+/// have `pad = 0.0`, so `lo` and `hi` are the volume itself and the
+/// refusing margin is bit-identical to the pre-PR-11 one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PlusVOutcome {
+    /// The volume is definitely negative: orientation corruption.
+    Refuse,
+    /// The volume is definitely positive: the invariant holds, and no
+    /// finer round can change that.
+    Pass,
+    /// The enclosure does not decide. At the reporting target this is
+    /// a PASS — only a definite disagreement refuses — but before it,
+    /// it is a reason to refine.
+    Undecided,
+}
+
+impl PlusVOutcome {
+    /// Whether the check is finished with this enclosure.
+    pub(crate) fn is_settled(self) -> bool {
+        !matches!(self, Self::Undecided)
+    }
+}
+
+fn plus_v_decide<T: geom_core::Decide>(
+    enclosure: crate::props::VolumeEnclosure<T>,
+    band: Band,
+) -> PlusVOutcome {
+    let lever = enclosure.surface_area;
+    if let Ok(Sign::Negative) = decide(
+        "positive_volume",
+        Margin::over_lever(enclosure.volume_hi, lever),
+        band,
+    ) {
+        return PlusVOutcome::Refuse;
+    }
+    if let Ok(Sign::Positive) = decide(
+        "positive_volume_enclosure",
+        Margin::over_lever(enclosure.volume_lo, lever),
+        band,
+    ) {
+        return PlusVOutcome::Pass;
+    }
+    PlusVOutcome::Undecided
+}
+
+/// **Check 7's verdict**, given the volume enclosure however it was
 /// derived — the +V global orientation invariant's whole decision, in
 /// one place, so the lane-dispatched and the certified derivations are
 /// two ways of getting the argument and not two copies of the check.
-///
-/// The margin consumes the CERTIFIED bound (M5 PR 11): for quadrature
-/// faces `volume` is an enclosure midpoint with half-width
-/// `volume_pad`, so the honest "definitely negative" statement is about
-/// the UPPER end `volume + pad` — a thin positive volume inside a wide
-/// bracket must never refuse. Closed-form bodies have `pad = 0.0` and
-/// the margin is bit-identical to the pre-PR-11 one.
-fn plus_v_invariant<T: geom_core::Decide>(
-    props: &Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
+fn plus_v_invariant<T: geom_core::Decide, E: PlusVSubject<T>>(
+    subject: &Result<E, crate::props::MassPropsError>,
     band: Band,
 ) -> Vec<ValidationError> {
-    match props {
-        Ok(props) => {
-            let v_hi = props.volume + T::from_f64(props.volume_pad);
-            if let Ok(Sign::Negative) = decide(
-                "positive_volume",
-                Margin::over_lever(v_hi, props.surface_area),
-                band,
-            ) {
-                vec![ValidationError::NegativeVolume]
-            } else {
-                Vec::new()
-            }
-        }
+    match subject {
+        Ok(subject) => match plus_v_decide(subject.enclosure(), band) {
+            PlusVOutcome::Refuse => vec![ValidationError::NegativeVolume],
+            PlusVOutcome::Pass | PlusVOutcome::Undecided => Vec::new(),
+        },
         Err(source) => vec![ValidationError::VolumeUncomputable {
             source: source.clone(),
         }],
+    }
+}
+
+/// What check 7 can be applied to: anything that yields the volume
+/// bracket and its lever. Two implementors, and the split is the
+/// unit's whole point — a certificate refined to the reporting target
+/// carries a number, one refined only until the sign was certain does
+/// not, and the check reads neither.
+pub(crate) trait PlusVSubject<T: geom_core::Decide> {
+    /// The volume bracket and the V/A lever.
+    fn enclosure(&self) -> crate::props::VolumeEnclosure<T>;
+}
+
+impl<T: geom_core::Decide> PlusVSubject<T> for crate::props::MassProperties<T> {
+    fn enclosure(&self) -> crate::props::VolumeEnclosure<T> {
+        crate::props::MassProperties::enclosure(self)
+    }
+}
+
+impl<T: geom_core::Decide + geom_core::CertifiedBounds> PlusVSubject<T>
+    for crate::props::SignCertificate<'_, T>
+{
+    fn enclosure(&self) -> crate::props::VolumeEnclosure<T> {
+        crate::props::SignCertificate::enclosure(self)
     }
 }
 

@@ -229,22 +229,26 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 /// nothing to compare. That is the module docs' vacuity argument, in
 /// three `expect`s.
 ///
-/// **IDENTITY.** The returned properties are the object check 7 decided
-/// on, so the comparison is an identity rather than an agreement: the
-/// same `mass_properties_impl` over the same face-arena order against
-/// the same `Band::linear(tol)`, dispatched to the same
-/// `quad_lane::cut_face`. A single differing ulp would be a real
-/// finding, not a tolerance question. The claim is about the QUADRATURE
-/// lane and the row proves it is there — a nonzero `volume_pad` is a
-/// certified enclosure and nothing else produces one.
+/// **IDENTITY.** The returned certificate is the object check 7 decided
+/// on, CONTINUED to the reporting target — so the comparison is an
+/// identity rather than an agreement: the same face walk over the same
+/// face-arena order against the same `Band::linear(tol)`, dispatched
+/// to the same `quad_lane::cut_face`, over the same rounds. A single
+/// differing ulp would be a real finding, not a tolerance question.
+/// The claim is about the QUADRATURE lane and the row proves it is
+/// there — a nonzero `volume_pad` is a certified enclosure and nothing
+/// else produces one.
 ///
 /// **ONE CERTIFICATE.** Counted, not timed. `k_stats`' verdict log
 /// records every classification the kernel's one funnel makes, so the
 /// `props_quad_*` verdicts of a call are a deterministic function of
-/// the certificates it ran: one measurement's count is the unit, and
-/// each returning door costs exactly that. A caller that gated a body
-/// and then measured it therefore paid twice that, and now pays once —
-/// which is this unit.
+/// the rounds it ran: one measurement's count is the unit. The gate
+/// pays only the rounds its own certification needs — STRICTLY FEWER
+/// than the measurement, which is the sign level being a level and not
+/// a name — and the continuation pays the rest, so the two together
+/// are the measurement's count exactly. A caller that gated a body and
+/// then measured it used to pay twice the unit; it pays it once, and
+/// a caller that only gates pays less than once.
 #[test]
 fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     let body = prism();
@@ -263,6 +267,12 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     let gated = gated.expect("the closure ran").expect(
         "IDENTITY: the returning tier-3 door must certify the body its own measurement \
          door just certified",
+    );
+    let mut continued = None;
+    let refine = quad_verdicts(|| continued = Some(gated.refine_to_target()));
+    let continued = continued.expect("the closure ran").expect(
+        "IDENTITY: the continuation of a certificate the measurement door certified must \
+         certify too — it is the same rounds",
     );
 
     let mut gated3 = None;
@@ -283,11 +293,18 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
         "ONE CERTIFICATE: the counter must see this body's quadrature at all — \
          {one} quadrature verdicts for one measurement"
     );
+    assert!(
+        gate < one,
+        "ONE CERTIFICATE: the gate certifies a SIGN, so it must stop before the reporting \
+         target this body's measurement runs to — {gate} gate verdicts against {one} \
+         measurement verdicts"
+    );
     assert_eq!(
-        gate, one,
-        "ONE CERTIFICATE: the returning door must run ONE certificate, the same work one \
-         measurement is — so gate-then-measure was {one} + {one} verdicts for a number \
-         the gate already held"
+        gate + refine,
+        one,
+        "ONE CERTIFICATE: the gate's {gate} verdicts plus the continuation's {refine} must \
+         be the measurement's {one} — a continuation that re-ran a round the gate already \
+         paid for would exceed it, and one that skipped a round would fall short"
     );
     assert_eq!(
         gate3, one,
@@ -303,10 +320,10 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
         measured.volume_pad
     );
     assert_eq!(
-        bits(&gated),
+        bits(&continued),
         bits(&measured),
-        "IDENTITY: tier 3's certificate must BE the measurement, in all four fields: \
-         gate {gated:?} vs measurement {measured:?}"
+        "IDENTITY: tier 3's certificate, continued to the reporting target, must BE the \
+         measurement, in all four fields: gate {continued:?} vs measurement {measured:?}"
     );
     assert_eq!(
         bits(&gated3),
@@ -327,7 +344,14 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
 ///   volume is genuinely negative;
 /// * **check 7's own, on the derivation** — a body whose certified
 ///   quadrature cannot reach its target, which arrives as
-///   `VolumeUncomputable`;
+///   `VolumeUncomputable` *at the doors that read a number*. Tier 3
+///   itself no longer does: check 7 consumes a SIGN, and this body's
+///   sign is definite long before its target, so the geometric door
+///   certifies it and only a caller continuing to the reporting target
+///   is refused. Tier 3′ still couples its check 7 to that target, so
+///   it still refuses — the two are asserted apart, below, and the
+///   divergence is the subject of
+///   `work/perf/tier3-prime-still-couples-plus-v-to-the-reporting-target.md`;
 /// * **the structural half** — a curved face with its sense inverted,
 ///   which CHECK 4's material arm refuses as a lamina before check 7 is
 ///   ever consulted, so the returning door computes NO certificate on
@@ -374,16 +398,6 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
             topo::ValidationError::NegativeVolume,
         ),
         (
-            "exhausted schedule",
-            &exhausted,
-            topo::ValidationError::VolumeUncomputable {
-                // Only the CLASS is pinned: which of budget or
-                // escalation the schedule reaches is an ε question and
-                // the class is not.
-                source: topo::MassPropsError::Corrupt { what: "" },
-            },
-        ),
-        (
             "half-inverted ball",
             &half_flipped,
             topo::ValidationError::LaminaWedge {
@@ -415,5 +429,62 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
                  that refuses, got {errors:?}"
             );
         }
+    }
+
+    // ---- The exhausted schedule, whose doors DISAGREE ----
+    //
+    // The body is valid and its volume is hugely positive; what it
+    // cannot do is reach `1024·ε` of mean boundary displacement. Check
+    // 7 reads the sign of a volume enclosure, so the geometric door
+    // is finished with it and says so; the tier-3′ door still runs its
+    // check 7 through the scalar's lane at the reporting target, so it
+    // still reports the schedule's refusal.
+    topo::validate_geometric(&exhausted, tol).unwrap_or_else(|errors| {
+        panic!(
+            "PLANTED exhausted schedule: tier 3 certifies a SIGN, and this body's sign is \
+             definite — a refusal here is the coupling to the reporting target coming \
+             back: {errors:?}"
+        )
+    });
+    let refused = topo::validate_geometric_certificate(&exhausted, tol)
+        .expect("the returning door agrees with the composed one")
+        .refine_to_target()
+        .expect_err(
+            "PLANTED exhausted schedule: the caller that asks for the NUMBER is the one \
+             this schedule refuses",
+        );
+    assert!(
+        matches!(
+            refused,
+            topo::MassPropsError::Face {
+                source: geom_brep::PropsError::QuadratureBudget { .. },
+                ..
+            }
+        ),
+        "PLANTED exhausted schedule: the continuation's refusal must be the schedule's \
+         own budget refusal, got {refused:?}"
+    );
+    for (door, got) in [
+        (
+            "tier 3′, composed door",
+            topo::validate_pseudomanifold(&exhausted, &Default::default(), tol),
+        ),
+        (
+            "tier 3′, returning door",
+            topo::validate_pseudomanifold_certificate(&exhausted, &Default::default(), tol)
+                .map(|_| ()),
+        ),
+    ] {
+        let errors = got.expect_err(&format!(
+            "PLANTED exhausted schedule through the {door}: tier 3′ still reads its check \
+             7 at the reporting target, so it still refuses"
+        ));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. })),
+            "PLANTED exhausted schedule through the {door}: the planted class must be the \
+             one that refuses, got {errors:?}"
+        );
     }
 }
