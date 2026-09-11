@@ -196,13 +196,18 @@ only closed items.
   count of paths it shares.
 
   This is a **warning today and an error when the tree can carry one.**
-  Ten of the thirteen pairs live when the check landed are unrecorded,
-  nine of them the `*/tests/*` family where S-TCOST's territory is every
+  Most pairs are unrecorded at any moment, the bulk of them the
+  `*/tests/*` family where S-TCOST's and S-TINT's territory is every
   crate's tests by design, and one-file-one-item means no single program
-  may write the missing clauses. An error would red `main` on the day it
-  landed for rows its author may not edit. The flip, and the question of
-  whether the `*/tests/*` seam is written nine times or taught to the
-  check once, is `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md`.
+  may write the missing clauses. An error would red `main` the day it
+  landed for rows its author may not edit. **No count is stated here —
+  `work.py lint` prints the current one**, and it moves: the figure grew
+  by nine pairs in the ninety minutes between this PR opening and its
+  first merge-forward, when S-TCOST split and S-TINT took half its
+  territory.
+  The flip, and the question of whether the `*/tests/*` seam is written
+  once per program or taught to the check once, is
+  `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md`.
 - **No plan or log outside `work/`.** `docs/*-PLAN.md` and
   `docs/*-LOG.md` are lint errors, so a session writing to the old
   path fails loudly. (`docs/MODEL-AB-LOG.md` is an experiment log, not

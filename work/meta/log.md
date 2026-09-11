@@ -225,3 +225,35 @@ here, and **the overdue one**:
 `plan.md` said on day one was "an `[ev]` PR on day one, in parallel with
 the opener and not behind it". It is now seven days behind it. That PR
 is the next action on this program and nothing else should precede it.
+
+## Main merged forward, and the check caught a pair ninety minutes old (2026-09-11)
+
+63 commits of main merged into the PR's branch before landing, clean, no
+conflicts. Two things came back with it that this PR had to answer for.
+
+**S-TCOST split into S-TCOST and S-TINT today**, and the double-claim
+check named the new pair on its first run over the merged tree: 1236
+shared paths (`crates/*/tests/*`, `crates/test-utils/*`), recorded on
+**one side only** — S-TINT's `keep_out` names S-TCOST at length, and
+S-TCOST's does not name S-TINT at all. Not a defect in either program;
+S-TINT opened today and did exactly what the rule asks, and S-TCOST's
+clause predates it. It is the DOCM/MSOLVE asymmetry again, five days
+later, with the same shape: the program that was there first is the one
+that cannot see the overlap. Routed to S-TCOST, not edited.
+
+**Every frozen count this PR had written down went stale in ninety minutes** —
+13 pairs / 10 unrecorded at `6ebe47bd` (04:18Z), 22 / 19 at
+`0d90fa9a` (05:50Z). The rule
+did not change; nine new pairs arrived in the time it took to diagnose
+one CI failure. So the counts are
+gone from `scripts/work.py`'s docstring, from `work/README.md`, from the
+closed item and from the residue item, replaced by the derivation
+(`work.py lint` prints the current reading) and by the before/after pair
+as evidence.
+
+That is this program's own subject landing on its own PR. Three hand-run
+readings of this population now exist — 2026-09-05 (16 pairs, three
+figures miscounted), 2026-09-11 04:18Z (13), 2026-09-11 05:50Z (22) —
+and every one of them was stale or wrong within days of being written.
+The instrument exists because the hand count cannot be kept true, and
+the instrument's own PR body had to be corrected for exactly that.

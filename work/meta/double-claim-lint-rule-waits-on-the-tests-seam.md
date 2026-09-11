@@ -23,43 +23,68 @@ enforces. It is a **warning**.
 `work/meta/plan.md` decided the shape — *"a lint rule that errors on an
 unrecorded double claim and passes one recorded in `keep_out`"* — and
 that shape is what shipped, minus the erroring. The measurement is the
-reason. At `HEAD` on 2026-09-11 the check names **thirteen pairs, of
-which ten are unrecorded**:
+reason: **most pairs in the tree are unrecorded, and their fix is a
+`keep_out` line in another program's `program.md`**, none of which is
+META's to edit (one file, one item — and this program's `keep_out` says
+so in as many words). An error would red `main` the day it landed for a
+change only other programs can make. A check whose first act is to break
+every program's CI is not a check, and softening it afterwards would be
+worse than not landing it. So it names the rows and leaves the fix to
+whoever owns them, which is what a warning is for.
 
-| pair | paths | record |
-| --- | --- | --- |
-| `exch`+`tcost` | 179 | neither |
-| `chrome`+`tcost` | 54 | one-sided |
-| `tcost`+`view` | 54 | one-sided |
-| `mesh`+`tcost` | 56 | neither |
-| `bool`+`tcost` | 50 | neither |
-| `m10`+`tcost` | 42 | neither |
-| `lib`+`tcost` | 38 | neither |
-| `shell`+`tcost` | 3 | neither |
-| `docm`+`msolve` | 4 | one-sided |
-| `docm`+`lib` | 1 | one-sided |
+**No count is frozen in this item, deliberately** — `python3
+scripts/work.py lint` prints the current reading, and the reading moves
+faster than a written figure survives. It moved *while this PR was
+open*: at `6ebe47bd` (2026-09-11 04:18Z) the check named **13 pairs, 10
+unrecorded, 3 recorded on both sides**; ninety minutes later at `0d90fa9a`,
+after merging main, it named **22 pairs, 19 unrecorded, the same 3
+recorded**. Nothing about the rule changed. S-TCOST split, S-TINT took
+half its territory, and nine new pairs existed before this PR's first
+CI failure had finished being diagnosed.
 
-(The three that pass: `chrome`+`view`, `bool`+`curved`, `m10`+`props`.)
+That is the argument for the whole shape of this check, made by
+accident: a hand-written census of this population is wrong within
+hours, which is why the first version of it (2026-09-05, by hand)
+miscounted three of its own figures and why this one prints itself on
+every lint run instead of being written down.
 
-An error would red `main` the day it landed, on ten pairs whose fix is
-a `keep_out` line in **twenty programs' `program.md` files**, none of
-which is META's to edit (one file, one item — and this program's
-`keep_out` says so in as many words). A check whose first act is to
-break every program's CI for a change only other programs can make is
-not a check, and softening it afterwards would be worse than not
-landing it. So it names the rows and leaves the fix to whoever owns
-them, which is what a warning is for.
+## The instance that arrived on day one
+
+**`tcost` + `tint`, 1236 shared paths, recorded on one side only** —
+caught by this check within hours of the split that created it, and the
+cleanest possible demonstration of what it is for.
+
+S-TCOST split into S-TCOST (cost) and S-TINT (test-suite integrity) on
+2026-09-11. Both are open, both claim `crates/*/tests/*` and
+`crates/test-utils/*`, and the split was done carefully: **S-TINT's
+`keep_out` names S-TCOST at length** — *"cost is S-TCOST's question and
+no row here is justified by a cpu-second or a wall-second — a row that
+turns out to be a cost lever goes back by `git mv`"*, plus the ci-filter
+and slowest-tests ownership, plus S-TCOST's keep-outs inherited
+unchanged.
+
+**S-TCOST's `keep_out` does not name S-TINT at all.** Not a defect in
+either program — S-TINT opened today and did exactly what the rule asks,
+and S-TCOST's clause was written before S-TINT existed. It is precisely
+the asymmetry the DOCM/MSOLVE instance named on 2026-09-05: *a one-sided
+record is invisible from the side that was there first.* The program
+that would be surprised by a lane landing in `crates/*/tests/*` is
+S-TCOST, and S-TCOST's own file says nothing about it.
+
+Routed to S-TCOST, not fixed here.
 
 ## The one thing left to decide
 
-**Nine of the ten are the `*/tests/*` family.** S-TCOST's territory is
+**The overwhelming bulk of them are the `*/tests/*` family.** S-TCOST's territory is
 every crate's `tests/` by design, and code-quality's Track W already
 states the seam in prose — *"a track that owns a crate's `src/` does
-not otherwise own its `tests/`"*. Either nine programs write that
-sentence into their `keep_out` (and S-TCOST writes nine names into
-its), or the check learns the seam once. The second is one clause and
-no cross-program edits; the first is nine PRs and a standing cost for
-every program opened after it.
+not otherwise own its `tests/`"*. Either every crate-owning program writes that
+sentence into its `keep_out` (and S-TCOST and S-TINT write every name
+into theirs), or the check learns the seam once. The second is one
+clause and no cross-program edits; the first is a PR per program and a
+standing cost for every program opened after it — **and the split that
+created S-TINT just doubled that bill in an afternoon**, which is the
+strongest argument available for teaching the check instead.
 
 This is a change to the tracker contract that binds every program, so
 it is Ev's, not a sequencing call: it decides what a `keep_out` is for.
@@ -81,9 +106,11 @@ the file. The four non-`tests` pairs, with what is missing:
   days later. DOCM's clause is owed.
 - **`docm`+`lib`** (1 path, `docs/RECIPE-DOORS-DESIGN.md`) — DOCM names
   LIB; LIB's clause is owed.
-- **`chrome`+`tcost`** (54) and **`tcost`+`view`** (54) — CHROME and
-  VIEW each name S-TCOST; S-TCOST's side is owed, and is the same
-  sentence nine times, which is the argument above.
+- **`chrome`+`tcost`**, **`tcost`+`view`** and now their `tint` twins —
+  CHROME and VIEW each name S-TCOST; S-TCOST's side is owed, and neither
+  names S-TINT yet. This is the family the argument above is about, and
+  it is the one that grew.
+- **`tcost`+`tint`** (1236) — the day-one instance, above.
 
 ## A blind spot to close with the flip
 

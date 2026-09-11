@@ -360,10 +360,14 @@ def _double_claims(root: str, programs: list[Item]) -> list[str]:
     cannot see. This mechanises the census that found it — a hand-run pass that
     miscounted three of its own figures the first time it ran.
 
-    A WARNING, not an error, and deliberately: ten of today's thirteen pairs are
-    unrecorded, and a lint error cannot be landed onto a tree that violates it
-    ten times over by programs this one may not edit (one file, one item). The
-    error flip is `double-claim-lint-rule-waits-on-the-tests-seam`."""
+    A WARNING, not an error, and deliberately: most pairs in the tree are
+    unrecorded at any given moment, and a lint error cannot be landed onto a
+    tree that violates it by the dozen in programs this one may not edit (one
+    file, one item). No count is written down here on purpose — run `work.py
+    lint` for the current reading; the figure moved by nine pairs in the six
+    hours between this check being written and being merged, when S-TCOST split
+    and S-TINT took half its territory. The error flip is
+    `double-claim-lint-rule-waits-on-the-tests-seam`."""
     if len(programs) < 2:
         return []
     tracked = tracked_files(root)

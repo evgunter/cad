@@ -173,22 +173,29 @@ rather than the error this program's plan specified.** What shipped, in
   `keep_out`s name the other* — and the census it mechanises is the
   hand-run pass that miscounted three of its own figures.
 
-**Why it warns.** Ten of the thirteen pairs live today are unrecorded,
+**Why it warns.** Most of the pairs live at any moment are unrecorded,
 and their fix is a `keep_out` clause in other programs' `program.md`
 files, which one-file-one-item puts out of this program's reach. An
-error would have reddened `main` on landing day for a change only
-twenty other programs could make. The flip, and the `*/tests/*` seam
-question this item left open (nine of the ten pairs), is
-`double-claim-lint-rule-waits-on-the-tests-seam` — filed rather than
-described, per `work/README.md`'s residue rule.
+error would have reddened `main` on landing day for a change only the
+other programs could make. The flip, and the `*/tests/*` seam question
+this item left open, is `double-claim-lint-rule-waits-on-the-tests-seam`
+— filed rather than described, per `work/README.md`'s residue rule.
 
-**Reproduced at the landing**, so the two counts are not another
-hand-run census: 13 pairs over 513 shared paths, 3 recorded on both
-sides (`chrome`+`view`, `bool`+`curved`, `m10`+`props`), 4 one-sided,
-6 neither. The item's 2026-09-05 measurement found 16 pairs at
-`a2bcab785`; the difference is `cert`, `fillet` and `seat` closing and
-`m10`+`props` arriving, not a change of method — the check IS the
-method now, and `work.py lint` reprints it on every run.
+**No count is recorded here, and the reason is the best evidence this
+item produced.** At `6ebe47bd` (2026-09-11 04:18Z) the check named 13
+pairs over 513 shared paths — 3 recorded on both sides
+(`chrome`+`view`, `bool`+`curved`, `m10`+`props`), 4 one-sided, 6
+neither. Six hours later, at `0d90fa9a` after merging main, it named
+**22 pairs, 19 unrecorded, the same 3 recorded**: S-TCOST had split and
+S-TINT had taken half its territory. The rule did not change; the tree
+did, in an afternoon.
+
+The item's own 2026-09-05 measurement found 16 pairs at `a2bcab785` and
+miscounted three of its figures. That is three hand-run readings of this
+population, all of them stale or wrong within days. **The check IS the
+measurement now** — `work.py lint` reprints it on every run — and
+nothing written down here would have survived this PR's own review
+window.
 
 **`docm`+`msolve` is still one-sided**, six days after the correction
 named it. Routed on the new item rather than fixed here.
