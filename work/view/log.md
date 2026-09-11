@@ -8064,8 +8064,17 @@ the rule needs.** `session.rs` +39 from `:595`, `app.rs` **+28** from
 `:1241` (the hunk is `@@ -1238,6 +1238,34 @@`, 28 added and 0 removed —
 +26 was the pre-`cargo fmt` figure and is the number this entry first
 carried, fixed here because the log is the artifact that survives),
-`README.md` +42 from `:977`, `reader_census.rs` +4 from `:306`;
-`op.rs` and `gesture_table.rs` grew at EOF and shifted nothing. The
+`README.md` **+58** from `:977` (+42 before the fix pass grew the
+clause; both figures are of the same one hunk at `:977`, and the only
+in-band `README.md` citations are in a CLOSED row and in this log, so
+neither number reaches a repoint), `reader_census.rs` +4 from `:306`;
+`op.rs` and `gesture_table.rs` grew at EOF and shifted nothing.
+**Re-swept at the merge, and one band moved**: `origin/main` (`9893bdcdb`)
+added a ledger entry of its own, so `reader_census.rs` is **+8** from
+`:306` against `8cf86ec32` — four lines this branch's and four not. The
+out-of-fence rows citing into it are owed the +8, not the +4 this entry
+first carried, which is the *a sweep is accurate as of your merge base,
+not your merge* rule collecting on a lane that ran for one day. The
 instrument was per-citation text identity — `base[i]` against
 `head[i+shift]`, machine-checked — which **certifies the mapping and
 says nothing about the subject**, and that is stated rather than dressed
@@ -8199,4 +8208,4 @@ under the `getrandom_backend` flag, and that is what this lane ran.
 
 **Out of fence, reported**: `crates/test-utils/tests/reader_census.rs:82`
 says the ledger is "Sorted by path" and nothing enforces it — `found.sort()`
-at `:588` sorts the tree walk, not the ledger.
+at `:592` sorts the tree walk, not the ledger.
