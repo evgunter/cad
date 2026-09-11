@@ -1535,3 +1535,36 @@ row stays open unchanged. And the two gate-defect rows
 (`gated-marker-omits-sibling-helper-imports`, `gated-marker-path-mount`)
 are real bugs for exactly as long as the per-file gate stands; whether
 it stands is downstream of the same ruling.
+
+## Seam: the non-cost half of the board leaves for S-TINT (2026-09-11)
+
+Ev's direction in the same conversation as the re-sort above: the fourth
+bucket — the rows that are not cost levers in either currency — gets a
+track of its own rather than sitting on a cost program's slate. **Thirty
+of this program's 42 live rows moved** by `git mv` to `work/tint/`
+(S-TINT — test-suite integrity, band 3500–3599), ids, titles and bodies
+unchanged, each carrying a `## Moved to S-TINT (2026-09-11)` record.
+The fourteen Track W units (`C18`, `D70`, `D72`, `D113`, `D380`–`D386`,
+`H12`, `S216`, `S230`) and sixteen slugs this program's lanes filed while
+measuring. `work/tint/log.md`'s opening entry carries the full split and
+the list of what stayed.
+
+**Twelve rows stay, and they are the whole of this program's live
+board:** the four latency rows (`rust-cache-never-restores-across-branches`,
+the re-opened `nextest-shard-count-needs-remeasure`, `tcost-area-pad-lever`,
+`offset-composite-lazy-sign-gate`), the unmeasured kernel candidate
+(`edge-nurbs-computes-the-chart-image-and-discards-it`), the demotions
+row filed above, the two per-file-gate defects, the two fuzz-gating
+policy rows, the parked proptest question, and the `ci-filter.py`
+citation fix. This program is now what its charter says it is and
+nothing else.
+
+**The territories overlap deliberately.** S-TINT claims
+`crates/*/tests/*` and `crates/test-utils/*` as well, because the fence
+between the two programs is the QUESTION and not the path, and no glob
+expresses it. `work.py territory` will warn on branches of either;
+`work/tint/plan.md` §*The fence with S-TCOST* is the rule a lane reads
+instead of guessing, and it names the three things that stay this
+program's whatever they look like — the gate mechanism, the fuzz-gating
+policy, and everything under `scripts/`. A row on either slate that turns
+out to be on the wrong side moves back by `git mv`, not by a copy.
