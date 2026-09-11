@@ -28,7 +28,7 @@ never be committed; the guard below and `check_render_provenance.py`
 enforce the commit side.
 
 **You do not need to render at all — CI does it and commits the result.**
-Every CI run on a pushed branch renders all four lanes (ci.yml's
+Every CI run on a pushed branch renders every lane (ci.yml's
 `renders` job calls `render.yml`), and a lane that no longer matches what
 the code renders is **re-baselined for you**:
 

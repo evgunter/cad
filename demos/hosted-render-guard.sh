@@ -86,7 +86,7 @@ require_hosted_render() {
         echo "REFUSING: renders are hosted now. $entry is not the default path."
         echo
         echo "THE DEFAULT WAY TO RE-RENDER IS TO LET CI DO IT."
-        echo "ci.yml renders all four lanes on every push that builds anything"
+        echo "ci.yml renders every lane on every push that builds anything"
         echo "(a docs-only change skips them, with the rest of the code tier). A"
         echo "lane that no longer matches is RE-BASELINED for you — you never"
         echo "hand-commit cells:"
@@ -103,12 +103,12 @@ require_hosted_render() {
         echo
         echo "To LOOK at the new cells before merging, take the run's artifact:"
         echo
-        echo "  local-scripts/render-hosted.sh --lane <kernel|freecad|uv|wild>"
+        echo "  local-scripts/render-hosted.sh --lane <lane>"
         echo
         echo "If the branch has no CI run yet (not pushed, no PR), render on"
         echo "demand instead:"
         echo
-        echo "  local-scripts/render-hosted.sh --on-demand --lane <kernel|freecad|uv|wild|all>"
+        echo "  local-scripts/render-hosted.sh --on-demand --lane <lane|all>"
         echo
         echo "That triggers .github/workflows/render.yml on your PUSHED branch"
         echo "and polls it; that run re-baselines too, so it also ends in a"

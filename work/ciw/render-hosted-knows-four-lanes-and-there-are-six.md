@@ -2,8 +2,9 @@
 id: render-hosted-knows-four-lanes-and-there-are-six
 kind: issue
 title: render-hosted.sh knows four lanes and the repo has six
-status: open
+status: dispatched
 opened: 2026-09-11
+branch: ciw/render-hosted-lanes
 ---
 
 
@@ -49,3 +50,33 @@ behind without something saying so.
 that `render.yml` declares lanes this file does not. **What is not:**
 whether `--lane mc` or `--lane gui` fail cleanly or confusingly, which
 wants running the helper and was not done.
+
+## The reading the filing lane did not take (2026-09-11)
+
+Run on this tree before the fix:
+
+```
+$ bash local-scripts/render-hosted.sh --lane mc --no-install
+render-hosted: --lane must be one of kernel, freecad, uv, wild, all (got 'mc')
+$ echo $?
+1
+```
+
+`--lane gui` is identical. So both fail CLEANLY: the validation `case`
+sits above the `gh` checks and everything else, and the refusal names
+the set it accepts. The defect is narrower than a half-run — and it is
+also wider than the two flags, because the failure that is NOT clean is
+the default:
+
+**`--lane all` takes four of six lanes and says nothing.** `lanes_of all`
+echoed `kernel freecad uv wild`, so the `mc` and `gui` artifacts were
+never requested and no "no artifact" note was printed for them; the
+closing `git status` named four directories, and the install reported
+success. A caller who asked for everything got four sixths of it with a
+green exit.
+
+And the refusal is reachable from CI's own output: a drifting lane's
+neutral check is posted by `.github/actions/rebaseline-lane`, whose
+summary names `local-scripts/render-hosted.sh --run <id> --lane ${LANE}`
+as the fix (`action.yml:122`). For `mc` and for `gui` that is a command
+that dies.

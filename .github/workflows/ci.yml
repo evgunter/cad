@@ -1047,6 +1047,30 @@ jobs:
         run: |
           python3 scripts/check-status-capture.py --selftest
           python3 scripts/check-status-capture.py
+      # THE LANE ROSTER THE HELPER WORKS FROM, HELD AGAINST THE ONE
+      # render.yml DECLARES. `local-scripts/render-hosted.sh` knew four
+      # lanes for the whole life of the `mc` lane and for a day of the
+      # `gui` one: `--lane mc` was refused outright, `--lane all` took
+      # four of six and called that all, and the neutral check a drifting
+      # lane posts named `--lane mc` as the fix — a command that died.
+      # Nothing compared the two lists, so nothing said.
+      #
+      # SITED HERE for the same reason as the row above: its inputs are a
+      # workflow file and `local-scripts/`, a tree that classifies
+      # TIER=docs and that every hosted job but this one deletes at
+      # checkout. Under `if: run_build` the change class that can break
+      # it is the class that would skip it — and the change that breaks
+      # it is a new lane, which is a workflow edit.
+      #
+      # A SEPARATE SCRIPT rather than a claim in either reader above, for
+      # blast radius: those two share one tokenizer across every claim
+      # they make, and this one EXECUTES the helper (`--print-lane-table`)
+      # rather than parsing it, which is a different kind of input
+      # entirely. It fails alone.
+      - name: render lane parity (the helper knows the lanes render.yml declares)
+        run: |
+          python3 scripts/check-render-lane-parity.py --selftest
+          python3 scripts/check-render-lane-parity.py
       # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
       # its own rather than by association. `scripts/ci-filter.py` decides
       # whether every `if: run_build` job below runs at all, and its `docs`
