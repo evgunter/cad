@@ -2679,3 +2679,80 @@ row to exit 0 with zero diagnostics, and nothing in the tree reads for
 it), and `kernel-wasm-row-denies-no-warnings` extended with the
 `--exclude pncad` hole and the unquantified overlap between the two
 wasm32 rows.
+
+## 2026-09-11 — unit 3 merged: the criterion selftest runs on every PR
+
+PR 2330 (`c5b985b7`), run `34568271873` green, `discipline` STEP 21
+success. Item closed; five items filed.
+
+**The verification is the model for this program.** The lane did not
+report that the new row works — it **broke the emitter on purpose**
+(one token, `lower_bound` → `upper_bound` in the median CI), pushed it,
+and read run `34558969592`'s `discipline (evaluation-code)` **STEP 21 =
+completed/failure** with steps 1-20 green above it, then reverted. A row
+watched red on hosted CI, at the step and not the job name.
+
+**And then the review asked the better question.** The lane had already
+disclosed that ONE injection did not red — reading the mean into
+`median_ns`, because the fixture's `plant()` writes one number into both
+estimators. The style lane generalised it: **18 single-token mutations,
+14 pass green.** Two reproduced independently here before the fix pass:
+widening the glob from `**/new/estimates.json` to `**/estimates.json`
+(defeating the `base/` exclusion the module header argues for over seven
+lines) and `if missing or extra:` → `if missing and extra:` (after which
+a single-sided roster move does not fire the check the header calls
+**"THE ONE THING THIS SCRIPT FAILS ON"**).
+
+**So the finding was about a CLAIM, not a bug.** Nothing in the fourteen
+is a regression this unit introduced, and the row is strictly better
+than nightly-only — but the PR promoted it into the merge gate while
+describing it as *"the last thing between a broken emitter and a history
+that cannot be edited afterwards"*. Promoting a weak guard is fine;
+**promoting it while describing it as strong is this program's own
+defect one level up**, in the sentence rather than the code. The
+mandatory half of the fix pass was the prose; the mutation table now
+stands in the PR body and the item where the sentence was.
+
+Measured before and after: **5 killed / 15 survive → 9 killed / 11
+survive**, with one unplanned kill (a second-socket `model name` bug the
+synthetic-cpuinfo fixture caught). Both mutations verified here as
+surviving now die.
+
+**The lane corrected two claims this orchestrator relayed from the
+review, and both corrections are right.** `docs/perf-data/rebuild-latency`
+is NOT "appended by inline shell with no emitter script" — the shell at
+`nightly.yml:849-880` is only the commit step, its emitter is
+`crates/editor-core/tests/m4_pr8_latency.rs`'s `emit()`, and its guards
+are two **non-`#[ignore]`d** tests in that file (`:302` says so in its
+own words: *"The gating half of this file, and it is NOT `#[ignore]`d"*)
+which run per-PR as ordinary workspace tests. It is the **best**-guarded
+of the three, not the worst. And `sccache-trial` has no live writer at
+all — it is the closed trial's raw readings, so four directories are
+three writers. Checked both before accepting.
+
+**The residue that matters is the shape, not the instance.** The fixture
+plants ONE scalar into five collected fields and the selftest asserts
+two, so a per-field repair regenerates the blindness at the next field
+added; the item is renamed to say that. Beside it: the cpuinfo parser's
+parity obligation is broken on two of three hand-kept copies — the Rust
+one feeds a synthetic cpuinfo and can see a broken parse, both Python
+ones assert `set(flags) <= set(HOST_CPU_FLAGS)`, **which an empty list
+always satisfies**, and both are the copies now sitting in the merge
+gate.
+
+**A sweep note worth keeping.** The lane's first-pass table missed
+`check-render-lane-parity.py` — because that file did not exist at its
+merge base; it arrived with this slate's unit 6 while the lane was open.
+That is implementer-discipline §5's own sentence (*"a sweep is accurate
+as of your merge base, not your merge"*), and the lane re-ran the whole
+sweep over the merged tree rather than patching the row. A first pass
+that was right at its base is not a receipt.
+
+**Known warning, not CIW's to resolve**: `work.py` gained territory and
+duplicate-`github` warnings mid-slate, and one names a CIW row —
+`github: 1607` is claimed by `render-lanes-red-at-missing-merge-ref`
+(CIW, closed) and `work/issues/render-lanes-checkout-merge-ref-vanishes`
+(closed). Both are closed and nothing is parked on the number.
+`work/meta/parked-on-an-int-is-invisible-to-the-fired-trigger-rule` is
+META's item on exactly this class, so the rule question is theirs and
+the record is not reached across a fence to tidy.
