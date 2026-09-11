@@ -2,10 +2,11 @@
 id: render-hosted-knows-four-lanes-and-there-are-six
 kind: issue
 title: render-hosted.sh knows four lanes and the repo has six
-status: review
+status: closed
 opened: 2026-09-11
 branch: ciw/render-hosted-lanes
 pr: 2325
+closed: 2026-09-11
 ---
 
 
