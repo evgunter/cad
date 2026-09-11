@@ -227,6 +227,15 @@ its ground stated under *What this partition leaves out*.
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | **`tcost`, whole track, 2026-09-04** |
 | **X** | `demos/` (Rust and Markdown; its Python is not X's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | this program |
 
+**Every live row on every letter left this directory on 2026-09-11**
+(`docs/WORK-TRACKS-2026-09.md` addendum 3). The *Claimed by* column above
+still records who holds each **letter** — a letter's territory outlives
+the program holding it, which is the rule this table exists for — but no
+row is here any more: the 79 that were went to the eleven programs the
+cut opened, and `program.md`'s claim table lists them by program. A new
+row on any letter is still minted here from that letter's block and goes
+straight to whoever owns the ground it lands on.
+
 **Four seams are stated rather than left to be discovered**, because
 each is a place where a reasonable reader would think the fence
 ambiguous:
@@ -315,13 +324,22 @@ share this directory.
 
 ## What this partition leaves out, said explicitly
 
-- **The rulings** — `D6`, `S14`, `S65`, `S70`, `S82`, `S107`, `S116p`
-  and `C-namespace`. Most of the tracks hold work that one of these
-  gates; each such row says so.
+- **The rulings** — `D6`, `S14`, `S65`, `S70`, `S82`, `S107`, `S116p`,
+  `D283` and `C-namespace`. Most of the tracks hold work that one of
+  these gates; each such row says so. **All nine left this directory in
+  the 2026-09-11 cut** and are now SCALAR's, PRED's, PIPE's, PORT's and
+  CITE's; they are still never work, and no lane resolves one by
+  implementing something.
 - **`L1`, `L2`, `C2`/`H17` and `C21`** — the four cross-cutting comment
   and naming sweeps, which collide with every track and go after it.
+  `L1` and `L2` are **COMB's** since 2026-09-11, with `L3`, `L4`, `L5`,
+  `S36`, `S37`, `S38` and `D79`; `C2`/`H17` and `C21` are observations
+  and stay in `process-observations.md`.
 - **`L3`** — the remaining `S35` roll-up rows, lowest value density,
-  several of which will be resolved incidentally by the tracks.
+  several of which will be resolved incidentally by the tracks. COMB's
+  since 2026-09-11, and its plan states the rule this partition implied:
+  **a roll-up is partitioned, never dispatched**, so `L3` is not readable
+  until `S35` has been.
 - **Track `J`'s ground, the track being retired with an empty table:**
   `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`,
   `scripts/gates/{gate-roster,probe-suite-census}.sh`, every `*.py`, and
@@ -347,3 +365,12 @@ settled, a walk of this program's own history, or a re-read of its own
 dispositions — so it collides with every track and can be scoped to no
 fence. They are not takeable while a track is open on the files they
 would touch.
+
+**They are COMB's since 2026-09-11** (`docs/WORK-TRACKS-2026-09.md`
+addendum 3), which is the group given a program of its own, with the
+four roll-ups (`S35`, `S11`, `S19`, `S43`) and the two comment sweeps
+beside them. Nothing about the sentences above changed in the move —
+`work/comb/plan.md` restates the gate as a question asked at dispatch
+(*does any live program have an open unit on these files?*) rather than
+as a fence, because the answer changes weekly and a fence cannot carry
+it.
