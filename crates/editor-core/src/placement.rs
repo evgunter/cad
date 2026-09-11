@@ -291,20 +291,29 @@ impl Default for Frame {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     //! The bit-level claims the stored-arrays-to-geometry doors make,
     //! which the eval-level tests exercise only through whole
     //! documents: that reading a frame at `f64` moves no bits, and
-    //! that [`Frame::compose`] is the affine product of the two
-    //! stored maps, term for term.
+    //! that [`Frame::compose`] is the affine product of the two stored
+    //! maps down to the last multiply-add.
 
     use super::*;
 
+    /// A frame with no symmetry between its components, so a
+    /// transposed or permuted product cannot pass by coincidence.
+    ///
+    /// The `-0.0` in `columns[0]` and in `translation` is LOAD-BEARING
+    /// and must survive any edit to this fixture: a signed zero is the
+    /// only value whose bits `x + 0.0` changes, so it is what
+    /// separates a door that COPIES the stored coordinate from one
+    /// that rebuilds it arithmetically, and what makes
+    /// [`Frame::compose`]'s identity fast path observable at all
+    /// (without it the general arm returns the same bits).
     fn sample() -> Frame {
         Frame {
             columns: [
-                [0.5, -0.25, 3.0],
+                [0.5, -0.0, 3.0],
                 [1.0e-9, 2.0, -0.125],
                 [-7.0, 0.75, 1.0 / 3.0],
             ],
@@ -323,64 +332,93 @@ mod tests {
         }
     }
 
-    #[test]
-    fn affine_at_f64_carries_the_stored_bits() {
-        let f = sample();
-        let a = f.affine::<f64>();
-        for (j, c) in [a.linear.c0, a.linear.c1, a.linear.c2]
-            .into_iter()
-            .enumerate()
-        {
-            for (i, x) in [c.x, c.y, c.z].into_iter().enumerate() {
-                assert_eq!(
-                    x.to_bits(),
-                    f.columns[j][i].to_bits(),
-                    "column {j} entry {i}"
-                );
+    /// The bit patterns a COPY carries and a computation does not: a
+    /// NaN with a payload, both zeros, a subnormal and both
+    /// infinities. Only the reading doors are asked about it —
+    /// arithmetic over these values is not a claim this module makes.
+    fn bit_zoo() -> Frame {
+        let nan = f64::from_bits(0x7FF8_0000_DEAD_BEEF);
+        Frame {
+            columns: [
+                [nan, 0.0, -0.0],
+                [f64::INFINITY, f64::NEG_INFINITY, 5.0e-324],
+                [-5.0e-324, f64::MIN_POSITIVE, -1.0],
+            ],
+            translation: [-0.0, f64::from_bits(0x000F_FFFF_FFFF_FFFF), f64::MAX],
+        }
+    }
+
+    /// `outer ∘ inner` written out as the thirty-six scalar operations
+    /// the kernel performs, in the association its operators fix:
+    /// every product column is `(a.c0·x + a.c1·y) + a.c2·z`
+    /// ([`Mat3`]'s matrix–vector order applied to the inner column),
+    /// and the outer frame's own translation is added last. It shares
+    /// no operator with its subject, so a reassociation ANYWHERE under
+    /// [`Frame::compose`] — in `Affine3`'s product or in `Mat3`'s —
+    /// moves the two apart.
+    fn composed_by_hand(outer: &Frame, inner: &Frame) -> Frame {
+        let mut columns = [[0.0f64; 3]; 3];
+        for (j, out) in columns.iter_mut().enumerate() {
+            for (i, x) in out.iter_mut().enumerate() {
+                *x = outer.columns[0][i] * inner.columns[j][0]
+                    + outer.columns[1][i] * inner.columns[j][1]
+                    + outer.columns[2][i] * inner.columns[j][2];
             }
         }
-        for (i, x) in [a.translation.x, a.translation.y, a.translation.z]
-            .into_iter()
-            .enumerate()
-        {
-            assert_eq!(x.to_bits(), f.translation[i].to_bits(), "translation {i}");
+        let mut translation = [0.0f64; 3];
+        for (i, x) in translation.iter_mut().enumerate() {
+            *x = outer.columns[0][i] * inner.translation[0]
+                + outer.columns[1][i] * inner.translation[1]
+                + outer.columns[2][i] * inner.translation[2]
+                + outer.translation[i];
         }
-        let l = f.linear::<f64>();
-        for (m, n) in [
-            (a.linear.c0, l.c0),
-            (a.linear.c1, l.c1),
-            (a.linear.c2, l.c2),
-        ] {
-            assert_eq!(
-                [m.x.to_bits(), m.y.to_bits(), m.z.to_bits()],
-                [n.x.to_bits(), n.y.to_bits(), n.z.to_bits()],
-            );
+        Frame {
+            columns,
+            translation,
         }
     }
 
     #[test]
-    fn compose_is_the_affine_product_bit_for_bit() {
-        let (outer, inner) = (sample(), other());
-        let l = outer.linear::<f64>() * inner.linear::<f64>();
-        let t = outer.linear::<f64>()
-            * Vec3::new(
-                inner.translation[0],
-                inner.translation[1],
-                inner.translation[2],
-            );
-        let expected = Frame {
-            columns: [
-                [l.c0.x, l.c0.y, l.c0.z],
-                [l.c1.x, l.c1.y, l.c1.z],
-                [l.c2.x, l.c2.y, l.c2.z],
-            ],
-            translation: [
-                t.x + outer.translation[0],
-                t.y + outer.translation[1],
-                t.z + outer.translation[2],
-            ],
-        };
-        assert!(outer.compose(&inner).bit_eq(&expected));
+    fn affine_at_f64_carries_the_stored_bits() {
+        for f in [sample(), bit_zoo()] {
+            let a = f.affine::<f64>();
+            for (j, c) in [a.linear.c0, a.linear.c1, a.linear.c2]
+                .into_iter()
+                .enumerate()
+            {
+                for (i, x) in [c.x, c.y, c.z].into_iter().enumerate() {
+                    assert_eq!(
+                        x.to_bits(),
+                        f.columns[j][i].to_bits(),
+                        "column {j} entry {i}"
+                    );
+                }
+            }
+            for (i, x) in [a.translation.x, a.translation.y, a.translation.z]
+                .into_iter()
+                .enumerate()
+            {
+                assert_eq!(x.to_bits(), f.translation[i].to_bits(), "translation {i}");
+            }
+            let l = f.linear::<f64>();
+            for (m, n) in [
+                (a.linear.c0, l.c0),
+                (a.linear.c1, l.c1),
+                (a.linear.c2, l.c2),
+            ] {
+                assert_eq!(
+                    [m.x.to_bits(), m.y.to_bits(), m.z.to_bits()],
+                    [n.x.to_bits(), n.y.to_bits(), n.z.to_bits()],
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn compose_is_the_affine_product_to_the_last_multiply_add() {
+        let (a, b) = (sample(), other());
+        assert!(a.compose(&b).bit_eq(&composed_by_hand(&a, &b)));
+        assert!(b.compose(&a).bit_eq(&composed_by_hand(&b, &a)));
     }
 
     #[test]
