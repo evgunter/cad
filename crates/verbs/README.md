@@ -215,6 +215,17 @@ keeping it is a decision someone may revisit, not a defect.
 `tests/run_door.rs` asserts `Arity::ALL` and the door matrix name one
 set.
 
+**A name is the vocabulary's to say, not a rendering each consumer
+picks.** `VerbKind` and `Arity` each carry a `Display` beside their
+`ALL`, written as an exhaustive match so a row the enum gains has no
+word until someone writes one, and the refusal renders through it. A
+fieldless row's word is its variant identifier — that is what the
+doors are called — and the boolean's three rows say their production
+door (`Union`, `Intersect`, `Subtract`) rather than the enum's
+coordinate for the verb. The censuses beside `ALL` hold the words
+apart: two rows saying the same word makes a refusal ambiguous about
+what it refused.
+
 **V2 — commitments are exhaustive matches to stable tags, held by their
 owners.** Every commitment a verb has is an exhaustive match over the
 one canonical vocabulary, living in the crate that owns it and looking
