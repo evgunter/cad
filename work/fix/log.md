@@ -1416,3 +1416,118 @@ shape-only grep on this head finds 30 in sweep and 60 across six
 crates. That is instruction 2 firing before a lane even started, which
 is the argument for keeping it standing.
 
+
+### Wave results, 2026-09-11 — three landed, and all three closed by refuting their own row
+
+PRs **2373**, **2372**, **2374**. The striking thing is not that they
+landed; it is that **not one of them did what its item asked for**, and
+in each case the row was wrong in the same direction.
+
+**`unify-discipline-machinery-onto-registry` (PR 2373) — step 1 had
+already shipped.** The brief offered two arms, spec or `parked`, and
+the answer was neither: the sink is `crates/editor-core/src/finding.rs`,
+whose own header reads *"The document layer's finding sink
+(DISCIPLINES-DESIGN DS8; **#981 part 1**)"* — `#981` being this row's
+own `github:` number. Three consumers wired, not the two DS8 needs:
+`CheckFinding` (`checks.rs:381`), `UndeclaredContactFinding`
+(`eval/mod.rs:1376`), `AtRestFinding` (`assembly.rs:450`, which the
+row never named). It landed as PR **#984**, on 2026-08-25, *before
+this row was ever homed here*. The row has sat on the slate since the
+program opened, held as the one item whose fix was not written in its
+body, while the thing it was tracking was already in the tree.
+
+**Here instruction 1 fired in the direction nobody expected.** The
+four previous instances were rows that misread a clause. DS8 said
+exactly what this row claimed. What was four months stale was the
+row's **premise about the tree** — and no amount of reading the clause
+would have caught that. Only reading the code did. The instruction
+wants a second half: *read the clause, AND check the row's claim about
+the tree is still true.*
+
+**`pair-subject-witness-strings-unswept` (PR 2372) — the cited
+settlement says the opposite.** The row reads PR 1750's unordered-pair
+settlement as reaching the rendering. `validate.rs:317-344` says, in
+the same paragraph: `FacePair` is *"the candidate face pair, **in the
+arm's own order**"*, and the hand-written `PartialEq`'s comment is
+*"the order is **kept in the value** (the arm's own, and what `Debug`
+prints) and **dropped from the comparison**."* Unordered for equality,
+ordered in what it prints. `CensusSubject`'s own ratified `Display`
+prints the arm's order for that reason — so the row's complaint, if
+sound, would condemn the impl the same PR wrote. The row's stated harm
+(*"two runs that differ only in arena order"*) is not a state D9
+admits at all (`docs/DESIGN.md:797`).
+
+So both pair sites already showed the right order and now say why.
+**And the lane found the real defect underneath**: `UndeclaredContact`'s
+`witness` is documented *"a debug rendering of the witnessing
+**position**"* and both `Display` arms put it after *at* — while at
+`:1677` and `:2830` that locative slot holds a **repeat of the subject
+the same sentence already names**, at `:2830` verbatim, the same two
+keys through the same `{:?}` two clauses apart. Filed as
+`census-witness-string-repeats-the-subject`, not fixed, because
+`:1677` has no position to give without changing CURVED's predicate
+and `witness` is `String` rather than `Option<String>`, so "no
+position" has no spelling.
+
+**`circle-constructors-are-literal-only` (PR 2374) — and the wrong
+characterisation this time was the ORCHESTRATOR's.** The disposition
+written on this row on 2026-09-11 asserted the constructors *"are the
+**dimension-checking** door, and they return `DimensionError`"*, and
+made the whole unit turn on it. **It is false.** `len_lit`/`ang_lit`
+are `Expr::literal(v, dim)`, whose only refusals are
+`LiteralCountIsInteger` — unreachable at a fixed Length or Angle —
+and `NonFiniteLiteral` (`crates/editor-core/src/expr.rs:605-619`).
+The only error `circle` can return is non-finiteness, which its
+`# Errors` section already said. Dimension-wise the constructor does
+not CHECK, it **PICKS**.
+
+The disposition survived anyway, for a better reason than it gave: the
+lane executed the question instead of arguing it, and found the check
+at the **document** door — `check_node_slots`
+(`crates/editor-core/src/edit.rs:1314`, comparison at `:1325`),
+refusing `EditError::SlotDimensionMismatch` before a program enters
+the document, on insert, on every slot write, and on a parameter
+redeclaration. A probe run and reverted covered the two shapes the
+existing pin does not.
+
+### The characterisation drift is not a lane-quality problem
+
+The log has now recorded this five times in two days, and **the fifth
+was written by the orchestrator, in the act of dispatching a brief
+warning lanes about the first four.** That settles what the pattern
+is. It is not carelessness and it is not a lane defect: it is what
+happens whenever anyone writes a confident sentence about a site they
+have read rather than run. The dispatching seat has no immunity — it
+has *more* exposure, because an orchestrator disposition arrives at a
+lane carrying more authority than the row it corrects.
+
+**Standing, from here:** an orchestrator disposition that asserts what
+code DOES is subject to its own instruction. Either execute it before
+writing it, or mark it as unverified so the lane knows to check it
+rather than build on it. Three of this wave's five briefs told a lane
+to execute before fixing; the one that made a claim of its own did not
+hold itself to it.
+
+### Two fence corrections landed
+
+- **`eval/wire.rs` is WIRE's** as of WIRE opening 2026-09-11. This
+  program's `keep_out` still described it as unowned, and the brief
+  repeated that to a lane. Corrected.
+- **The `census.rs` seam clause was an enumeration** — "the two
+  typed-decline items edit it by recorded seam" — and FIX has now
+  crossed that file with a third row and filed a fourth. Rewritten as
+  a clause about the FILE, noting that CURVED's `keep_out` does not
+  name FIX, so the record is one-sided and the crossing is invisible
+  from CURVED's side. `census-witness-string-repeats-the-subject`'s
+  fix reaches CURVED's chart-region predicate and wants CURVED's
+  assent rather than announcement.
+
+### A harness hazard, for whoever dispatches the next wave
+
+Five concurrent lanes shared one scratchpad directory and collided on
+filenames: `poll.py` and `pr.md` were overwritten mid-task, with four
+concurrent `poll.py` processes running under three different argv.
+Nothing was lost this time. A lane that writes a PR body to a shared
+`pr.md` and posts it a minute later posts a sibling's text. **Give
+each lane its own scratchpad subdirectory in the brief.** Not filed —
+no program owns it and it is a harness convention, not a repo defect.
