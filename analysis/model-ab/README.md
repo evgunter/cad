@@ -120,11 +120,21 @@ ways that the dispatch table does not:
 `keys/` is withheld from the coder and committed anyway: the drawn byte is the
 record of the randomization, like a dispatch draw.
 
+**The review instrument is not the protocol version.** Protocol v5 widened the
+review SCOPE (the brief and rubric); protocol v6 is the dual-review DESIGN, and
+its item 1 keeps "the v5 instrument ... unchanged". A row reading "v5 instrument"
+is therefore a v6 dual carrying the brief v6 tells it to carry — nine rows say
+both in one cell, `GUI-4` recording "v5 instrument" alongside "the GUI program's
+first v6 TALLY CANDIDATE". An earlier version of this tooling warned that 26
+such rows were "not declared v6", which was wrong and would have dropped a
+recorded tally candidate; selection is by date from the first v6 pair, and the
+review instrument is recorded in the key for reference only.
+
 Neither script rules on anything. `blind_reviews.py` reports pairs whose
-reviewer assignment did not parse rather than guessing one, and reports rows
-selected by date that declare a different instrument rather than quietly
-counting them; `unblind_adjudication.py` stops on a coding inconsistency rather
-than averaging it. Both carry `--selftest`, which executes the blinding claims
+reviewer assignment did not parse rather than guessing one, and pairs whose row
+is not its table's width rather than trusting their later columns;
+`unblind_adjudication.py` stops on a coding inconsistency rather than averaging
+it. Both carry `--selftest`, which executes the blinding claims
 in both directions — including that the leak scan fires when redaction is
 removed.
 

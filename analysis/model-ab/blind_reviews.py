@@ -45,6 +45,12 @@ cells carry maths (`|Δ|≤π−δ`). That rule holds whether or not those pipes
 escaped, so it survives the escaping pass landing on main; once it has, a split
 on unescaped pipes only is exact and this heuristic can go.
 
+The review instrument is not the protocol version. Protocol v5 widened the
+REVIEW SCOPE (the brief and rubric); protocol v6 is the DUAL-REVIEW DESIGN, and
+its item 1 keeps "the v5 instrument ... unchanged". So "v5 instrument" on a row
+says which brief the reviewers carried, not that the pair predates v6, and it
+selects nothing here. Selection is by date from the first v6 pair.
+
 Usage:
     python3 blind_reviews.py --src <path to MODEL-AB-LOG.md>   # write material
     python3 blind_reviews.py --audit-widths --src <path>       # schema census
@@ -103,6 +109,11 @@ ASSIGN_REV_RE = re.compile(
 )
 BYTE_RE = re.compile(r"\bbytes?\s+(\d+)", re.I)
 PARITY_RE = re.compile(r"\bparity\s+([01])\b", re.I)
+# The REVIEW instrument (the brief and rubric), which is a different axis from
+# the dual-review protocol version. v6 item 1 keeps "the v5 instrument ...
+# unchanged", so a row reading "v5 instrument" IS a v6 dual — nine rows say both,
+# GUI-4 recording "v5 instrument" and "the GUI program's first v6 TALLY
+# CANDIDATE" in one cell. Recorded for reference; it selects nothing.
 INSTRUMENT_RE = re.compile(r"\bv([3-9])\s+instrument\b", re.I)
 SEPARATOR_RE = re.compile(r"^\|[\s:|-]+\|$")
 # Some rows date a unit to a RANGE ("2026-08-27/28", "2026-08-31/09-01") because
@@ -120,7 +131,7 @@ ADJUDICATION_COLS = [
     "dedup_group", "demonstrated", "fair_pair", "evidence",
 ]
 KEY_COLS = [
-    "row_id", "line_no", "date", "date_raw", "era", "era_straddled", "instrument", "recorded_byte",
+    "row_id", "line_no", "date", "date_raw", "era", "era_straddled", "recorded_byte",
     "recorded_parity", "blind_byte", "blind_parity", "a_slot", "b_slot",
     "a_model", "b_model", "assignment_source",
 ]
@@ -280,7 +291,7 @@ def build(rows, seed_bytes=None):
             "date_raw": cells[DATE],
             "era": era_of(start),
             "era_straddled": era_of(start) != era_of(end),
-            "instrument": (INSTRUMENT_RE.search(cells[REVIEW]).group(0)
+            "review_instrument": (INSTRUMENT_RE.search(cells[REVIEW]).group(0)
                            if INSTRUMENT_RE.search(cells[REVIEW]) else ""),
             "recorded_byte": (BYTE_RE.search(cells[REVIEW]).group(1)
                               if BYTE_RE.search(cells[REVIEW]) else ""),
@@ -475,7 +486,12 @@ def selftest():
     r = build([(3, ranged, 14)], seed_bytes=[10])[0]
     check("a ranged row is kept, not dropped", r["date"] == "2026-08-31")
     check("a range crossing 5.1 is flagged", r["era_straddled"] is True)
-    check("instrument recorded", p["instrument"].lower() == "v6 instrument")
+    check("review instrument recorded", p["review_instrument"].lower() == "v6 instrument")
+    v5row = list(cells)
+    v5row[REVIEW] = cells[REVIEW].replace("v6 instrument", "v5 instrument")
+    v5 = build([(4, v5row, 14)], seed_bytes=[8])[0]
+    check("a v5-instrument row is still selected, not set aside",
+          v5["review_instrument"].lower() == "v5 instrument" and v5["row_id"] == "FIX-1")
     check("recorded draw kept in the key, not the material", p["recorded_byte"] == "146")
 
     # An unparseable assignment is reported, never guessed.
@@ -572,16 +588,6 @@ def main():
         print("Their review prose is blinded as usual (the first six columns are "
               "common to every table), but anything read from a later column of "
               "these rows is shifted or missing.")
-
-    off_instrument = [(p["row_id"], p["instrument"]) for p in pairs
-                      if p["instrument"] and "v6" not in p["instrument"].lower()]
-    if off_instrument:
-        print("\nNOT DECLARED v6 — selected by date, instrument says otherwise "
-              "(%d):" % len(off_instrument))
-        for row_id, instrument in off_instrument:
-            print("  %-12s %s" % (row_id, instrument))
-        print("The instrument governs the tally, not the date: rule on these "
-              "before coding.")
 
     if ambiguous:
         print("\nAMBIGUOUS — reviewer labels but no DUAL marker, not selected (%d):"
