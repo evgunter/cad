@@ -5,6 +5,7 @@ title: gathers_on_this_thread is cfg(debug_assertions) and a test calls it ungua
 status: closed
 opened: 2026-09-10
 closed: 2026-09-11
+pr: 2328
 ---
 
 ## The finding
