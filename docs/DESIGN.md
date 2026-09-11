@@ -838,7 +838,7 @@ topology change is stated, not emergent.
   *spent, never resumable*, so a caller that discards the `Err` and
   keeps the body can fire a later postcondition from API misuse rather
   than a kernel bug. That state class is the open ruling **S14**
-  (`work/code-quality/S14.md`), Ev's; row 0 below reframes it (stage
+  (`work/pipe/S14.md`), Ev's; row 0 below reframes it (stage
   into a fresh body and commit on success, the shape
   `merge_coplanar_faces` already uses) without answering it.
 - Essentially no unsafe Rust outside vetted dependencies.
@@ -1399,7 +1399,7 @@ the project publishes with one still in the shipped state.
   runs every row-5 postcondition. That is the right posture for a
   kernel nobody depends on yet; deleting the stanza is a real reduction
   in what a release build checks, so it is a decision to take at
-  publish rather than a chore (**S65**, `work/code-quality/S65.md`, is
+  publish rather than a chore (**S65**, `work/pred/S65.md`, is
   the worked example).
 - **The name (Q9).**
 - **Post-publish schema discipline for the verb tags** (VERB-SEAT-DESIGN

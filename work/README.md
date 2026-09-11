@@ -24,9 +24,6 @@ work/
     plan.md            the plan (narrative; present state only)
     log.md             the log (append-only narrative; its tail is
                        the program's story, never its slate)
-    process-observations.md
-                       code-quality only: the C1–C27 observations
-                       (narrative, unparsed)
     <ID>.md            one file per item: unit, issue or ruling
 ```
 
@@ -56,7 +53,9 @@ needs_ev: true             # a question for Ev is open on an [ev] PR
 opened: 2026-09-02
 closed:                    # date; required once status is closed
 refs: [S330, 1588]         # related items or numbers, no semantics
-track: R                   # code-quality only: the track letter
+track: R                   # the code-quality track letter, on the rows
+                           # that carry one (see
+                           # docs/CODE-QUALITY-CONVENTIONS.md)
 github: 1601               # migrated GitHub issue number, if any
 ---
 ```
@@ -66,7 +65,9 @@ Program headers carry, in addition: `area` (`kernel`, `api`, `gui`,
 (the away-channel role tag), `ab_band` (the A/B ordinal band, claimed
 in `docs/MODEL-AB-LOG.md`), `paths` (territory globs), `keep_out`
 (prose pointers, one string each), and `blocks` (id blocks a program
-allocates from, code-quality only).
+allocates from). No open program carries `blocks` today: the
+code-quality block ledger is the territories table in
+`docs/CODE-QUALITY-CONVENTIONS.md`.
 
 Unknown keys are lint errors. Add a key by adding it to the script's
 schema in the same PR that first uses it.
@@ -109,13 +110,20 @@ only closed items.
   ownership from nowhere else — so a program claiming another's item
   MOVES the file into its own directory in the PR that claims it,
   keeping the id, and sets `parent:` to the unit that carries it. This
-  is what `work/code-quality/` is for: findings wait there until a
-  program claims them, and a claim empties that row out of it. A
-  `keep_out` clause saying a claimed row stays where it was is the
-  thing to delete.
+  is how a finding reaches its owner. `work/code-quality/` used to be
+  where one waited for a claim; it left the tracker on 2026-09-11
+  (`docs/DOC-LEDGER.md`, sweep 11) once all 110 of its live rows had
+  gone to the eleven programs opened for them, so **a finding now goes
+  straight onto the slate of the program whose ground it lands on**, and
+  `work/issues/` is the last resort it always was. The conventions those
+  rows run on — the numbering blocks, how a finding and an item are
+  read, the ordering rules, the track letters and their fences — are
+  `docs/CODE-QUALITY-CONVENTIONS.md`. A `keep_out` clause saying a
+  claimed row stays where it was is the thing to delete.
 - **Ids are stable.** An item keeps its id for life; a program keeps
-  its directory for as long as it is open. Migrated code-quality rows
-  keep the row ids they were cited by (`D102`, `S330`, `C15`).
+  its directory for as long as it is open. Code-quality rows keep the
+  row ids they were cited by (`D102`, `S330`, `C15`) wherever they now
+  live.
 - **A closed program's directory is deleted.** `work/` tracks work
   still to be done, not work that has been done, so once a program
   closes — its exit walk ratified, or Ev's ruling that it needs none —
