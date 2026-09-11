@@ -1088,13 +1088,14 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     // (the face-replacement door's own group form says why). Grouping
     // is by surface key, in face-arena order, so the walk is
     // deterministic.
-    let mut cavity = body.clone();
     // The cavity is built under one surgery scope (`crate::surgery`):
     // the offset doors it runs each preserve tier 1, and what certifies
     // the cavity is the transplant's own postcondition in
-    // `insert_voids` plus this door's closing tier-3 validation. A
-    // local, so a refusal on the way drops the scope with it.
-    cavity.enter_surgery();
+    // `insert_voids` plus this door's closing tier-3 validation. The
+    // guard owns the borrow, so a refusal on the way closes the scope
+    // by dropping it.
+    let mut cavity_body = body.clone();
+    let mut cavity = cavity_body.begin_surgery();
     // **All-planar and AXIAL bodies move SIMULTANEOUSLY; everything
     // else still moves chart by chart.** Composing the per-chart door over a body
     // cannot offset an OBLIQUE junction: a corner is visited once per
@@ -1217,12 +1218,13 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     let cavity_faces: Vec<FaceKey> = cavity.faces().map(|(k, _)| k).collect();
     let cavity_edges: Vec<EdgeKey> = cavity.edges().map(|(k, _)| k).collect();
     let cavity_vertices: Vec<VertexKey> = cavity.vertices().map(|(k, _)| k).collect();
-    cavity.leave_surgery_and_sweep();
-    let mut out = body.clone();
+    cavity.sweep_and_close();
+    let cavity = cavity_body;
     // The result is built under one surgery scope too — see the
     // cavity's, and the closing tier-3 validation is this door's own
     // whole-body check.
-    out.enter_surgery();
+    let mut out_body = body.clone();
+    let mut out = out_body.begin_surgery();
     // The cavity is a CLONE of the operand, so a designated face's
     // counterpart carries the same key in the cavity's key space —
     // which is the space `VoidInserted` maps from.
@@ -1715,9 +1717,12 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
 
     // ---- One validation. ----
-    out.leave_surgery_and_sweep();
-    validate_geometric(&out, tol).map_err(|errors| ShellError::NotValid { errors })?;
-    Ok(Shelled { body: out, naming })
+    out.sweep_and_close();
+    validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
+    Ok(Shelled {
+        body: out_body,
+        naming,
+    })
 }
 
 /// A rim ring's two row lists: its edge rows and its vertex rows.

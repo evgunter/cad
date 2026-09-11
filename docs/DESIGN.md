@@ -120,7 +120,13 @@ over a scalar type `T` (default `f64`); topology stays concrete (Q1).
   guarantee is unchanged — every public mutation path preserves tier 1,
   checked at every observable boundary — and an opt-in
   `topo/per-op-postcondition` feature restores the per-operator sweep
-  to name the operator behind a door-level failure. "Exclusively" is
+  to name the operator behind a door-level failure. **One class needs
+  the scalpel rather than merely benefiting from it**: a corruption an
+  operator introduces and a later operator in the same door repairs is
+  invisible at the door, because the state the door hands back is
+  sound. The door-level check is a claim about that state, not about
+  every state the door passed through, and the ruling's "caught one
+  door later" is exactly that trade. "Exclusively" is
   realized: the operator set is the only public construction path; raw
   insertion is crate-internal test scaffolding.
 - **A `Body` is never authoritative.** It is the materialized evaluation
@@ -818,8 +824,15 @@ topology change is stated, not emergent.
   checked is unchanged. The claim is that property, not a count of
   doors;
   `topo`'s `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
-  checks it against the real surface — both spellings, and a scope
-  opened and never closed fails there by name. **The one door outside the
+  checks it against the real surface, both spellings. **What holds a
+  scope closed is the borrow, not that walk**: a scope opened through
+  the RAII guard is released only by a close or a drop, and both
+  decrement. The walk adds a lexical read on top — a `pub fn … &mut
+  self` door of `topo/src` that opens a scope and closes nothing reds
+  by name — and the two sites where a borrow forbids the guard are
+  held instead by a runtime depth read at the next phase boundary. The
+  reach of each, and what none of them sees, is
+  `work/perf/door-scopes-outside-topo-are-unguarded`. **The one door outside the
   property is `instance`'s graft**, a raw transplant: a `JoinDesync`
   raised mid-transplant leaves the destination partially written and
   *spent, never resumable*, so a caller that discards the `Err` and

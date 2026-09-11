@@ -11,14 +11,40 @@
 //! A **surgery scope** is the door saying so. While one is open on a
 //! body, that body's operators check their declared [`ArenaDelta`]
 //! and nothing else; the door runs the whole-body sweep once, at its
-//! end, over the state the caller will actually see. Nesting is a
-//! depth rather than a flag because doors compose — a boolean calls
-//! `split`, a shell calls `replace_faces_offset` — and the OUTER door
-//! is the observable boundary.
+//! end, over the state the caller will actually see.
 //!
 //! [`ArenaDelta`]: crate::euler::ArenaDelta
 //!
-//! # The three spellings, and what each claims
+//! # What the depth does, and what it does not
+//!
+//! **The depth is per BODY.** Nesting is a depth rather than a flag
+//! because one body can be inside two scopes at once — a boolean
+//! opens one on the body it is finishing and the merge it calls opens
+//! another on that same body — and then the outer close is the
+//! observable boundary and the inner one sweeps nothing.
+//!
+//! **A door that stages into a CLONE is its own boundary**, and that
+//! is the commoner shape of composition here. `shell_open` calls
+//! `replace_faces_offset`, which clones the destination, mutates the
+//! clone, gates it, and adopts it. The clone starts at depth 0
+//! whatever scope the destination is inside ([`SurgeryDepth`]'s
+//! `Clone`), so the staging door's own scope on it is outermost and
+//! its close DOES sweep — once per call, not once per setter.
+//! `merge_coplanar_faces_declared` is the same shape per group. That
+//! is correct rather than unfortunate: no outer door ever promised to
+//! sweep that clone, and the clone is the body the staging door is
+//! about to hand back.
+//!
+//! Such a door therefore pays two whole-body reads at its end — the
+//! tier-1 sweep its close runs, and its own typed
+//! [`fn@crate::validate_closed`] gate — and the pair is deliberate:
+//! **a panic and a typed refusal are different contracts.** A kernel
+//! bug has to panic, as loudly and as early as it is detectable (D9);
+//! a body that is tier-1 sound but not closed is a refusal the caller
+//! is entitled to receive. Collapsing the two would answer the first
+//! with the second.
+//!
+//! # The spellings, and what each claims
 //!
 //! - [`Body::begin_surgery`] opens the scope and hands back a
 //!   [`Surgery`] guard that borrows the body. Every operator reached
@@ -43,6 +69,40 @@
 //! what an `Err` returned mid-sequence does. **The sweep is never in
 //! `Drop`**: a `debug_assert` firing while a panic unwinds aborts the
 //! process and takes the original error with it.
+//!
+//! [`Body::enter_surgery`] and its two closes are the same three
+//! meanings without the guard, for the two sites in this crate where
+//! a borrow forbids one. They are `pub(crate)` and their obligation is
+//! the caller's; the method docs carry it.
+//!
+//! # What actually fires, and what does not
+//!
+//! Three mechanisms, and it is worth being exact about their reach
+//! because the difference is where the residue lives
+//! (`work/perf/door-scopes-outside-topo-are-unguarded`).
+//!
+//! - **A guarded scope cannot be left open**: the borrow is released
+//!   only by dropping the guard or consuming it in a close, and both
+//!   decrement. That is every scope in the tree but two.
+//! - **A lexical read** —
+//!   [`crate::source_walk::MutationDoor::surgery_posture`], used by
+//!   `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
+//!   — reds on a door that opens a scope and closes nothing. Its
+//!   population is the `pub fn … &mut self` doors of `topo/src`, so it
+//!   covers none of `sweep`, `step-import` or `editor-core`, and it
+//!   reads text: two opens against one close, or a close on one path
+//!   only, read as closed.
+//! - **A runtime read** — [`Body::open_surgery_scopes`], which any
+//!   crate can call — is what the two guardless sites have, in the
+//!   shape of a `debug_assert` at the next phase boundary
+//!   (`boolean::finish`, `splitting::finish`) plus
+//!   `surgery::tests::every_door_returns_with_its_scopes_closed`.
+//!
+//! **What none of them sees** is a DELETED SWEEP, as opposed to a
+//! leaked scope: a close that decrements without sweeping when it
+//! should have swept leaves the depth right and the check gone. What
+//! catches that is a corruption row per door class, and there are
+//! three of them.
 //!
 //! # The field is exactly as wide as the postcondition
 //!
@@ -121,6 +181,16 @@ impl SurgeryDepth {
     }
 
     /// Opens a scope.
+    ///
+    /// **A load and a store, not a `fetch_add`.** The atomic is here
+    /// to keep [`Body`] `Sync`, not because two threads share a depth:
+    /// a scope belongs to one door running on one thread, and a body
+    /// reached through `&Body` from several threads has no scope open
+    /// on it at all. A read-modify-write would buy atomicity between
+    /// the load and the store, which is a race this value cannot have
+    /// — and if it could, an atomic increment would silently produce a
+    /// wrong depth rather than the loud wrong answer a torn pair
+    /// gives. Keeping it non-atomic keeps the claim honest.
     fn open(&self) {
         self.set(self.get() + 1);
     }
@@ -130,12 +200,33 @@ impl SurgeryDepth {
         let was = self.get();
         let Some(next) = was.checked_sub(1) else {
             unreachable!(
-                "surgery scope closed at depth 0: a `Surgery` guard exists only between an \
-                 open and its close, so the depth cannot have been decremented already"
+                "surgery scope closed at depth 0: every close is paired with an open, \
+                 either by a `Surgery` guard's `Drop` or by the one `enter_surgery` that \
+                 precedes it, so the depth cannot already be 0 here"
             )
         };
         self.set(next);
         was
+    }
+
+    /// **D1's closing sweep**: the tier-1 re-derivation over `body`,
+    /// run at the outermost level only.
+    ///
+    /// Both closes call this and then decrement — the guarded one
+    /// through its `Drop`, the guardless one on the next line — so
+    /// there is one spelling of the check and one ordering of it. The
+    /// order is deliberate: the sweep is the door's postcondition and
+    /// it belongs INSIDE the scope it closes, so that a validator
+    /// reached through a public door could not re-enter this path at
+    /// depth 0.
+    fn sweep_if_outermost<T: Real>(&self, body: &Body<T>) {
+        if self.get() == 1 {
+            debug_assert_eq!(
+                crate::validate::validate(body),
+                Ok(()),
+                "door postcondition: result is not tier-1 valid (kernel bug)",
+            );
+        }
     }
 }
 
@@ -235,52 +326,62 @@ impl<T: Real> Body<T> {
         self.surgery.set(held);
     }
 
-    /// **Opens a surgery scope without a guard**, for a body a
-    /// [`Surgery`] cannot borrow for the span the scope needs.
+    /// **Opens a surgery scope without a guard.**
     ///
-    /// [`Body::begin_surgery`] is the spelling to reach for: it cannot
-    /// leak a scope, because the borrow it holds is released only by
-    /// dropping it. This pair exists for the one shape that borrow
-    /// forbids — a pipeline phase that must pass the body on as part
-    /// of a larger value (`bool_connect` takes the whole reduction,
-    /// whose two operand bodies are what the scope is about), where a
-    /// guard borrowing one field would deny the phase the struct.
+    /// [`Body::begin_surgery`] is the spelling for every site that can
+    /// take it, and almost every site can: the guard cannot leak a
+    /// scope, because the only way to release the borrow it holds is
+    /// to drop it or to consume it in a close. **This pair exists for
+    /// the one shape that borrow forbids** — a scope on a body that is
+    /// a FIELD OF A STRUCT the next call takes whole, where a guard
+    /// borrowing the field would deny the call the struct. Two sites
+    /// in this crate are that shape and there are no others:
+    /// `boolean::ops`' reduction operands across `bool_connect`, and
+    /// `splitting`'s reduced body across `split_connect`.
     ///
     /// **The obligation, and it is on the caller**: the open and its
-    /// [`Body::leave_surgery`] sit in one function, and the body they
-    /// are about is a LOCAL VALUE THE FAILURE PATH DROPS. That is what
-    /// makes an early `?` between them harmless — the scope dies with
-    /// the body it was open on, and no later call can reach a body a
-    /// scope was left open on. A scope left open on a body that
-    /// SURVIVES silences every later operator on it, which is why the
-    /// guard is the default and this is the exception.
-    pub fn enter_surgery(&self) {
+    /// close sit in one function, and the body they are about is a
+    /// LOCAL VALUE THE FAILURE PATH DROPS. That is what makes an early
+    /// `?` between them harmless — the scope dies with the body it was
+    /// open on, and no later call can reach a body a scope was left
+    /// open on. A scope left open on a body that SURVIVES silences
+    /// every later operator on it.
+    ///
+    /// **Nothing checks that obligation**, and that is why this is
+    /// `pub(crate)` and takes `&mut self`. A deleted close at one of
+    /// the two surviving sites is undetected — the residue is sized in
+    /// `work/perf/door-scopes-outside-topo-are-unguarded`. `&mut self`
+    /// is not needed by the mechanism (the depth is interior-mutable
+    /// for the operators, which hold `&self`); it is here so that
+    /// opening a scope reads as the mutation it is, and so a body
+    /// reached by shared reference cannot have one opened on it.
+    pub(crate) fn enter_surgery(&mut self) {
         #[cfg(debug_assertions)]
         self.surgery.open();
     }
 
-    /// Closes a scope opened by [`Body::enter_surgery`]. Sweeps
-    /// nothing — the guardless spelling of
-    /// [`Surgery::close_already_checked`], with that method's
-    /// obligation: the door's own trailing check is a debug assertion
-    /// at tier 1 or stronger, not a typed gate.
-    pub fn leave_surgery(&self) {
+    /// Closes a scope opened by [`Body::enter_surgery`] **without
+    /// sweeping** — the guardless spelling of
+    /// [`Surgery::close_already_checked`].
+    ///
+    /// Its one caller is an `Err` path: `boolean::ops` closes its two
+    /// operand scopes this way when the join refused, because the
+    /// sweep is the SUCCESS path's and a partially carved operand is
+    /// not a state any door undertook to certify. It asserts nothing
+    /// and claims nothing.
+    pub(crate) fn leave_surgery(&mut self) {
         #[cfg(debug_assertions)]
         let _ = self.surgery.close();
     }
 
     /// Closes a scope opened by [`Body::enter_surgery`] and runs D1's
     /// tier-1 sweep, once, at the outermost level — the guardless
-    /// spelling of [`Surgery::sweep_and_close`], for a phase whose
-    /// body no stronger check follows.
-    pub fn leave_surgery_and_sweep(&self) {
+    /// spelling of [`Surgery::sweep_and_close`].
+    pub(crate) fn leave_surgery_and_sweep(&mut self) {
         #[cfg(debug_assertions)]
-        if self.surgery.close() == 1 {
-            debug_assert_eq!(
-                crate::validate::validate(self),
-                Ok(()),
-                "door postcondition: result is not tier-1 valid (kernel bug)",
-            );
+        {
+            self.surgery.sweep_if_outermost(self);
+            let _ = self.surgery.close();
         }
     }
 }
@@ -301,17 +402,11 @@ impl<T: Real> Surgery<'_, T> {
     /// A nested scope sweeps nothing: the outer door is the observable
     /// boundary and it has not finished yet.
     pub fn sweep_and_close(self) {
+        // The sweep runs here and the decrement in `Drop`, at the end
+        // of this call: this IS the door's postcondition, and keeping
+        // it out of `Drop` is what keeps `Drop` free of assertions.
         #[cfg(debug_assertions)]
-        if self.body.surgery.get() == 1 {
-            // Still inside the scope, deliberately: this call IS the
-            // door's postcondition, and running it here rather than
-            // after the decrement keeps `Drop` free of assertions.
-            debug_assert_eq!(
-                crate::validate::validate(self.body),
-                Ok(()),
-                "door postcondition: result is not tier-1 valid (kernel bug)",
-            );
-        }
+        self.body.surgery.sweep_if_outermost(self.body);
     }
 
     /// **Closes the scope without sweeping**, for a door whose own
@@ -356,7 +451,7 @@ impl<T: Real> core::ops::DerefMut for Surgery<'_, T> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     // Test-support code: panicking is a test's failure mechanism (L5).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -399,14 +494,27 @@ mod tests {
         body.half_edges().next().unwrap().0
     }
 
+    /// **The one lock every panic-capturing row in this crate takes.**
+    ///
+    /// The panic hook is PROCESS-global and the suite runs its rows in
+    /// parallel threads of one process, so two rows capturing at once
+    /// clobber each other — the second installs its hook over the
+    /// first's and one of them reads an empty or foreign message. That
+    /// is a flake, not a failure, and it is the kind that arrives once
+    /// the third such row lands. Every taker of the hook holds this
+    /// first: [`panic_message`] here, and
+    /// `review_m1_pr2::release_corruption`'s own capture.
+    pub(crate) static PANIC_HOOK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// The message of the panic `f` raises, captured through a panic
     /// HOOK rather than by downcasting `catch_unwind`'s payload — the
     /// `bit-identity punning` gate bans `Any` downcasts outside
     /// `geom_core::bit_identity`, test code included. The hook is
-    /// process-global, so it is restored immediately and a foreign or
-    /// empty capture fails the caller's assertion loudly rather than
-    /// passing quietly.
+    /// process-global, so [`PANIC_HOOK`] serializes the takers, it is
+    /// restored immediately, and a foreign or empty capture fails the
+    /// caller's assertion loudly rather than passing quietly.
     fn panic_message(f: impl FnOnce() + std::panic::UnwindSafe) -> String {
+        let _serialized = PANIC_HOOK.lock().unwrap_or_else(|e| e.into_inner());
         let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
         let sink = std::sync::Arc::clone(&captured);
         let previous = std::panic::take_hook();
@@ -511,34 +619,88 @@ mod tests {
         );
     }
 
-    /// **A door leaves no scope open, by either path.** A scope a door
-    /// forgot to close silences every later operator on that body —
-    /// the failure this mechanism can have that nothing else would
-    /// notice.
+    /// **A door leaves no scope open, by either path** — and every arm
+    /// here drives a door that actually opens one.
+    ///
+    /// A scope a door forgot to close silences every later operator on
+    /// that body, and this is the row that sees it. It is the only
+    /// check the **guardless** pair has: the two sites that cannot
+    /// take a guard
+    /// (`BooleanReduction::enter_join_surgery`, `splitting`'s reduced
+    /// body across `split_connect`) hold their scope on a body the
+    /// pipeline then MOVES into its result, so a deleted close travels
+    /// out of the pipeline as a nonzero depth on a body a caller
+    /// holds — which is exactly what the two pipeline arms below
+    /// assert away. Deleting either surviving `leave_surgery*` line
+    /// reds this row.
+    ///
+    /// **The arms this replaced were vacuous** and worth naming so
+    /// they are not written again: `merge_coplanar_faces_declared` on
+    /// an empty declaration list over a prism returns before any group
+    /// is staged, and with an unresolvable declared key it refuses at
+    /// the entry gate — neither reached a `begin_surgery` at all, so
+    /// both passed whatever the mechanism did.
     #[test]
     fn every_door_returns_with_its_scopes_closed() {
         let tol = Tol::witness();
         let body = cube();
         assert_eq!(body.open_surgery_scopes(), 0, "a fresh build");
 
-        // The Ok path of a composite.
-        let mut ok = body.clone();
-        ok.merge_coplanar_faces_declared(&[], tol)
-            .expect("a prism merges nothing and refuses nothing");
-        assert_eq!(ok.open_surgery_scopes(), 0, "after a composite returned Ok");
+        // A `topo` pipeline whose reduced body crosses the ONE
+        // guardless site in `splitting`, and whose two result bodies
+        // are what a caller gets back.
+        let plane = crate::splitting::SplitPlane {
+            origin: Point3::new(0.5, 0.5, 0.5),
+            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
+        };
+        let cut = crate::splitting::split(&body, &plane, tol).expect("a cube splits");
+        for (side, part) in [("above", &cut.above), ("below", &cut.below)] {
+            let Some(part) = part.body() else {
+                panic!("a mid-height cut leaves material on both sides")
+            };
+            assert_eq!(
+                part.open_surgery_scopes(),
+                0,
+                "the {side} side of a split came back inside a scope"
+            );
+        }
 
-        // The Err path of the same composite: a declared surface key
-        // that does not resolve is refused after the entry gate.
-        let mut err = body.clone();
-        let bogus = [(
-            crate::geometry::SurfaceKey::default(),
-            crate::geometry::SurfaceKey::default(),
-        )];
-        assert!(err.merge_coplanar_faces_declared(&bogus, tol).is_err());
+        // A boolean, whose reduction operands cross the other
+        // guardless site and whose result body is grafted out of them.
+        let offset = crate::transform_rigid(
+            &body,
+            &geom_core::Affine3::translation(geom_core::Vec3::new(0.5, 0.5, 0.5)),
+            tol,
+        )
+        .expect("a rigid move of a cube");
+        let united = crate::boolean::union(&body, &offset, tol).expect("two boxes unite");
+        let crate::boolean::BooleanResult::Body(united) = united else {
+            panic!("overlapping boxes produce a body")
+        };
         assert_eq!(
-            err.open_surgery_scopes(),
+            united.body.open_surgery_scopes(),
             0,
-            "after a composite returned Err"
+            "a boolean result came back inside a scope"
+        );
+
+        // A door that opens a scope and REFUSES: the staging clone's
+        // scope is closed by the guard's `Drop`, and the destination
+        // it would have been adopted into never moves.
+        let mut refused = cube();
+        crate::validate::validate(&refused).expect("the fixture is tier-1 valid");
+        let faces: Vec<_> = refused.faces().map(|(k, _)| k).collect();
+        let err = crate::replace_faces_offset(
+            &mut refused,
+            &faces,
+            1.0,
+            geom_core::Band::linear(tol).expect("a band"),
+            tol,
+        );
+        assert!(err.is_err(), "one chart's faces are not a whole group");
+        assert_eq!(
+            refused.open_surgery_scopes(),
+            0,
+            "after a staging door returned Err"
         );
 
         // And the guard's own contract: dropping it closes the scope.

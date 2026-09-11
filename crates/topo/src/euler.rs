@@ -105,6 +105,14 @@
 //!   every operator again — surgery scopes ignored — so the message
 //!   names the operator. Opt-in, never default-on.
 //!
+//!   **One class is the scalpel's alone.** A corruption an operator
+//!   introduces and a later operator in the SAME door repairs never
+//!   reaches the door's close, because the state the door hands back
+//!   is sound. The door-level check is a claim about that state and
+//!   not about every state the door passed through; the per-operator
+//!   sweep is a claim about both, and it is the only thing that sees
+//!   this one.
+//!
 //!   **The exception, and it is a real one.**
 //!   [`crate::instance`]'s grafts are a **raw transplant**, not an
 //!   operator run: `graft_disjoint_all_keyed` mints an empty

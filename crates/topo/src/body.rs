@@ -191,9 +191,11 @@ pub struct Body<T: Real> {
     // (the ruling on `work/perf/d1-per-op-tier1-sweep-price`), and
     // this is how an operator knows whether it is inside one: the
     // number of surgery scopes open on this body (`crate::surgery`).
-    // Debug builds only — a release `Body` does not carry the field
-    // and its layout is unchanged by the rule. The `cfg` is what
-    // makes that true, so `surgery::the_depth_is_debug_only` reads it
+    // Present in exactly the builds the postcondition is present in:
+    // a build with debug assertions off carries neither, and its
+    // `Body` has the layout it had before the rule. The `cfg` is what
+    // makes that true, so
+    // `surgery::the_surgery_depth_is_declared_debug_only` reads it
     // back out of this file.
     #[cfg(debug_assertions)]
     pub(crate) surgery: crate::surgery::SurgeryDepth,

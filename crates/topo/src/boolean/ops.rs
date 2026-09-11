@@ -520,20 +520,13 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // The join carves both reduction operands through the Euler
     // operators; one scope per operand body, and what certifies the
     // result is `gate` below, over the body they are finished into.
-    // Both are locals of this pipeline: a refusal drops them.
-    red.a.enter_surgery();
-    red.b.enter_surgery();
+    // The pair is guardless because the join takes the whole
+    // reduction — `BooleanReduction::enter_join_surgery` carries the
+    // argument — and `red` is a local of this pipeline, so a refusal
+    // on the way drops it.
+    red.enter_join_surgery();
     let connected = bool_connect(&mut red, a, b, band, tol);
-    // The sweep is the success path's. A refusal mid-join leaves a
-    // partially carved operand that no door undertook to certify —
-    // and the REST lane below puts the pristine clones back over it.
-    if connected.is_ok() {
-        red.a.leave_surgery_and_sweep();
-        red.b.leave_surgery_and_sweep();
-    } else {
-        red.a.leave_surgery();
-        red.b.leave_surgery();
-    }
+    red.leave_join_surgery(connected.is_ok());
     let connected = match connected {
         Ok(c) => c,
         Err(
@@ -563,14 +556,14 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
-    let mut body = fin.body;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
     // do not each re-derive the whole body, and `gate` below — tier 1
     // AND tier 2 over the result, on every build — is what this door
-    // pays instead. `body` is a local, so a refusal on the way drops
-    // the scope with it.
-    body.enter_surgery();
+    // pays instead. The guard owns the borrow, so a refusal on the way
+    // closes the scope by dropping it.
+    let mut finished = fin.body;
+    let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
     let mut vertex_merges = Vec::new();
     let mut desc = Descendants::default();
@@ -608,7 +601,8 @@ fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // untouched bit-identically.
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
-    body.leave_surgery_and_sweep();
+    body.sweep_and_close();
+    let body = finished;
     gate(&body)?;
     volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);

@@ -153,14 +153,18 @@ pub(super) fn build_full<T: Decide>(
         meridians.push(mer_c);
     }
 
+    // **Unconditional, and it is the door's whole postcondition.** The
+    // phase builders above run under a surgery scope, so tier 1 is not
+    // re-derived inside them; this is where the body a caller sees is
+    // checked, and at tier 2, which subsumes it. It used to run on the
+    // holed arm only, beside a tier-1 sweep per phase — two walks
+    // there and a weaker check on the single-loop arm.
     #[cfg(debug_assertions)]
-    if loops.len() > 1 {
-        debug_assert_eq!(
-            topo::validate_closed(&out.body),
-            Ok(()),
-            "revolve (full, holed) postcondition: cavity insertion broke tier 2 (kernel bug)",
-        );
-    }
+    debug_assert_eq!(
+        topo::validate_closed(&out.body),
+        Ok(()),
+        "revolve (full) postcondition: result is not tier-2 valid (kernel bug)",
+    );
     Ok(out)
 }
 
@@ -184,12 +188,13 @@ fn build_lamina<T: Decide>(
     // ---- Phase 1: the profile lamina (extrude's shape). Both faces
     // are transient seam discs (killed by the zip), so the closing mef
     // face keeps an honest Nurbs no-description, like the mvfs seed.
-    let mut body = Body::<T>::new();
     // One surgery scope for the whole build (`topo::surgery`): tier 1
     // is the door's postcondition, and `build_full` pays it over the
-    // finished body. `body` is a local, so a refusal on the way drops
-    // the scope with it.
-    body.enter_surgery();
+    // finished body — at tier 2, which subsumes it — so the close
+    // here adds no second whole-body walk. The guard owns the borrow,
+    // so a refusal on the way closes the scope by dropping it.
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qs[0])?;
     let lamina = build_chain(
         &mut body,
@@ -245,29 +250,29 @@ fn build_lamina<T: Decide>(
             None => he_edge(&body, hes[j])?,
         });
     }
+    // The site's two keys are read out before the call: a `Surgery`
+    // guard derefs, and a deref is not a two-phase borrow.
+    let (target, ring) = (e_minus(&body, hes[n - 1])?, c_plus(&body, tops[0])?);
     let n0 = body.mekr(
-        MekrSite::Cycles {
-            target: e_minus(&body, hes[n - 1])?,
-            ring: c_plus(&body, tops[0])?,
-        },
+        MekrSite::Cycles { target, ring },
         EdgeCurveSpec::self_loop_circle_at(qs[0]),
         tol,
     )?;
     body.kev(n0.he_plus)?;
     for j in 1..n {
+        let (he1, he2) = (e_minus(&body, hes[j - 1])?, c_plus(&body, tops[j])?);
         let nj = body.mef(
-            MefSite::Chords {
-                he1: e_minus(&body, hes[j - 1])?,
-                he2: c_plus(&body, tops[j])?,
-            },
+            MefSite::Chords { he1, he2 },
             EdgeCurveSpec::self_loop_circle_at(qs[j]),
             FaceSurface::Inherit,
             tol,
         )?;
         body.kev(nj.he_plus)?;
-        body.kef(c_plus(&body, tops[j - 1])?)?;
+        let victim = c_plus(&body, tops[j - 1])?;
+        body.kef(victim)?;
     }
-    body.kef(c_plus(&body, tops[n - 1])?)?;
+    let victim = c_plus(&body, tops[n - 1])?;
+    body.kef(victim)?;
 
     // ---- Phase 4: meridian upgrades — each surviving chain edge now
     // has both halves in its wall; periodic walls take `Seam`, plane
@@ -291,14 +296,14 @@ fn build_lamina<T: Decide>(
     let mut walls_c = vec![None; n];
     let mut rims_c = vec![None; n];
     let mut mer_c = vec![None; n];
+    body.close_already_checked();
     for (j, s) in segs.iter().enumerate() {
         walls_c[s.canonical_segment] = swept.faces[j];
         rims_c[s.canonical_vertex] = swept.rims[j];
-        mer_c[s.canonical_segment] = Some(he_edge(&body, hes[j])?);
+        mer_c[s.canonical_segment] = Some(he_edge(&built, hes[j])?);
     }
-    body.leave_surgery_and_sweep();
     Ok(Revolved {
-        body,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         cavities: Vec::new(),
@@ -359,9 +364,9 @@ fn build_wire<T: Decide>(
 
     // ---- Phase 1: the open chain (a wire: one face, loop up one side
     // and back the other; no closing mef). ----
-    let mut body = Body::<T>::new();
     // One surgery scope for the whole build — see `build_lamina`.
-    body.enter_surgery();
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qw[0])?;
     let mut hes = Vec::with_capacity(k);
     let first = body.mev(
@@ -542,10 +547,11 @@ fn build_wire<T: Decide>(
             param_start: T::zero(),
             param_end: half.abs(),
         };
+        let carrier = face_surface_key(&body, faces[i])?;
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
             spec,
-            FaceSurface::Shared(face_surface_key(&body, faces[i])?),
+            FaceSurface::Shared(carrier),
             tol,
         )?;
         // The band-2 wall is the same classified wall as its band-1
@@ -635,9 +641,9 @@ fn build_wire<T: Decide>(
     let mut poles_c = vec![None; n];
     poles_c[segs[wvert(0)].canonical_vertex] = Some(pole_near);
     poles_c[segs[wvert(k)].canonical_vertex] = Some(pole_far);
-    body.leave_surgery_and_sweep();
+    body.close_already_checked();
     Ok(Revolved {
-        body,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         cavities: Vec::new(),

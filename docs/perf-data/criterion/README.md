@@ -80,12 +80,17 @@ neither number alone is.
   re-measured on the 4 vCPU / 16 GB one.
 * **Debug assertions are OFF here, and the kernel's own `[profile.release]`
   turns them ON.** `benches/Cargo.toml` carries the argument and the
-  measurement behind it: on this tree, turning them on costs **6.5×** on
+  measurement behind it: turning them on cost **6.5×** on
   `kernel/build/extrude` and **5.2×** on `kernel/boolean/two_bricks` and
-  nothing on the other four. That is PERF-PLAN §1.3's per-op debug
-  full-body tier-1 (D1's ratified postcondition clause) measured for the
-  first time. So these numbers are the kernel's own cost, and they are
-  **not** the cost of the profile real parts meet.
+  nothing on the other four, which was the per-op debug full-body tier-1
+  sweep measured for the first time. **That ratio is historical**: D1's
+  sweep runs once per public door since the ruling on
+  `work/perf/d1-per-op-tier1-sweep-price` (Ev, PR 2305), so an
+  assertions-ON build pays one whole-body walk per door rather than one
+  per operator, and nothing has re-taken the ON column since. What the
+  bullet decides is unchanged either way: these numbers are the kernel's
+  own cost, and they are **not** the cost of the profile real parts
+  meet.
 * **Reporting only, never gated** (`memories/perf-measurement-lane.md`,
   PERF-PLAN Q-P4). No CI row fails on a millisecond. The one thing that
   does fail is `scripts/criterion-emit.py`'s roster pin: a renamed or

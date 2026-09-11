@@ -256,14 +256,17 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "replace_face_offset",
         "the one-face spelling of `replace_faces_offset`, which it calls",
     ),
-    // ---- Setters carrying their own tier-1 debug_assert. ----
+    // ---- Setters declaring the tier-1 postcondition. ----
     (
         "set_face_surface",
-        "asserts tier 1 directly (a surface swap can orphan a key)",
+        "declares the tier-1 postcondition directly (a surface swap can orphan a key): \
+         swept here when the setter IS the door, left to the door's close inside a \
+         surgery scope",
     ),
     (
         "set_edge_curve",
-        "asserts tier 1 directly (a curve swap can orphan a key)",
+        "declares the tier-1 postcondition directly (a curve swap can orphan a key), on \
+         `set_face_surface`'s terms",
     ),
     (
         "describe_at_rest",
@@ -339,9 +342,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// **What the allowlist is, and what it is not.** Not a waiver list.
 /// Each entry states why tier 1 survives that door, and the entries
 /// divide into four kinds: sugar delegating to an asserting operator;
-/// pipelines composed of asserting operators; setters carrying their
-/// own tier-1 `debug_assert`; and setters writing fields tier 1 does
-/// not constrain. The fifth kind has exactly one member and is the
+/// pipelines composed of asserting operators; setters declaring the
+/// tier-1 postcondition themselves (which, like an operator's, is
+/// swept at the door rather than at the write); and setters writing
+/// fields tier 1 does not constrain. The fifth kind has exactly one member and is the
 /// finding that produced this test — `instance`'s grafts do NOT
 /// preserve tier 1 on their failure path, which their own docs
 /// concede, and which is open as S14.
@@ -376,6 +380,15 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// asserted: it silences every operator that touches that body from
 /// then on. That case is a failure here, named separately, and
 /// [`crate::source_walk::SurgeryPosture`] is what reads it.
+///
+/// **This read is a second line, not the first one.** A scope opened
+/// through the RAII guard cannot be left open at all — the borrow is
+/// released only by a close or a drop, and both decrement — so what
+/// this adds is coverage of the guardLESS pair, lexically, for the
+/// doors it can see. It sees `pub fn … &mut self` in `topo/src` and
+/// nothing else, and it reads text: two opens against one close, or a
+/// close on one path only, read as closed. The residue is sized in
+/// `work/perf/door-scopes-outside-topo-are-unguarded`.
 
 #[test]
 fn every_public_mutation_path_preserves_tier1() {
@@ -395,11 +408,7 @@ fn every_public_mutation_path_preserves_tier1() {
             SurgeryPosture::ClosedUnderOwnAssertion => {
                 // The non-sweeping close claims a debug assertion of
                 // tier 1 or stronger in this same body. Read it back.
-                if !(door.code_contains("debug_assert")
-                    && (door.code_contains("validate_closed(")
-                        || door.code_contains("validate_geometric(")
-                        || door.code_contains("validate(")))
-                {
+                if !door.debug_asserts_the_whole_body() {
                     unbacked.push(door.site());
                 }
                 scoped.push(door.site());

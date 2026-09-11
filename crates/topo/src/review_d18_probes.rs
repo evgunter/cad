@@ -258,7 +258,9 @@ fn d18_torn_body_fixture_leaves_every_prev_live() {
 /// on the stated premise that *"Both `assert_euler_postcondition`
 /// messages carry the literal asserted below; no `unreachable!` message
 /// does."* Every postcondition message in the crate carries it — the
-/// operators' two and the door-level sweeps in [`crate::surgery`]. The premise is true today and is held by nothing — one
+/// operator's delta message, the shared tier-1 one, and the
+/// door-level sweep in [`crate::surgery`]. The premise is true today
+/// and is held by nothing — one
 /// `unreachable!` whose message happens to contain the word would make
 /// the discriminator pass on exactly the failure it exists to catch,
 /// silently. This row is that premise as a gate.

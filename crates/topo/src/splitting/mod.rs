@@ -415,12 +415,13 @@ pub fn split_reduce<T: geom_core::Decide>(
     tol: Tol,
 ) -> Result<SplitReduction<T>, SplitReduceError> {
     let band = geom_core::Band::linear(tol)?;
-    let mut body = operand.clone();
     // The crossing insertion and the null-edge insertion are this
     // door's operator sequence; tier 1 is paid once, over the reduced
-    // body, rather than once per operator (`crate::surgery`). A local,
-    // so a refusal on the way drops the scope with it.
-    body.enter_surgery();
+    // body, rather than once per operator (`crate::surgery`). The
+    // guard owns the borrow, so a refusal on the way closes the scope
+    // by dropping it.
+    let mut reduced = operand.clone();
+    let mut body = reduced.begin_surgery();
 
     classify::gate_operand(&body)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
@@ -433,9 +434,9 @@ pub fn split_reduce<T: geom_core::Decide>(
         insert::insert_null_edges(&mut body, v, &entries, &runs, &mut sides, &mut null_edges)?;
     }
 
-    body.leave_surgery_and_sweep();
+    body.sweep_and_close();
     Ok(SplitReduction {
-        body,
+        body: reduced,
         plane: *plane,
         sides,
         on_vertices,
@@ -525,6 +526,14 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
     let mut red = split_reduce(operand, plane, tol)?;
     // The section join carves the reduced body through the Euler
     // operators; one scope, one sweep at the end of the phase.
+    //
+    // **Guardless, and this is one of the two sites where it has to
+    // be.** A `Surgery` would borrow `red.body` for the scope's whole
+    // span, and the next line hands `split_connect` the WHOLE
+    // reduction — the sides table, the null-edge records and the body
+    // together — so the guard and the call cannot both exist.
+    // `red` is a local of this function and the failure path drops it,
+    // which is what makes an early `?` between the two lines harmless.
     red.body.enter_surgery();
     let (completed, fragments) = join::split_connect(&mut red, band, tol)?;
     red.body.leave_surgery_and_sweep();

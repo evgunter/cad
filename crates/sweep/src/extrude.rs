@@ -457,8 +457,11 @@ struct LoopBase {
 /// is classified against the plane normal per the crate docs' direction
 /// conventions. On success the returned body is closed and passes
 /// tiers 1–2 (`topo::validate`, `validate_closed`) by construction —
-/// tier 1 debug-asserted after every operator, tier 2 on the finished
-/// body — and passes tier 3 (`validate_geometric`) except in the two
+/// the door runs its operators under one surgery scope
+/// (`topo::surgery`), so tier 1 is not re-derived per operator and the
+/// tier-2 debug assertion on the finished body, which subsumes it, is
+/// what this door pays — and passes tier 3 (`validate_geometric`)
+/// except in the two
 /// cases [`Extruded::body`] names. The caller re-validates at rest per
 /// the workspace convention.
 ///
