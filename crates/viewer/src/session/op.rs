@@ -784,10 +784,20 @@ impl OpOutcome {
 ///
 /// **A door that cannot act says so rather than vanishing**, which is
 /// the posture `frame::ChooserBackend`'s two dialog controls take: the
-/// door is drawn in every state, and out of flight it carries the very
-/// [`Refusal`] its own operation would answer with rather than a
-/// sentence composed beside it — so the disabled control and the
-/// refused operation cannot come to say different things.
+/// door is drawn whatever the selection, the standing and the
+/// evaluation are, and disabled rather than absent when it can do
+/// nothing.
+///
+/// **How it says so is the OTHER precedent**, and the two part company
+/// exactly here: the dialog controls hand
+/// `frame::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
+/// button — to `on_disabled_hover_text`, which is the shape
+/// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
+/// reason-elsewhere.md` is open about. The one this follows is
+/// `pane::create`'s catalogue entry: *carrying the op's own refusal —
+/// read off the entry, not minted here*. So [`CancelDoor::blocked`] is
+/// a [`Refusal`] and not a sentence, and the disabled control's words
+/// are the refused operation's own.
 #[derive(Debug)]
 pub struct CancelDoor {
     /// What the control is called.

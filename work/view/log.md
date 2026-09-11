@@ -8060,13 +8060,23 @@ written — the mechanism working, announced rather than landed quietly,
 and the row's own three dispositions say who writes the line.
 
 **The citation census of the bands this diff shifted, and a refinement
-the rule needs.** `session.rs` +39 from `:595`, `app.rs` +26 from
-`:1241`, `README.md` +42 from `:977`, `reader_census.rs` +4 from `:306`;
+the rule needs.** `session.rs` +39 from `:595`, `app.rs` **+28** from
+`:1241` (the hunk is `@@ -1238,6 +1238,34 @@`, 28 added and 0 removed —
++26 was the pre-`cargo fmt` figure and is the number this entry first
+carried, fixed here because the log is the artifact that survives),
+`README.md` +42 from `:977`, `reader_census.rs` +4 from `:306`;
 `op.rs` and `gesture_table.rs` grew at EOF and shifted nothing. The
 instrument was per-citation text identity — `base[i]` against
 `head[i+shift]`, machine-checked — which **certifies the mapping and
 says nothing about the subject**, and that is stated rather than dressed
-up as a re-derivation. Sixteen open rows repointed, with their bare
+up as a re-derivation. **Eleven open rows repointed.** The enumeration
+rule is *files under `work/view/` this branch MODIFIES, less this log
+and less the row being closed* — every one of those eleven was modified
+because a citation in it moved, and nothing else was. Sixteen was the
+POPULATION rather than the count of repoints (the eleven, plus the four
+declared exclusions below, plus the closed row), and stood one line
+above a paragraph saying four were deliberately left — a number
+contradicting its own next sentence. The eleven carry their bare
 `:NNN` continuations and, for
 `four-debug-walks-are-spelled-and-placed-two-ways`, the two prose counts
 its own stated rule derives (`1,780` → `1,819`, `2,000-line` →
@@ -8110,3 +8120,83 @@ out and does not repair that. Plus the `FreeMoveInFlight` row above.
 to revert a mutation discarded the lane's own uncommitted work, because
 nothing was staged. Commit before mutating; the mutation evidence here
 was taken against a committed tree.
+
+### Fix pass on #2320 — what the review found, and what it cost
+
+Mergeable on the verdict; five record defects and three reports. The
+review reproduced all six mutations and added two of its own on the
+agreement row (mutating `perform`'s refusal, then the door's), ran the
+citation population sweep independently and got exactly this lane's four
+declared exclusions, and put an instrument on the `input::PRESETS`
+universal rather than reading the prose.
+
+**Four of the five were in the RECORD, not the code, and that is the
+lesson.** A repoint that should have been a revert
+(`four-debug-walks…:33` — `session.rs:1991` is a blank line, the
+`Debug for DocSession` subject is at `:2010`, and `origin/main:1952` was
+blank too, so it was wrong at the merge base and this lane's own stated
+rule says revert; that file's `:46-50` also declares its `std::fmt`
+citations left as written, and this was one of them). The log's own
+`+26` where the PR body carried the corrected `+28`. "Sixteen open rows
+repointed" where eleven were, one line above the paragraph naming the
+other four. And two citations in the closed row left at `properties.rs`
+`:100`/`:557` when the `CommitGesture` pushes are at `:103`/`:560` —
+the half-fixed-file shape, in a row whose other citations this lane DID
+re-derive. **A lane that repoints thirty citations correctly and leaves
+four wrong has produced a file a reader cannot trust**, which is the
+cost the class has always had; the instrument that caught all four was a
+reviewer re-deriving by hand, again.
+
+**The fifth was a false precedent in ratified text.** The README clause
+and `CancelDoor`'s docs both cited `frame::ChooserBackend`'s two dialog
+controls for the whole posture. They are the precedent for *drawn in
+every state* and the **counter-example** for *typed*: they hand
+`frame::NO_CHOOSER_BACKEND`, a `&'static str` composed at each button
+(`app.rs:1198`, `:1217`), to `on_disabled_hover_text`. The precedent for
+the typed half was in this crate and uncited —
+`pane/create.rs:248-259`, *"carrying the op's own refusal — read off
+the entry, not minted here."* Both texts now cite one for each half, and the
+clause says which of its universals is held by a TEST
+(`a_closed_door_says_what_its_own_operation_refuses`) rather than by the
+type, because nothing structural stops a future door composing its own
+sentence.
+
+**The clause's "drawn in every state" is now scoped to the states it was
+checked against** — the selection, the standing and the evaluation. The
+toolbar is one non-wrapping `ui.horizontal` (`app.rs:1148`) and the row
+now holds twelve controls, two of them this unit's, so a narrow window
+can push them out of reach. Nobody measured it and nobody can here;
+`the-toolbar-row-does-not-wrap` holds the question and says in its own
+`## What is NOT established` that the clipping is egui's documented
+rule, not an observation of this toolbar.
+
+**Two reports taken as files rather than as sentences.**
+`a-disabled-control-says-why-in-four-shapes` — the review found the
+cancel door is the fourth spelling of *a control a reader cannot use
+that says why*, and the sweep rule it owes is over that DISPOSITION and
+not over `on_disabled_hover_text`, because two members (a
+`blocked: Option<&'static str>` in `pane/create.rs:445` sharing this
+unit's field name with the opposite typing, and `properties.rs:347-352`)
+do not call it at all. And
+`the-new-document-button-states-its-refusal-twice`, eighteen lines above
+these doors: a comment claiming `Refusal::EmptyName` backs a disabled
+button whose tooltip is a literal saying something else.
+
+**A correction to the dispatch that every later lane needs: the expected
+WGPU red is in the `--lib` target, not `--test all`.**
+`cargo test -p viewer --features app --test all` is **517 passed / 0
+failed / 1 ignored** and carries no `gpu` row at all; the adapter row is
+`cargo test -p viewer --features app --lib`. A lane told to expect one
+red and running only `--test all` gets a clean number that means
+something else entirely — *running the crate's own suite is not running
+the suite*, one target deeper. `cargo nextest run -p viewer --features
+app` covers both (542 = 517 + the lib rows) and is the command to quote.
+Second correction: `clippy --all-targets --target wasm32-unknown-unknown`
+does not compile at all (`ThreadEvaluator` is
+`cfg(not(target_family = "wasm"))`, `lib.rs:139-140`); CI's row is
+`cargo check -p viewer --features app --target wasm32-unknown-unknown`
+under the `getrandom_backend` flag, and that is what this lane ran.
+
+**Out of fence, reported**: `crates/test-utils/tests/reader_census.rs:82`
+says the ledger is "Sorted by path" and nothing enforces it — `found.sort()`
+at `:588` sorts the tree walk, not the ledger.

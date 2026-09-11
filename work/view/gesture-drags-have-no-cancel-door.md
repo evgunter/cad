@@ -25,8 +25,8 @@ is the same defect in the same enum and is stated below.
 `SessionOp::CancelGesture` exists, `DocSession::perform` handles it
 (`crates/viewer/src/session.rs:1065-1079`), and **nothing in the chrome
 ever emits it.** The whole crate pushes it from zero sites: the two
-`CommitGesture` pushes are `crates/viewer/src/pane/properties.rs:100`
-and `:557`, both from `drag_stopped()` on the widget that pushed the
+`CommitGesture` pushes are `crates/viewer/src/pane/properties.rs:103`
+and `:560`, both from `drag_stopped()` on the widget that pushed the
 matching `BeginGesture` / `BeginParamGesture`, and there is no other
 door.
 

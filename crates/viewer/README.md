@@ -1006,15 +1006,31 @@ draws the button.
 siting that answers the defect: the field is what can stop being drawn,
 so a cancel beside it would vanish with the exit it replaces. And **a
 door that cannot act says so rather than vanishing** — the posture the
-two file-dialog controls take: each door is drawn in every state,
-enabled exactly while its own gesture is in flight, and out of flight it
-shows the refusal its operation would give. That refusal is carried on
-the door as a `Refusal` rather than composed beside the button, so the
-disabled control and the refused operation cannot come to say different
-things. **There is no key for it**: this crate binds no key to any
-operation at all (`input::PRESETS` states what a keyboard vocabulary
-would have to decide first), so an Escape binding is that decision and
-not a row to add.
+two file-dialog controls take: each door is drawn whatever the
+selection, the standing and the evaluation are, and enabled exactly
+while its own gesture is in flight. (Drawn, not *reachable at every
+window width*: the toolbar is one non-wrapping `ui.horizontal`, which
+`work/view/the-toolbar-row-does-not-wrap.md` is open about.)
+
+**How it says so is a different precedent from where it is drawn**, and
+citing one for both is wrong: the dialog controls hand
+`frame::NO_CHOOSER_BACKEND`, a `&'static str` composed at each button,
+to `on_disabled_hover_text` — the shape
+`environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
+is open about. A cancel door follows `pane::create`'s catalogue entry
+instead — *carrying the op's own refusal, read off the entry, not
+minted here* — so `CancelDoor::blocked` is a `Refusal` and the disabled
+control's words are the refused operation's own. **That the two cannot
+come to say different things is held by a test, not by the type**:
+`gesture_table.rs`'s `a_closed_door_says_what_its_own_operation_refuses`
+performs each door's operation with no gesture open and compares both
+the rendering and the variant. Nothing structural stops a future door
+composing its own sentence; that row is what would red.
+
+**There is no key for it**: this crate binds no key to any operation at
+all (`input::PRESETS` states what a keyboard vocabulary would have to
+decide first), so an Escape binding is that decision and not a row to
+add.
 
 ### One open tool, not seven optional ones
 

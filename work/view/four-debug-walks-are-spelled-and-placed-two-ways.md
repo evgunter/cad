@@ -30,7 +30,7 @@ Nothing decides between them for a crate that is not `no_std`, so this
 is taste, not a defect. What makes it worth a row is that the PR chose
 both, in one change, for four impls it is presenting as one mechanism
 — and the one that took the crate's majority spelling is the sibling,
-not the two it wrote from scratch. `session.rs:1991` (`DocSession`,
+not the two it wrote from scratch. `session.rs:1952` (`DocSession`,
 `std::fmt`) is pre-existing and is what the two new ones matched.
 
 ## Three walks sit beside their declarations and the fourth does not

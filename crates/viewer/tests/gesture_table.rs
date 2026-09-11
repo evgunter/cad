@@ -806,8 +806,10 @@ fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
     );
     assert!(
         session.slot_rows().is_empty(),
-        "so the panel is handed no row, and the field that would report \
-         the release is not drawn"
+        "the panel is handed no row. THIS ROW ASSERTS ONLY THAT: that a \
+         group absent from the list is not drawn, and so reports no \
+         release, is `properties_ui`'s `for group in &groups` and is \
+         read rather than executed here"
     );
     assert!(
         matches!(
