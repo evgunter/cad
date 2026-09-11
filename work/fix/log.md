@@ -292,3 +292,31 @@ Two things follow for this program's remaining waves:
   pushes none of which executed the step at all.** A red reachable only
   from a code-tier change is invisible for as long as the repo is
   landing docs, and `main` being green is not evidence it ran.
+
+### `compile-fail-blocks-without-error-codes` closed (PR 2335, 2026-09-11)
+
+All eight bare fences in `crates/quantity/src/units.rs` name a code
+**measured off `rustc`** at the pinned 1.97.0, not inferred — and the
+measurement is what the unit was for. The prose around the blocks
+called all three view refusals "a PRIVACY refusal" and the neighbouring
+`UnitDef` rows are `E0451`, so the plausible guess was `E0451`
+throughout; the two tuple-struct mint rows are in fact **`E0423`**,
+because a tuple struct's private field refuses at the constructor path
+rather than at the field list. Stable rustdoc never checks the
+annotation, so that guess would have shipped a wrong code invisibly,
+inside a unit whose whole subject is a block that pins nothing.
+
+Every block already had a legal twin, so none was added and no block
+needed the "cannot" escape; what the doc gained is the honest sentence
+about what the twin catches and what the code annotation does not.
+
+Not taken, deliberately: a per-block twin. Each group shares one today,
+which catches a rename of the type or constant but not a shift in one
+block's subject that leaves the shared symbol intact. That is a
+restructure of the doc's existing shape rather than this unit, and it
+does not earn a row — the limit is now stated at the site, which is
+where a reader meets it.
+
+CI run `34561282277`: 31 success, 5 skipped, 2 failure, the two being
+the inherited viewer rustdoc red filed as VIEW's above. Merged with
+that red annotated, per Ev's 2026-08-31 ruling.
