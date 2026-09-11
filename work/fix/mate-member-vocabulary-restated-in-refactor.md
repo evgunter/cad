@@ -2,9 +2,11 @@
 id: mate-member-vocabulary-restated-in-refactor
 kind: issue
 title: refactor.rs restates the member vocabulary the same way the viewer did, and says so in its own comment
-status: open
+status: review
 opened: 2026-09-04
 refs: [1405, 1748]
+branch: fix/refactor-member-vocabulary
+pr: 2338
 ---
 
 Found by CHROME's style lane while reviewing PR 1748, under the
@@ -98,3 +100,27 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## What landed
+
+The predicate this item names was already closed on `main`: PR 1749
+replaced `is_mate_edge_end`'s `InstantiatePart`-only `matches!` with a
+call to `mate::member_of`, and rewrote the comment above it so it
+states the invariant instead of citing this issue. So no production
+line was owed here.
+
+What was owed, and what this PR adds, is the row that can tell the two
+spellings apart. All four rows PR 1749 landed pass unchanged when the
+predicate is reverted to `InstantiatePart`-only — the whole
+`editor-core` suite does, 1197/1197 — so the unification was landing
+unpinned. `a_stranded_operand_over_an_instance_head_contributes_no_crossing`
+(`crates/editor-core/tests/fix_pattern_mate_crossing.rs`) is the
+reachable construction that separates them: a mate whose a-side is read
+at an operand the walk cannot reach its head from, while the head
+itself IS a live `InstantiatePart`. `member_of` refuses it, a
+head-spelling gate admits it, the mate welds no cluster so its two
+names do fall on opposite sides of an accepted cut — and the
+head-spelling gate mints an interface crossing there for a mate that
+never solved, which AQ8's (b)-SKIP forbids.
+
+It fails on the pre-1749 predicate and passes on the landed one.

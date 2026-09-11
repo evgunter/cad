@@ -687,9 +687,11 @@ nextest_check() {
 # nobody asked.
 #
 # It also keeps the two halves saying the same thing about a red run. The
-# parity checker compares which CHECKS each half names, never the flags on the
-# commands, so hosted and local can drift on reporting semantics with nothing
-# noticing — filed as its own issue rather than left as a note here.
+# parity checker's claim 10 now reads the commands and not only the roster:
+# the allowlisted cargo FLAGS on a shared subcommand, the semantics-bearing
+# ENVIRONMENT either half sets, and the DIRECTORY either half runs in. What it
+# still does not read is every other flag, so a reporting-semantics knob
+# outside `SEMANTIC_FLAGS` can still drift with nothing noticing.
 #
 # `$TEST_FILTER` IS COMPOSED WITH `&`, NEVER PASSED AS A SECOND `-E`. nextest
 # ORs its `-E` expressions, so a row that already selects a set — the interval
@@ -1068,10 +1070,12 @@ klint_gate() {
   # what this half did NOT: it tested `= 1` alone, so a build failure
   # (101), a panic (101) or an unknown-option exit passed silently. The
   # two halves disagreed about every status but 1 and 2, and
-  # check-ci-mirror-parity.py cannot see it — that script compares the
-  # NAMES and gate modes of the rows, not the shell that implements
-  # them, so this class of drift is caught by reading, not by a gate.
-  # Said here rather than left to be rediscovered.
+  # check-ci-mirror-parity.py cannot see it. Its claim 10 reads this
+  # row's shell — the cargo flags, the environment and the directory the
+  # `cd` above names — but an exit STATUS is not written in the argv at
+  # all, so which non-zero codes each half treats as failure is caught by
+  # reading and not by a gate. Said here rather than left to be
+  # rediscovered.
   [ "$status" != 0 ] && return 1
   return 0
 }
@@ -1184,10 +1188,15 @@ wasm_check() {
 #
 # UNCONDITIONAL HERE, SEED-KEYED HOSTED — this file's standing asymmetry,
 # argued at the toolkit rows in the dispatch list below.
-wasm_check_viewer() {
+#
+# CLIPPY AND `-D warnings`, and NO `--all-targets`: the hosted half
+# argues both, and this row's name is wider than `viewer` because its
+# verdict is.
+wasm_clippy_viewer() {
   rustup target add wasm32-unknown-unknown \
     && RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
-         cargo check -p viewer --features app --target wasm32-unknown-unknown
+         cargo clippy -p viewer --features app --target wasm32-unknown-unknown \
+           -- -D warnings
 }
 
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
@@ -1355,8 +1364,8 @@ rustdoc_gate() {
 run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
-# HOSTED MIRROR: fmt / wasm32 check (viewer app feature - the browser entry point)
-run_row "wasm32 check (viewer app)"    wasm_check_viewer
+# HOSTED MIRROR: fmt / wasm32 clippy (viewer app feature + its workspace deps - the browser entry point)
+run_row "wasm32 clippy (viewer app + deps)" wasm_clippy_viewer
 # ε battery {default, 1e-6, 1e-12} (Ev's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Over the default archive;
