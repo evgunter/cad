@@ -2,8 +2,9 @@
 id: boolean-kind-not-published-at-the-python-door
 kind: issue
 title: the Python checks door returns a separation refusal as prose only — no boolean_error_tag beside path_error_tag, so the FFI consumer substring-matches or nothing
-status: open
+status: review
 opened: 2026-09-04
+branch: fix/boolean-kind-python-door
 ---
 
 
@@ -41,3 +42,37 @@ all 41. Neither reason survives a caller actually wanting the class.
 Note the asymmetry this leaves: `path_error_tag` publishes its kernel
 class to Python and the boolean one does not, so the two error
 families read differently at the same door.
+
+## What landed
+
+`CheckEvidence.boolean_variant` — the boolean refusal's class at the
+Python checks door, beside the sentence it already published. The
+evidence's `kind` is no longer discarded: `check_payload` projects it
+through `boolean_error_tag`, the payload record carries it as a
+seventh attribute, and `pncad.pyi` declares it.
+
+**The vocabulary decision, and what re-measuring found.** The
+orchestrator's decision was to publish all 41 `BooleanErrorKind`
+variants exhaustively with no `_` arm, rather than a curated subset:
+`path_error_tag` already publishes all of `PathErrorKind`, so a subset
+would make the two error families read differently at the same door;
+a subset list is a third hand-written mirror of the kind the
+`kind-mirrors-have-no-single-declaration` item is about; and an
+exhaustive match over the kind enum cannot mint a phantom, because
+every arm it names is an arm the enum has. Re-measured on the merge
+base, the tree had already taken that decision: `boolean_error_tag`
+existed, over all 41 `BooleanError` arms with no wildcard, feeding
+`EvaluationError.inner_kind`. What was missing was only the KEYING —
+the map took the error, and the evidence holds the class alone,
+because a finding is `Clone + PartialEq` and the error is neither. So
+the map is re-keyed onto `BooleanErrorKind` (the `path_error_tag`
+shape) and one map now answers both doors; no new FFI word is minted
+and the committed tag inventory is unchanged.
+
+`BooleanErrorKind` has no phantom variant: all 41 are projected by
+`BooleanError::kind`, measured on the merge base.
+
+Its own attribute rather than `inner_variant`'s: the shell and boolean
+tag alphabets share spellings (`band`, `escalated`), so one attribute
+carrying either would be a word a caller could read only after
+branching on `variant`.
