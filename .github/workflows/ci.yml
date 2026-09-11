@@ -2200,10 +2200,12 @@ jobs:
       #
       # MEASURED, hosted (ubuntu-latest, the 4 vCPU public-repo runner
       # this file's header derives from the provenance step): THE STEP is
-      # 43 s as the `cargo clippy` it is now (run 34556713442), against
-      # 55-57 s as `cargo check` across four runs on its introducing PR —
-      # so the deny and the lint pass cost nothing here, and the spread
-      # between those readings is run-to-run noise rather than a delta.
+      # 43 s and 55 s as the `cargo clippy` it is now (runs 34556713442
+      # and 34557952266), against 55-57 s as `cargo check` across four
+      # runs on its introducing PR. The two spellings' ranges OVERLAP, so
+      # the deny and the lint pass buy no measurable time here; do not
+      # read a delta out of any pair of these numbers, for the reason the
+      # paragraph below gives about this job's own baseline.
       # Locally, from an empty CARGO_TARGET_DIR on 4 vCPU, 66 s as
       # `cargo check` against 65 s as `cargo clippy`, which is the same
       # answer taken where nothing else is competing for the machine.
