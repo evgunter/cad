@@ -34,3 +34,24 @@ reading the row against the tree on 2026-09-11, not a verdict on the
 finding, and a lane that finds it wrong says so in its PR. The id, the
 `track:` letter where the row carries one, and the body above are
 unchanged by the move.
+
+## Re-homed to CHROME (2026-09-11)
+
+Moved out of `work/door/` by the DOOR orchestrator, with Ev's direction
+in-chat. It was gathered into DOOR's opening slate at class **M**; that
+estimate was wrong, and the row fails DOOR's one charter test.
+
+**Reading it does not tell you the diff.** It names four files and says
+an `AddPart` op closes the gap, but not what the op takes — and which
+seat and which instance argument it carries is the whole of the work,
+not a detail below it. DOOR's charter is explicit that the fix must be
+written in the row, and that a row which grows a design question is
+re-homed rather than carried at the wrong class.
+
+**CHROME is the owner by shape and by precedent.** `crates/viewer/src/*`
+is CHROME's territory, the row's own filing says "CHROME's by shape (the
+viewer's authoring ops)", and the sibling gap —
+`placed-union-has-no-session-op`, an insert op the session vocabulary
+lacked for a kernel node the combine layer already admitted — was
+CHROME's and closed by CHROME in PR 1762. That is the shape to copy and
+the argument for where the row belongs.
