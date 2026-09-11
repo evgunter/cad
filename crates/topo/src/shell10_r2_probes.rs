@@ -1,8 +1,9 @@
 //! **SHELL-10 review, R2 crate-internal probes.** Two things only the
 //! crate's own corruption door and its private types can reach: the
-//! asserting setters' PANIC through a scoped door whose out-of-scope
-//! solid is malformed (the PR's stated reason acceptance row 2 stops
-//! at the scope walk), and the third mutant the review tried —
+//! tier-1 postcondition's PANIC through a scoped door whose
+//! out-of-scope solid is malformed (the PR's stated reason acceptance
+//! row 2 stops at the scope walk), and the third mutant the review
+//! tried —
 //! `re_scope` as a plain `Vec` swap — through the one path that would
 //! catch it, a re-scope UP.
 //!
@@ -67,12 +68,21 @@ fn break_a_loop(body: &mut Body<f64>, solid: SolidKey) {
 
 /// **The door PANICS, it does not refuse**, on a body whose
 /// out-of-scope solid is structurally malformed: the scope walk
-/// accepts it (the PR's row), and the first `set_face_surface` runs the
-/// whole-body tier-1 postcondition and asserts. Compiled into release
-/// too (`debug-assertions = true` in the workspace profile).
+/// accepts it (the PR's row), and the door's own whole-body tier-1
+/// postcondition asserts. Compiled into release too
+/// (`debug-assertions = true` in the workspace profile).
+///
+/// **Where it fires is the door, not the setter.** D1's tier-1 sweep
+/// runs once per public door (`crate::surgery`), so the setters inside
+/// this door's surgery scope check their arena deltas and nothing
+/// else; the whole-body re-derivation is the close. The corruption is
+/// planted before the door is entered and is caught before the door
+/// returns, which is the property this row is about — and the typed
+/// `ResultNotClosed` gate two lines later is NOT what catches it: a
+/// kernel bug still panics here rather than becoming an error return.
 #[test]
 #[should_panic(expected = "postcondition: result is not tier-1 valid")]
-fn r2_the_door_panics_in_the_first_setter_on_an_out_of_scope_malformed_solid() {
+fn r2_the_door_panics_on_an_out_of_scope_malformed_solid() {
     let (mut body, first, second) = two_boxes();
     break_a_loop(&mut body, second);
     let moves = moves_of(&body, first, 0.0);

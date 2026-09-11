@@ -344,7 +344,12 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     }
 
     // ---- Mutation, on a clone (every decision is done). ----
-    let mut work = body.clone();
+    //
+    // Under a surgery scope for the whole of it: the setters below are
+    // this door's operator sequence, and the tier-2 gate the clone is
+    // adopted on is the door's own whole-body check.
+    let mut staged = body.clone();
+    let mut work = staged.begin_surgery();
     let mut minted: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
     for m in moves {
         let Some(&first) = m.faces.first() else {
@@ -419,10 +424,11 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     // Tier 2 over the WHOLE clone, deliberately, and one of the four
     // reads that stay linear in the body (`Scope`'s docs carry the
     // account and the reason for each).
-    if let Err(errors) = crate::validate::validate_closed(&work) {
+    work.sweep_and_close();
+    if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
-    *body = work;
+    body.adopt(staged);
     Ok(())
 }
 
@@ -1044,11 +1050,12 @@ mod scope_walks {
     /// **The door as a whole is not** — and the row stops at the scope
     /// deliberately. A structurally corrupt body is refused by two
     /// arena-global reads this unit did not narrow, both downstream of
-    /// the scope: the asserting setters' tier-1 postcondition
-    /// (`set_face_surface`, `set_edge_curve` — a panic, not a refusal,
-    /// and compiled into this workspace's release profile too) and the
-    /// closing tier-2 check. Driving the door here would measure those,
-    /// not this. The narrowing is the pair of walks above.
+    /// the scope: the door's own tier-1 postcondition, run once over
+    /// the staged clone when its surgery scope closes (a panic, not a
+    /// refusal, and compiled into this workspace's release profile
+    /// too), and the closing tier-2 check. Driving the door here would
+    /// measure those, not this. The narrowing is the pair of walks
+    /// above.
     #[test]
     fn an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk() {
         let (mut body, first, second) = two_boxes();
