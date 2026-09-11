@@ -2,10 +2,11 @@
 id: checks-product-refusal-degrades-to-string
 kind: issue
 title: ChecksError::Product carries product::ProductError as reason: String — the same degradation one door over
-status: review
+status: closed
 opened: 2026-09-04
 branch: fix/product-error-kind
 pr: 2344
+closed: 2026-09-11
 ---
 
 

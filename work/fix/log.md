@@ -422,3 +422,61 @@ lane is told to do the move itself and the orchestrator keeps its hands
 off the file — never both. The lane did the right thing (it made its PR
 the claiming PR, per `work/README.md`) and paid for the orchestrator
 doing it too.
+
+### `checks-product-refusal-degrades-to-string` closed (PR 2344, 2026-09-11)
+
+`ProductErrorKind` (10 fieldless variants) with an exhaustive `kind()`,
+and both `Subject::Unavailable` and `ChecksError::Product` carrying it
+beside the prose. Raise sites write neither field: `Subject::refused`
+and `ChecksError::product_unavailable` pair the two off one error.
+
+**A deviation from the item's letter, and it is an improvement rather
+than a shortcut**, so nothing further is owed. The item asked for
+`kind: ProductErrorKind`; what landed is `Option<ProductErrorKind>`,
+because `Subject::Unavailable` has a second inhabitant that is not a
+refusal at all — `Subject::not_needed()`, the run where no enabled
+resident asked for a subject. `None` is the honest value there, and
+minting a kind to fill the field would publish a class no
+`ProductError` can carry. Pinned by its own row. The alternative —
+splitting `NotNeeded` out as its own variant — would move which refusal
+`run_checks_on` raises, which is an ANSWER, not a rendering, and was
+correctly refused for this unit.
+
+**The first run was red and it was the lane's own**, which is worth
+recording because nothing local could see it: a new name in
+`pncad::document` reds `test_binding_census.py`, whose census refuses a
+façade name that is neither bound nor dispositioned. `cargo build`,
+`cargo test -p editor-core`, three `clippy` invocations and
+`cargo fmt --all --check` were all clean over it. Any FIX unit adding a
+re-export to `pncad::document` owes that census a row.
+
+**Guard coverage is complete for the first time**: all 10 arms
+constructible, against 1806's 34 of 41. Each guard direction verified
+red on plant and reverted — a phantom kind naming itself at `E0004`, a
+mis-projected arm, a hardcoded kind at the door, and a constructor
+dropping the class.
+
+**Two findings placed, each checked against the owner's open PRs
+first** (the check this orchestrator skipped earlier today):
+
+- `work/docm/part-fault-partproduct-degrades-the-product-refusal.md` —
+  `eval/parts.rs:420`, DOCM's fence, now a one-field change because
+  this unit minted the class it needs.
+- `work/fix/node-error-kind-has-no-fieldless-projection.md` — three
+  doors (`drive.rs`, `mc.rs`, `stackup.rs`) with a `NodeErrorKind`
+  value in hand, rendering it away. Invisible to 1806's sweep because
+  its field-name pattern lacked `cause`. Homed here because `mc.rs` is
+  unowned; the row carries the correction that `NodeErrorKind` is not
+  missing, only unprojected.
+
+**A tripwire instance appended to TINT's row**, not fixed:
+`docm5_subject.rs`'s `gathers_in` counts source-text lines containing
+`" product("` and accused an ordinary method declaration of being a
+second gather call. The lane renamed around it. It is still armed, and
+it is a *second grammar* with that row's failure mode — matching a CALL
+by text, where the row's existing instances scan declarations.
+
+And `kind-mirrors-have-no-single-declaration` is updated with the thing
+four instances have now established: **the pairing direction is
+closable by a derive and by nothing else.** Three hand-copied guards is
+the evidence, not an argument.
