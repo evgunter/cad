@@ -468,6 +468,19 @@ discipline() {
   # under docs/perf-data/opt-level/ that cannot be edited afterwards.
   # HOSTED MIRROR: discipline / opt-level calibrator selftest (the guard over an append-only history)
   python3 scripts/opt-level-calibrate.py --selftest || rc=1
+  # The criterion benchmark lane's history writer. The LANE has no local half
+  # and is not supposed to: its entries are comparable only because one box
+  # class produced all of them, so a developer box's milliseconds committed as
+  # a trend point are exactly the failure memories/perf-measurement-lane.md
+  # exists to distrust. The HARNESS is not one-sided — `cd benches && cargo
+  # bench` is the right local act, and it writes nothing here on purpose. What
+  # belongs in both halves, by exactly the base-test-listing argument above, is
+  # the SELFTEST: it drives the criterion-directory reader, the roster pin and
+  # the environment block against fixtures, no hosted run produces those paths
+  # on demand, and the emit mode they guard writes what nightly.yml appends to
+  # a history under docs/perf-data/criterion/ that cannot be edited afterwards.
+  # HOSTED MIRROR: discipline / criterion history emitter selftest (the guard over an append-only history)
+  python3 scripts/criterion-emit.py --selftest || rc=1
   return $rc
 }
 

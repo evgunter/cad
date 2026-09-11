@@ -2846,6 +2846,7 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         checks_error_tag(&ChecksError::Product {
+            kind: Some(pncad::document::ProductErrorKind::NoBodyRoots),
             reason: "no body roots".into()
         }),
         "product_unavailable"
@@ -2947,7 +2948,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
         reason: "boxes refused".into(),
     };
-    carries(&unavailable, &["reason"]);
+    carries(&unavailable, &["reason", "boolean_variant"]);
 
     // The two arms that hold another door's refusal: its sentence and
     // its own word, which is the half a caller branches on.
@@ -2969,6 +2970,13 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     assert_eq!(
         check_payload(&E::Escalated { source: refused }).inner_variant,
         Some("zero_volume")
+    );
+    // The boolean class beside the sentence, and the two words are
+    // read off the same evidence: a consumer branching on this one
+    // never parses the prose to learn which refusal it was.
+    assert_eq!(
+        check_payload(&unavailable).boolean_variant,
+        Some("classification_invariant")
     );
 
     // The numbers and the sentence themselves, not just which fields

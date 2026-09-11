@@ -582,6 +582,71 @@ pub trait Real:
     }
 }
 
+/// **Is `x` a finite number at this scalar?** — asked through the
+/// value channel every [`Real`] has, with no bracket read and no
+/// threshold invented.
+///
+/// A finite value less itself is exactly zero; `∞ − ∞` and `NaN − NaN`
+/// are the scalar's poison ([`Real::is_poison`]). So the
+/// self-difference IS the question, which is why the equal-operands
+/// lint is allowed here and nowhere near it. An enclosure answers YES
+/// however wide it is (a finite interval's self-difference is a finite
+/// interval around zero, and an enclosure whose upper end overflowed
+/// still contains its truth) — the honest scope: this catches the
+/// point scalars, which is where an infinite length turns into a
+/// definite wrong answer.
+///
+/// **It is a statement about a SCALAR, and it sits at the bottom
+/// because every crate that has directions has to be able to ask it.**
+/// The arithmetic whose failure mode it names is
+/// [`Vec3::normalize`](crate::Vec3::normalize)'s, which is the
+/// neighbour to read it beside: components beyond ~1e154 overflow the
+/// norm to ∞, the ∞ length reads maximally DEFINITE to
+/// [`Decide`](crate::Decide), and the division collapses the direction
+/// to the zero vector. A home in
+/// a geometry crate above this one puts the single spelling out of
+/// reach of the crates below it — `profile` depends on this crate
+/// alone — and a rule with two spellings is two rules.
+///
+/// One rule, one spelling, one CALLER — **and the claim is exactly
+/// that literal one**: `topo::query::decide_unit_direction` is the
+/// workspace's only `Margin::norm3` decide-then-normalize spelling,
+/// and it is where this question is asked before that decision. It is
+/// NOT a claim that every length a direction is normalized by is asked
+/// about, and the difference is where the live holes are.
+///
+/// **Direction doors that decide a length and never ask whether it is
+/// finite**, each admitting a `1e200` component out of a DECIDED path
+/// (measured; each one its own crate's to fix, and every one of them
+/// can now reach this predicate — the class is
+/// `work/fix/two-d-director-doors-skip-the-finiteness-question`):
+///
+/// - this crate's own [`linalg::frame`](crate::linalg::frame)
+///   `definitely_positive` ([`Margin::of`](crate::Margin::of) on a
+///   norm, then `normalize` at four sites):
+///   `mirror_across_plane(p, (1e200, 0, 0), tol)` returns the IDENTITY
+///   — a mirror that mirrors nothing — and the door is public through
+///   `pncad-py`'s `Frame.mirror_across_plane`.
+/// - `sweep`'s `revolve::axis::AxisFrame::build`
+///   ([`Margin::norm2`](crate::Margin::norm2), then `normalize`): a
+///   `RevolveAxis` of `(1e200, 0)` builds with a `(0, 0)` direction.
+/// - `topo`'s own `sector_shape` (`Margin::of` on the shorter arm,
+///   then `normalize` on both): the same arithmetic collapses both
+///   arms to zero.
+/// - `profile`'s two 2-D director doors (`unit_from_components`,
+///   `arc_fillet::carrier_tangent`), the two that could not ask this
+///   question at all while it lived above them.
+///
+/// One further site normalizes without deciding at all, which is a
+/// different shape and the declined half of the direction family:
+/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
+/// normalized OUTPUT).
+pub fn is_finite_length<T: Real>(x: T) -> bool {
+    #[allow(clippy::eq_op)]
+    let residual = x - x;
+    !residual.is_poison()
+}
+
 /// Bracket extraction off a scalar — deliberately a separate trait, never
 /// folded into [`Real`], and **not** the certification door.
 ///
@@ -1497,6 +1562,31 @@ impl Real for f64 {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// The finiteness predicate answers the VALUE channel at every
+    /// scalar, and the interval arm is the one that would be wrong if
+    /// the self-difference were replaced by a bracket read: an
+    /// enclosure whose upper end overflowed still contains its truth,
+    /// so it is finite-as-a-value and only poison is not.
+    #[test]
+    fn is_finite_length_reads_the_value_channel() {
+        for x in [0.0, 1.0, -1e300, f64::MAX, f64::MIN_POSITIVE] {
+            assert!(is_finite_length(x), "{x} is a finite number");
+        }
+        for x in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(!is_finite_length(x), "{x} is not a finite number");
+        }
+        // The dual scalar answers about its VALUE: a finite value with
+        // any tangent is finite, a poisoned value is not.
+        assert!(is_finite_length(crate::Dual64::variable(3.0)));
+        assert!(!is_finite_length(crate::Dual64::constant(f64::INFINITY)));
+        // The overflow the predicate exists to catch, executed: the
+        // norm of a 1e200 component is not a number a direction can be
+        // divided by.
+        assert!(!is_finite_length(
+            crate::Vec3::new(1e200_f64, 0.0, 0.0).norm()
+        ));
+    }
 
     // f64 has *inherent* sin/min/... (std) that shadow the trait methods on
     // method-call syntax, so tests invoke the trait explicitly (`Real::sin`)

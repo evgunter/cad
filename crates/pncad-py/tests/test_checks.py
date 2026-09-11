@@ -117,6 +117,7 @@ class TestTheConnectednessResident(unittest.TestCase):
         self.assertIsNone(finding.evidence.other_output)
         self.assertIsNone(finding.evidence.reason)
         self.assertIsNone(finding.evidence.inner_variant)
+        self.assertIsNone(finding.evidence.boolean_variant)
         self.assertIn("component", str(finding))
 
     def test_a_connected_body_is_clean(self):

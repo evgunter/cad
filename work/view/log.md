@@ -8505,3 +8505,69 @@ through the closure without seeding the toolkit would have worn it.
 **This PR clears it as a side effect of the ruling**, which is worth
 saying plainly: the merge is not only a docs improvement, it takes a
 standing red off `main`.
+
+## 2026-09-11 — #2332 merged; it cleared a red #2320 put on main
+
+**Ev's rustdoc ruling is landed** (#2332, merge `9664acdfa`): the
+fourteen `app`-gated spans in the renderer-free half are links in the
+house ``[`crate::X`]`` spelling, and `scripts/doc-gate.sh`'s skip-mode
+viewer pass runs `RUSTDOC_LINTS_INERT` — CIW's file, on Ev's direct
+authorisation, announced at the site, in the PR body and as
+`work/ciw/view-made-the-skip-mode-viewer-doc-pass-lint-inert`. Two
+module notes retired, not three. Full code tier, 38 jobs, twelve
+`test (…)`, five `k-lint (gate, …)`, no unsubstituted placeholders,
+`gate ok` success.
+
+**The lane corrected the dispatch six times and every correction
+stood.** `forms.rs:18-20`'s note is about `pub(crate)` items on a
+public module page, not the headless pass, so it stays. There is no
+wasm32 *clippy* row at `-D warnings` — CI's row is `cargo check` and
+`ci.yml:2241-2250` says in terms that it is the one viewer row that
+cannot fail on a warning. Retiring `theme.rs`'s note required linking
+its two spans or the silent disposition returns. The selftest could not
+simply lose two arms without leaving that pass unfirable — the #2106
+shape, in the file whose subject is that shape. **The nightly re-take I
+told it to cite as the backstop cannot red**, measured. And the six
+cross-crate sites I handed it are twelve.
+
+**#2320 landed a red on `main` and its own CI could not show it.**
+`session/op.rs:773` links ``[`crate::widgets::drag_gesture_ops`]`` from
+an ungated module into an `app`-gated one. A `crates/viewer` diff seeds
+the toolkit, so that branch takes the non-skip path and documents the
+crate at `--all-features`, where the link resolves. The skip-mode pass
+— the only one that renders the renderer-free half alone — runs only on
+branches that reach `viewer` through the closure without seeding it.
+FIX's orchestrator hit it from `crates/quantity` (#2335) and filed it
+on our slate (#2340) rather than absorbing it. I verified the clear on
+merged `main` rather than inferring it from the merge:
+`scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit`
+exits 0 at `9664acdfa`.
+
+**Answered on #2340** with three corrections: the repair the item
+proposes is now contradicted by Ev's ruling (the link is correct as
+written and the gate is where the fix belongs); "every code-tier PR"
+generalises one step past the wiring, since a PR seeding `viewer`,
+`pncad` or `bvh` takes the non-skip path and is green; and the window
+was hours, not a week. Its silent-coverage paragraph is a real addition
+and is taken. The sweep it asks for — an ungated module's doc linking a
+gated one, which nothing mechanical reads — is genuinely open and VIEW
+will home it.
+
+**The proxy class is at nine and the ninth is mine, from inside the
+review of the eighth.** I swept for cross-crate links with a
+bracket-backtick pattern and got six; there are twelve, because
+`sketch.rs:939` is the reference form ``[`X`](path)``. The conclusion
+held — all twelve target `pncad`, a toolkit seed — but the population
+was the argument. Writing the class down does not exempt the next
+sweep from it.
+
+**Three rows opened**: `cfg-test-bare-spans-have-no-stated-disposition`,
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`
+(whose `blend.rs:169` names `unit_picker`, a symbol that exists nowhere
+in the workspace — alive because the 64-span sweep's rule was
+path-shaped), and
+`renderer-free-cross-crate-links-are-ungated-off-the-seed-set`. Three
+doc comments that said their first sentence twice were repaired in
+place (`datums.rs:201`, `:273`, `sketch.rs:1015`).
+
+**VIEW stands at 73 open / 73 closed, with nothing waiting on Ev.**

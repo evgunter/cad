@@ -117,6 +117,14 @@ impl<T: Real> Vec2<T> {
     /// `norm_squared` to 0 and blow the result up to ±∞ (not NaN). Both
     /// ends are far outside the session box (D4 ¶4), same posture as
     /// `powi`'s extreme-exponent note.
+    ///
+    /// **The overflow end is a silent wrong answer to a door that
+    /// decides the length's SIGN first**: an ∞ length is maximally
+    /// definite to [`Decide`](crate::Decide), so the door reports
+    /// success and hands back the zero vector. The question that has
+    /// to come first is [`is_finite_length`](crate::is_finite_length),
+    /// which is the predicate a caller normalizing a decided length
+    /// owes its length.
     pub fn normalize(self) -> Self {
         self / self.norm()
     }
@@ -233,6 +241,14 @@ impl<T: Real> Vec3<T> {
     /// below ~1e-162 underflow `norm_squared` to 0 and blow the result up
     /// to ±∞ (not NaN). Both ends are far outside the session box
     /// (D4 ¶4), same posture as `powi`'s extreme-exponent note.
+    ///
+    /// **The overflow end is a silent wrong answer to a door that
+    /// decides the length's SIGN first**: an ∞ length is maximally
+    /// definite to [`Decide`](crate::Decide), so the door reports
+    /// success and hands back the zero vector. The question that has
+    /// to come first is [`is_finite_length`](crate::is_finite_length),
+    /// which is the predicate a caller normalizing a decided length
+    /// owes its length.
     pub fn normalize(self) -> Self {
         self / self.norm()
     }

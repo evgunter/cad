@@ -1650,15 +1650,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "a positional `{:?}` over an expression this census does not type",
     ),
-    (
-        "crates/viewer/src/sketch.rs",
-        "PreviewError",
-        "verb",
-        1,
-        "two `Verb` types are declared in this tree and the site's is not\
-         decidable from the declaration alone; a verdict taken from the collision\
-         is not a verdict about this payload",
-    ),
 ];
 
 /// The raise sites that compose a `Debug` rendering deliberately.

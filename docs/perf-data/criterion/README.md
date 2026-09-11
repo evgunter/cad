@@ -124,6 +124,7 @@ tolerance over four decades and prints the exponent in triangle count,
 which is what tells a steep constant from a bad asymptote. Both are the
 right local act and neither writes anything here — deliberately. Your
 milliseconds are not comparable with a runner's, which is the design and
-not a limitation. `scripts/criterion-emit.py` is declared hosted-only in
-`scripts/check-ci-mirror-parity.py`'s exemption table for exactly that
-reason.
+not a limitation, and it is why nothing but a runner appends to this
+directory. The *emitter's* guard is not one-sided, though:
+`scripts/criterion-emit.py --selftest` runs in both halves of the merge
+gate, and `local-scripts/ci-local.sh` states the split at its own row.
