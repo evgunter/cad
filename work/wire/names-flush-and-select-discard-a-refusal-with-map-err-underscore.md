@@ -2,8 +2,10 @@
 id: names-flush-and-select-discard-a-refusal-with-map-err-underscore
 kind: issue
 title: names/flush.rs and names/select.rs discard a typed refusal with map_err(|_| ..), the shape MSOLVE-3 closed in mate/
-status: open
+status: review
 opened: 2026-09-06
+pr: 2378
+branch: wire/names-refusal-carries-cause
 ---
 
 

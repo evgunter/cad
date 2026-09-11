@@ -379,3 +379,110 @@ obligation was the ORCHESTRATOR's, not the lane's — and that it should
 read as an unmet obligation rather than be absorbed. It was met, but
 after the PR body was written; the fix pass now cites the item file so a
 reader of the PR can follow it.
+
+## E3 landed green, and it refuted a doc in another crate to decide its own question (2026-09-11)
+
+`names-flush-and-select-discard-a-refusal-with-map-err-underscore` →
+**PR 2378**, CI run 34624968259 **green on the full matrix**. The first
+run (34623155730) was red on `clippy (--all-features)` and the python
+suite for one missed feature-gated site; see the fence note below,
+because that red is the interesting part.
+
+**Decision: CARRY, at all four sites**, and the argument is better than
+the one the brief handed down.
+
+1. D9 chose a typed error **over a panic**. A `Result` whose `Err` is
+   destroyed one frame up is a bool in enum clothing — strictly worse
+   than the panic D9 declined, since a panic at least prints the
+   formatted `BandError`. Citing D9 to defend the unit variant is
+   self-defeating.
+2. **The cause is not unique, and the doc claiming it is, is wrong.**
+
+**The measurement, re-derived by this orchestrator before it was filed
+anywhere.** `Band::linear`'s `# Errors`
+(`crates/geom-core/src/predicate.rs:355-366`) says `BandError` arises
+*"only when K·ε … overflows to infinity"*. `Tolerance::validate`
+(`tolerance.rs:479-487`) admits **any** finite ε > 0 and **any** finite
+K > 1. At ε = 5e-324 (min subnormal) and K = 1 + 2⁻⁵² the increment
+`K·ε − ε` falls below half of 2⁻¹⁰⁷⁴ and rounds away, so `K·ε == eps`
+**exactly**, `Band::new` gets `zero == escalate`, and the band is
+rejected as `BandError::Empty`. Nothing overflowed. Checked:
+`K*eps == eps` is `True`; at K = 10 it is `False`, which is why no
+ordinary tolerance meets this.
+
+For any **normal** ε it genuinely cannot happen (K ≥ 1 + 2⁻⁵² forces one
+ulp of headroom), which is presumably the reading the sentence was
+written from. It is not true of the set the validator admits, which is
+what the word *"only"* claims — and **the two reachable ends want
+opposite repairs** (lower ε, against raise ε-or-K), so a refusal naming
+neither sends half its readers the wrong way. That is the whole case for
+carrying, and it could not have been made without the measurement.
+Filed on PROPS as
+`band-linear-errors-doc-is-false-empty-is-reachable-at-subnormal-eps`.
+
+**Class estimate E was wrong and the row is corrected to H.** The lane
+proposed "F", which is not in this plan's vocabulary; read as H, and the
+reason is the lane's own and is right: *"the decision the item delegates
+to the owner could not be made without a measurement that refutes a doc
+in another crate — that measurement, not the edit, was the unit."* Four
+sites not two, two crates, three refusal surfaces, ten files.
+
+**Review raised light → FULL**, second time today under Ev's rule. Two
+public enum variants gain a field; the argument rests on subnormal-float
+reachability; user-visible Python refusal text moves. `plan.md`'s
+posture table records both raisings with their reasons.
+
+**Fence crossings, and the one the lane could not see.** The unit edits
+three territories that are not WIRE's, and the reviewer is asked to
+check each against the PR body rather than take the lane's word:
+
+- `crates/pncad-py/src/{tags.rs,tests.rs,py/select.rs}` — **LIB's**.
+  **Forced**: a public enum gained a field, so its renderer one crate
+  over had to change. Legitimate, and still owed an announcement.
+- `crates/editor-core/tests/display_contract.rs` — S-TCOST's/S-TINT's
+  `crates/*/tests/*` glob, taken under the standing convention (a unit
+  adds rows there as ordinary tests and says so in its PR).
+- `names/geompred.rs`, `emit.rs`, `discriminate.rs`, `names/README.md` —
+  **in no open program's `paths`.** WIRE's list names only `flush.rs`,
+  `select.rs`, `table.rs`.
+
+That last line is the standing question this program should settle:
+**WIRE's `paths` should probably just be `crates/editor-core/src/names/*`**
+rather than three files, since every unit that touches `names/` is now
+drawing the fence one file at a time. It is a `program.md` edit with no
+design content, so it does not wait on Ev; it waits on the next unit
+that would otherwise draw the fence again, and is recorded on
+`emit-topo-destroys-the-edge-key-in-a-split-lineage-cycle`.
+
+**The CI red is a finding about sweeps, not about this lane.** The
+missed site was `pncad-py/src/py/select.rs:819`, feature-gated and one
+crate outside the grep scope the brief gave. Two generalisations the
+lane recorded and that this program should keep: **the shape does not
+respect the crate fence a sweep is scoped to**, and **a refusal's
+RENDERING sites are part of its class** — the payload had reached the
+type while that arm still threw it away.
+
+**Three residues placed**, each with its measured reason:
+
+- `work/shell/clearance-reports-a-no-bodies-payload-as-a-bad-body-index.md`
+  — `clearance.rs:1979` reports `InterrogateError::NoBodies` (the node
+  denotes no bodies) as `NoSuchBody { index }`. **Stronger** than the two
+  instances this unit fixed: those raised an honest kind and lost detail;
+  this raises a kind that points at the wrong argument. SHELL's file.
+- `work/fix/remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites.md`
+  — six sites discard `remap_name`'s `Err(RecipeNodeId)`. Not redundant
+  with the name the raised error carries: a `StableName` embeds names in
+  its `path`, so the failing node can be a path segment two levels down
+  and the outer name does not identify it. FIX's file.
+- `emit-topo-destroys-the-edge-key-in-a-split-lineage-cycle` — kept on
+  this program's slate (unowned file inside `names/`). The weaker
+  instance: kind honest, locator destroyed, on the one failure where the
+  edge is the only thing worth saying.
+
+**One stated gap accepted as honest.** The lane could not build an
+end-to-end row through `select_where`, because `editor-core`'s
+integration suite is one binary with one committed `Tolerance` and a
+pathological ε would poison every other suite. It said so rather than
+writing an assertion that cannot go red — but the reviewer is asked to
+verify the constraint is real, because "no door exists" is exactly the
+claim a lane is least placed to check about its own unit.
