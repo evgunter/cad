@@ -202,3 +202,89 @@ on the `found:`/`expected:` item so the sweep is not re-run.
 Review dispatched **light**, per the opening posture: byte-identical
 text, seven one-word substitutions, and the argument this unit actually
 turns on is a documented refusal to build machinery.
+
+## E2's review returned, and the doc rewrite is going back (2026-09-11)
+
+Light style review of PR 2376 delivered: **style findings only, none
+gating**, and it confirms the unit's re-count independently — seven bare
+words, eight composed sites, no site in the wrong column. The seven
+substitutions are accepted as they stand.
+
+**The twenty-line doc comment the unit added is false, and that is the
+fix pass.** Two of the review's claims the orchestrator verified rather
+than took:
+
+- `git grep -n "family::" origin/main -- crates/` returns exactly THREE
+  consumer sites (`kind_name`, `node_value_kind`, `wire.rs:622-623`). The
+  old *"three readers"* sentence was accurate, so the rewrite's stated
+  reason — that it was already stale — is false.
+- `expected: verb.tool_expected` (`wire.rs:2643`) is a real non-literal
+  reader, so the new doc's *"`expected` has no reader"* is false on the
+  day it lands. The unit's own blind-spot list had already admitted its
+  pattern could not see that site, which makes the assertion an
+  unforced one.
+
+Four more in the same twenty lines: *"Two readers answer `found`"* is
+contradicted at seven sites in the file it governs; the licensing rule
+covers neither `"body or instances"` (**wider** than a family, not
+narrower) nor the sentence at `:1603`; and the replacement is another
+prose enumeration that omits three sites in its own file and two outside
+it — the same failure mode as the sentence it replaced, one revision
+later.
+
+**Adjudication: restore the pre-PR doc, keep the substitutions.**
+`docs/prompts/implementer-discipline.md` §4 decides it — comments state
+the invariant, not the argument, and an argument about the shape of a
+change *"belongs in the PR description"*, where this one already is. A
+doc comment cannot carry an enumeration of call sites without going
+stale; that was the old sentence's defect and the rewrite reproduced it.
+The licensing rule is worth keeping and is going onto an item instead,
+where the wider-than-a-family and sentence cases can be stated correctly.
+
+**One adjudication against the lane's reading of the discipline.** The
+unit deleted a drafted sync-guard citing §2's *"a predicate over things
+fixed at compile time"*. The review found the same shape live at
+`verbs/split.rs:218` (`assert_eq!(corr.tool_expected, "datum plane")`),
+defended there *because the label is document-reachable*. The lane's
+reading was **slightly too broad**: a pin on a committed, user-reachable
+spelling is not a compile-time predicate in §2's sense, even when both
+sides are consts. The unit's OUTCOME was right anyway — the behavioural
+row subsumes the guard — but by §2's *other* clause, *"one its
+neighbours already subsume"*. The PR body says so now; `split.rs:218`
+is not touched.
+
+**Four more items filed from the review**, none of which the unit or its
+sweep could have reached:
+
+- `work/lib/pncad-py-value-refusals-spell-family-words-as-literals.md` —
+  `pncad-py/src/py/value.rs` builds five refusals with `kind_name()` on
+  one side and a bare family word as a literal on the other, in the same
+  sentence. The defect exactly, on the **public Python surface**, hitting
+  two of PR 2376's disclosed blind spots at once (`format!` template;
+  outside `editor-core/src/`). LIB's glob. It also records a contract
+  nobody had written down: `Value.kind` exposes `kind_name()` to Python
+  *"so the Python tag set cannot drift"*, which makes `family`'s ten
+  strings a public API and not only a refusal vocabulary.
+- `composed-expected-phrases-are-hand-copied-across-sites` — the
+  composed phrases PR 2376 licensed to stay prose are duplicated among
+  themselves: `"datum frame"` ×3, `"datum axis"` ×3, `"datum plane"` ×2.
+  The PR answered *"do these belong in `family`?"* (a fair no) and not
+  the class's actual question. Filed because PR 2376 closes its item
+  with this disclosed, and `work/README.md` is explicit that disclosing
+  a residue is not scheduling it.
+- `frame-plane-lane-and-axis-frame-are-one-door` — two functions, the
+  same `DatumValue::Frame` destructure, the same refusal, and
+  `axis_frame`'s own doc saying *"Same door … and same refusal."* Q2's
+  sharpest shape: the comment reconciling two spellings is the only
+  evidence, because the code compiles either way. Two of `"datum
+  frame"`'s three copies are these two functions, so it and the row
+  above are one pair of lines seen from two directions.
+- `wire-rs-module-header-describes-five-sixths-of-the-file` — from the
+  reviewer's Q8 read of all 4731 lines, which nothing in this process
+  otherwise does. The header promises each F4 node maps to an existing
+  kernel op; `:3092-3810` is a ~720-line union-declaration-routing
+  subsystem that maps to none. It also carries two measured accumulation
+  facts (41% comment; `wire_sweep` exists to fail) so they are not
+  re-derived.
+
+Q8 earned its keep on the first review of this program.
