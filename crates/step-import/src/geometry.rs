@@ -74,28 +74,40 @@ pub(crate) fn endpoint_params(
                 Curve3::Ellipse { major, minor, .. } => (*major, *minor),
                 _ => (1.0, 1.0),
             };
-            let angle = |p: Point3<f64>| -> f64 {
+            // Each angle is refused where it is derived, so the
+            // self-loop arm's early return cannot outrun the check:
+            // that arm has a start vertex and no end vertex, so a
+            // refusal sited after both angles is unreachable from it.
+            // `atan2` is total over finite arguments — the centre
+            // answers 0, not NaN — so a non-finite angle means
+            // non-finite vertex or placement data, or a semi-axis of
+            // zero, reached it. Both returned parameters are therefore
+            // finite, and the wrap loop below terminates.
+            let angle = |p: Point3<f64>| -> Result<f64, StepImportError> {
                 let w = p - *center;
-                (w.dot(v_ref) / min).atan2(w.dot(*u_ref) / maj)
+                let t = (w.dot(v_ref) / min).atan2(w.dot(*u_ref) / maj);
+                if t.is_finite() {
+                    Ok(t)
+                } else {
+                    Err(StepImportError::Topology {
+                        id,
+                        what: "a conic edge with a vertex whose carrier angle is not \
+                               finite (non-finite vertex or placement data, or a \
+                               semi-axis of zero)",
+                    })
+                }
             };
             let tau = f64::tau();
-            let mut t0 = angle(p_start);
+            let mut t0 = angle(p_start)?;
             if t0 < 0.0 {
                 t0 += tau;
             }
             if self_loop {
                 return Ok((t0, t0 + tau));
             }
-            let mut t1 = angle(p_end);
+            let mut t1 = angle(p_end)?;
             while t1 <= t0 {
                 t1 += tau;
-            }
-            if !t1.is_finite() || !t0.is_finite() {
-                return Err(StepImportError::Topology {
-                    id,
-                    what: "a conic edge whose vertex angles are not finite (vertex \
-                           at the conic's centre, or non-finite data)",
-                });
             }
             Ok((t0, t1))
         }
