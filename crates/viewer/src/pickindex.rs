@@ -1788,7 +1788,8 @@ impl core::fmt::Display for EdgeNameFault {
                 drawn,
             } => write!(
                 f,
-                "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so                  this address was not one this index handed out",
+                "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so \
+                 this address was not one this index handed out",
                 node.0
             ),
             Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error}"),

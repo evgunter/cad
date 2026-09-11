@@ -235,7 +235,9 @@ fn wild_scale_gate(row: &str) -> bool {
         return true;
     }
     println!(
-        "{row}: outside the wild corpus's certifying window — ambient ε {eps:e} m is not in          [{WILD_EPS_FLOOR:e}, {WILD_EPS_CEILING:e}]. The every-ε obligation is asserted          over the whole corpus by `no_wild_file_panics` instead of this row's certifying one."
+        "{row}: outside the wild corpus's certifying window — ambient ε {eps:e} m is not in \
+         [{WILD_EPS_FLOOR:e}, {WILD_EPS_CEILING:e}]. The every-ε obligation is asserted \
+         over the whole corpus by `no_wild_file_panics` instead of this row's certifying one."
     );
     false
 }

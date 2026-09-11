@@ -242,7 +242,8 @@ fn a_frames_arrows_cannot_hide_in_its_grid() {
         .count();
     assert_eq!(
         off_axis, 4,
-        "two barbs per arrow have to point off both axes, or the arrow          is drawn on top of a grid line and shows nothing",
+        "two barbs per arrow have to point off both axes, or the arrow \
+         is drawn on top of a grid line and shows nothing",
     );
 }
 

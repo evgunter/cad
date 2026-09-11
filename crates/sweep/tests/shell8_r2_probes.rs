@@ -296,7 +296,8 @@ fn r2_roles_are_read_per_hollow_solid_and_never_for_a_plain_one() {
     println!("[r2] hollow+plain: chk_shell_volume_sign verdicts = {signs}");
     assert_eq!(
         signs, 2,
-        "only the HOLLOW solid's two shells are classified; the plain          neighbour's is its boundary by arity and is never read"
+        "only the HOLLOW solid's two shells are classified; the plain \
+         neighbour's is its boundary by arity and is never read"
     );
 
     let plain = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0);

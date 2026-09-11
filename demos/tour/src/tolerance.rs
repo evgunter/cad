@@ -641,13 +641,15 @@ mod tests {
         assert_eq!(
             decided,
             Decided::Holds,
-            "the straddle is inside the coincidence band, so the assertion node HOLDS —              and the caption must say what the node says"
+            "the straddle is inside the coincidence band, so the assertion node HOLDS — \
+             and the caption must say what the node says"
         );
         // The margin the caption calls sub-band really is sub-band.
         let margin = report.worst_case.lo - bound;
         assert!(
             margin < 0.0 && margin.abs() < tol.eps(),
-            "the caption says the enclosure reaches under the bound by less than eps:              margin {margin:e}, eps {:e}",
+            "the caption says the enclosure reaches under the bound by less than eps: \
+             margin {margin:e}, eps {:e}",
             tol.eps()
         );
         // And the DIVERGENCE window the caption sizes: the certified
@@ -667,7 +669,8 @@ mod tests {
         );
         assert!(
             gap < tol.k() * tol.eps(),
-            "the caption says the whole divergence is inside the escalation threshold:              window {gap:e} against {:e}",
+            "the caption says the whole divergence is inside the escalation threshold: \
+             window {gap:e} against {:e}",
             tol.k() * tol.eps()
         );
         // The MC lane's number, which the caption now READS rather than

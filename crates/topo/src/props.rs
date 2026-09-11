@@ -1796,7 +1796,9 @@ mod quad_lane {
                 let r = RingInterval::from_certified(trv_pos());
                 assert!(
                     r.is_poison(),
-                    "a domain-violated scalar crossed into the ring as {r:?} —                  the bracket door does not read decorations, so the                  quadrature lane certifies a flux built from it"
+                    "a domain-violated scalar crossed into the ring as {r:?} — \
+                     the bracket door does not read decorations, so the \
+                     quadrature lane certifies a flux built from it"
                 );
                 // Non-vacuity: a certified scalar crosses with its endpoints.
                 let ok = RingInterval::from_certified(Interval::from_bounds(1.0, 4.0).sqrt());

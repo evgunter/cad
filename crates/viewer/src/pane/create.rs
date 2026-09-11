@@ -1130,14 +1130,16 @@ impl ViewerBehavior<'_> {
         let Some(((target, eval), index)) = ready else {
             ui.add_enabled(false, egui::Button::new("Select all edges"))
                 .on_disabled_hover_text(
-                    "click an edge or a face of the body first, and let it evaluate —                      a feature picked in the tree does not say which body",
+                    "click an edge or a face of the body first, and let it evaluate — \
+                     a feature picked in the tree does not say which body",
                 );
             return;
         };
         let clicked = ui
             .button("Select all edges")
             .on_hover_text(
-                "every edge of this body as it stands now, stored as a frozen set —                  whether the kernel can BLEND that set is its own answer, on the node's badge",
+                "every edge of this body as it stands now, stored as a frozen set — \
+                 whether the kernel can BLEND that set is its own answer, on the node's badge",
             )
             .clicked();
         if !clicked {

@@ -270,7 +270,9 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ),
     (
         "describe_at_rest",
-        "reads the edge's own certified curve and writes it back through `set_edge_curve`          (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints          verbatim",
+        "reads the edge's own certified curve and writes it back through `set_edge_curve` \
+         (asserting) with only the DESCRIPTION changed — carrier, interval and endpoints \
+         verbatim",
     ),
     // ---- Writes fields tier 1 does not constrain. ----
     (

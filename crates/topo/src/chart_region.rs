@@ -878,7 +878,10 @@ fn overlap_of_uv<T: Decide + Bounds>(
     // laundered into a typed refusal that would read as a bad body.
     let Some((v_lo, v_hi)) = v_window(uv_a, uv_b) else {
         unreachable!(
-            "chart-region: both faces' UV loops are empty, but              `loop_uv_polygon` refuses `DegenerateLoop` below three              vertices on the outer loop and on every ring, so an              empty polygon cannot reach the arm stage"
+            "chart-region: both faces' UV loops are empty, but \
+             `loop_uv_polygon` refuses `DegenerateLoop` below three \
+             vertices on the outer loop and on every ring, so an \
+             empty polygon cannot reach the arm stage"
         )
     };
     let (arm_u, arm_v) = certified_arms(surface, v_lo, v_hi, band)?;
