@@ -183,7 +183,8 @@ mod tests {
                 doc: crate::checks::gallery_document(tol),
                 roots: 1,
                 separation: 0,
-                why: "one root; its connectedness finding is the scene's own subject                       and is not a separation one",
+                why: "one root; its connectedness finding is the scene's own subject \
+                      and is not a separation one",
             },
             Shape {
                 name: "ring",
@@ -197,14 +198,17 @@ mod tests {
                 doc: crate::diefillet::gallery_document(tol),
                 roots: 1,
                 separation: 0,
-                why: "the composed die alone — the blank is a narration body and                       `gallery_document` deletes it, which is what this row guards",
+                why: "the composed die alone — the blank is a narration body and \
+                      `gallery_document` deletes it, which is what this row guards",
             },
             Shape {
                 name: "heatsink",
                 doc: crate::heatsink::gallery_document(tol),
                 roots: 1,
                 separation: 0,
-                why: "one root, and nothing in the document interpenetrates: the fin                       group is a PlacedUnion and a Boolean folds it into the base, so                       the whole part is in the recipe (#1344)",
+                why: "one root, and nothing in the document interpenetrates: the fin \
+                      group is a PlacedUnion and a Boolean folds it into the base, so \
+                      the whole part is in the recipe (#1344)",
             },
             Shape {
                 name: "teapot",

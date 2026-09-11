@@ -1259,7 +1259,8 @@ fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
         eprintln!("{name}: described={described} envelope edges={envelopes}");
         assert!(
             envelopes > 0,
-            "{name}: an arc-bounded cap must produce at least one Envelope edge,              or the whole chart_edge envelope path is unpinned"
+            "{name}: an arc-bounded cap must produce at least one Envelope edge, \
+             or the whole chart_edge envelope path is unpinned"
         );
         // And the oracle says every certified cell is honest.
         assert_sound(&run_extrude(name, &loops, 1.0));
