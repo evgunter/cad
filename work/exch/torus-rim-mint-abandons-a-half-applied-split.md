@@ -4,11 +4,14 @@ kind: issue
 title: The torus rim mint bails with Ok(()) after `split_at_midpoint` has already mutated the solid
 status: open
 opened: 2026-09-11
+refs: [step-adopt-let-ok-iso-discards]
 ---
 
 
-Filed by S414's sweep (`crates/step-import/src/geometry.rs`, the conic
-arm's finiteness ordering). The pattern swept for was "an early return
+Filed on **EXCH's** slate — `crates/step-import/src/*` is EXCH's
+territory (Track U) — by S414's sweep from DOOR
+(`crates/step-import/src/geometry.rs`, the conic arm's finiteness
+ordering). The pattern swept for was "an early return
 that precedes a validity check the later path performs"; this is the
 only real hit in `crates/step-import/src/`, and it is a neighbouring
 class rather than S414's — an early return that abandons a *mutation
@@ -43,6 +46,19 @@ today — `:1262` has just established `radius > 0.0` and finite, so
 so this half is a silent discard of a refusal that cannot fire, not a
 live swallow. S414's change (the conic angle now refuses where it is
 derived) does not make it reachable, for the same reason.
+
+## The `:1272` half is an instance of an already-open class
+
+`step-adopt-let-ok-iso-discards` (DOOR, from S394) is the same defect:
+`let Ok(…) = … else` discarding a typed `StepImportError` in this
+crate. That row names `adopt.rs:711` and `:877`; the sweeps behind this
+row and behind the S414 review put the class at six or more members —
+`entities.rs:2803`, `:2815`, `recognize.rs:967`,
+`recognize_curve.rs:223` and `normalize.rs:1271` (this row's second
+bailout). **Treat it as one class, not two subsets**: whoever answers
+the keep-with-comment-or-refuse question for `adopt.rs` answers it for
+all of them, and the answer this row needs for `:1272` is that
+question's answer plus the mutation-ordering one below.
 
 ## Why not S414's unit
 
