@@ -413,7 +413,7 @@ impl Body {
 /// Frozen, constructed only by the binding, and compared by value: two
 /// findings that say the same thing are `==`.
 ///
-/// `variant` is which `ValidationError` arm refused. The other five
+/// `variant` is which `ValidationError` arm refused. The other six
 /// are its payload, `None` on an arm that carries none, so `getattr`
 /// never raises and a caller never has to branch on `variant` first:
 ///
@@ -422,6 +422,16 @@ impl Body {
 ///   candidate contact). The two are two different repairs.
 /// * `entity_kind` — that entity's kind (`"face"`, `"edge"`,
 ///   `"vertex"`, …); `None` for a pair, whose sides are faces.
+/// * `decline_kind` — WHY a census decline declined: the refusing
+///   lane's own arm (`"witness_budget_exhausted"`,
+///   `"touching_boundary"`, `"missing_cache"`, `"contact_lane"`, …).
+///   The branch that matters: a `"witness_budget_exhausted"` decline
+///   says the interior-witness SEARCH STOPPED on a pair that may be
+///   perfectly decidable, and wants simpler trims, while
+///   `"touching_boundary"` says the overlap is not decidable at this ε
+///   and wants the geometry moved. The two used to arrive as one
+///   sentence about an uncertifiable inventory, which is the true
+///   cause of neither.
 /// * `contact_kind` — which coincidence the tier-3′ census found
 ///   (`"vertex_on_face"`, `"edge_edge_cross"`, …). The branch that
 ///   matters: an `"edge_face_pierce"` is interpenetration and cannot
@@ -463,6 +473,12 @@ impl ValidationFinding {
         self.0.entity_kind
     }
 
+    /// Why a census decline declined.
+    #[getter]
+    fn decline_kind(&self) -> Option<&'static str> {
+        self.0.decline_kind
+    }
+
     /// Which coincidence the census found.
     #[getter]
     fn contact_kind(&self) -> Option<&'static str> {
@@ -489,11 +505,12 @@ impl ValidationFinding {
         }
         format!(
             "ValidationFinding(variant='{}', subject_kind={}, \
-             entity_kind={}, contact_kind={}, stale_kind={}, \
-             ring_contact_kind={})",
+             entity_kind={}, decline_kind={}, contact_kind={}, \
+             stale_kind={}, ring_contact_kind={})",
             self.0.variant,
             word(self.0.subject_kind),
             word(self.0.entity_kind),
+            word(self.0.decline_kind),
             word(self.0.contact_kind),
             word(self.0.stale_kind),
             word(self.0.ring_contact_kind)

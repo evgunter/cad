@@ -1300,8 +1300,17 @@ fn attribute(
         // Matching either face alone would answer for a pair no mate
         // declared out of a declaration against some third face, and
         // which face got to answer would be the arena's ordering.
+        //
+        // The CAUSE the refusal carries is deliberately not read. A
+        // decline is the census neither certifying nor contradicting
+        // the declaration, and that relation holds whichever lane
+        // declined and for whatever reason — a stopped interior-witness
+        // search leaves the declaration exactly as unrefuted as a
+        // non-planar trim does. The cause tells the AUTHOR which
+        // repair to make; it is not a different verdict on the mate.
         ValidationError::CensusUnsupported {
             subject: topo::CensusSubject::FacePair(a, b),
+            ..
         } => named(by_pair(*a, *b), Relation::Declined),
         // A single FACE outside the inventory is a finding about that
         // face's own geometry, not about a candidate contact: the arm
@@ -1310,6 +1319,7 @@ fn attribute(
         // sharing a face with one is not being named by one.
         ValidationError::CensusUnsupported {
             subject: topo::CensusSubject::Entity(topo::EntityId::Face(_)),
+            ..
         } => Attribution::Unattributed,
         // The rest of the tier-3′ contact vocabulary, each
         // unattributable for a reason of its own rather than by
@@ -1369,6 +1379,7 @@ fn attribute(
                     | topo::EntityId::Edge(_)
                     | topo::EntityId::Vertex(_),
                 ),
+            ..
         }
         | ValidationError::CensusUndecidable { .. } => Attribution::Unattributed,
         // Everything the tier-1/2/3 passes find: the body's own
@@ -1549,9 +1560,69 @@ mod attribution {
     }
 
     /// A census refusal about a candidate face PAIR.
-    fn unsupported_pair(a: FaceKey, b: FaceKey) -> ValidationError {
+    ///
+    /// The cause is an argument because the rows below are about the
+    /// classification, and the classification must not read it: see
+    /// [`the_decline_relation_does_not_depend_on_which_lane_declined`].
+    fn unsupported_pair_because(
+        a: FaceKey,
+        b: FaceKey,
+        cause: topo::CensusUnsupportedCause,
+    ) -> ValidationError {
         ValidationError::CensusUnsupported {
             subject: topo::CensusSubject::FacePair(a, b),
+            cause,
+        }
+    }
+
+    /// A census refusal about a candidate face pair, declined by the
+    /// chart-region lane on a boundary it could not decide — the
+    /// commonest cause, and an arbitrary one for a row about the
+    /// relation.
+    fn unsupported_pair(a: FaceKey, b: FaceKey) -> ValidationError {
+        unsupported_pair_because(
+            a,
+            b,
+            topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
+        )
+    }
+
+    /// INVARIANT: the decline RELATION is a fact about what the census
+    /// did to a declaration — neither certified nor contradicted it —
+    /// and not about why the lane stopped. So every cause the census
+    /// can carry attributes identically.
+    ///
+    /// The row exists because the causes are not alike: a
+    /// `WitnessBudgetExhausted` decline is the search giving up on a
+    /// pair that may be fat and perfectly decidable, and it is
+    /// tempting to read that as weaker evidence than a
+    /// `TouchingBoundary` decline. It is not weaker about the
+    /// DECLARATION, which is unrefuted either way, and
+    /// [`AssemblyError::Uncertified`] means exactly that. A future
+    /// arm that branched here would move a kernel verdict, and this
+    /// row is what it would have to argue past.
+    #[test]
+    fn the_decline_relation_does_not_depend_on_which_lane_declined() {
+        let (minted, a, b, ..) = fixture();
+        let causes = [
+            topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
+            topo::CensusUnsupportedCause::ChartRegion(
+                topo::ChartRegionError::WitnessBudgetExhausted {
+                    segments: 130,
+                    cells: 0,
+                },
+            ),
+            topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::MissingCache {
+                half_edge: Default::default(),
+            }),
+            topo::CensusUnsupportedCause::ContactLane("order-k beyond the certified arm"),
+        ];
+        for cause in causes {
+            assert_eq!(
+                attribute(&unsupported_pair_because(a, b, cause.clone()), &minted),
+                attribute(&unsupported_pair(a, b), &minted),
+                "{cause:?}"
+            );
         }
     }
 
@@ -1768,6 +1839,7 @@ mod attribution {
             attribute(
                 &ValidationError::CensusUnsupported {
                     subject: topo::CensusSubject::Entity(EntityId::Face(a)),
+                    cause: topo::CensusUnsupportedCause::FaceUnboundable,
                 },
                 &minted
             ),
@@ -1786,6 +1858,9 @@ mod attribution {
             attribute(
                 &ValidationError::CensusUnsupported {
                     subject: topo::CensusSubject::Entity(EntityId::Vertex(vertex)),
+                    cause: topo::CensusUnsupportedCause::ContactLane(
+                        "order-k beyond the certified arm",
+                    ),
                 },
                 &minted
             ),

@@ -280,6 +280,7 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol}
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
+use crate::chart_region::ChartRegionError;
 use crate::contact::DeclaredContact;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
@@ -357,6 +358,83 @@ impl core::fmt::Display for CensusSubject {
                     EntityId::Face(*b)
                 )
             }
+        }
+    }
+}
+
+/// **WHY a census decline declined** — the refusing lane's own typed
+/// refusal, carried instead of discarded.
+///
+/// [`ValidationError::CensusUnsupported`] is raised by three
+/// different lanes, and until this was carried all three arrived at a
+/// consumer as one sentence about an uncertifiable inventory. That
+/// sentence is not always the true cause: a chart-region
+/// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
+/// decline means the interior-witness SEARCH STOPPED on a pair whose
+/// overlap may be fat and perfectly decidable, and its recourse is to
+/// simplify the trims — not to declare the geometry or separate it.
+/// A refusal whose stated cause is not its real one sends the reader
+/// to the wrong repair.
+///
+/// **This is a cause, not a classification.** It does not partition
+/// the refusals into "the geometry cannot be decided" and "the
+/// schedule stopped", because that partition is not clean:
+/// [`MissingCache`](ChartRegionError::MissingCache) is a fact about
+/// the BODY (re-mint its pcurves),
+/// [`Corrupt`](ChartRegionError::Corrupt) is a kernel-invariant
+/// violation, and [`RayExhausted`](ChartRegionError::RayExhausted) is
+/// named for exhaustion but reports a FIXED schedule every ray of
+/// which grazed — an ill-conditioned query at this ε, which no extra
+/// budget would decide. Carrying the arm itself says all of that and
+/// pre-judges none of it.
+///
+/// It carries no bearing on ATTRIBUTION:
+/// `editor_core::assembly::attribute` reads which variant refused and
+/// what its [`CensusSubject`] was, and a decline is the census
+/// neither certifying nor contradicting a declaration whichever lane
+/// declined. So this widens what the refusal SAYS and moves no
+/// `AssemblyError` verdict.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CensusUnsupportedCause {
+    /// The chart-region overlap lane refused typed: its own arm,
+    /// whole, with the quantities it metred.
+    ///
+    /// [`ChartRegionError::Escalated`] never reaches here — an
+    /// escalation is [`ValidationError::CensusEscalated`], a
+    /// different refusal with a different recourse — but it is not
+    /// excluded from the type, because the census's two exhaustive
+    /// matches are where that discrimination is written and stating
+    /// it twice would let the two drift.
+    ChartRegion(ChartRegionError),
+    /// The contact-pair certifier declined typed
+    /// (`ContactRefusal::NotCertifiable`): the configuration is
+    /// outside the class's certifiable set, and this is that
+    /// refusal's own statement of which set and why.
+    ContactLane(&'static str),
+    /// The census's face-bounding sweep could not bound the face at
+    /// all: it has no boundary vertex, because its outer loop is
+    /// empty or its boundary does not resolve. Nothing about the
+    /// face's CARRIER refused here, so the inventory sentence the
+    /// other two arms compose would name the wrong thing entirely.
+    FaceUnboundable,
+}
+
+// Each arm renders the refusing lane's own sentence, recourse
+// included, exactly as `CensusEscalated` renders `Indeterminate`
+// through `Display` rather than `Debug` — the S6 bug was a `{:?}`
+// here that dropped the carrier's recourse.
+impl core::fmt::Display for CensusUnsupportedCause {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::ChartRegion(e) => write!(f, "{e}"),
+            Self::ContactLane(what) => write!(
+                f,
+                "contact: the configuration is outside the class's certifiable                  set ({what}) — a declaration cannot move it inside, so declare                  and certify through a supported lane, or separate the geometry"
+            ),
+            Self::FaceUnboundable => write!(
+                f,
+                "census: the face has no boundary vertex — an empty outer loop,                  or a boundary reference that does not resolve — so the bounding                  sweep could not read its extent; repair the face's loop before                  asking the census about it"
+            ),
         }
     }
 }
@@ -996,33 +1074,46 @@ pub enum ValidationError {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// Tier 3′: an entity or record outside the census's CERTIFIABLE
-    /// inventory (M9-2 — the blanket exact-on-planar refusal retired
-    /// with the census arms that replaced it). The census admits
-    /// every carrier kind; this refusal now names the residue: a
-    /// record or conformal candidate whose certifier lane refuses
-    /// typed (no exact-constant-arm chart, seam-branch divergence,
-    /// non-planar trims, a carrier kind outside the Rest ladder, a
-    /// scalar with no certified lane). Refused loudly rather than
-    /// sampled, exactly as before — only the inventory statement
-    /// moved.
+    /// Tier 3′: an entity or record the census did not certify,
+    /// because a certifying lane refused TYPED (M9-2 — the blanket
+    /// exact-on-planar refusal retired with the census arms that
+    /// replaced it). Refused loudly rather than sampled.
+    ///
+    /// **The inventory is the commonest cause, not the only one.**
+    /// Most of these are a carrier or a trim outside what a certifier
+    /// admits — no exact-constant-arm chart, seam-branch divergence,
+    /// non-planar trims, a carrier kind outside the Rest ladder — and
+    /// for those the recourse is the geometry or the declaration. But
+    /// the same arm carries a stopped interior-witness search and an
+    /// absent pcurve cache, whose recourses are simpler trims and a
+    /// re-mint. [`CensusUnsupportedCause`] is which one it was, and
+    /// the `Display` reads it rather than asserting the inventory of
+    /// every finding.
     CensusUnsupported {
         /// The unsupported subject, whole: an entity for the arms
         /// whose subject is one entity, the face PAIR for the arms
         /// that examine a candidate contact.
         subject: CensusSubject,
+        /// WHY the lane declined — its own typed refusal, carried.
+        /// Three lanes raise this error and they decline for
+        /// unrelated reasons with unrelated recourses; without this
+        /// they all reached a consumer as one sentence about an
+        /// uncertifiable inventory, which is the true cause of some
+        /// of them and not of the rest.
+        cause: CensusUnsupportedCause,
     },
     /// Tier 3′: the SCALAR has no certified chart-overlap lane, so the
     /// conformal face-pair arm could not examine this candidate —
     /// a fact about the run, not about the geometry.
     ///
     /// Distinct from [`ValidationError::CensusUnsupported`] on
-    /// purpose, and the distinction is the recourse: that one says
-    /// *this* record or candidate is outside the certified inventory
-    /// and wants the geometry declared, certified through a supported
-    /// lane, or separated; this one says the same candidate would be
-    /// examined at `f64`, the telemetry probe or the interval scalar
-    /// and wants the body replayed at one of them. The two used to be
+    /// purpose, and the distinction is the recourse: that one says a
+    /// certifying lane LOOKED at this record or candidate and refused
+    /// typed, and carries which lane and why; this one says the same
+    /// candidate would be examined at `f64`, the telemetry probe or
+    /// the interval scalar and wants the body replayed at one of
+    /// them. No lane refused here, which is why this arm carries no
+    /// [`CensusUnsupportedCause`] — there is none to carry. The two used to be
     /// the same variant on the same face, which made a run-wide fact
     /// read as a per-pair geometric refusal.
     /// [`ValidationError::ApproxLaneUnsupported`] is the same shape
@@ -1767,16 +1858,18 @@ impl fmt::Display for ValidationError {
                 "tier-3′ census predicate escalated: {cause} — indeterminate \
                  coincidence geometry at rest is a defect"
             ),
-            Self::CensusUnsupported { subject } => write!(
+            // The CAUSE supplies the recourse, and the arm no longer
+            // supplies one of its own. The blanket "declare and
+            // certify through a supported lane, or separate the
+            // geometry" tail was true of the inventory arms and FALSE
+            // of the rest — a stopped interior-witness search wants
+            // simpler trims, an absent pcurve cache wants a re-mint —
+            // so it named the wrong repair for every finding it did
+            // not describe.
+            Self::CensusUnsupported { subject, cause } => write!(
                 f,
-                "tier-3′ census: {subject} is outside the census's certifiable \
-                 inventory — the census admits every carrier kind, but \
-                 this record or conformal candidate has no certifier lane \
-                 (exact-constant-arm charts, the Rest carrier ladder and the \
-                 jet schedule are the certified set; the inf-stretch-bounds \
-                 extension is the named follow-up). Refused rather than \
-                 sampled; declare and certify through a supported lane, or \
-                 separate the geometry"
+                "tier-3′ census: {subject} was not certified — refused rather \
+                 than sampled, and the refusing lane says why. {cause}"
             ),
             Self::CensusLaneUnsupported { subject } => write!(
                 f,
@@ -6471,11 +6564,22 @@ mod tests {
             ValidationError::CensusEscalated {
                 cause: indeterminate(),
             },
+            // Two causes, not one twice: the Display-coverage row
+            // renders every arm in this list, and an arm whose cause
+            // is only ever the chart-region one would leave the other
+            // two composition paths unrendered here.
             ValidationError::CensusUnsupported {
                 subject: CensusSubject::FacePair(t.face_a, t.face_b),
+                cause: CensusUnsupportedCause::ChartRegion(
+                    ChartRegionError::WitnessBudgetExhausted {
+                        segments: 130,
+                        cells: 0,
+                    },
+                ),
             },
             ValidationError::CensusUnsupported {
                 subject: CensusSubject::Entity(EntityId::Face(t.face_a)),
+                cause: CensusUnsupportedCause::FaceUnboundable,
             },
             ValidationError::CensusLaneUnsupported {
                 subject: CensusSubject::FacePair(t.face_a, t.face_b),
@@ -7377,6 +7481,73 @@ mod tests {
             prop_assert!(validate(&cloned).is_err());
             prop_assert_eq!(validate(&t.body), Ok(()));
         }
+    }
+
+    /// A census decline says WHICH lane declined and why, so two
+    /// declines with opposite recourses do not read as one refusal.
+    ///
+    /// The pair here is the sharpest one the chart-region lane has. A
+    /// `TouchingBoundary` decline is a statement about the GEOMETRY —
+    /// the trims touch, the area is not decidable at this ε — and a
+    /// `WitnessBudgetExhausted` decline is a statement about the
+    /// WORK: the interior-witness search stopped, on a pair whose
+    /// overlap may be fat and perfectly decidable. The repairs are
+    /// unrelated, and while the census flattened both onto its
+    /// subject the two sentences were byte-identical.
+    ///
+    /// The falsifier is the equality below: drop the cause from
+    /// either push site in `census.rs` and the two messages coincide
+    /// again.
+    #[test]
+    fn a_census_decline_names_the_lane_and_the_arm_that_declined() {
+        let subject = CensusSubject::FacePair(FaceKey::default(), FaceKey::default());
+        let thin = ValidationError::CensusUnsupported {
+            subject,
+            cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::TouchingBoundary),
+        }
+        .to_string();
+        let stopped = ValidationError::CensusUnsupported {
+            subject,
+            cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::WitnessBudgetExhausted {
+                segments: 130,
+                cells: 0,
+            }),
+        }
+        .to_string();
+        assert_ne!(thin, stopped);
+        // Each carries its OWN lane's sentence, recourse included —
+        // `Display` on the cause, never `Debug`, which is the S6 bug
+        // one variant over.
+        assert!(thin.contains("not decidable in either direction"), "{thin}");
+        assert!(stopped.contains("the search stopped"), "{stopped}");
+        assert!(stopped.contains("simplify the pair's trims"), "{stopped}");
+        // The numbers the guard metred reach the reader. `130` is the
+        // segment count and `0` is the whole of the segment-cap arm:
+        // nothing was probed.
+        assert!(stopped.contains("130-segment"), "{stopped}");
+        // And the blanket recourse the arm used to append to every
+        // decline is gone: it is the inventory lanes' repair, and it
+        // is the wrong instruction for a stopped search.
+        assert!(!stopped.contains("separate the geometry"), "{stopped}");
+
+        // The other two lanes compose the same way, from their own
+        // vocabularies rather than from the chart lane's.
+        let contact = ValidationError::CensusUnsupported {
+            subject,
+            cause: CensusUnsupportedCause::ContactLane("order-k beyond the certified arm"),
+        }
+        .to_string();
+        assert!(
+            contact.contains("order-k beyond the certified arm"),
+            "{contact}"
+        );
+        let unboundable = ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
+            cause: CensusUnsupportedCause::FaceUnboundable,
+        }
+        .to_string();
+        assert!(unboundable.contains("no boundary vertex"), "{unboundable}");
+        assert_ne!(contact, unboundable);
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the census pair —

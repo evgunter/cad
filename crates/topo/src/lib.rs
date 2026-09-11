@@ -368,10 +368,10 @@ pub use splitting::{
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
-    CensusContact, CensusSubject, ContactMark, RingContact, StaleDeclaration, ValidationError,
-    contact_marks, contact_marks_certified, contact_marks_declared,
-    contact_marks_declared_certified, validate, validate_closed, validate_geometric,
-    validate_geometric_certificate, validate_geometric_certificate_declared,
+    CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
+    StaleDeclaration, ValidationError, contact_marks, contact_marks_certified,
+    contact_marks_declared, contact_marks_declared_certified, validate, validate_closed,
+    validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
     validate_geometric_declared, validate_geometric_structural,
     validate_geometric_structural_declared, validate_pseudomanifold,
     validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_certified,

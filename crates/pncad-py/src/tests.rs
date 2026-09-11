@@ -3083,18 +3083,23 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 #[test]
 fn every_validation_finding_carries_every_word_its_arm_has() {
     use crate::validation::{Finding, project};
-    use pncad::topo::{CensusContact, CensusSubject, EntityId, ValidationError};
+    use pncad::topo::{
+        CensusContact, CensusSubject, CensusUnsupportedCause, ChartRegionError, EntityId,
+        ValidationError,
+    };
 
     // The arm whose subject is ONE entity: the recourse is that
     // carrier's, so the kind of carrier is the word a caller acts on.
     assert_eq!(
         project(&ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Edge(Default::default())),
+            cause: CensusUnsupportedCause::ContactLane("order-k beyond the certified arm"),
         }),
         Finding {
             variant: "census_unsupported",
             subject_kind: Some("entity"),
             entity_kind: Some("edge"),
+            decline_kind: Some("contact_lane"),
             contact_kind: None,
             stale_kind: None,
             ring_contact_kind: None,
@@ -3113,6 +3118,9 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             variant: "census_lane_unsupported",
             subject_kind: Some("face_pair"),
             entity_kind: None,
+            // No lane refused: the scalar had none to refuse with, so
+            // there is no cause and this is not a missing word.
+            decline_kind: None,
             contact_kind: None,
             stale_kind: None,
             ring_contact_kind: None,
@@ -3134,8 +3142,37 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
         Some("edge_face_pierce")
     );
 
+    // THE WORD THE CENSUS DECLINE TURNS ON, both halves of the pair
+    // it was added for. These two used to project identically — one
+    // `census_unsupported`, same subject, same everything — while
+    // meaning opposite things: the first says the trims touch and the
+    // overlap is not decidable at this ε, the second says the
+    // interior-witness search STOPPED on a pair that may be fat and
+    // perfectly decidable. A Python caller branches on this word, and
+    // before it existed there was nothing to branch on.
+    let pair = CensusSubject::FacePair(FaceKey::default(), FaceKey::default());
+    assert_eq!(
+        project(&ValidationError::CensusUnsupported {
+            subject: pair,
+            cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::TouchingBoundary),
+        })
+        .decline_kind,
+        Some("touching_boundary")
+    );
+    assert_eq!(
+        project(&ValidationError::CensusUnsupported {
+            subject: pair,
+            cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::WitnessBudgetExhausted {
+                segments: 130,
+                cells: 0,
+            },),
+        })
+        .decline_kind,
+        Some("witness_budget_exhausted")
+    );
+
     // The one fieldless arm, and the shape of every arm that carries
-    // no payload at all: the variant alone, five `None`s beside it,
+    // no payload at all: the variant alone, six `None`s beside it,
     // so `getattr` never raises on a finding a caller did not expect.
     assert_eq!(
         project(&ValidationError::NegativeVolume),
@@ -3143,6 +3180,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             variant: "negative_volume",
             subject_kind: None,
             entity_kind: None,
+            decline_kind: None,
             contact_kind: None,
             stale_kind: None,
             ring_contact_kind: None,
@@ -3508,8 +3546,32 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "census_decline_tag",
+        values: &["contact_lane", "face_unboundable"],
+        delegates: &["chart_region_error_tag"],
+    },
+    TagEntry {
         function: "census_subject_tag",
         values: &["entity", "face_pair"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "chart_region_error_tag",
+        values: &[
+            "arm_unbounded",
+            "carrier_tilt",
+            "chart_corrupt",
+            "chart_divergence",
+            "chart_escalated",
+            "degenerate_loop",
+            "missing_cache",
+            "non_planar_trim",
+            "period_fold",
+            "ray_exhausted",
+            "seam_branch",
+            "touching_boundary",
+            "witness_budget_exhausted",
+        ],
         delegates: &[],
     },
     TagEntry {

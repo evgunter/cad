@@ -200,7 +200,15 @@ pub enum ChartOverlap {
 
 /// Typed refusal/escalation of [`chart_region_overlap`] (closed enum,
 /// D3 style: every arm names its recourse).
-#[derive(Debug)]
+///
+/// `Clone` and `PartialEq` because the refusal is CARRIED: the census
+/// wraps it in
+/// [`ValidationError::CensusUnsupported`](crate::ValidationError::CensusUnsupported)'s
+/// cause, and that error is `Clone + PartialEq` so a consumer can
+/// hold and compare a whole report. `Eq` is not available — the
+/// escalation arm carries `f64` margins — which is the same reason
+/// `ValidationError` has none.
+#[derive(Clone, Debug, PartialEq)]
 pub enum ChartRegionError {
     /// The pair has no structural chart identity (rung 3 or below):
     /// C2's caveat — two descriptions of one locus may differ as

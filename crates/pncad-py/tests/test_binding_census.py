@@ -938,8 +938,22 @@ BOUND_AS = {
     # `tests/test_validate.py`. Crossing them is still the move: the
     # attribute is the contract, and a caller reads it the day a door
     # produces one.
+    #
+    # `CensusUnsupportedCause` and `ChartRegionError` are ONE word
+    # between them, and that is the whole of why both are here.
+    # `census_unsupported` is raised by three lanes with unrelated
+    # recourses; the cause says which lane, and for the chart-region
+    # lane the rung BELOW it — the arm — is the branch a caller acts
+    # on. So `decline_kind` is flat: the chart-region arm's own word
+    # (`witness_budget_exhausted`, `touching_boundary`, …) where the
+    # cause is a chart-region refusal, and the cause's own word
+    # (`contact_lane`, `face_unboundable`) otherwise. Both matches are
+    # exhaustive in `src/tags.rs`, so an arm added to either enum
+    # stops the bindings compiling in front of whoever must name it.
     "CensusContact": "ValidationFinding.contact_kind",
     "CensusSubject": "ValidationFinding.subject_kind",
+    "CensusUnsupportedCause": "ValidationFinding.decline_kind",
+    "ChartRegionError": "ValidationFinding.decline_kind",
     "RingContact": "ValidationFinding.ring_contact_kind",
     "StaleDeclaration": "ValidationFinding.stale_kind",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
