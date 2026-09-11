@@ -9,7 +9,7 @@ opened: 2026-09-11
 
 Found by the sweep on
 `wasm-row-warning-debt-comment-names-a-closed-item-and-a-deleted-symbol`
-(PR TBD), which flipped the *other* wasm row to a deny. The pattern was
+(PR 2326), which flipped the *other* wasm row to a deny. The pattern was
 "every `cargo check`/`cargo clippy` invocation in `.github/workflows/`
 and `local-scripts/ci-local.sh`, partitioned by whether it denies
 warnings". After that flip exactly one hit is left.
