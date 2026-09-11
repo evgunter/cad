@@ -1,6 +1,6 @@
 ---
 name: test-suite-cost
-description: Standing rules for what a test may cost the suite — all fuzzing varies its seed, scales on an EFFORT dial, and runs every time at EFFORT=1 with its DEPTH gated to the code it tests; assertion-free tests never gate
+description: Standing rules for what a test may cost the suite — all fuzzing varies its seed, scales on an EFFORT dial, and runs every time at EFFORT=1 with a RAISED EFFORT gated to the code it tests; assertion-free tests never gate
 metadata:
   type: feedback
 ---
@@ -68,29 +68,32 @@ Three properties every fuzzer needs, together:
   its fix.
 - **Counts as multiples of a shared EFFORT dial**, shipped at the smoke
   level EVERY run pays, so depth is one env var away.
-- **ALWAYS RUN, at EFFORT = 1. The marker buys DEPTH, not existence**
-  (Ev, 2026-09-11). Every fuzzer runs on every run at the shipped smoke
-  level; the marker naming the code it was written to test selects which
-  ones then run DEEPER — **on its NAMED PATHS against the diff, never on
-  the crate closure** (Ev, 2026-09-11). A closure reaches every ancestor
-  of a file, so depth keyed on one is bought by changes that cannot
-  affect the sweep; the marker exists to say which few files it is
-  actually about, and that is the set that buys depth.
+- **ALWAYS RUN, at EFFORT = 1. The marker buys a HIGHER EFFORT, not
+  existence** (Ev, 2026-09-11). Every fuzzer runs on every run at the
+  shipped smoke level; the marker naming the code it was written to test
+  selects which ones then run at a RAISED `CAD_FUZZ_EFFORT` — **on its
+  NAMED PATHS against the diff, never on the crate closure**
+  (Ev, 2026-09-11). *"Depth" below is not a second quantity: it is what
+  the EFFORT dial buys and nothing else*, the same way this file's
+  previous clause used it. One dial, two settings. A closure reaches every ancestor
+  of a file, so an EFFORT raise keyed on one is bought by changes that
+  cannot affect the sweep; the marker exists to say which few files it is
+  actually about, and that is the set that buys the raise.
 
-  **DEPTH FAILS CLOSED** (Ev, 2026-09-11), and that is the opposite of
-  how existence fails. A run that cannot resolve the diff — an
-  unreadable file list, an unresolvable marker, tier `all` — runs
-  everything at EFFORT = 1 and nothing deep. Failing OPEN is right for
-  existence because it means running more; failing open on depth would
-  mean running everything deep on the tier-`all` runs that are most
-  merges, which spends exactly what the dial exists to ration. Failing
-  closed costs depth and never existence, which is this rule's whole
-  shape. "The chance it turns up something new isn't
-  technically zero" still does not justify paying for DEPTH on every run
+  **THE RAISED EFFORT FAILS CLOSED** (Ev, 2026-09-11), and that is the
+  opposite of how existence fails. A run that cannot resolve the diff —
+  an unreadable file list, an unresolvable marker, tier `all` — runs
+  everything at EFFORT = 1 and raises it for nothing. Failing OPEN is right for
+  existence because it means running more; failing open on the raise
+  would mean running everything at high EFFORT on the tier-`all` runs
+  that are most merges, which spends exactly what the dial exists to
+  ration. Failing closed costs only the raise and never the run, which is
+  this rule's whole shape. "The chance it turns up something new isn't
+  technically zero" still does not justify paying for a RAISED EFFORT on every run
   — this is adversarially reviewed code with good suites and no
   safety-critical exposure — but it does not justify paying nothing
   either, and at EFFORT = 1 a sweep costs about what its process costs.
-  A fuzzer whose depth is not keyed to the code it tests is a defect in
+  A fuzzer whose EFFORT is not keyed to the code it tests is a defect in
   the fuzzer.
 
   **Why the smoke level is not skipped.** What a skip saves is wall
@@ -99,9 +102,9 @@ Three properties every fuzzer needs, together:
   longest job — does not move. And a skip fails SILENTLY: a marker that
   resolves to nothing, omits a helper, or sits on a `#[path]`-mounted
   file leaves the suite not running while the tree reports a green gate.
-  At EFFORT = 1 the same broken marker costs depth instead of existence,
-  and the row still compiles, still executes, and still catches a panic
-  on every run. **The failure mode is the argument**, not the seconds.
+  At EFFORT = 1 the same broken marker costs only the raised EFFORT
+  instead of the run itself, and the row still compiles, still executes,
+  and still catches a panic every time. **The failure mode is the argument**, not the seconds.
 
   **EFFORT = 1 is a COUNT, never a timeout.** A time-based cutoff makes
   what the test explored depend on the machine, so it differs per leg,
@@ -116,7 +119,7 @@ Three properties every fuzzer needs, together:
   being on the dial at all — 14 of the tree's 56 marked suites are not
   (2026-09-11), including the most expensive one, whose cost is a fixed
   budget constant the dial does not touch. For those "always run at
-  EFFORT = 1" is a no-op: there is no shallow mode to fall back to, so
+  EFFORT = 1" is a no-op: there is no lower setting to fall back to, so
   the choice really is run or skip, and this rule does not decide it.
   Such a suite is either cheap enough to run every time — nearly all of
   them are — or it is placed deliberately, with its cost stated. **Do
@@ -130,13 +133,13 @@ Three properties every fuzzer needs, together:
   it runs. A sweep in a SEPARATE CARGO ROOT that a pull request does not
   otherwise build costs its whole compile — `interval-transcendentals/`
   is ~234 s of build to buy ~7 s of cases at EFFORT = 1. There the
-  job-level gate stands as it is, and the depth argument applies to the
+  job-level gate stands as it is, and the EFFORT argument applies to the
   LANE rather than to the row: that job already runs at EFFORT = 8 on the
   changes that reach it, which is this rule's shape and its precedent.
 
   **This does not reach a shape-3 row.** Where the count IS the coverage
   claim (*at least K of class C*, C not concisely constructible), it is
-  anti-monotone and EFFORT must not scale it below its floor. That is the
+  anti-monotone and EFFORT = 1 must not take it below its floor. That is the
   mixing trap named above, and it is why the floor's witness is static or
   the test is split.
 

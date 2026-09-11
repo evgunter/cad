@@ -1,7 +1,7 @@
 ---
 id: m10-3-chamber-row-reads-ten-times-its-recorded-cost
 kind: issue
-title: DIAGNOSED: the M10-3 interval suite is 15x slower since the driver moved to Sym<Interval> (PR 1725), unrecorded and hidden by its own gate
+title: DIAGNOSED: the M10-3 interval suite is 15x slower since M10-7's symbolic normal form (PR 1725) — a KERNEL regression its own gate hid
 status: open
 opened: 2026-09-11
 ---
@@ -175,10 +175,49 @@ the cheapest discriminating row (`a_wrapped_escalation`, 2.97 s good /
 - `1979777f4` *"driver: **replay at Sym\<Interval\>**, the dials and the
   receipt; re-cut the M10-3 limit rows"* — **21.313 s, bad**
 
-The commit names its own mechanism: the M10-3 driver stopped replaying
-at `Interval` and started replaying at `Sym<Interval>`, a symbolic
-expression type over intervals. The arithmetic under every box of the
-subdivision changed; the leaf budgets did not.
+### KERNEL, not test — and the obvious mechanism is refuted
+
+Ev asked which side it is on. **The kernel.** Neither candidate commit
+touches `m10_3_r1_probes_interval.rs`, or any assertion, fixture or
+budget in it:
+
+- `1979777f4` touches `crates/editor-core/src/drive.rs` (1 line),
+  `tests/m10_3_driver_interval.rs` (a DIFFERENT suite) and a new
+  `tests/m10_7_probe_interval.rs`.
+- `ddbbd5a24` touches `geom-core/src/sym.rs` (+290), `editor-core/src/`
+  `drive.rs` (+245), `analysis.rs`, `measure.rs`, `eval/memo.rs`, plus
+  `geom-brep` and `topo` — and `tests/all.rs` only to register a suite.
+
+So the shipped program pays this, not only CI. That is the
+"kernel-logic unit" class in this program's own charter: *where the
+census shows a test is slow because the CODE it exercises is slow in a
+way the real program pays too, the fix is a kernel change.*
+
+**The one-line hypothesis is REFUTED, by experiment.** `1979777f4`'s
+only kernel change is a shipped dial:
+
+```
+-pub const DEFAULT_SYM_MAX_DEGREE: u32 = 16;
++pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
+```
+
+An 8x raise on a default reads like the whole answer. It is not. Setting
+it back to 16 on today's `origin/main` and re-running the suite gives
+**467.7 s against 319.4 s at 128** — the constant does not explain the
+regression and the tighter budget is *worse*, presumably because a
+degree refusal sends work back to subdivision. Recorded because it is
+the trap: the diff that looks like the cause here is not, and a fix
+written from reading it would have made the row slower.
+
+**By elimination, the cause is `ddbbd5a24`** — *"the normal form is a
+quotient of polynomials, so a normalized-and-remetered carrier
+cancels"*, a rework of the symbolic normal form in `geom-core/src/sym.rs`
+and of the driver that consumes it. `git bisect` could not test it
+directly (it does not build standalone, which is why it was skipped),
+so this is elimination within a two-commit window rather than a direct
+measurement, and it assumes the degree constant's effect is no different
+on the 09-03 tree than on today's. Whoever takes the fix should confirm
+it against that commit's own build before acting.
 
 **Caveat, stated rather than papered over**: the bisect ran on the
 escalation row alone, so `1979777f4` is established as the cause of THAT

@@ -1,7 +1,7 @@
 ---
 id: fuzz-depth-not-existence-run-everything-at-effort-1
 kind: unit
-title: Run every fuzzer at EFFORT=1 on every run; the marker selects DEPTH — the measurement, and the wiring it implies
+title: Run every fuzzer at EFFORT=1 on every run; the marker selects a RAISED EFFORT — the measurement, and the wiring it implies
 status: open
 opened: 2026-09-11
 needs_ev: true
@@ -95,8 +95,8 @@ being argued about here lives in the cheap half of the run.
 1. **`ci-filter.py`: invert what `TEST_FILTER` means.** Today the gate
    emits `not (A | B | ...)` excluding untouched gated suites. Under the
    ruling it emits nothing for the ordinary legs — every suite runs — and
-   the same derived set becomes the SELECTION for a deep leg.
-2. **A deep leg, or a deep step.** The selected suites re-run with
+   the same derived set becomes the SELECTION for a raised-EFFORT leg.
+2. **A raised-EFFORT leg, or step.** The selected suites re-run with
    `CAD_FUZZ_EFFORT` above 1. Cheapest shape is a step in the existing
    test job rather than a new job: the archive is already there, and a
    new job pays the per-leg 15.6 s fixed cost for nothing. The EFFORT
@@ -143,7 +143,11 @@ Ev asked whether effort and depth are different things here. **As words,
 no** — `effort()` is the dial and depth is what it buys, which is the
 vocabulary the harness already uses (*"Depth is bought deliberately, not
 paid for on every run — set `CAD_FUZZ_EFFORT=100`"*). Nothing in this
-proposal has two mechanisms hiding behind two names.
+proposal has two mechanisms hiding behind two names. The clause and this
+item now say **"a raised EFFORT"** wherever they said "depth", so there is
+one quantity with two settings and nothing to mistake for a second dial.
+The item's ID keeps the old word — ids are stable for life
+(`work/README.md`) and it is not worth a rename.
 
 **But the question found a real gap, and it is between the two
 POPULATIONS rather than between the two words.** This clause binds
@@ -228,7 +232,7 @@ prefix for a directory written with a trailing `/`, plus the suite's own
 file implicitly and — since 2026-09-11 — its sibling helper directory.
 Nothing in that reads the crate closure. The closure decides which
 crates' tests are BUILT (`CARGO_SCOPE`); the marker decides which suites
-are selected, and those are different questions. So "run deeper when the
+are selected, and those are different questions. So "raise the EFFORT when the
 PR touches the files it is about" is `selected_by` unchanged, pointed at
 a different consequence.
 
@@ -240,20 +244,20 @@ on tier `all`, tier `docs`, an unreadable diff, a change to the
 derivation's own inputs, and any exception. That is right for EXISTENCE:
 failing open means running MORE, which is the safe direction.
 
-For DEPTH it is the wrong direction twice over. Tier `all` fires on most
+For the RAISED EFFORT it is the wrong direction twice over. Tier `all` fires on most
 merges (`memories/test-suite-cost.md`: *"demos/, .github/ and scripts/
-dominate"*), so a depth selection that failed open would buy the deep run
-on most merges — turning the exception into the rule and spending the
-thing the dial exists to ration. And it is not needed for safety: under
+dominate"*), so a selection that failed open would raise the EFFORT on
+most merges — turning the exception into the rule and spending the thing
+the dial exists to ration. And it is not needed for safety: under
 this ruling a run that resolves nothing still executes every sweep at
 EFFORT = 1, so failing CLOSED on depth costs depth and never existence,
 which is the whole shape of the ruling.
 
 So: **depth is selected by the marker's named paths against the diff,
 with no tier fail-open at all.** An unresolvable marker, an unreadable
-diff and a tier-`all` run all get the smoke level and no deep leg — and
-the deep run is then something a lane asks for deliberately, which is
-what the nightly's retirement leaves room for.
+diff and a tier-`all` run all get the smoke level and no raise — and the
+raised-EFFORT run is then something a lane asks for deliberately, which
+is what the nightly's retirement leaves room for.
 
 **One live instance of the residue, found by checking rather than
 assumed away.** A marker may name a path in a crate its own crate does
@@ -261,7 +265,7 @@ not depend on. The change filter's closure follows dev-dependency edges
 UPWARD — a changed crate pulls in its DEPENDENTS — so such a crate's
 tests are never built on that diff, and the marker's promise cannot be
 kept in either direction: the suite does not run today, and could not
-run deep tomorrow, on exactly the change it names.
+run at a raised EFFORT tomorrow, on exactly the change it names.
 
 Swept at `486557f5` over all 56 markers, resolving each named path's
 crate against its home crate's dependency set from `cargo metadata`.
