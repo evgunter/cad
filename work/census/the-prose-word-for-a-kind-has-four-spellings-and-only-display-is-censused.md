@@ -34,7 +34,7 @@ tree implements it four ways:
 4. **a hand-written table at the render site** — the add-parameter
    radio row's `(Dimension::Length, "Length")` array
    (`crates/viewer/src/pane/properties.rs:158-161`), which
-   `work/view/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum.md`
+   `work/door/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum.md`
    carries.
 
 ## Why this matters to the census

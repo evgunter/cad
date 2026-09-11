@@ -27,8 +27,9 @@ use std::time::Instant;
 use geom_core::{Point3, Vec3};
 use topo::{Body, FaceKey, SolidKey};
 
+use crate::common::approx::band;
 use crate::shell8_common::{
-    band, beside, cap, charts_of, deep_dump, face_of_he, faces_of, solid_of, tol, volume,
+    beside, cap, charts_of, deep_dump, face_of_he, faces_of, solid_of, tol, volume,
 };
 use crate::verbs_shell::{boxy, tube, v, vessel};
 

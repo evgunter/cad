@@ -58,7 +58,7 @@ should be re-expressed so completeness is not what it rests on.
 
 ## Not the same as, and adjacent to
 
-`work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`
+`work/door/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`
 is about a viewer table mirroring ANOTHER crate's enum. This is the
 viewer's own enums, listed by hand in the viewer's own suites.
 

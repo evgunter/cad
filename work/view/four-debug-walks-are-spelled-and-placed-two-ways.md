@@ -23,7 +23,7 @@ adds in the same PR is `core::fmt`
 `crates/viewer/src/`, `core::fmt::` appears 68 times and `std::fmt::`
 14 — and 6 of those 14 are the three walks in `session.rs`. Outside
 `session.rs` the only `std::fmt` sites are `prefs.rs:106`, `:140`,
-`:322` and `drafts.rs:390`; every other `fmt` impl in the crate,
+`:322` and `drafts.rs:393`; every other `fmt` impl in the crate,
 32 `Display`s included, is `core::fmt`.
 
 Nothing decides between them for a crate that is not `no_std`, so this
@@ -81,3 +81,24 @@ is `assembly_shaped`'s body at the merge base. Disclosed rather than
 repointed; the other citations in this row were re-derived and moved
 by this diff's shift, each after checking the subject was at the old
 number.
+
+## Note (`view/delta-round-trip`, 2026-09-11): the shift, and the census
+
+`drafts.rs:390` named `impl std::fmt::Display for CommitFault` at that
+branch's merge base and names it at `:393` here — that file's `delta_mm`
+doc comment grew by three lines. Re-derived by subject, not by delta.
+
+The `std::fmt` enumeration two paragraphs above it is stale in the
+other direction and is left as written, because it is a reading of a
+tree this row has already moved past (*"`session.rs` keeps `std::fmt`
+nowhere"*, above). Against this tree, by `grep -rn 'std::fmt::'
+crates/viewer/src/`: **five** `Display` impls, not four — `prefs.rs:106`,
+`:140`, `:325` (which the sentence names as `:322`, a doc comment),
+`:375` (which it does not name at all) and `drafts.rs:393`. The row's
+live half is the placement, and the `1,819 lines` figure above is stale
+too: `pub struct DocSession` is `session.rs:203` and `impl
+core::fmt::Debug for DocSession` is `:2099`, so the gap is **1,896**
+lines in a 2,128-line file. Not repaired in the sentence, because the
+row's own framing paragraph is a reading of an older tree throughout
+and a figure fixed in one place there would contradict the ones beside
+it.

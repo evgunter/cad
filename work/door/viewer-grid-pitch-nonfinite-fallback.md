@@ -61,9 +61,11 @@ a poison value (`RingInterval::poison`, `Self::nai`, `Aabb::poison`,
 a fuzz filter (18). Every one of those is the fail-loud direction and
 most carry an argument at the site. This is the residue.
 
-**What that pattern could NOT match**, stated because §C's `C15` asks
-it of every sweep and because the load-bearing claim below depends on
-it:
+**What that pattern could NOT match**, stated because the reviewer
+brief asks it of every sweep a PR body reports
+(`docs/prompts/reviewer-style-lane.md` §Q1, *"when the PR body reports a
+sweep, ask what its pattern could not match"*) and because the
+load-bearing claim below depends on it:
 
 - **Multi-line conditions.** The matcher is line-oriented, so a guard
   whose `||` chain wraps across a newline (`if !a.is_finite()` on one

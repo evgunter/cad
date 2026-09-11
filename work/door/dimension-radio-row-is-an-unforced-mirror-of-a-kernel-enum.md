@@ -31,7 +31,7 @@ consequence, as `forms::BOOLEAN_OPS`.
 ## Why it is filed separately
 
 It is an instance of the class
-`work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`
+`work/door/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`
 states — "a viewer table that mirrors a vocabulary owned by another
 crate" — but that item names only `forms::BOOLEAN_OPS` and
 `forms::MATE_PRIMITIVES` and is being landed by PR 2046, so this row
@@ -54,3 +54,22 @@ identifiers rendered to a user, which
 dimension-in-prose rule for the crate" — says a dimension reaching a
 user is not to be. Worth reading against that clause when this is
 taken; it may be a separate finding.
+
+## Claimed by DOOR (2026-09-11)
+
+Moved from `work/view/` by the DOOR orchestrator, with Ev's direction
+in-chat and VIEW told, alongside the class head this row names
+(`hand-maintained-mirrors-of-a-kernel-enum-are-unforced`) and on this
+row's own instruction that whoever takes either takes both. The
+directory is the claim (`work/README.md`); the id is unchanged, and
+the body above is unchanged but for the one path citation the move made
+stale — its pointer at the class head, repointed from `work/view/` to
+`work/door/`.
+
+Its class at the claim is **E**: `Dimension`
+(`crates/editor-core/src/expr.rs:33`) is four variants and the fix is
+the same publication the class head's is. The second defect this row
+carries — the list is INLINE in a chrome function rather than a named
+`const`, so no table-name scan sees it — is what makes it worth landing
+beside the head rather than after: the sweep that finds the next
+instance has to be shaped for inline arrays, not for `const ALL`.
