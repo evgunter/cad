@@ -649,8 +649,9 @@ impl std::error::Error for OffsetFitError {}
 // to sit below the surface enum. Its derivation is this module's, and
 // every limb below writes into it.
 //
-// The DERIVATION is `f64`-only — every door here takes and returns
-// `NurbsSurface<f64>` — but the RECORD is not confined to that scalar.
+// The DERIVATION is `f64`-only — every door here is monomorphic at
+// `f64`, taking `NurbsSurface<f64>` or `ApproxSurface<f64>` and never a
+// `T: Real` — but the RECORD is not confined to that scalar.
 // It carries no scalar parameter of its own, and
 // `ApproxSurface::map_scalar` carries it verbatim onto a lifted
 // surface, so a certificate DOES reach consumers at scalars this
