@@ -4,7 +4,7 @@ kind: issue
 title: seven bare spans inside cfg(test) doc comments sit beside ten bracketed links in the same two files, with no rule saying which is right
 status: open
 opened: 2026-09-11
-refs: [named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites]
+refs: [named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites, 2332]
 ---
 
 

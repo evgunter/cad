@@ -4,6 +4,7 @@ kind: issue
 title: NOTICE, not a request: VIEW changed scripts/doc-gate.sh's skip-mode viewer pass to RUSTDOC_LINTS_INERT on Ev's ruling — read and close
 status: open
 opened: 2026-09-11
+refs: [2332]
 ---
 
 

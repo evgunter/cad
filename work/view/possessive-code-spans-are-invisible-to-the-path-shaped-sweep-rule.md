@@ -4,7 +4,7 @@ kind: issue
 title: a possessive two-span spelling names an app-gated item and no sweep in this crate has ever seen one — five sites, one naming a symbol that does not exist
 status: open
 opened: 2026-09-11
-refs: [comment-symbol-names-outside-rustdocs-reach-have-no-gate, named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites]
+refs: [comment-symbol-names-outside-rustdocs-reach-have-no-gate, named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites, 2332]
 ---
 
 

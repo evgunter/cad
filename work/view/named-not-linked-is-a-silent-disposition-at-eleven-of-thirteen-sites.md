@@ -5,6 +5,8 @@ title: eleven bare own-module spans are deliberate and say so nowhere, in a crat
 status: closed
 opened: 2026-09-10
 closed: 2026-09-11
+pr: 2332
+branch: view/link-thirteen
 ---
 
 

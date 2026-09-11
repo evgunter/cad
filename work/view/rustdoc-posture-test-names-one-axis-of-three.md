@@ -5,6 +5,8 @@ title: the posture ruling says "the host pass" and doc-gate runs two of them, so
 status: closed
 opened: 2026-09-10
 closed: 2026-09-11
+pr: 2332
+branch: view/link-thirteen
 ---
 
 Found by `doc-comments-name-symbols-that-do-not-exist` while applying
