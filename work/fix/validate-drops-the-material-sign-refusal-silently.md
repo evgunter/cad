@@ -2,8 +2,9 @@
 id: validate-drops-the-material-sign-refusal-silently
 kind: issue
 title: validate.rs folds boundary_material_sign's Err into its Unencoded arm and raises nothing — a refusal examined and discarded
-status: open
+status: review
 opened: 2026-09-11
+branch: fix/validate-material-sign-refusal
 ---
 
 

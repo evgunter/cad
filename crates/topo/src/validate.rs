@@ -4160,7 +4160,23 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     errors.push(ValidationError::CurvedSenseInverted { face: face_key });
                 }
             }
-            Ok(geom_brep::props::MaterialSign::Unencoded) | Err(_) => {}
+            // The boundary encodes no side, so there is no second
+            // encoding to cross-check the stored bit against: the
+            // rimless sphere band, the documented residual above.
+            // An ANSWER, not a refusal.
+            Ok(geom_brep::props::MaterialSign::Unencoded) => {}
+            // A REFUSED derivation is exempt here, never a
+            // disagreement (the posture above, and the contract on
+            // `boundary_material_sign` itself). It is not a discard:
+            // every cause reachable on this arm is a premise the flux
+            // lane runs before it integrates, so the same face refuses
+            // there and check 7 reports it cause-carrying as
+            // `VolumeUncomputable { source }`. Pushing anything here
+            // would DESTROY that report rather than add to it, check 7
+            // being gated on `errors.is_empty()` — the recorded
+            // exception is the conic-trimmed wall named above, whose
+            // quadrature flux is winding-derived and answers.
+            Err(_) => {}
         }
     }
 
