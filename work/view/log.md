@@ -9027,6 +9027,52 @@ say to wait for it.
 
 **VIEW stands at 71 open / 78 closed, nothing waiting on Ev.**
 
+## 2026-09-11 — #2360 merged; the tracker was re-cut under us, and one lane dispatched
+
+**#2360 merged** (`bf6bdca140`), docs-only tier verified from the job
+list: **21 jobs, `docs-only ok` success, `gate ok` success**, the other
+17 skipped by the change filter. Its body was widened to cover #2361
+before the merge, so the three units it ratifies and the two
+corrections it records are all in the description rather than in a
+commit message.
+
+**`main` was re-cut while VIEW was mid-wave.** #2370 and #2371 split
+`work/issues/` and `work/code-quality/` into eleven programs; VIEW's own
+directory came through unchanged, but the slate now has neighbours it
+did not have this morning (`work/door/`, `work/wire/`, `work/suite/`
+among them). The merge into the orchestrator branch was clean. Worth
+recording because a dispatch written against the old layout would cite
+paths that moved — the standing rule about re-deriving item files from
+`main` before dispatching now also means re-deriving which *program*
+owns them.
+
+**A VIEW row arrived from outside.** The FIX orchestrator filed
+`seeded-draft-is-the-commit-path-and-does-not-round-trip` onto this
+slate (found by PR #2366's lane sweeping out of fence for
+fixed-precision renderers, verified and re-framed by FIX before
+filing). It is the sharpest row on the slate: the δ field's seeded
+draft **is** its commit path, so focusing the field and clicking away
+commits a value nobody typed — silently quantising δ to the nearest
+micrometre, or, below 500 nm, producing a refusal about a number the UI
+itself put in the box.
+
+Dispatched as `view/delta-round-trip` with two findings the item does
+not have, both recorded as rules in `plan.md`: that the item's
+seed-an-exact-spelling shape is arithmetically unachievable because the
+lossy step is the unit conversion (~14% of sampled δ fail to
+round-trip even at the shortest round-trip spelling), and that
+`drafts.rs`'s own doc already says `Some` means *as typed* while
+`get_or_insert_with` makes it mean *has focus* — which turns the item's
+stated *preference* into a written contract the code breaks.
+
+**Ev is handing off two rows personally** —
+`work/door/boolean-op-has-a-third-hand-written-complete-list` and
+`work/door/viewer-pathverb-all-hand-written-seventeen`. Both sit in
+DOOR rather than VIEW; neither is to be dispatched from here. The
+dispatch says so explicitly.
+
+**VIEW stands at 72 open / 78 closed, nothing waiting on Ev.**
+
 ## 2026-09-11 — `view/delta-round-trip`: a draft is text a user typed
 
 `seeded-draft-is-the-commit-path-and-does-not-round-trip` is **closed**.
@@ -9083,6 +9129,67 @@ was checked rather than assumed: `TextEdit` marks it from
 `text_changed` alone, set only inside the `has_focus` event pass
 (egui 0.36.1, `src/widgets/text_edit/builder.rs:551-589,810-812`), so
 it cannot fire on focus gain or on hover.
+
+## 2026-09-11 — #2382 merged, and the lane corrected a rule I had already written down
+
+**#2382 merged** (`f66047dfbf`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, no unsubstituted placeholders; the six skips are the two
+cache primes, the two interval-backend rows, `step import (freecad)`
+and `python suite` — the last correct by construction, since `viewer`
+sits above the wheel.
+
+The lane took the shape that makes an untouched field
+unrepresentable, and led its argument with the written contract rather
+than with taste: `drafts.rs` documents `delta_mm` as the field *"in
+millimetres as typed"*, so `Some` was already documented to mean
+*typed* while `get_or_insert_with` made it mean *has focus*. It also
+sharpened that doc to say when `Some` **begins**, not only when it
+ends — the half that was missing is the half the defect lived in.
+
+**The correction, and it lands on me.** I dispatched with a finding
+stating that seeding an exact spelling is *"arithmetically
+unachievable by any spelling"*, and wrote that into `plan.md` before
+the lane reported. It is too strong, and the lane said so: the seed
+need not be a spelling of the **product** `δ·1e3` — it can be a
+spelling of a **preimage**, some `m` with `m * 1.0e-3 == δ` exactly.
+The lane measured a preimage existing for 97.66% of sampled δ; I
+re-measured on my own grid and got 97.73%, with 2.27% having no `f64`
+preimage at all over ±64 ULP. So the shape is dead outright only for
+the ~2.3%, and merely expensive — a ULP-neighbourhood search per
+render — for the rest.
+
+My conclusion survived; my reason did not, and the difference matters
+because a rule stated too strongly is a rule that will be believed
+past the point where it is true. `plan.md` now carries the corrected
+statement together with what actually kills the shape, which is the
+lane's own find rather than mine: a budget δ is
+`constant / TRIANGLE_BUDGET`, seventeen significant figures in a
+56-point field. **This is the fourth lane correction this week and the
+fourth that was right.** The general form is now written beside it:
+*"no spelling of X works"* is not *"no seed works"*, and the gap
+between them is where a correction lives.
+
+**Three pieces of residue, all handled the way the rules ask.** The
+`{:.3}` render survives as a render and still reads `0.000` for a
+sub-micrometre δ, with one path that still commits that reading
+(type a character, delete it, leave — the render has become the user's
+own draft); filed as
+`delta-field-renders-a-sub-micrometre-delta-as-zero` with the
+arithmetic carried into the file so nobody re-derives it. The lane's
+`drafts.rs` edit shifted a line
+`four-debug-walks-are-spelled-and-placed-two-ways:26` cites, re-derived
+by subject to `:393`. And while placing that shift the lane found the
+row's framing census stale in ways its own diff did not cause — four
+`Display` impls named where there are five, and *1,819 lines* now
+1,896 — disclosed on the row rather than half-repaired, per this
+program's own rule about a count fixed in one place.
+
+The three render-only siblings were checked rather than taken on the
+citation, and the item's separation held: nothing parses any of them
+back.
+
+**VIEW stands at 72 open / 79 closed, nothing waiting on Ev.**
 
 ## 2026-09-11 — `view/free-move-reachability`: the refusal is reachable, and the keyboard is the second hand
 
@@ -9145,3 +9252,89 @@ chrome commits the probe the user asked to abandon — measured
 components name one instance, so the typed arm's preview overwrites and
 its commit lands and closes the pointer's own gesture — the user is
 shown a refusal naming a state the same batch destroyed).
+
+## 2026-09-11 — #2388 merged; the twelfth proxy, and the plan's own count was one of them
+
+**#2388 merged** (`dcab0bf2ee`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips (two cache primes, the two interval-backend rows,
+`step import (freecad)`, `python suite`), no unsubstituted
+placeholders. The lane settled its `RUN_VIEWER_TOOLKIT` question by
+**running** `scripts/ci-filter.py` rather than reading `ci.yml`, which
+is the rule as written.
+
+**`DisplayFault::FreeMoveInFlight` is reachable, and the answer is a
+test rather than an argument.** `crates/viewer/src/widgets.rs` now
+carries a row that reproduces the probe field's exact shape — three
+`DragValue`s over one instance, each through the real `drag_ops` with
+the free-move triple — and drives it against a headless
+`egui::Context`: pointer press and move give `["begin", "preview"]`,
+keyboard-only frames answer nothing, and the step the focus reaches
+another component gives `["begin", "preview", "commit"]`. A second
+`BeginFreeMove` under an open one, from the chrome.
+
+**The twelfth proxy instance, and it is the sharpest.** The natural
+sweep for a reachability question is over *pointer* states — can one
+pointer hold two drags, can a click land under a held drag — and that
+sweep is closed, self-consistent, and answers **no**. The property is
+not pointer states; it is **input**. A `DragValue` enters keyboard-edit
+mode the frame it takes focus, deliberately, for screen readers, so the
+keyboard reaches a second component while the pointer still holds the
+first; and `Response::clicked()` is true for a keyboard Space/Enter and
+for an AccessKit `Action::Click` with no pointer anywhere. egui's API is
+*built* to make the three indistinguishable at the widget, which is
+exactly why the pointer-shaped sweep cannot see the other two. The
+dispatch warned against concluding unreachable from a failed search and
+named multi-touch and wasm relayout as the untraced candidates; **both
+of those were wrong** — multi-touch is dead structurally (egui carries
+one `Option<Id>` each for `dragged`/`drag_started`/`drag_stopped`) —
+and the real hand was one neither the item nor I had thought of.
+
+**The item's premise was already false when it was dispatched, and I
+did not catch it.** It said *every* route to the fault needs the
+free-move strand. The fault has a **second producer**: `session.rs:1090`
+raises it for every op `permitted_during_free_move` refuses, which is
+`Open` and `NewDocument` (`op.rs:854`) — added by #2358 four hours
+earlier. I verified the item's three `file:line` citations against main
+before dispatching and they all landed; a premise is not a citation and
+my check did not cover it. `plan.md` now says the dispatch owes a
+re-derivation of the **premise**, not only of the citations.
+
+**And the count in the proxy section was itself a member of the class
+it documents.** The lead-in read *"Eight instances"* over a table of
+nine rows, and then over ten. The table is now declared the population
+of record with the number struck from the prose — this program's
+count-fixed-in-one-place rule applied to the section that tabulates it.
+
+**Two residues filed rather than fixed, both verified here before the
+merge.** `escape-commits-a-free-move-instead-of-abandoning-it`: egui
+aborts a drag on Escape by clearing `dragged`, so `drag_stopped` fires
+and `drag_gesture_ops` (`widgets.rs:95-98`) emits **`CommitFreeMove`** —
+the key every other control spells *abandon* lands the probe. And
+`a-keyboard-bump-lands-and-closes-the-pointers-own-probe`: all three
+components name one instance, so after the second begin is refused the
+same batch's `preview_free_move` passes its instance check
+(`display.rs:778-779`) and `commit_free_move` (`display.rs:806`) lands
+it and closes the gesture — the user is shown a refusal naming a state
+the same batch destroyed. I read both call sites; both hold.
+
+**One hole the lane disclosed rather than let pass.** Its new row's doc
+comment carries two intra-doc links, and rustdoc builds under `cfg(doc)`
+not `cfg(test)`, so **neither doc pass judged them**; it checked both
+targets by hand. That is ground `cfg-test-bare-spans-have-no-stated-
+disposition` and `comment-symbol-names-outside-rustdocs-reach-have-no-
+gate` already own.
+
+**VIEW stands at 71 open / 80 closed, nothing waiting on Ev.**
+
+**A count correction inside the entry about count corrections.** I
+first wrote *73 open* here from arithmetic in my head — previous total,
+minus the row closed, plus the two residues filed. `work.py status`
+said 71. I then miscounted the files by hand and got 72, decided the
+tool and its own item table disagreed, and started reading `work.py`
+for the bug. **There was no bug.** My shell loop globbed
+`work/view/*.md` and `program.md` carries a `status: open` of its own —
+the program's status, not an item's. The tool was right at every step
+and both of my counts were wrong, in two different ways, in the space
+of five minutes. `work.py status` is the count of record; a number
+reached any other way is a guess wearing a number's clothes.
