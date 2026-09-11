@@ -255,6 +255,12 @@ TIER_BLIND = (
     # checkout. Sited under `if: run_build` the change class that can break it
     # is the class that would skip it.
     "scripts/check-status-capture.py",
+    # The install-wrapper check. Its inputs are every workflow file, every
+    # composite action and every tracked shell script — `local-scripts/`
+    # among them, a tree that classifies TIER=docs and that every hosted job
+    # but `mirror` deletes at checkout. Sited under `if: run_build` the
+    # change class that can break it is the class that would skip it.
+    "scripts/check-install-wrappers.py",
     # The render-lane parity check. Its inputs are `.github/workflows/render.yml`
     # and `local-scripts/render-hosted.sh` — the second in a tree that
     # classifies TIER=docs and that every hosted job but `mirror` deletes at

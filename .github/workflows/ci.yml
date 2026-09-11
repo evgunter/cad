@@ -1119,6 +1119,25 @@ jobs:
       # a scratch tree with `-o Dir::*` and touches no system file.
       - name: apt preamble selftest (the narrowed update survives a bad index)
         run: scripts/apt-install.sh --selftest
+      # AND THE DOOR IS THE ONLY DOOR. The row above proves the wrapper
+      # works; this one proves it is what every apt call site uses. The two
+      # are independent: a step spelling `sudo apt-get update && sudo
+      # apt-get install -y foo` inline reds every branch during a stranger's
+      # bad hour, indistinguishable from a real red, and nothing else in
+      # this tree can see it:
+      # `check-ci-mirror-parity.py` reads workflows for INVOCATIONS of
+      # `scripts/` and `demos/`, so a step that invokes no script is outside
+      # its claims 1-4 by construction; its claim 9 is about jobs, not steps;
+      # and no shell linter runs in this gate at all.
+      #
+      # Sited here for the reason every row above is: its inputs are every
+      # workflow file, every composite action and every tracked shell script
+      # — `local-scripts/` among them, a tree that classifies TIER=docs and
+      # that every hosted job but this one deletes at checkout.
+      - name: install wrappers (a wrapped idiom is spelled only through its wrapper)
+        run: |
+          python3 scripts/check-install-wrappers.py --selftest
+          python3 scripts/check-install-wrappers.py
       # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
       # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
       # the same reason as every row above. Stdlib python and git; the

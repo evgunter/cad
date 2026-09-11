@@ -284,6 +284,10 @@ fi
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
+# The install-wrapper row is tier-blind for the same reason as the two above,
+# and its population is the widest of the three: every workflow file, every
+# composite action and every tracked shell script, this file among them.
+# HOSTED MIRROR: mirror / install wrappers (a wrapped idiom is spelled only through its wrapper)
 # The work tracker's lint (work/README.md) reads work/ and docs/ — markdown,
 # the docs tier — so it sits here too. The territory row is advisory on both
 # halves: it prints paths another program owns and never fails.
@@ -308,6 +312,8 @@ tier_blind_rows() {
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
+  python3 scripts/check-install-wrappers.py --selftest || rc=1
+  python3 scripts/check-install-wrappers.py || rc=1
   python3 scripts/work.py --selftest || rc=1
   python3 scripts/work.py lint || rc=1
   python3 scripts/work.py territory --base "$BASE" || rc=1

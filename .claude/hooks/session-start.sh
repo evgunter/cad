@@ -377,17 +377,24 @@ fi
 # building or testing, and apt is the one step here that depends on a
 # package mirror. A session without it loses that row and nothing else, so
 # a mirror outage must not cost the session its whole startup.
+#
+# THROUGH scripts/apt-install.sh, which is the one door in this repo that
+# says `apt-get`: `apt-get update` reports one exit status for every source
+# list the image carries, including third-party lists nothing here asked
+# for, so an unnarrowed update fails on a stranger's bad index having
+# fetched every index this package actually comes from. That script narrows
+# the update to Ubuntu's own archive for the one transaction, restores the
+# image's lists on any exit, and retries a hang. It decides on `sudo` for
+# itself, by whether the sources directory is writable.
+# DEBIAN_FRONTEND rides the call rather than the apt-get, which is where it
+# survives: `sudo` resets the environment, so a variable set in front of
+# it does not reach apt at all.
 # ---------------------------------------------------------------------------
 say "admesh (external watertight oracle)"
 if command -v admesh >/dev/null 2>&1; then
   echo "already installed: $(admesh --version 2>&1 | head -1)"
 else
-  sudo=""
-  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
-    sudo="sudo"
-  fi
-  if (DEBIAN_FRONTEND=noninteractive $sudo apt-get update -qq \
-      && DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y -qq admesh); then
+  if DEBIAN_FRONTEND=noninteractive scripts/apt-install.sh admesh; then
     admesh --version 2>&1 | head -1
   else
     warn "admesh" \
