@@ -35,7 +35,7 @@ sites), then each read for what it hands the reader.
    the new one).
 2. **A literal composed at the button** — `app.rs:1175`,
    `pane/create.rs:830`, `pane/create.rs:1132`,
-   `pane/properties.rs:208`, `pane/properties.rs:727`,
+   `pane/properties.rs:211`, `pane/properties.rs:736`,
    `pane/create.rs:589-592`.
 3. **A `&'static str` composed AWAY from the value that knows** —
    `frame::NO_CHOOSER_BACKEND` at `app.rs:1197` and `:1227`. Already
