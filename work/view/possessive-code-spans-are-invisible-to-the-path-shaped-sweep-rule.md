@@ -41,7 +41,7 @@ at `6891829ee`: **five sites.**
 |---|---|---|
 | `blend.rs:169` | `` `app` ``'s `` `unit_picker` `` | **nothing — see below** |
 | `pickcache.rs:256` | `` `app` ``'s `` `fit_delta_on_scene` `` | `app.rs:349`, a field |
-| `prefs.rs:387-388` | `` `app` ``'s `` `ViewerApp::remember_theme` `` | `app.rs:1028` |
+| `prefs.rs:387-388` | `` `app` ``'s `` `ViewerApp::remember_theme` `` | `app.rs:1038` |
 | `scene.rs:887` | `` `app` ``'s `` `fit_delta_on_scene` `` | `app.rs:349`, a field |
 | `pickindex.rs:1582` | `` `gpu.rs` ``'s `` `EDGE_CLIP_Z_SHRINK` `` | `gpu.rs:384` |
 
@@ -69,7 +69,7 @@ crate now spells one relationship two ways with nothing saying which.
 **`blend.rs:169` names `unit_picker`, and there is no `unit_picker`
 anywhere in this workspace** (`grep -rn unit_picker --include=*.rs
 crates/ demos/ tools/` — zero hits; the word *picker* appears only in
-prose, `app.rs:380`, `:1031`, `:1400`, `:1411`, `forms.rs:269`, `:275`,
+prose, `app.rs:380`, `:1041`, `:1410`, `:1421`, `forms.rs:269`, `:275`,
 `:293-294`, `:299`). That is exactly the class
 `doc-comments-name-symbols-that-do-not-exist` closed on 2026-09-10 over
 64 spans, surviving inside the same crate because that sweep's rule

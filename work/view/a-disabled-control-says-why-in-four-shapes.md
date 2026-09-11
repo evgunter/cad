@@ -31,14 +31,14 @@ sites), then each read for what it hands the reader.
 1. **A typed refusal, rendered by the control** — the reason lives on
    the value and the control asks it for its words.
    `pane/create.rs:248-259` (a catalogue entry's `refusal()`, *"read off
-   the entry, not minted here"*) and `app.rs:1256-1263` (`CancelDoor`,
+   the entry, not minted here"*) and `app.rs:1266-1273` (`CancelDoor`,
    the new one).
-2. **A literal composed at the button** — `app.rs:1176`,
+2. **A literal composed at the button** — `app.rs:1186`,
    `pane/create.rs:830`, `pane/create.rs:1132`,
    `pane/properties.rs:205`, `pane/properties.rs:715`,
    `pane/create.rs:589-592`.
 3. **A `&'static str` composed AWAY from the value that knows** —
-   `frame::NO_CHOOSER_BACKEND` at `app.rs:1198` and `:1217`. Already
+   `frame::NO_CHOOSER_BACKEND` at `app.rs:1208` and `:1227`. Already
    filed, one facility over, as
    `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`.
 4. **A prose sentence built from a typed state** —

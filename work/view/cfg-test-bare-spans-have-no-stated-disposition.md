@@ -24,17 +24,17 @@ whole content is `<mod>::<path>` — restricted to doc comments inside a
 
 | Site | Span |
 |---|---|
-| `frame.rs:2001` | `pane::viewport` |
-| `frame.rs:2233` | `pane::viewport` |
-| `frame.rs:2237` | `app::ViewerApp::apply_status` |
+| `frame.rs:2043` | `pane::viewport` |
+| `frame.rs:2275` | `pane::viewport` |
+| `frame.rs:2279` | `app::ViewerApp::apply_status` |
 | `pane/viewport.rs:525` | `frame::frame_status` |
 | `pane/viewport.rs:562` | `frame::frame_status` |
 | `pane/viewport.rs:563` | `frame::apply` |
 | `pane/viewport.rs:568` | `frame::joined_subject` |
 
-**`frame.rs:2001` is the trap and is worth carrying in the row**: it is
+**`frame.rs:2043` is the trap and is worth carrying in the row**: it is
 the doc comment ON the test module, so it sits *above* the
-`#[cfg(test)]` at `:2003`. Line-wise it reads as production; item-wise
+`#[cfg(test)]` at `:2045`. Line-wise it reads as production; item-wise
 rustdoc renders none of it. A lane sweeping by line number will pick it
 up as a fourteenth feature-axis site and be wrong.
 
@@ -45,7 +45,7 @@ a bare span can be checked or broken — the closed row called a bracket
 here "inert rather than illegal", which is true and is not the same as
 settled. **Ten bracketed links sit in `#[cfg(test)]` comments elsewhere
 in these same two files**, so the crate does both, and
-`frame.rs:2232-2233` spells both inside one comment. A reader has no
+`frame.rs:2274-2275` spells both inside one comment. A reader has no
 rule to apply and neither does a sweep: whichever way the next lane
 guesses, it is changing a file to match nothing.
 

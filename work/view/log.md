@@ -8505,3 +8505,57 @@ through the closure without seeding the toolkit would have worn it.
 **This PR clears it as a side effect of the ruling**, which is worth
 saying plainly: the merge is not only a docs improvement, it takes a
 standing red off `main`.
+
+## 2026-09-11 — `view/silent-withdrawals`: the two halves of one asymmetry
+
+Two rows, both in `crates/viewer/src/display.rs`, dispatched together
+because they are the two doors that withdraw display state and report
+differently.
+
+**`prune-kills-a-gesture-and-reports-nothing` — CLOSED by fixing.**
+`PruneReport` grew its third field and `prune` stopped throwing the
+fault away at the instant it had it. The field is
+`killed_gesture: Option<Withdrawn>`, an `Option` and not a `Vec`
+because a `DisplayState` holds ONE free-move gesture — which is also
+why the new sentence is the only kind with no plural, and why
+`Display for Withdrawal` now matches an `Option` for its count rather
+than carrying a `many` string its own constructor cannot reach. The
+wording followed #1886 twice over: a killed gesture is not a
+supersession (nothing substituted for it), so it is a third sentence —
+*"free move: the drag in flight was ended — <fault>"*.
+
+**`display-clear-drops-free-move-placements-silently-while-prune-reports-them`
+— CLOSED by ANSWERING.** The item offered a fork and its own
+counter-argument won, but not for the reason the item gave. Costing it
+against the tree rather than against the file moved it: implementing
+the proposal (`clear` reporting through `prune`'s channel) and MEASURING
+it, a reopen of the same file produces an EMPTY report while all three
+kinds of state are taken — ids are minted per `Doc`, so
+`free_move_check` answers `Ok(())` about the incoming document's nodes
+— and `NewDocument` produces `NoSuchNode { node: 0 }`, a true sentence
+about a document the user has never held state on. So the report cannot
+distinguish "nothing went" from "everything went". The silence is kept
+and is now written at `clear`, with a row that reds if it is widened
+back into an oversight. The IN-FLIGHT drag at that same door is left to
+`free-move-drag-dissolved-by-open`, whose fork is a refusal and not a
+report.
+
+**The census bit that cost the most.** The citation sweep's first
+pattern required a repo-rooted path and missed two other spellings the
+tracker actually uses — a BARE filename (`display.rs:861`) and a
+line-only continuation (`` `:1632` ``) — which is this program's proxy
+class again, the tenth instance. Worse, the correction was applied as a
+SECOND pass over rows the first had already moved, double-shifting
+fifteen of them; the content check that was supposed to catch it
+verifies the shift MAP rather than the starting point, so it passed on
+every wrong answer. Redone as one pass from the pre-repoint state. And
+`plan.md`'s two hits are QUOTATIONS of past citations, not pointers at
+the tree: repointing them corrupts the record, so `plan.md` is left
+alone. A shift-repoint cannot tell a pointer from a quotation, which is
+the same class one level up.
+
+Residue filed rather than left in prose:
+`a-fourth-withdrawal-kind-is-forced-at-one-of-its-three-sites` — the
+three kinds are declared on `PruneReport`, re-declared on `OpOutcome`
+and hand-fanned into `app.rs`'s notices, and only the copy between the
+first two is exhaustive.
