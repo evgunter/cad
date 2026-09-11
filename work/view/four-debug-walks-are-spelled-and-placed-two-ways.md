@@ -17,7 +17,7 @@ in one diff.
 ## `std::fmt` in a crate that says `core::fmt`
 
 The two impls it adds to `session.rs` are `std::fmt`
-(`crates/viewer/src/session.rs:314-315`, `:429-430`); the sibling it
+(`crates/viewer/src/session.rs:317-318`, `:429-430`); the sibling it
 adds in the same PR is `core::fmt`
 (`crates/viewer/src/pickcache.rs:170-171`). Across
 `crates/viewer/src/`, `core::fmt::` appears 68 times and `std::fmt::`
@@ -35,11 +35,11 @@ not the two it wrote from scratch. `session.rs:1946` (`DocSession`,
 
 ## Three walks sit beside their declarations and the fourth does not
 
-`Derived`'s walk is at `session.rs:302-331`, three lines below
+`Derived`'s walk is at `session.rs:305-334`, three lines below
 `Derived::none` (which ends at `:299`); `LandedRun`'s is at
 `:419-460`, directly below its struct; `PickCache`'s is at
 `pickcache.rs:163-195`, directly below its struct. `DocSession`'s is
-at `session.rs:1986-2033` — the last thing in a 2,039-line file, 1,819
+at `session.rs:2013-2060` — the last thing in a 2,039-line file, 1,819
 lines below the declaration at `:173`, under three unrelated free
 functions (`assembly_shaped`, `badge`, `session_dir`). Each range runs
 from the walk's doc comment to its closing brace, and the distance is
@@ -73,3 +73,11 @@ enforces the visit for all four — so this is a readability row and it
 waits for a pass that is allowed to move code.
 
 That move is what this file is now about.
+
+## Note (`view/gesture-doors`, 2026-09-11): one citation is stale
+
+`session.rs:1946` is named here as `DocSession`'s `std::fmt` walk and
+is `assembly_shaped`'s body at the merge base. Disclosed rather than
+repointed; the other citations in this row were re-derived and moved
+by this diff's shift, each after checking the subject was at the old
+number.

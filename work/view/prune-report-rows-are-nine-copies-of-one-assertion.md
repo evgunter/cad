@@ -55,3 +55,19 @@ merged PR body.
 
 VIEW's, with the announce owed to S-TCOST and Track W:
 `crates/viewer/tests/common/`.
+
+## Note (`view/gesture-doors`, 2026-09-11): the field is nested now
+
+`OpOutcome` holds the `PruneReport` rather than re-declaring its
+fields, so every one of the nine blocks reads
+`outcome.withdrawn.superseded` where this row quotes
+`outcome.superseded`. The blocks themselves are untouched and the
+count is unchanged; the duplication this row is about is exactly where
+it was.
+
+The line numbers are unchanged too — those edits were in place, one
+line for one line — with one exception and it is a pre-existing error:
+`assembly_display.rs:610` does not name a `[superseded]` block at
+either revision. It is inside a `PreviewFreeMove` rotation assertion.
+Disclosed rather than repointed, because the number was never about
+its subject.

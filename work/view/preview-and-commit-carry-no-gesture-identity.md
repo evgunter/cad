@@ -18,7 +18,7 @@ while you are in it — a different defect with a different repair.
 `SessionOp::PreviewGesture { value }` and `SessionOp::CommitGesture`
 carry no gesture identity. `DocSession::preview_gesture` writes `value`
 into the node and slot the OPEN gesture stored at its begin
-(`crates/viewer/src/session.rs:1443-1483`), and both operations are
+(`crates/viewer/src/session.rs:1462-1502`), and both operations are
 permitted mid-gesture (`SessionOp::permitted_during_value_gesture`,
 the ops that drive the gesture and would deadlock behind a guard).
 `BeginGesture` is not permitted.

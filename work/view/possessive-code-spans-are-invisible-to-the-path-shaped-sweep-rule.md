@@ -41,7 +41,7 @@ at `6891829ee`: **five sites.**
 |---|---|---|
 | `blend.rs:169` | `` `app` ``'s `` `unit_picker` `` | **nothing — see below** |
 | `pickcache.rs:256` | `` `app` ``'s `` `fit_delta_on_scene` `` | `app.rs:349`, a field |
-| `prefs.rs:387-388` | `` `app` ``'s `` `ViewerApp::remember_theme` `` | `app.rs:1038` |
+| `prefs.rs:387-388` | `` `app` ``'s `` `ViewerApp::remember_theme` `` | `app.rs:1027` |
 | `scene.rs:887` | `` `app` ``'s `` `fit_delta_on_scene` `` | `app.rs:349`, a field |
 | `pickindex.rs:1582` | `` `gpu.rs` ``'s `` `EDGE_CLIP_Z_SHRINK` `` | `gpu.rs:384` |
 

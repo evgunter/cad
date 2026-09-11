@@ -22,7 +22,7 @@ dialogs are disabled and the reason names **three** remedies — install
 `zenity`, install `xdg-desktop-portal`, or pass a document path on the
 command line. `frame::NO_CHOOSER_BACKEND` (`frame.rs:1830-1832`) is
 that sentence, and its two readers are
-`.on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)` at `app.rs:1208`
+`.on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)` at `app.rs:1197`
 and `:1227`.
 
 **Nothing asserts either half.** No test in `crates/viewer/tests`
