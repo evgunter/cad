@@ -306,13 +306,18 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
-    let outcome = session.perform(SessionOp::PreviewFreeMove { frame: probe });
+    let outcome = session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
+        frame: probe,
+    });
     assert!(
         outcome.refusal.is_none(),
         "a rotation is a rigid motion: {:?}",
         outcome.refusal
     );
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     let view = session.display_view();
 
     // Where the probed post's top-cap centre is DRAWN: take the
@@ -395,9 +400,12 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.05, 0.0, 0.0]),
     });
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     session.perform(SessionOp::SetInstanceHidden {
         instance: bench.post_b,
         hidden: true,
@@ -768,9 +776,12 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // Preview / commit / cancel with no gesture: typed, all three.
     for op in [
         SessionOp::PreviewFreeMove {
+            instance: bench.post_a,
             frame: Frame::translation([0.01, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove {
+            instance: bench.post_a,
+        },
         SessionOp::CancelFreeMove,
     ] {
         assert!(
@@ -801,9 +812,12 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // A bit-exact identity preview commits NOTHING — "probed to exactly
     // where the document draws it" must not leave a marked part.
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_a,
         frame: Frame::IDENTITY,
     });
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_a,
+    });
     assert!(
         session.display().free_move_of(bench.post_b).is_none(),
         "an identity commit leaves no entry"
@@ -829,6 +843,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
     let outcome = session.perform(SessionOp::AddMate {
@@ -867,7 +882,11 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     );
     assert!(
         matches!(
-            session.perform(SessionOp::CommitFreeMove).refusal,
+            session
+                .perform(SessionOp::CommitFreeMove {
+                    instance: bench.post_b
+                })
+                .refusal,
             Some(Refusal::Display(DisplayFault::NoFreeMove))
         ),
         "the commit that would have landed it refuses typed rather than \
@@ -1054,10 +1073,14 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     );
     session.perform(SessionOp::BeginFreeMove { instance });
     session.perform(SessionOp::PreviewFreeMove {
+        instance,
         frame: Frame::translation([0.5, 0.0, 0.0]),
     });
     assert!(
-        session.perform(SessionOp::CommitFreeMove).refusal.is_none(),
+        session
+            .perform(SessionOp::CommitFreeMove { instance })
+            .refusal
+            .is_none(),
         "the probe commits"
     );
     assert!(

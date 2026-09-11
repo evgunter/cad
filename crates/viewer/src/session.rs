@@ -182,10 +182,7 @@ impl GestureTarget {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum GestureName {
     /// A node's slot.
-    Slot {
-        node: RecipeNodeId,
-        slot: SlotId,
-    },
+    Slot { node: RecipeNodeId, slot: SlotId },
     /// A document parameter.
     Param(ParamName),
 }
