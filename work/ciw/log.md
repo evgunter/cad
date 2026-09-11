@@ -2226,3 +2226,55 @@ exactly on a read. The historical defect re-injected at `ci.yml:4835`
 reds with the site and the clobbering line named, exit 1.
 
 **The second slate is now complete**: units 1-7 all merged.
+
+## 2026-09-11 — the third slate opened, and what the re-read moved
+
+Twenty-one rows open at the start of it. The re-read was against `main`
+at `c04546d` rather than against the item files, which is the discipline
+the last two slates used and it earned its cost again in two places:
+
+- **Unit 1's trigger has already fired, and half its subject is gone.**
+  The `ci.yml` wasm-row comment says the row becomes `-D warnings` when
+  `viewer-items-unreferenced-at-wasm32` closes; that item is closed
+  (PR 2272) and PR 2278 then deleted `ViewerApp::deliver_status`
+  outright, so the comment's *"two dead-code warnings today"* names one
+  `cfg`-ed symbol and one that does not exist. `WINDOW_TITLE` survives
+  at `crates/viewer/src/app.rs:129`.
+- **Unit 4's population is five sites, not three pairs.**
+  `working-directory:` appears at `ci.yml:1743` (`benches`) and four
+  times under `interval-transcendentals`; the item counted the pairs
+  that carry one, which is the smaller number and the right one for the
+  claim, but a lane reading the item alone would have swept for three.
+
+**One row arrived from outside and is on the slate as unit 6.** The
+DEMOS lane wiring the GUI render lane found `render-hosted.sh` two lanes
+behind, filed it into `work/ciw/` from its unit branch, **reverted that
+in the same hour**, and re-filed it as its own PR (2319, merged here).
+That is implementer-discipline §6 working as written — a cross-program
+filing by diff withdrawn and routed through the owning program instead —
+and it is the first time this program has been on the receiving end of
+it as a correction rather than as a report.
+
+**Four rows were read and not taken**, each for a reason that is about
+what is missing rather than about priority: `shellcheck-is-not-run`
+wants a severity decision before a lane; `doc-gate-error-sites-…` wants
+GATES to agree to a population; `python-suite-axis-…` names an
+unmeasured number and says to take it first; and
+`inherited-red-is-not-attributed-to-its-merge` still forbids design
+before its three. All four are in the plan's not-dispatched list with
+those reasons, which is the difference between a decision and a backlog.
+
+**Review posture, restated at the dispatcher's request and unchanged in
+substance**: no A/B protocol on any unit, including the three that earn
+a correctness lane. Style review per unit; units 1, 4 and 5 also get a
+correctness reviewer, named in each PR with the reason. Unit 1 changes
+what a gating row executes on every branch; units 4 and 5 each widen a
+gating claim over a derived population in `check-ci-mirror-parity.py`,
+which returned three MAJORs on unit 5 of the last slate and has taken a
+claim in each of the last five units.
+
+**One fence moved.** `.claude/hooks/session-start.sh` restates three
+`ci.yml` pins as literals and installs from them, and the item left
+ownership to the orchestrator because the path is outside CIW's
+`paths`. CIW takes it (Ev's orchestrator, 2026-09-11); `paths` widens to
+`.claude/hooks/*` in unit 7, the PR that first edits it.
