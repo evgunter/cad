@@ -16,24 +16,39 @@ rustdoc that it goes stale silently.
 
 The copies (PR 1776 added the last of them):
 
-| file:line | row |
+Cited by `fn` name, not by line: the name IS the landing spot and is
+one `grep -n` away in the named file, while three of the eight line
+numbers this table used to carry no longer resolved and a fourth had
+drifted since it was last certified (see the re-derivation section at
+the foot).
+
+| file | row (the `fn` name) |
 | --- | --- |
-| `crates/viewer/src/lib.rs:103` | `app_lane_skipped_no_chrome_or_gpu_coverage_here` |
-| `crates/viewer/tests/chrome_labels.rs:30` | `app_lane_skipped_no_chrome_coverage_here` |
-| `crates/viewer/tests/error_display.rs:307` | `app_lane_skipped_startup_error_arms_not_checked_here` |
-| `crates/viewer/tests/panel_display.rs:770` | `app_lane_skipped_parameter_field_units_not_checked_here` |
-| `crates/sweep/tests/m5_s12_curved_ops_interval.rs:27` | `interval_lane_skipped_no_certified_coverage_here` |
-| `crates/sweep/tests/m5_s13_pips_interval.rs:19` | same name |
-| `crates/sweep/tests/m6_surgery_interval.rs:20` | same name |
-| `crates/topo/tests/m6_2_fitted_at_rest.rs:188` | same name |
+| `crates/viewer/src/lib.rs` | `app_lane_skipped_no_chrome_or_gpu_coverage_here` — **no `fn` of that name exists; entry unresolved, see "Entry 1" below** |
+| `crates/viewer/tests/chrome_labels.rs` | `app_lane_skipped_no_chrome_coverage_here` |
+| `crates/viewer/tests/error_display.rs` | `app_lane_skipped_startup_error_arms_not_checked_here` |
+| `crates/viewer/tests/panel_display.rs` | `app_lane_skipped_parameter_field_units_not_checked_here` |
+| `crates/sweep/tests/m5_s12_curved_ops_interval.rs` | `interval_lane_skipped_no_certified_coverage_here` |
+| `crates/sweep/tests/m5_s13_pips_interval.rs` | same name |
+| `crates/sweep/tests/m6_surgery_interval.rs` | same name |
+| `crates/topo/tests/m6_2_fitted_at_rest.rs` | same name |
 
 Each is a `#[cfg(not(feature = …))] #[test] fn` whose entire body is a
 `println!` naming, BY HAND, the rows that did not compile in this
 build. Each also carries the same paragraph saying so —
-`crates/viewer/src/lib.rs:92-100` is the fullest statement: *"Nothing
-here goes red if the modules it names start running, stop existing, or
-grow a sibling — the enumeration above is kept by hand, and a marker
-that silently went stale would look exactly like this one."*
+`crates/viewer/src/lib.rs:92-100` was cited as the fullest statement:
+*"Nothing here goes red if the modules it names start running, stop
+existing, or grow a sibling — the enumeration above is kept by hand, and
+a marker that silently went stale would look exactly like this one."*
+
+> **[CITE repair, 2026-09-11.] That quotation is not in the tree and is
+> not repointed here, because there is nothing to repoint it to: the
+> paragraph at that site now says the OPPOSITE, and repointing would
+> invent a subject.** The sentence above is left exactly as filed so the
+> reversal stays legible, and the current text is quoted under "Entry 1"
+> below. Three of the other seven copies do carry a paragraph of this
+> shape; four do not. Which of the eight this row is actually about is
+> TINT's call, not CITE's.
 
 That is a defect with a known cost: a ninth `app`-gated row added to
 `panel_display.rs` leaves its marker quietly wrong, and nothing
@@ -116,3 +131,112 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## All eight entries re-derived 2026-09-11 (CITE repair, `loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed`)
+
+Ev authorised CITE to repair this row's citations in place rather than
+route them back. **Only what the row POINTS AT and QUOTES is touched.**
+The claim, the count in the title, the membership of the table and the
+two fix shapes are TINT's and are unchanged — including where the
+re-derivation below puts them in question.
+
+All eight were resolved at this base with one command:
+`for f in <the eight files>; do grep -n "_lane_skipped_" "$f"; done`.
+
+| the table said | at this base | disposition |
+| --- | --- | --- |
+| `viewer/src/lib.rs:103`, `app_lane_skipped_no_chrome_or_gpu_coverage_here` | no `fn` of that name anywhere in the tree; the `fn` in that file is `app_lane_skipped_no_app_feature_coverage_here` (`:117`), and `:103` is a line of the doc above it | **unresolved, not repointed** — see Entry 1 |
+| `chrome_labels.rs:30` | `fn` at `:30` | resolves; line dropped, name kept |
+| `error_display.rs:307` | `fn` at `:325`; `:307` is `let shown = indeterminate_wording("face", &cause);` | repaired to the name |
+| `panel_display.rs:770` | `fn` at `:777`; `:770` is a bare `///` inside the doc block | repaired to the name |
+| `m5_s12_curved_ops_interval.rs:27` | `fn` at `:27` | resolves; line dropped, name kept |
+| `m5_s13_pips_interval.rs:19` | `fn` at `:19` | resolves; line dropped, name kept |
+| `m6_surgery_interval.rs:20` | `fn` at `:20` | resolves; line dropped, name kept |
+| `m6_2_fitted_at_rest.rs:188` | `fn` at `:188` | resolves; line dropped, name kept |
+
+**Three of the eight line numbers were wrong, and one of them is one of
+the two a 2026-09-11 re-derivation had recorded as still resolving**
+(`panel_display.rs:770` → the `fn` is at `:777`; it was certified fine
+five days ago). That is the reason the table now carries no line numbers
+at all: each name is one `grep -n` from its file, and every one of the
+eight names resolved at this base while three of the eight numbers did
+not.
+
+The three citations in `## What is already settled` were checked too and
+all three resolve exactly — `crates/test-utils/src/vacuity.rs:201-203`
+(`pub fn stood_down`), `vacuity.rs:73-76` (the quoted exclusion,
+verbatim), and `crates/step-import/tests/cert5_r1_import_probes.rs:252-258`
+(the restatement).
+
+### Entry 1: repaired at #1848, and what it is now
+
+**Verified against the tree, not taken on #1848's word.** At this base
+`crates/viewer/src/lib.rs`'s marker is `fn
+app_lane_skipped_no_app_feature_coverage_here`, gated
+`#[cfg(all(test, not(feature = "app")))]`, and the paragraph above it —
+the one this row quoted as the fullest statement of the class — reads:
+
+> **This row closes no gate and cannot fail.** It is evidence, not a
+> check: its whole payload is its NAME appearing in the PASS list, so a
+> reader of a default-feature run meets the absence instead of
+> inferring it. It names the FEATURE and what the feature costs, and
+> nothing else — the roster is the `#[cfg(feature = "app")]` block
+> above, which the compiler keeps, so there is no hand-kept enumeration
+> here to go stale when that block gains or loses a module. Read it as a
+> sentence the log carries, and keep gating to the rows themselves.
+
+Its `println!` names no rows: it says "every module this crate gates
+behind the `app` feature is absent from this build", which is the
+FEATURE and nothing hand-kept. So on its face this copy is no longer an
+instance of the class the row's own `## Finding` defines — *"whose
+entire body is a `println!` naming, BY HAND, the rows that did not
+compile"* — and fix shape 2 in `## What is already settled` ("drop the
+enumeration") is what was done to it.
+
+**Whether this row has lost a MEMBER or only a CITATION is TINT's call
+and is deliberately left open here.** CITE did not delete the entry,
+did not repoint it at
+`app_lane_skipped_no_app_feature_coverage_here` — that `fn` is a
+different thing from the one the row named, and repointing would invent
+a subject — and did not touch the title's "eight". What CITE asserts is
+only the tree: the named `fn` does not exist, and the paragraph at the
+cited site says the opposite of what the row quotes.
+
+If TINT rules the member dead, note that #1848 also makes the row's
+strongest evidence its own worked example: one of the eight was
+converted by fix shape 2 and the conversion held.
+
+### Two more things for TINT, found by the sweep and not acted on
+
+**1. The idiom has ten copies at this base, not eight.** Two are absent
+from the table and have never been in it:
+
+- `crates/sweep/tests/review_fillet_e3_probes.rs`,
+  `fn interval_lane_skipped_no_certified_coverage_here`
+- `crates/sweep/tests/blend_margin_payload_interval.rs`,
+  `fn interval_lane_skipped_no_certified_coverage_here`
+
+Both are the exact shape the table's last four are: `#[cfg(not(feature =
+"interval"))] #[test] fn` whose entire body is a `println!`. Found by
+`grep -rn "lane_skipped" --include=*.rs crates/ demos/ tools/ benches/`
+and corroborated by `grep -rln "Loud skip" --include=*.rs .`, which
+returns exactly ten files — the eight in the table plus these two. CITE
+does not add them: the table is the row's membership and membership is
+TINT's.
+
+**2. The `## Finding`'s "every copy admits in its own rustdoc that it
+goes stale silently" holds for three of the eight, not eight.**
+`chrome_labels.rs`, `error_display.rs` and `panel_display.rs` each carry
+a *"**This row closes no gate and cannot fail**"* paragraph that says
+the list is kept by hand. `lib.rs` carries the reversal quoted above.
+The four `interval_lane_skipped_…` copies carry a *"**Loud skip.**"*
+paragraph that argues only why the announcement exists — *"announce the
+skip so a lane that silently lost its certified rows stays visible in
+the battery log"* — and admits nothing about staleness. The two
+unlisted copies are the same. The underlying defect is unaffected (those
+`println!`s do name rows by hand, and `m5_s12`'s names four of them),
+but the sentence claiming every copy SAYS so is wider than the tree.
+
+**Out of fence, reported not fixed:** `crates/test-utils/src/vacuity.rs`
+says *"The four whole-binary `interval_lane_skipped_…` rows"* and there
+are six. That is a code comment, and this repair changes no code.

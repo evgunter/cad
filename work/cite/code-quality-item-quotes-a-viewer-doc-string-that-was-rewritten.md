@@ -84,3 +84,44 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+## Repaired 2026-09-11, in DOOR's file, on Ev's authorisation
+
+Ev authorised CITE to repair this citation directly in
+`work/door/viewer-pathverb-all-hand-written-seventeen.md` rather than
+route it, in one PR, with no routing issue filed and no
+`work/README.md` change. The authorisation covers this repair and the
+two beside it (`d107-release-profile-job-lives-in-nightly`,
+`loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed`) and
+nothing wider.
+
+**What was done.** The quotation is re-cited to the GENERATOR — the doc
+on `label` in the `macro_rules! vocabulary` body in
+`crates/viewer/src/vocab.rs` — with the rendered doc on
+`PathVerb::label` in `forms.rs` named beside it. The generator, because
+`forms.rs` holds no copy of the sentence: a reader who greps `forms.rs`
+for the quoted words finds nothing, which is the failure mode this row
+exists to name. `app.rs:514`, `app.rs:557` and `app.rs:4419` are
+repaired to names in `crates/viewer/src/forms.rs`.
+
+**Where this row's own re-derivation of 2026-09-11 was wrong.** It says
+`PathVerb` is declared in *"the fourth of four"* `vocabulary!`
+invocations in `forms.rs`. There are **five**
+(`grep -n "^vocabulary! {" crates/viewer/src/forms.rs`); fourth of five
+is right. The rest of the paragraph — that `forms.rs:190` was
+`pub(crate) const ALL;`, that the sentence is authored in `vocab.rs`,
+that it reads *variant* — holds at this base.
+
+**Three things the repair turned up that are DOOR's, recorded in DOOR's
+file in a marked section and not decided here:** the transition table
+declares twenty verbs now, not nineteen (`ContinueTo` is the new one);
+`PathVerb::ALL`'s length is no longer a literal but
+`vocabulary!(@count …)`, so `## Shape of the fix`'s premise moved; and
+the viewer's `ArcMode` is now the viewer's own `vocabulary!` enum rather
+than `profile::ArcMode`, so the sentence calling that half **fine** rests
+on an anchoring the tree no longer has.
+
+This row stays open until DOOR reads the marked section, because what it
+asks for — a decision on whether the quotation should have been dropped
+rather than re-quoted — was CODE-QUALITY's call to make and is now
+DOOR's.
