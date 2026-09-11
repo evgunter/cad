@@ -1464,6 +1464,16 @@ jobs:
       # nightly runs main, and main is reached through this gate, so a
       # second copy at 03:00 would re-prove a tree this row already proved.
       #
+      # THAT LAST SENTENCE IS CONTESTED BY THE ROW BELOW, and a reader of this
+      # file alone would otherwise get two rules with no sign that one is
+      # disputed. The criterion emitter's selftest keeps a nightly copy
+      # BECAUSE nightly.yml's jobs also run on a `workflow_dispatch` ref — an
+      # arbitrary SHA no gate row can have proved — and that is equally true
+      # of the opt-level job, which takes the same input. So either this lane
+      # is missing a row or that one has a spare;
+      # `work/ciw/calibrator-record-writes-without-its-selftest` holds the
+      # question and neither row waits on it.
+      #
       # SITED IN THIS JOB and not in `mirror`, by `check-run-jobs.py`'s
       # argument above: the script's inputs are `scripts/*.py`, which
       # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
@@ -1477,12 +1487,19 @@ jobs:
       # `scripts/criterion-emit.py` — a `scripts/*.py` path, which
       # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
       # set that can break it is exactly the change set this job runs on.
-      # What it drives is the population no real run produces on demand: the
-      # criterion directory reader, the roster pin that fails when a benchmark
-      # is renamed or dropped, and the environment block — and the emit mode
-      # those feed writes the entry nightly.yml APPENDS to the history under
-      # docs/perf-data/criterion/, where a malformed entry cannot be
-      # overwritten out.
+      # WHAT IT ACTUALLY HOLDS, stated at the coverage it has rather than at
+      # the coverage a reader would assume, because that number was measured:
+      # a battery of 20 single-token mutations of the script kills 9 of them.
+      # Held: the roster pin in all three of its shapes (a row renamed, added,
+      # or dropped), `collect` reading `new/` and not criterion's previous
+      # `base/`, the sample count, RUSTFLAGS, and the cpuinfo parser in both
+      # directions — a known cpuinfo parsed, and an absent one degrading to
+      # null without costing the rest of the block. NOT held: the VALUE of
+      # most collected fields, because the fixture writes one scalar into five
+      # of them, so a field dropped from the emitted block or a reader that
+      # swapped two passes this row.
+      # `work/ciw/criterion-selftest-fixture-is-one-scalar-in-five-fields`
+      # carries the measurement, the table and the repair.
       #
       # THE LANE IS HOSTED-ONLY AND THIS ROW IS NOT. Only a runner may commit
       # a measurement (`local-scripts/ci-local.sh` says why at its own key),

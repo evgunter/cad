@@ -1851,9 +1851,16 @@ jobs:
       # defends there is the ARTIFACT a bisector reads as a measurement. And
       # `main` itself is a composition of merges, each gated against the base
       # it was opened on rather than against the others. The row is stdlib
-      # python against a temp-dir fixture: it costs no minutes, and it is the
-      # last thing between a broken emitter and a history that cannot be
-      # edited afterwards.
+      # python against a temp-dir fixture and costs no minutes.
+      #
+      # WHAT IT CATCHES IS A FRACTION AND THE FRACTION IS MEASURED: 9 of 20
+      # single-token mutations of the emitter. It holds the roster pin in all
+      # three shapes, `collect`'s `new/`-not-`base/` rule, the sample count,
+      # RUSTFLAGS and the cpuinfo parser in both directions; it does not hold
+      # the value of most collected fields, so a field dropped from the block
+      # written here passes it. Not a last line of defence — a cheap one, and
+      # ci.yml's row says the same thing at its own key.
+      # `work/ciw/criterion-selftest-fixture-is-one-scalar-in-five-fields`.
       - name: emit the history entry
         env:
           CRITERION_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest
