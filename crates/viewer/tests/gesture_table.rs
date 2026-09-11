@@ -15,7 +15,7 @@
 //!
 //! [`expected`] is a SECOND, hand-written copy of the answers, so an
 //! accidental edit to the predicate fails here rather than passing by
-//! agreeing with itself. Its match is exhaustive: a fortieth
+//! agreeing with itself. Its match is exhaustive: a forty-second
 //! `SessionOp` does not compile until someone writes down whether a
 //! drag refuses it, which is the property the table exists to buy.
 //! Its index half, checked against `OP_COUNT`, is what makes a MISSING
@@ -62,7 +62,7 @@
 //! sets, so there are two tables and this file checks both.
 //! [`SessionOp::permitted_during_free_move`] has two refusals rather
 //! than 26 and they have a name, so it is NOT restated here as a
-//! second copy of 39 rows: `replaces_the_document` says the property
+//! second copy of 41 rows: `replaces_the_document` says the property
 //! the table encodes — an operation that puts a different document
 //! under the session — and
 //! `the_free_move_table_refuses_exactly_the_replacement_doors` checks
@@ -671,7 +671,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
 // --- the cancel doors -----------------------------------------------
 
 /// **Which operations cancel a GESTURE**, written down exhaustively so
-/// that a fortieth operation cannot join the enum without answering
+/// that a forty-second operation cannot join the enum without answering
 /// whether the chrome owes it a door.
 ///
 /// The rule ranges over what an operation cancels, NOT over what it is
@@ -814,7 +814,7 @@ fn a_closed_door_says_what_its_own_operation_refuses() {
 /// drags a second field while it is open.
 fn strand_the_distance_drag(session: &mut DocSession, extrude: RecipeNodeId) {
     session.pump();
-    let index = common::asm::index_of(&session);
+    let index = common::asm::index_of(session);
     let face = index
         .face_at(
             session.evaluation().expect("the inline seam landed"),
@@ -1064,7 +1064,7 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// that is wrong or a property that has stopped being the reason, and
 /// both are things to find out.
 ///
-/// **Exhaustive on purpose**, like `expected`: a fortieth `SessionOp`
+/// **Exhaustive on purpose**, like `expected`: a forty-second `SessionOp`
 /// does not compile until someone says whether it replaces the
 /// document.
 fn replaces_the_document(op: &SessionOp) -> bool {
@@ -1116,7 +1116,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
 }
 
 /// The free-move table is exactly the replacement doors, on the same
-/// sample roster the value table is checked on — so a fortieth
+/// sample roster the value table is checked on — so a forty-second
 /// operation is answered for both drags or does not compile.
 #[test]
 fn the_free_move_table_refuses_exactly_the_replacement_doors() {
@@ -1557,5 +1557,78 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
         session.display().free_move_of(other),
         None,
         "and nothing landed on the instance that was dragged"
+    );
+}
+
+/// **The route the two halves meet on**: the drag that stranded
+/// itself, and the field a reader drags when the panel comes back.
+///
+/// `strand_the_distance_drag` leaves a drag open with no pointer
+/// behind it and its own field undrawn. Every document move then
+/// refuses *"finish the drag first"* — a remedy the toolbar's cancel
+/// door delivers and the panel does not — so the reader's other move
+/// is to drag something else. That drag's begin is refused and its
+/// preview and its release are refused with it, which is the whole of
+/// what this row adds to the two above: the state they assert the rule
+/// in is a state the chrome can actually be in.
+#[test]
+fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = fixture(tol);
+    let param = ParamName::new("thickness");
+    assert!(
+        session
+            .perform(SessionOp::CreateParam {
+                name: param.clone(),
+                value: DocParam::continuous(Dimension::Length, 0.004),
+            })
+            .refusal
+            .is_none()
+    );
+    strand_the_distance_drag(&mut session, extrude);
+
+    // The parameter row is drawn whatever the selection's standing is
+    // — it is the document's, not the selected node's — so it is a
+    // field the reader can still reach.
+    assert!(
+        viewer::props::param_rows(session.doc())
+            .iter()
+            .any(|row| row.name == param),
+        "the parameter the reader drags next is on the panel"
+    );
+    assert!(matches!(
+        session
+            .perform(SessionOp::BeginParamGesture {
+                name: param.clone()
+            })
+            .refusal,
+        Some(Refusal::GestureInFlight)
+    ));
+    assert!(matches!(
+        session
+            .perform(SessionOp::PreviewParamGesture {
+                name: param.clone(),
+                value: 0.012,
+            })
+            .refusal,
+        Some(Refusal::WrongGesture)
+    ));
+    assert!(matches!(
+        session
+            .perform(SessionOp::CommitParamGesture {
+                name: param.clone()
+            })
+            .refusal,
+        Some(Refusal::WrongGesture)
+    ));
+    assert_eq!(
+        committed_distance(&session, extrude),
+        Ok(SlotValue::Continuous(0.005)),
+        "the stranded drag's slot is where the document left it"
+    );
+    assert_eq!(
+        session.history().len(),
+        2,
+        "and the parameter's declaration is the only edit in the history"
     );
 }
