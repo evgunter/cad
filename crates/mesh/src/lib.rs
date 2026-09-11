@@ -75,10 +75,14 @@
 //!
 //! **Invariant (ratified via PR #32): per-face tessellation is a pure
 //! function of (face surface, loops, per-edge chord points, δ).** This
-//! is the memo-key contract future incremental re-tessellation
-//! consumes: a face whose surface, loops, and boundary chord points are
-//! unchanged re-tessellates identically and its patch can be reused
-//! across rebuilds. The chord points themselves are a pure function of
+//! is the memo-key contract incremental re-tessellation consumes: a
+//! face whose surface, loops, and boundary chord points are unchanged
+//! re-tessellates identically and its patch can be reused across
+//! rebuilds. [`fn@tessellate_with`] is that consumer: [`memo::PatchMemo`]
+//! keys each face by the bits its lane reads (stated per lane in
+//! [`memo`]'s docs) and places a stored patch through the same fold the
+//! lane's fresh one takes, so its mesh is byte-identical to
+//! [`fn@tessellate`]'s. The chord points themselves are a pure function of
 //! (edge carrier + interval, endpoint vertex points, the adjacent
 //! faces' surface parameters, δ) — adjacent surfaces enter only through
 //! the torus and trimmed-NURBS boundary-step requirements, which reach
@@ -253,6 +257,10 @@ pub mod budget;
 pub mod cert;
 mod chords;
 mod curved;
+// The per-face patch memo behind `tessellate_with`: its key, stated
+// per lane, and its eviction rule. Public for the memo type and the
+// digests a caller keeps alive; the key itself is crate-private.
+pub mod memo;
 mod nurbs_cert;
 // `nurbs_cert`'s randomized sweeps, in a module of their own so the per-file
 // test gate can skip them without skipping that file's deterministic pins.
@@ -289,5 +297,6 @@ pub mod walk;
 #[allow(dead_code, unreachable_pub)]
 mod witness_bodies;
 
-pub use tessellate::tessellate;
+pub use memo::{PatchDigest, PatchKeys, PatchMemo};
+pub use tessellate::{Tessellation, tessellate, tessellate_with};
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};

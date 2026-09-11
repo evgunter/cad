@@ -190,6 +190,63 @@ fn seam_index(
     seam_index_at(seam, session, delta())
 }
 
+/// What the seam's memo holds and did, after a build.
+#[derive(Clone, Copy, Debug)]
+struct MemoReading {
+    nodes: usize,
+    faces: usize,
+    node_hits: usize,
+    node_misses: usize,
+    face_hits: usize,
+    face_misses: usize,
+}
+
+fn reading(seam: &InlineIndexer) -> MemoReading {
+    let memo = seam.memo();
+    MemoReading {
+        nodes: memo.len(),
+        faces: memo.patches().len(),
+        node_hits: memo.node_hits(),
+        node_misses: memo.node_misses(),
+        face_hits: memo.patches().hits(),
+        face_misses: memo.patches().misses(),
+    }
+}
+
+/// **The memo holds exactly the picture just built.** The counts the
+/// seam's memo reports describe the picture just closed (the build
+/// that just answered), and a memo that stopped evicting would hold
+/// more faces than the picture has.
+fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, index: &PickIndex) {
+    let r = reading(seam);
+    let faces = faces_of(index);
+    let parts = index.parts().len();
+    println!(
+        "# {name} after {step}: {parts} parts / {faces} faces; memo nodes {} (hits {} misses {}), \
+         faces {} (hits {} misses {})",
+        r.nodes, r.node_hits, r.node_misses, r.faces, r.face_hits, r.face_misses
+    );
+    assert_eq!(
+        r.nodes, parts,
+        "{name} after {step}: one memo entry per drawn (node, body)"
+    );
+    assert_eq!(
+        r.node_hits + r.node_misses,
+        parts,
+        "{name} after {step}: every part was a node-level hit or miss"
+    );
+    // Faces the memo answered, plus faces it meshed, is the faces of
+    // the recomputed parts; the reused parts' faces were kept, not
+    // looked up. The memo then holds at most the picture's faces —
+    // fewer only where two faces are bit-identical.
+    assert!(
+        r.faces <= faces,
+        "{name} after {step}: the memo holds {} faces for a picture of {faces}",
+        r.faces
+    );
+    assert!(r.faces >= 1 || faces == 0);
+}
+
 /// The plain door's answer for the same run: the definition of the
 /// picture.
 fn fresh_index(session: &DocSession) -> Result<PickIndex, viewer::pickindex::PickIndexError> {
@@ -354,6 +411,19 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<(
         "{name}: the document indexes as opened: {index:?}"
     );
     let faces = assert_same_answer(name, "open", &index, &fresh, &session);
+    // Faces answered at open are hits WITHIN the picture: two roots
+    // drawing one bit-identical face (the heat sink's fins) share an
+    // entry. That count is the document's, not δ's, and the δ row
+    // below expects exactly it again.
+    let self_hits = reading(&seam).face_hits;
+    if let Ok(index) = &index {
+        assert_memo_is_one_picture(name, "open", &seam, index);
+        assert_eq!(
+            reading(&seam).node_hits,
+            0,
+            "{name}: nothing to reuse at open"
+        );
+    }
     steps.push(("open".to_owned(), faces));
     for (step, edit) in edits {
         let outcome = session.perform(edit.op());
@@ -366,7 +436,25 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<(
         let index = seam_index(&mut seam, &session);
         let fresh = fresh_index(&session);
         let faces = assert_same_answer(name, step, &index, &fresh, &session);
+        if let Ok(index) = &index {
+            assert_memo_is_one_picture(name, step, &seam, index);
+        }
         steps.push(((*step).to_owned(), faces));
+    }
+    // A δ change misses everything, at both levels: the same run,
+    // indexed finer, reuses no part and no face.
+    let finer = DisplayTolerance::new(delta().get() / 2.0).expect("a positive delta");
+    let index = seam_index_at(&mut seam, &session, finer);
+    if let Ok(index) = &index {
+        let r = reading(&seam);
+        assert_eq!(
+            (r.node_hits, r.face_hits),
+            (0, self_hits),
+            "{name}: a δ change misses everything the previous picture held"
+        );
+        assert_eq!(r.node_misses, index.parts().len());
+        assert_eq!(r.face_misses + self_hits, faces_of(index));
+        assert_memo_is_one_picture(name, "the δ change", &seam, index);
     }
     steps
 }

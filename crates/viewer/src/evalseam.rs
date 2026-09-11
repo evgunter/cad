@@ -108,6 +108,7 @@ use pncad::document::{
     CancelToken, Doc, EvalOptions, EvalOutcome, Evaluation, PartResolver, ProfileProgram, evaluate,
 };
 use pncad::geom_core::Tol;
+use pncad::select::PickMemo;
 
 use crate::generation::Generation;
 use crate::pickindex::{PickIndex, PickIndexError};
@@ -377,22 +378,35 @@ pub trait IndexService {
     fn busy(&self) -> bool;
 }
 
-/// Run one index build, stamping the answer with the request's own key.
+/// Run one index build over the seam's memo, stamping the answer with
+/// the request's own key.
 ///
-/// The seam's one call into [`crate::pickindex::PickIndex::build`], shared
-/// by both implementations, so the generation the index is built under
-/// and the generation the answer is filed under are read from one
-/// place and cannot disagree.
-fn build_index(request: &IndexRequest) -> IndexDone {
+/// The seam's one call into [`crate::pickindex::PickIndex::build_with`],
+/// shared by both implementations, so the generation the index is
+/// built under and the generation the answer is filed under are read
+/// from one place and cannot disagree — and so both implementations
+/// reuse across pictures by the same rule.
+///
+/// **The memo is the seam's.** An index is still discarded whole and
+/// rebuilt whole above this seam (`crate::pickindex`'s staleness
+/// rule); what survives between builds is HERE, where the previous
+/// picture already lived: the previous generation's `NodePick`s by
+/// (node, body) under the evaluation's content keys, and the per-face
+/// patch memo under them (`PickMemo`'s docs). A build answers a reused
+/// root's pick without touching it and a recomputed root's unchanged
+/// faces without meshing them; the answer is byte-identical to a build
+/// with no memo, and the rows in `tests/index_memo.rs` are the proof.
+fn build_index(request: &IndexRequest, memo: &mut PickMemo) -> IndexDone {
     IndexDone {
         generation: request.generation,
         delta: request.delta,
-        index: PickIndex::build(
+        index: PickIndex::build_with(
             &request.doc,
             &request.evaluation,
             request.generation,
             request.delta,
             request.tol,
+            memo,
         ),
     }
 }
@@ -408,12 +422,20 @@ fn build_index(request: &IndexRequest) -> IndexDone {
 #[derive(Debug, Default)]
 pub struct InlineIndexer {
     pending: Option<IndexRequest>,
+    /// What the previous picture left behind ([`build_index`]).
+    memo: PickMemo,
 }
 
 impl InlineIndexer {
     /// A seam that has built nothing.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The memo the next build primes from — what the previous
+    /// picture left behind, and the counts of the build that left it.
+    pub fn memo(&self) -> &PickMemo {
+        &self.memo
     }
 }
 
@@ -427,7 +449,7 @@ impl IndexService for InlineIndexer {
 
     fn poll(&mut self) -> Option<IndexDone> {
         let request = self.pending.take()?;
-        Some(build_index(&request))
+        Some(build_index(&request, &mut self.memo))
     }
 
     fn busy(&self) -> bool {
@@ -448,6 +470,8 @@ const _: fn() = || {
     assert_send::<EvalDone>();
     assert_send::<IndexRequest>();
     assert_send::<IndexDone>();
+    // The memo moves onto the worker thread with the loop that owns it.
+    assert_send::<PickMemo>();
 };
 
 #[cfg(not(target_family = "wasm"))]
@@ -468,8 +492,8 @@ mod threaded {
     use pncad::document::CancelToken;
 
     use super::{
-        EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, PriorRun,
-        build_index, run_once,
+        EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, PickMemo,
+        PriorRun, build_index, run_once,
     };
 
     /// A request plus the token that stops it.
@@ -773,14 +797,16 @@ mod threaded {
         }
     }
 
-    /// The worker loop: build each index and answer with its key.
+    /// The worker loop: build each index over the worker's memo and
+    /// answer with its key.
     ///
-    /// No memo and nothing kept between runs: an index is discarded
-    /// whole and rebuilt whole (`crate::pickindex`'s staleness rule), so
-    /// there is nothing here for a later build to prime from.
+    /// The memo lives on this thread for the thread's life, which is
+    /// the seam's: it is what the previous picture left behind, and
+    /// nothing above the seam sees it ([`build_index`]).
     fn index_work(requests: &Receiver<IndexRequest>, results: &Sender<IndexDone>) {
+        let mut memo = PickMemo::new();
         while let Ok(request) = requests.recv() {
-            if results.send(build_index(&request)).is_err() {
+            if results.send(build_index(&request, &mut memo)).is_err() {
                 return;
             }
         }

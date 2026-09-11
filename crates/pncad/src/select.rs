@@ -162,7 +162,8 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 // `RecipeNodeId` and a `u32`. Carrying the payload alone leaves the
 // index unbuildable and closes that one exception.
 pub use editor_core::{
-    HitTestError, MeshPickError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face,
+    HitTestError, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray,
+    pick_face,
 };
 
 // **The resolution verdict a stored name gets at the next
