@@ -5,6 +5,7 @@ title: The tour's other scenes lift f64 literals componentwise (az, letterforms,
 status: review
 opened: 2026-09-05
 branch: fix/tour-scenes-lift
+pr: 2341
 ---
 
 
