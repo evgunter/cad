@@ -16,7 +16,7 @@ this is the part it cannot claim.
 
 ## What happens
 
-`crates/viewer/src/app.rs:1148` opens the toolbar as `ui.horizontal`,
+`crates/viewer/src/app.rs:1158` opens the toolbar as `ui.horizontal`,
 not `ui.horizontal_wrapped`. egui lays a non-wrapping row out on one
 line and clips what does not fit, so on a narrow window the controls at
 the right-hand end are not merely small — they are unreachable, with

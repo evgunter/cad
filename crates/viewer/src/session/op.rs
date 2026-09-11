@@ -23,7 +23,7 @@ use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 use pncad::select::ContactClass;
 
-use crate::display::Withdrawn;
+use crate::display::{PruneReport, Withdrawn};
 use crate::props::SlotValue;
 use crate::session::author::{DatumSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
@@ -597,9 +597,9 @@ impl SessionOp {
     /// - every committed edit prunes the display state against the new
     ///   document — a prune that DISCARDS committed probes and kills
     ///   an in-flight free-move whose instance stopped being eligible,
-    ///   without reporting the kill in [`OpOutcome::superseded`]
-    ///   (recorded as current behaviour, not endorsed:
-    ///   `crates/viewer/tests/review_gui4_r1.rs`).
+    ///   reporting the first in [`OpOutcome::superseded`] and the
+    ///   second in [`OpOutcome::killed_gesture`], each with the fault
+    ///   that decided it.
     ///
     /// **The identity that makes all three the same answer**: a value
     /// gesture's edits are `SetParam` and `SetStructuralParam`, which
@@ -731,13 +731,10 @@ pub struct OpOutcome {
     /// instance being gone — instead of naming an id and stopping.
     ///
     /// **Only COMMITTED probes.** A gesture in flight when the
-    /// transition lands dies too and is not named here — recorded as
-    /// current behaviour and explicitly not endorsed
-    /// (`crates/viewer/tests/review_gui4_r1.rs`), which is the same
-    /// rule [`SessionOp::permitted_during_value_gesture`] states from
-    /// the other side. A caller learns of the death from
-    /// `DisplayState::probing` and from the typed refusal the next
-    /// gesture op gives it.
+    /// transition lands dies too and is not named here, because it is
+    /// not a supersession — nothing substituted for a placement the
+    /// document was never asked for. It is
+    /// [`OpOutcome::killed_gesture`].
     ///
     /// The chrome renders this through
     /// [`crate::frame::Withdrawal::superseded`].
@@ -755,12 +752,52 @@ pub struct OpOutcome {
     /// the argument; the chrome renders this through
     /// [`crate::frame::Withdrawal::dropped_hide`].
     pub dropped_hides: Vec<Withdrawn>,
+    /// The in-flight free-move gesture this operation's document
+    /// transition KILLED, with the
+    /// [`crate::display::free_move_check`] fault that killed it.
+    ///
+    /// **Neither of the other two, and a separate field for that
+    /// reason.** It is not superseded — the placement it would have
+    /// landed was never asked of the document, so nothing answered it
+    /// better — and it is not a dropped hide. It is the drag the
+    /// user's hand was still on, and until it was reported the only
+    /// route to the reason was to start another gesture and read
+    /// *its* refusal. `crate::display::PruneReport` carries the
+    /// argument; the chrome renders this through
+    /// [`crate::frame::Withdrawal::killed_gesture`].
+    ///
+    /// At most one, because a session holds at most one free-move
+    /// gesture.
+    pub killed_gesture: Option<Withdrawn>,
 }
 
 impl OpOutcome {
     pub(super) fn refused(refusal: Refusal) -> Self {
         Self {
             refusal: Some(refusal),
+            ..Self::default()
+        }
+    }
+
+    /// Every withdrawal a prune reported, on the outcome that carries
+    /// it to the chrome.
+    ///
+    /// **Destructured rather than field-read**, so a fourth kind of
+    /// withdrawal is E0027 here rather than a report field with no
+    /// reader. The `..Self::default()` spread this replaced took the
+    /// three it knew about and would have taken a fourth nowhere,
+    /// silently — which is the defect this outcome exists to end, one
+    /// level up.
+    pub(super) fn from_prune(report: PruneReport) -> Self {
+        let PruneReport {
+            superseded,
+            dropped_hides,
+            killed_gesture,
+        } = report;
+        Self {
+            superseded,
+            dropped_hides,
+            killed_gesture,
             ..Self::default()
         }
     }

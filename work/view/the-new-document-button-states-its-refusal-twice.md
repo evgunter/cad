@@ -15,13 +15,13 @@ choice between two answers and neither is a comment edit.
 
 ## What happens
 
-`crates/viewer/src/app.rs:1157-1160` says the `Create` button's disabled
+`crates/viewer/src/app.rs:1167-1170` says the `Create` button's disabled
 state is backed by a typed refusal:
 
 > the op is emitted only by Create, and only for a non-blank name (the
 > typed refusal backing the disabled button is `Refusal::EmptyName`).
 
-The button's `on_disabled_hover_text` (`app.rs:1176`) is a literal:
+The button's `on_disabled_hover_text` (`app.rs:1186`) is a literal:
 
 > the document id is derived from the name
 

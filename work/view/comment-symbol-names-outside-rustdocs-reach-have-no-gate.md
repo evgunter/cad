@@ -25,7 +25,7 @@ Rustdoc reads `///` and `//!` and **nothing else**, so a name written
 in a plain `//` comment is unreachable however it is spelled — the
 bracket would not be checked, it would just be punctuation. The
 closing PR's own two fixes are the demonstration: the same dead name
-sat at `session/op.rs:756` in a `///` comment and at `app.rs:950` in a
+sat at `session/op.rs:753` in a `///` comment and at `app.rs:950` in a
 `//` comment, and only the first could become a link. The second had
 to be corrected by hand and is held by nothing afterwards.
 
