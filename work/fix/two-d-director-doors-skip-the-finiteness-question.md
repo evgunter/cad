@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-05
 refs: [1564, 1738, is-finite-length-homed-in-the-query-seat, normalize-without-the-length-question-two-more-sites]
 branch: fix/director-doors-finiteness
+pr: 2356
 ---
 
 ## The class
