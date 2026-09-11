@@ -1012,7 +1012,7 @@ fn arc_points(radius: f64, theta: f64, chord: f64) -> usize {
     ((theta.abs() / step).ceil() as usize).clamp(1, MAX_ARC_POINTS)
 }
 
-/// **How big the tip marks in a profile preview are**/// **How big the tip marks in a profile preview are**, in sketch-plane
+/// **How big the tip marks in a profile preview are**, in sketch-plane
 /// metres: a fraction of the whole preview's extent.
 ///
 /// Relative rather than absolute because a preview has no fixed scale

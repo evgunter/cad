@@ -1554,7 +1554,7 @@ jobs:
           # this selection and stays unexecuted.
           #
           # `--no-fail-fast`, and a nightly is the strongest case for it.
-          # nextest's default is fail-fast (measured against the pinned
+          # nextest's default is fail-fast (measured against cargo-nextest
           # 0.9.140 — the argument is at ci.yml's sharded run steps), so
           # without it this row reports its FIRST demoted failure and stops.
           # These tests run nowhere else: they are `#[ignore]`d in every
