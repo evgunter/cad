@@ -4,15 +4,120 @@
 use std::collections::HashMap;
 
 use geom::Surface;
-use geom_core::Tol;
+use geom_core::{Band, Point3, Tol};
 use topo::Body;
 
 use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
-use crate::sizing::{SizingTols, sizing_target};
+use crate::sizing::{Eps, SizingTols, sizing_target};
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
+
+/// One corner of a face patch's triangle, named the way the lane that
+/// emitted it can name it.
+///
+/// A lane reads the mesh arena but does not write it, so it cannot know
+/// where its own interior points will land in [`Mesh::positions`]: it
+/// names a point it shares with another face — a topology vertex or a
+/// chord point, both minted before any face runs — by that point's mesh
+/// id, and one of its own interior points by that point's index in
+/// [`Patch::interior`]. [`Patch::place`] turns the second into the
+/// first once [`tessellate`] has assigned the face its base.
+///
+/// **Two constructors rather than one integer with a threshold.** The
+/// two are different id spaces (`DESIGN.md` D9, engineering convention
+/// 1: tagged, never in-band), so a local index cannot be read as a mesh
+/// id: that half of the class is foreclosed by the type.
+/// [`unpaired_chord_segment`]'s class is the OTHER half — two faces
+/// emitting one chord point under different `Shared` ids — and nothing
+/// here forecloses it, which is why that census stays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PatchVertex {
+    /// A mesh id minted before any face ran: a topology vertex, or a
+    /// point on some edge's chord polyline.
+    Shared(u32),
+    /// An index into this patch's own [`Patch::interior`].
+    Local(u32),
+}
+
+impl PatchVertex {
+    /// This corner's position: from the shared prefix, or from the
+    /// patch's own interior. The lane certifies against these.
+    pub(crate) fn position(self, shared: &[Point3<f64>], interior: &[Point3<f64>]) -> Point3<f64> {
+        match self {
+            Self::Shared(id) => shared[id as usize],
+            Self::Local(i) => interior[i as usize],
+        }
+    }
+
+    /// This corner's mesh id once the patch's interior begins at
+    /// `base`.
+    fn rebase(self, base: u32) -> u32 {
+        match self {
+            Self::Shared(id) => id,
+            Self::Local(i) => base + i,
+        }
+    }
+}
+
+/// One face's tessellation AS A VALUE: the interior points the face
+/// mints for itself, and its triangles in [`PatchVertex`]s.
+///
+/// Nothing in this value depends on another face, which is what the
+/// per-face memo and the parallel map over faces both need
+/// (`work/perf/plan.md` §5). The lanes are not yet pure functions of
+/// their face: the trimmed lane also takes `bounds: &mut FaceBounds`,
+/// a `FaceKey`-keyed certificate memo whose contents are independent of
+/// the order faces fill it in, and that shared mutable borrow is what a
+/// `par_iter` over faces still has to answer for.
+pub(crate) struct Patch {
+    /// The face's own grid points, in the order the lane minted them —
+    /// which is the order they enter [`Mesh::positions`].
+    pub(crate) interior: Vec<Point3<f64>>,
+    /// The face's triangles, outward-wound (the [`FacePatch`]
+    /// contract), naming shared points by mesh id and interior points
+    /// by their index in `interior`.
+    pub(crate) triangles: Vec<[PatchVertex; 3]>,
+}
+
+impl Patch {
+    /// Places the patch in the mesh: its interior appended to
+    /// `positions`, its triangles returned as mesh ids.
+    ///
+    /// Consumes the patch, so the [`PatchVertex`] buffer is released as
+    /// the mesh-id one fills rather than living beside it.
+    pub(crate) fn place(self, positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
+        #[allow(clippy::cast_possible_truncation)]
+        let base = positions.len() as u32;
+        positions.extend(self.interior);
+        self.triangles
+            .into_iter()
+            .map(|t| t.map(|v| v.rebase(base)))
+            .collect()
+    }
+
+    /// The patch renumbered as if it were the FIRST face placed, for
+    /// the per-patch censuses the lanes run on their own emission.
+    ///
+    /// Those censuses count uses of the edges incident to a named set
+    /// of SHARED ids, and both quantities are invariant under any
+    /// injective renumbering THAT FIXES THE SHARED IDS — which this is,
+    /// for any base at or above `shared.len()`. So the base is
+    /// arbitrary within that range and this is the smallest of them.
+    ///
+    /// It materialises a whole copy of the patch, so a caller that has
+    /// nothing to census must not call it (`curved`, `trimmed`).
+    #[cfg(debug_assertions)]
+    pub(crate) fn census_ids(&self, shared: &[Point3<f64>]) -> Vec<[u32; 3]> {
+        #[allow(clippy::cast_possible_truncation)]
+        let base = shared.len() as u32;
+        self.triangles
+            .iter()
+            .map(|&t| t.map(|v| v.rebase(base)))
+            .collect()
+    }
+}
 
 /// Tessellates a closed body into a watertight [`Mesh`] within the
 /// chordal tolerance `chordal` (δ, meters) of its exact surfaces.
@@ -44,7 +149,14 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }
-    let eps = tol.eps();
+    let eps = Eps::at(tol);
+    // Props' decision band, built once at operation entry as
+    // `Band::linear` prescribes; the curved lane's shape door is its
+    // only consumer (`SizingTols::band`). Eager on purpose: a run whose
+    // ε cannot form a band refuses every body alike, the all-planar
+    // ones included, rather than meshing until the first curved face
+    // (`TessellateError::Band` says why).
+    let band = Band::linear(tol).map_err(|error| TessellateError::Band { error })?;
     let delta_s = sizing_target(chordal);
 
     // Mesh vertex ids: topology vertices first, arena order (D9).
@@ -69,6 +181,14 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
     let chords = compute_chords(body, delta_s, &vids, &mut positions, &mut bounds)?;
+    // Every id a face can SHARE with another face is now minted:
+    // topology vertices, then chord points, then (per face, below) that
+    // face's own interior grid. So a shared id is exactly an id below
+    // this mark — which is what the census at the end of this function
+    // tests with an integer compare rather than a lookup, and what
+    // makes `positions[..shared_below]` the whole of what a face reads
+    // from outside itself.
+    let shared_below = positions.len();
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
         let (start_vertex, end_vertex) = edge_vertices(body, ek)?;
@@ -99,8 +219,9 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             delta: chordal,
             delta_s,
             eps,
+            band,
         };
-        let triangles = match *surface {
+        let patch = match *surface {
             // Described NURBS faces route through the trimmed lane
             // unconditionally (M7 — the flip of the historical
             // first-arm refusal, whose record is on
@@ -121,7 +242,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
                 fk,
                 surface,
                 &chords,
-                &mut positions,
+                &positions[..shared_below],
                 &tol,
                 &mut bounds,
             )?,
@@ -130,19 +251,25 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             // plane axes are deliberately not passed: imported axes
             // carry translator noise that projects valid boundaries
             // below spade's coordinate domain.
-            Surface::Plane { .. } => tessellate_planar(body, fk, &chords.ids, &positions)?,
+            Surface::Plane { .. } => {
+                tessellate_planar(body, fk, &chords.ids, &positions[..shared_below])?
+            }
             // Structural routing (M5 PR 11): a conic/B-spline trim
             // carrier means the face is not an iso-rectangle — the
             // pcurve-driven trimmed lane takes it.
             //
-            // The converse does NOT follow, and S28 is where that was
-            // established: this is a test on carrier KINDS, and iso
+            // The converse does NOT follow: this is a test on carrier
+            // KINDS, and iso
             // carriers (`Line`, `Circle`) can bound a NON-rectangular
             // domain — a keyway or milled flat on a cylinder is exactly
             // that shape, and nothing on this path screens loop SHAPE.
             // So an iso boundary reaching `tessellate_curved` is a
             // routing decision, not a guarantee about the domain; the
-            // domain itself is checked there
+            // domain itself is checked there, twice over — its SHAPE
+            // through props' iso-rectangle door before the walk
+            // (`curved::require_iso_rectangle_face`, refusing
+            // [`TessellateError::UnsupportedCurvedShape`]) and the
+            // walk's consistency after it
             // (`curved::require_swept_rectangle`, refusing
             // [`TessellateError::UnsupportedCurvedDomain`]).
             _ if crate::trimmed::has_trim_carrier(body, fk)? => crate::trimmed::tessellate_trimmed(
@@ -150,21 +277,356 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
                 fk,
                 surface,
                 &chords,
-                &mut positions,
+                &positions[..shared_below],
                 &tol,
                 &mut bounds,
             )?,
-            _ => tessellate_curved(body, fk, surface, &chords.ids, &mut positions, &tol)?,
+            _ => tessellate_curved(
+                body,
+                fk,
+                surface,
+                &chords.ids,
+                &positions[..shared_below],
+                &tol,
+            )?,
         };
+        // Each face's interior takes the arena as it stands at that
+        // face's turn, in face-arena order (D9).
+        let triangles = patch.place(&mut positions);
         patches.push(FacePatch {
             face: fk,
             triangles,
         });
     }
 
-    Ok(Mesh {
+    let mesh = Mesh {
         positions,
         patches,
         boundaries,
-    })
+    };
+
+    // D2 addendum row 5, and the CROSS-FACE half of the class
+    // `curved`'s per-patch re-derivation cannot see: that census reads
+    // ONE patch's identified edges, so a boundary the two adjacent
+    // faces failed to identify with each other is outside its
+    // footprint by construction (issue 897 says so, and it is right).
+    // Re-derive it here, over the only ids two faces can share — the
+    // chord segments of the body's own edges — and over nothing else.
+    //
+    // WHY NOT `check_mesh`, which is the oracle for the non-manifold
+    // shape of this class (though not for every shape a collapsed walk
+    // produces: a face whose polygon collapses onto one rim level
+    // emits NO triangles, its chord segments are used by no face, and
+    // `check_mesh` passes the empty patch — the oblique lens with
+    // debug assertions off; this census is what sees it): it was the
+    // first candidate and it was MEASURED against this one.
+    //
+    // THE PRICE ARGUMENT IS NARROWER THAN IT LOOKS, and is stated at
+    // its real width. On sub-millisecond bodies the round-to-round
+    // spread swamps both columns, and a reading there is not evidence
+    // either way. The rows that decide are the donut's — 648 to
+    // 16 080 triangles over δ = 0.1 to 0.004, dev profile with this
+    // crate at opt-level 2, median of four warm rounds whose spread
+    // is under 2 %: `check_mesh` costs 7 % to 8 % of `tessellate`,
+    // this census 0.1 % to 0.4 %. That gap is the price argument, and
+    // it is the whole of it.
+    //
+    // The rest is FOOTPRINT, which does not depend on the clock:
+    // `check_mesh` censuses every edge of every patch — overwhelmingly
+    // patch-interior grid edges that no cross-face question is about —
+    // and re-checks winding and degeneracy, which are other rows'
+    // classes. This census reads the chord segments and nothing else,
+    // so its footprint IS the class:
+    // an unidentified shared boundary makes each side's copy a
+    // one-use edge, which is what `n != 2` catches. The narrower guard
+    // is not a second copy of the oracle; it is the class's own
+    // question, and `check_mesh` remains available to a caller.
+    #[cfg(debug_assertions)]
+    {
+        let polylines: Vec<&[u32]> = chords.ids.values().map(Vec::as_slice).collect();
+        let patch_triangles: Vec<&[[u32; 3]]> = mesh
+            .patches
+            .iter()
+            .map(|p| p.triangles.as_slice())
+            .collect();
+        #[allow(clippy::cast_possible_truncation)]
+        let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below as u32);
+        debug_assert!(
+            bad.is_none(),
+            "chord segment {:?} is used by {} face triangles rather than 2: the \
+             faces meeting on that edge did not identify it (issue 897)",
+            bad.map(|(e, _)| e),
+            bad.map_or(0, |(_, n)| n)
+        );
+    }
+
+    Ok(mesh)
+}
+
+/// The chord segment that is NOT used by exactly two face triangles,
+/// if any — the cross-face identification re-derivation (issue 897).
+///
+/// Every edge of the body carries a chord polyline whose segments the
+/// two faces meeting on that edge both insert as CDT constraints, so
+/// in a watertight emission each segment is a triangle edge exactly
+/// twice: once per side, or twice within one patch where a `Seam` edge
+/// is traversed both ways by the same face. A count of 1 is the class
+/// this guard exists for — the two sides emitted the segment under
+/// DIFFERENT ids, so neither copy pairs up.
+///
+/// `shared_below` is the first id minted after the chord pass. Ids are
+/// minted topology-vertices-then-chords-then-per-face-grid (D9's
+/// determinism order, at the top of [`tessellate`]), so an id at or
+/// above the mark is one face's private grid point and can never be a
+/// chord segment endpoint. Testing that first is what keeps this scan
+/// an integer compare on the overwhelming majority of triangle edges
+/// rather than a map probe.
+///
+/// **PRECONDITION: the body is CLOSED, and that is the caller's, not
+/// this census's.** [`tessellate`]'s contract says the input is a
+/// closed solid at rest and that it does not re-validate; it never
+/// calls `topo::validate_closed`. On an OPEN body — a tier-1-legal
+/// scaffolding strut, say, which `topo::validate` accepts and
+/// `validate_closed` rejects — a chord polyline exists that no face
+/// triangle can use twice, and this census reports it. That firing is
+/// a broken PRECONDITION, not the D2-row-5 kernel bug the assert is
+/// worded for, and it is the one way the guard can be reached by input
+/// rather than by defect. It stays a `debug_assert` on that basis: the
+/// precondition is documented at the door, an open body is already
+/// outside what `tessellate` promises anything about, and no shipped
+/// build is made to panic by it that was not already garbage-in.
+///
+/// **The route is documented, not demonstrated, and the difference is
+/// recorded rather than glossed.** A reviewer's probe
+/// (`r2_mesh6_probes::r2_scaffold_strut_body_through_tessellate`)
+/// mints the strut body through the Euler doors and calls
+/// [`tessellate`] on it; the call refuses EARLIER and typed —
+/// `UnsupportedSurface`, because faces assembled that way carry no
+/// surface description — so the census is never reached and no open
+/// body is yet known to reach it. The probe is kept as the record of
+/// that attempt: it pins where the door actually stops, which is the
+/// honest state of the precondition claim.
+///
+/// **This reads no tolerance.** It is a census of ids and counts;
+/// `Eps` has no role in it, and a band would be the wrong instrument
+/// for a question whose answer is an integer.
+#[cfg(debug_assertions)]
+fn unpaired_chord_segment(
+    polylines: &[&[u32]],
+    patch_triangles: &[&[[u32; 3]]],
+    shared_below: u32,
+) -> Option<((u32, u32), usize)> {
+    let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
+    for ids in polylines {
+        for w in ids.windows(2) {
+            uses.insert(crate::walk::edge_key(w[0], w[1]), 0);
+        }
+    }
+    for t in patch_triangles.iter().copied().flatten() {
+        for k in 0..3 {
+            let (a, b) = (t[k], t[(k + 1) % 3]);
+            if a < shared_below
+                && b < shared_below
+                && let Some(n) = uses.get_mut(&crate::walk::edge_key(a, b))
+            {
+                *n += 1;
+            }
+        }
+    }
+    uses.iter().find(|&(_, &n)| n != 2).map(|(&e, &n)| (e, n))
+}
+
+// GATED ON THE GUARD IT TESTS: every row here calls
+// `unpaired_chord_segment`, which
+// is `#[cfg(debug_assertions)]`, so with debug-assertions OFF the
+// subject does not exist and neither should the rows. Without this the
+// lib test target fails to COMPILE in that configuration.
+#[cfg(all(test, debug_assertions))]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    //! The cross-face identification census (issue 897), red first.
+    //!
+    //! The class is the one the per-patch re-derivation in `curved`
+    //! cannot see by construction: each patch is internally consistent
+    //! — every one of its own edges used at most twice — and the
+    //! failure is only visible when the two patches are read together.
+    //! The rows below build exactly that mesh.
+
+    use super::*;
+
+    /// Every edge use within one patch, so a row can show the patch is
+    /// internally clean while the pair of patches is not.
+    fn per_patch_max_use(tris: &[[u32; 3]]) -> usize {
+        let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
+        for t in tris {
+            for k in 0..3 {
+                let (a, b) = (t[k], t[(k + 1) % 3]);
+                *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+            }
+        }
+        uses.values().copied().max().unwrap_or(0)
+    }
+
+    #[test]
+    fn a_shared_chord_segment_used_once_per_side_pairs_up() {
+        // Chord polyline 0-1-2 on the edge between two faces; each
+        // face emits both segments once. Ids 9+ are grid points.
+        let poly: [&[u32]; 1] = [&[0, 1, 2]];
+        let tris = [[0, 1, 9], [1, 2, 9], [1, 0, 10], [2, 1, 10]];
+        assert_eq!(
+            unpaired_chord_segment(&poly, &[&tris], 3),
+            None,
+            "two faces that identified the boundary leave every segment at two uses"
+        );
+    }
+
+    #[test]
+    fn a_seam_edge_traversed_twice_by_one_face_pairs_up() {
+        // The full-2π case: ONE patch supplies both uses. The census
+        // counts uses, not sides, which is what makes this legal.
+        let poly: [&[u32]; 1] = [&[0, 1]];
+        let tris = [[0, 1, 9], [1, 0, 10]];
+        assert_eq!(unpaired_chord_segment(&poly, &[&tris], 2), None);
+    }
+
+    #[test]
+    fn a_boundary_the_second_face_renumbered_is_caught() {
+        // RED FIRST. The second face emits the same chord points under
+        // its own ids (3, 4, 5) instead of the shared 0, 1, 2 — the
+        // cross-face identification failure. Both patches stay
+        // internally consistent, so nothing per-patch can see it.
+        let a = [[0, 1, 9], [1, 2, 9]];
+        let b = [[4, 3, 10], [5, 4, 10]];
+        assert!(per_patch_max_use(&a) <= 2, "patch A is internally clean");
+        assert!(per_patch_max_use(&b) <= 2, "patch B is internally clean");
+        let poly: [&[u32]; 1] = [&[0, 1, 2]];
+        let bad = unpaired_chord_segment(&poly, &[&a, &b], 9);
+        assert!(
+            matches!(bad, Some((_, 1))),
+            "an unidentified shared boundary leaves each side's copy at ONE use, got {bad:?}"
+        );
+    }
+
+    #[test]
+    fn a_segment_no_face_emitted_at_all_is_caught() {
+        // The other side of `n != 2`: a hole rather than a mismatch.
+        let poly: [&[u32]; 1] = [&[0, 1]];
+        assert_eq!(unpaired_chord_segment(&poly, &[&[]], 2), Some(((0, 1), 0)));
+    }
+
+    #[test]
+    fn ids_at_or_above_the_mark_are_never_probed() {
+        // The mark is what keeps the scan an integer compare on grid
+        // edges. Below it the same pair IS probed and counted, so the
+        // two halves of the row differ only in the mark.
+        let poly: [&[u32]; 1] = [&[0, 1]];
+        let tris = [[0, 1, 9]];
+        assert_eq!(
+            unpaired_chord_segment(&poly, &[&tris], 1),
+            Some(((0, 1), 0))
+        );
+        assert_eq!(
+            unpaired_chord_segment(&poly, &[&tris], 2),
+            Some(((0, 1), 1))
+        );
+    }
+}
+
+// NOT GATED ON `debug_assertions`: the subject is the fold itself,
+// which runs in every profile.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod patch_tests {
+    //! Placing a patch: shared corners keep their mesh ids, local ones
+    //! take the base, and the interior lands at the base.
+    //!
+    //! The 20-body digests in `tests/d9_mesh_goldens.rs` are the
+    //! contract; this row is the arithmetic under them, so a wrong base
+    //! names itself here instead of moving 14 digest slots.
+
+    use super::{Patch, PatchVertex};
+    use geom_core::Point3;
+
+    fn p(x: f64) -> Point3<f64> {
+        Point3::new(x, 0.0, 0.0)
+    }
+
+    #[test]
+    fn a_placed_patch_keeps_shared_ids_and_offsets_local_ones() {
+        // Two faces into one arena that already holds 5 shared points.
+        let mut positions: Vec<Point3<f64>> = (0..5).map(|i| p(f64::from(i))).collect();
+
+        let first = Patch {
+            interior: vec![p(100.0), p(101.0)],
+            triangles: vec![
+                [
+                    PatchVertex::Shared(3),
+                    PatchVertex::Local(0),
+                    PatchVertex::Local(1),
+                ],
+                [
+                    PatchVertex::Shared(0),
+                    PatchVertex::Shared(4),
+                    PatchVertex::Local(1),
+                ],
+            ],
+        };
+        assert_eq!(
+            first.place(&mut positions),
+            vec![[3, 5, 6], [0, 4, 6]],
+            "the first face's interior starts at the arena's length, 5"
+        );
+        assert_eq!(positions.len(), 7, "its two interior points were appended");
+        assert_eq!(positions[5].x, 100.0, "local 0 is the point at base + 0");
+
+        let second = Patch {
+            interior: vec![p(200.0)],
+            triangles: vec![[
+                PatchVertex::Local(0),
+                PatchVertex::Shared(1),
+                PatchVertex::Shared(2),
+            ]],
+        };
+        assert_eq!(
+            second.place(&mut positions),
+            vec![[7, 1, 2]],
+            "the second face's base is the arena AFTER the first face's interior"
+        );
+        assert_eq!(positions[7].x, 200.0);
+    }
+
+    #[test]
+    fn a_patch_with_no_interior_is_placed_unchanged() {
+        // The planar lane's shape: every corner shared, nothing
+        // appended, so the base is unobservable.
+        let mut positions: Vec<Point3<f64>> = (0..4).map(|i| p(f64::from(i))).collect();
+        let patch = Patch {
+            interior: Vec::new(),
+            triangles: vec![[
+                PatchVertex::Shared(0),
+                PatchVertex::Shared(2),
+                PatchVertex::Shared(3),
+            ]],
+        };
+        assert_eq!(patch.place(&mut positions), vec![[0, 2, 3]]);
+        assert_eq!(positions.len(), 4);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn census_ids_fixes_the_shared_ids_and_separates_the_local_ones() {
+        // The census's premise: the renumbering is injective AND
+        // leaves every shared id where it was, so a set of shared ids
+        // still names the same corners in the renumbered patch.
+        let shared: Vec<Point3<f64>> = (0..3).map(|i| p(f64::from(i))).collect();
+        let patch = Patch {
+            interior: vec![p(9.0), p(10.0)],
+            triangles: vec![[
+                PatchVertex::Shared(2),
+                PatchVertex::Local(0),
+                PatchVertex::Local(1),
+            ]],
+        };
+        assert_eq!(patch.census_ids(&shared), vec![[2, 3, 4]]);
+    }
 }

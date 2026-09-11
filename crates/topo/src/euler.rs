@@ -24,26 +24,29 @@
 //!   footnote, is the bounded-traversal half: no panic, no hang, every
 //!   traversal bounded — plus a typed error where corruption is
 //!   detectable. **A mutation phase announces a failed lookup rather
-//!   than discarding it, at every write in these modules** — and, as
-//!   of D21, at every write in `split_edge`, the attach setters,
-//!   `movefac`, `revert`, `merge_coplanar_faces`' role pass, the
-//!   boolean graft and the splitting carve. That enumeration is the
-//!   claim; it is not "the whole crate", and it has **one named
-//!   exception**: `merge_coplanar_faces`' ring re-homing still
-//!   defaults a failed face lookup to an empty ring list, because its
-//!   key arrives from a loop's back-pointer and no check in the call
-//!   proves it — so its disposition is a typed error rather than a
-//!   panic, and it is open as `SMELL-SCAN-2026-08.md`'s **D88**. Every
-//!   key a
-//!   mutation writes through is either minted in that phase or proven
-//!   live by a check in the same call — here the plan phase, which
-//!   returns [`EulerOpError::StaleKey`] otherwise — and never by the
+//!   than discarding it, at every write in these modules** — and at
+//!   every write in `split_edge`, the attach setters, `movefac`,
+//!   `revert`, `merge_coplanar_faces`, the boolean graft and the
+//!   splitting carve. That enumeration is the claim; it is not "the
+//!   whole crate".
+//!
+//!   **Announcing is the rule; which mechanism announces follows the
+//!   key's provenance.** A key a mutation writes through is either
+//!   minted in that phase or proven live by a check in the same call
+//!   — here the plan phase, which returns
+//!   [`EulerOpError::StaleKey`] otherwise — and never by the
 //!   body's tier-1 validity, which is a whole-body property no single
-//!   call establishes; the writes themselves state
+//!   call establishes; those writes state
 //!   that impossibility as `unreachable!` (the addendum's row 4), and
 //!   the one write helper these modules share
 //!   ([`Body::link_half_edges`]) states it as a precondition its
-//!   callers discharge. The
+//!   callers discharge. A key that arrives instead from an arena
+//!   BACK-POINTER has no such proof available to the call, so its
+//!   plan step announces a typed refusal rather than asserting an
+//!   impossibility it cannot establish (the addendum's row 1) —
+//!   `merge_coplanar_faces`' ring re-homing, whose absorbed-face key
+//!   is a loop's `face`, is the site of that shape inside this
+//!   enumeration. The
 //!   *output* still carries no validity promise on corruption the plan
 //!   phase cannot see — a consistently wrong `parent_loop` makes every
 //!   lookup succeed and write the wrong topology — but that residue is
@@ -58,29 +61,57 @@
 //!   [`Provenance::Mef`]).
 //! - **Debug postconditions** (D1's ratified clause): under
 //!   `cfg(debug_assertions)`, each successful op asserts that the arena
-//!   count deltas match the `ArenaDelta` it declares and that the whole
-//!   body still passes tier-1 [`crate::validate::validate`]. On
-//!   tier-1-valid input
+//!   count deltas match the `ArenaDelta` it declares, and the whole
+//!   body is re-derived against tier-1
+//!   [`crate::validate::validate`] **once per public door** — at the
+//!   end of the door, over the state the caller will see (Ev's ruling
+//!   on `work/perf/d1-per-op-tier1-sweep-price`, PR 2305). The delta
+//!   check is O(1) and is the op's own declared contract, so it runs
+//!   at every call; the sweep is O(body), and a door running n
+//!   operators pays it once rather than n times. Which of the two an
+//!   op is depends on where it is called: **an operator a consumer
+//!   calls directly is itself a door and sweeps at its end**, and one
+//!   called inside a composing door's surgery scope
+//!   ([`crate::surgery`]) does not, because that door has undertaken
+//!   to. On tier-1-valid input
 //!   a firing postcondition is a kernel bug by definition (the per-call
 //!   instance of the ch. 9 soundness theorem failing against our
 //!   transcription). Raw insertion is crate-internal since PR 5's
 //!   builder demotion, so a body is reachable only through the public
 //!   mutation paths, and the property those paths owe is that each
-//!   **preserves tier 1**: the Euler operators with their chord/line
-//!   sugar, and the non-operator structural mutators
+//!   **preserves tier 1, checked at every observable boundary**: the
+//!   Euler operators with their chord/line sugar, and the non-operator
+//!   structural mutators
 //!   ([`Body::ring_move`], [`Body::split_edge`], [`Body::movefac`],
 //!   [`Body::merge_coplanar_faces`]) declare the same debug
-//!   postcondition or are composed of operators that do; the
-//!   attach/metadata setters re-certify under their own tier-1
+//!   postcondition, or open a surgery scope and close it with the
+//!   sweep, or are composed of doors that do; the
+//!   attach/metadata setters re-certify under the same tier-1
 //!   assertion ([`Body::set_face_surface`], [`Body::set_edge_curve`])
 //!   or write fields tier 1 does not constrain. **The closure property
 //!   is the claim; a count of the doors is not** — an enumeration
 //!   frozen into this sentence is what rots as doors are added, and
 //!   `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
 //!   checks the property against the real surface rather than against
-//!   this list. `ring_move`'s case is the least obvious of the
-//!   asserting doors: it re-glues the per-shell component partition,
-//!   and the separating-curve argument lives in its docs.
+//!   this list, both spellings included, and a scope opened and never
+//!   closed fails there by name. `ring_move`'s case is the least
+//!   obvious of the asserting doors: it re-glues the per-shell
+//!   component partition, and the separating-curve argument lives in
+//!   its docs.
+//!
+//!   **Localizing a door-level failure.** A door-level panic names the
+//!   door, not the operator inside it that broke tier 1. Rebuild with
+//!   `--features topo/per-op-postcondition` and the sweep runs after
+//!   every operator again — surgery scopes ignored — so the message
+//!   names the operator. Opt-in, never default-on.
+//!
+//!   **One class is the scalpel's alone.** A corruption an operator
+//!   introduces and a later operator in the SAME door repairs never
+//!   reaches the door's close, because the state the door hands back
+//!   is sound. The door-level check is a claim about that state and
+//!   not about every state the door passed through; the per-operator
+//!   sweep is a claim about both, and it is the only thing that sees
+//!   this one.
 //!
 //!   **The exception, and it is a real one.**
 //!   [`crate::instance`]'s grafts are a **raw transplant**, not an
@@ -96,14 +127,18 @@
 //!   every key patched. **All three understate it.** A refusal raised
 //!   between the transplant's two passes leaves entities holding
 //!   source-internal keys, which in `dst` either dangle or resolve to
-//!   an unrelated live entity. Whoever takes S14 fixes one of three
-//!   copies of the same sentence. So a caller that
+//!   an unrelated live entity. The same sentence is written in three
+//!   places, so a correction has to reach all three. So a caller that
 //!   ignores a graft's `Err` and keeps using `dst` can hand the next
 //!   operator a tier-1-invalid body and fire its postcondition from
 //!   **API misuse rather than a kernel bug**. That is the state class
 //!   D9's footnote asserts cannot occur and the D2 addendum's five
-//!   classes do not cover; it is open as **S14** in
-//!   `docs/SMELL-SCAN-2026-08.md` and is not settled here.
+//!   classes do not cover. **It is an open question in front of Ev,
+//!   not a thing this module settles**: whether the graft can be
+//!   restructured so a partially-written destination is not
+//!   representable — staging into a fresh body and committing on
+//!   success, the shape [`Body::merge_coplanar_faces`] already uses —
+//!   or whether the class gets a name of its own.
 //!
 //!   The D9 taxonomy consequence therefore holds **for every door but
 //!   that one**: these debug panics are
@@ -234,7 +269,7 @@ use crate::entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
-use crate::live::Live;
+use crate::live::{Live, require_key};
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
 use crate::test_support_impl::ArenaCounts;
@@ -478,6 +513,20 @@ pub(crate) enum MevCurveMint<T: Real> {
 /// (`Eq` was dropped at M2 PR 3: [`EulerOpError::Certification`]
 /// carries margin diagnostics with `f64` payloads.)
 #[derive(Clone, Debug, PartialEq)]
+// The companion fieldless enum is the compiler's own statement of this
+// enum's variants and their order: the Display-coverage row indexes by
+// it and sizes its array from its `COUNT`, so neither the count nor the
+// order is written down twice. Test builds only — nothing in the
+// production surface names it.
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    test,
+    strum_discriminants(
+        name(EulerOpErrorKind),
+        vis(pub(crate)),
+        derive(strum::EnumCount, strum::EnumIter)
+    )
+)]
 pub enum EulerOpError {
     /// The curve-geometry spec failed its D4 ¶2 certification at the
     /// attachment gate (residual exceeded, sliver escalation,
@@ -732,6 +781,33 @@ pub enum EulerOpError {
         /// The second face, in a different solid.
         f2: FaceKey,
     },
+    /// [`Body::move_shells_to_new_solid`]'s list is empty: a solid
+    /// with no shells is not a solid (tier 1's arity floor), so there
+    /// is nothing to mint.
+    NoShellsNamed,
+    /// [`Body::move_shells_to_new_solid`]'s list names one shell
+    /// twice — a caller desync, refused rather than resolved by list
+    /// order.
+    ShellRepeated {
+        /// The shell named more than once.
+        shell: ShellKey,
+    },
+    /// [`Body::move_shells_to_new_solid`]'s shells do not all belong
+    /// to one solid: the op re-partitions ONE solid's shells, and a
+    /// list spanning two has no single source solid to split from.
+    ShellsAcrossSolids {
+        /// The first shell, in the solid the op would split.
+        shell: ShellKey,
+        /// A later shell, in a different solid.
+        other: ShellKey,
+    },
+    /// [`Body::move_shells_to_new_solid`] would move EVERY shell of
+    /// its source solid, leaving it with none — tier 1's arity floor
+    /// again, on the solid that stays behind.
+    SolidWouldEmpty {
+        /// The solid that would be left without shells.
+        solid: SolidKey,
+    },
 }
 
 impl fmt::Display for EulerOpError {
@@ -882,11 +958,199 @@ impl fmt::Display for EulerOpError {
                  (cross-solid fusion is the boolean combine step, not an \
                  Euler surgery)"
             ),
+            Self::NoShellsNamed => write!(
+                f,
+                "move_shells_to_new_solid: no shells named, and a solid with no \
+                 shells is not a solid"
+            ),
+            Self::ShellRepeated { shell } => write!(
+                f,
+                "move_shells_to_new_solid: shell {shell:?} is named more than once \
+                 (caller desync)"
+            ),
+            Self::ShellsAcrossSolids { shell, other } => write!(
+                f,
+                "move_shells_to_new_solid: shells {shell:?} and {other:?} lie in \
+                 different solids (the op re-partitions one solid's shells)"
+            ),
+            Self::SolidWouldEmpty { solid } => write!(
+                f,
+                "move_shells_to_new_solid: moving every shell of solid {solid:?} \
+                 would leave it with none"
+            ),
         }
     }
 }
 
 impl std::error::Error for EulerOpError {}
+
+/// One sample of every [`EulerOpError`] variant, in declaration
+/// order — the crate's single such array.
+///
+/// The index and the count are the compiler's: `EulerOpErrorKind` is
+/// derived from the enum, so a variant added without a sample fails
+/// by name here and nothing restates the enum. The two derives'
+/// agreement on order — `from(err) as usize` is the declaration index
+/// and `iter()` walks the same sequence — is asserted here rather
+/// than by each caller, so a row that consumes this array inherits
+/// the guarantee instead of quietly relying on another row for it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+pub(crate) fn every_euler_op_error_once()
+-> [EulerOpError; <EulerOpErrorKind as strum::EnumCount>::COUNT] {
+    use strum::{EnumCount as _, IntoEnumIterator as _};
+    let he = HalfEdgeKey::default();
+    let lp = LoopKey::default();
+    let fc = FaceKey::default();
+    let ek = EdgeKey::default();
+    let vk = VertexKey::default();
+    let errors = [
+        EulerOpError::Certification {
+            error: CertifyError::Unimplemented,
+        },
+        EulerOpError::DescriptionNotAdjacent { edge: ek },
+        EulerOpError::StaleKey {
+            key: EntityId::HalfEdge(he),
+        },
+        EulerOpError::StaleGeometry {
+            key: GeomRef::Point(PointKey::default()),
+        },
+        EulerOpError::FanStartMismatch { he1: he, he2: he },
+        EulerOpError::FanOrbitBroken { he1: he, he2: he },
+        EulerOpError::NotSameLoop { he1: he, he2: he },
+        EulerOpError::LoopCycleBroken { r#loop: lp },
+        EulerOpError::LoopNotEmpty { r#loop: lp },
+        EulerOpError::LoopNotCycle { r#loop: lp },
+        EulerOpError::NotSameEdge { he1: he, he2: he },
+        EulerOpError::UnclaimedHalfEdge { he, edge: ek },
+        EulerOpError::SelfLoopEdge {
+            edge: ek,
+            vertex: vk,
+        },
+        EulerOpError::OrbitBroken { he },
+        EulerOpError::EmptyAnchorsCollide { vertex: vk },
+        EulerOpError::SameLoop { r#loop: lp },
+        EulerOpError::NotSameFace {
+            target: lp,
+            ring: lp,
+        },
+        EulerOpError::RingIsOuter { r#loop: lp },
+        EulerOpError::SameFace { face: fc },
+        EulerOpError::CrossShell { f1: fc, f2: fc },
+        EulerOpError::FaceHasRings { face: fc },
+        EulerOpError::SolidNotSingleShell {
+            solid: SolidKey::default(),
+            shells: 2,
+        },
+        EulerOpError::ShellNotSingleFace {
+            shell: ShellKey::default(),
+            faces: 2,
+        },
+        EulerOpError::NullScaffoldCurve {
+            curve: CurveKey::default(),
+        },
+        EulerOpError::SplitParamNotInterior { edge: ek },
+        EulerOpError::SplitParamEscalated {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("split_edge_param_interior"),
+            },
+        },
+        EulerOpError::CrossSolid { f1: fc, f2: fc },
+        EulerOpError::NoShellsNamed,
+        EulerOpError::ShellRepeated {
+            shell: ShellKey::default(),
+        },
+        EulerOpError::ShellsAcrossSolids {
+            shell: ShellKey::default(),
+            other: ShellKey::default(),
+        },
+        EulerOpError::SolidWouldEmpty {
+            solid: SolidKey::default(),
+        },
+    ];
+    for (i, kind) in EulerOpErrorKind::iter().enumerate() {
+        assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
+    }
+    let mut covered = [false; EulerOpErrorKind::COUNT];
+    for error in &errors {
+        covered[EulerOpErrorKind::from(error) as usize] = true;
+    }
+    let missing: Vec<EulerOpErrorKind> = EulerOpErrorKind::iter()
+        .zip(covered)
+        .filter_map(|(kind, seen)| (!seen).then_some(kind))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "every EulerOpError variant needs a sample; missing {missing:?}",
+    );
+    errors
+}
+
+impl EulerOpError {
+    /// Whether this refusal reports a **torn arena** — a body that is
+    /// already tier-1-invalid — rather than a fact about the
+    /// operation that was asked for.
+    ///
+    /// The membership is this enum's own documentation: a variant
+    /// answers `true` exactly when its doc comment says the state is
+    /// tier-1-invalid input, plus the two dangling-reference variants
+    /// whose whole subject is a key that did not resolve. Callers
+    /// that place a refusal — a driver deciding whether to record it
+    /// and carry on, or to refuse — ask here instead of keeping a
+    /// second copy of the list.
+    ///
+    /// The match is exhaustive on purpose: a new variant does not
+    /// compile until someone says which side of this line it is on.
+    #[must_use]
+    pub fn reports_tier1_corruption(&self) -> bool {
+        match self {
+            // A key that did not resolve, whichever arena it names.
+            Self::StaleKey { .. } | Self::StaleGeometry { .. } => true,
+            // The walks that cannot fail on a tier-1-valid body.
+            Self::FanOrbitBroken { .. }
+            | Self::LoopCycleBroken { .. }
+            | Self::OrbitBroken { .. } => true,
+            // A half-edge whose parent loop is empty, and the two
+            // corrupt edge <-> half-edge bijections.
+            Self::LoopNotCycle { .. }
+            | Self::NotSameEdge { .. }
+            | Self::UnclaimedHalfEdge { .. } => true,
+            // "Believed unreachable through valid operator sequences
+            // (the offending inputs are already tier-1-invalid)".
+            Self::EmptyAnchorsCollide { .. } => true,
+            // Facts about the operation that was asked for: a
+            // certification verdict, a site or argument that does not
+            // meet the operator's precondition, a shape the operator
+            // does not cover. Every one of these is legal to meet on
+            // a tier-1-valid body.
+            Self::Certification { .. }
+            | Self::DescriptionNotAdjacent { .. }
+            | Self::FanStartMismatch { .. }
+            | Self::NotSameLoop { .. }
+            | Self::LoopNotEmpty { .. }
+            | Self::SelfLoopEdge { .. }
+            | Self::SameLoop { .. }
+            | Self::NotSameFace { .. }
+            | Self::RingIsOuter { .. }
+            | Self::SameFace { .. }
+            | Self::CrossShell { .. }
+            | Self::FaceHasRings { .. }
+            | Self::SolidNotSingleShell { .. }
+            | Self::ShellNotSingleFace { .. }
+            | Self::NullScaffoldCurve { .. }
+            | Self::SplitParamNotInterior { .. }
+            | Self::SplitParamEscalated { .. }
+            | Self::CrossSolid { .. }
+            | Self::NoShellsNamed
+            | Self::ShellRepeated { .. }
+            | Self::ShellsAcrossSolids { .. }
+            | Self::SolidWouldEmpty { .. } => false,
+        }
+    }
+}
 
 /// One operator's signed shift of the seven topology-arena lengths.
 ///
@@ -1733,11 +1997,7 @@ impl<T: Decide> Body<T> {
         })?;
         let (inherit_surface, inherit_sense, shell_key) =
             (face_data.surface, face_data.sense, face_data.shell);
-        if !self.shells.contains_key(shell_key) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Shell(shell_key),
-            });
-        }
+        require_key(&self.shells, shell_key, EntityId::Shell)?;
         let p1 = self.resolve_vertex_point(u1)?;
         // he_minus is minted with start = u2; its point is the
         // certification's end endpoint (he_plus runs u1 → u2).
@@ -1836,11 +2096,7 @@ impl<T: Decide> Body<T> {
         })?;
         let (inherit_surface, inherit_sense, shell_key) =
             (face_data.surface, face_data.sense, face_data.shell);
-        if !self.shells.contains_key(shell_key) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Shell(shell_key),
-            });
-        }
+        require_key(&self.shells, shell_key, EntityId::Shell)?;
         // ---- Geometry gates (still no mutation): the self-loop edge
         // closes at the lone vertex — both endpoints are its point.
         self.check_face_surface(&surface)?;
@@ -2110,14 +2366,16 @@ impl<T: Decide> Body<T> {
     /// Writes the mutual `next`/`prev` link `a → b`.
     ///
     /// **The precondition is the argument type.** Every door that hands
-    /// out a [`Live`] performs the lookup — [`Live::of`],
-    /// [`Body::require_live`], [`Body::resolve_half_edge_live`],
-    /// [`Body::loop_cycle_live`] — so a key nothing has resolved cannot
-    /// arrive here. What the token does and does not claim — in
-    /// particular that it is a statement about the moment it was made,
-    /// and that half-edge removal is therefore the last thing a
-    /// mutation phase may do — is the [`live`](crate::live) module
-    /// docs.
+    /// out a [`Live`] performs the lookup, so a key nothing has
+    /// resolved cannot arrive here. **Which doors those are is not
+    /// restated here**: the [`live`](crate::live) module owns the list
+    /// and a source-level row there enumerates it, so a fifth door reds
+    /// against that row — while a copy of the names in this file would
+    /// go stale against it silently, which is the direction a
+    /// cross-reference fails in. What the token does and does not claim
+    /// — in particular that it is a statement about the moment it was
+    /// made, and that half-edge removal is therefore the last thing a
+    /// mutation phase may do — is those same module docs.
     ///
     /// **A bounded walk proves its members, not their `prev` fields.**
     /// [`Body::loop_cycle_live`] hands out a token per member and
@@ -2147,7 +2405,17 @@ impl<T: Decide> Body<T> {
     /// operator, the arena deltas must match the [`ArenaDelta`] the op
     /// declares — a different quantity from its Euler vector, which is
     /// prose here and a `seqgen` ledger entry there — and the body must
-    /// be tier-1 valid. On tier-1-valid input a failure
+    /// be tier-1 valid.
+    ///
+    /// **The delta check is unconditional; the tier-1 sweep is the
+    /// door's.** The delta is O(1) and is this operator's own declared
+    /// contract, so it runs at every call. The sweep re-derives the
+    /// whole body, and inside an open surgery scope
+    /// ([`crate::surgery`]) it is the composing door that runs it, once,
+    /// over the state the caller will see. An operator a consumer calls
+    /// directly is itself a door and sweeps here.
+    ///
+    /// On tier-1-valid input a failure
     /// here is a kernel bug (a per-call violation of the ch. 9
     /// soundness theorem by our transcription) — and with the raw
     /// builder `pub(crate)` since PR 5, every publicly-constructible
@@ -2173,11 +2441,7 @@ impl<T: Decide> Body<T> {
             "{op} postcondition: arena deltas do not match the op's declared \
              arena delta (kernel bug)",
         );
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "{op} postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        self.assert_tier1_postcondition(op);
     }
 }
 
@@ -2185,18 +2449,61 @@ impl<T: Decide> Body<T> {
 ///
 /// A described NURBS operand in an `Intersection` certifies only
 /// through `geom_brep`'s injected lane, whose derivation needs a
-/// CERTIFYING scalar (`geom_brep::EdgeNurbsLane`'s static split; the
-/// lane fn's own bound is `Decide + Bounds + CertifiedEnclosure`, and
-/// since D1, 2026-08-19, it is that last term rather than `Bounds` that
-/// a dual fails). Raising the whole Euler surface to that bound would push it
+/// CERTIFYING scalar (`geom_brep::plane_nurbs_limbs`'s own bound is
+/// `Decide + Bounds + CertifiedEnclosure`, and since D1, 2026-08-19, it
+/// is that last term rather than `Bounds` that a dual fails, so a dual
+/// cannot write this door's call at all rather than being refused
+/// inside it). Raising the whole Euler surface to that bound would push it
 /// through hundreds of `T: Decide` signatures for a capability three
 /// of the four sealed scalars have unconditionally, so the lane is a
 /// SEPARATE DOOR onto the same shared machinery: identical
 /// preconditions, identical adjacency rules, identical mutation. The
 /// default door keeps refusing the class exactly as before — there is
 /// no door that accepts it uncertified.
-impl<T: geom_brep::EdgeNurbsLane> Body<T> {
+impl<T: Decide + geom_core::CertifiedBounds> Body<T> {
     /// [`Body::set_edge_curve`] with the plane × NURBS lane wired in.
+    ///
+    /// **A scalar without certification rights cannot write this
+    /// call**, and that is the door's guarantee rather than a side
+    /// effect: nothing runs, nothing refuses, the call cannot be
+    /// formed.
+    ///
+    /// The code is **`E0599`, not `E0277`**, and the difference is
+    /// where the bound sits: this is an INHERENT METHOD on an `impl`
+    /// block whose bound `Dual` fails, so the method is not in scope
+    /// at all and the compiler says *method exists … but its trait
+    /// bounds were not satisfied: `Dual<f64>: CertifiedEnclosure`*
+    /// rather than reporting an unsatisfied bound on a call it
+    /// resolved. A free function with the same bound gives `E0277`
+    /// (`geom_brep::plane_nurbs_limbs`' own row does).
+    ///
+    /// ```compile_fail,E0599
+    /// use geom_core::{Dual64, Tol};
+    /// use topo::{Body, EdgeCurveSpec, entity::EdgeKey};
+    /// fn lane_door(b: &mut Body<Dual64>, e: EdgeKey, c: EdgeCurveSpec<Dual64>, tol: Tol) {
+    ///     let _ = b.set_edge_curve_nurbs_lane(e, c, tol);
+    /// }
+    /// ```
+    ///
+    /// **What that annotation is worth, said out loud** (`S216`): on
+    /// stable, rustdoc does NOT compare the emitted code to the one
+    /// written here — the row passes green whichever code is named, so
+    /// the annotation documents the expectation and checks nothing.
+    /// The live check is the twin below: it differs in exactly one
+    /// identifier and every path either row names resolves, so the
+    /// failing row can only be failing on the bound. Read the pair,
+    /// never the annotation alone.
+    ///
+    /// The DEFAULT door is open to it, which is the capability this
+    /// separation exists to keep:
+    ///
+    /// ```
+    /// use geom_core::{Dual64, Tol};
+    /// use topo::{Body, EdgeCurveSpec, entity::EdgeKey};
+    /// fn default_door(b: &mut Body<Dual64>, e: EdgeKey, c: EdgeCurveSpec<Dual64>, tol: Tol) {
+    ///     let _ = b.set_edge_curve(e, c, tol);
+    /// }
+    /// ```
     ///
     /// # Errors
     ///
@@ -3289,124 +3596,15 @@ mod tests {
         assert_eq!(deep_snapshot(&with_errs), deep_snapshot(&without_errs));
     }
 
-    /// Display smoke test, one sample per [`EulerOpError`] variant.
-    ///
-    /// What the compiler enforces: `variant_index` matches the enum with
-    /// NO wildcard arm, so a new variant fails to build until an arm
-    /// exists for it, and the coverage assertion then names the variant
-    /// whose sample is missing.
-    ///
-    /// What it does NOT enforce: `VARIANTS` is hand-written, so a new
-    /// variant given an arm but no sample still passes. Closing that
-    /// needs the variant count from the compiler — `strum`'s `EnumCount`
-    /// derive or the workspace's first proc-macro crate — and neither is
-    /// bought here. When you add an arm, its index is the new
-    /// `VARIANTS - 1`.
+    /// Display smoke test, one sample per [`EulerOpError`] variant,
+    /// over the crate's shared sample array
+    /// ([`every_euler_op_error_once`], which carries the coverage and
+    /// discriminant-order assertions this row used to keep).
     #[test]
     fn every_error_displays() {
-        const VARIANTS: usize = 27;
-        fn variant_index(e: &EulerOpError) -> usize {
-            match e {
-                EulerOpError::Certification { .. } => 0,
-                EulerOpError::DescriptionNotAdjacent { .. } => 1,
-                EulerOpError::StaleKey { .. } => 2,
-                EulerOpError::StaleGeometry { .. } => 3,
-                EulerOpError::FanStartMismatch { .. } => 4,
-                EulerOpError::FanOrbitBroken { .. } => 5,
-                EulerOpError::NotSameLoop { .. } => 6,
-                EulerOpError::LoopCycleBroken { .. } => 7,
-                EulerOpError::LoopNotEmpty { .. } => 8,
-                EulerOpError::LoopNotCycle { .. } => 9,
-                EulerOpError::NotSameEdge { .. } => 10,
-                EulerOpError::UnclaimedHalfEdge { .. } => 11,
-                EulerOpError::SelfLoopEdge { .. } => 12,
-                EulerOpError::OrbitBroken { .. } => 13,
-                EulerOpError::EmptyAnchorsCollide { .. } => 14,
-                EulerOpError::SameLoop { .. } => 15,
-                EulerOpError::NotSameFace { .. } => 16,
-                EulerOpError::RingIsOuter { .. } => 17,
-                EulerOpError::SameFace { .. } => 18,
-                EulerOpError::CrossShell { .. } => 19,
-                EulerOpError::FaceHasRings { .. } => 20,
-                EulerOpError::SolidNotSingleShell { .. } => 21,
-                EulerOpError::ShellNotSingleFace { .. } => 22,
-                EulerOpError::NullScaffoldCurve { .. } => 23,
-                EulerOpError::SplitParamNotInterior { .. } => 24,
-                EulerOpError::SplitParamEscalated { .. } => 25,
-                EulerOpError::CrossSolid { .. } => 26,
-            }
-        }
-        let he = HalfEdgeKey::default();
-        let lp = LoopKey::default();
-        let fc = FaceKey::default();
-        let ek = EdgeKey::default();
-        let vk = VertexKey::default();
-        let errors = [
-            EulerOpError::Certification {
-                error: CertifyError::Unimplemented,
-            },
-            EulerOpError::DescriptionNotAdjacent { edge: ek },
-            EulerOpError::StaleKey {
-                key: EntityId::HalfEdge(he),
-            },
-            EulerOpError::StaleGeometry {
-                key: GeomRef::Point(PointKey::default()),
-            },
-            EulerOpError::FanStartMismatch { he1: he, he2: he },
-            EulerOpError::FanOrbitBroken { he1: he, he2: he },
-            EulerOpError::NotSameLoop { he1: he, he2: he },
-            EulerOpError::LoopCycleBroken { r#loop: lp },
-            EulerOpError::LoopNotEmpty { r#loop: lp },
-            EulerOpError::LoopNotCycle { r#loop: lp },
-            EulerOpError::NotSameEdge { he1: he, he2: he },
-            EulerOpError::UnclaimedHalfEdge { he, edge: ek },
-            EulerOpError::SelfLoopEdge {
-                edge: ek,
-                vertex: vk,
-            },
-            EulerOpError::OrbitBroken { he },
-            EulerOpError::EmptyAnchorsCollide { vertex: vk },
-            EulerOpError::SameLoop { r#loop: lp },
-            EulerOpError::NotSameFace {
-                target: lp,
-                ring: lp,
-            },
-            EulerOpError::RingIsOuter { r#loop: lp },
-            EulerOpError::SameFace { face: fc },
-            EulerOpError::CrossShell { f1: fc, f2: fc },
-            EulerOpError::FaceHasRings { face: fc },
-            EulerOpError::SolidNotSingleShell {
-                solid: SolidKey::default(),
-                shells: 2,
-            },
-            EulerOpError::ShellNotSingleFace {
-                shell: ShellKey::default(),
-                faces: 2,
-            },
-            EulerOpError::NullScaffoldCurve {
-                curve: CurveKey::default(),
-            },
-            EulerOpError::SplitParamNotInterior { edge: ek },
-            EulerOpError::SplitParamEscalated {
-                edge: ek,
-                diag: geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Value(5e-9),
-                    band: Band::new(1e-9, 1e-8).unwrap(),
-                    predicate: Some("split_edge_param_interior"),
-                },
-            },
-            EulerOpError::CrossSolid { f1: fc, f2: fc },
-        ];
-        let mut covered = [false; VARIANTS];
-        for error in &errors {
+        for error in every_euler_op_error_once() {
             assert!(!error.to_string().is_empty(), "{error:?}");
-            covered[variant_index(error)] = true;
         }
-        assert!(
-            covered.iter().all(|&c| c),
-            "every EulerOpError variant needs a Display sample; missing index {:?}",
-            covered.iter().position(|&c| !c),
-        );
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): both `split_edge`

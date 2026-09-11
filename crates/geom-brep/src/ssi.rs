@@ -129,13 +129,13 @@ use geom_core::{Band, Indeterminate, Margin, Point3};
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
 pub use exhaust::{Exhaustiveness, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR};
 pub use march::{
-    BranchEnd, MarchTol, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
+    BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
     SSI_STEP_MAX, StepperMode,
 };
 
 use enclose::{Box3, NurbsBoxes};
 use exhaust::UvRect;
-use march::{MarchContext, Trace, march_both, trace_points};
+use march::{MarchContext, MarchTol, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
 /// The two chart-parameter sample sequences of an ℝ⁴ trace — the
@@ -975,11 +975,26 @@ pub fn plane_nurbs_ssi(
     let dv = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false);
     let mag =
         |b: Box3| (b.x.mag() * b.x.mag() + b.y.mag() * b.y.mag() + b.z.mag() * b.z.mag()).sqrt();
-    let speed = mag(du).max(mag(dv));
-    if speed.is_nan() || speed <= 0.0 {
+    let speed = nan_propagating_max(mag(du), mag(dv));
+    // A speed OUTSIDE the positive-finite class can never translate a
+    // floor: `floor / ∞` is exactly zero — a floor no cell can ever
+    // reach — so a non-finite speed would let the sweep run to its
+    // cell budget and answer in this guard's place with the wrong
+    // diagnosis. Positive finite is NECESSARY, not sufficient: a
+    // finite speed of ~1e150 passes here and drives the translated
+    // floors to ~1e-152, where the budget still answers — the
+    // finite-but-unusable window is issue 1238's.
+    if !speed.is_finite() {
         return Err(SsiError::UnsupportedCertificate {
-            what: "the NURBS wall's certified chart speed is zero or poison, so no \
-                   floor in meters can be translated into its parameter domain",
+            what: "the NURBS wall's certified chart speed is not finite — its \
+                   derivative bound overflowed or is poison — so no floor in \
+                   meters can be translated into its parameter domain",
+        });
+    }
+    if speed <= 0.0 {
+        return Err(SsiError::UnsupportedCertificate {
+            what: "the NURBS wall's certified chart speed is zero, so no floor in \
+                   meters can be translated into its parameter domain",
         });
     }
 
@@ -1049,11 +1064,22 @@ fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
     let coords = p.ring_coords();
     let kv = p.knots();
     let mut out = Vec::new();
+    // One pair per coordinate channel, minted once outside the span
+    // walk: the coordinates and the knots come from the same curve, so
+    // the count relation is `NurbsCurve2::new`'s fact. A pair that
+    // failed to mint banks no window at all — the same direction as a
+    // window this pass cannot bound (below).
+    let (Some(cu), Some(cv)) = (kv.with_coeffs(&coords[0]), kv.with_coeffs(&coords[1])) else {
+        return out;
+    };
     for index in kv.first_span()..=kv.last_span() {
-        // Emptiness check and span validation are one step.
-        let Some(span) = kv.span(index) else { continue };
-        let hu = geom_core::spline::hull::span_hull(kv, &coords[0], span);
-        let hv = geom_core::spline::hull::span_hull(kv, &coords[1], span);
+        // Emptiness check and window construction are one step; both
+        // channels share the vector, so both refuse the same indices.
+        let (Some(wu), Some(wv)) = (cu.span(index), cv.span(index)) else {
+            continue;
+        };
+        let hu = wu.hull();
+        let hv = wv.hull();
         if hu.is_poison() || hv.is_poison() {
             // A window this pass cannot bound is not banked. Dropping
             // it only ever SHRINKS the accounted set, so the accounting
@@ -1137,7 +1163,7 @@ fn finish_r4(
 /// `march_tol` is the marcher's step tolerance in meters; every
 /// certifying door derives its own from `band` and has no such
 /// parameter. This door takes a bare `f64` and mints the private
-/// [`MarchTol`] itself, which is what keeps a decoupled tolerance
+/// `MarchTol` itself, which is what keeps a decoupled tolerance
 /// unmintable anywhere else — including inside a certifying door, whose
 /// maintainer is the caller who would otherwise reach for it.
 ///
@@ -1285,4 +1311,44 @@ pub fn idealized_trace_r3(
     )?;
     let pts = trace_points::<2, 3, _>(&sys, &trace);
     Ok((pts, trace.end))
+}
+
+/// `max` that PROPAGATES NaN — `f64::max` returns the non-NaN operand,
+/// so a lone poisoned fold input would be dropped before any guard
+/// with an `is_finite`/`is_nan` arm could see it.
+///
+/// At its one call site (the seeding guard's chart-speed fold) the
+/// difference from `f64::max` is defensive rather than reachable
+/// today: a poisoned derivative box needs a zero-touching weight hull
+/// or a malformed net — both refused at construction — and an
+/// OVERFLOWED box saturates its `mag` to `+∞`, which both folds hand
+/// to the same not-finite refusal. The pin below is therefore on this
+/// helper by name; the reachability argument lives here so that a
+/// future producer of one-sided poison (a new box source, a widened
+/// constructor) finds the fold already stated as load-bearing.
+fn nan_propagating_max(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b.is_nan() {
+        f64::NAN
+    } else {
+        a.max(b)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod fold_tests {
+    use super::nan_propagating_max;
+
+    /// Red under the exact corruption a review executed: reverting the
+    /// fold to `f64::max`, which drops a lone NaN — every ssi row
+    /// stayed green under that revert, so the fold's contract gets its
+    /// own executable pin.
+    #[test]
+    fn the_chart_speed_fold_propagates_a_lone_nan() {
+        assert!(nan_propagating_max(f64::NAN, 1.0).is_nan());
+        assert!(nan_propagating_max(1.0, f64::NAN).is_nan());
+        assert!(nan_propagating_max(f64::NAN, f64::NAN).is_nan());
+        assert_eq!(nan_propagating_max(1.0, 2.0), 2.0);
+        assert_eq!(nan_propagating_max(f64::INFINITY, 1.0), f64::INFINITY);
+    }
 }

@@ -140,7 +140,7 @@ struct Segment {
 /// The `Decide + Bounds` compound bound is the boolean-seam bound
 /// (ratified 2026-07-29 — see geom-core `real.rs`, Bounds scope
 /// rule); this module is part of that seam alongside `ops`/`reduce`.
-pub(super) fn try_rest_union<T: Decide + Bounds>(
+pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     mut red: BooleanReduction<T>,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
@@ -252,7 +252,13 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     // ---- 6. Graft B whole (disjoint interiors: nothing discarded),
     // then glue every patch pair in BFS order. ----
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
-    let mut body = red.a;
+    // The zip, the merge and the closing mint are one door's surgery
+    // (`crate::surgery`): tier 1 is paid once, over the body `gate`
+    // below certifies, rather than once per operator. The guard owns
+    // the borrow, so a refusal on the way closes the scope by dropping
+    // it.
+    let mut zipped = red.a;
+    let mut body = zipped.begin_surgery();
     let solid = single_solid(&body).map_err(|_| desync("REST lane: operand A not one solid"))?;
     let graft = graft_solid(&mut body, solid, &red.b, tol)?;
 
@@ -332,6 +338,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         &KeyView::Graft(&graft),
         &desc,
     );
+    body.sweep_and_close();
+    let body = zipped;
     gate(&body)?;
     volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);
@@ -500,19 +508,24 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// only meters the angular sliver band (exact fixtures decide
 /// definitely either way).
 ///
-/// Both consumers go through this one function BY CONSTRUCTION: the
-/// verify-at-use site ([`verify_declared_pairs`], `declared: true`)
-/// and the LIB-SEL2 detector's candidate-generation mode
-/// (`declared: false`, then `true` for the orientation a declaration
-/// would later verify with). That construction is the anti-twin rule
-/// (SELECT-DESIGN §3b) applied to the last parameter standing: the
-/// #304 review's planted-drift probe showed a hand-mirrored arm
-/// passes every axis-aligned suite, so the arm is shared rather than
-/// mirrored.
+/// **This door has NO in-tree consumer.** Verify-at-use stopped
+/// calling it at M9-1 and the flush detector followed when its scope
+/// became the `Rest` ladder's; what to do about a published door with
+/// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
+/// What it still IS is [`carrier_pair_relation`]'s planar projection,
+/// and the two cannot drift: that door's `(Plane, Plane)` case
+/// delegates to
+/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict),
+/// the very function [`super::oriented_plane_eq`] wraps here — one
+/// verdict function, one set of `decide` sites, one verification arm.
+/// (The #304 review's planted-drift probe showed a hand-mirrored arm
+/// passes every axis-aligned suite, which is why the arm is shared
+/// rather than mirrored.)
 ///
-/// `None`: not a planar pair — there is no description to compare
-/// (the detector's honest "not a v1 candidate"; the REST lane treats
-/// it as an invariant violation at its own site).
+/// `None`: not a planar pair — there is no plane description to
+/// compare (the REST lane treats it as an invariant violation at its
+/// own site; [`carrier_pair_relation`] is where a caller asks the
+/// same question of any carrier the ladder names).
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -536,9 +549,10 @@ pub fn flush_pair_relation<T: Decide>(
 /// the material side exactly as that door does (S10).
 ///
 /// `None` for a surface kind outside the `Rest` ladder's inventory
-/// (cone, torus, NURBS): the C4 table names plane, sphere and
-/// cylinder, and a kind it cannot compare refuses typed at the caller
-/// rather than being approximated by one it can.
+/// (cone, NURBS, `Approx`): the C4 table names the kinds
+/// [`mod@super::carrier_eq`] carries a rung for, and a kind it cannot
+/// compare refuses typed at the caller rather than being approximated
+/// by one it can.
 pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.get_face(face)?;
     let sign = f.sense_sign::<T>();
@@ -567,6 +581,19 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
             origin: *origin,
             axis: *axis,
             radius: *radius,
+            outward,
+        }),
+        Some(geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }) => Some(CarrierDesc::Torus {
+            center: *center,
+            axis: *axis,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
             outward,
         }),
         _ => None,
@@ -696,10 +723,23 @@ pub enum TangentLocusError {
 /// internally) tangent parallel cylinders is one-signed against the
 /// other — so an on-carrier edge under a verified declaration never
 /// crosses the partner surface. A new arm may NOT land here without
-/// restating its own residual-sign story: the coaxial
-/// cylinder×sphere circle arm's residuals are one-signed in OPPOSITE
-/// orientations per direction, which is exactly why it is blocked on
-/// that story (issue #974).
+/// restating its own residual-sign story.
+///
+/// **The coaxial cylinder×sphere circle arm's story is MEASURED and it
+/// PASSES — and that is not what still blocks the arm** (issue #974;
+/// the blocker's stated cause is superseded here rather than left
+/// standing). At the only coaxial tangency, `R = r`, the sphere lies
+/// wholly in the cylinder's non-positive residual half-space and the
+/// cylinder wholly in the sphere's non-negative one. The orientations
+/// are OPPOSITE per direction, which this contract never forbade: the
+/// internally tangent parallel cylinder pair the `|r1 − r2|` fallback
+/// already admits has exactly that structure. Both halves are pinned
+/// by `crates/topo/tests/verbs_cylsph_tangent_residuals.rs`. What
+/// blocks the arm is downstream of the story: [`TangentLocus`] carries
+/// a LINE and nothing else, its consumers all read a locus DIRECTION
+/// and none has a circle story, and the arm would need a
+/// declared-coaxiality channel this lane cannot reach. #974 stays open
+/// for that work.
 ///
 /// # Errors
 ///
@@ -917,10 +957,11 @@ fn verify_declared_pairs<T: Decide>(
         if class != ContactClass::Rest {
             continue;
         }
-        // The one flush-pair door ([`flush_pair_relation`]): oriented
-        // sources, sense-folded descriptions, and the verification
-        // arm all live inside it — shared with the LIB-SEL2 detector
-        // by construction.
+        // The one carrier-pair door: oriented sources, sense-folded
+        // descriptions, and the verification arm all live inside it —
+        // shared with the flush detector by construction, since that
+        // detector asks THIS function in its `declared: false`
+        // posture.
         // The generalized door: planar pairs reach exactly the numbers
         // the plane ladder always reached (its plane arm delegates),
         // and a curved declared pair is verified rather than being

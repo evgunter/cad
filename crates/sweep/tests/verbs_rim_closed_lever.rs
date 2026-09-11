@@ -20,22 +20,20 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{Curve3, Surface};
-use geom_core::{Band, Point2, Tol};
+use crate::common::approx::band;
+use geom_brep::SurfaceKind;
+use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::battery::{FilletRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{Convexity, FilletError};
-use sweep::test_support::revolved_about_y;
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, Convexity};
+use sweep::test_support::{arcs_at, one_edge_rim_at, revolved_about_y};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -47,57 +45,22 @@ fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
 
-/// The surface kind on each side of an edge, plus whether the edge is
-/// closed (start vertex == end vertex).
-fn edge_sides(body: &Body<f64>, edge: EdgeKey) -> (Surface<f64>, Surface<f64>, bool) {
+/// Whether an edge is closed: its `he_plus` returns to its own start.
+fn closed_edge(body: &Body<f64>, edge: EdgeKey) -> bool {
     let e = body.get_edge(edge).unwrap();
-    let surf = |he| {
-        let l = body.get_half_edge(he).unwrap().parent_loop;
-        let f = body.get_loop(l).unwrap().face;
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
-    let start = body.get_half_edge(e.he_plus).unwrap().start;
-    let end = body.half_edge_end(e.he_plus).unwrap();
-    (surf(e.he_plus), surf(e.he_minus), start == end)
+    Some(body.get_half_edge(e.he_plus).unwrap().start) == body.half_edge_end(e.he_plus)
 }
 
-/// The analytic radius of an edge's carrier, when it is a circle —
-/// the fixture-side handle for selecting a rim (never a restatement
-/// of the kernel's lever functional).
-fn carrier_radius(body: &Body<f64>, edge: EdgeKey) -> Option<f64> {
-    let e = body.get_edge(edge)?;
-    let c = body.get_curve_geom(e.curve)?.certified()?;
-    match c.carrier() {
-        Curve3::Circle { radius, .. } => Some(*radius),
-        _ => None,
-    }
-}
-
-/// The one edge matching a two-sided support predicate, a closedness
-/// requirement, and an analytic carrier radius (each fixture below
-/// mints its deliberate rim at a known radius).
-fn find_rim(
-    body: &Body<f64>,
-    closed: bool,
-    rim_r: f64,
-    pair: impl Fn(&Surface<f64>, &Surface<f64>) -> bool,
-) -> EdgeKey {
-    let hits: Vec<EdgeKey> = body
-        .edges()
-        .map(|(k, _)| k)
-        .filter(|k| {
-            let (a, b, c) = edge_sides(body, *k);
-            c == closed
-                && (pair(&a, &b) || pair(&b, &a))
-                && carrier_radius(body, *k).is_some_and(|r| (r - rim_r).abs() < 1e-9)
-        })
-        .collect();
+/// The one OPEN arc at radius `rim_r` and station `rim_y`, which a
+/// partial revolve leaves where a full one mints a rim: the raw scan
+/// is what selects it, because it is deliberately not a rim and no rim
+/// door will hand it back.
+fn open_arc_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> EdgeKey {
+    let hits = arcs_at(body, rim_r, rim_y);
     assert_eq!(
         hits.len(),
         1,
-        "exactly one rim at radius {rim_r} matches the requested supports"
+        "a partial revolve leaves one arc at radius {rim_r}, station {rim_y}"
     );
     hits[0]
 }
@@ -136,12 +99,9 @@ fn neck_flare(rev: Revolution<f64>) -> Body<f64> {
 /// unimplemented.
 #[test]
 fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
-    let is_pair = |a: &Surface<f64>, b: &Surface<f64>| {
-        matches!(a, Surface::Cone { .. }) && matches!(b, Surface::Cylinder { .. })
-    };
     let full = neck_flare(Revolution::Full);
-    let rim = find_rim(&full, true, 1.0, is_pair);
-    let out = fillet_edges(&full, &[rim], 0.05, band(), tol());
+    let rim = one_edge_rim_at(&full, 1.0, 1.0);
+    let out = fillet_edges(&full, &[rim], 0.05, tol());
     assert!(
         out.is_ok(),
         "closed rim: the cylinder×cone band is built once the dihedral has decided, \
@@ -149,14 +109,14 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
     );
 
     let part = neck_flare(Revolution::Partial(1.0));
-    let arc = find_rim(&part, false, 1.0, is_pair);
-    let open = fillet_edges(&part, &[arc], 0.05, band(), tol());
+    let arc = open_arc_at(&part, 1.0, 1.0);
+    let open = fillet_edges(&part, &[arc], 0.05, tol()).map_err(|r| r.error);
     assert!(
-        !matches!(open, Err(FilletError::TangentialEdge { .. })),
+        !matches!(open, Err(BlendError::TangentialEdge { .. })),
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
     );
     assert!(
-        matches!(open, Err(FilletError::FilletCornerUnsupported { .. })),
+        matches!(open, Err(BlendError::UnsupportedCorner { .. })),
         "open rim: the arc terminates at the revolve's seam-meridian vertices, whose \
          corner configuration is unimplemented, got {open:?}"
     );
@@ -177,12 +137,11 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
         ],
         Revolution::Full,
     );
-    let seams: Vec<EdgeKey> = ball
-        .edges()
-        .map(|(k, _)| k)
-        .filter(|k| {
-            let (a, b, closed) = edge_sides(&ball, *k);
-            !closed && matches!(a, Surface::Sphere { .. }) && matches!(b, Surface::Sphere { .. })
+    let sphere = SurfaceKindSet::just(SurfaceKind::Sphere);
+    let seams: Vec<EdgeKey> = query::all_edges(&ball)
+        .into_iter()
+        .filter(|&k| {
+            !closed_edge(&ball, k) && query::edge_adjacent_matches(&ball, k, sphere, sphere)
         })
         .collect();
     assert!(!seams.is_empty(), "a full ball carries a seam meridian");
@@ -201,9 +160,14 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
         (p1 - p0).norm() > 1.9,
         "the seam meridian's endpoints span ~the ball's diameter"
     );
-    match fillet_edges(&ball, &[seam], 0.05, band(), tol()) {
-        Err(FilletError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin, 0.0, "a co-surface seam's sine is structurally zero");
+    match fillet_edges(&ball, &[seam], 0.05, tol()).map_err(|r| r.error) {
+        Err(BlendError::TangentialEdge { margin, .. }) => {
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a co-surface seam's sine is structurally zero"
+            );
         }
         other => panic!("expected TangentialEdge at exactly zero, got {other:?}"),
     }
@@ -229,13 +193,11 @@ fn a_dome_equator_rim_decides_convex_at_an_honest_lever() {
         ],
         Revolution::Full,
     );
-    let rim = find_rim(&dome, true, 1.0, |a, b| {
-        matches!(a, Surface::Plane { .. }) && matches!(b, Surface::Sphere { .. })
-    });
-    let req = FilletRequest {
+    let rim = one_edge_rim_at(&dome, 1.0, 0.0);
+    let req = BlendRequest {
         body: &dome,
         edges: vec![rim],
-        radius: 0.05,
+        size: 0.05,
     };
     let verdict = run_battery(&req, band()).expect("a plane–sphere closed rim resolves");
     let link = verdict.chains[0].first();
@@ -271,13 +233,11 @@ fn a_boss_root_rim_decides_concave_at_an_honest_lever() {
         ],
         Revolution::Full,
     );
-    let rim = find_rim(&boss, true, rim_r, |a, b| {
-        matches!(a, Surface::Plane { .. }) && matches!(b, Surface::Sphere { .. })
-    });
-    let req = FilletRequest {
+    let rim = one_edge_rim_at(&boss, rim_r, 0.5);
+    let req = BlendRequest {
         body: &boss,
         edges: vec![rim],
-        radius: 0.05,
+        size: 0.05,
     };
     let verdict = run_battery(&req, band()).expect("a plane–sphere closed rim resolves");
     let link = verdict.chains[0].first();

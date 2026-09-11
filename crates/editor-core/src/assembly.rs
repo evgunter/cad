@@ -12,6 +12,15 @@
 //!   mate mints IDENTICALLY to a determining one: minting is
 //!   declaration, not verification, and a mate that placed nothing
 //!   still says what touches what.
+//!
+//!   [`mint`] lives here because minting speaks the mate vocabulary,
+//!   but the door that CALLS it is the product gather
+//!   ([`crate::product::product_recorded`]), which is what A3's
+//!   "evaluation carries each mate's declaration" means: every
+//!   evaluated product carries its own mates' declarations, so a
+//!   sub-assembly's DECLARATIONS ride into the consuming document on
+//!   the contacts channel instead of dying at the seam. Construction
+//!   composes.
 //! - **Verification (D-3)**: the minted set goes through the kernel's
 //!   own tier-3′ door, [`topo::validate_pseudomanifold`]. Declared
 //!   contacts certify through the per-class doors; undeclared ones are
@@ -38,9 +47,20 @@
 //! - **Which classes mint** is [`crate::mate::class_admission`], the
 //!   one table this door and the solve door both read.
 //! - **What a declared contact can reach** is
-//!   [`AssemblyError::Uncertified`], the arm every declared
-//!   cross-instance pair lands in today, and which a caller must match
-//!   apart from the verdicts against their own document.
+//!   [`AssemblyError::Uncertified`], which a caller must match apart
+//!   from the verdicts against their own document. WHICH declared
+//!   pairs reach it narrowed when minting moved into the gather: the
+//!   arm requires EVERY finding to be `Declined`, and a finding is
+//!   `Declined` only when its own PAIR is a declaration SOME document
+//!   of this tree minted — this one's own mates, or a part's, which
+//!   ride up as [`CarriedDeclaration`]s and answer the same lookup.
+//!   A carried declaration the census merely declines therefore
+//!   reaches the frontier arm under its own name, naming the inner
+//!   document, the inner mate and the route this document reached it
+//!   by. [`Attribution::Unattributed`] is then what it says: a
+//!   finding no declaration this document holds a row for answers
+//!   for — its own or a part's, which today is every declaration in
+//!   the tree (the arm states the bound).
 //!
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
@@ -48,13 +68,16 @@
 //! suppresses the F1 `UndeclaredContact` refusal.
 
 use geom_core::Decide;
-use topo::{ContactRecords, FaceKey, PatchContact, PropsQuadLane, ValidationError};
+use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult, ValuePayload};
-use crate::mate::{ClassAdmission, ContactClass, MateSide, class_admission};
+use crate::mate::{
+    ClassAdmission, ContactClass, MateSide, NO_AT_REST_RECORD_RECOURSE, class_admission,
+};
+use crate::names::interrogate::value_of;
 use crate::names::{EntityKey, EntityKind, Entry, NameTable, StableName};
-use crate::node::{Node, RecipeNodeId};
+use crate::node::{Node, RecipeNodeId, SitedRef};
 use crate::product::{Product, ProductError, product_recorded};
 use geom_core::Tol;
 
@@ -79,6 +102,138 @@ pub struct MintedDeclaration {
     pub faces: (FaceKey, FaceKey),
 }
 
+/// How a row of another document's reached THIS document: the
+/// instantiating node here, the document the row is of, and the
+/// instantiating nodes in between.
+///
+/// One type for every carrier of that fact — [`CarriedDeclaration`],
+/// [`CarriedRefusal`], [`Attribution::Carried`] and
+/// [`AssemblyError::CarriedMintRefusal`] — so a reader who has learned
+/// to read a route once reads every one of them, and a route can only
+/// be built one way.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Route {
+    /// The instantiating node OF THIS DOCUMENT the row came through.
+    pub through: RecipeNodeId,
+    /// The document the row is of — whose mate authored the
+    /// declaration, or could not be minted. The file an author opens
+    /// to act on it.
+    pub of: crate::ident::DocumentId,
+    /// The further instantiating nodes between `through` and `of`,
+    /// nearest first, each in its own document's id space. Empty when
+    /// `through` instantiates `of` directly; one entry per intervening
+    /// sub-assembly, so a row three documents down names its whole
+    /// route.
+    pub via: Vec<RecipeNodeId>,
+}
+
+impl Route {
+    /// This route with `node` prepended — the route as seen from the
+    /// document that instantiates the one holding it. The row's `of`
+    /// does not move: which document authored it is not a function of
+    /// who is looking.
+    #[must_use]
+    pub fn through_instance(&self, node: RecipeNodeId) -> Self {
+        Self {
+            through: node,
+            of: self.of,
+            via: core::iter::once(self.through)
+                .chain(self.via.iter().copied())
+                .collect(),
+        }
+    }
+}
+
+// The route as an author reads it: the instance in this document, then
+// each instance below it.
+impl core::fmt::Display for Route {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "document {} through instance {}",
+            self.of, self.through.0
+        )?;
+        for node in &self.via {
+            write!(f, " → instance {}", node.0)?;
+        }
+        Ok(())
+    }
+}
+
+/// One declaration minted by a document BELOW this one, arriving
+/// across the instantiation seam.
+///
+/// A part's RECORDS cross the seam with its geometry (A5); this is the
+/// bookkeeping that says which mate of which document authored one, so
+/// a finding against a carried record names its mate instead of
+/// nobody. `declaration.faces` are keyed in the product that HOLDS
+/// this row — re-keyed at each graft through the graft's own
+/// descendant map, exactly as the records are.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CarriedDeclaration {
+    /// How it reached this document.
+    pub route: Route,
+    /// The declaration itself, its `mate` in `route.of`'s id space.
+    pub declaration: MintedDeclaration,
+}
+
+/// One mint refusal from a document BELOW this one, arriving across
+/// the instantiation seam — [`CarriedDeclaration`]'s twin for what the
+/// inner document could NOT mint.
+///
+/// The refusal is the inner document's own verdict, carried verbatim:
+/// no reference is re-resolved here and no class is re-read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CarriedRefusal {
+    /// How it reached this document.
+    pub route: Route,
+    /// The inner document's own refusal, its ids in `route.of`'s id
+    /// space.
+    pub refusal: MintRefusal,
+}
+
+/// What one instantiated value carries up from the documents below it:
+/// their declarations and their mint refusals, each already tagged
+/// with the route it arrived by.
+///
+/// Bundled because the two travel together and are filled at ONE site
+/// — the instantiate op — and are empty on every other op.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CarriedDeclarations {
+    /// The declarations, in the inner documents' own order.
+    pub minted: Vec<CarriedDeclaration>,
+    /// The refusals, in the inner documents' own order.
+    pub unminted: Vec<CarriedRefusal>,
+}
+
+/// What a kernel finding says about a declaration it names: the
+/// kernel REFUTED it, or the census DECLINED to certify it.
+///
+/// One vocabulary for both homes of a declaration — this document's
+/// own mates and its parts' — so [`Attribution`]'s arms cannot drift
+/// into two words for one relation. These two words are the ones every
+/// rendering uses: the kernel's `Display`, the Python tag, the rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Relation {
+    /// The kernel REFUTED the declaration — the faces do not meet as
+    /// it says.
+    Refuted,
+    /// The census DECLINED to certify it: no certifier lane for the
+    /// pair it names, so nothing was decided either way.
+    Declined,
+}
+
+impl Relation {
+    /// The relation's one word.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Refuted => "refuted",
+            Self::Declined => "declined",
+        }
+    }
+}
+
 /// A validated assembly: the gathered product, its names, the record
 /// set the at-rest gate certified, and what each mate minted into it.
 #[derive(Debug)]
@@ -92,29 +247,63 @@ pub struct Assembly<T: Decide> {
     pub contacts: ContactRecords,
     /// One row per mate, in document order.
     pub minted: Vec<MintedDeclaration>,
+    /// One row per declaration a document BELOW this one authored,
+    /// re-keyed onto this product and tagged with its route.
+    ///
+    /// The success arm keeps what the gate certified OVER, not just
+    /// what this document said: the record set above holds a part's
+    /// declarations too, and without these rows a certified assembly
+    /// could not say which inner mates its verdict answered for.
+    pub carried: Vec<CarriedDeclaration>,
 }
 
 /// Why a mate reference did not resolve to a product face.
 ///
-/// The vocabulary is `resolve_declarations`' — the same three shapes a
-/// `Declare` node's names refuse with — stated separately because the
-/// SUBJECT differs (a mate's reference resolves against the assembly's
-/// product table, not a boolean operand's).
+/// The gate asks two tables in order, and each arm answers one
+/// question. The PRODUCT's table first — the rows of every root,
+/// carried verbatim by the gather: an entry there that is not one
+/// face is `Ambiguous` or `NotAFace`. When the product is silent, the
+/// OPERAND's own table — the `name_table` of the node the reference
+/// is read at: silent there too is `Vanished`; a non-face entry there
+/// is `NotAFace` (what it is precedes where it is rooted); a face
+/// entry there at a node the product does not list is
+/// `ReadBelowARoot`. No consumer is walked; the two tables and the
+/// root list decide.
+///
+/// `Vanished` and `Ambiguous` are the silence and the tie every name
+/// lookup refuses with (`ResolveError` spells them for a `Declare`
+/// node's names); `NotAFace` is this gate's own word, because only a
+/// mate declaration must name a FACE. The subject here is the
+/// assembly's product table and the operand's, not a boolean
+/// operand's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {
-    /// The name's minting node is not in this document.
-    NodeGone,
-    /// No entity of the product answers to the name.
+    /// No entity answers to the name — not in the product's table,
+    /// and not in the table of the operand the mate reads it at: the
+    /// name names nothing where the mate reads it.
     Vanished,
+    /// The operand's own table answers to the name with a face, but
+    /// the operand is not a root of the product, and a reference
+    /// resolves against a root's own rows: the product may spell that
+    /// face some other way — under a pattern, as the `Instance(i)` row
+    /// at the pattern node — or not at all. The mate is read at a node
+    /// the product does not list.
+    ReadBelowARoot {
+        /// The operand the mate reads at — a live node whose table
+        /// answers to the name, and which is not a product root.
+        at: RecipeNodeId,
+    },
     /// Several entities answer to it — a mate declaration must name
     /// ONE face, and a tie is never broken by picking.
     Ambiguous {
         /// How many entities the tie holds.
         width: u32,
     },
-    /// The name resolves, but not to a FACE. A mate's declaration is a
-    /// face-pair contact; an edge or vertex reference is a different
-    /// statement, refused rather than widened.
+    /// The name resolves — in the product's table, or in the operand's
+    /// own where the product is silent — but not to a FACE. A mate's
+    /// declaration is a face-pair contact; a body, edge or vertex
+    /// reference is a different statement, refused rather than
+    /// widened, wherever it is rooted.
     NotAFace {
         /// What it did name.
         kind: EntityKind,
@@ -132,27 +321,80 @@ pub enum Attribution {
     /// it says. A finding against the document.
     Refuted(MintedDeclaration),
     /// The census DECLINED to certify this declaration: it has no
-    /// certifier lane for a face the declaration names, so the
+    /// certifier lane for the PAIR the declaration names, so the
     /// declaration was neither certified nor contradicted and nothing
     /// was decided about the geometry either way.
     ///
-    /// **The finding names ONE face and a declaration names two**, so
-    /// WHICH declaration this is can be settled by arena order rather
-    /// than by the census's own subject ([`attribute`] says how). What
-    /// the relation itself guarantees — and all the two
-    /// [`AssemblyError`] arms read — is that nothing was refuted.
+    /// The declaration is the one whose own pair the census could not
+    /// certify — the census's subject and the lookup's key are the
+    /// same pair ([`attribute`] says how), so no arena ordering enters
+    /// and no third face's declaration can answer here.
     Declined(MintedDeclaration),
-    /// The finding names no declaration. An UNDECLARED contact is
-    /// exactly this — by definition no mate authored it, which is what
+    /// The finding names a declaration a document BELOW this one
+    /// minted, reached across the instantiation seam. The relation is
+    /// the same pair of relations the two arms above spell, decided by
+    /// the same dispatch: which document authored the declaration
+    /// changes who the author must go and edit, not what the kernel
+    /// said about it.
+    Carried {
+        /// How the declaration reached this document.
+        route: Route,
+        /// The declaration, its `mate` in `route.of`'s id space.
+        declaration: MintedDeclaration,
+        /// Refuted, or merely declined.
+        relation: Relation,
+    },
+    /// The finding names no declaration this document holds a row for
+    /// — its own, or one a part carried up. An UNDECLARED contact is
+    /// exactly this: by definition no mate authored it, which is what
     /// makes it the F1 hard error.
+    ///
+    /// **The bound on "no mate anywhere in the tree", stated where a
+    /// caller reads it.** Rows cross the seam at the INSTANTIATE op
+    /// and are re-keyed at each graft; a boolean over a source builds
+    /// its result's records through the kernel's own remap and carries
+    /// no rows, so a declaration reaching this product through a
+    /// boolean would be unattributed here. Today none can — an
+    /// instance carrying a declaration is a multi-solid product, which
+    /// the pair boolean refuses outright (the acceptance suite's
+    /// `no_carried_declaration_can_reach_a_boolean_operand`) — so the
+    /// two readings coincide, and this is the one that will still be
+    /// true if that ever changes.
     Unattributed,
 }
 
 impl Attribution {
     /// The declaration named, for a finding that names one.
+    ///
+    /// It may be ANOTHER document's: a [`Attribution::Carried`]
+    /// finding's `declaration.mate` is a node of that document, and
+    /// [`Attribution::route`] is what says which.
     pub fn declaration(&self) -> Option<&MintedDeclaration> {
         match self {
-            Self::Refuted(m) | Self::Declined(m) => Some(m),
+            Self::Refuted(m) | Self::Declined(m) | Self::Carried { declaration: m, .. } => Some(m),
+            Self::Unattributed => None,
+        }
+    }
+
+    /// How the named declaration reached this document, for a finding
+    /// that names another document's. `None` where the declaration is
+    /// this document's own, or where none is named.
+    #[must_use]
+    pub fn route(&self) -> Option<&Route> {
+        match self {
+            Self::Carried { route, .. } => Some(route),
+            Self::Refuted(_) | Self::Declined(_) | Self::Unattributed => None,
+        }
+    }
+
+    /// The relation the finding bears to the declaration it names.
+    /// `None` for [`Attribution::Unattributed`], which names none.
+    #[must_use]
+    pub fn relation(&self) -> Option<Relation> {
+        match self {
+            Self::Refuted(_) => Some(Relation::Refuted),
+            Self::Declined(_) => Some(Relation::Declined),
+            Self::Carried { relation, .. } => Some(*relation),
             Self::Unattributed => None,
         }
     }
@@ -165,19 +407,33 @@ impl Attribution {
 // ([`AtRestFinding`]'s `Display`).
 impl core::fmt::Display for Attribution {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // One sentence shape, and ONE word per relation
+        // ([`Relation::name`]), whichever document authored the
+        // declaration.
+        let subject =
+            |f: &mut core::fmt::Formatter<'_>, m: &MintedDeclaration, relation: Relation| {
+                write!(
+                    f,
+                    "mate {}'s declared {} contact, {}",
+                    m.mate.0,
+                    m.class.name(),
+                    relation.name()
+                )
+            };
         match self {
-            Self::Refuted(m) => write!(
-                f,
-                "mate {}'s declared {} contact, refuted",
-                m.mate.0,
-                m.class.name()
-            ),
-            Self::Declined(m) => write!(
-                f,
-                "mate {}'s declared {} contact, uncertified",
-                m.mate.0,
-                m.class.name()
-            ),
+            Self::Refuted(m) => subject(f, m, Relation::Refuted),
+            Self::Declined(m) => subject(f, m, Relation::Declined),
+            // The mate an author can act on is a mate of ANOTHER file
+            // here, so the route rides with it: which file, and how
+            // this document reached it.
+            Self::Carried {
+                route,
+                declaration,
+                relation,
+            } => {
+                subject(f, declaration, *relation)?;
+                write!(f, " (carried from {route})")
+            }
             Self::Unattributed => f.write_str("no declaration answers for this finding"),
         }
     }
@@ -221,6 +477,131 @@ pub struct AtRestFinding {
     pub error: ValidationError,
 }
 
+/// Why one mate's declaration was not minted into the product's record
+/// set — the mint door's two typed refusals, carried as DATA because
+/// the door that mints is the gather and the door that refuses is the
+/// at-rest gate.
+///
+/// A gather does not refuse over these: neither of them changes what
+/// material the document denotes, and a document whose mate reference
+/// went stale, or whose class carries no record at rest, still has a
+/// product to draw and to measure. [`assemble`] is where they become
+/// refusals ([`AssemblyError::Reference`] and
+/// [`AssemblyError::NoAtRestRecord`], in document order), because
+/// "these records are the ones this document rests on" is the at-rest
+/// gate's claim, not the gather's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MintRefusal {
+    /// A mate's reference did not resolve to a product face.
+    Reference {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side.
+        side: MateSide,
+        /// The reference.
+        name: Box<StableName>,
+        /// Why it did not resolve.
+        why: RefusedRef,
+    },
+    /// The mate's class mints no record at rest — the mint door's half
+    /// of [`crate::mate::class_admission`].
+    NoAtRestRecord {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Its class.
+        class: ContactClass,
+        /// Why that class carries nothing at rest, in the class's own
+        /// terms. Sourced from the table, never restated here.
+        why: &'static str,
+    },
+}
+
+impl MintRefusal {
+    /// The mate the refusal is about.
+    #[must_use]
+    pub fn mate(&self) -> RecipeNodeId {
+        match self {
+            Self::Reference { mate, .. } | Self::NoAtRestRecord { mate, .. } => *mate,
+        }
+    }
+}
+
+// One copy of each mint-refusal sentence, shared by the DATA
+// ([`MintRefusal`]) and by the two [`AssemblyError`] arms it becomes:
+// the same fact stated in one place, so a refusal raised at this
+// document's gate and one carried up from a part read alike.
+fn render_reference(
+    f: &mut core::fmt::Formatter<'_>,
+    mate: RecipeNodeId,
+    side: MateSide,
+    name: &StableName,
+    why: &RefusedRef,
+) -> core::fmt::Result {
+    // The name forwards `StableName`'s `Display` rather than
+    // re-spelling the kind-plus-minting-node phrase, and the article
+    // comes from the kind because the value decides it.
+    write!(
+        f,
+        "mate {}'s {} reference ({} {name}) does not name a face of the product: {why}",
+        mate.0,
+        side.name(),
+        name.kind.article(),
+    )
+}
+
+fn render_no_record(
+    f: &mut core::fmt::Formatter<'_>,
+    mate: RecipeNodeId,
+    class: ContactClass,
+    why: &str,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "mate {}'s class {} has no at-rest kernel record — {why}; the record is \
+         not minted with an invented witness — {NO_AT_REST_RECORD_RECOURSE}",
+        mate.0,
+        class.name()
+    )
+}
+
+// The refusal in its own words, without the gate's prefix: a carried
+// row renders the INNER document's verdict inside the outer gate's
+// sentence.
+impl core::fmt::Display for MintRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Reference {
+                mate,
+                side,
+                name,
+                why,
+            } => render_reference(f, *mate, *side, name, why),
+            Self::NoAtRestRecord { mate, class, why } => render_no_record(f, *mate, *class, why),
+        }
+    }
+}
+
+impl From<MintRefusal> for AssemblyError {
+    fn from(refusal: MintRefusal) -> Self {
+        match refusal {
+            MintRefusal::Reference {
+                mate,
+                side,
+                name,
+                why,
+            } => Self::Reference {
+                mate,
+                side,
+                name,
+                why,
+            },
+            MintRefusal::NoAtRestRecord { mate, class, why } => {
+                Self::NoAtRestRecord { mate, class, why }
+            }
+        }
+    }
+}
+
 /// Why the assembly gate refused.
 #[derive(Debug)]
 pub enum AssemblyError {
@@ -249,6 +630,26 @@ pub enum AssemblyError {
         /// class admitted later cannot inherit another's reason.
         why: &'static str,
     },
+    /// A document BELOW this one could not mint one of its own mates,
+    /// and an outer assembly is unusable while an inner part is
+    /// broken: an unminted mate is a contact nothing verified, and a
+    /// green badge over one is the thing this gate exists to deny.
+    ///
+    /// Raised for the FIRST carried refusal in gather order, before
+    /// this document's own `unminted` head and before the at-rest
+    /// gate, because the inner document is the file the author has to
+    /// open and the outer document's own verdicts are about a record
+    /// set that is already known to be short.
+    ///
+    /// Nothing is re-decided here: the inner document refused this
+    /// itself, and the row is that refusal carried up with the route
+    /// it arrived by.
+    CarriedMintRefusal {
+        /// How the refusal reached this document.
+        route: Route,
+        /// The inner document's own refusal, in `route.of`'s id space.
+        refusal: MintRefusal,
+    },
     /// The kernel's tier-3′ door refused the assembled product with
     /// its records (A5): at least one finding is a verdict AGAINST the
     /// document — a refuted declaration or an undeclared contact.
@@ -267,11 +668,20 @@ pub enum AssemblyError {
     /// must say which of the two they mean.
     ///
     /// Nothing was refuted and nothing was undeclared: every finding
-    /// is the census DECLINING to certify a face that a declaration
-    /// names ([`Attribution::Declined`]) — which is what
-    /// [`attribute`] establishes, exactly — so the assembly is
-    /// unrefuted and uncertified, and NOTHING was decided about this
-    /// geometry.
+    /// is the census DECLINING to certify a PAIR that a declaration
+    /// names ([`Relation::Declined`]) — which is what [`attribute`]
+    /// establishes, exactly — so the assembly is unrefuted and
+    /// uncertified, and NOTHING was decided about this geometry.
+    ///
+    /// **Which document authored the declaration does not enter.**
+    /// The arm's claim is about what the kernel decided, so a pair
+    /// declared by a PART and merely declined here lands on this arm
+    /// under its own name ([`Attribution::Carried`] with
+    /// [`Relation::Declined`]) exactly as one of this document's own
+    /// does. Before the seam carried the rows such a finding was
+    /// `Unattributed` and the whole refusal fell through to
+    /// [`AssemblyError::AtRest`] — a verdict against the document over
+    /// geometry nothing had decided anything about.
     ///
     /// Today that is the whole declared direction. The census's patch
     /// certifier gates on STRUCTURAL chart identity — a shared
@@ -289,7 +699,8 @@ pub enum AssemblyError {
         /// payloads, so one arm does not set every caller's `Result`
         /// width.
         contacts: Box<ContactRecords>,
-        /// Every finding, each a [`Attribution::Declined`].
+        /// Every finding, each bearing [`Relation::Declined`] to the
+        /// declaration it names — this document's own, or a part's.
         findings: Vec<AtRestFinding>,
     },
 }
@@ -300,44 +711,66 @@ pub enum AssemblyError {
 impl core::fmt::Display for RefusedRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeGone => f.write_str("its minting node is not in this document"),
-            Self::Vanished => f.write_str("no entity of the product answers to it"),
+            Self::Vanished => f.write_str(
+                "no entity answers to it, in the product or at the node the mate reads it at",
+            ),
+            Self::ReadBelowARoot { at } => write!(
+                f,
+                "it is read at node {}, which is not a root of the product, and a reference \
+                 resolves against a root's own rows",
+                at.0
+            ),
             Self::Ambiguous { width } => write!(
                 f,
                 "{width} entities answer to it — a mate declaration names ONE face, and \
                  a tie is never broken by picking"
             ),
             Self::NotAFace { kind } => {
-                write!(f, "it names a {}, not a face", kind.noun())
+                write!(f, "it names {} {}, not a face", kind.article(), kind.noun())
             }
         }
+    }
+}
+
+impl AssemblyError {
+    /// How this door renders a document that did not gather: the
+    /// [`AssemblyError::Product`] arm's own sentence, over a refusal
+    /// the caller still owns.
+    ///
+    /// One copy of that sentence, and [`Display`](core::fmt::Display)
+    /// reads it from here: a caller that gathered for itself and holds
+    /// the refusal reports the gate's verdict in the gate's words
+    /// without re-spelling them.
+    #[must_use]
+    pub fn product_refusal(source: &crate::ProductError) -> String {
+        format!("assembly: {source}")
     }
 }
 
 impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Product(e) => write!(f, "assembly: {e}"),
+            Self::Product(e) => f.write_str(&Self::product_refusal(e)),
+            // The pin builds its expectation from the impl, so a copy
+            // that stops tracking it fails.
             Self::Reference {
                 mate,
                 side,
                 name,
                 why,
-            } => write!(
+            } => {
+                f.write_str("assembly: ")?;
+                render_reference(f, *mate, *side, name, why)
+            }
+            Self::NoAtRestRecord { mate, class, why } => {
+                f.write_str("assembly: ")?;
+                render_no_record(f, *mate, *class, why)
+            }
+            Self::CarriedMintRefusal { route, refusal } => write!(
                 f,
-                "assembly: mate {}'s {} reference (a {} name minted by node {}) does \
-                 not name a face of the product: {why}",
-                mate.0,
-                side.name(),
-                name.kind.noun(),
-                name.node.0
-            ),
-            Self::NoAtRestRecord { mate, class, why } => write!(
-                f,
-                "assembly: mate {}'s class {} has no at-rest kernel record — \
-                 {why}; the record is not minted with an invented witness",
-                mate.0,
-                class.name()
+                "assembly: {route} did not mint one of its own mates, so this \
+                 assembly is not at rest over it: {refusal} — open that document \
+                 and repair the mate there"
             ),
             Self::AtRest { findings } => {
                 write!(
@@ -351,7 +784,7 @@ impl core::fmt::Display for AssemblyError {
                 write!(
                     f,
                     "assembly: the at-rest gate could not certify {} declared \
-                     face(s) and did not refute any — no certifier lane, so \
+                     face pair(s) and did not refute any — no certifier lane, so \
                      nothing was decided about this geometry either way (the \
                      declared direction's frontier, not a finding against the \
                      document)",
@@ -365,52 +798,160 @@ impl core::fmt::Display for AssemblyError {
 
 impl core::error::Error for AssemblyError {}
 
-/// **The A5 gate, assembled** (D-2 + D-3): gather the document's
-/// product, mint every solved mate's declaration into its contact
-/// record set, and run the kernel's tier-3′ at-rest door over the
-/// two together.
+/// **The A5 gate, assembled** (D-2 + D-3): take the document's
+/// product — whose gather already minted every solved mate's
+/// declaration into its contact record set (A3's "Declaration
+/// minting": *evaluation carries each mate's declaration into the
+/// evaluated body's contact record set*) — and run the kernel's
+/// tier-3′ at-rest door over the two together.
+///
+/// **Gather, then [`assemble_gathered`], and nothing else.** The gate
+/// itself lives at that door; this one exists for a caller with no
+/// product in hand and adds only the gather and
+/// [`AssemblyError::Product`], its own arm.
+///
+/// **This door mints nothing of its own.** Construction composes and
+/// verification runs once: minting belongs to the gather, so a
+/// sub-assembly's declarations are already in the product this gate is
+/// handed, arriving under the graft's own descendant map exactly as a
+/// boolean's discovered records do. What this door adds is the
+/// verification — including of the carried declarations, which are
+/// re-verified here and never trusted.
 ///
 /// This is what "an assembly is valid at rest" MEANS for a document
 /// with mates: not a stronger check bolted onto the product gather,
 /// but the same tier-3′ door the boolean pipeline's results go
-/// through, fed the records the mates declared.
+/// through, fed the records the mates declared. The door is reached
+/// through the SCALAR'S at-rest policy ([`topo::AtRestPolicy`],
+/// `docs/DUAL-DESIGN.md` DL3): certifying scalars run
+/// [`topo::validate_pseudomanifold`] verbatim; at a dual the gate is
+/// structurally absent, and its success arm says so
+/// ([`topo::AtRestOutcome::NotRunAtThisScalar`]).
+///
+/// **The pairing obligation (DL3), stated at this door**: at a
+/// non-certifying scalar an `Ok(Assembly)` here is NOT a
+/// certification — a document the `f64` census refuses assembles
+/// green at `Dual64`, because nothing gated it. A dual evaluation is
+/// sound only BESIDE a certifying-scalar run of the same recipe,
+/// whose bit-identical value channel this same door validated; that
+/// paired run is the validation of record. Nothing in the type
+/// system enforces the pairing here; the E4 driver's content-key
+/// equality assertion is the named banked obligation (M10-4).
 ///
 /// # Errors
 ///
-/// [`AssemblyError`]: the gather's own refusals, a mate reference that
-/// names no product face, a class with no at-rest record
-/// ([`crate::mate::class_admission`]), and the kernel's tier-3′
+/// [`AssemblyError`]: the gather's own refusals — including
+/// [`crate::ProductError::EvaluationOfAnotherDocument`], which is the
+/// ONE path this gate reads an evaluation through, so a mispaired
+/// (document, evaluation) never reaches a predicate here — a mate
+/// reference that names no product face, a class with no at-rest
+/// record ([`crate::mate::class_admission`]), and the kernel's tier-3′
 /// findings attributed back to their mates.
 ///
 /// The success arm is narrower than the signature, and the type says
 /// so: a document whose mates declare a cross-instance contact
 /// refuses [`AssemblyError::Uncertified`], which a caller must match
 /// separately from the verdicts against their own document.
-pub fn assemble<P, T: Decide + PropsQuadLane>(
+pub fn assemble<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Assembly<T>, AssemblyError> {
     let product =
         product_recorded(doc, evaluation, tol).map_err(|e| AssemblyError::Product(Box::new(e)))?;
+    assemble_gathered(product, tol)
+}
+
+/// **The A5 gate over a product the caller already gathered** — the
+/// canonical door, and everything [`assemble`] is once its gather is
+/// done.
+///
+/// [`assemble`] is the wrapper for a caller with no product in hand;
+/// this is the one for a caller that has one, so a document is gathered
+/// once however many of its consumers need the product. The gate, its
+/// verdicts, its attributions and its refusal order are the same — they
+/// are here, and there is one copy of them.
+///
+/// The product is CONSUMED: its body, names and records become the
+/// [`Assembly`] on the success arm. A caller with another consumer of
+/// the same product runs that consumer first.
+///
+/// This door reads no `(doc, evaluation)` pair and so re-states nothing
+/// about the DI3 pairing: the gather is where an evaluation of another
+/// document is refused, and this door's subject is whatever that gather
+/// returned.
+///
+/// # Errors
+///
+/// [`AssemblyError`] except [`AssemblyError::Product`], which is the
+/// wrapper's arm: a mate reference that names no product face, a class
+/// with no at-rest record ([`crate::mate::class_admission`]), and the
+/// kernel's tier-3' findings attributed back to their mates.
+pub fn assemble_gathered<T: Decide + AtRestPolicy>(
+    product: Product<T>,
+    tol: Tol,
+) -> Result<Assembly<T>, AssemblyError> {
     let Product {
         body,
         names,
-        mut contacts,
+        contacts,
+        minted,
+        unminted,
+        carried,
+        carried_unminted,
+        ..
     } = product;
-    let minted = mint(doc, evaluation, &names, &mut contacts)?;
-    match topo::validate_pseudomanifold(&body, &contacts, tol) {
-        Ok(()) => Ok(Assembly {
+    // Inner mint health, before this document's own: an outer assembly
+    // is unusable while an inner part is broken, and the file the
+    // author must open is the inner one. Verification still runs once
+    // — nothing is re-decided here, the row IS the inner document's
+    // own refusal.
+    //
+    // The HEAD in GATHER ORDER, and only the head, exactly as the own
+    // `unminted` head below: `into_iter().next()` moves it out of an
+    // owned vector nothing reads afterwards, and the rest are dropped.
+    // Widening this to every carried refusal is the same follow-up as
+    // widening the sibling — one second refusal channel on
+    // `AssemblyError`, carried through the pncad-py façade, would serve
+    // both — so the two heads stay one rule rather than diverging.
+    if let Some(row) = carried_unminted.into_iter().next() {
+        return Err(AssemblyError::CarriedMintRefusal {
+            route: row.route,
+            refusal: row.refusal,
+        });
+    }
+    // The gather records what it could not mint; this door is where
+    // that becomes a refusal, in document order, because an at-rest
+    // verdict on a record set is only meaningful when the set is the
+    // whole one the document's mates declared.
+    //
+    // `into_iter().next()` rather than `first()`: the head is MOVED out
+    // of an owned vector nothing reads afterwards, and a `MintRefusal`
+    // owns a boxed `StableName`, so borrowing the head would only force
+    // a clone of it to build the error.
+    //
+    // Only the head is raised, and the rest are dropped. That is a
+    // narrower report than the gather can now support — every refusal
+    // is in `Product::unminted`, in document order — but widening it
+    // means a second refusal channel on `AssemblyError`, whose two mint
+    // arms are carried through the pncad-py façade. Recorded as a
+    // follow-up rather than taken here.
+    if let Some(refusal) = unminted.into_iter().next() {
+        return Err(refusal.into());
+    }
+    match T::gate_at_rest_declared(&body, &contacts, tol) {
+        Ok(_) => Ok(Assembly {
             body,
             names,
             contacts,
             minted,
+            carried,
         }),
         Err(errors) => {
             let findings: Vec<AtRestFinding> = errors
                 .into_iter()
                 .map(|error| AtRestFinding {
-                    attribution: attribute(&error, &minted),
+                    attribution: attribute(&error, &minted, &carried),
                     error,
                 })
                 .collect();
@@ -418,13 +959,16 @@ pub fn assemble<P, T: Decide + PropsQuadLane>(
             // finding against the document makes this a refusal of the
             // document, however many declines ride with it. Only a
             // refusal that is declines and nothing else is the
-            // frontier.
+            // frontier — and WHICH document authored the declined
+            // declaration does not enter, because the arm's claim is
+            // about what was decided, not about who to send the
+            // author to.
             // (Non-empty because `Uncertified` promises at least one
             // declined pair; the kernel never refuses with no finding.)
             if !findings.is_empty()
                 && findings
                     .iter()
-                    .all(|f| matches!(f.attribution, Attribution::Declined(_)))
+                    .all(|f| f.attribution.relation() == Some(Relation::Declined))
             {
                 Err(AssemblyError::Uncertified {
                     contacts: Box::new(contacts),
@@ -451,13 +995,21 @@ pub fn assemble<P, T: Decide + PropsQuadLane>(
 /// already refused the document in that case, so reaching here means
 /// every root evaluated, and a mate value that is absent is a node
 /// that is not live.
-fn mint<P, T: Decide>(
+///
+/// **Total over the document's live mates**: a mate this cannot mint
+/// yields a [`MintRefusal`] row and the walk CONTINUES, so the record
+/// set is every declaration the document could state rather than the
+/// prefix before its first bad one. The refusals ride back in document
+/// order for [`assemble`] to raise — one implementation of what a mate
+/// declares, and one of what it costs when it cannot.
+pub(crate) fn mint<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     names: &NameTable,
     contacts: &mut ContactRecords,
-) -> Result<Vec<MintedDeclaration>, AssemblyError> {
+) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
+    let mut unminted = Vec::new();
     for &id in doc.order() {
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
             continue;
@@ -470,8 +1022,19 @@ fn mint<P, T: Decide>(
         ) {
             continue;
         }
-        let face_a = resolve_face(names, id, MateSide::A, a)?;
-        let face_b = resolve_face(names, id, MateSide::B, b)?;
+        let (face_a, face_b) = match (
+            resolve_face(doc, evaluation, names, id, MateSide::A, a),
+            resolve_face(doc, evaluation, names, id, MateSide::B, b),
+        ) {
+            (Ok(face_a), Ok(face_b)) => (face_a, face_b),
+            // The `a` side answers first when both sides refuse: one
+            // mate contributes one row, and which side it names is the
+            // order the references are written in.
+            (Err(refusal), _) | (Ok(_), Err(refusal)) => {
+                unminted.push(refusal);
+                continue;
+            }
+        };
         // The class table is the policy (`mate::class_admission`); this
         // door enforces its own half of it, and takes the REASON from
         // the table too, so the message can never be another class's.
@@ -479,36 +1042,58 @@ fn mint<P, T: Decide>(
             // Face granularity (M9-1): a rest between two placed faces
             // IS a `PatchContact`. Same type as the boolean wrapper's
             // records, no adapter.
-            ClassAdmission::Mints => contacts.patches.push(PatchContact { face_a, face_b }),
+            //
+            // INVARIANT, pinned here because `attribute`'s
+            // `StaleContactDeclaration` arm reasons from it: this door
+            // makes patch records of two DISTINCT faces, and never a
+            // `CurveContact`. A same-instance mate is refused
+            // `SelfMate` at the solve door, so a live mate reaching
+            // here names two faces of two different instances.
+            ClassAdmission::Mints => {
+                debug_assert!(
+                    face_a != face_b,
+                    "a live mate's two references resolved to one face: \
+                     the solve door's `SelfMate` refusal was bypassed"
+                );
+                contacts.patches.push(PatchContact { face_a, face_b });
+            }
             other => {
-                return Err(AssemblyError::NoAtRestRecord {
+                unminted.push(MintRefusal::NoAtRestRecord {
                     mate: id,
                     class: *class,
                     why: other.no_record_reason(),
                 });
+                continue;
             }
         }
         minted.push(MintedDeclaration {
             mate: id,
-            a: a.clone(),
-            b: b.clone(),
+            a: a.name.clone(),
+            b: b.name.clone(),
             class: *class,
             faces: (face_a, face_b),
         });
     }
-    Ok(minted)
+    (minted, unminted)
 }
 
 /// One mate reference → the product face it names, or the typed
 /// refusal. A tie is never broken by picking a side, and a non-face
 /// reference is never widened into one.
-fn resolve_face(
+///
+/// The product's table is asked first; only when it is silent is the
+/// operand's own table asked, through [`operand_answer`], so a name
+/// the product does answer to is never re-described by the operand.
+fn resolve_face<P, T: Decide>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
     names: &NameTable,
     mate: RecipeNodeId,
     side: MateSide,
-    name: &StableName,
-) -> Result<FaceKey, AssemblyError> {
-    let refuse = |why| AssemblyError::Reference {
+    reference: &SitedRef,
+) -> Result<FaceKey, MintRefusal> {
+    let name = &reference.name;
+    let refuse = |why| MintRefusal::Reference {
         mate,
         side,
         name: Box::new(name.clone()),
@@ -522,7 +1107,66 @@ fn resolve_face(
         Some(Entry::Tied(ents)) => Err(refuse(RefusedRef::Ambiguous {
             width: u32::try_from(ents.len()).unwrap_or(u32::MAX),
         })),
-        None => Err(refuse(RefusedRef::Vanished)),
+        None => Err(refuse(operand_answer(doc, evaluation, reference))),
+    }
+}
+
+/// **The operand's answer**, asked only once the product's table is
+/// silent on a reference: does the OPERAND the mate reads at spell
+/// the name? Its own table is the `name_table` of `at`'s live value,
+/// read through the same door the name interrogation doors read it
+/// ([`value_of`]). One match, four answers, in this order:
+///
+/// 1. Silent there too → [`RefusedRef::Vanished`]: the name names
+///    nothing where the mate reads it.
+/// 2. A non-face entry, unique or tied → [`RefusedRef::NotAFace`]: a
+///    non-face never mints anywhere, so WHAT it is precedes WHERE it
+///    is rooted. The kind is the NAME's kind, which the table makes
+///    the entry's kind for every candidate (`NameTable::insert`,
+///    `insert_tied`). A root's body row lands here — see
+///    `product::carry_names` for why the product is silent on it.
+/// 3. A face entry — unique or tied — at a node the product does not
+///    list as a root → [`RefusedRef::ReadBelowARoot`]. A tie among
+///    faces below a root is still read below a root; the product
+///    decides ties for its own rows.
+/// 4. A face entry at a ROOT with the product silent: `carry_names`
+///    carries every face row of every root at the source's index, so
+///    a hit here is its bug, not a vanished name. `Vanished` in
+///    release, asserted in debug.
+///
+/// An operand that is not a live value has no table to answer with,
+/// and the gate never asks it: every live node sits under some root
+/// (A10 coverage), so an operand that failed or was poisoned has a
+/// failed or poisoned root above it, and the gather's first pass
+/// refuses the document (`ProductError::RootFailed` /
+/// `RootPoisoned`) before any mate is read — the mate itself may
+/// well be live and `Determining`. The ladder's other rungs are
+/// answered `Vanished` here rather than unwrapped.
+fn operand_answer<P, T: Decide>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    reference: &SitedRef,
+) -> RefusedRef {
+    let at = reference.at;
+    let kind = reference.name.kind;
+    let rooted = doc.roots().contains(&at);
+    let entry = value_of(evaluation, at)
+        .ok()
+        .and_then(|value| value.name_table.lookup(&reference.name));
+    match entry {
+        None => RefusedRef::Vanished,
+        Some(Entry::Unique(_) | Entry::Tied(_)) if kind != EntityKind::Face => {
+            RefusedRef::NotAFace { kind }
+        }
+        Some(Entry::Unique(_) | Entry::Tied(_)) if !rooted => RefusedRef::ReadBelowARoot { at },
+        Some(Entry::Unique(_) | Entry::Tied(_)) => {
+            debug_assert!(
+                !rooted,
+                "a root's face row is absent from the product's table: \
+                 `product::carry_names` carries every face row of every root"
+            );
+            RefusedRef::Vanished
+        }
     }
 }
 
@@ -544,10 +1188,11 @@ fn resolve_face(
 /// [`ValidationError`]'s own rule for a site that CLASSIFIES — one
 /// that maps the enum onto a smaller vocabulary, as against one that
 /// extracts a variant and answers `None` to the rest — and it is
-/// load-bearing here rather than tidy: [`Attribution::Declined`] is the only relation
-/// that can reach [`AssemblyError::Uncertified`], so this
-/// classification decides whether the kernel refused THIS DOCUMENT or
-/// merely could not certify it. A wildcard hands that decision to
+/// load-bearing here rather than tidy: [`Relation::Declined`] is the
+/// only relation that can reach [`AssemblyError::Uncertified`], so
+/// this classification decides whether the kernel refused THIS
+/// DOCUMENT or merely could not certify it. A wildcard hands that
+/// decision to
 /// whoever adds the next variant, and nothing goes red when they get
 /// it wrong — every acceptance row here exercises a variant one of
 /// the classified arms already names.
@@ -558,70 +1203,114 @@ fn resolve_face(
 /// variant states something about the body's own structure or
 /// geometry, which no mate declared and none can answer for; sharing
 /// a face with a declaration is not being named by one.
-fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attribution {
+/// Which home of the declaration vocabulary answered the pair lookup —
+/// this document's own mates, or a part's carried up across the seam.
+/// The two differ in WHO must edit the mate, never in what the kernel
+/// decided about it.
+enum Found<'a> {
+    Own(&'a MintedDeclaration),
+    Carried(&'a CarriedDeclaration),
+}
+
+fn attribute(
+    error: &ValidationError,
+    minted: &[MintedDeclaration],
+    carried: &[CarriedDeclaration],
+) -> Attribution {
+    // ONE definition of the pair lookup, over both homes of a
+    // declaration: what this document minted, and what its parts
+    // carried up.
+    //
+    // PRECEDENCE, stated as a rule rather than as an impossibility:
+    // OWN ROWS ANSWER FIRST. Both sets can name one pair — an outer
+    // mate can be authored on the very face pair a part's own mate
+    // declared, through the instance-qualified names — and where they
+    // do, the mate this document's author can edit is the one to
+    // report. The carried row is still in `carried`, and the record
+    // set holds both declarations; what precedence decides is only
+    // which one the FINDING names.
     let by_pair = |a: FaceKey, b: FaceKey| {
+        let hits = |faces: (FaceKey, FaceKey)| faces == (a, b) || faces == (b, a);
         minted
             .iter()
-            .find(|m| m.faces == (a, b) || m.faces == (b, a))
+            .find(|m| hits(m.faces))
+            .map(Found::Own)
+            .or_else(|| {
+                carried
+                    .iter()
+                    .find(|c| hits(c.declaration.faces))
+                    .map(Found::Carried)
+            })
     };
-    let by_face = |f: FaceKey| minted.iter().find(|m| m.faces.0 == f || m.faces.1 == f);
-    // A lookup that misses is a finding about a record no mate of THIS
-    // document minted.
-    let named = |m: Option<&MintedDeclaration>, relation: fn(MintedDeclaration) -> Attribution| {
-        m.map_or(Attribution::Unattributed, |m| relation(m.clone()))
+    // A lookup that misses is a finding about a record no mate of any
+    // document in this tree minted. The relation is the CALLER's — one
+    // dispatch decides it — and it is the same relation whichever home
+    // answered.
+    let named = |found: Option<Found<'_>>, relation: Relation| match found {
+        None => Attribution::Unattributed,
+        Some(Found::Own(m)) => match relation {
+            Relation::Refuted => Attribution::Refuted(m.clone()),
+            Relation::Declined => Attribution::Declined(m.clone()),
+        },
+        Some(Found::Carried(c)) => Attribution::Carried {
+            route: c.route.clone(),
+            declaration: c.declaration.clone(),
+            relation,
+        },
     };
     match error {
         // A declared pair the kernel CONTRADICTED: the declaration is
         // in the error, so the pair names its mate exactly.
-        ValidationError::ContactContradicted { declaration, .. } => {
-            named(by_pair(declaration.a, declaration.b), Attribution::Refuted)
-        }
+        ValidationError::ContactContradicted { declaration, .. } => named(
+            by_pair(declaration.a, declaration.b),
+            Relation::Refuted,
+        ),
         // A declared FACE-PAIR record the kernel could not confirm —
         // the other direction of the certification diff. The record's
         // own faces are in the error, so it names its mate exactly.
         //
-        // **UNREACHABLE through this door today, and no row can pin
-        // its `Refuted` label.** Every `PatchContact` the gate sees
-        // here is one `mint` made (the gather itself contributes none
-        // — `row2_a` asserts that), and a minted record is
-        // cross-instance by construction, because a same-instance
-        // mate refuses `SelfMate` at the solve door. For such a pair
-        // the census's chart door answers DIVERGENCE, never `Empty`,
-        // so the staleness arm never fires; both faces are in the
-        // gathered body by construction, so its other trigger cannot
-        // fire either; and the `CurveLocus` half needs a
-        // `CurveContact`, which `mint` refuses to make at all.
+        // **No row pins its `Refuted` label**, because no fixture
+        // reaches the arm: the `CurveLocus` half needs a
+        // `CurveContact`, and [`mint`] makes `PatchContact`s of two
+        // DISTINCT faces and nothing else — the invariant its own
+        // `debug_assert` pins, and the row
+        // `mint_makes_distinct_face_patches_and_no_curve_records`
+        // asserts. The `Patch` half needs the census's chart door to
+        // answer `Empty` on a cross-instance pair, which it does not
+        // do today.
         //
-        // The label still has to be right, because it is exactly the
-        // dangerous direction: relabelled `Declined`, a REFUTED
-        // declaration would be promoted into
-        // `AssemblyError::Uncertified` and reported as an unrefuted
-        // frontier. What makes the arm live is the same census
-        // cross-instance chart rung that closes `Uncertified` — when
-        // the chart door starts answering `Empty` instead of
-        // diverging, this arm executes and wants its own acceptance
-        // row in the same change.
+        // The label still has to be right, because it is the dangerous
+        // direction: relabelled `Declined`, a REFUTED declaration would
+        // be promoted into `AssemblyError::Uncertified` and reported as
+        // an unrefuted frontier. When the chart door starts answering
+        // `Empty`, this arm executes and wants its own acceptance row
+        // in the same change.
         ValidationError::StaleContactDeclaration {
             declaration:
                 topo::StaleDeclaration::Patch { face_a, face_b }
                 | topo::StaleDeclaration::CurveLocus { face_a, face_b, .. },
-        } => named(by_pair(*face_a, *face_b), Attribution::Refuted),
+        } => named(by_pair(*face_a, *face_b), Relation::Refuted),
         // A carrier kind the census inventory cannot certify: it
         // neither certified nor contradicted the pair, which is the
         // decline relation exactly.
         //
-        // The finding's subject is a PAIR and it carries one face, so
-        // the lookup is width-1 where the question is not: a face two
-        // mates declare answers to the first of them, and the census's
-        // conformal sweep reaches this arm on an undeclared pair as
-        // well — one of whose faces may still be declared against a
-        // third. The relation survives both (nothing was refuted
-        // either way); the mate the message names may not be the one
-        // whose declaration the census could not certify. Narrowing it
-        // needs the pair in the error, which is `topo`'s to carry.
+        // The lookup is `by_pair` because the census's subject IS the
+        // pair: a declaration answers for this finding only when it
+        // declared the very candidate the census could not certify.
+        // Matching either face alone would answer for a pair no mate
+        // declared out of a declaration against some third face, and
+        // which face got to answer would be the arena's ordering.
         ValidationError::CensusUnsupported {
-            entity: topo::EntityId::Face(f),
-        } => named(by_face(*f), Attribution::Declined),
+            subject: topo::CensusSubject::FacePair(a, b),
+        } => named(by_pair(*a, *b), Relation::Declined),
+        // A single FACE outside the inventory is a finding about that
+        // face's own geometry, not about a candidate contact: the arm
+        // that raises it is the census's face-bounding pass, which has
+        // no pair. No declaration is a statement about one face, so
+        // sharing a face with one is not being named by one.
+        ValidationError::CensusUnsupported {
+            subject: topo::CensusSubject::Entity(topo::EntityId::Face(_)),
+        } => Attribution::Unattributed,
         // The rest of the tier-3′ contact vocabulary, each
         // unattributable for a reason of its own rather than by
         // default.
@@ -644,10 +1333,17 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         // a lane, and it must not be reported as an unrefuted
         // frontier.
         //
-        // `CensusUnsupported` on any NON-face entity is unattributable
+        // `CensusUnsupported` on a non-face entity is unattributable
         // by key: a minted declaration names two faces. Its live case
         // is the curve-record confirm pass, which names its witness
         // EDGE — a carried `CurveContact`, never a minted one.
+        //
+        // `CensusLaneUnsupported` is a fact about the RUN's scalar —
+        // the conformal arm had no certified overlap lane at all — so
+        // it is not a verdict on any declaration and no mate can
+        // answer for it. Its recourse is to replay the document at a
+        // certifying scalar, which is the document's business and not
+        // a mate's.
         //
         // `CensusUndecidable` cannot name a minted declaration in
         // either of its two arms. The cross-solid face-pair arm skips
@@ -662,14 +1358,17 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
                 | topo::StaleDeclaration::VertexOnFace { .. },
         }
         | ValidationError::CensusEscalated { .. }
+        | ValidationError::CensusLaneUnsupported { .. }
         | ValidationError::CensusUnsupported {
-            entity:
-                topo::EntityId::Solid(_)
-                | topo::EntityId::Shell(_)
-                | topo::EntityId::Loop(_)
-                | topo::EntityId::HalfEdge(_)
-                | topo::EntityId::Edge(_)
-                | topo::EntityId::Vertex(_),
+            subject:
+                topo::CensusSubject::Entity(
+                    topo::EntityId::Solid(_)
+                    | topo::EntityId::Shell(_)
+                    | topo::EntityId::Loop(_)
+                    | topo::EntityId::HalfEdge(_)
+                    | topo::EntityId::Edge(_)
+                    | topo::EntityId::Vertex(_),
+                ),
         }
         | ValidationError::CensusUndecidable { .. } => Attribution::Unattributed,
         // Everything the tier-1/2/3 passes find: the body's own
@@ -682,6 +1381,7 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         ValidationError::Band { .. }
         | ValidationError::DanglingDescription { .. }
         | ValidationError::UncertifiableSurface { .. }
+        | ValidationError::PoisonedSurfaceDescription { .. }
         | ValidationError::DegenerateTorus { .. }
         | ValidationError::DegenerateTorusEscalated { .. }
         | ValidationError::NonpositiveTorusTube { .. }
@@ -696,11 +1396,22 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         | ValidationError::SliverDihedral { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
+        // The material-wedge arm's two refusals are findings about an
+        // EDGE of this body, not about a contact record: the lamina
+        // states that two of its own faces osculate, and the
+        // undeclared cusp states that NO declaration names the pair —
+        // which is `UndeclaredContact`'s reasoning one granularity
+        // down, and the same reason neither can name a mate.
+        | ValidationError::UndeclaredCusp { .. }
+        | ValidationError::LaminaWedge { .. }
+        | ValidationError::ScaffoldAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume
         | ValidationError::VolumeUncomputable { .. }
         | ValidationError::Pcurve { .. }
+        | ValidationError::RingMeetsOuter { .. }
+        | ValidationError::RingContactEscalated { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }
@@ -783,7 +1494,7 @@ mod attribution {
     use geom_core::predicate::{Band, MarginDiag};
     use topo::{CensusContact, DeclaredContact, EntityId, StaleDeclaration, ValidationError};
 
-    use super::{Attribution, FaceKey, MintedDeclaration, attribute};
+    use super::{Attribution, FaceKey, MintedDeclaration};
     use crate::mate::ContactClass;
     use crate::names::{EntityKind, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
@@ -826,6 +1537,49 @@ mod attribution {
             faces: (a, b),
         }];
         (minted, a, b, odd, vertex)
+    }
+
+    /// [`super::attribute`] over a document with NO carried rows: this
+    /// module's subject is the classification, one row per arm, and a
+    /// tree of one document is where each arm is stated most plainly.
+    /// The carried half is driven end to end through [`assemble`] in
+    /// `tests/docm6_seam_declarations.rs`.
+    fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attribution {
+        super::attribute(error, minted, &[])
+    }
+
+    /// A census refusal about a candidate face PAIR.
+    fn unsupported_pair(a: FaceKey, b: FaceKey) -> ValidationError {
+        ValidationError::CensusUnsupported {
+            subject: topo::CensusSubject::FacePair(a, b),
+        }
+    }
+
+    /// [`fixture`] plus a SECOND undeclared face, from the same body
+    /// and so distinct by construction: the wholly-undeclared pair
+    /// needs two faces no declaration names.
+    fn fixture_with_two_undeclared() -> (Vec<MintedDeclaration>, FaceKey, FaceKey, FaceKey, FaceKey)
+    {
+        let mut body = topo::Body::<f64>::new();
+        let mut mint_face = || {
+            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+                .expect("mvfs births a solid, shell, face and lone vertex")
+                .face
+        };
+        let (a, b, odd, other) = (mint_face(), mint_face(), mint_face(), mint_face());
+        let name = |node| StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::OutputBody],
+        };
+        let minted = vec![MintedDeclaration {
+            mate: RecipeNodeId(7),
+            a: name(1),
+            b: name(2),
+            class: ContactClass::Rest,
+            faces: (a, b),
+        }];
+        (minted, a, b, odd, other)
     }
 
     fn escalation() -> geom_core::Indeterminate {
@@ -888,23 +1642,136 @@ mod attribution {
         );
     }
 
-    /// The declared direction: a face the census inventory cannot
+    /// The declared direction: a PAIR the census inventory cannot
     /// certify is a DECLINE, which is the only relation that can reach
-    /// [`AssemblyError::Uncertified`].
+    /// [`AssemblyError::Uncertified`] — and the declaration it names
+    /// is the one that declared THAT pair, in either order. (Which
+    /// DOCUMENT declared it does not enter; this module's subject is
+    /// the classification, over one document's own rows.)
     #[test]
-    fn an_unsupported_declared_face_declines() {
-        let (minted, a, _, odd, _) = fixture();
-        let unsupported = |f: FaceKey| ValidationError::CensusUnsupported {
-            entity: EntityId::Face(f),
-        };
+    fn an_unsupported_declared_pair_declines_in_either_order() {
+        let (minted, a, b, ..) = fixture();
+        for (x, y) in [(a, b), (b, a)] {
+            assert!(matches!(
+                attribute(&unsupported_pair(x, y), &minted),
+                Attribution::Declined(m) if m.faces == minted[0].faces
+            ));
+        }
+    }
+
+    /// **The three populations the census's conformal sweep reaches
+    /// this arm with**, each answered by the pair and none by a face.
+    ///
+    /// The sweep raises the refusal BEFORE it consults the declared
+    /// set, so a wholly undeclared pair and a pair with one declared
+    /// face both arrive here; and it carries its two faces in arena
+    /// order, which is not the order declaredness is in. Only the
+    /// first population names a declaration: the other two are
+    /// findings about candidates no mate authored, whatever either
+    /// face is declared against elsewhere. Attributing those would
+    /// promote a candidate nobody declared into the declared
+    /// direction's frontier under a third face's mate.
+    #[test]
+    fn an_unsupported_pair_answers_by_the_pair_over_all_three_populations() {
+        let (minted, a, b, odd, other) = fixture_with_two_undeclared();
+        // 1. the declared pair.
         assert!(matches!(
-            attribute(&unsupported(a), &minted),
-            Attribution::Declined(m) if m.faces == minted[0].faces
+            attribute(&unsupported_pair(a, b), &minted),
+            Attribution::Declined(m) if m.faces == (a, b)
         ));
+        // 2. one face declared (against the OTHER face of the
+        // declaration), the other not — in both arena orders, because
+        // arena order is exactly what must stop mattering.
+        for (x, y) in [(a, odd), (odd, a), (b, odd), (odd, b)] {
+            assert_eq!(
+                attribute(&unsupported_pair(x, y), &minted),
+                Attribution::Unattributed,
+                "no mate declared the pair ({x:?}, {y:?})"
+            );
+        }
+        // 3. neither face declared.
         assert_eq!(
-            attribute(&unsupported(odd), &minted),
+            attribute(&unsupported_pair(odd, other), &minted),
+            Attribution::Unattributed
+        );
+    }
+
+    /// **The item's consequence 1**: one face two mates declare, which
+    /// `MateFault::SelfMate` does not refuse — it rejects same-INSTANCE
+    /// pairs, so one plate face is minted as `(f, g)` by one mate and
+    /// `(f, h)` by another. Each refusal answers to the mate that
+    /// declared ITS pair, and the answer does not depend on which
+    /// declaration `minted` holds first.
+    ///
+    /// The row a single-declaration fixture cannot reach: with one
+    /// declaration, a face-width lookup and a pair lookup differ only
+    /// on pairs no mate declared. With two, they differ on a pair a
+    /// mate DID declare — the width-1 lookup answers whichever
+    /// declaration `minted` lists first, for both.
+    #[test]
+    fn a_face_in_two_declarations_answers_each_pair_to_its_own_mate() {
+        let mut body = topo::Body::<f64>::new();
+        let mut mint_face = || {
+            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+                .expect("mvfs births a solid, shell, face and lone vertex")
+                .face
+        };
+        let (f, g, h) = (mint_face(), mint_face(), mint_face());
+        let name = |node| StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::OutputBody],
+        };
+        let declaration = |mate, faces| MintedDeclaration {
+            mate: RecipeNodeId(mate),
+            a: name(1),
+            b: name(2),
+            class: ContactClass::Rest,
+            faces,
+        };
+        let minted = vec![declaration(7, (f, g)), declaration(8, (f, h))];
+        for (pair, mate) in [((f, g), 7), ((g, f), 7), ((f, h), 8), ((h, f), 8)] {
+            assert!(
+                matches!(
+                    attribute(&unsupported_pair(pair.0, pair.1), &minted),
+                    Attribution::Declined(m) if m.mate == RecipeNodeId(mate)
+                ),
+                "the pair {pair:?} is mate {mate}'s declaration, in either order"
+            );
+        }
+        // And the pair NEITHER mate declared, over the very face both
+        // of them name.
+        assert_eq!(
+            attribute(&unsupported_pair(g, h), &minted),
             Attribution::Unattributed,
-            "a face no mate declared is nobody's decline"
+            "no mate declared (g, h) — a shared third face does not make it theirs"
+        );
+    }
+
+    /// A single FACE outside the inventory is not a candidate contact:
+    /// the census arm that raises it bounds ONE face and has no pair,
+    /// so no declaration answers for it even when a mate declared that
+    /// face. Sharing a face with a declaration is not being named by
+    /// one — the same line every structural finding sits on.
+    ///
+    /// The arm has TWO producing states and only one is argued away
+    /// ahead of the census: an empty outer loop cannot reach it
+    /// through the public door (`validate_closed`'s tier-2 check 1),
+    /// while a boundary that does not RESOLVE is refused on its
+    /// merits and not argued unreachable. The label is asserted here
+    /// for both, which is why the row exists — no fixture reaches
+    /// either.
+    #[test]
+    fn an_unsupported_lone_face_is_unattributed_over_its_own_declaration() {
+        let (minted, a, ..) = fixture();
+        assert_eq!(
+            attribute(
+                &ValidationError::CensusUnsupported {
+                    subject: topo::CensusSubject::Entity(EntityId::Face(a)),
+                },
+                &minted
+            ),
+            Attribution::Unattributed
         );
     }
 
@@ -918,7 +1785,7 @@ mod attribution {
         assert_eq!(
             attribute(
                 &ValidationError::CensusUnsupported {
-                    entity: EntityId::Vertex(vertex),
+                    subject: topo::CensusSubject::Entity(EntityId::Vertex(vertex)),
                 },
                 &minted
             ),

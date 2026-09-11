@@ -18,12 +18,12 @@
 //!
 //! `bench-stand` is the assembled object: two posts and a shelf, the
 //! shelf seated on the posts by mates. `bench-layout` is the same two
-//! parts laid out flat for shipping — four posts on their side (one
+//! parts laid out flat for shipping — two posts on their side (one
 //! instance, patterned) and the shelf beside them, nothing touching.
 //! Both are real things a user models, and between them they cover
 //! the two halves of A5's validity story: the layout is DISJOINT and
 //! its at-rest gate passes outright; the stand TOUCHES, and its gate
-//! reaches the declared direction's frontier (see [`stand_scene`]).
+//! CERTIFIES, its two flush seats included (see [`stand_scene`]).
 //!
 //! Every door this file uses is `pncad::…`, the tour's standing
 //! invariant: the demos are the façade's acceptance corpus, so a scene
@@ -36,22 +36,28 @@
 //! using the library is actually like. Each of these is commented at
 //! the site that meets it and filed where it can be fixed:
 //!
-//! - **#943** — a mate declares a FACE PAIR, and the census backs the
-//!   vertex-on-edge and edge-edge events a flush seat induces from
-//!   that one declaration; what a declared CROSS-INSTANCE seat still
-//!   stops at is the chart-identity door, flush or inset alike
-//!   (`SEAT_A`).
+//! - **#943 / #1063 — CLOSED, and the accommodation retired.** A mate
+//!   declares a FACE PAIR; the census backs the vertex-on-edge and
+//!   edge-edge events a flush seat induces from that one declaration,
+//!   and the declared pair itself now certifies on the two
+//!   descriptions' shared world carrier. The stand's posts are seated
+//!   FLUSH with the shelf's ends — the obvious way to draw it — where
+//!   they had to be inset while the chart-identity door declined every
+//!   cross-instance pair (`SEAT_A`).
 //! - **#944** — nothing mints a mate's alignment frame from a
 //!   selected face, so the frame and the geometry drift apart
 //!   silently (`stops`, `update_door`).
 //! - **#945** — mates and patterns do not compose at all, which is
 //!   why this file has two assembly documents rather than one; it
-//!   also records the A11 rule-4 drift, and wants Evan's ruling.
+//!   also records the A11 rule-4 drift, and wants Ev's ruling.
 //! - **#946** — a sub-assembly's mate declarations do not cross the
 //!   instantiation seam.
-//! - **#947** — the pin-mismatch recourse is emitted twice
-//!   (ASSERTED here, so it goes red when fixed), and two refusals
-//!   carry no recourse sentence at all (`refusals`).
+//! - **#947 — the doubled recourse is CLOSED.** The pin-mismatch
+//!   recourse now reaches the author exactly once, from the store's
+//!   own `Display`; `update_door` is what holds that count down.
+//!   All four refusals the walk prints end on a recourse sentence,
+//!   each asserted here against the library's own constant
+//!   (`refusals`).
 //! - **#948** — no parametric loop constructor (`rect`).
 //!
 //! The declared direction's frontier — a mated assembly's gate can
@@ -67,15 +73,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Dimension, DocEdit,
-    DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram,
-    MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble, content_pin, evaluate, inline, load,
-    mixed_pins, parse_expr, product_named, save, solve_document, split,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
+    CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
+    EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
+    MatePrimitive, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SitedRef, UNDER_RECOURSE, apply, assemble, content_pin, evaluate,
+    inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
-use pncad::profile::SketchPlane;
 use pncad::select::{
     CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
 };
@@ -92,6 +98,11 @@ use crate::{SceneBody, Stop, View};
 // is evidence about the library, so nothing in the library may depend
 // on what this scene happens to measure.
 
+/// How far along +x the flat-pack sits from the assembled bench, so
+/// the two share ONE montage cell at one camera and one scale. The
+/// bench is `SHELF_LENGTH` = 0.9 long, so 1.4 leaves half a metre of
+/// clear air.
+const FLAT_PACK_GAP: f64 = 1.4;
 /// The post's square section and its length.
 const POST_SECTION: f64 = 0.12;
 const POST_HEIGHT: f64 = 0.5;
@@ -103,21 +114,36 @@ const SHELF_THICKNESS: f64 = 0.04;
 /// Where the shelf's underside meets each post, in SHELF coordinates
 /// — the two seating points the stand's mates are authored against.
 ///
-/// Both are INSET from the shelf's edges, by more than half a post
-/// section: that is how legs are set under a top, and it is the only
-/// reason they are inset here.
+/// **FLUSH with the shelf's two ends**, which is the obvious way to
+/// draw a bench: each post's outer face is in the plane of the shelf
+/// end above it, so the post's cap shares a boundary LINE with the
+/// shelf's underside. They stay inset in y, because a bench top
+/// overhangs front and back and a post is not the depth of the shelf.
 ///
-/// It is NOT a workaround for the gate. A flush seat — the post's cap
-/// sharing a boundary line with the shelf's underside — reaches the
-/// same verdict as this one: the mate's face-pair declaration backs
-/// the vertex-on-edge and edge-edge events such a seat induces (the
-/// census's face rung, module docs D3/D4), so the seat is never a
-/// finding against the document. What both seats stop at is the
-/// frontier [`at_rest`] describes: a declared CROSS-INSTANCE pair is
-/// declined at the census's chart-identity door, whether its faces
-/// share a boundary or not.
-const SEAT_A: [f64; 3] = [0.10, 0.15, 0.0];
-const SEAT_B: [f64; 3] = [0.80, 0.15, 0.0];
+/// "Flush" here is flush AS THE MODEL COMPUTES IT, and the two ends are
+/// not identical about it: `SEAT_A`'s near face lands on `x = 0`
+/// exactly (`POST_SECTION / 2 - POST_SECTION / 2`), while `SEAT_B`'s far
+/// face lands 1.11e-16 m past `SHELF_LENGTH`, because
+/// `0.9 - 0.06 + 0.06` is not `0.9` in binary floating point. That is
+/// one ulp of the model's own coordinates and four orders below the
+/// TIGHTEST ε the hosted matrix runs (1e-12), so it is a residue the
+/// seat's own predicate certifies rather than a gap in the drawing —
+/// which is the whole "certified everywhere within ε, never exact"
+/// posture, met by the demo instead of asserted about it. The
+/// dimensions are NOT adjusted to make the arithmetic close: moving
+/// geometry so a number reads round is the one thing this file may not
+/// do.
+///
+/// This was authored INSET until #1063 landed, with a comment saying
+/// flush and inset reached the same verdict — true then, and the
+/// reason it was a gap: a declared cross-instance pair was declined at
+/// the census's chart-identity door whatever its geometry, so the
+/// natural drawing was the one that did not certify. The pair now
+/// answers on its shared world carrier, and the shared boundary is
+/// carried by the interior-witness rung, so the flush seat certifies
+/// and the accommodation is retired.
+const SEAT_A: [f64; 3] = [POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
+const SEAT_B: [f64; 3] = [SHELF_LENGTH - POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
 
 /// The post's own seating point, in POST coordinates: the centre of
 /// its top cap. Every mate that seats something on a post is authored
@@ -151,26 +177,6 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
     *doc = applied.doc;
 }
 
-/// A rectangle in the sketch plane from two Expr corners — the
-/// parametric spelling of `LoopProgram::polygon`, which only takes
-/// literals.
-///
-/// GAP (#948): a parametric author writes the five steps by hand. The
-/// document's own doc comment says so ("parametric authors write the
-/// steps with their own Exprs"), and this function is what every
-/// parametric consumer will write until the loop vocabulary grows an
-/// Expr-bearing rectangle.
-fn rect(w: &Expr, h: &Expr, zero: &Expr) -> LoopProgram {
-    let pt = |x: &Expr, y: &Expr| ProgramTarget::Point([x.clone(), y.clone()]);
-    LoopProgram::Chain(vec![
-        ProgramStep::At([zero.clone(), zero.clone()]),
-        ProgramStep::LineTo(pt(w, zero)),
-        ProgramStep::LineTo(pt(w, h)),
-        ProgramStep::LineTo(pt(zero, h)),
-        ProgramStep::LineTo(ProgramTarget::Start),
-    ])
-}
-
 /// A mate frame: origin, primary axis, clocking reference.
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
     MateFrame {
@@ -188,7 +194,7 @@ fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
         kind: local.kind,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(local.clone()),
+            of: local.clone().into(),
         }],
     }
 }
@@ -261,21 +267,38 @@ fn prism_part(
             &mut doc,
             &DocEdit::SetDocParam {
                 name: name.clone(),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value,
-                },
+                value: DocParam::continuous(Dimension::Length, value),
             },
             tol,
         );
         scope.insert(name, Dimension::Length);
     }
     let zero = pe("0 mm", &scope);
+    let plane = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [pe("0 mm", &scope), pe("0 mm", &scope), pe("0 mm", &scope)],
+            // A bare integer parses as a Count; the frame's axes are
+            // Scalars, so they are spelled as decimals.
+            u: [pe("1.0", &scope), pe("0.0", &scope), pe("0.0", &scope)],
+            v: [pe("0.0", &scope), pe("1.0", &scope), pe("0.0", &scope)],
+        }),
+        tol,
+    );
+    // The section, counter-clockwise from the origin corner: the two
+    // extents are the document's own named parameters, so the corners
+    // are expressions and the loop is built from them directly.
+    let (width, height) = (pe(plan.0, &scope), pe(plan.1, &scope));
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
-            loops: vec![rect(&pe(plan.0, &scope), &pe(plan.1, &scope), &zero)],
+            plane,
+            loops: vec![LoopProgram::polygon_expr([
+                [zero.clone(), zero.clone()],
+                [width.clone(), zero.clone()],
+                [width, height.clone()],
+                [zero.clone(), height],
+            ])],
         }),
         tol,
     );
@@ -340,8 +363,20 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
 
 // ---- The assembly documents ----
 
-/// The flat-pack: four posts on their side (ONE instance, patterned)
+/// The flat-pack: two posts on their side (ONE instance, patterned)
 /// and the shelf laid beside them. Nothing touches.
+///
+/// Every placement carries [`FLAT_PACK_GAP`] along +x, which is how the
+/// flat-pack sits BESIDE the assembled bench in their shared montage
+/// cell. It is AUTHORED into the frames rather than applied to the
+/// gathered body, and that is not a preference: a layout document's
+/// placements ARE its subject, so where the parts sit has to be
+/// something this document SAYS. What the montage ships is the body
+/// `assemble` returned from this document (`layout_scene`); moving
+/// that afterwards would hand the renderer a body no gate had seen,
+/// standing at coordinates no document records. A common offset on
+/// every placement moves the product and changes nothing else about
+/// it.
 fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-layout"), tol);
     let scope = BTreeMap::new();
@@ -356,8 +391,10 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             frame: Frame::rotate_then_translate(
                 [0.0, 1.0, 0.0],
                 -PI / 2.0,
-                [POST_HEIGHT, 0.0, 0.0],
-            ),
+                [FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0],
+                Band::linear(tol).expect("the demo's tolerance forms a band"),
+            )
+            .expect("the post lies down about +y"),
         },
         tol,
     );
@@ -365,7 +402,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         &mut doc,
         Node::Pattern {
             input: post_i,
-            count: pe("4", &scope),
+            count: pe("2", &scope),
             kind: PatternKind::Linear {
                 direction: [pe("0.0", &scope), pe("1.0", &scope), pe("0.0", &scope)],
                 spacing: pe("200 mm", &scope),
@@ -378,7 +415,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         &mut doc,
         &DocEdit::SetPlacement {
             node: shelf_i,
-            frame: Frame::translation([0.0, 0.9, 0.0]),
+            frame: Frame::translation([FLAT_PACK_GAP, 0.9, 0.0]),
         },
         tol,
     );
@@ -421,8 +458,8 @@ fn stand_doc(
     let mate_1 = insert(
         &mut doc,
         Node::Mate {
-            a: in_part(post_a, post_top),
-            b: in_part(shelf_i, shelf_bottom),
+            a: SitedRef::at_mint(in_part(post_a, post_top)),
+            b: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(POST_SEAT),
@@ -437,8 +474,8 @@ fn stand_doc(
     let mate_2 = insert(
         &mut doc,
         Node::Mate {
-            a: in_part(shelf_i, shelf_bottom),
-            b: in_part(post_b, post_top),
+            a: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
+            b: SitedRef::at_mint(in_part(post_b, post_top)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_B),
@@ -501,26 +538,33 @@ fn workspace(dir: &Path, tol: Tol) -> (Workspace, Parts) {
     let parts = Parts {
         post: reference(&post),
         shelf: reference(&shelf),
-        post_top: cap_of(&post, CapEnd::Top, tol),
-        shelf_bottom: cap_of(&shelf, CapEnd::Bottom, tol),
+        post_top: cap_of(&post, CapEnd::End, tol),
+        shelf_bottom: cap_of(&shelf, CapEnd::Start, tol),
     };
     (ws, parts)
 }
 
 // ---- The scenes ----
 
-/// The flat-pack layout: five disjoint solids, and A5's disjoint half
+/// The flat-pack layout: three disjoint solids, and A5's disjoint half
 /// — the at-rest gate passes outright.
+///
+/// TWO posts, the same count the bench assembles, so "the same parts,
+/// flat-packed" is true of the PARTS and not only of the documents. Two
+/// is also what the name lookup below needs: it asks for instance 1,
+/// the first NON-IDENTITY instance — `Node::Pattern` may hand back the
+/// prototype verbatim for index 0, so i = 0 need not exercise a
+/// placement at all, and i = 1 is the first that must.
 fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: Tol) -> SceneBody {
     let ev = run(doc, &with_store(ws), tol);
     let (body, names) = product_of(doc, &ev, tol);
 
     assert_eq!(
         body.shells().count(),
-        5,
-        "one instance, patterned four ways, plus the shelf"
+        3,
+        "one instance, patterned twice, plus the shelf"
     );
-    let want = 4.0 * POST_VOLUME + SHELF_VOLUME;
+    let want = 2.0 * POST_VOLUME + SHELF_VOLUME;
     let props = pncad::topo::mass_properties(&body, tol).expect("mass properties");
     assert!(
         (props.volume - want).abs() < 1e-12,
@@ -529,13 +573,13 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     );
     println!(
         "   [layout] {} instantiated solid(s) from 2 part documents; V = {:.6} m^3 \
-         (4 x post + shelf, exact); {} product names",
+         (2 x post + shelf, exact); {} product names",
         body.shells().count(),
         props.volume,
         names.iter().count()
     );
 
-    // A name lookup a user actually does: "where is the third
+    // A name lookup a user actually does: "where is the second
     // patterned post's end face?" The answer is one instance-qualified
     // name away — the pattern's `Instance(i)` segment wrapping the
     // part's own cap name (N1 x the GQ4 wrapper).
@@ -545,7 +589,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     // wrappers deep — pattern index, then instance, then the part's
     // own cap.
     let cap_of_part =
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top));
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let caps = pncad::select::select(
         &ev,
         pattern,
@@ -558,26 +602,26 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     );
     let indexed: Vec<&StableName> = caps
         .iter()
-        .filter(|n| matches!(n.path.first(), Some(RoleSeg::Instance { i: 2, .. })))
+        .filter(|n| matches!(n.path.first(), Some(RoleSeg::Instance { i: 1, .. })))
         .collect();
     assert_eq!(
         indexed.len(),
         1,
-        "instance 2 has exactly one post top cap: {caps:?}"
+        "instance 1 has exactly one post top cap: {caps:?}"
     );
     let pose = pncad::select::face_frame(&ev, pattern, indexed[0])
         .expect("the named face answers with its frame");
     println!(
-        "   [layout] name lookup: pattern instance 2's post cap sits at \
+        "   [layout] name lookup: pattern instance 1's post cap sits at \
          ({:.3}, {:.3}, {:.3}) m",
         pose.origin.x, pose.origin.y, pose.origin.z
     );
-    // Two 200 mm pattern steps along +y put instance 2's post between
-    // y = 0.4 and y = 0.4 + section; its cap frame's origin lies on
+    // One 200 mm pattern step along +y puts instance 1's post between
+    // y = 0.2 and y = 0.2 + section; its cap frame's origin lies on
     // that face.
     assert!(
-        (0.4..=0.4 + POST_SECTION).contains(&pose.origin.y),
-        "the third post is two 200 mm steps along +y, measured {}",
+        (0.2..=0.2 + POST_SECTION).contains(&pose.origin.y),
+        "the second post is one 200 mm step along +y, measured {}",
         pose.origin.y
     );
 
@@ -686,6 +730,18 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
         2,
         "one record per solved mate (A3's minting)"
     );
+    // ASSERTED, not merely printed: this is #1063's visible acceptance.
+    // The stand is the natural drawing of a bench — two posts seated
+    // FLUSH with the shelf's ends — and until the census could answer a
+    // declared cross-instance pair it reached the frontier and no
+    // further. A scene that only PRINTED its verdict would keep saying
+    // so with the sentence and the geometry drifting apart, which is
+    // the shape of the demo bug this file exists to avoid.
+    assert!(
+        matches!(gate.verdict, AtRestVerdict::Certified),
+        "the flush-seated stand CERTIFIES at the A5 gate: {}",
+        gate.verdict.describe()
+    );
 
     SceneBody::at_rest("bench", [0.55, 0.44, 0.30], gate.body, gate.contacts)
 }
@@ -740,25 +796,27 @@ impl AtRest {
 /// Runs the A5 gate.
 ///
 /// `Ok` and `Uncertified` are BOTH accepted, and the difference is
-/// reported rather than asserted: today every declared cross-instance
-/// pair lands in `Uncertified`, and the day the census grows its
-/// cross-instance rung this same call returns `Ok` and the scene's
-/// line says so. What is NOT accepted is `AtRest` — a finding AGAINST
-/// the document — which is the arm that means the declarations do not
-/// hold, and which the update walk deliberately provokes.
+/// reported rather than asserted. Since #1063 a declared PLANAR
+/// cross-instance pair certifies on its shared world carrier, so this
+/// stand returns `Ok`; the `Uncertified` arm stays because it is still
+/// the honest answer for everything the carrier arm does not reach — a
+/// declared CURVED cross-instance pair, or a planar pair whose two
+/// descriptions disagree over the pair's own extent. What is NOT
+/// accepted is `AtRest` — a finding AGAINST the document — which is
+/// the arm that means the declarations do not hold, and which the
+/// update walk deliberately provokes.
 ///
 /// # What the frontier's observable does and does not say
 ///
-/// The finding this arm carries is `CensusUnsupported` naming a face.
+/// The finding that arm carries is `CensusUnsupported` naming a face.
 /// The declared-patch loop emits that from MORE THAN ONE door — the
-/// carrier-identity check and the chart-identity check both decline
-/// through it — so the observable a caller sees does NOT say which of
-/// them declined, and this demo does not claim to know. What holds
-/// either way, and is the whole content of the frontier, is that a
-/// declared cross-instance pair is not certifiable in this tree:
-/// nothing was decided about the geometry, in either direction.
-/// Separating the doors would take a probe against the census, which
-/// is the census's unit to write, not this scene's.
+/// carrier-identity check, the chart-region inventory and the carrier
+/// tilt row all decline through it — so the observable a caller sees
+/// does NOT say which of them declined, and this demo does not claim
+/// to know. What holds either way is the whole content of the
+/// frontier: nothing was decided about the geometry, in either
+/// direction. Separating the doors would take a probe against the
+/// census, which is the census's unit to write, not this scene's.
 fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
     match assemble(doc, ev, tol) {
         Ok(Assembly { body, contacts, .. }) => AtRest {
@@ -791,8 +849,8 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 /// printed with the recourse the library itself gave.
 ///
 /// Fail-loud is the design, so each of these is EVIDENCE: a refusal
-/// that stopped being typed, or stopped naming its subject, breaks
-/// this walk.
+/// that stopped being typed, stopped naming its subject, or stopped
+/// ending on its recourse breaks this walk.
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
@@ -819,6 +877,14 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         matches!(fault, MateFault::Under { .. }),
         "an under-determined tree mate is the UNDER refusal, got {fault:?}"
     );
+    // Every one of the four ends on its own recourse sentence, and
+    // each is asserted against the library's constant rather than
+    // against re-typed prose. That is the ladder's exit criterion, met
+    // here where a user reads it.
+    assert!(
+        fault.to_string().contains(UNDER_RECOURSE),
+        "the refusal carries its recourse verbatim"
+    );
     println!("   (1) under-determined: {fault}");
 
     // (2) CONTRADICTORY. Two mates on ONE pair intersect their cosets
@@ -836,8 +902,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let clash = insert(
         &mut contra.doc,
         Node::Mate {
-            a: in_part(contra.post_a, post_top),
-            b: in_part(contra.shelf_i, shelf_bottom),
+            a: SitedRef::at_mint(in_part(contra.post_a, post_top)),
+            b: SitedRef::at_mint(in_part(contra.shelf_i, shelf_bottom)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT]),
@@ -859,6 +925,10 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     assert!(
         matches!(fault, MateFault::Contradictory { .. }),
         "an empty coset intersection is the CONTRADICTORY refusal, got {fault:?}"
+    );
+    assert!(
+        fault.to_string().contains(CONTRADICTORY_RECOURSE),
+        "the refusal carries its recourse verbatim"
     );
     println!("   (2) contradictory: {fault}");
 
@@ -908,6 +978,10 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     assert!(
         matches!(err, AssemblyError::NoAtRestRecord { .. }),
         "the class table's mint half is what refuses, got {err}"
+    );
+    assert!(
+        err.to_string().contains(NO_AT_REST_RECORD_RECOURSE),
+        "the refusal carries its recourse verbatim"
     );
     println!("   (3) outside v1's at-rest vocabulary: {err}");
 
@@ -1158,12 +1232,9 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     let mut thicker = ws.resolve(&shelf, tol).expect("the shelf resolves");
     edit(
         &mut thicker,
-        &DocEdit::SetDocParam {
+        &DocEdit::SetDocParamValue {
             name: ParamName::new("thickness"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: SHELF_THICKNESS * 1.5,
-            },
+            value: DocParamValue::Continuous(SHELF_THICKNESS * 1.5),
         },
         tol,
     );
@@ -1181,25 +1252,30 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         pin_fault(refused)
     );
 
-    // GAP (#947), in the message a user reads: the recourse paragraph
-    // arrives TWICE. `WorkspaceError::PinMismatch`'s own Display
-    // already ends on `PIN_MISMATCH_RECOURSE`, and the `PartResolver`
-    // impl appends it again when it classifies the failure for the
-    // kernel.
+    // The message a user reads carries the recourse EXACTLY ONCE, and
+    // this line is what holds that number down. It used to be two —
+    // `WorkspaceError::PinMismatch`'s own `Display` ends on
+    // `PIN_MISMATCH_RECOURSE`, and the `PartResolver` impl appended it
+    // a second time on its way to the kernel — and the demo recorded
+    // that doubling as a gap (#947) until the seam stopped appending.
+    // One is the count with meaning on BOTH sides: zero would mean the
+    // store's `Display` dropped the sentence and the kernel-side
+    // message no longer tells an author what to do, two would mean the
+    // seam started re-appending it. The ZERO case is also held inside
+    // the workspace, by `crates/viewer/tests/instance_authoring.rs`,
+    // which asserts the recourse on the badge; what only this line and
+    // the Python author suite hold is the COUNT, which is what a
+    // `contains` assertion cannot see.
     assert_eq!(
         refused
             .kind
             .to_string()
             .matches(PIN_MISMATCH_RECOURSE)
             .count(),
-        2,
-        "the doubled recourse is what this line records (#947); ONE copy means it was \
-         fixed, and this count must be flipped to 1 in that same change"
+        1,
+        "the kernel-side message carries the recourse once, from the store's own Display"
     );
-    println!(
-        "   note (gap): that message carries its recourse paragraph twice — the store's \
-         Display ends on it and the seam classifier appends it again"
-    );
+    println!("   in full: {}", refused.kind);
 
     // The elaboration: "update this document everywhere", one recorded
     // per-reference edit per site, applied as a group.
@@ -1256,12 +1332,9 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         .expect("the post resolves");
     edit(
         &mut shorter,
-        &DocEdit::SetDocParam {
+        &DocEdit::SetDocParamValue {
             name: ParamName::new("height"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: POST_HEIGHT - 0.04,
-            },
+            value: DocParamValue::Continuous(POST_HEIGHT - 0.04),
         },
         tol,
     );
@@ -1360,24 +1433,18 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     // workspace a reader opens is the one the saved assemblies pin.
     edit(
         &mut shorter,
-        &DocEdit::SetDocParam {
+        &DocEdit::SetDocParamValue {
             name: ParamName::new("height"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: POST_HEIGHT,
-            },
+            value: DocParamValue::Continuous(POST_HEIGHT),
         },
         tol,
     );
     ws.resave(&shorter, tol).expect("the post is restored");
     edit(
         &mut thicker,
-        &DocEdit::SetDocParam {
+        &DocEdit::SetDocParamValue {
             name: ParamName::new("thickness"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: SHELF_THICKNESS,
-            },
+            value: DocParamValue::Continuous(SHELF_THICKNESS),
         },
         tol,
     );
@@ -1426,7 +1493,7 @@ fn post_pin_of(doc: &ProfileDoc, node: RecipeNodeId) -> pncad::document::Content
 
 // ---- The round trip ----
 
-/// Saves each assembly through the current schema, loads it back, and
+/// Saves each assembly through the persistence door, loads it back, and
 /// evaluates the loaded document: same census, same volume bits, same
 /// gate verdict. A document is a value on disk, or it is not a
 /// document.
@@ -1462,10 +1529,9 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
         );
     }
     println!(
-        "   [{label}] {} bytes through schema v{}: reloaded and re-evaluated identically \
-         ({} names, V bit-equal)",
+        "   [{label}] {} bytes through the persistence door: reloaded and re-evaluated \
+         identically ({} names, V bit-equal)",
         text.len(),
-        pncad::document::SCHEMA_VERSION,
         names.iter().count()
     );
 }
@@ -1531,52 +1597,45 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
 
     update_door(&mut ws, &stand, parts.shelf, tol);
 
-    vec![
-        Stop {
-            name: "bench",
-            caption: "the bench (2 parts, 2 mates)".to_string(),
-            montage: true,
-            story: "an ASSEMBLY document: two instances of a post document and one of a \
-                    shelf document, the shelf SEATED on both by mates — only the gauge \
-                    post carries an authored frame, the other two poses are solved",
-            ops: "post.pncad + shelf.pncad -> InstantiatePart x3 (pinned) -> Mate x2 \
-                  (Rest, frame-coincidence) -> constructive solve -> A10 product gather",
-            delta: 4e-3,
-            note: Some(format!(
-                "3 solids, V = {:.6} m^3; the mates mint their Rest declarations into the \
-                 product's contact record set, and the A5 at-rest gate reports the declared \
-                 direction's frontier (the census has no cross-instance certifier lane yet, \
-                 so the declarations are neither certified nor refuted)",
-                2.0 * POST_VOLUME + SHELF_VOLUME
-            )),
-            view: View {
-                elev: 20.0,
-                azim: -58.0,
-                up: 'z',
-            },
-            bodies: vec![stand_body],
+    // ONE cell for both framings. The assembled bench and the flat-pack
+    // are the same two part documents answering two questions — what
+    // the mates solve, and what ships — and two independently-scaled
+    // panels make them look like two subjects. The flat-pack's offset
+    // is AUTHORED into its placements (see `layout_doc`), where a
+    // layout's placements are its subject.
+    vec![Stop {
+        name: "bench",
+        caption: "the bench — assembled, and flat-packed".to_string(),
+        montage: true,
+        story: "an ASSEMBLY document: two instances of a post document and one of a \
+                shelf document, the shelf SEATED on both by mates — only the gauge post \
+                carries an authored frame, the other two poses are solved. Beside it \
+                the same two part documents laid out for shipping: ONE post instance \
+                patterned TWICE plus the shelf, nothing touching, which is A5's \
+                disjoint half where the at-rest gate passes outright — the SAME two \
+                parts the bench assembles, so 'the same parts, flat-packed' is true of \
+                the parts and not only of the documents",
+        ops: "post.pncad + shelf.pncad -> InstantiatePart x3 (pinned) -> Mate x2 \
+              (Rest, frame-coincidence) -> constructive solve -> A10 product gather; \
+              and InstantiatePart (explicit rotated frame) -> LinearPattern(2) + \
+              InstantiatePart (explicit frame) -> A10 product gather -> assemble",
+        delta: 4e-3,
+        note: Some(format!(
+            "ASSEMBLED: 3 solids, V = {:.6} m^3; the mates mint their Rest \
+             declarations into the product's contact record set, and the A5 at-rest \
+             gate CERTIFIES them — each post is seated flush with a shelf end, and a \
+             declared planar pair with no shared chart is answered on the two \
+             descriptions' world carrier. FLAT-PACKED: 4 solids, V = {:.6} m^3; every \
+             product entity answers to an instance-qualified name (the pattern's \
+             Instance(i) over the part's own)",
+            2.0 * POST_VOLUME + SHELF_VOLUME,
+            2.0 * POST_VOLUME + SHELF_VOLUME
+        )),
+        view: View {
+            elev: 22.0,
+            azim: -60.0,
+            up: 'z',
         },
-        Stop {
-            name: "benchlayout",
-            caption: "the same parts, flat-packed".to_string(),
-            montage: true,
-            story: "the same two documents laid out for shipping — ONE post instance \
-                    patterned four ways plus the shelf, nothing touching: A5's disjoint \
-                    half, where the at-rest gate passes outright",
-            ops: "InstantiatePart (explicit rotated frame) -> LinearPattern(4) + \
-                  InstantiatePart (explicit frame) -> A10 product gather -> assemble",
-            delta: 4e-3,
-            note: Some(format!(
-                "5 solids, V = {:.6} m^3; every product entity answers to an \
-                 instance-qualified name (the pattern's Instance(i) over the part's own)",
-                4.0 * POST_VOLUME + SHELF_VOLUME
-            )),
-            view: View {
-                elev: 26.0,
-                azim: -62.0,
-                up: 'z',
-            },
-            bodies: vec![layout_body],
-        },
-    ]
+        bodies: vec![stand_body, layout_body],
+    }]
 }

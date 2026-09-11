@@ -1,14 +1,16 @@
-//! M4 PR 6 review MINOR-3 — the committed GOLDEN v1 fixture.
+//! M4 PR 6 review MINOR-3 — the committed GOLDEN fixture.
 //!
 //! D6.1's round-trip row proves save∘load is a fixpoint, but a
 //! fixpoint is BLIND to format drift: rename a field and save/load
-//! stay self-consistent while every existing v1 file breaks. This row
+//! stay self-consistent while every existing file breaks. This row
 //! pins the frozen wire shape to CHECKED-IN BYTES
-//! (`tests/golden/v14_golden.cad`): the fixture document must save to
-//! exactly those bytes, and the bytes must load. Any change to either
-//! is a format change and demands a ratified schema bump + migration
-//! step — re-bless ONLY then (run with `M4_PR6_BLESS_GOLDEN=1` to
-//! regenerate, and say so loudly in the PR).
+//! (`tests/golden/golden.cad`): the fixture document must save to
+//! exactly those bytes, and the bytes must load. A change to either is
+//! a FORMAT CHANGE — deliberate, never in passing: re-bless (run with
+//! `M4_PR6_BLESS_GOLDEN=1`), regenerate the rest of the checked-in
+//! corpus the same way, and say so in the PR. The format carries no
+//! schema version (the persist module docs say why), so the re-bless
+//! IS the whole procedure.
 //!
 //! ε note: the golden snapshot PINS ε = 1e-9 via `SetTolerance` (a
 //! committed byte stream cannot record the ambient ε — it varies by
@@ -20,19 +22,20 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
+use editor_core::UnitSym;
 use editor_core::{
-    Attr, CancelToken, Dimension, DocEdit, DocParam, EntityKind, EvalOptions, Expr, LoopProgram,
-    MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
+    Attr, CancelToken, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr,
+    LoopProgram, MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply,
     evaluate, load, save,
 };
 use fixture::desc;
 use geom_core::Tol;
 
-const GOLDEN: &str = include_str!("golden/v14_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v14_golden.cad";
+const GOLDEN: &str = include_str!("golden/golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -61,6 +64,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         ]
     };
     doc = push(&doc, &DocEdit::SetTolerance { eps: 1e-9 });
+    // v15: `depth` carries a distribution, so the frozen bytes pin the
+    // populated `distribution` key rather than only its absence.
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
@@ -68,13 +73,39 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
+                distribution: Some(Distribution::TruncatedNormal {
+                    sigma: 0.002,
+                    lo: -0.005,
+                    hi: 0.004,
+                }),
             },
         },
     );
+    // A second parameter with NO distribution, so the same bytes also
+    // pin the degenerate carry: an unannotated param writes no key.
+    doc = push(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("clearance"),
+            value: DocParam::continuous(Dimension::Length, 0.001),
+        },
+    );
+    // Every sketch in this fixture is drawn on the world xy plane, so
+    // ONE frame node (node 0) serves them all — a profile names its
+    // plane now, and four copies of the same frame would say four
+    // planes where the document has one.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: fixture::xy_frame(),
+        },
+    );
+    let plane = editor_core::RecipeNodeId(0);
     // v4 re-authoring (content-preserving): the quad with one arc
     // segment authors as a chain whose arc step carries its AUTHORED
     // bulge — the same 0.25 the retired form stored on vertex 1.
-    let mut d = desc([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![]);
+    let mut d = desc(plane, vec![]);
     d.loops = vec![LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
@@ -95,16 +126,16 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: editor_core::RecipeNodeId(0),
+                profile: editor_core::RecipeNodeId(1),
                 distance: Expr::param(ParamName::new("depth"), Dimension::Length),
             },
         },
     );
     // #101 tangency coverage in the FROZEN bytes: a hand-DECLARED
-    // line/arc tangency (node 2 — the #100 bracket: the quarter arc
+    // line/arc tangency (node 3 — the #100 bracket: the quarter arc
     // leaving (1.5,1), bulge −(√2−1), is exactly tangent to both
     // neighboring lines; joints 3 and 4 declared BY HAND) and a
-    // fillet-CONSTRUCTED loop (node 3, joints declared by
+    // fillet-CONSTRUCTED loop (node 4, joints declared by
     // construction) — the wire's tangent_joints field is pinned by
     // the golden from day one. (#120: this replaced the original
     // COLLINEAR declaration, which the #101 same-carrier rule
@@ -132,7 +163,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: profile::SketchPlane::xy(),
+                plane,
                 loops: vec![bracket],
             }),
         },
@@ -140,6 +171,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // v4: the constructed fillet authors as the chain fillet form
     // (exact `toward` directors — G1/VQ4).
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let len0 = || Expr::literal(0.0, Dimension::Length).expect("finite");
     let fillet_loop = LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 0.0))),
@@ -161,15 +193,65 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: profile::SketchPlane::xy(),
+                plane,
                 loops: vec![fillet_loop],
             }),
+        },
+    );
+    // v16's own wire shape, in the frozen bytes: a `Node::Chamfer`
+    // with its `distance` slot and its canonical frozen selection.
+    // Without this, the one variant the v16 break EXISTS for would be
+    // pinned by no golden, against this fixture's shape-covering
+    // charter.
+    //
+    // It gets its OWN square prism (nodes 5 and 6) rather than reusing
+    // node 2, and the reason is the door rather than tidiness: node 2's
+    // profile carries an ARC, so its barrel is a cylinder; the
+    // chamfer's v1 door is plane-plane, and every closed edge chain on
+    // that body runs into the curved lateral and refuses
+    // `ChamferArmUnsupported`. A single edge does not work either — the
+    // assembly admits only a FULLY-REQUESTED chain set, so one lateral
+    // edge terminating at a trivalent corner refuses
+    // `UnsupportedRunOut`. A four-sided prism with all twelve edges
+    // requested is the smallest thing the door actually accepts, and a
+    // golden that froze a refusing node would be the sick-bytes failure
+    // #117/#120 named.
+    //
+    // Appended, so every existing node id — and every name the
+    // appearance rows above address — is untouched.
+    let square = desc(
+        plane,
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(square),
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: editor_core::RecipeNodeId(5),
+                distance: Expr::literal(0.5, Dimension::Length).expect("finite"),
+            },
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::chamfer(
+                editor_core::RecipeNodeId(6),
+                Expr::literal(0.1, Dimension::Length).expect("finite"),
+                fixture::prism_edges(editor_core::RecipeNodeId(6), 4),
+            ),
         },
     );
     doc = push(
         &doc,
         &DocEdit::ReWitness {
-            node: editor_core::RecipeNodeId(0),
+            node: editor_core::RecipeNodeId(1),
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x00, 0x7f, 0x80, 0xff],
@@ -178,7 +260,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     );
     let body = StableName {
         kind: EntityKind::Body,
-        node: editor_core::RecipeNodeId(1),
+        node: editor_core::RecipeNodeId(2),
         path: vec![RoleSeg::OutputBody],
     };
     doc = push(
@@ -199,9 +281,177 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetAppearanceMeta {
-            name: body,
+            name: body.clone(),
             key: "tool.example/pin".into(),
             value: MetaValue::Map(m),
+        },
+    );
+    // v17: the measurement vocabulary on the wire (E3/E10) — a
+    // `Measure` carrying a reference list and a measured expression,
+    // and an `Assertion` bounding it. The measured expression is
+    // arithmetic over a parameter and a literal rather than a
+    // primitive: the golden must evaluate GREEN, and a primitive over
+    // this document's only well-known name (a whole BODY) has no
+    // closed form. The primitive leaves' wire forms are pinned by
+    // round-trip in `m10_2_measure_wire.rs`, where a document with real
+    // carriers can be built.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::measure(
+                editor_core::MeasureExpr::sub(
+                    editor_core::MeasureExpr::value(Expr::param(
+                        ParamName::new("depth"),
+                        Dimension::Length,
+                    )),
+                    editor_core::MeasureExpr::value(
+                        Expr::literal(0.25, Dimension::Length).expect("finite"),
+                    ),
+                )
+                .expect("same-dimension subtraction"),
+                // Read at node 2, the extrude that owns the body: the
+                // reference is unindexed by this expression, so it is
+                // carried data the measure never reads.
+                vec![editor_core::SitedRef::new(
+                    editor_core::RecipeNodeId(2),
+                    body.clone(),
+                )],
+            )
+            .expect("every index addresses a reference"),
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Assertion {
+                // The `Measure` pushed immediately above. Ids in this
+                // document are positional, so a node inserted EARLIER
+                // shifts this one — the insert door catches that
+                // typed (`AssertionTarget`) rather than letting a
+                // golden freeze an assertion over the wrong node.
+                measure: editor_core::RecipeNodeId(8),
+                bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+                dir: editor_core::AssertionDir::AtLeast,
+            },
+        },
+    );
+    // BOTH tube kinds, and both window spellings between them. Two
+    // kinds arrived in one vocabulary change, so a golden pinning one
+    // of them would leave the other's wire shape frozen by nothing —
+    // and the window variant is recipe payload that decides which
+    // slots the node has, so `Full` and `Arc` are two shapes, not one
+    // with different numbers. (There is no schema version to pin any
+    // of this against: #1553 retired the version machinery, and these
+    // bytes are the whole freeze.)
+    //
+    // The solid kind takes the full ring and the hollow kind the arc,
+    // rather than the reverse, because that pairing puts the wall
+    // slot beside the two window-angle slots — the widest slot list
+    // either kind can carry — in the same node.
+    //
+    // Appended LAST — nodes 9, 10, 11, after the measurement pair —
+    // so every existing id and every name the appearance rows and the
+    // assertion address is untouched. Ids here are positional, and
+    // inserting earlier is exactly what the assertion's own
+    // `AssertionTarget` door refuses; this block was written when the
+    // document ended at node 6 and moved here when it did not. R > r
+    // holds for both (the ring-torus convention), and the hollow
+    // one's wall clears its own bore.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Datum(editor_core::Datum::Axis {
+                origin: [len0(), len0(), len0()],
+                direction: [scl(0.0), scl(0.0), scl(1.0)],
+            }),
+        },
+    );
+    // The axis just inserted, found by kind rather than by the literal
+    // id this block was written with: the sketch frame is a node too,
+    // so the spine is no longer node 9. It is the document's only
+    // 3-D axis.
+    let spine = doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| {
+            matches!(
+                doc.node(id),
+                Some(Node::Datum(editor_core::Datum::Axis { .. }))
+            )
+        })
+        .expect("the golden document carries one 3-D axis");
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Tube {
+                spine,
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                window: editor_core::TubeWindow::Full,
+                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
+            },
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::HollowTube {
+                spine,
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                window: editor_core::TubeWindow::Arc {
+                    t0: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+                    t1: Expr::literal(1.5, Dimension::Angle).expect("finite"),
+                },
+                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                wall: Expr::literal(0.125, Dimension::Length).expect("finite"),
+            },
+        },
+    );
+    // The shell's wire shape: an `open` list of face names in
+    // DESIGNATION ORDER (the first named face carries the rim), here
+    // one name — a box's end cap. The box is its own three nodes (a
+    // square on the sketch frame, its extrude, the shell) rather than
+    // a shell of node 2: the shell verb refuses the bulged block's
+    // cylindrical wall at its inward offset (`ReanchorOffCarrier`), a
+    // kernel scope fact this fixture is not the place to argue.
+    // Appended after the tubes for the reason they were appended after
+    // the measurement pair: every existing id and every name the rows
+    // above address is untouched. The wall clears every dimension of
+    // the box by an order of magnitude, so the golden evaluates green.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(desc(
+                plane,
+                vec![vec![(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)]],
+            )),
+        },
+    );
+    let box_profile = *doc.order().last().expect("the square was inserted");
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: box_profile,
+                distance: Expr::literal(0.5, Dimension::Length).expect("finite"),
+            },
+        },
+    );
+    let block = *doc.order().last().expect("the box was inserted");
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::shell(
+                block,
+                Expr::literal(0.0625, Dimension::Length).expect("finite"),
+                vec![StableName {
+                    kind: EntityKind::Face,
+                    node: block,
+                    path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
+                }],
+            ),
         },
     );
     // The committed EDIT LOG half: one trailing continuous edit —
@@ -209,7 +459,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // wire's per-literal `unit` field is pinned in the FROZEN bytes
     // (§4g: value canonical meters, `"unit": "mm"` on the wire).
     let edits = vec![DocEdit::SetParam {
-        node: editor_core::RecipeNodeId(1),
+        node: editor_core::RecipeNodeId(2),
         slot: editor_core::SlotId::Distance,
         expr: editor_core::parse_expr("500 mm", &std::collections::BTreeMap::new())
             .expect("golden unit literal"),
@@ -228,13 +478,13 @@ fn golden_bytes_are_frozen() {
         )
         .expect("bless writes");
         panic!(
-            "golden re-blessed — commit the file WITH its ratified schema change, then rerun without the env var"
+            "golden re-blessed — commit the file WITH the format change it records, then rerun without the env var"
         );
     }
     assert_eq!(
         text, GOLDEN,
-        "schema-v11 wire bytes drifted from the committed golden — this is a FORMAT \
-         CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
+        "wire bytes drifted from the committed golden — this is a FORMAT \
+         CHANGE: re-bless deliberately and regenerate the corpus with it, never in passing"
     );
 }
 

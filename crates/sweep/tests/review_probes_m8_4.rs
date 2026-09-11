@@ -12,7 +12,7 @@
 
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use profile::RawLoop;
@@ -158,7 +158,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     match body.set_edge_curve_nurbs_lane(
         edge,
         EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: plane,
                 s2: bowed,
                 witness: carrier.eval((t0 + t1) * 0.5),
@@ -309,7 +309,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
         .set_edge_curve_nurbs_lane(
             edge,
             EdgeCurveSpec {
-                description: EdgeGeometry::Intersection {
+                description: EdgeDescriptionSpec::Intersection {
                     s1: bowed,
                     s2: bowed,
                     witness: carrier.eval((t0 + t1) * 0.5),

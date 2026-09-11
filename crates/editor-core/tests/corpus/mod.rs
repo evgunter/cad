@@ -28,36 +28,51 @@
 //! whose geometry is not dyadic (arcs) carry no mass pin and are
 //! pinned on validity + counts instead.
 
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, ContentBits, Datum, DocEdit, EvalOptions, Evaluation,
-    Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload, apply,
-    evaluate,
+    BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node,
+    NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow,
+    ValuePayload, apply, evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::Body;
 
 pub mod boss;
+pub mod cup;
 pub mod cut_cylinder;
 pub mod die;
+pub mod die_chamfer;
 pub mod die_composed;
+pub mod die_composed_tour;
 pub mod die_fillet;
 pub mod die_pips;
 pub mod die_tool;
+pub mod face_sketch;
 pub mod heatsink;
 pub mod heatsink_union;
+pub mod hollow_tube_elbow;
+pub mod hollow_tube_ring;
 pub mod islands;
+pub mod kiss_carry;
 pub mod loft_prism;
+pub mod measured_web;
+pub mod part_select;
 pub mod plate_param;
 pub mod sink;
 pub mod slots;
 pub mod table;
 pub mod tangency;
+pub mod tube_arc;
+pub mod tube_ring;
+pub mod vessel;
 
 pub use super::fixture::Recorder;
 
@@ -133,6 +148,10 @@ pub fn documents() -> Vec<CorpusDoc> {
         tangency::document(),
         sink::document(),
         cut_cylinder::document(),
+        // M10-2: the measurement vocabulary, so the Dual/Interval
+        // digests' Measure and Assertion arms are REACHED rather than
+        // merely present.
+        measured_web::document(),
         boss::document(),
         // `die_fillet` IS registered, as of the PR 12 gate fix
         // `5c8540f`. It was held out while the fillet battery's
@@ -144,6 +163,11 @@ pub fn documents() -> Vec<CorpusDoc> {
         // like every other row. It stays additionally pinned at both
         // scalars by `m5_pr12_fillet_node.rs`.
         die_fillet::document(),
+        // `die_chamfer` (LIB-G16): `die_fillet`'s recipe with the
+        // blend swapped, so the chamfer node carries the full registry
+        // battery — every ε, the Interval lane, persistence, latency —
+        // and the two documents are comparable at every row.
+        die_chamfer::document(),
         die_pips::document(),
         // LIB-PLACEDUNION's two register payoffs, each the grouped
         // TWIN of a document already here (`heat_sink`; the die tour's
@@ -152,6 +176,17 @@ pub fn documents() -> Vec<CorpusDoc> {
         // oracle (`lib_placedunion.rs`).
         heatsink_union::document(),
         die_tool::document(),
+        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face
+        // through a derived frame — the first `Datum::FaceFrame` in the
+        // registry, so the derived frame carries the standard rows
+        // (every ε, the Interval lane under DM1c, persistence, latency).
+        face_sketch::document(),
+        // `part_select` (DOCM-2): a split's two halves and a pattern's
+        // middle instance each selected by a `Node::Part` and consumed
+        // downstream, so the census counts both selectors and every
+        // standard row (every ε, the Interval lane, persistence,
+        // latency) runs the projection.
+        part_select::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
         // (every ε, interval lane, persistence, latency) for free by
@@ -170,7 +205,50 @@ pub fn documents() -> Vec<CorpusDoc> {
         // the two that do not can be left out. The flipped pin and the
         // selection's provenance live in `m6_composed_node.rs`.
         die_composed::document(),
+        // `die_composed_tour` (LIB-CORPUS-DIE): the same surgery at the
+        // size the demo tour renders it — 21 pips fused by ONE n-ary
+        // union into one grouped tool, 12 box edges and 42 rim arcs
+        // behind member-keyed names. It is the ONE document here the
+        // registry does not
+        // author: the demo tour is its single authoring site and the
+        // document crosses as committed bytes, because `demos/tour` is
+        // a detached workspace this crate must not depend on. The
+        // module docs carry the regeneration line, why the file's model
+        // rides its EDIT LOG rather than its snapshot, and which of the
+        // tour's three fillets the document leaves out.
+        die_composed_tour::document(),
         plate_param::document(),
+        // `kiss_carry` (SEAT-5): the one corpus boolean whose result
+        // carries NON-EMPTY surviving contacts — the discovered
+        // corner kiss, then the same record re-entered by name through
+        // a Declare (the carried v-v arm of `resolve_declarations`,
+        // reached nowhere else in the corpus). Registered so a pin can
+        // tell a lowering that carries the tier-3′ records from one
+        // that drops them.
+        kiss_carry::document(),
+        // LIB-TUBE's two-by-two, WHOLE. It began as the DIAGONAL —
+        // `tube_ring` (solid, full) against `hollow_tube_elbow`
+        // (hollow, windowed) — chosen because a pair sharing a window
+        // or a kind would leave half the vocabulary with no registry
+        // battery. That pair covers each term and separates neither:
+        // varying both axes at once, nothing here could tell "the
+        // solid door works" from "the full window works".
+        //
+        // The other two corners close that. `tube_arc` holds the kind
+        // and moves the window; `hollow_tube_ring` holds the window
+        // and moves the kind. Each axis is now varied with the other
+        // held, and the fourth corner earns its place twice over: a
+        // CLOSED hollow tube is the only one of the four whose body is
+        // TWO shells in one solid — the inner wall closes on itself
+        // into a sealed void — which is a topology no other corner of
+        // this square produces.
+        //
+        // All four stay `die_chamfer`-sized, two and two nodes, and
+        // none is a transcription of a tour stop.
+        tube_ring::document(),
+        tube_arc::document(),
+        hollow_tube_elbow::document(),
+        hollow_tube_ring::document(),
     ]
 }
 
@@ -192,9 +270,7 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 }
 
 /// Evaluates a document at scalar `T` with default options.
-pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane>(
-    doc: &ProfileDoc,
-) -> Evaluation<T> {
+pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
     evaluate::<T>(
         doc,
         None,
@@ -229,7 +305,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 13] = [
+pub const NODE_KINDS: [&str; 21] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -240,10 +316,21 @@ pub const NODE_KINDS: [&str; 13] = [
     // `documents()`). Not an exemption: `Loft`/`Sweep` below still
     // are.
     "Fillet",
+    // LIB-G16's twin — COVERED, by the registered `die_chamfer`
+    // document.
+    "Chamfer",
     "Split",
     "Boolean",
+    // DOCM-3's n-ary union — COVERED, by `die_composed_tour`, whose
+    // cutting tool is one union over 21 pips. Listed as its own row
+    // beside `Boolean` because they are two nodes: a pair union keeps
+    // its `declare` input and its `FromA`/`FromB` naming, and a
+    // document that carries one carries nothing about the other.
+    "Union",
     "Transform",
     "Pattern",
+    // DOCM-2's projection node — COVERED, by `part_select`.
+    "Part",
     // LIB-PLACEDUNION: the ratified A′ group boolean.
     "PlacedUnion",
     // M5 PR 10's definitional feature nodes. `Loft` is COVERED since
@@ -254,17 +341,41 @@ pub const NODE_KINDS: [&str; 13] = [
     // zero rather than pretending coverage.
     "Loft",
     "Sweep",
+    // LIB-TUBE's pair — COVERED, by four registered documents now
+    // (`tube_ring`, `tube_arc`, `hollow_tube_elbow`,
+    // `hollow_tube_ring`): the whole two-by-two rather than its
+    // diagonal. Two kinds because the two
+    // artifacts differ (RECIPE-DOORS D4 as revised), so they are two
+    // tally rows and not one.
+    "Tube",
+    "HollowTube",
+    // The hollowing door. Its two documents, `cup` and `vessel`, sit
+    // BESIDE this registry rather than in it (their module docs: a
+    // dual has no shell door, and membership requires every document
+    // green at `Dual64`), so the row is listed and reported UNCOVERED
+    // by `vocabulary_coverage_is_total`'s frontier rather than
+    // pretending coverage — the `Sweep` disposition, for a different
+    // reason.
+    "Shell",
     "Declare",
+    // M10-2's measurement sinks. Listed because `measured_web` now
+    // registers them: the hold-out that kept them off this roster was
+    // correct only while no corpus document carried one, and a
+    // listed-but-uncovered kind fails the tally in the other
+    // direction.
+    "Measure",
+    "Assertion",
 ];
 
 /// The edit kinds a document exercises (the coverage tally's domain).
-pub const EDIT_KINDS: [&str; 14] = [
+pub const EDIT_KINDS: [&str; 15] = [
     "InsertNode",
     "DeleteNode",
     "SetParam",
     "SetStructuralParam",
     "SetExpression",
     "SetDocParam",
+    "SetDocParamValue",
     "Rebind",
     "ReWitness",
     "ReWitnessBulk",
@@ -278,16 +389,23 @@ pub const EDIT_KINDS: [&str; 14] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 11] = [
+pub const SUB_KINDS: [&str; 20] = [
     "Datum::Plane",
     "Datum::Axis",
+    "Datum::AxisInPlane",
     "Datum::Point",
+    "Datum::Frame",
+    "Datum::FaceFrame",
     "Boolean::Union",
     "Boolean::Intersect",
     "Boolean::Subtract",
     "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
+    // Both selectors of the projection node: `part_select` reads a
+    // split's two halves and a pattern's middle instance.
+    "Part::SplitHalf",
+    "Part::Instance",
     // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
     // is deliberately NOT listed: no corpus document needs one, and a
     // listed-but-uncovered sub-kind would fail the tally. The circular
@@ -295,6 +413,18 @@ pub const SUB_KINDS: [&str; 11] = [
     // `stepped_map` with the pattern node that the corpus does cover.
     "PlacedUnion::Linear",
     "PlacedUnion::Explicit",
+    // LIB-TUBE's two-by-two, all four corners. The list carried the
+    // DIAGONAL only while the corpus did: `Tube::Arc` and
+    // `HollowTube::Full` were absent for the `PlacedUnion::Circular`
+    // reason — a listed-but-uncovered sub-kind fails the tally — and
+    // the registry now carries a document for each, so they are
+    // listed. `lib_tube_node.rs` still exercises both directly and
+    // keeps `HollowTube::Full`'s cavity closed-form row; what changed
+    // is that the registry battery reaches them too.
+    "Tube::Full",
+    "Tube::Arc",
+    "HollowTube::Arc",
+    "HollowTube::Full",
 ];
 
 /// The sub-kind tally names a node contributes (possibly none).
@@ -303,6 +433,18 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
         Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
         Node::Datum(Datum::Point { .. }) => vec!["Datum::Point"],
+        // Listed since a profile takes its plane as a frame NODE: every
+        // corpus document authors at least one, which is the condition
+        // this arm was written waiting for.
+        Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
+        // Listed: `face_sketch` draws on a frame derived from a face.
+        Node::Datum(Datum::FaceFrame { .. }) => vec!["Datum::FaceFrame"],
+        // Listed: four corpus documents revolve, and a revolve's axis
+        // is written in the profile's frame. `kitchen_sink` carries
+        // BOTH axis kinds — a world line for its circular pattern, an
+        // in-plane axis for its revolve — which is the whole reason
+        // they are two sub-kinds to count.
+        Node::Datum(Datum::AxisInPlane { .. }) => vec!["Datum::AxisInPlane"],
         Node::Boolean { op, declare, .. } => {
             let mut v = vec![match op {
                 BooleanOp::Union => "Boolean::Union",
@@ -327,21 +469,50 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
             PatternKind::Circular { .. } => "PlacedUnion::Circular",
             PatternKind::Explicit(_) => "PlacedUnion::Explicit",
         }],
+        // The two selectors are two sub-kinds: which value kind the
+        // node reads, and so which refusals it can meet, follows the
+        // selector.
+        Node::Part { select, .. } => vec![match select {
+            PartSelect::SplitHalf(_) => "Part::SplitHalf",
+            PartSelect::Instance(_) => "Part::Instance",
+        }],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
         // new `Node` variant — or a new `Datum`/`BooleanOp`/
         // `PatternKind` flavour above — is a COMPILE error here rather
         // than a silently uncovered sub-kind, matching the
         // compile-time totality `node_kind`/`edit_kind` already have.
+        // A tube's WINDOW is a sub-kind on the same footing as a
+        // pattern's rule: it decides the body's whole topology (a
+        // closed ring against a capped elbow, and for the hollow kind
+        // a cavity against an annular section), so a corpus that
+        // covered only one of the two would read as covering "tube".
+        Node::Tube { window, .. } => vec![match window {
+            TubeWindow::Full => "Tube::Full",
+            TubeWindow::Arc { .. } => "Tube::Arc",
+        }],
+        Node::HollowTube { window, .. } => vec![match window {
+            TubeWindow::Full => "HollowTube::Full",
+            TubeWindow::Arc { .. } => "HollowTube::Arc",
+        }],
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        // A shell's SEALED form (an empty `open`) and its OPENED form
+        // are one node kind and one door (`shell_open` with an empty
+        // designation IS `shell`); the sub-kind axis would name a
+        // payload's emptiness, which no other kind counts either.
+        | Node::Shell { .. }
         | Node::Split { .. }
+        | Node::Union { .. }
         | Node::Transform { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Declare { .. }
         | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. }
         | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
@@ -354,15 +525,23 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
         Node::Fillet { .. } => "Fillet",
+        Node::Chamfer { .. } => "Chamfer",
+        Node::Shell { .. } => "Shell",
+        Node::Tube { .. } => "Tube",
+        Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
         Node::Boolean { .. } => "Boolean",
+        Node::Union { .. } => "Union",
         Node::Transform { .. } => "Transform",
         Node::Pattern { .. } => "Pattern",
+        Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
         Node::Mate { .. } => "Mate",
+        Node::Measure { .. } => "Measure",
+        Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
     }
 }
@@ -372,10 +551,12 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
     match edit {
         DocEdit::InsertNode { .. } => "InsertNode",
         DocEdit::DeleteNode { .. } => "DeleteNode",
+        DocEdit::SetMembers { .. } => "SetMembers",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
         DocEdit::SetExpression { .. } => "SetExpression",
         DocEdit::SetDocParam { .. } => "SetDocParam",
+        DocEdit::SetDocParamValue { .. } => "SetDocParamValue",
         DocEdit::Rebind { .. } => "Rebind",
         DocEdit::ReWitness { .. } => "ReWitness",
         DocEdit::ReWitnessBulk { .. } => "ReWitnessBulk",

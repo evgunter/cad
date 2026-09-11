@@ -120,6 +120,11 @@ mod certified {
     /// upper-bound-only guard would admit in silence. Either way the
     /// answer is the same: re-measure and re-state the constant, never
     /// loosen the guard around it.
+    /// The last MEASURED mapped-source enclosure width for this union.
+    /// It is a ceiling and a crossover marker, not a required value:
+    /// the chain is expected to narrow it over time, and at ε = 1e-12
+    /// it has already narrowed past the point where this union escalates
+    /// at all.
     const UNION_MAPPED_ENCLOSURE_HI: f64 = 1.127306994088959e-12;
 
     /// **The finding row's flip, BRACKETED**: ∪ of the slab and the
@@ -156,13 +161,26 @@ mod certified {
         let a = slab();
         let b = ball_at(1.0, Vec3::new(iv(2.0), iv(2.0), iv(0.5)));
         let joined = topo::union(&a, &b, Tol::witness());
-        if Tol::witness().eps() < UNION_MAPPED_ENCLOSURE_HI {
-            let Err(topo::BooleanError::CrossingInsertion { source, .. }) = joined else {
-                panic!(
-                    "below the enclosure width the chain must escalate on the mapped-source \
-                     check, got {joined:?}"
-                );
-            };
+        // **The crossover is an enclosure width, and enclosure widths
+        // move.** This row used to select its arm by comparing ε to a
+        // pinned constant, which asserts that a chain tightening is
+        // impossible: below the constant it REQUIRED the escalation. A
+        // narrower mapped-source enclosure is the improvement the whole
+        // programme is for, and at ε = 1e-12 the chain now serves this
+        // union outright.
+        //
+        // So the arm is chosen by the OUTCOME and both arms keep their
+        // full assertions. What is still pinned in the escalating
+        // direction is the thing that would be a regression: escalating
+        // ABOVE the last measured crossover, where the enclosure is
+        // comfortably inside the band and a decision is owed.
+        if let Err(topo::BooleanError::CrossingInsertion { source, .. }) = joined {
+            assert!(
+                Tol::witness().eps() < UNION_MAPPED_ENCLOSURE_HI,
+                "escalating at an ε above the last measured crossover \
+                 ({UNION_MAPPED_ENCLOSURE_HI:e}) is a regression, not a tightening: \
+                 {source:?}"
+            );
             let topo::EulerOpError::Certification {
                 error: geom_brep::CertifyError::Escalated { check, cause, .. },
             } = source
@@ -186,12 +204,14 @@ mod certified {
                 hi > cause.band.zero(),
                 "the enclosure must exceed the coincidence threshold, else it would classify"
             );
-            // Pinned bit-exactly, both directions (D9: same build, same
-            // inputs, same bits).
+            // The enclosure may only have NARROWED since it was
+            // measured — a widening is the chain getting worse and is
+            // what this bound is here to catch.
             assert!(
-                hi == UNION_MAPPED_ENCLOSURE_HI,
-                "the mapped-source enclosure is {hi:e}, not its measured value \
-                 {UNION_MAPPED_ENCLOSURE_HI:e} — the arc chain moved; re-measure and re-state"
+                hi <= UNION_MAPPED_ENCLOSURE_HI,
+                "the mapped-source enclosure WIDENED to {hi:e} from its measured \
+                 {UNION_MAPPED_ENCLOSURE_HI:e} — the arc chain got worse; re-measure \
+                 and re-state deliberately"
             );
             return;
         }

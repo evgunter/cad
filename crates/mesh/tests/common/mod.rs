@@ -2,8 +2,15 @@
 //! body builders (through public profile/sweep APIs only), the
 //! full-mesh acceptance check, exact surface distances, and the D9
 //! byte-identity dump.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
+
+/// The Euler-door witnesses the iso-rectangle shape door is measured
+/// on, shared with `curved`'s in-crate rows (its own header says how).
+pub mod witness_bodies;
 
 use geom::Surface;
 use geom_core::Tol;
@@ -15,6 +22,30 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
+/// The run's ε as a bare `f64` — **the suites' door, and the reason
+/// `crates/mesh`'s test half still spells ε that way at all.**
+///
+/// Production code cannot: `sizing::Eps` carries the four named
+/// operations every shipped ε read goes through, and it is
+/// `pub(crate)` — a mesh-local fact about mesh's own terminal reads,
+/// not public API. `tests/` is a separate crate, so it cannot name
+/// the type, and publishing it to serve test suites would grow the
+/// crate's API surface for readers who are not consumers of it. What
+/// the suites do with the band is also not the kind of read the type
+/// is about: an acceptance slack (`delta + eps()`), fixture placement
+/// at a chosen multiple of it (`0.9 * eps`, `5.0 * eps`), a bar on a
+/// reported certificate, and one message that prints it — sizing or
+/// narrating a probe, not deciding a mesh.
+///
+/// **"The door" is a claim about this tree and it is checkable: every
+/// suite that reads ε calls this function, with one stated
+/// exception.** `r1_probe_bool_route` mints its own inline because it
+/// carries no `mod common;` and reaches ε only to print the ambient
+/// value — pulling the whole helper module into that suite to save
+/// one line would cost more than it buys. Every other reader — the
+/// three acceptance-slack rows, `budget_meter`, `m7_nurbs_trimmed`,
+/// `issue896_pole_guard`, `r2_bool_door`, `r2_split_door` and
+/// `fitted_refusals`' message — comes through here.
 pub fn eps() -> f64 {
     Tol::witness().get().eps
 }
@@ -291,6 +322,26 @@ pub fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
 
 /// A byte-comparable dump (positions as exact bits + full index/key
 /// structure) — the D9 rebuild oracle.
+/// Largest sampled distance from the affine triangle `tri` to
+/// `surface` over the barycentric grid of order `n` (`(n+1)(n+2)/2`
+/// points, corners included), through [`dist_to_surface`].
+pub fn sampled_deviation(surface: &Surface<f64>, tri: [Point3<f64>; 3], n: u32) -> f64 {
+    let mut worst: f64 = 0.0;
+    for i in 0..=n {
+        for j in 0..=(n - i) {
+            let (li, lj) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+            let lk = 1.0 - li - lj;
+            let p = Point3::new(
+                tri[0].x * li + tri[1].x * lj + tri[2].x * lk,
+                tri[0].y * li + tri[1].y * lj + tri[2].y * lk,
+                tri[0].z * li + tri[1].z * lj + tri[2].z * lk,
+            );
+            worst = worst.max(dist_to_surface(surface, p));
+        }
+    }
+    worst
+}
+
 pub fn dump(mesh: &Mesh) -> String {
     let mut s = String::new();
     for p in &mesh.positions {

@@ -7,17 +7,26 @@
 //! directory on every run, and a number written out beside it is a
 //! second, unchecked copy of a set the compiler already knows.
 //!
-//! The files themselves are untouched: each keeps its own `//!` docs, its inner
-//! attributes (`#![cfg(feature = "interval")]` and friends work as
-//! module-level attributes), and its own `mod <helper>;` lines — a
-//! `#[path]` module's child modules resolve against the DIRECTORY
-//! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
-//! its own crate root.
+//! Each suite keeps its own `//!` docs and its inner attributes
+//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! attributes). What it does NOT keep is a `mod <helper>;` line of its
+//! own: the shared helper trees are declared once, below, as modules of
+//! THIS root, and a suite that wants one says `use crate::<helper>;`.
+//! One declaration means one parse, one resolve, one type-check and one
+//! codegen of that helper per binary instead of one per including suite.
 //!
-//! WHY: on the CI runner (2 vCPU) each extra test binary cost ~1.9 s of
-//! codegen+link (see the LINK/DEBUGINFO note in
-//! .github/workflows/ci.yml). The suites are small; the per-binary
-//! constant was the bill.
+//! What that gives up: a suite file is no longer compilable as its own
+//! crate root, because `crate::` now names this binary. Nothing in the
+//! tree compiles them that way — `autotests = false` plus the guard below
+//! make this file the only root — but it was true before and is not now.
+//!
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
 //!
 //! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
 //! below. `autotests = false` in Cargo.toml means a file that is not
@@ -28,21 +37,35 @@
 //! `round_trip`, under binary `all` rather than binary `export`); the set
 //! of tests is otherwise identical.
 
-// Each suite keeps its own verbatim `mod <helper>;`, so a shared helper is
-// loaded once per suite that uses it. That is deliberate — the alternative
-// is editing the suites — and it is what `duplicate_mod` is warning about.
-// Allowed HERE ONLY, by name: no blanket `#![allow]`, which would weaken
-// the lint gate for every suite module included below.
-#![allow(clippy::duplicate_mod)]
+// The shared helper trees, declared ONCE for the whole binary. This file
+// is the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/common/mod.rs`, `tests/fixture/mod.rs` — and every consumer
+// reaches that one instance through `use crate::<helper>;`.
+//
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
+// (`every_suite_file_is_aggregated` counts them against the directory
+// walk), and a helper module directory is not a suite. `mod` without the
+// attribute is also what `test_utils::source::suite_files` assumes when
+// it skips a directory carrying a `mod.rs`.
+//
+// There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+// loaded twice any more; if one ever is, the lint is meant to fire.
+mod common;
+mod fixture;
 
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
+#[path = "census_g2_carrier.rs"]
+mod census_g2_carrier;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
 mod crosslap_rest;
 #[path = "cube_by_hand.rs"]
 mod cube_by_hand;
+#[path = "display_contract.rs"]
+mod display_contract;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -83,7 +106,6 @@ mod m5_s1_rest_zip;
 mod m6_2_fitted_at_rest;
 #[path = "m6_3_chart_completion.rs"]
 mod m6_3_chart_completion;
-
 #[path = "m9_1_contact_vocabulary.rs"]
 mod m9_1_contact_vocabulary;
 #[path = "m9_2_census_door.rs"]
@@ -94,8 +116,38 @@ mod m9_2b_r2_probes;
 mod m9_c1_r1_probes;
 #[path = "m9_c1_rest_face_rung.rs"]
 mod m9_c1_rest_face_rung;
+#[path = "mate4a_ef_bound_rung.rs"]
+mod mate4a_ef_bound_rung;
+#[path = "mate5_cyl_eps_rung.rs"]
+mod mate5_cyl_eps_rung;
+#[path = "mate8_witness_schedule.rs"]
+mod mate8_witness_schedule;
+#[path = "mate9_crossing_rung.rs"]
+mod mate9_crossing_rung;
 #[path = "merge_skip.rs"]
 mod merge_skip;
+#[path = "mesh12_parse_vs_certification.rs"]
+mod mesh12_parse_vs_certification;
+#[path = "mesh12_rim_row_reach.rs"]
+mod mesh12_rim_row_reach;
+#[path = "mesh8_coherence.rs"]
+mod mesh8_coherence;
+#[path = "quad_lane_is_the_certified_lane.rs"]
+mod quad_lane_is_the_certified_lane;
+#[path = "r1_mate4a_probes.rs"]
+mod r1_mate4a_probes;
+#[path = "r1_mate5_interval_probe.rs"]
+mod r1_mate5_interval_probe;
+#[path = "r1_mate5_probe.rs"]
+mod r1_mate5_probe;
+#[path = "r1_mate8_decomp_probe.rs"]
+mod r1_mate8_decomp_probe;
+#[path = "r1_mate8_probes.rs"]
+mod r1_mate8_probes;
+#[path = "r2_probes.rs"]
+mod r2_probes;
+#[path = "readback_sense_kind.rs"]
+mod readback_sense_kind;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
@@ -132,6 +184,12 @@ mod review_m6_2_probes;
 mod review_m9_1_probes;
 #[path = "review_m9_1_r2_probes.rs"]
 mod review_m9_1_r2_probes;
+#[path = "review_mate4a_r2_probes.rs"]
+mod review_mate4a_r2_probes;
+#[path = "review_mate9_r1_probes.rs"]
+mod review_mate9_r1_probes;
+#[path = "review_mate9_r2_probes.rs"]
+mod review_mate9_r2_probes;
 #[path = "review_s1_controls.rs"]
 mod review_s1_controls;
 #[path = "review_s1_probes.rs"]
@@ -146,48 +204,49 @@ mod review_ssiflat_r2_probes;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
+#[path = "seat3_flush_detector.rs"]
+mod seat3_flush_detector;
 #[path = "shell_roles.rs"]
 mod shell_roles;
+#[path = "shell_tolerance_chain.rs"]
+mod shell_tolerance_chain;
+#[path = "solid_separation.rs"]
+mod solid_separation;
+#[path = "trim_3_chart_bound.rs"]
+mod trim_3_chart_bound;
 #[path = "void_door.rs"]
 mod void_door;
 
-/// Guards the `autotests = false` hazard: a suite file added to `tests/`
-/// but not declared above would silently stop being compiled and run.
+/// The aggregation and ONE HOME checks, whose one home — the walk, the
+/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
 #[test]
-// Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
-// weaken the lint gate for every suite module included above.
-#[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
-    let mut missing: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-            continue;
-        }
-        let name = path
-            .file_name()
-            .expect("file has a name")
-            .to_string_lossy()
-            .to_string();
-        if name == "all.rs" {
-            continue;
-        }
-        if !src.contains(&format!("#[path = \"{name}\"]")) {
-            missing.push(name);
-        }
-    }
-    missing.sort();
-    assert!(
-        missing.is_empty(),
-        "tests/*.rs suites are not declared in tests/all.rs, so `autotests = false` \
-         is silently dropping them: {missing:?}. Add a `#[path]` line for each."
-    );
+    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
+#[path = "f7d_delta_probes.rs"]
+mod f7d_delta_probes;
 #[path = "probe_census.rs"]
 mod probe_census;
 #[path = "probe_f34_review.rs"]
 mod probe_f34_review;
 #[path = "probe_s5_sectors.rs"]
 mod probe_s5_sectors;
+#[path = "review_f7_pole_r1_probes.rs"]
+mod review_f7_pole_r1_probes;
+#[path = "verbs_cylsph_tangent_residuals.rs"]
+mod verbs_cylsph_tangent_residuals;
+#[path = "verbs_f7_collinear_seam.rs"]
+mod verbs_f7_collinear_seam;
+#[path = "verbs_f7_r2_probes.rs"]
+mod verbs_f7_r2_probes;
+
+#[path = "rim_of.rs"]
+mod rim_of;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;
+
+#[path = "r2_rim_probes.rs"]
+mod r2_rim_probes;

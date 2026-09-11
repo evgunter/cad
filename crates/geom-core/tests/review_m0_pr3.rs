@@ -47,7 +47,7 @@
 //! deliberately absent:
 //!
 //! ```compile_fail,E0277
-//! use geom_core::{Band, Decide, Indeterminate, Sign};
+//! use geom_core::{Band, Decide, Indeterminate, Sign, Tol};
 //! fn classify(m: f64) -> Result<Sign, Indeterminate> {
 //!     let band = Band::linear(Tol::witness())?; // BandError does not become Indeterminate
 //!     m.sign_within(band)

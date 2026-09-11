@@ -65,9 +65,8 @@ strictly between `t` and `c`, the `>= 2k + 1` gaps separating `t` from
 
 The factor 2 is not paranoia — it is exactly the binade-boundary case
 (gaps halve one binade toward zero), and a 1-ulp error straddling a
-boundary genuinely needs 2 steps. (P2 is retained as a general lemma;
-the libm pads in §2 now rest on the sharper P3 below, which matches
-what libm's CI actually measures.)
+boundary genuinely needs 2 steps. The libm pads in §2 rest on the
+sharper P3 below, which counts in the metric libm's CI measures.
 
 **Lemma P3 (bit-distance from a correctly rounded reference).** Let
 `expected = RN(t)` and let the returned value `c` satisfy
@@ -104,16 +103,15 @@ verified at tag `libm-v0.2.16` (rust-lang/compiler-builtins), which the
 pads rest on:
 
 1. **The CI metric is integer bit-distance, not an ulp quotient**:
-   `libm-test/src/test_traits.rs:363` computes
+   `libm-test/src/test_traits.rs` computes
    `act_bits.checked_sub(exp_bits).unwrap().abs()` on the sign-extended
    bit patterns — exactly `bitdist` of Lemma P3.
 2. **The reference is the correctly rounded value**: the MPFR oracle
    runs at 53-bit precision, `Round::Nearest`, with
    `subnormalize_ieee_round` (`libm-test/src/mpfloat.rs`) — a single
    rounding, so `expected = RN(t)` exactly (no double-rounding gap).
-3. **Per-function allowed distance** (`libm-test/src/precision.rs`,
-   lines 84–109): `sin cos tan asin acos atan` ⇒ **1**;
-   **`atan2` ⇒ 2**. (Musl provenance; trig uses full Payne–Hanek
+3. **Per-function allowed distance** (`libm-test/src/precision.rs`):
+   `sin cos tan asin acos atan` ⇒ **1**; **`atan2` ⇒ 2**. (Musl provenance; trig uses full Payne–Hanek
    argument reduction, so the bound is enforced across the sampled
    sweeps at all magnitudes, huge arguments included.)
 
@@ -136,19 +134,6 @@ The proof is then Lemma P3, per function:
 margin 2 everywhere except atan2 (margin 1 — adequate, but any future
 function added with a CI bound above 3 must raise its own pad).
 
-**Correction war story (adversarial review catch).** The first version
-of this section claimed "1 ulp for … atan2" and described the metric
-as an ulp-of-expected quotient. Both were wrong at the source: atan2's
-CI bound is 2, and the metric is bit-distance. Under the old written
-route (k ulp(expected) → ≤2k·ulp(t) → P2 → 4k steps) atan2 would have
-needed 8 steps and PAD_ULPS = 4 would have been unproven — the
-constant survived only because the sharper P3 route (never written
-down until now) needs just k+1. No value-level violation exists
-(observed musl atan2 error ≲ 1 ulp; 300k differential atan2 cases +
-edge sweeps pass), but a "proven" claim is about the written
-derivation, not the luck of the constant. This section is now the
-actual proof.
-
 Typical real-world libm error is < 0.7 ulp, so the 4-step pads are
 ~5× looser than observed reality — the price of "proven, not
 measured" (≈ 9·10^−16 relative on O(1) values; three orders below the
@@ -166,14 +151,11 @@ Ogita–Rump–Oishi, *Accurate Sum and Dot Product*, SIAM J. Sci. Comput.
 literature floor — so the residual can never be flushed to an
 untruthful zero. Below the gate: always pad.
 
-**Harness catch (kept as a war story because it is the whole point of
-the oracle):** the first implementation gated `mul_exact` on
-`r.is_normal()`. The differential harness found a barely-*normal*
-product of a subnormal factor whose residual underflowed: the witness
-returned "exact", the unpadded corner was 1 ulp short of the oracle's
-hull — a real containment violation at case 997 of the arithmetic
-sweep. `is_normal()` of the ROUNDED product is not the 2Prod validity
-condition; the magnitude gate is.
+**The gate is on magnitude, not on `is_normal()`.** `is_normal()` of the
+ROUNDED product is not the 2Prod validity condition: a barely-normal
+product of a subnormal factor can have a residual that underflows, so
+the witness returns "exact" for an inexact product and the unpadded
+corner falls outside the true hull.
 
 ## §4 Extremum / pole localization (trig) and atan2 corners
 

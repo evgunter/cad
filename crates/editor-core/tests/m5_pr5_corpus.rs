@@ -14,8 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use editor_core::{Node, RecipeNodeId, SplitSide, ValuePayload};
 use topo::Body;
@@ -67,7 +66,7 @@ fn cut_cylinder_sides_carry_exact_ellipses() {
             assert!((major - 0.5 / phi.cos()).abs() < 1e-12);
             assert!(matches!(
                 c.description(),
-                topo::EdgeGeometry::Intersection { .. }
+                topo::EdgeDescription::Intersection { .. }
             ));
             assert!(c.certificate().max_residual < 1e-12);
         }

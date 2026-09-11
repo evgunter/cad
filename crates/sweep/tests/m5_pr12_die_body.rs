@@ -12,27 +12,18 @@
 
 use core::f64::consts::PI;
 
-use geom_brep::EdgeGeometry;
-use geom_core::Band;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
-use sweep::fillet::{FilletError, Filleted, fillet_edges};
+use sweep::blend::{BlendError, Filleted, fillet_edges};
 use sweep::test_support::cube;
+use topo::query;
 use topo::{Body, EdgeKey, FaceKey};
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
 
 fn die(l: f64, r: f64) -> Filleted<f64> {
     let body = cube(l, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 12, "a box has twelve edges");
-    fillet_edges(&body, &edges, r, band(), Tol::witness()).expect("the die body")
+    fillet_edges(&body, &edges, r, Tol::witness()).expect("the die body")
 }
 
 /// The acceptance row: the whole rounded die, top to bottom.
@@ -68,6 +59,12 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
 
     // 3. The closed forms: core + 6 slabs + 12 quarter-cylinders + 8
     // octants (which sum to one whole ball).
+    // Deliberately NOT `common::oracles::rounded_box_volume`: that form
+    // sums the twelve quarter-cylinders as one `3πlr²` term where this
+    // spells them `12·(πr²/4)·core`. At (1.0, 0.15) the two are
+    // bit-identical, so this is conservatism rather than a bit-level
+    // necessity — see `common::oracles`' module doc for the
+    // measurement, including the one radius below where they differ.
     let core = l - 2.0 * r;
     let volume = core.powi(3)
         + 6.0 * r * core.powi(2)
@@ -96,15 +93,16 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
     for &face in f.blend_faces.iter().chain(&f.corner_faces) {
         for edge in face_edges(&f.body, face) {
             let curve = f.body.get_edge(edge).unwrap().curve;
-            let described = *f
+            let described = f
                 .body
                 .get_curve_geom(curve)
                 .unwrap()
                 .certified()
                 .unwrap()
-                .description();
+                .description()
+                .clone();
             assert!(
-                matches!(described, EdgeGeometry::TangentIntersection { .. }),
+                matches!(described, EdgeDescription::TangentIntersection { .. }),
                 "edge {edge:?} of face {face:?} is {described:?}, not a tangential contact locus",
             );
             checked += 1;
@@ -124,6 +122,12 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
         Ok(()),
         "tier 3"
     );
+    // The die family's own spelling again — deliberately
+    // NOT `common::oracles::rounded_box_volume` — see the note on the
+    // row above. THIS radius is the one place the two associations part:
+    // at (2.0, 0.4) `rounded_box_volume` differs by one ulp, 8.9e-16,
+    // against this row's 1e-9·volume tolerance — far inside it, so the
+    // reason the copy stays is still conservatism, not a red.
     let core = l - 2.0 * r;
     let volume = core.powi(3)
         + 6.0 * r * core.powi(2)
@@ -143,11 +147,11 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
 #[test]
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     let body = cube(1.0, Tol::witness());
-    let edges = all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], 0.15, band(), Tol::witness())
+    let edges = query::all_edges(&body);
+    let err = fillet_edges(&body, &edges[..1], 0.15, Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
-        matches!(err, FilletError::UnsupportedRunOut { .. }),
+        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected the assembly front-door refusal, got {err}",
     );
     assert!(
@@ -156,6 +160,10 @@ fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     );
 }
 
+/// Deliberately NOT `common::cap_rims::face_edges`: a different walk —
+/// the OUTER loop only, and a non-cycle boundary is a panic rather than
+/// a skip, because a blend face has no rings and a wire boundary here
+/// is a bug.
 fn face_edges(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
     let outer = body.get_face(face).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {

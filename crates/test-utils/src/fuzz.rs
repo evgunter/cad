@@ -35,7 +35,7 @@
 //! it cannot flake, and it is cheaper because nothing has to be
 //! over-provisioned against bad luck.
 //!
-//! The condition on 3 (Evan, 2026-08-13): `K` must be large enough — or
+//! The condition on 3 (Ev, 2026-08-13): `K` must be large enough — or
 //! the simultaneous conditions numerous enough — that the row is **very
 //! unlikely to pass by accident on a lucky seed**. `K = 1` against a
 //! 1-in-1000 class is the shape to avoid: the one seed that happens to
@@ -99,8 +99,22 @@
 use std::sync::OnceLock;
 
 /// `xorshift64*` — one stream, no threads, bit-reproducible from its
-/// seed. The single copy; the per-file duplicates it replaces were
-/// byte-identical to this.
+/// seed. The single copy FOR TESTS; the per-file duplicates it
+/// replaces were byte-identical to this.
+///
+/// **There is one other copy, and it is not a duplicate this crate can
+/// absorb** (M10-6, R2's MINOR-14). `editor_core::mc` runs the same
+/// generator in LIBRARY code, and this crate is a dependency-free leaf
+/// that only appears in `dev-dependencies` — so the library cannot
+/// reach it, and it cannot reach the library. Neither direction is
+/// available without breaking one of the two invariants that put them
+/// where they are.
+///
+/// What closes the gap instead is a test that keeps them equal:
+/// `editor-core`'s `the_two_xorshift_streams_agree_bit_for_bit` draws
+/// from both and requires the sequences to match, so a change to
+/// either reds rather than silently forking the two. This sentence
+/// used to say "the single copy" full stop, which was false.
 pub struct Rng(u64);
 
 impl Rng {

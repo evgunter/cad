@@ -72,3 +72,22 @@ pub fn report() -> ToleranceReport {
 pub fn eps_source() -> EpsilonSource {
     Tolerance::eps_source()
 }
+
+/// The run's tolerance witness — [`Tol::witness`] through the façade.
+///
+/// Minting the witness is an **entry-point act**: it commits the run's
+/// ε, so it belongs in a `main`, a test, or here, and library code
+/// takes `tol: Tol` as a parameter from its caller
+/// (`scripts/gates/witness-not-ambient.sh` is the enforcement, and
+/// this crate is the door it names). A program inside this workspace
+/// — a binary target under `crates/*/src/bin`, say — has no other
+/// place to start from, and reaching for `Tol::witness` directly there
+/// is the ambient read the gate exists to catch. This is a thin
+/// wrapper in the façade's own sense: one kernel call, no behaviour.
+///
+/// Same hazard as [`report`]: a program that later loads a document
+/// should let the load commit ε rather than bootstrapping the ambient
+/// value here first.
+pub fn witness() -> Tol {
+    Tol::witness()
+}

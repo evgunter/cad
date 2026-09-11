@@ -7,19 +7,17 @@
 //! diagnosis is a function of both).
 #![allow(dead_code)] // shared across test binaries
 
-use editor_core::eval::ContentBits;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
     ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
     resolve, resolve_with_prior,
 };
-use geom_core::Decide;
 
-use super::{ang, desc, insert, len, scl, step};
+use super::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
-/// per Evan's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
+/// per Ev's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
 /// the diagnosis ACCEPTANCE artifacts (this corpus + the golden
 /// digest in `m4_pr4_ci`) pin what production users actually get.
 /// Scenario A's flip-vanish row therefore exercises the AMENDED N5
@@ -32,7 +30,7 @@ use geom_core::Tol;
 /// headers); `m4_pr4_banked` pins both strategies side by side.
 fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: editor_core::EvalScalar,
 {
     evaluate::<T>(
         doc,
@@ -50,14 +48,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,
@@ -83,7 +79,7 @@ fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// rows and scalars.
 pub fn diagnosis_corpus<T>() -> Vec<(&'static str, Resolution)>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: editor_core::EvalScalar,
 {
     let mut out = Vec::new();
 
@@ -146,7 +142,7 @@ where
         pat,
         RoleSeg::Instance {
             i: 1,
-            of: Box::new(ranked.clone()),
+            of: ranked.clone().into(),
         },
     );
     let (doc2, _) = step(
@@ -195,11 +191,11 @@ where
     let docd = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (docd, da) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::Top));
+    let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
     let (docd, _) = insert(
         docd,
         Node::declare_rest(vec![(
-            name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::Top)),
+            name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End)),
             cap_b.clone(),
         )]),
     );
@@ -219,23 +215,21 @@ where
     // ---- Scenario D: the symmetric U tie (Ambiguous). ----
     let docu = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (docu, ua) = block(docu, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (docu, up) = insert(
+    let (docu, up) = on_frame(
         docu,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (docu, ub) = insert(
         docu,

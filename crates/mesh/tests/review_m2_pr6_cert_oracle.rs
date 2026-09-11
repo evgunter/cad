@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{axis_y, ball, cone, donut, eps, p2, validated, washer};
 use geom::Surface;

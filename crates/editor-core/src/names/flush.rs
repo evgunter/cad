@@ -30,26 +30,36 @@
 //! # The anti-twin rule (§3b): the detector IS the verifier
 //!
 //! The detector has NO predicate triple of its own. It enumerates
-//! candidate pairs and asks the ONE door the declared rung verifies
-//! with: [`topo::flush_pair_relation`] — descriptions, oriented
-//! identity evidence, and the REST lane's verification arm all live
-//! INSIDE that shared function (#304 review MINOR-1: the arm was
-//! briefly a hand-mirrored constant here, the wire.rs "kept in step
-//! BY HAND" shape one parameter wide; it is now shared by
-//! construction). Consequences, all deliberate:
+//! candidate pairs and asks the kernel's own rung at the seat where
+//! that rung lives: [`topo::flush::pair_finding`] — descriptions,
+//! oriented identity evidence and the verification arm all live
+//! inside [`topo::boolean::carrier_pair_relation`] under it, which is
+//! the very door verify-at-use calls, asked in its `declared: false`
+//! posture (the argument is stated once, in [`topo::flush`]'s module
+//! docs, and not restated here). Consequences, all deliberate:
 //!
-//! - detect-then-declare can never disagree with verify-at-use (no
-//!   twin drift — the demo twins' "kept in step BY HAND" warning
-//!   label is retired on the public path);
+//! - detect-then-declare can never disagree with verify-at-use: the
+//!   two paths converge on one verdict function, so there is no
+//!   second implementation to keep in step by hand;
+//! - the body seat's own detector
+//!   ([`topo::flush::find_flush_candidates`]) enumerates over the
+//!   SAME rung, so the two seats cannot disagree either: findings are
+//!   names at this door, keys at the body door, one verifier under
+//!   both;
 //! - detection's decisions go through the funnel at the VERIFIER'S
-//!   sites (`bool_plane_parallel` / `bool_plane_orient` /
-//!   `bool_plane_offset`) — no `sel_flush_*` site exists, no new
-//!   ledger row is owed, and GS-Q1's K-census participation is
-//!   automatic through those names. The detector interprets nothing
-//!   the verifier doesn't.
-//! - the P9/test-common `flush_declarations` fixtures keep their
-//!   hand-kept twins (LB11: "fixture twins stay put"); this module
-//!   supersedes them for DOCUMENT-layer scenes only.
+//!   sites (`bool_plane_*` on the planar rung, `carrier_sphere_*` /
+//!   `carrier_cyl_*` / `carrier_torus_*` on the curved ones) — no
+//!   `sel_flush_*` site exists, no new ledger row is owed, and
+//!   GS-Q1's K-census participation is automatic through those names.
+//!   The detector interprets nothing the verifier doesn't.
+//!
+//! What stays HERE is the name-flavored half, on the `select_where`
+//! precedent (VERB-SEAT-DESIGN §1 S2): resolving a name table's face
+//! names to their candidate keys — a node value may carry several
+//! bodies, and a tied name several keys in each — the GS-Q4 trilean
+//! over those candidate combinations, and the refusal payloads that
+//! name a `StableName`. None of that is geometry, and none of it can
+//! be spelled below the G1 line.
 //!
 //! # Findings are DEFINITE; in-band pairs refuse (§3a)
 //!
@@ -62,26 +72,30 @@
 //! downstream still owns the ambiguity refusal); none ⇒ no finding;
 //! mixed ⇒ [`SelectRefusal::TiedDisagrees`].
 //!
-//! # What `Rest` means here (v1)
+//! # What `Rest` means here
 //!
-//! Flush/`Rest` planes are the whole v1 detector — the only
-//! demand-evidenced case. The [`ContactClass::Rest`] tag names C4's
-//! coincident-plane contact class; the evidence records which
-//! orientation the verifier decided: [`PlaneRelation::SameOpposite`]
-//! is the resting-contact flavor (opposed outward normals — the REST
-//! lane's zip), [`PlaneRelation::SameOriented`] the merge-stage
-//! flavor (flush walls). Both are exactly the pairs the declared rung
-//! verifies and the P9 helper used to declare. `Tangent`/`Fit`
-//! findings reuse this shape when their demand arrives — the `class`
-//! field is the reserved slot, not a `flush: bool`.
+//! Cosurface contact on every carrier the `Rest` ladder verifies —
+//! plane, sphere, cylinder and torus — is the whole detector; the
+//! [`ContactClass::Rest`] tag names C4's coincident-carrier contact
+//! class, and a peg's wall in its bore is reported exactly as two
+//! flush plates' faces are. The evidence records which orientation
+//! the verifier decided: [`PlaneRelation::SameOpposite`] is the
+//! resting-contact flavor (opposed material sides — the REST lane's
+//! zip), [`PlaneRelation::SameOriented`] the merge-stage flavor
+//! (flush walls). Both are exactly the pairs the declared rung
+//! verifies. `Tangent`/`Fit` findings reuse this shape when their
+//! demand arrives — the `class` field is the reserved slot, not a
+//! `flush: bool` — and tangency waits on a locus the verifier can
+//! check, which is a different kind of gap from the one the curved
+//! `Rest` rungs closed.
 //!
 //! # Documented residuals
 //!
-//! - The verifier encodes its definite-zero-offset verdict and a
-//!   NaN-poisoned margin with the same [`MarginDiag::Invalid`]
+//! - The verifier encodes its definite-zero coincidence verdict and a
+//!   NaN-poisoned margin with the same `MarginDiag::Invalid`
 //!   diagnostic; the detector takes the verifier's encoding as-is
 //!   (anti-twin: it interprets nothing the verifier doesn't), so a
-//!   NaN-poisoned plane pair — geometry that is broken well before
+//!   NaN-poisoned pair — geometry that is broken well before
 //!   detection — would read as a finding whose declaration then
 //!   escalates at use. C4's verify-at-use backstop is the answer by
 //!   design.
@@ -89,11 +103,12 @@
 //!   finding is a report about geometry, not a diff against intent,
 //!   and the caller holding the recipe is the one who knows.
 
-use geom_core::{Band, Decide, Indeterminate, MarginDiag, Tol};
-use topo::{Body, FaceKey, PlaneEqError, PlaneRelation, flush_pair_relation};
+use geom_core::{Band, Decide, Tol};
+use topo::flush::{finding, pair_finding};
+use topo::{Body, FaceKey, PlaneRelation};
 
 use crate::doc::Doc;
-use crate::edit::{DocEdit, EditError, apply};
+use crate::edit::{Applied, DocEdit, EditError, apply};
 use crate::eval::{Evaluation, NodeResult, NodeValue};
 use crate::names::geompred::SelectRefusal;
 use crate::names::interrogate;
@@ -123,52 +138,32 @@ pub use topo::ContactClass;
 /// the deferral is worded.
 pub use topo::{CONTACT_RECOURSE, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL};
 
-/// Which rung of the verify ladder decided a finding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FlushRung {
-    /// Rung 1: both descriptions carry the same recipe source (N6) —
-    /// syntactic identity, zero numerics.
-    SharedSource,
-    /// Rung 3's decided margins: definitely parallel, definitely
-    /// zero offset (the geometric trilean's coincident arm).
-    DecidedCoincident,
-}
+/// The finding vocabulary, RE-EXPORTED from the kernel for the reason
+/// [`ContactClass`] is: the evidence a finding carries is the verify
+/// door's own verdict, that door is the kernel's, and a second
+/// spelling of its verdict at this layer is exactly the twin the
+/// anti-twin rule forbids. For a tied name whose candidates decided
+/// through different rungs, the weaker claim
+/// ([`FlushRung::DecidedCoincident`]) is what this door records.
+pub use topo::flush::{FlushEvidence, FlushRung};
 
-/// The definite evidence a finding carries — exactly what the C4
-/// verify door reported, nothing re-derived (the anti-twin rule
-/// constrains evidence to the door's own verdict).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FlushEvidence {
-    /// The door's definite verdict: [`PlaneRelation::SameOpposite`]
-    /// (resting contact) or [`PlaneRelation::SameOriented`] (flush
-    /// walls, the merge-stage flavor). Never `Distinct` — a distinct
-    /// pair is no finding at all.
-    pub relation: PlaneRelation,
-    /// Which rung decided. For a tied name whose candidates decided
-    /// through different rungs, the weaker claim
-    /// ([`FlushRung::DecidedCoincident`]) is recorded.
-    pub rung: FlushRung,
-}
-
-/// One flush-plane finding: "this cross-body face pair would verify
-/// as declared contact" — a VALUE, inspectable, never itself a
-/// declaration (SELECT-DESIGN §3a).
-#[derive(Debug, Clone, PartialEq)]
-pub struct FlushFinding {
-    /// The face pair, by stable name — names, never keys (G1). `.0`
-    /// is from the detector's `a` node, `.1` from `b`.
-    pub pair: (StableName, StableName),
-    /// The contact class the pair would verify as.
-    pub class: ContactClass,
-    /// The definite verdict the verify door reported.
-    pub evidence: FlushEvidence,
-}
+/// One flush finding at the DOCUMENT seat: "this cross-body face
+/// pair would verify as declared contact" — a VALUE, inspectable,
+/// never itself a declaration (SELECT-DESIGN §3a).
+///
+/// The kernel's [`topo::flush::FlushFinding`] with this seat's pair
+/// vocabulary: names, never keys (G1). `.0` is from the detector's `a`
+/// node, `.1` from `b`. The body seat's finding
+/// ([`topo::flush::FacePairFinding`]) is the same type over face keys
+/// — findings are names at the document door, keys at the body door,
+/// one verifier under both.
+pub type FlushFinding = topo::flush::FlushFinding<(StableName, StableName)>;
 
 // ---------------------------------------------------------------
 // (a) Detect.
 // ---------------------------------------------------------------
 
-/// **The cross-body flush-plane candidates between `a`'s and `b`'s
+/// **The cross-body flush candidates between `a`'s and `b`'s
 /// outputs, as of THIS evaluation** — the C4 verifier run in
 /// candidate-generation mode (module docs; SELECT-DESIGN §3a/b).
 ///
@@ -270,12 +265,16 @@ fn pair_verdict<T: Decide>(
     for &(ba, fa) in ca {
         for &(bb, fb) in cb {
             let verdict =
-                probe(ba, fa, bb, fb, band).map_err(|source| SelectRefusal::PairInBand {
+                pair_finding(ba, fa, bb, fb, band).map_err(|source| SelectRefusal::PairInBand {
                     pair: Box::new((na.clone(), nb.clone())),
-                    predicate: source.predicate.unwrap_or("flush_pair_relation"),
+                    predicate: source.predicate.unwrap_or("carrier_pair_relation"),
                     source,
                 })?;
-            if let Some((rel, rung)) = verdict {
+            if let Some(FlushEvidence {
+                relation: rel,
+                rung,
+            }) = verdict
+            {
                 matched += 1;
                 all_shared_source &= rung == FlushRung::SharedSource;
                 match relation {
@@ -293,10 +292,13 @@ fn pair_verdict<T: Decide>(
     }
     match (matched, relation) {
         (0, _) | (_, None) => Ok(None),
-        (m, Some(relation)) if m == total => Ok(Some(FlushFinding {
-            pair: (na.clone(), nb.clone()),
-            class: ContactClass::Rest,
-            evidence: FlushEvidence {
+        // The CLASS is minted at the kernel's one site, not here: this
+        // seat contributes the pair vocabulary and the tie-resolved
+        // evidence, and takes the classification from the door that
+        // decides it (`topo::flush::finding`).
+        (m, Some(relation)) if m == total => Ok(Some(finding(
+            (na.clone(), nb.clone()),
+            FlushEvidence {
                 relation,
                 rung: if all_shared_source {
                     FlushRung::SharedSource
@@ -304,7 +306,7 @@ fn pair_verdict<T: Decide>(
                     FlushRung::DecidedCoincident
                 },
             },
-        })),
+        ))),
         _ => Err(tied_disagrees(na, ca, nb, matched, total)),
     }
 }
@@ -328,64 +330,6 @@ fn tied_disagrees<T: Decide>(
     }
 }
 
-/// One candidate pair through the verify door, in candidate-generation
-/// mode: `Ok(Some(_))` = definitely flush (with the door's relation
-/// and deciding rung), `Ok(None)` = definitely not a candidate (a
-/// non-plane face, or definitely distinct planes), `Err` = the door
-/// could not decide definitively (in-band, escalated, or poisoned).
-///
-/// Everything — descriptions, oriented sources, AND the verification
-/// arm — comes from [`flush_pair_relation`], the one door the REST
-/// lane's verify-at-use site also calls (shared BY CONSTRUCTION;
-/// #304 review MINOR-1 retired the hand-mirrored arm). ONE call, in
-/// `declared: false` mode: its `Undeclared` refusal with the
-/// verifier's definite-zero encoding ([`MarginDiag::Invalid`]) is
-/// precisely "would verify if declared", and since LIB-PYG5 the
-/// refusal itself carries the orientation the ladder decided — the
-/// same `bool_plane_orient` verdict the declared rung re-decides
-/// deterministically at use, so the carried relation and the
-/// verify-at-use verdict cannot disagree (this retired the second,
-/// `declared: true` call this arm used to make).
-fn probe<T: Decide>(
-    ba: &Body<T>,
-    fa: FaceKey,
-    bb: &Body<T>,
-    fb: FaceKey,
-    band: Band,
-) -> Result<Option<(PlaneRelation, FlushRung)>, Indeterminate> {
-    let Some(relation) = flush_pair_relation(ba, fa, bb, fb, false, band) else {
-        // Not a planar pair: not a v1 candidate, honestly.
-        return Ok(None);
-    };
-    match relation {
-        Ok(PlaneRelation::Distinct) => Ok(None),
-        // Rung 1 fired: same recipe source, exact verdict.
-        Ok(rel) => Ok(Some((rel, FlushRung::SharedSource))),
-        Err(PlaneEqError::Undeclared { diag, relation }) => {
-            if matches!(diag.margin, MarginDiag::Invalid) {
-                // The verifier's definite-zero-offset encoding (module
-                // docs, residuals): the pair would verify if declared,
-                // with the orientation the refusal itself carries.
-                match relation {
-                    PlaneRelation::SameOriented | PlaneRelation::SameOpposite => {
-                        Ok(Some((relation, FlushRung::DecidedCoincident)))
-                    }
-                    // Unreachable by the variant's contract (an
-                    // Undeclared refusal never carries `Distinct`);
-                    // typed, never silent.
-                    PlaneRelation::Distinct => Err(diag),
-                }
-            } else {
-                // In-band coincidence: not definite, not droppable.
-                Err(diag)
-            }
-        }
-        Err(PlaneEqError::Escalated(diag)) => Err(diag),
-        // Unreachable with `declared: false`; kept typed.
-        Err(PlaneEqError::Contradicted(diag)) => Err(diag),
-    }
-}
-
 // ---------------------------------------------------------------
 // (c) Declare — sugar over the shipped vocabulary.
 // ---------------------------------------------------------------
@@ -405,6 +349,30 @@ pub enum DeclareError {
     /// than panicking.
     NoMintedId,
 }
+
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in the declare sugar's own vocabulary — findings, the
+// node it would insert, the id an insert owes. The `Edit` arm forwards
+// the document edit's own refusal, which already carries its node and
+// its recourse; re-stating it here would give one refusal two voices.
+impl core::fmt::Display for DeclareError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoFindings => f.write_str(
+                "declare: no findings were passed — an empty declaration records no intent and \
+                 would only pretend something was declared; pass the findings the inspection \
+                 actually returned",
+            ),
+            Self::Edit(error) => write!(f, "declare: the document edit refused: {error}"),
+            Self::NoMintedId => f.write_str(
+                "declare: the insert applied but minted no node id — an insert always mints \
+                 one, so this is a kernel bug",
+            ),
+        }
+    }
+}
+
+impl core::error::Error for DeclareError {}
 
 /// The [`Node::Declare`] payload for explicitly-passed findings — the
 /// buildable rung under [`declare`]/[`declare_all`] for callers that
@@ -429,11 +397,18 @@ pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareErro
 }
 
 /// Declares ONE inspected finding: inserts a [`Node::Declare`] with
-/// its pair and returns the edited document plus the Declare node's
-/// id, for the caller to wire into the consuming Boolean's `declare`
-/// input. Sugar over shipped vocabulary — nothing here detects
-/// (GS-Q3's no-fusion boundary: findings reach this door as VALUES
-/// the caller already held).
+/// its pair and returns the accepted insert whole — the edited
+/// document, its record and the cluster maintenance the insert
+/// performed, as one [`Applied`] — plus the Declare node's id, for the
+/// caller to wire into the consuming Boolean's `declare` input. Sugar
+/// over shipped vocabulary — nothing here detects (GS-Q3's no-fusion
+/// boundary: findings reach this door as VALUES the caller already
+/// held).
+///
+/// The id is returned beside the acceptance rather than left inside
+/// `record.minted` because it is a CHECKED value here: the door has
+/// already refused [`DeclareError::NoMintedId`], so the caller reads
+/// an id, never an `Option` it has to unwrap again.
 ///
 /// # Errors
 ///
@@ -442,7 +417,7 @@ pub fn declare<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     finding: &FlushFinding,
     tol: Tol,
-) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
+) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
     declare_all(doc, core::slice::from_ref(finding), tol)
 }
 
@@ -458,9 +433,13 @@ pub fn declare_all<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     findings: &[FlushFinding],
     tol: Tol,
-) -> Result<(Doc<P>, RecipeNodeId), DeclareError> {
+) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
     let node = declare_node(findings)?;
     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).map_err(DeclareError::Edit)?;
     let id = applied.record.minted.ok_or(DeclareError::NoMintedId)?;
-    Ok((applied.doc, id))
+    // The acceptance travels WHOLE: a caller that holds a document
+    // and the maintenance of its last accepted edit swaps both in
+    // from this one value, so the two can never describe different
+    // edits.
+    Ok((applied, id))
 }

@@ -11,7 +11,7 @@
 //!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/tour/`).
 //!
-//! # The demos' purpose (Evan, 2026-08-09 — binding for every edit here)
+//! # The demos' purpose (Ev, 2026-08-09 — binding for every edit here)
 //!
 //! These scenes exist to demonstrate REAL, NATURAL library usage —
 //! the way a user would actually write the model. Consequences:
@@ -28,6 +28,20 @@
 //! - Standing goal: every demo authorable through the Python
 //!   bindings; what a demo cannot do through the curated document
 //!   surface is a named gap, not a private exception.
+//!
+//! # The layer the scenes are composed at
+//!
+//! Every scene is generic over the run scalar `S` ([`scalar::Scalar`])
+//! and every number in it is an `f64` literal or an `f64` expression,
+//! so a scene is COMPOSED at `f64` — in the kernel's own `Point3<f64>`
+//! and `Vec3<f64>` — and LIFTED to `S` at the door it is handed to.
+//! The lift has two spellings and they divide on one line: where the
+//! components are written at the door it is
+//! [`pncad::authoring`]'s `p2`/`v2`/`p3`/`v3`, and where an
+//! already-composed `f64` value crosses — a frame a scene built, a
+//! turtle's point, a stored carrier — it is `map(S::from_f64)`, once,
+//! on the value. [`lily`] states the rule in full and is the worked
+//! example; it holds for every scene here.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -37,17 +51,23 @@ mod bodies;
 mod bool_bodies;
 mod booleans;
 mod bossplate;
+mod bud;
 mod checks;
 mod crosslap;
 mod curvedcut;
 mod cutaway;
 mod diechamfer;
 mod diefillet;
+mod fivewall;
+mod gallery;
 mod heatsink;
+mod impeller;
 mod klein;
 mod letterforms;
 mod lily;
-mod paths;
+mod mate7a_r2_probes;
+mod mcplate;
+mod plate;
 #[cfg(feature = "probe")]
 mod probe;
 mod projectbox;
@@ -55,15 +75,21 @@ mod ring;
 mod rocker;
 mod scalar;
 mod skinned;
+mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
+#[cfg(feature = "interval")]
+mod tolerance;
+mod torusvessel;
 mod tube;
+mod tubewall;
 mod twopeg;
 mod uvdump;
 mod walls;
 
 use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
+use pncad::prelude::{Evaluation, RecipeNodeId};
 use pncad::topo::{Body, ContactRecords};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
@@ -90,6 +116,10 @@ struct SceneBody {
     /// STEP writer's named subset frontier. See
     /// [`SceneBody::step_at_frontier`].
     step_frontier: Option<StepFrontierPin>,
+    /// The durable name of every face of this body, where the scene
+    /// built it from an evaluated document and could hand one over.
+    /// See [`SceneBody::named`].
+    face_names: Option<tess_meter::FaceNames>,
 }
 
 impl SceneBody {
@@ -105,6 +135,7 @@ impl SceneBody {
             color,
             transparency: 0,
             step_frontier: None,
+            face_names: None,
         }
     }
 
@@ -169,6 +200,7 @@ impl SceneBody {
             color,
             transparency: 0,
             step_frontier: None,
+            face_names: None,
         }
     }
 
@@ -205,8 +237,59 @@ impl SceneBody {
             color,
             transparency: 0,
             step_frontier: None,
+            face_names: None,
         }
     }
+
+    /// **This body came out of an evaluated document, so its faces
+    /// have durable names** — the budget sweep writes them into its
+    /// `name` column, where `tools/tess-lint` can eventually join on
+    /// something a face reorder does not move.
+    ///
+    /// The scenes that can take this door are the ones that still hold
+    /// the evaluation when they hand the body over; a scene built
+    /// through the verbs or the kernel directly has no document to
+    /// name from, its rows carry an EMPTY name, and that is the honest
+    /// answer rather than a gap to paper over.
+    fn named(mut self, ev: &Evaluation<f64>, node: RecipeNodeId) -> Self {
+        self.face_names = Some(face_names(ev, node, &self.body));
+        self
+    }
+}
+
+/// Every face of `body` named through the façade's own door
+/// (`pncad::select::face_name`), rendered flat for one CSV field.
+///
+/// **The rendering is the ratified structural serialization (F3) with
+/// one substitution, and both halves of that matter.** A
+/// `StableName`'s `Display` is prose — *"face name minted by node 3"*
+/// — which drops the role path, so every face one node mints renders
+/// alike and the token would not be a key at all. Its serde form
+/// carries the whole derivation path. A `StableName` holds no strings
+/// anywhere (every payload is a closed enum or an integer), so the
+/// only `,` its JSON can contain is a structural separator and the
+/// only `;` it can contain is none: swapping the one for the other is
+/// injective, and it is what makes the token a single CSV field.
+///
+/// # Panics
+///
+/// If `node`'s table does not name a face of `body` — the caller has
+/// paired an evaluation with a body that did not come out of it, and
+/// every name it DID hand over would then be on the wrong face.
+fn face_names(ev: &Evaluation<f64>, node: RecipeNodeId, body: &Body<f64>) -> tess_meter::FaceNames {
+    body.faces()
+        .map(|(key, _)| {
+            let name = pncad::select::face_name(ev, node, 0, key).unwrap_or_else(|e| {
+                panic!("node {node:?} does not name face {key:?} of the body it evaluated: {e:?}")
+            });
+            let token = serde_json::to_string(name)
+                .expect("a StableName is structurally serializable (F3)")
+                .replace(',', ";");
+            let name = tess_meter::FaceName::new(token)
+                .expect("a StableName's JSON has no comma left in it and is never empty");
+            (key, name)
+        })
+        .collect()
 }
 
 /// Scene presentation: the classic matplotlib view spec (elevation and
@@ -584,8 +667,7 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// coincidence ladder, the mated-union doors, the stable-name count),
 /// and returning a fully built list would print all of that up front,
 /// detached from the stops it belongs to. Building each group as it is
-/// reached also keeps one group's bodies alive at a time, and lets the
-/// project box hand its body to the cutaway exactly as it always has.
+/// reached also keeps one group's bodies alive at a time.
 /// `work` is a directory the assembly stop uses as its document STORE.
 /// It is the one thing a tour scene had never needed: every other
 /// scene is one document built in memory, so `stops(tol)` was the
@@ -621,6 +703,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
     lily::wall_probes::<f64>(tol);
 
+    println!(
+        "\n-- the same bud, rounded (VERBS-ARMS-2: three CURVED support pairs in one \
+         fillet call) --"
+    );
+    for stop in bud::stops(tol) {
+        visit(&stop);
+    }
+
     println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
     for stop in klein::stops(tol) {
         visit(&stop);
@@ -652,6 +742,35 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
+    println!(
+        "\n-- the tube door with a WALL (VERBS-TUBEWALL: an open elbow, then a torus \
+         shell) --"
+    );
+    for stop in tubewall::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the teapot (VERBS-TEAPOT: shell's designated demo — a shelled pot, a \
+         lifted lid, and the two unions that refuse) --"
+    );
+    for stop in teapot::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the torus-walled vessel (TORAX #1494 + C5ARMS PR-1 #1577: a donut band \
+         in the wall, hollowed and opened) --"
+    );
+    for stop in torusvessel::stops(tol) {
+        visit(&stop);
+    }
+
+    println!("\n-- the five-wall sleeve (SHELL: every analytic kind offset in ONE call) --");
+    for stop in fivewall::stops(tol) {
+        visit(&stop);
+    }
+
     println!("\n-- the boolean leg (M3): union / subtract / intersect, planar-only --");
     for stop in bool_bodies::stops(tol) {
         visit(&stop);
@@ -674,19 +793,18 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
 
     println!(
-        "\n-- the two-peg plate (M9-3: a declared CYLINDRICAL Rest, and the join \
-         demos/README.md said could not be built) --"
+        "\n-- the two-peg plate (a declared CYLINDRICAL Rest: plate ∪ pegs \
+         mated to plate ∖ bores) --"
     );
     for stop in twopeg::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the project box (the longest boolean-of-boolean chain) --");
-    let (box_stop, box_body) = projectbox::stop(tol);
-    visit(&box_stop);
+    visit(&projectbox::stop(tol));
 
-    println!("\n-- the cutaway (the first `topo::split` in the tour) --");
-    for stop in cutaway::stops(&box_body, tol) {
+    println!("\n-- the impeller (the recipe layer's CIRCULAR rule: one parameter, two slots) --");
+    for stop in impeller::stops(tol) {
         visit(&stop);
     }
 
@@ -700,6 +818,21 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
          a cavity is not a component) --"
     );
     checks::narration(tol);
+
+    // The tolerance cell (M10-6 §6): narration-only, and behind the
+    // `interval` feature because its whole subject is the certified
+    // scalar's leaves. A tour built without the feature says so rather
+    // than silently walking one scene fewer.
+    #[cfg(feature = "interval")]
+    {
+        println!("\n-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --");
+        tolerance::narration(tol);
+    }
+    #[cfg(not(feature = "interval"))]
+    println!(
+        "\n-- the two-hole plate (M10/E10) is SKIPPED: build with `--features interval`, \
+         whose certified scalar is the cell's entire subject --"
+    );
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
@@ -715,9 +848,39 @@ fn main() {
     // once, here, and hands it to every scene it walks.
     let tol = Tol::witness();
     let outdir = std::env::args().nth(1).expect(
-        "usage: demo-tour <outdir> | demo-tour k-probe [out.csv] | \
+        "usage: demo-tour <outdir> | demo-tour gallery [dir] | \
+                 demo-tour die-corpus <file> | \
+                 demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
     );
+    // The demo-document gallery (the GUI's acceptance substrate): each
+    // document-authored scene saved as a `.pncad` the viewer can open.
+    // Not behind a feature — it authors the same documents the ordinary
+    // run does and links nothing extra.
+    if outdir == "gallery" {
+        gallery::run(std::env::args().nth(2), tol);
+        return;
+    }
+    // The composed die's own document and nothing else — what
+    // `crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` is
+    // regenerated from, and the reason the kernel's model corpus can
+    // register this scene's die without a second transcription of it
+    // (`diefillet::corpus_text`). The DOCUMENT is `gallery`'s — blank
+    // fillet deleted, per the #1162 ruling, which holds for a corpus
+    // too — but the FILE differs: the gallery saves a snapshot, which
+    // records its ε and refuses to load at any other, while the corpus
+    // replays at every CI ε row, so this door writes the empty
+    // document plus the whole model as an edit log (the derivation and
+    // its exactness assert live at `corpus_text`).
+    if outdir == "die-corpus" {
+        let path = std::env::args()
+            .nth(2)
+            .expect("usage: demo-tour die-corpus <file>");
+        let text = diefillet::corpus_text(tol);
+        std::fs::write(&path, &text).expect("the die corpus document writes");
+        println!("die corpus → {path} ({} byte(s))", text.len());
+        return;
+    }
     // The K-telemetry mode (M4 PR 8b): rebuild every scene at the
     // recording scalar and dump the margin CSV — see `probe`.
     //
@@ -786,6 +949,23 @@ fn main() {
     // STL and STEP the same run wrote.
     let work = std::path::Path::new(&outdir).join("assembly");
     walk_tour(&mut run, &work, tol);
+
+    // The Monte-Carlo density cell (`mcplate`). It writes a PICTURE
+    // rather than a body, so it sits here beside the uv lane's own
+    // output rather than inside `walk_tour`'s stop list: there is no
+    // `Stop` for it to be, no STL, no camera, and no renderer — the
+    // geometry is 2-D and the tour draws it itself.
+    println!("\n-- the MC density plate (E11.1: the population an advisory number summarizes) --");
+    let mc_dir = std::path::Path::new(&outdir).join("mc");
+    std::fs::create_dir_all(&mc_dir).expect("create the mc dir");
+    let svg = mcplate::narration(tol);
+    let mc_path = mc_dir.join("plate-density.svg");
+    std::fs::write(&mc_path, &svg).expect("write the density sheet");
+    println!(
+        "   wrote {} ({} bytes) — compose with demos/render-mc.sh",
+        mc_path.display(),
+        svg.len()
+    );
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");

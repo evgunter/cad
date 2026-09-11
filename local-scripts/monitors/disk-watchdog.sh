@@ -8,6 +8,22 @@
 # running; leave ~/.cache/gmp-mpfr-sys alone. After any disk-full
 # crash, ELF-magic-scan recent executables in surviving targets for
 # torn writes, and treat crash-window test results as ENOSPC-suspect.
+#
+# THE TWO THRESHOLDS BELOW ARE DERIVED FROM THE READING ABOVE, so this is
+# an extraction and not a decoration: 15G warns because one lane rebuilding
+# can take 5-8G at a stroke, and 8G is critical because at that point a
+# single lane can fill the disk mid-write, which is what the 2026-07-24
+# crashes were. Nothing re-takes the per-lane figure and nothing can from
+# in here — it is a property of the developer's tree, it moves with the
+# workspace's size and with the debug setting `setup-build-env.sh`
+# applies, and this script sees only free space. Two consequences, stated
+# rather than left to be discovered: the figure has ALREADY drifted from a
+# second copy of it elsewhere in the repo, and if per-lane target/ ever
+# grows past ~8G the CRITICAL threshold stops being a margin at all. The
+# thresholds are environment-overridable (`CAD_DISK_*_GB`) precisely
+# because the reading behind them is not durable; re-take with `du -sh` on
+# a live lane before trusting either number, and prefer raising the floor
+# to arguing from this comment.
 set -u
 WARN_GB="${CAD_DISK_WARN_GB:-15}"
 CRIT_GB="${CAD_DISK_CRIT_GB:-8}"

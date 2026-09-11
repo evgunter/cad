@@ -1,5 +1,5 @@
 //! `MetaValue` — the format's own self-describing value tree (M4 PR 6
-//! spec D7, Evan's #92 ask banked at the schema-v1 freeze).
+//! spec D7, Ev's #92 ask banked at the schema-v1 freeze).
 //!
 //! The appearance record carries `metadata: BTreeMap<String,
 //! MetaValue>`; the kernel NEVER interprets it (black-box for
@@ -73,7 +73,13 @@ impl PartialEq for MetaValue {
             (Bytes(a), Bytes(b)) => a == b,
             (List(a), List(b)) => a == b,
             (Map(a), Map(b)) => a == b,
-            _ => false,
+            // Different variants are unequal — spelled over the whole
+            // vocabulary rather than swept up by a catch-all, so a
+            // value kind added to `MetaValue` must be given its own
+            // arm above instead of silently comparing unequal to
+            // itself, which would break the reflexivity `Eq` below
+            // promises.
+            (Null | Bool(_) | Int(_) | Float(_) | Str(_) | Bytes(_) | List(_) | Map(_), _) => false,
         }
     }
 }
@@ -106,7 +112,17 @@ impl MetaValue {
                         false
                     }
                 }),
-                _ => false,
+                // The leaves that carry no float and nest no value.
+                // Spelled out rather than swept up: a value kind
+                // added to `MetaValue` that carries a float, or
+                // nests values that might, would otherwise be
+                // walked past and the D2 refusal door would admit
+                // the non-finite it exists to refuse.
+                MetaValue::Null
+                | MetaValue::Bool(_)
+                | MetaValue::Int(_)
+                | MetaValue::Str(_)
+                | MetaValue::Bytes(_) => false,
             }
         }
         let mut path = String::from("$");

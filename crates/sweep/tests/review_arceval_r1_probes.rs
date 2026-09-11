@@ -118,7 +118,12 @@ mod certified {
     /// The re-scoped m5 row's constant, restated (see
     /// `m5_s12_curved_ops_interval.rs`); this probe pins it from BOTH
     /// sides where the shipped row bounds it only from above.
-    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.1414768974413613e-12;
+    // **Re-measured 2026-08-31.** Was `1.1414768974413613e-12`. The arc
+    // chain tightened under enclosure work that merged with gates
+    // drawing default-ε only, so no run compared this constant until a
+    // later branch drew (interval, 1e-12). Re-stated, not loosened, as
+    // the constant's own doc requires.
+    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
 
     /// E2: the m5_s12 sphere-recut fixture, re-run; below the constant
     /// the escalation's `hi` must be *at* the measured value — a

@@ -5,16 +5,16 @@
 //! The GUI never sees an arena key: every mesh back-ref inverts.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EntityKey, EntityRef, EvalOptions, Evaluation,
     HitTestError, Node, ProfileDoc, RecipeNodeId, Resolution, RunCtx, SplitSide, ValuePayload,
     body_name, entity_name, evaluate, resolve,
 };
-use fixture::{ang, desc, die, insert, len, scl};
+use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
-use topo::Body;
+use topo::{Body, FaceKey};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -50,7 +50,12 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_) => vec![],
+        | ValuePayload::Mate(_)
+        // Neither sink denotes a body, so neither offers an entity to
+        // invert — the same answer a declaration gives.
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => vec![],
     }
 }
 
@@ -125,14 +130,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     // (instances).
     let doc = ProfileDoc::empty_derived("m4_pr4_hit", Tol::witness());
     let (doc, a) = {
-        let (doc, p) = insert(
+        let (doc, p) = on_frame(
             doc,
-            Node::Profile(desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-            )),
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         );
         insert(
             doc,
@@ -143,14 +146,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         )
     };
     let (doc, b) = {
-        let (doc, p) = insert(
+        let (doc, p) = on_frame(
             doc,
-            Node::Profile(desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![vec![(0.5, 0.0), (1.5, 0.0), (1.5, 1.0), (0.5, 1.0)]],
-            )),
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.5, 0.0), (1.5, 0.0), (1.5, 1.0), (0.5, 1.0)]],
         );
         insert(
             doc,
@@ -186,22 +187,16 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         },
     );
     // A partial revolve (bands, meridians, wedge caps).
-    let (doc, rp) = insert(
+    let (doc, plane, rp) = fixture::on_frame_keeping(
         doc,
-        Node::Profile(desc(
-            [0.0, 3.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-        )),
+        [0.0, 3.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    let (doc, axis) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(3.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    // The world axis sat at the FRAME's origin pointing along its v, so
+    // in the frame's own coordinates it is +y through (0, 0).
+    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, _rev) = insert(
         doc,
         Node::Revolve {
@@ -238,14 +233,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
 fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // Failed / poisoned doors.
     let doc = ProfileDoc::empty_derived("m4_pr4_hit", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, ext) = insert(
         doc,
@@ -310,4 +303,61 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
             entity: some_face
         })
     );
+}
+
+/// The Display contract (#1111): a consumer renders a `HitTestError`
+/// through the payload's own words, so every arm must state what
+/// happened in prose — the node it is about, the kind of entity where
+/// there is one — and must never read as the `Debug` struct dump the
+/// viewer was reduced to printing. The variant identifier and the
+/// field-name punctuation are the dump's fingerprints; asserting their
+/// ABSENCE is what keeps a future `write!(f, "{self:?}")` from passing
+/// this test.
+#[test]
+fn hit_test_error_display_names_its_content_not_its_struct() {
+    let node = RecipeNodeId(7);
+    let through = RecipeNodeId(3);
+    let cases = [
+        (
+            HitTestError::NodeNotEvaluated { node },
+            vec!["node 7", "no result"],
+        ),
+        (HitTestError::NodeFailed { node }, vec!["node 7", "failed"]),
+        (
+            HitTestError::NodePoisoned { node, through },
+            vec!["node 7", "node 3", "poisoned"],
+        ),
+        (
+            HitTestError::Unnamed {
+                node,
+                entity: EntityRef {
+                    body: 2,
+                    key: EntityKey::Face(FaceKey::default()),
+                },
+            },
+            // The entity renders by KIND and body index — an arena key
+            // is editor-core-private and says nothing to a person.
+            vec!["node 7", "face", "body 2", "kernel bug"],
+        ),
+    ];
+    for (err, wants) in cases {
+        let shown = err.to_string();
+        for want in wants {
+            assert!(
+                shown.contains(want),
+                "{err:?} renders as {shown:?}, missing {want:?}"
+            );
+        }
+        for dump in ["NodeNotEvaluated", "NodeFailed", "NodePoisoned", "Unnamed"] {
+            assert!(
+                !shown.contains(dump),
+                "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
+            );
+        }
+        assert!(
+            !shown.contains('{') && !shown.contains("node:"),
+            "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
+        );
+        assert_ne!(shown, format!("{err:?}"));
+    }
 }

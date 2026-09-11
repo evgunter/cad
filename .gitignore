@@ -4,16 +4,27 @@
 .claude/worktrees
 __pycache__/
 
-# The matplotlib fallback renderer's preview tree (demos/render.sh).
+# The matplotlib preview lane's tree (demos/render.sh --matplotlib).
 # It mirrors the committed lane structure — renders-preview/renders/ —
-# and is ignored ON PURPOSE: a fallback frame must be structurally
+# and is ignored ON PURPOSE: a matplotlib frame must be structurally
 # uncommittable (#221; see demos/check_render_provenance.py).
 demos/renders-preview/
 
 # Cargo build artifacts of the workspace-excluded projects
+benches/target/
 demos/tour/target/
 demos/wild/target/
 tools/k-lint/target/
 tools/tess-lint/target/
 tools/tess-meter/target/
 /target-*
+
+# The demo-document gallery, when it is written into the SOURCE tree.
+# `gallery::run` defaults its output directory to the relative path
+# "gallery" (gallery.rs), so `cargo run -- gallery` from inside
+# demos/tour/ lands here. That is build output: CI writes its own copy
+# to demos/out/gallery (render.yml) for the viewer's acceptance probe,
+# nothing in the repo reads this path, and no gate regenerates it. A
+# tracked copy would go stale the moment a scene's document changed,
+# with nothing to notice.
+demos/tour/gallery/

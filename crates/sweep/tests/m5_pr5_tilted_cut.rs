@@ -13,7 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
@@ -99,7 +99,7 @@ fn tilted_cut_mints_exact_ellipse_carriers() {
             assert!((minor - 0.5).abs() < 1e-12, "b = r");
             assert!((major - 0.5 / phi.cos()).abs() < 1e-12, "a = r/cos φ");
             assert!(
-                matches!(curve.description(), EdgeGeometry::Intersection { .. }),
+                matches!(curve.description(), EdgeDescription::Intersection { .. }),
                 "section edges are described intersections"
             );
             // Zero-residual-by-construction: the certificate's worst
@@ -294,7 +294,7 @@ mod interval {
                 continue;
             }
             count += 1;
-            let EdgeGeometry::Intersection { s1, s2, .. } = *c.description() else {
+            let EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
                 panic!("section edge described as Intersection");
             };
             let (t0, t1) = c.params();

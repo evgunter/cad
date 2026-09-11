@@ -1,0 +1,11 @@
+R2 MUTANT M3 (applied, run once, reverted): line_to(Start)'s departure
+refusal misattributed.
+
+--- a/crates/profile/src/path.rs
++++ b/crates/profile/src/path.rs
+@@ close (do_line_to Start path)
+-            junction_check(inc, gamma, Some(CloseSite::Departure), tol)?;
++            junction_check(inc, gamma, Some(CloseSite::Seam), tol)?; // R2 MUTANT M3
+
+Result: path_property::the_seam_wall_ends_at_the_departure_and_stands_at_the_seam
+FAILED.

@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3};
@@ -193,7 +194,7 @@ fn poisoned_input_is_a_typed_refusal_never_a_foot_point() {
 /// coordinate magnitude, so a control net at 1e200 is a legal curve
 /// reachable through the public door. Its squared distance to a point
 /// at the origin overflows to `+∞`, and the Newton loop reads that
-/// residual through `crate::projection::mid` — `x + ½(x − x)`, which
+/// residual through `crate::projection_policy::mid` — `x + ½(x − x)`, which
 /// is NaN at `±∞`. NaN loses every acceptance comparison, so the
 /// iteration falls out to the typed refusal instead of reporting a
 /// converged foot at infinite distance.
@@ -211,14 +212,23 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
         Point3::new(huge, huge, huge),
         Point3::new(2.0 * huge, huge, huge),
     ];
-    let curve = NurbsCurve3::new(KnotVector::unit_segment(1), control, vec![1.0, 1.0])
-        .expect("a degree-1 segment with unit weights is a valid curve");
+    let curve = NurbsCurve3::new(
+        KnotVector::unit_segment(NonZeroUsize::MIN),
+        control,
+        vec![1.0, 1.0],
+    )
+    .expect("a degree-1 segment with unit weights is a valid curve");
 
     // Finite inputs throughout: the curve's own coordinates and the
     // query point are all representable.
-    assert!(curve.control().iter().all(|p| p.x.is_finite()));
+    assert!(
+        curve
+            .control()
+            .iter()
+            .all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite())
+    );
     let p = Point3::new(0.0, 0.0, 0.0);
-    assert!(p.x.is_finite());
+    assert!(p.x.is_finite() && p.y.is_finite() && p.z.is_finite());
 
     // The residual itself is what overflows.
     let d = curve.eval(0.0) - p;

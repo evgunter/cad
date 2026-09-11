@@ -14,16 +14,27 @@
 //! reproducible value (Cargo.lock semantics), so
 //! an out-of-date pin is surfaced, never silently retargeted.
 //!
-//! The write side is deliberately MINIMAL — exactly what the split/
-//! inline refactorings need, and no general mutation API — [`Workspace::create`] mints a new save
-//! file from a `Doc` (the id is the caller's:
-//! [`DocumentId::derive`] for deterministic callers,
-//! [`random_document_id`] for interactive authoring), and
-//! [`Workspace::resave`] rewrites an existing document's file by id.
-//! Duplicate-id refusal is unchanged, and there is no general mutation
-//! API: split and inline are the only intended writers. Both write the
-//! CURRENT state as a snapshot with an empty log (history is not
-//! state; the refactoring's own record is its returned edit lists).
+//! The write side is deliberately MINIMAL — the refactorings' two
+//! doors and the two acts a SAVE is, and no general mutation API.
+//! [`Workspace::create`] mints a new save file at `{id}.pncad` from a
+//! `Doc` (the id is the caller's: [`DocumentId::derive`] for
+//! deterministic callers, [`random_document_id`] for interactive
+//! authoring); [`Workspace::resave`] rewrites an existing document's
+//! file by id.
+//!
+//! **A save is two acts** (ASSEMBLY-DESIGN A4).
+//! [`Workspace::save_at`] writes a document at a caller-named file in
+//! the store and KEEPS its identity, so it refuses typed when the
+//! store already holds that id under another name — the ordinary
+//! "save a copy beside the original" would otherwise leave two files
+//! claiming one identity, and then every scan of that store refuses
+//! for every document in it.
+//! [`Workspace::save_as_new_document`] is the other act: the same
+//! content under a FRESH id, an explicit fork that leaves every
+//! inbound `DocRef` pinning the old id resolving to the original.
+//! Every writer here writes the CURRENT state as a snapshot with an
+//! empty log (history is not state; a refactoring's own record is its
+//! returned edit lists).
 //!
 //! [`DocumentId::derive`]: crate::document::DocumentId::derive
 
@@ -88,8 +99,8 @@ pub enum WorkspaceError {
         /// The path that repeated the id.
         second: PathBuf,
     },
-    /// A file's header refused (no/malformed `schema:` or `id:` line,
-    /// or a pre-v5 schema), naming the file.
+    /// A file's header refused (no or malformed `id:` line), naming
+    /// the file.
     Header {
         /// The refusing file.
         path: PathBuf,
@@ -143,6 +154,31 @@ pub enum WorkspaceError {
         /// The typed persistence refusal (boxed, as in `Header`).
         error: Box<PersistError>,
     },
+    /// A [`Workspace::save_at`] would give one document a SECOND
+    /// file: the store already holds this id at another path.
+    ///
+    /// Distinct from [`WorkspaceError::DuplicateId`] because the
+    /// recourse is: nothing is wrong on disk, and the fix is to
+    /// choose an act — resave in place, or save AS A NEW DOCUMENT
+    /// ([`Workspace::save_as_new_document`]), which mints a fresh id.
+    /// `DuplicateId` reports a store that already holds two such
+    /// files, whose only fix is deleting one.
+    SaveWouldDuplicateId {
+        /// The id both files would claim.
+        id: DocumentId,
+        /// The scanned file that already claims it.
+        existing: PathBuf,
+        /// The file this save would have written.
+        requested: PathBuf,
+    },
+    /// A [`Workspace::save_at`] target that is not a document file of
+    /// THIS store. A store is a flat directory of `*.pncad` files, so
+    /// a target under another directory, or with another extension,
+    /// names a file this store's scan would never read.
+    SaveTargetNotInStore {
+        /// The refused target, as the caller spelled it.
+        path: PathBuf,
+    },
     /// The OS entropy source refused ([`random_document_id`]).
     RandomnessUnavailable {
         /// The source's message.
@@ -158,31 +194,38 @@ pub enum WorkspaceError {
     },
 }
 
+// A path is text the caller chose, echoed back inside a sentence, so
+// every arm delimits it: an undelimited path runs into the prose
+// around it and the reader cannot see where the name ends.
 impl core::fmt::Display for WorkspaceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Io { path, message } => {
-                write!(f, "workspace: io error at {}: {message}", path.display())
+                write!(f, "workspace: io error at `{}`: {message}", path.display())
             }
             Self::DuplicateId { id, first, second } => write!(
                 f,
-                "workspace: duplicate document id {id}: {} and {} both claim it — \
+                "workspace: duplicate document id {id}: `{}` and `{}` both claim it — \
                  document ids are unique per workspace",
                 first.display(),
                 second.display()
             ),
             Self::Header { path, error } => {
-                write!(f, "workspace: {} refused: {error}", path.display())
+                write!(f, "workspace: `{}` refused: {error}", path.display())
             }
             Self::UnknownId { id } => {
                 write!(f, "workspace: no document with id {id}")
             }
             Self::Load { path, error } => {
-                write!(f, "workspace: {} refused to load: {error}", path.display())
+                write!(
+                    f,
+                    "workspace: `{}` refused to load: {error}",
+                    path.display()
+                )
             }
             Self::Pin { path, error } => write!(
                 f,
-                "workspace: {} loaded but its content pin would not compute: {error}",
+                "workspace: `{}` loaded but its content pin would not compute: {error}",
                 path.display()
             ),
             Self::PinMismatch {
@@ -192,13 +235,32 @@ impl core::fmt::Display for WorkspaceError {
                 found,
             } => write!(
                 f,
-                "workspace: pin mismatch for document {id} at {}: the reference pins \
+                "workspace: pin mismatch for document {id} at `{}`: the reference pins \
                  {wanted} but the document hashes to {found} — {PIN_MISMATCH_RECOURSE}",
                 path.display()
             ),
             Self::Save { id, error } => {
                 write!(f, "workspace: document {id} refused to save: {error}")
             }
+            Self::SaveWouldDuplicateId {
+                id,
+                existing,
+                requested,
+            } => write!(
+                f,
+                "workspace: document {id} is already stored at `{}`, so saving it at `{}` \
+                 would leave two files claiming one identity — resave it in place, or save \
+                 it as a NEW document, which mints a fresh id",
+                existing.display(),
+                requested.display()
+            ),
+            Self::SaveTargetNotInStore { path } => write!(
+                f,
+                "workspace: `{}` is not a save target in this store — a stored document is \
+                 a `*.pncad` file directly in the store's root directory, and a different \
+                 root is a different store",
+                path.display()
+            ),
             Self::RandomnessUnavailable { message } => {
                 write!(f, "workspace: OS randomness unavailable: {message}")
             }
@@ -209,9 +271,11 @@ impl core::fmt::Display for WorkspaceError {
 
 impl core::error::Error for WorkspaceError {}
 
-/// An opened workspace: the scanned id → path map, plus the two
-/// write doors ([`Workspace::create`], [`Workspace::resave`]) the
-/// refactorings need. See the module docs.
+/// An opened workspace: the scanned id → path map, plus the write
+/// doors — [`Workspace::create`] and [`Workspace::resave`] for the
+/// refactorings, and [`Workspace::save_at`] and
+/// [`Workspace::save_as_new_document`] for the two acts a save is.
+/// See the module docs.
 #[derive(Debug, Clone)]
 pub struct Workspace {
     /// The scanned directory.
@@ -231,9 +295,8 @@ impl Workspace {
     /// # Errors
     ///
     /// [`WorkspaceError::Io`] naming the failing path,
-    /// [`WorkspaceError::Header`] for an unreadable header (including
-    /// pre-v5 schemas), [`WorkspaceError::DuplicateId`] naming both
-    /// claimants.
+    /// [`WorkspaceError::Header`] for an unreadable header,
+    /// [`WorkspaceError::DuplicateId`] naming both claimants.
     pub fn open(dir: impl AsRef<Path>) -> Result<Self, WorkspaceError> {
         let root = dir.as_ref().to_path_buf();
         let io = |path: &Path| {
@@ -415,6 +478,135 @@ impl Workspace {
         })?;
         Ok(path)
     }
+
+    /// Saves `doc` at `target`, a save file of this store — the
+    /// ordinary "save at path", the FIRST of the two acts a save is
+    /// (ASSEMBLY-DESIGN A4). The document's identity is kept: a save
+    /// says which version of a part is on disk, never which part it
+    /// is.
+    ///
+    /// The scan decides which act this is, before anything is
+    /// written:
+    ///
+    /// - the id is claimed by a file at a DIFFERENT path — refused
+    ///   [`WorkspaceError::SaveWouldDuplicateId`], naming both, because
+    ///   two files claiming one identity make every later scan of this
+    ///   store refuse for every document in it;
+    /// - the id is claimed at `target` — a resave: content moves,
+    ///   identity does not, and references by pin go stale;
+    /// - the id is unclaimed — a create at `target`, which the store
+    ///   gains. Unlike [`Self::create`] the file name is the
+    ///   caller's, not `{id}.pncad`.
+    ///
+    /// `target` names a file in THIS store: a bare file name, or a
+    /// path whose parent is [`Self::root`], with extension `pncad`.
+    /// A different root is a different store, and copying a document
+    /// between stores is not this door.
+    ///
+    /// Nothing is written on any refusal.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkspaceError::SaveTargetNotInStore`] for a target outside
+    /// this store, [`WorkspaceError::SaveWouldDuplicateId`] for an id
+    /// this store holds elsewhere, [`WorkspaceError::Save`] for a
+    /// document the shared validator refuses, and
+    /// [`WorkspaceError::Io`] naming the file.
+    pub fn save_at(
+        &mut self,
+        doc: &ProfileDoc,
+        target: impl AsRef<Path>,
+        tol: Tol,
+    ) -> Result<PathBuf, WorkspaceError> {
+        let path = self.store_path(target.as_ref())?;
+        let id = doc.id();
+        if let Some(existing) = self.by_id.get(&id)
+            && existing != &path
+        {
+            return Err(WorkspaceError::SaveWouldDuplicateId {
+                id,
+                existing: existing.clone(),
+                requested: path,
+            });
+        }
+        let text = save(doc, &[], tol).map_err(|error| WorkspaceError::Save {
+            id,
+            error: Box::new(error),
+        })?;
+        std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
+            path: path.clone(),
+            message: e.to_string(),
+        })?;
+        self.by_id.insert(id, path.clone());
+        Ok(path)
+    }
+
+    /// Saves `doc` AS A NEW DOCUMENT: the same content under a fresh
+    /// random identity, at `{newid}.pncad`. The SECOND of the two
+    /// acts a save is (ASSEMBLY-DESIGN A4) — an explicit fork,
+    /// answering the new identity and its file.
+    ///
+    /// The original is untouched — its file, its id and its content
+    /// all stay as they were — so every inbound `DocRef` pinning the
+    /// old id still resolves to it. That is what a fork means, and it
+    /// is why this act is spelled apart from [`Self::save_at`] rather
+    /// than being what a save at a second path silently does.
+    ///
+    /// The fork's CONTENT PIN equals the original's: the pin's
+    /// preimage is the canonical bytes, which are the document's
+    /// serde form with the `id` key removed (A4 — the id answers
+    /// which part, the pin which version), so the same content under
+    /// a fresh identity is detectably the same content. The two save
+    /// FILES differ, in the `id:` header line and the snapshot's own
+    /// id.
+    ///
+    /// Writes through [`Self::create`], so the fork runs the same
+    /// shared validator every other write runs and nothing is written
+    /// on any refusal.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkspaceError::RandomnessUnavailable`] if the OS entropy
+    /// source refuses the fresh id, then [`Self::create`]'s own arms:
+    /// [`WorkspaceError::Save`] and [`WorkspaceError::Io`]
+    /// ([`WorkspaceError::DuplicateId`] is create's and reachable
+    /// here only on a random collision).
+    pub fn save_as_new_document(
+        &mut self,
+        doc: &ProfileDoc,
+        tol: Tol,
+    ) -> Result<(DocumentId, PathBuf), WorkspaceError> {
+        let id = random_document_id()?;
+        let path = self.create(&doc.clone().under_identity(id), tol)?;
+        Ok((id, path))
+    }
+
+    /// The store file `target` names, or a typed refusal.
+    ///
+    /// A store is a FLAT directory of `*.pncad` files, so a target
+    /// belongs to it iff it names such a file directly in the root —
+    /// spelled bare, or with the root written out. The answer is
+    /// always `root.join(file_name)`, so what the store records is
+    /// the store's own spelling of the path whichever way the caller
+    /// wrote it.
+    fn store_path(&self, target: &Path) -> Result<PathBuf, WorkspaceError> {
+        let refuse = || WorkspaceError::SaveTargetNotInStore {
+            path: target.to_path_buf(),
+        };
+        let Some(name) = target.file_name() else {
+            return Err(refuse());
+        };
+        if !target.extension().is_some_and(|ext| ext == "pncad") {
+            return Err(refuse());
+        }
+        match target.parent() {
+            // A bare file name: the store's root is implied.
+            None => {}
+            Some(parent) if parent.as_os_str().is_empty() || parent == self.root => {}
+            Some(_) => return Err(refuse()),
+        }
+        Ok(self.root.join(name))
+    }
 }
 
 /// The document seam: a workspace
@@ -429,15 +621,26 @@ impl PartResolver for Workspace {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         Workspace::resolve(self, doc_ref, tol).map_err(|e| ResolveFailure {
             fault: resolve_fault(&e),
-            // Not an exception to [`resolve_fault`]'s paragraph
-            // below: this match RENDERS rather than classifies, and
-            // the wildcard's answer is the enum's own `Display`. A
-            // variant added later answers for itself here, and misses
-            // only a recourse sentence it does not have.
-            message: match &e {
-                WorkspaceError::PinMismatch { .. } => format!("{e}; {PIN_MISMATCH_RECOURSE}"),
-                _ => e.to_string(),
-            },
+            // The message is the enum's own `Display`, with nothing
+            // appended and no per-variant rendering — so there is
+            // nothing here for [`resolve_fault`]'s exhaustiveness
+            // paragraph to make an exception for, and a variant added
+            // later answers for itself.
+            //
+            // A caller holding only the kernel-side
+            // `ResolveFailure::message` never sees the store's
+            // `WorkspaceError`, so this door carries the recourse ONLY
+            // because [`WorkspaceError`]'s `PinMismatch` arm ends on
+            // [`PIN_MISMATCH_RECOURSE`] unconditionally (see the arm
+            // above) — a real coupling between two impls, and the
+            // reason a second copy appended here would be a second
+            // copy rather than a fallback. It is held rather than
+            // merely hoped: `crates/viewer/tests/instance_authoring.rs`
+            // asserts the recourse on the badge an evaluation renders,
+            // which is this message, in this workspace and with no
+            // interpreter. The demo's update walk and the Python author
+            // suite pin the COUNT at one from further out.
+            message: e.to_string(),
         })
     }
 }
@@ -461,6 +664,8 @@ fn resolve_fault(e: &WorkspaceError) -> ResolveFault {
         | WorkspaceError::UnknownId { .. }
         | WorkspaceError::Pin { .. }
         | WorkspaceError::Save { .. }
+        | WorkspaceError::SaveWouldDuplicateId { .. }
+        | WorkspaceError::SaveTargetNotInStore { .. }
         | WorkspaceError::RandomnessUnavailable { .. }
         | WorkspaceError::Update { .. } => ResolveFault::Unresolved,
     }
@@ -476,16 +681,15 @@ fn load_fault(error: &PersistError) -> ResolveFault {
         // different one cannot be evaluated at all.
         PersistError::ToleranceConflict { .. } => ResolveFault::EpsilonSeam,
         PersistError::NonFinite { .. }
+        | PersistError::Distribution { .. }
+        | PersistError::DisplayUnit { .. }
         | PersistError::ProfileProgram { .. }
         | PersistError::Serialize { .. }
-        | PersistError::Header { .. }
         | PersistError::HeaderId { .. }
         | PersistError::IdMismatch { .. }
-        | PersistError::UnknownSchema { .. }
-        | PersistError::SchemaTooOld { .. }
         | PersistError::Parse { .. }
+        | PersistError::Unreadable { .. }
         | PersistError::EditReplay { .. }
-        | PersistError::Migration(_)
         | PersistError::Snapshot(_)
         | PersistError::ToleranceInvalid { .. } => ResolveFault::Unresolved,
     }

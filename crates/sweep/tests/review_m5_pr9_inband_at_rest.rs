@@ -60,7 +60,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(geom_brep::EdgeCurve::description),
-                    Some(geom_brep::EdgeGeometry::TangentIntersection { .. })
+                    Some(geom_brep::EdgeDescription::TangentIntersection { .. })
                 )
             });
             match topo::contact_marks(&body, Tol::witness()) {

@@ -28,11 +28,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Point2, Point3, Vec3};
+use pncad::authoring::{p2, p3, v3};
 use pncad::profile::{Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, SplitPlane, split};
-use pncad::topo::{Body, Curve3, EdgeGeometry};
+use pncad::topo::{Body, Curve3, EdgeDescription};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -50,8 +50,7 @@ const PHI: f64 = 0.3;
 /// surface.
 fn disc<S: Scalar>(tol: Tol) -> ValidatedProfile<S> {
     // Algebra-authored (LIB-G1): the one-step circle program form.
-    let p2 = |x: f64, y: f64| Point2::new(S::from_f64(x), S::from_f64(y));
-    let lp = pncad::profile::circle(p2(0.0, 0.0), S::from_f64(R), tol)
+    let lp = pncad::profile::circle(p2::<S>(0.0, 0.0), S::from_f64(R), tol)
         .expect("disc radius is positive")
         .into();
     Profile::new(SketchPlane::xy(), vec![lp])
@@ -66,12 +65,8 @@ pub fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>) {
         .expect("extrude cylinder")
         .body;
     let plane = SplitPlane {
-        origin: Point3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(H / 2.0)),
-        normal: Vec3::new(
-            S::from_f64(PHI.sin()),
-            S::from_f64(0.0),
-            S::from_f64(PHI.cos()),
-        ),
+        origin: p3(0.0, 0.0, H / 2.0),
+        normal: v3(PHI.sin(), 0.0, PHI.cos()),
     };
     let result = split(&cylinder, &plane, tol).expect("the tilted cut splits the cylinder");
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
@@ -102,7 +97,7 @@ fn section_narration<S: Scalar>(label: &str, body: &Body<S>, tol: Tol) -> String
             minor.f()
         );
         assert!(
-            matches!(curve.description(), EdgeGeometry::Intersection { .. }),
+            matches!(curve.description(), EdgeDescription::Intersection { .. }),
             "{label}: a section edge must be described as the wall x plane intersection"
         );
         worst = worst.max(curve.certificate().max_residual.f());

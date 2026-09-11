@@ -62,10 +62,18 @@
 //! saw (`path_junction_turn`, +293 samples/row, every |m| ≥ 2.5 m), and
 //! since #661 pooled the six `bool_sector_*` / `split_sector_*` names
 //! into `sector_{arm,reflex,straight}` it also DROPS six the baseline
-//! still lists — 233 committed here, 231 at today's main. Neither
-//! direction reaches this lint, which lints the fresh rows it was
-//! handed and never compares them to the committed files; the thresholds
-//! below are the only thing the baseline supplies. The baseline is
+//! still lists — 233 committed here, and 281 at the tip
+//! `docs/K-REPORT.md`'s M11 addendum counted (2026-09-08), 61 names in
+//! and 13 out. **Only the second is dated.** The committed 233 is a
+//! property of files `docs/k-report-data/README.md` rule 1 freezes, and
+//! `tests/threshold_provenance.rs` re-counts it off them on every gate
+//! run rather than carrying it as a figure. The tip count has no such
+//! guard and cannot have one here, and it is the shape that addendum's
+//! standing note warns about: a roster size phrased as though it were
+//! live reads as current forever and goes stale on the next merge.
+//! Neither direction reaches this lint, which lints the fresh rows it
+//! was handed and never compares them to the committed files; the
+//! thresholds below are the only thing the baseline supplies. The baseline is
 //! re-cut when the DISTRIBUTION moves — a new floor, a filled gap, an
 //! ε-coupled family — not on every merge and not on a rename.
 //!
@@ -211,15 +219,67 @@
 /// Ratio rules apply only to ambient (ε-scale) bands; the exact
 /// tie-break bands the kernel also records are 5e-324 / 1e-100 —
 /// dozens of decades below any supported ε (1e-6 … 1e-12).
+///
+/// **Not a measurement, and that is why it carries no register**: the
+/// two tie-break figures are values the RECORDER writes for exact
+/// predicates, not readings of a distribution, and the supported ε rows
+/// are the ratified matrix. So this separator sits in a gap between two
+/// things a sweep cannot move, and no re-measurement could shift it.
+/// What COULD falsify it is a change to the kernel's own band
+/// construction putting an exact band above 1e-13 — an edit to
+/// `Band::new`'s callers, not a drift — and nothing here watches for
+/// that: the failure would be silent, an exact row quietly answering to
+/// the ratio rules. That is the residue, stated rather than guarded,
+/// because the guard would have to live in the recorder.
+///
+/// **The separation itself IS checked**, in
+/// `tests/threshold_provenance.rs`: the M7 era's `band_zero`
+/// population is bimodal with an 88-decade gap, and every value inside
+/// that gap classifies every recorded row identically. The same
+/// derivation over all four committed eras is there too, `#[ignore]`d
+/// because M7 dominates them and they are frozen. So the digit is
+/// a choice within the gap and carries no information — which is what
+/// the paragraph above claims, now stated where it can fail. It does
+/// not reach the residue: these are past snapshots, and a future band
+/// construction is invisible to all of them.
 pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 
 /// "Within 10^2 of the band": the spec's proximity factor (D3).
+///
+/// **A policy choice, and the only one of this crate's four constants
+/// that is** — nothing derives 1e2 and no re-measurement could. What
+/// bounds it is derived instead, in `tests/threshold_provenance.rs`:
+/// below the structural edge the rule-2 cap stops binding at the
+/// loosest supported row, and above the corpus's own largest zero-side
+/// ratio the baseline starts flagging itself under rule (2)-below.
+/// **That measured ceiling is the binding one of the two** — well
+/// under the structural edge, and under 2x above the shipped factor,
+/// at the 1e-12 row where a fixed rounding-scale coincidence is
+/// closest to `band_zero`. Both halves of that sentence are the
+/// assertions the test makes, in that order. It is NOT the crate's
+/// narrowest headroom: this one is 1.88x of a policy digit, while
+/// `EPS_COUPLED_FLOOR_RATIO` sits 8.9% below its P0 and this floor
+/// 16.6% below its datum — different quantities, not a ranking.
 pub const PROXIMITY_FACTOR: f64 = 1e2;
 
 /// The baseline distribution's bottom edge (provenance in the module
 /// docs — the M7 baseline's smallest ε-INDEPENDENT definite margin
 /// 4.7965e-5, P0, rounded down to 4.0e-5 so the baseline itself lints
 /// clean with 16.6% of headroom).
+///
+/// **MEASURED WHEN, AND REFRESHED WHERE — the half a threshold derived
+/// from a distribution owes and this one did not carry.** It was cut
+/// from the M7 sweep committed at `docs/k-report-data/m7-eps-*.csv.gz`,
+/// and the re-derivation is written up in `docs/K-REPORT.md`'s M7
+/// addendum (2026-08-07). NOTHING RE-TAKES IT ON A CADENCE, and the
+/// distinction that matters is which of the two things is watched: CI
+/// re-cuts the SWEEP against this threshold on every run that draws the
+/// `dev-probe` unification and fails on a finding, so a moved
+/// DISTRIBUTION is caught mechanically — but the threshold's own
+/// derivation is refreshed only by a human running that runbook, on a
+/// fired lint. That is why the CLI's recourse leads with re-derivation
+/// and forbids the geometry nudge: the gate can tell you the two have
+/// parted, and it cannot tell you which one moved.
 pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 
 /// The ε-coupled families: predicates whose recorded margin is a
@@ -228,6 +288,27 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// argument is in the module docs ("The ε-coupled families"). An
 /// explicit allow-list on purpose: a new ε-coupled predicate is NOT on
 /// it and keeps flagging under the metre rules until someone rules.
+///
+/// **PINNED TO ONE FILE'S SPELLING — read `tests/predicate_roster.rs`
+/// for what that does and does not cover**, because the pin's reach is
+/// narrower than this sentence can honestly summarise. It reads
+/// `crates/geom-brep/src/props/quad.rs` across the cargo-root boundary
+/// and reds if a name here stops being minted there; if a rostered
+/// mint's margin stops deriving from the whole identifier `target_len`
+/// in its own enclosing function, or that binding stops being
+/// `QUAD_TARGET_LEN_FACTOR * eps` (rule (4)'s premise, not just its
+/// key); if a mint acquires such a margin and is neither rostered nor
+/// excused there by name; or if any `classify_len` in that file drops
+/// out of the parse.
+///
+/// **What no test here can see** is a predicate the kernel adds to this
+/// class by a route that is not `target_len`, or in a file that table
+/// does not list. Membership is a property, that property is written
+/// nowhere a test can evaluate over a name — `target_len` is this one
+/// family's spelling of it, not the criterion — and
+/// `work/meter/k-lint-eps-coupled-criterion-unwritten` is where the
+/// criterion is scheduled. The allow-list's fail-loud posture above is
+/// why the residue is a diagnosis gap and not an open gate.
 pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 
 /// Rule (4)'s floor for [`EPS_COUPLED_PREDICATES`], in units of ε:
@@ -251,6 +332,30 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// distribution change: it wants re-derivation from a larger
 /// population, not a re-rounding — and never a geometry tweak (the
 /// CLI's recourse (1), `main.rs`).
+///
+/// **MEASURED WHEN, AND REFRESHED WHERE — the same half
+/// [`BASELINE_FLOOR_MARGIN`] carries, and this constant needs it more
+/// rather than less.** Cut from the same M7 sweep, committed at
+/// `docs/k-report-data/m7-eps-*.csv.gz`, with the re-argument in
+/// `docs/K-REPORT.md`'s M7 addendum (2026-08-07) beside its sibling's.
+/// Nothing re-takes it on a cadence: CI re-cuts the SWEEP against this
+/// threshold on every run that draws the `dev-probe` unification, so a
+/// moved distribution reds — but the threshold's own derivation is
+/// refreshed only by a human running that runbook, on a fired row. The
+/// paragraph above is what makes that difference operational: the
+/// sibling's P0 sits behind a ten-decade gap and this one's is the
+/// minimum of 108 draws, so a firing here is likelier to be the
+/// threshold than the distribution, and the runbook rather than this
+/// line is where that gets decided.
+///
+/// **The derivation is executable**, in `tests/threshold_provenance.rs`:
+/// the population is re-cut from the committed M7 era on every
+/// `cargo test` and this constant re-checked against its P0 and the
+/// headroom above. The distinction the paragraph above draws survives
+/// intact — what is re-run is the CUT, over a fixed committed era;
+/// what nothing re-takes is the SWEEP that produced the era. When a
+/// later era supersedes M7 the constant is re-cut against it, and that
+/// test is where the move happens.
 pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 
 /// Whether `predicate` is one of the [`EPS_COUPLED_PREDICATES`].
@@ -287,6 +392,42 @@ pub enum Reason {
     BelowEpsCoupledFloor,
 }
 
+impl Reason {
+    /// **Which RULE of the module's three this reason belongs to.**
+    ///
+    /// The distinction is load-bearing since M10-6: rule 1 detects a
+    /// margin the run could not decide at all (`indeterminate`) or a
+    /// poisoned one (`invalid`) — a defect wherever it appears, and
+    /// the trigger ERROR-DESIGN E6 names for re-opening the K
+    /// question. Rules 2 and 3 detect margins that are DECIDED but sit
+    /// near a threshold or below a calibrated floor — a statement
+    /// about the distribution, which a population that refines margins
+    /// toward zero by construction will make in bulk without anything
+    /// being wrong.
+    ///
+    /// A consumer may demote 2 and 3 with a recorded justification
+    /// (`docs/K-REPORT.md`'s recourse 2). Demoting rule 1 would demote
+    /// the trigger, so nothing offers that.
+    pub fn rule(self) -> u8 {
+        match self {
+            Self::InBand | Self::Invalid => 1,
+            Self::NearBandAbove | Self::NearBandBelow => 2,
+            Self::BelowBaselineFloor | Self::BelowEpsCoupledFloor => 3,
+        }
+    }
+
+    /// Every reason, for tallying — so a per-rule count cannot silently
+    /// omit a variant the enum grows.
+    pub const ALL: [Self; 6] = [
+        Self::InBand,
+        Self::Invalid,
+        Self::NearBandAbove,
+        Self::NearBandBelow,
+        Self::BelowBaselineFloor,
+        Self::BelowEpsCoupledFloor,
+    ];
+}
+
 impl core::fmt::Display for Reason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let s = match self {
@@ -320,6 +461,26 @@ pub struct Flag {
 pub struct Scan {
     /// Samples considered (every non-header, non-empty line).
     pub scanned: usize,
+    /// How many of [`Scan::scanned`] were `symbolic_zero` — decisions
+    /// the symbolic identity tier answered, which answer to no rule
+    /// here ([`lint_sample`]'s arm says why) and are reported as their
+    /// own number rather than folded into the clean count.
+    pub symbolic: usize,
+    /// How many of [`Scan::scanned`] were `sign_gated` — decisions the
+    /// symbolic tier answered through its clause-3 fold (a theorem
+    /// conditional on a sign it certified over the box). Never a rule
+    /// sample, for the same reason as `symbolic_zero`, and reported as
+    /// its own number because the two claims differ in kind.
+    pub sign_gated: usize,
+    /// How many of [`Scan::scanned`] were `registered` — decisions the
+    /// symbolic tier answered through a REGISTERED IDENTITY (a
+    /// constructor's axiom about what it built, verified at the leaf's
+    /// witness; ERROR-DESIGN E12's provenance reserve). Never a rule
+    /// sample, for the same reason as the two columns above, and its
+    /// own number because the claim differs in kind from both: those
+    /// two are theorems of exact arithmetic, this one additionally
+    /// rests on the registrant's argument.
+    pub registered: usize,
     pub flags: Vec<Flag>,
     /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
     /// enough that rule (2)'s definite arm was capped at the baseline
@@ -327,6 +488,132 @@ pub struct Scan {
     /// docs, "Rule (2)'s discrimination floor").
     pub proximity_capped: Option<(f64, f64)>,
 }
+
+/// The sweep's CSV header: the column order this file's rules are
+/// stated against, and the only header [`lint_csv`] accepts.
+const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,outcome";
+
+/// **Every outcome token the recorder can write** — this lint's half of
+/// a vocabulary whose other half is `geom_core::k_stats::SampleOutcome`.
+///
+/// One list rather than a `matches!` arm, because the two halves have
+/// already drifted once and the drift was invisible. `SampleOutcome`
+/// grew a `SymbolicZero` variant serialized as `symbolic_zero`; this
+/// list did not; and every driver row the E6 sweep wrote from then on
+/// was refused as harness breakage, so the driver population was linted
+/// ZERO times while the CI row still reported success. The tool was
+/// right to refuse a token it did not know — that refusal is
+/// deliberate, review MIN-2 — and being right is not the same as being
+/// noticed.
+///
+/// `tests::the_accepted_outcomes_are_exactly_the_recorders` pins this
+/// list against `SampleOutcome::ALL` variant by variant, so the next
+/// variant reds a test here instead of silently disarming a gate.
+pub const ACCEPTED_OUTCOMES: [&str; 8] = [
+    "zero",
+    "positive",
+    "negative",
+    "indeterminate",
+    "invalid",
+    "symbolic_zero",
+    "sign_gated",
+    "registered",
+];
+
+/// What a numeric column of the sweep may say.
+///
+/// **A reading the lint cannot read is not a sample that passed.** Every
+/// rule in [`lint_sample`] is an `m < t` or `m > t` comparison, so a
+/// `NaN` margin makes all of them false and the row scores CLEAN while
+/// still counting in [`Scan::scanned`]; a `NaN` `band_zero` misses the
+/// `band_zero >= AMBIENT_BAND_MIN` guard on every arm and answers to no
+/// rule at all. So a value outside its column's policy is refused as
+/// harness breakage, for the same reason the `outcome` allow-list beside
+/// it already gives (review MIN-2): the instrument's answer to an
+/// unreadable measurement must not be its own pass value.
+///
+/// The recorder is the authority for both policies. `k_stats::record`
+/// writes the margin `Decide for f64` classified together with the
+/// thresholds of the `Band` it was classified against, and `Band::new`
+/// refuses a threshold that is not finite and strictly positive — so a
+/// zero or negative band is drift, not a loose band.
+///
+/// **`Band::new`'s third invariant is not one of these**, and cannot be:
+/// `BandError::Empty` is `zero < escalate`, a relation between two
+/// columns that each admit alone. A row inverting them was classified
+/// against a band the recorder could not have built, and rule (2)'s two
+/// arms would then sit on opposite sides of a band that does not exist —
+/// `m < EPS_COUPLED_FLOOR_RATIO * band_zero` for the ε-coupled
+/// predicates and `m < proximity_above_threshold(band_escalate)` for the
+/// rest — making the verdict incoherent rather than wrong in a stated
+/// direction. [`lint_csv`] checks it where the two admissions meet.
+///
+/// **Where a cross-column invariant goes, in which voice, and when it
+/// is owed at all is written once for both instruments** —
+/// `tools/README.md`, clauses `CC1`–`CC5`. This enum
+/// carries two of its dispositions: the band relation is `CC3`,
+/// checked at the reading boundary because neither column is the
+/// other's condition, and [`Self::Margin`] is `CC2`, folded into this
+/// table's own signature because `outcome` IS prior to the margin's
+/// policy and [`lint_csv`] has already validated it.
+#[derive(Clone, Copy, Debug)]
+enum Admissible {
+    /// A classified margin: any FINITE value, of either sign — a margin
+    /// is a signed length and the corpus records both signs and exact
+    /// zeros. The two non-finite spellings are admitted only against
+    /// the outcomes that produce them: `NaN` is the poison
+    /// `Decide for f64` reports as `invalid`, and ±∞ is documented
+    /// there as maximally definite, so it can only accompany a definite
+    /// outcome. A pairing the recorder could not have written is drift,
+    /// and the one this rule exists for is `NaN` on an outcome whose
+    /// every comparison it makes false.
+    Margin,
+    /// A band threshold: finite and strictly positive, which is
+    /// `Band::new`'s own contract.
+    BandThreshold,
+}
+
+impl Admissible {
+    /// Whether `v` is a reading of this kind of column on a row whose
+    /// recorded outcome is `outcome` (already checked against the
+    /// outcome allow-list by [`lint_csv`]).
+    fn admits(self, v: f64, outcome: &str) -> bool {
+        match self {
+            Self::Margin => {
+                if v.is_nan() {
+                    outcome == "invalid"
+                } else if v.is_infinite() {
+                    matches!(outcome, "positive" | "negative")
+                } else {
+                    true
+                }
+            }
+            Self::BandThreshold => v.is_finite() && v > 0.0,
+        }
+    }
+
+    /// What this column may say, for the harness message.
+    fn expects(self) -> &'static str {
+        match self {
+            Self::Margin => {
+                "a margin: finite, or NaN on an `invalid` outcome, or ±inf on a definite one"
+            }
+            Self::BandThreshold => "a band threshold, finite and above zero",
+        }
+    }
+}
+
+/// The float block — every column [`lint_sample`] compares against, in
+/// [`EXPECTED_HEADER`]'s order, with what each may say. One table
+/// rather than three hand-written checks so that the block the parser
+/// polices and the block the header declares can be compared to each
+/// other, which this module's tests do: a fourth float column added
+/// without an entry here would otherwise reach the rules unpoliced.
+const FLOAT_COLUMNS: [(&str, Admissible); 3] = [
+    ("margin", Admissible::Margin),
+    ("band_zero", Admissible::BandThreshold),
+    ("band_escalate", Admissible::BandThreshold),
+];
 
 /// A malformed input line: HARNESS BREAKAGE — the lint could not run.
 /// Findings fail the CI row too, but in their own voice and with their
@@ -364,6 +651,34 @@ pub fn lint_sample(
                 reasons.push(Reason::NearBandBelow);
             }
         }
+        // **Never a rule sample, and not because it is uninteresting.**
+        // A `symbolic_zero` row is a decision the symbolic identity tier
+        // answered (ERROR-DESIGN E12): the margin's expression is
+        // identically zero in the document's parameters, so `Zero` was a
+        // theorem and the margin was never CLASSIFIED against the band
+        // at all. Every rule here is a statement about where a decided
+        // margin sits relative to a threshold; there is no such
+        // position to report, so rule 1 cannot fire (nothing landed
+        // in-band) and rules 2 and 3 have no threshold comparison to
+        // make. The row still counts — in its own column, `Scan::
+        // symbolic` — because the ratio of symbolic to numeric
+        // decisions is the evidence the tier exists to produce.
+        //
+        // A `sign_gated` row is the same tier's answer through its
+        // clause-3 fold: zero as a theorem CONDITIONAL on a sign the
+        // funnel certified over the leaf's box. The margin was still
+        // never classified against the band, so it is no rule's
+        // sample either; it counts in `Scan::sign_gated`, apart from
+        // the unconditional column, because the two claims differ.
+        // A `registered` row is the same tier's answer through the
+        // registered-identity door: zero because a CONSTRUCTOR stated
+        // that two of the expression's nodes are one real and the
+        // leaf's witness agreed. Still never classified against the
+        // band — no rule has a comparison to make — and still its own
+        // column (`Scan::registered`), because an axiom about a
+        // construction is not a theorem of the arithmetic and reading
+        // the three together as one number would hide exactly that.
+        "symbolic_zero" | "sign_gated" | "registered" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
             if is_eps_coupled(predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
@@ -388,17 +703,21 @@ pub fn lint_sample(
 ///
 /// # Errors
 ///
-/// The first malformed line — bad column count, unparseable float, or
-/// an UNKNOWN outcome string — harness breakage. A FINDING is never an
-/// `Err`: it comes back in [`Scan::flags`], and the CLI turns it into
-/// its own failure voice.
+/// The first malformed line — bad column count, unparseable float, an
+/// UNKNOWN outcome string, or a float outside its column's policy
+/// (`Admissible`) — harness breakage. A FINDING is never an `Err`: it
+/// comes back in [`Scan::flags`], and the CLI turns it into its own
+/// failure voice.
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut scanned = 0usize;
+    let mut symbolic = 0usize;
+    let mut sign_gated = 0usize;
+    let mut registered = 0usize;
     let mut proximity_capped = None;
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
-            if line != "shape,predicate,margin,band_zero,band_escalate,outcome" {
+            if line != EXPECTED_HEADER {
                 return Err(ParseError {
                     line: 1,
                     text: line.to_string(),
@@ -407,6 +726,23 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             continue;
         }
         if line.is_empty() {
+            continue;
+        }
+        // **A `#` line is a COMMENT, not a sample.** The E6 driver
+        // sweep writes one census line per fixture ahead of that
+        // fixture's rows — `# census driver/<shape> eps=… certified=N
+        // samples=M` — because an empty population is a legitimate
+        // outcome there and a bare header would leave a reader unable
+        // to tell it from a harness that died. Skipping the line rather
+        // than parsing it keeps this lint's subject exactly what it has
+        // always been (a sample distribution) while letting the file it
+        // reads say what produced it.
+        //
+        // It is not a hole in the malformed-row alarm: a row that DROPS
+        // a field or misspells an outcome still fails, because a `#` is
+        // never the first character of a sample row (a shape is
+        // namespaced `corpus/`, `demo/` or `driver/`).
+        if line.starts_with('#') {
             continue;
         }
         let err = || ParseError {
@@ -425,19 +761,62 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         ) else {
             return Err(err());
         };
-        let margin: f64 = m.parse().map_err(|_| err())?;
-        let band_zero: f64 = bz.parse().map_err(|_| err())?;
-        let band_escalate: f64 = be.parse().map_err(|_| err())?;
         // An unknown outcome string is harness breakage, exactly like
         // a malformed float: scoring it silently CLEAN would let a
-        // sweep-format drift disarm the whole lint (review MIN-2).
-        if !matches!(
-            out,
-            "zero" | "positive" | "negative" | "indeterminate" | "invalid"
-        ) {
+        // sweep-format drift disarm the whole lint (review MIN-2). It
+        // is checked FIRST because the margin's policy is stated
+        // against it (`Admissible::Margin`).
+        if !ACCEPTED_OUTCOMES.contains(&out) {
             return Err(err());
         }
+        // An unreadable measurement is harness breakage too, and for
+        // the same reason — see `Admissible`.
+        // The column index carries BOTH halves of the policy — the name
+        // the message reports and the rule it was refused by — so the
+        // two cannot drift apart per column.
+        let admit = |field: &str, col: usize| -> Result<f64, ParseError> {
+            let (name, kind) = FLOAT_COLUMNS[col];
+            let v: f64 = field.parse().map_err(|_| err())?;
+            if kind.admits(v, out) {
+                Ok(v)
+            } else {
+                Err(ParseError {
+                    line: i + 1,
+                    text: format!(
+                        "{name} = {v:e} is not {} (sweep drift?): {line}",
+                        kind.expects()
+                    ),
+                })
+            }
+        };
+        let margin = admit(m, 0)?;
+        let band_zero = admit(bz, 1)?;
+        let band_escalate = admit(be, 2)?;
+        // The band property no per-column policy can state, because it
+        // is a RELATION between two columns that each admit alone —
+        // `CC3` of the rule the two instruments share
+        // (`tools/README.md`), checked at this crate's
+        // reading boundary, which is this function.
+        if band_zero >= band_escalate {
+            return Err(ParseError {
+                line: i + 1,
+                text: format!(
+                    "band_zero = {band_zero:e} must be strictly below band_escalate = \
+                     {band_escalate:e} (the ambiguity band is a nonempty open interval; \
+                     sweep drift?): {line}"
+                ),
+            });
+        }
         scanned += 1;
+        if out == "symbolic_zero" {
+            symbolic += 1;
+        }
+        if out == "sign_gated" {
+            sign_gated += 1;
+        }
+        if out == "registered" {
+            registered += 1;
+        }
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
         if band_zero >= AMBIENT_BAND_MIN && proximity_capped.is_none() {
@@ -460,6 +839,9 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     }
     Ok(Scan {
         scanned,
+        symbolic,
+        sign_gated,
+        registered,
         flags,
         proximity_capped,
     })
@@ -468,6 +850,45 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The page this crate's cross-column citations NAME, read here so
+    /// they cannot rot silently.
+    ///
+    /// Those citations are plain text — a path and a clause id in a
+    /// doc comment — and nothing else in either cargo root validates
+    /// either half. The `include_str!` makes the PATH load-bearing:
+    /// move or delete `tools/README.md` and this crate stops
+    /// compiling. [`every_clause_this_crate_cites_is_on_the_page`]
+    /// makes the CLAUSE IDS load-bearing, which is the half a path
+    /// cannot reach.
+    const RULE_PAGE: &str = include_str!("../../README.md");
+
+    /// Every clause id this crate cites is a heading on
+    /// [`RULE_PAGE`], and the page carries no clause this crate has
+    /// not seen.
+    ///
+    /// The second direction is the one worth having: a `CC6` written
+    /// on the page without a row here reds this test, so a clause
+    /// cannot arrive without the crates citing the range being told.
+    /// The list is written out rather than scraped from this file's
+    /// own text — a test that reads the thing it is checking asserts
+    /// nothing.
+    #[test]
+    fn every_clause_this_crate_cites_is_on_the_page() {
+        const CITED: [&str; 5] = ["CC1", "CC2", "CC3", "CC4", "CC5"];
+        for id in CITED {
+            assert_eq!(
+                RULE_PAGE.matches(&format!("\n## `{id}` ")).count(),
+                1,
+                "{id}: one clause heading on tools/README.md"
+            );
+        }
+        assert_eq!(
+            RULE_PAGE.matches("\n## `CC").count(),
+            CITED.len(),
+            "the page's clauses are exactly the ones this crate cites"
+        );
+    }
 
     #[test]
     fn clean_definite_and_zero_pass() {
@@ -666,5 +1087,221 @@ mod tests {
             )
             .is_err()
         );
+        // A `#` census line is skipped, and skipping it does not
+        // disarm the malformed-row alarm one line over: the E6 driver
+        // sweep writes those lines, and a dropped field in a real row
+        // still fails.
+        let censused = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                        # census driver/slab eps=1e-9 certified=0 samples=0\n\
+                        demo/x,p1,2e0,1e-9,1e-8,positive\n";
+        let scan = lint_csv(censused).expect("a census line is a comment");
+        assert_eq!(scan.scanned, 1, "the comment is not a sample");
+        assert!(
+            lint_csv(
+                "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                 # census driver/slab eps=1e-9 certified=1 samples=1\n\
+                 x,y,2e0,1e-9,1e-8\n"
+            )
+            .is_err()
+        );
+    }
+
+    /// One row, with each float column settable.
+    fn row(margin: &str, band_zero: &str, band_escalate: &str, outcome: &str) -> String {
+        format!("{EXPECTED_HEADER}\ndemo/x,p,{margin},{band_zero},{band_escalate},{outcome}\n")
+    }
+
+    /// The block the parser polices is the header's own, bracketed on
+    /// both sides: a column inserted into the float run would slide
+    /// every reading under the wrong policy, and the drifting header
+    /// this file already refuses is the same failure one step earlier.
+    #[test]
+    fn the_policed_block_is_the_headers_float_block() {
+        /// Where the float block starts in [`EXPECTED_HEADER`]. Only
+        /// the bracket test needs it — `lint_csv` destructures the row
+        /// positionally, so the offset it uses IS this header's.
+        const FLOAT_FIRST: usize = 2;
+        let cols: Vec<&str> = EXPECTED_HEADER.split(',').collect();
+        assert_eq!(
+            cols[FLOAT_FIRST - 1],
+            "predicate",
+            "the block starts too late"
+        );
+        for (k, (name, _)) in FLOAT_COLUMNS.iter().enumerate() {
+            assert_eq!(cols[FLOAT_FIRST + k], *name, "column {k}");
+        }
+        assert_eq!(
+            cols[FLOAT_FIRST + FLOAT_COLUMNS.len()],
+            "outcome",
+            "the block ends too early"
+        );
+        assert_eq!(
+            cols.len(),
+            FLOAT_FIRST + FLOAT_COLUMNS.len() + 1,
+            "a float column past `outcome` would reach the rules unpoliced"
+        );
+    }
+
+    /// The question this parser exists to answer. Every rule is an
+    /// `m < t` or `m > t` comparison, so an unreadable value resolves
+    /// every rule to false and the row scores CLEAN — the instrument's
+    /// failure mode would be its own pass condition. Each of these rows
+    /// scored clean before it was refused.
+    ///
+    /// The expectations are written out rather than derived from
+    /// [`FLOAT_COLUMNS`]: a test that reads the policy it is checking
+    /// asserts nothing.
+    #[test]
+    fn every_float_column_refuses_the_readings_that_would_score_a_row_clean() {
+        // `0e0` is the value that discriminates a band threshold's
+        // "above zero" from a mere "non-negative": relax
+        // `Admissible::BandThreshold` to `v >= 0.0` and this loop reds
+        // rather than only some fixture breaking.
+        for bad in ["0e0", "-1e0", "inf", "-inf", "NaN"] {
+            assert!(
+                lint_csv(&row("2e0", bad, "1e-8", "positive")).is_err(),
+                "band_zero = {bad} must be harness breakage"
+            );
+            assert!(
+                lint_csv(&row("2e0", "1e-9", bad, "positive")).is_err(),
+                "band_escalate = {bad} must be harness breakage"
+            );
+        }
+        // A margin is a SIGNED length: both signs and an exact zero are
+        // readings, and the corpus records all three.
+        for good in ["2e0", "-2e0", "0e0"] {
+            assert!(
+                lint_csv(&row(good, "1e-9", "1e-8", "positive")).is_ok(),
+                "margin = {good} is a reading"
+            );
+        }
+        // The two non-finite spellings belong to the outcomes that
+        // produce them and to no others: `NaN` is the poison reported
+        // as `invalid`, ±∞ is maximally definite.
+        const OUTCOMES: [&str; 5] = ["zero", "positive", "negative", "indeterminate", "invalid"];
+        const NAN_ADMITTED: [bool; 5] = [false, false, false, false, true];
+        const INF_ADMITTED: [bool; 5] = [false, true, true, false, false];
+        for (k, outcome) in OUTCOMES.iter().enumerate() {
+            assert_eq!(
+                lint_csv(&row("NaN", "1e-9", "1e-8", outcome)).is_ok(),
+                NAN_ADMITTED[k],
+                "margin NaN at outcome {outcome}"
+            );
+            for inf in ["inf", "-inf"] {
+                assert_eq!(
+                    lint_csv(&row(inf, "1e-9", "1e-8", outcome)).is_ok(),
+                    INF_ADMITTED[k],
+                    "margin {inf} at outcome {outcome}"
+                );
+            }
+        }
+        // And the one row NaN belongs on is still a FINDING, not an
+        // error: rule (1) names it.
+        let scan = lint_csv(&row("NaN", "1e-9", "1e-8", "invalid")).expect("poison is a reading");
+        assert_eq!(scan.scanned, 1);
+        assert_eq!(scan.flags[0].reasons, vec![Reason::Invalid]);
+    }
+
+    /// `Band::new`'s third invariant, which the per-column admissions
+    /// structurally cannot carry: each threshold is checked alone and
+    /// the PAIR never was, so an inverted or degenerate band parsed,
+    /// counted in [`Scan::scanned`], and was linted against a band the
+    /// recorder could not have built.
+    #[test]
+    fn an_empty_band_is_harness_breakage_however_admissible_its_columns() {
+        // Both columns are finite and strictly positive on every row
+        // here, so `Admissible::BandThreshold` admits all of them —
+        // which is the point.
+        for (bz, be) in [
+            ("1e-8", "1e-9"),     // inverted
+            ("1e-9", "1e-9"),     // equal: `zero >= escalate` is closed
+            ("1e-323", "5e-324"), // the ambient tie-break band, inverted
+        ] {
+            let e =
+                lint_csv(&row("2e0", bz, be, "positive")).expect_err("an empty band is not a band");
+            assert_eq!(e.line, 2);
+            // The phrase is asserted ACROSS the line continuation the
+            // literal is written over: a wrapped message that loses its
+            // `\` reads back with a run of indentation in the middle,
+            // and half of it still contains "strictly below".
+            assert!(
+                e.text.contains("strictly below band_escalate"),
+                "{}",
+                e.text
+            );
+            assert!(e.text.contains("band_zero"), "{}", e.text);
+        }
+        // A hairline band is REPRESENTABLY empty and mathematically
+        // nonempty, and `Band::new` accepts it — so this lint must too,
+        // or the instrument is stricter than the thing it measures.
+        let t = 1e-9f64;
+        assert!(
+            lint_csv(&row(
+                "2e0",
+                "1e-9",
+                &format!("{:e}", t.next_up()),
+                "positive"
+            ))
+            .is_ok(),
+            "a hairline band is a band"
+        );
+    }
+
+    /// The refusal names the column and the policy it broke, not just
+    /// the line — the harness voice `lint_csv` already owns.
+    #[test]
+    fn the_refusal_names_the_column_that_broke_its_policy() {
+        let e = lint_csv(&row("2e0", "-1e-9", "1e-8", "positive")).expect_err("negative band");
+        assert_eq!(e.line, 2);
+        assert!(e.text.contains("band_zero"), "{}", e.text);
+        assert!(e.text.contains("above zero"), "{}", e.text);
+    }
+    /// **Every reason is on exactly one rule, and `Reason::ALL` is
+    /// complete** (M10-6). The driver row demotes rules 2 and 3 and
+    /// cannot demote rule 1, so a variant that fell off the partition
+    /// — or off `ALL`, which the CLI's tally iterates — would silently
+    /// stop being counted or stop gating.
+    #[test]
+    fn every_reason_lands_on_one_rule_and_all_lists_them() {
+        for r in Reason::ALL {
+            let rule = r.rule();
+            assert!(
+                (1..=3).contains(&rule),
+                "{r:?} claims rule {rule}, which is not one of the module's three"
+            );
+        }
+        // Rule 1 is exactly the two undecided outcomes: the trigger E6
+        // names. If this pair ever grows, the driver row's recorded
+        // justification has to be re-read, so it is pinned here.
+        let rule1: Vec<Reason> = Reason::ALL.into_iter().filter(|r| r.rule() == 1).collect();
+        assert_eq!(rule1, vec![Reason::InBand, Reason::Invalid]);
+        // And `ALL` really is every variant: a missing one would make
+        // the tally under-count without failing anything.
+        let mut seen = std::collections::BTreeSet::new();
+        for r in Reason::ALL {
+            assert!(seen.insert(format!("{r:?}")), "{r:?} listed twice in ALL");
+        }
+        assert_eq!(seen.len(), 6, "Reason::ALL must list every variant");
+    }
+
+    /// An `indeterminate` row is rule 1 and a merely-near-threshold row
+    /// is not — the discriminator the driver row's gate turns on, read
+    /// off a parsed CSV rather than off the enum alone.
+    #[test]
+    fn an_indeterminate_row_is_rule_one_and_a_near_threshold_row_is_not() {
+        let scan = lint_csv(&row("0.0", "1e-9", "1e-8", "indeterminate")).expect("parses");
+        let rules: Vec<u8> = scan.flags[0].reasons.iter().map(|r| r.rule()).collect();
+        assert!(
+            rules.contains(&1),
+            "an indeterminate margin is rule 1: {rules:?}"
+        );
+        // A definite margin sitting just above the escalation
+        // threshold: flagged, but never rule 1.
+        let scan = lint_csv(&row("1.05e-8", "1e-9", "1e-8", "positive")).expect("parses");
+        for f in &scan.flags {
+            for r in &f.reasons {
+                assert_ne!(r.rule(), 1, "a DECIDED margin must not be rule 1: {r:?}");
+            }
+        }
     }
 }

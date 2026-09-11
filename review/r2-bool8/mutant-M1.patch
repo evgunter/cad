@@ -1,0 +1,14 @@
+R2 MUTANT M1 (applied to the frozen head, run once, reverted):
+straight_continuation_kernel's bitwise inheritance replaced with the
+angle round trip.
+
+--- a/crates/profile/src/path.rs
++++ b/crates/profile/src/path.rs
+@@
+-        // The departure IS the incoming ray, moved wholesale: the same
+-        // `Dir` value, never re-derived through its angle, which is what
+-        // makes the two legs exactly parallel rather than parallel to
+-        // within a `sin_cos` round trip.
+-        let ang = inc.ang;
++        // R2 MUTANT M1: re-derive the ray through the angle round trip.
++        let ang = Dir::from_angle(inc.ang.ang);

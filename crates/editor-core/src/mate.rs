@@ -8,12 +8,17 @@
 //!
 //! # What a mate is, structurally
 //!
-//! A mate is a **leaf**: its `a`/`b` are instance-qualified stable
-//! names, and name references are not DAG edges (the shipped D3
-//! carve-out, which `Declare` established). What A12 adds on top is
-//! the *reading* edge: the instantiate node each name's head resolves
-//! through, RECOMPUTED from the recipe at need
-//! ([`reading_edges`]) and never stored beside it. The partitions
+//! A mate is a **leaf**: its `a`/`b` are `SitedRef`s — an
+//! instance-qualified stable name plus the OPERAND node it is read at
+//! — and neither half is a DAG edge (the shipped D3 carve-out, which
+//! `Declare` established, extended to the node half by A12's reading
+//! rule). What A12 adds on top is the *reading* edge: the MEMBER
+//! instance each reference's OPERAND resolves through, walking down
+//! to the minting instance past any number of transforms, `Part`
+//! instance selections and pattern levels (A11's member vocabulary,
+//! [`member`]) — RECOMPUTED from the
+//! recipe at need ([`reading_edges`]) and never stored beside it. The
+//! partitions
 //! divide on that distinction — A9's relative-freedom components and
 //! A11's placement clusters run over consuming ∪ reading edges, while
 //! A10's coverage, ancestor-freedom, maintenance and product gather
@@ -53,6 +58,7 @@
 //! solve door, because a declared clearance changes what "coincide"
 //! means and this unit solves coincidence only.
 
+use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 use geom_core::linalg::frame::FrameError;
@@ -60,9 +66,11 @@ use geom_core::linalg::{Affine3, Point3, Vec3};
 use geom_core::predicate::{BandError, Indeterminate};
 
 pub mod coset;
+pub mod member;
 pub mod solve;
 
 pub use coset::{Coset, Subgroup};
+pub use member::{Member, member_of};
 pub use solve::{
     ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
     relative_freedom_components, solve_document,
@@ -73,7 +81,7 @@ pub use solve::{
 pub use topo::ContactClass;
 
 /// Which side of a mate a diagnostic is about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MateSide {
     /// The `a` reference.
@@ -133,7 +141,7 @@ impl MateFrame {
 }
 
 /// Which way the two sides' axes point at each other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AxisSense {
     /// The axes point the same way (a shaft into a through-hole).
@@ -251,20 +259,119 @@ impl Alignment {
     /// something through the displacement it induces at a length
     /// scale, and the scale is named at the call site).
     ///
-    /// The unit-metre floor is what keeps a mate authored AT the origin
-    /// from claiming an arbitrarily tight angular threshold: with no
-    /// length in the datum there is no lever, and a metre is the
-    /// session box's own order of magnitude (D4 ¶4).
-    pub fn lever_arm(&self) -> f64 {
+    /// **The datum's own extent wherever it has one** (ERROR-DESIGN
+    /// E3's amendment, ratified at revision E12), and the metre ONLY
+    /// where it has none.
+    ///
+    /// The amendment's complaint was that `max(extent, 1 m)` made the
+    /// constant the operative lever for every model smaller than a
+    /// metre: a 10 mm datum's tilt was priced across a metre it does not
+    /// span, and the separation never entered. That half is fixed — a
+    /// datum with any authored length is levered by ITS OWN extent, at
+    /// whatever scale the author works, and no absolute constant
+    /// participates.
+    ///
+    /// **The other half cannot be taken here, and the reason is the
+    /// data this type carries.** `eval::measure`'s sibling arm has no
+    /// floor at all because its operands are FACES and a validated face
+    /// has positive extent by construction. A mate's operands are the
+    /// mated PARTS, which also have extent — but an [`Alignment`]
+    /// carries only the authored DATUM, and a datum authored at the
+    /// origin with no length (`Coaxial` on two frames at their parts'
+    /// origins is the common spelling) has none. Levering that at zero
+    /// would price every tilt at zero and read every pair as parallel:
+    /// an answer, in the direction that reports rather than refuses.
+    /// MEASURED, removing the floor without the parts' extent: twelve
+    /// rows of `asm_r2a_mate_solve` turn into refusals, every one of
+    /// them a document a user may legitimately author.
+    ///
+    /// So the metre survives exactly where D4 ¶4 put it — as the
+    /// session box's own order of magnitude, for a datum that names no
+    /// scale at all — and it is named as that rather than as a lever.
+    /// The full amendment needs the mated parts' extent to reach this
+    /// door, which is issue `mate-lever-needs-the-parts-extent`.
+    ///
+    /// # The gap between "no scale" and "a usable scale"
+    ///
+    /// The first shipped form of this function was
+    /// `if extent > 0.0 { extent } else { 1.0 }`, and a reviewer took it
+    /// apart in one line: a datum at the origin is levered at 1 m, and a
+    /// datum ONE NANOMETRE from the origin is levered at 1e-9 m. The
+    /// second is the failure the paragraph above warns about — a lever
+    /// that prices every tilt at ~zero and reads every pair as parallel
+    /// — sitting a nanometre away from the case the metre is there to
+    /// cover. A bit-exact test against `0.0` was choosing between two
+    /// answers nine orders apart.
+    ///
+    /// Three cases now, and the middle one is a REFUSAL rather than a
+    /// number:
+    ///
+    /// * **no scale named at all** ([`Self::names_a_scale`]) — the
+    ///   session box's [`SESSION_SCALE`]. This is D4 ¶4's arm and it is
+    ///   the case `Coaxial` on two origin frames lands in, which is a
+    ///   spelling users author constantly.
+    /// * **a scale named, at or above [`MIN_LEVER_ARM`]** — that scale.
+    /// * **a scale named BELOW it** — [`LeverRefusal::DatumTooSmall`].
+    ///   The author named a length, so the metre is not theirs to
+    ///   borrow; and the length they named cannot decide anything,
+    ///   because a lever of `L` makes the smallest decidable tilt
+    ///   `ε/L`, which at `L = 1 nm` and ε = 1e-9 is a whole radian. A
+    ///   verdict there is not wrong, it is vacuous, and reporting a
+    ///   vacuous parallel is the direction this kernel refuses.
+    ///
+    /// The branch is on WHAT WAS AUTHORED, not on a computed magnitude
+    /// against zero: `names_a_scale` asks the recipe whether a length or
+    /// a non-origin coordinate was written down.
+    ///
+    /// # Errors
+    ///
+    /// [`LeverRefusal::DatumTooSmall`] — see above.
+    ///
+    /// [`arm`]: crate::eval::measure
+    pub fn lever_arm(&self) -> Result<f64, LeverRefusal> {
+        if !self.names_a_scale() {
+            return Ok(SESSION_SCALE);
+        }
+        let extent = self.authored_extent();
+        if extent < MIN_LEVER_ARM {
+            return Err(LeverRefusal::DatumTooSmall {
+                extent,
+                floor: MIN_LEVER_ARM,
+            });
+        }
+        Ok(extent)
+    }
+
+    /// The largest length this alignment names — its authored lengths
+    /// and its frames' distances from the origin.
+    fn authored_extent(&self) -> f64 {
         let norm = |v: [f64; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
         self.primitive
             .authored_lengths()
             .into_iter()
             .flatten()
             .fold(
-                norm(self.a.origin).max(norm(self.b.origin)).max(1.0),
+                norm(self.a.origin).max(norm(self.b.origin)),
                 |lever, length| lever.max(length.abs()),
             )
+    }
+
+    /// **Whether this alignment names a length scale at all** — a
+    /// question about the RECIPE, asked of what was authored rather than
+    /// of a computed magnitude against zero.
+    ///
+    /// A primitive with an authored length names one. A frame placed
+    /// away from its part's origin names one. `Coaxial` on two frames
+    /// both at the origin names none, and that is not a degenerate case
+    /// — it is how an axis-to-axis mate is ordinarily written.
+    fn names_a_scale(&self) -> bool {
+        self.primitive
+            .authored_lengths()
+            .into_iter()
+            .flatten()
+            .any(|l| l != 0.0)
+            || self.a.origin != [0.0; 3]
+            || self.b.origin != [0.0; 3]
     }
 
     /// Whether every authored coordinate is finite — the edit door's
@@ -290,12 +397,38 @@ impl Alignment {
 pub const UNDER_RECOURSE: &str = "add the complementary mate, or delete the mate if free relative \
                                   motion was intended";
 
+/// **The recourse a [`MateFault::Contradictory`] ends on**: what an
+/// author does about two declarations that admit no common pose.
+///
+/// One sentence for both shapes the arm renders — a PAIR of mates and
+/// a mate contradicting itself through its own rider — because the
+/// repair is the same in both and a sentence naming "one of the two"
+/// is false of the second. The rung is the solve door: cosets are
+/// intersected exactly, so nothing here is a tolerance to widen and no
+/// pose is averaged out of the two.
+pub const CONTRADICTORY_RECOURSE: &str = "delete the mate that was not meant, or re-author the \
+                                          datum that is wrong; the solve intersects cosets \
+                                          exactly and never averages two declarations";
+
 /// **The v1 class restriction, named.** `Fit` is specified and not
 /// built; a mate cannot declare a designed clearance until the kernel
 /// variant lands with its first consumer, and AQ6 is where the
 /// cross-document detail is still open.
 pub const CLASS_DEFERRAL: &str = "v1 mates SOLVE Rest and Tangent and ASSEMBLE Rest alone; the \
                                   cross-document detail of a designed clearance is undischarged";
+
+/// **The recourse a [`crate::AssemblyError::NoAtRestRecord`] ends
+/// on**: what an author does about a class that solves and has no
+/// record to be verified by at rest.
+///
+/// The arm already quotes the table's reason for THIS class; this is
+/// the repair, and it names the rung the way [`CLASS_DEFERRAL`] does —
+/// `Rest` is the one class v1 carries all the way to the gate, and a
+/// curved contact verified at rest is outside v1 rather than a
+/// tolerance away.
+pub const NO_AT_REST_RECORD_RECOURSE: &str = "declare the contact as a Rest, the one class v1 \
+                                              mints and verifies at rest; a curved contact \
+                                              verified at rest is outside v1 and is not built";
 
 /// **How far a contact class gets in v1** — the whole class policy as
 /// a value, read by both doors that enforce it.
@@ -370,10 +503,75 @@ pub fn class_admission(class: ContactClass) -> ClassAdmission {
     }
 }
 
+/// **The order of magnitude a datum that names NO scale is read at** —
+/// D4 ¶4's session box, not a lever.
+///
+/// One metre, and it is a statement about the working envelope of a CAD
+/// session rather than about any part: a mate written as two coincident
+/// origin frames says where things meet and nothing about how big they
+/// are, so the only honest scale left is the session's own.
+pub const SESSION_SCALE: f64 = 1.0;
+
+/// **The smallest datum extent a parallelism verdict can be levered
+/// over** — one micron.
+///
+/// Below it the verdict is vacuous rather than wrong: a lever of `L`
+/// makes the smallest decidable tilt `ε / L`, so at 1 nm and the default
+/// ε the smallest tilt this door could call non-parallel is about a
+/// radian, and everything under that reads parallel. A micron is three
+/// decades above the default ε and below any datum offset a drawing
+/// means, so nothing authorable falls in the gap without deserving to.
+///
+/// It is NOT an ε and it is not compared against a margin: it is a
+/// precondition on the ARM, checked before any predicate runs. No
+/// decision is made here.
+pub const MIN_LEVER_ARM: f64 = 1.0e-6;
+
+/// Why a lever arm could not be formed ([`Alignment::lever_arm`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LeverRefusal {
+    /// The datum names a length scale, and the scale it names is too
+    /// small to decide a tilt over ([`MIN_LEVER_ARM`]).
+    DatumTooSmall {
+        /// The extent the datum names.
+        extent: f64,
+        /// The floor it is under.
+        floor: f64,
+    },
+}
+
+impl core::fmt::Display for LeverRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::DatumTooSmall { extent, floor } => write!(
+                f,
+                "this mate's datum names a scale of {extent:e} m, under the {floor:e} m floor a \
+                 parallelism verdict can be levered over: at that arm the smallest tilt the \
+                 predicate could call non-parallel is about eps/{extent:e} radians, so every \
+                 tilt would read parallel. Author the datum at the scale the parts actually \
+                 have, or place the frames where the feature is"
+            ),
+        }
+    }
+}
+
 /// A typed mate refusal (D9: fail loud, never a guess). Every arm names
-/// its subject — the mate, the pair, the predicate, or the residual.
+/// its subject — the mate, the pair, the predicate, the residual, or
+/// the two documents a mispaired read named.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MateFault {
+    /// The solve is a solve of ANOTHER document (DI3): one of the two
+    /// arms whose subject is not a mate at all — `Band`, whose subject
+    /// is the constructor, is the other. Raised by
+    /// [`crate::SolvedPoses::placement`], never recorded against a
+    /// node — a solve records no fault about a document it never read,
+    /// which is why `viewer::tree` blames no row for it.
+    PosesOfAnotherDocument {
+        /// The document whose placement was asked for.
+        expected: crate::ident::DocumentId,
+        /// The document the solve is of.
+        found: crate::ident::DocumentId,
+    },
     /// A mate frame's authored data has no definite frame.
     Frame {
         /// The mate whose datum refused.
@@ -416,15 +614,32 @@ pub enum MateFault {
     /// CONTRADICTORY): names both mates, the predicate that failed,
     /// and the measured clash.
     Contradictory {
-        /// The mate already folded.
+        /// The mate already folded. **Equal to `added` when one mate
+        /// contradicts ITSELF**: a mate whose own datum and rider admit
+        /// no common pose dies by the same rule, and naming it on both
+        /// sides is how that shape reaches this variant.
         held: RecipeNodeId,
         /// The mate whose intersection died against it.
         added: RecipeNodeId,
         /// The predicate that decided against them.
         predicate: &'static str,
-        /// The measured clash, in metres (the margin that should have
-        /// been zero and was not).
+        /// The measured clash, in metres: the margin that should have
+        /// been zero and was not, or — for the predicate that decides
+        /// the empty intersection STRUCTURALLY — no measurement at all.
+        /// Which of those it is, is settled by `predicate`, never by
+        /// reading this number.
         clash: f64,
+        /// The lever, when the predicate measured a ROLL and an arm
+        /// carried it to `clash`: `(radians, arm in metres)`, in that
+        /// order, whose product is the deviation. `None` when the
+        /// predicate measured its margin without a lever.
+        ///
+        /// The arm is the solve's own scale surrogate
+        /// ([`Alignment::lever_arm`]) — the larger of the two frame
+        /// origins' distances and the authored lengths, floored at one
+        /// metre — and NOT a contact feature, so a message that names
+        /// it is naming that scale and nothing in the model.
+        lever: Option<(f64, f64)>,
     },
     /// A tree mate left a positive-dimensional residual (A11 rule 4's
     /// UNDER): names the pair, the residual subgroup, and its
@@ -439,16 +654,102 @@ pub enum MateFault {
         /// What survived the fold.
         residual: Subgroup,
     },
-    /// A mate's name head does not resolve to a live instantiate node
-    /// (N5's dangling reference). It contributes no reading edge; the
+    /// **A mate's reference names no member of A11's vocabulary** —
+    /// N5's dangling reference. It contributes no reading edge; the
     /// solve refuses typed rather than pretending the mate is absent.
+    ///
+    /// Exactly two causes, and both are about a copy or a node that
+    /// does not exist:
+    ///
+    /// - the WALK from the reference's operand down to its name's
+    ///   head stopped — a stranded operand, or a node that places no
+    ///   body of its own ([`crate::member_of`]);
+    /// - the copy the name says is at or beyond the pattern's
+    ///   evaluated count, so the named copy is not there.
+    ///
+    /// A placer that exists and whose pose merely could not be
+    /// DERIVED is [`MateFault::PlacerRefused`], which carries the
+    /// evaluation's own refusal. So this arm is about a node the
+    /// vocabulary does not reach or a copy that is not there — never
+    /// about arithmetic. It is still reported at a node that may be
+    /// perfectly live: a pattern the reference's name does not
+    /// qualify `Instance(i)` stops the walk, and the walk stops AT
+    /// that pattern.
     DanglingHead {
         /// The mate.
         mate: RecipeNodeId,
         /// Which side dangles.
         side: MateSide,
-        /// The head the name claims.
+        /// **The node at which the reference resolves to no member**:
+        /// where the walk stopped, which is a stranded operand when
+        /// the operand is the broken half and the first node outside
+        /// the vocabulary otherwise; or the pattern whose count the
+        /// named copy is past. Not in general the reference's own
+        /// head, which is often live and fine.
         head: RecipeNodeId,
+    },
+    /// **A placer on the reference's chain refused to derive its
+    /// pose**, in the evaluation layer's own words.
+    ///
+    /// The member exists and the walk reached it; what did not exist
+    /// is the static offset a pattern copy or a transform on the way
+    /// contributes. Every such refusal is one the evaluation layer
+    /// already types — a slot that does not evaluate, a direction of
+    /// no definite length, an explicit-rule pattern, an axis operand
+    /// that is not an axis datum — so it is carried here UNALTERED
+    /// rather than relabelled as a dangling head.
+    ///
+    /// Carrying it is what makes the refusal readable at all. A mate
+    /// fault POISONS the document, so the placer node never evaluates
+    /// and never gets to state its own cause: this fault is the only
+    /// place that cause appears.
+    PlacerRefused {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side's reference the placer is on.
+        side: MateSide,
+        /// **The node whose evaluation raised the refusal.** It lies
+        /// on the reference's derivation: a pattern or a transform on
+        /// the chain, or a node one of those reads to derive its map
+        /// — a circular rule's axis DATUM is the one such node today,
+        /// and a slot of it that does not evaluate is reported here
+        /// under the datum's id, because that is the node an author
+        /// goes and fixes.
+        placer: RecipeNodeId,
+        /// The evaluation layer's own typed refusal for it, unchanged.
+        error: NodeRefusal,
+    },
+    /// **A `Node::Part` selects a copy the reference's NAME does not
+    /// name.** The name is the authority on which copy a mate speaks
+    /// about; a `Part` standing above a pattern in the walk (with
+    /// nothing but transforms between) says which body of that
+    /// pattern's value the body below it is. A document where those
+    /// disagree would be PLACED by the name and GATHERED by the
+    /// `Part` — two different bodies for one declaration — so the
+    /// solve refuses rather than choosing, and reports both indices
+    /// in the `Part`'s index space.
+    ///
+    /// Raised per REFERENCE, where the solve reads each one, so it
+    /// reaches a declaring mate as surely as a tree edge's.
+    PartSelectsAnotherCopy {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side.
+        side: MateSide,
+        /// The `Part` node whose index expression disagrees.
+        part: RecipeNodeId,
+        /// The copy the reference's name names, as the body index
+        /// the `Part` selects by: the copy index itself over a
+        /// pattern of one body, the flat `j·M + i` over a nested one.
+        named: u32,
+        /// What the `Part`'s index expression evaluates to at the
+        /// document's parameter bindings.
+        ///
+        /// `i64`, where `named` is the `u32` a name's structural
+        /// index is: an evaluated Count can be negative or past the
+        /// pattern's count, and narrowing it to compare would be
+        /// deciding the disagreement this fault exists to report.
+        selected: i64,
     },
     /// A mate names ONE instance on both sides. A pair is two
     /// instances; a self-mate constrains nothing and is a recipe
@@ -459,11 +760,30 @@ pub enum MateFault {
         /// The instance it names twice.
         instance: RecipeNodeId,
     },
+    /// The mate's datum names a length scale too small to lever a
+    /// parallelism verdict over ([`Alignment::lever_arm`]).
+    Unleverable {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Why.
+        refusal: LeverRefusal,
+    },
 }
+
+/// The predicate that decides the EMPTY intersection. It is the one
+/// name in the membership vocabulary that reports no measurement — the
+/// empty set holds nothing and no margin decides that — so it is a
+/// shared constant rather than a literal at each site, and every door
+/// that needs to know reads THIS rather than inspecting a margin.
+pub(crate) const MATE_MEMBER_EMPTY: &str = "mate_member_empty";
 
 impl core::fmt::Display for MateFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::PosesOfAnotherDocument { expected, found } => write!(
+                f,
+                "the solve is of document {found}, not of document {expected}"
+            ),
             Self::Frame { mate, side, error } => write!(
                 f,
                 "mate {}'s {} frame has no definite placement: {error}",
@@ -494,12 +814,63 @@ impl core::fmt::Display for MateFault {
                 added,
                 predicate,
                 clash,
-            } => write!(
-                f,
-                "mates {} and {} cannot both hold: predicate `{predicate}` measured a clash of \
-                 {clash} m where their cosets would have had to meet",
-                held.0, added.0
-            ),
+                lever,
+            } => {
+                // One mate named on BOTH sides is a mate contradicting
+                // itself, and "mates 6 and 6" reads as an indexing
+                // fault rather than as the shape the payload states.
+                if held == added {
+                    write!(
+                        f,
+                        "mate {} contradicts itself — the constraints it declares admit no \
+                         common pose",
+                        held.0
+                    )?;
+                } else {
+                    write!(f, "mates {} and {} cannot both hold", held.0, added.0)?;
+                }
+                write!(f, ": predicate `{predicate}` ")?;
+                // WHETHER there is a measurement to report is the
+                // predicate's fact, settled where the refusal is
+                // raised. The margin's value never stands in for it:
+                // reading a sentinel back out of a number makes every
+                // other non-finite margin claim to be this case.
+                if *predicate == MATE_MEMBER_EMPTY {
+                    write!(
+                        f,
+                        "found the cosets meet in the empty set — a structural refusal, with no \
+                         margin to measure"
+                    )?;
+                } else if let Some((radians, arm)) = lever {
+                    // A levered clash IS the product of its two halves,
+                    // so the sentence prints the product it computes
+                    // here. Stating a stored figure beside the halves
+                    // would assert an identity nothing enforces.
+                    write!(
+                        f,
+                        "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m \
+                         where the cosets would have had to meet",
+                        radians * arm
+                    )?;
+                } else if clash.is_finite() {
+                    // Every other margin is a length measured outright
+                    // — and a length that is not finite is not one.
+                    write!(
+                        f,
+                        "measured a clash of {clash} m where the cosets would have had to meet"
+                    )?;
+                } else {
+                    write!(
+                        f,
+                        "measured a clash that is not a finite length ({clash}) where the cosets \
+                         would have had to meet"
+                    )?;
+                }
+                // The repair is the same whichever measurement the
+                // predicate had to report, so it is stated once, after
+                // all four.
+                write!(f, " — {CONTRADICTORY_RECOURSE}")
+            }
             Self::Under {
                 mate,
                 parent,
@@ -516,17 +887,48 @@ impl core::fmt::Display for MateFault {
             ),
             Self::DanglingHead { mate, side, head } => write!(
                 f,
-                "mate {}'s {} reference resolves through node {}, which is not a live instance — \
-                 rebind it",
+                "mate {}'s {} reference resolves through node {}, which does not resolve to a \
+                 live member (an instance, or a pattern-placed instance) — rebind it",
                 mate.0,
                 side.name(),
                 head.0
             ),
+            Self::PlacerRefused {
+                mate,
+                side,
+                placer,
+                error,
+            } => write!(
+                f,
+                "mate {}'s {} reference has no derived pose: node {} refuses — {error}",
+                mate.0,
+                side.name(),
+                placer.0
+            ),
+            Self::PartSelectsAnotherCopy {
+                mate,
+                side,
+                part,
+                named,
+                selected,
+            } => write!(
+                f,
+                "mate {}'s {} reference names copy {named}; the part node {} above it selects \
+                 copy {selected} — the name says which copy a mate is about, and a document \
+                 that gathers another one is placed and gathered differently",
+                mate.0,
+                side.name(),
+                part.0
+            ),
             Self::SelfMate { mate, instance } => write!(
                 f,
-                "mate {} names instance {} on both sides; a mate relates a PAIR",
+                "mate {} names one member on both sides (it stands on instance {}); a mate \
+                 relates a PAIR",
                 mate.0, instance.0
             ),
+            Self::Unleverable { mate, refusal } => {
+                write!(f, "mate {}: {refusal}", mate.0)
+            }
         }
     }
 }

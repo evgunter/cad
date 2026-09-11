@@ -74,9 +74,10 @@
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
 //! that still certifies above δ after the shared round budget refuses
 //! typed ([`TessellateError::CertificateExceeded`]) — the
-//! certificate, as everywhere, is the guarantee. Positions are staged
-//! per attempt and committed only on acceptance, so a refining retry
-//! leaks no vertices into the shared arena.
+//! certificate, as everywhere, is the guarantee. An attempt's interior
+//! positions belong to that attempt: the patch this lane returns is
+//! the ACCEPTED attempt's, and a retried attempt's points are dropped
+//! with it.
 //!
 //! A BOUNDARY point as intermediate is a
 //! self-touching trim loop, refused typed
@@ -99,9 +100,10 @@ use topo::{Body, FaceKey};
 
 use crate::cert;
 use crate::chords::ChordPass;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_bound, nurbs_cell_grid};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
+use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 
 /// Retry budget for the rebuild loop (module docs).
@@ -162,10 +164,10 @@ pub(crate) fn tessellate_trimmed(
     fk: FaceKey,
     surface: &Surface<f64>,
     chords: &ChordPass,
-    positions: &mut Vec<Point3<f64>>,
+    shared: &[Point3<f64>],
     tol: &SizingTols,
     bounds: &mut FaceBounds,
-) -> Result<Vec<[u32; 3]>, TessellateError> {
+) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
@@ -186,20 +188,25 @@ pub(crate) fn tessellate_trimmed(
         // An approximating surface takes the spline lane on its fit
         // (there is no placeholder state to screen: it is certified by
         // construction).
-        Surface::Approx(ref a) => Lane::Nurbs {
-            grid: nurbs_cell_grid(a.fit(), fk)?,
-            patch: face_bound(bounds, a.fit(), fk)?,
-        },
+        // Both readings off ONE assembly: the memo holds the cell
+        // table (`nurbs_cert::face_grid`), and the whole-patch bound is
+        // a reading of it. The chord pass has normally already filled
+        // this entry, so the usual cost here is a clone of the table,
+        // not an assembly.
+        Surface::Approx(ref a) => {
+            let grid = face_grid(bounds, a.fit(), fk)?.clone();
+            let patch = grid.patch();
+            Lane::Nurbs { grid, patch }
+        }
         Surface::Nurbs(ref payload) => {
             if payload.is_placeholder() {
                 // The mvfs "no description yet" state — the historical
                 // refusal, kept for exactly this class (types docs).
                 return Err(TessellateError::UnsupportedSurface { face: fk });
             }
-            Lane::Nurbs {
-                grid: nurbs_cell_grid(payload, fk)?,
-                patch: face_bound(bounds, payload, fk)?,
-            }
+            let grid = face_grid(bounds, payload, fk)?.clone();
+            let patch = grid.patch();
+            Lane::Nurbs { grid, patch }
         }
         _ => return Err(trim_frontier(body, fk, face.outer)?),
     };
@@ -317,7 +324,7 @@ pub(crate) fn tessellate_trimmed(
     // including the two typed REFUSALS, which is the case the
     // falsification accumulator above exists for. `None` after the
     // loop is the retries-exhausted path.
-    let mut outcome: Option<Result<Vec<[u32; 3]>, TessellateError>> = None;
+    let mut outcome: Option<Result<Patch, TessellateError>> = None;
     'retry: for attempt in 0..=MAX_GRID_RETRIES {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
@@ -428,14 +435,13 @@ pub(crate) fn tessellate_trimmed(
             let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
             shoelace2(&poly2) < 0.0
         };
-        // Pass 1: which grid candidates the kept triangles use; mint
-        // their mesh ids in (v, u) row-major order over the FINAL kept
-        // set — sorted by coordinates, not by candidate index, so
-        // refinement candidates appended by a later round (below) keep
-        // the same determinism contract. Positions are staged locally
-        // and committed only when this attempt is ACCEPTED: a
-        // refinement retry discards the attempt, and half an attempt's
-        // vertices must not leak into the shared arena.
+        // Pass 1: which grid candidates the kept triangles use; number
+        // them in (v, u) row-major order over the FINAL kept set —
+        // sorted by coordinates, not by candidate index, so refinement
+        // candidates appended by a later round (below) keep the same
+        // determinism contract. The indices are this attempt's own: a
+        // retry starts a fresh `interior` and only the accepted
+        // attempt's becomes the patch.
         let mut used: Vec<usize> = Vec::new();
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
@@ -452,26 +458,15 @@ pub(crate) fn tessellate_trimmed(
             va.total_cmp(&vb).then(ua.total_cmp(&ub))
         });
         used.dedup();
-        let base = positions.len();
-        let mut staged: Vec<Point3<f64>> = Vec::with_capacity(used.len());
-        let mut grid_ids: HashMap<usize, u32> = HashMap::new();
+        let mut interior: Vec<Point3<f64>> = Vec::with_capacity(used.len());
+        let mut grid_ids: HashMap<usize, PatchVertex> = HashMap::new();
         for &k in &used {
             let (u, v) = candidates[k];
             #[allow(clippy::cast_possible_truncation)]
-            let id = (base + staged.len()) as u32;
-            staged.push(surface.eval(u, v));
+            let id = PatchVertex::Local(interior.len() as u32);
+            interior.push(surface.eval(u, v));
             grid_ids.insert(k, id);
         }
-        // A mesh id minted by an earlier face reads from the shared
-        // arena; one staged by THIS attempt reads locally.
-        let vertex = |id: u32| -> Point3<f64> {
-            let id = id as usize;
-            if id < base {
-                positions[id]
-            } else {
-                staged[id - base]
-            }
-        };
         // Pass 2: emit and certify.
         //
         // The meter's arming is read ONCE per face, not per triangle:
@@ -483,8 +478,9 @@ pub(crate) fn tessellate_trimmed(
         // NURBS ONLY, and that is a coverage gap rather than a
         // subtlety: `cert::cert_cylinder` certifies every cylinder
         // triangle in BOTH lanes and no build samples one against it.
-        // Recorded as S236 (`docs/SMELL-SCAN-2026-08.md`) because
-        // closing it changes what a `FaceMeasure` means.
+        // Left open rather than closed here because closing it changes
+        // what a `FaceMeasure` means, which reaches the consumers of
+        // `budget` in `tools/`.
         let dev_samples_per_edge = if matches!(lane, Lane::Nurbs { .. }) {
             crate::budget::deviation_samples()
         } else {
@@ -502,13 +498,13 @@ pub(crate) fn tessellate_trimmed(
                 continue;
             }
             let vs = f.vertices();
-            let mut ids = [0u32; 3];
+            let mut ids = [PatchVertex::Shared(0); 3];
             let mut uv = [[0.0f64; 2]; 3];
             for (k, vtx) in vs.iter().enumerate() {
                 let (u, v, slot) = meta[vtx.fix().index()];
                 uv[k] = [u, v];
                 ids[k] = match slot {
-                    Slot::Boundary(id) => id,
+                    Slot::Boundary(id) => PatchVertex::Shared(id),
                     Slot::Grid(c) => grid_ids[&c],
                 };
             }
@@ -522,17 +518,29 @@ pub(crate) fn tessellate_trimmed(
             //
             // WHAT IS ASSERTED, AND WHERE THE COVER STOPS. The chart
             // half is checked at the lane choice, which runs for BOTH
-            // lanes. The column half is checked at the cylinder arm's
-            // `nu`, and this emit pass also runs for NURBS — where
-            // there is no `nu`, because the candidates come from the
-            // cell grid rather than a uniform division, so the
-            // "single interior column" the fan needs has no analogue
-            // to test. That is the argument for the NURBS half, and it
-            // is an ARGUMENT: only the cylinder half is checked.
+            // lanes. The INGREDIENT half — a repeated id with a single
+            // interior column between the entries — is checked at the
+            // cylinder arm's `nu`, and this emit pass also runs for
+            // NURBS, where there is no `nu`: the candidates come from
+            // the cell grid rather than a uniform division, so the
+            // "single interior column" has no analogue to test. That
+            // arm's ingredient check is therefore still an ARGUMENT
+            // and not a check.
+            //
+            // ITS EMISSION IS NOT (issue 897). The census after this
+            // loop re-derives the CONCLUSION over the emitted patch,
+            // and it needs no `nu` — it counts uses of the edges
+            // incident to a repeated id, which both arms have. So the
+            // NURBS arm, which had neither half, now has the half that
+            // actually observes the defect.
             if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
                 continue; // boundary-degenerate sliver
             }
-            let tri = [vertex(ids[0]), vertex(ids[1]), vertex(ids[2])];
+            let tri = [
+                ids[0].position(shared, &interior),
+                ids[1].position(shared, &interior),
+                ids[2].position(shared, &interior),
+            ];
             let bound = match lane {
                 Lane::Cylinder {
                     origin,
@@ -590,7 +598,7 @@ pub(crate) fn tessellate_trimmed(
                         // and on a flat wall certifying at ~5e-17 a
                         // bare `d / cert` would read pure rounding
                         // dust as a violation.
-                        let r = d / (bound + tol.eps);
+                        let r = d / tol.eps.pad(bound);
                         // A first sample replaces the NaN seed; after
                         // that, max — sticky-NaN, the same rule the
                         // certificate accumulation below follows,
@@ -646,8 +654,44 @@ pub(crate) fn tessellate_trimmed(
             }));
             break 'retry;
         }
-        positions.extend(staged);
-        outcome = Some(Ok(triangles));
+        // D2 addendum row 5, the same re-derivation `curved`'s emit
+        // pass makes and for the same class (issue 897): an edge
+        // incident to a vertex this walk placed at two distinct UV
+        // locations, used more than twice inside ONE patch, is the
+        // non-manifold state the duplicate-id drop above is claimed
+        // never to produce. This lane's only source of such a vertex
+        // is the full-2π seam double-traversal — no chart singularity
+        // reaches it — so on every other face the set is empty and the
+        // census returns on one branch.
+        let patch = Patch {
+            interior,
+            triangles,
+        };
+        #[cfg(debug_assertions)]
+        {
+            let identified =
+                crate::walk::ids_at_two_uvs(polygon.iter().map(|&(u, v, id)| (u, v, id)));
+            // NOTHING IDENTIFIED, NOTHING MATERIALISED: `census_ids`
+            // copies the whole patch, and this block runs in every
+            // build with debug assertions on — the shipped release
+            // profile included. On every face but a full-2π seam the
+            // set is empty and this branch is the whole cost.
+            if !identified.is_empty() {
+                let over = crate::walk::overused_identified_edge_in(
+                    &identified,
+                    &patch.census_ids(shared),
+                );
+                debug_assert!(
+                    over.is_none(),
+                    "face {fk:?}: identified-vertex fan edge {:?} used {} times in one trimmed \
+                     patch; the duplicate-id drop left something other than a fan — see \
+                     curved::pole_columns, issue #678",
+                    over.map(|(e, _)| e),
+                    over.map_or(0, |(_, n)| n)
+                );
+            }
+        }
+        outcome = Some(Ok(patch));
         break 'retry;
     }
 
@@ -711,21 +755,12 @@ pub(crate) fn tessellate_trimmed(
 /// (`curved::pole_columns` carries the argument; the first ingredient
 /// is a single interior column between them).
 ///
-/// **"Different" means what SPADE means by it**, which is why this
-/// compares `f64`s and not their bits. Spade's vertex lookup is
-/// `PartialEq` on `Point2<f64>` — plain `==` — so `-0.0` and `0.0`
-/// are ONE spade vertex and two bit patterns. A `to_bits` compare
-/// would report "apart" exactly where spade dedupes, which is this
-/// file's own complaint (an invariant restated in a spelling that
-/// disagrees with the module it is about) converted rather than
-/// closed. Two entries spade merges are one CDT vertex and cannot be
-/// fanned apart; two it keeps can.
-#[allow(clippy::float_cmp)]
+/// The rule for "different" is spade's and is stated once, at
+/// [`crate::walk::ids_at_two_uvs`], which both lanes call. This
+/// function is that set's emptiness, named for the question the
+/// cylinder arm's `debug_assert` asks.
 fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
-    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
-    polygon
-        .iter()
-        .any(|&(u, v, id)| seen.insert(id, (u, v)).is_some_and(|p| p != (u, v)))
+    !crate::walk::ids_at_two_uvs(polygon.iter().copied()).is_empty()
 }
 
 /// The uniform interior grid candidates of the cylinder lane: the trim
@@ -734,6 +769,12 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
 /// positions are bit-identical to the pre-TESS-SPAN grid. Already
 /// generated in (v, u) row-major order; sorted anyway so both lanes
 /// hand the retry loop the same invariant.
+///
+/// At `nu == 1` (or `nv == 1`) a range below is empty and the other
+/// axis' computed count is dropped — a member of the sibling class
+/// `curved::grid_counts`' doc records (issue 685 decided only the
+/// cone's `nu == 1` case; here the candidates are heuristic seeds and
+/// the per-triangle certificate is the stated guarantee).
 fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec<(f64, f64)> {
     let mut cand = Vec::new();
     for j in 1..nv {
@@ -973,6 +1014,18 @@ fn trim_polygon(
                            read closed-form chart images; the fitted image's first \
                            tessellation consumer is the edge×NURBS-face boolean \
                            layer (the cut-loft unit)",
+                });
+            }
+            // The general curve-in-UV arm (U2): the trim walk reads
+            // closed-form chart images, and this class has none —
+            // refused typed under its own name, never folded into the
+            // fitted arm's message.
+            Pcurve::General(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: he.edge,
+                    note: "trimmed face half-edge carries a GENERAL curve-in-UV pcurve \
+                           — the trim walk and the chord pass's boundary tightening \
+                           read closed-form chart images",
                 });
             }
         }

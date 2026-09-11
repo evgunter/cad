@@ -11,14 +11,16 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom::Surface;
+use crate::common::approx::band;
+use geom_brep::SurfaceKind;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 /// The die's side, meters.
@@ -33,11 +35,6 @@ const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 /// The pip-rim blend radius, meters.
 const RIM_R: f64 = 0.02;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -211,29 +208,25 @@ fn pipped_and_box_edges() -> (Body<f64>, Vec<EdgeKey>) {
 /// The rim edges of a body: every edge whose two adjacent faces are a
 /// plane and a sphere.
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    let kind_of = |f: topo::FaceKey| -> Option<u8> {
-        match body.get_surface(body.get_face(f)?.surface)? {
-            Surface::Plane { .. } => Some(0),
-            Surface::Sphere { .. } => Some(1),
-            _ => Some(2),
-        }
-    };
-    let face_of = |he: topo::HalfEdgeKey| -> Option<topo::FaceKey> {
-        Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face)
-    };
-    let mut out = Vec::new();
-    for (k, e) in body.edges() {
-        let (Some(fa), Some(fb)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
-            continue;
-        };
-        let kinds = (kind_of(fa), kind_of(fb));
-        if matches!(kinds, (Some(0), Some(1)) | (Some(1), Some(0))) {
-            out.push(k);
-        }
-    }
-    out
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                body,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
+        })
+        .collect()
 }
 
+/// Deliberately NOT `common::oracles::rounded_box_volume`: the die
+/// family spells the twelve quarter-cylinders as `12·(πr²/4)·core`
+/// where that form sums them as `3πlr²`. At `(1.0, 0.12)` the two are
+/// bit-identical, so this is conservatism, not a bit-level necessity —
+/// see `common::oracles`' module doc for the measurement.
+///
 /// The blank's closed-form volume (Steiner: core + 6 slabs + 12
 /// quarter-cylinders + 8 octants).
 fn blank_volume() -> f64 {
@@ -319,7 +312,7 @@ fn rim_fillet_extra(big_r: f64, h: f64, r: f64) -> f64 {
 #[test]
 fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let out = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+    let out = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
         .expect("the surgery fillets the pipped cube");
     let body = out.body;
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
@@ -363,13 +356,13 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
 /// battery measures.
 #[test]
 fn the_composed_die_certifies_and_tessellates_watertight() {
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     // The log must be installed BEFORE the build (it records through
     // `decide` as the surgery runs) and taken straight after, so the
     // certification battery below runs unlogged exactly as it did.
-    start_verdict_log();
+    let bracket = Bracket::open();
     let die = composed_die();
-    let log = take_verdict_log();
+    let log = bracket.finish().verdicts;
     assert!(
         log.iter().any(|v| v.predicate == "fillet3_ring_clearance"),
         "K-FUNNEL: fillet3_ring_clearance never reached the funnel"
@@ -410,13 +403,13 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
 /// in ONE further call.
 fn composed_die() -> Body<f64> {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
         .expect("the box edges fillet in place")
         .body;
     let rims = rim_edges(&blanked);
     assert_eq!(rims.len(), 42, "21 rims of two arcs each");
-    let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
-        .expect("the rims fillet to tori");
+    let out =
+        fillet_edges(&blanked, &rims, RIM_R, Tol::witness()).expect("the rims fillet to tori");
     assert_eq!(out.band_faces.len(), 21, "one torus band per rim");
     out.body
 }
@@ -444,7 +437,7 @@ fn the_composed_die_replays_bit_identically() {
 /// is pinned at its three outcomes, the S2/S9 trio idiom.
 #[test]
 fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
-    use sweep::fillet::surgery::ring_clearance;
+    use sweep::test_support::ring_clearance;
     let (pipped, _) = pipped_and_box_edges();
     let face = pipped.faces().next().unwrap().0;
     let tol = Tol::witness().get();
@@ -453,26 +446,27 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     // Definite refuse, typed with the margin as payload.
     let err = ring_clearance(face, -0.05, band()).expect_err("a consumed ring refuses");
     match err {
-        sweep::fillet::FilletError::RingClearance { margin, .. } => {
-            assert!((margin - -0.05).abs() < 1e-15)
+        sweep::blend::BlendError::RingClearance { margin, .. } => {
+            assert_eq!(margin.predicate, "fillet3_ring_clearance");
+            assert!(margin.value().is_some_and(|m| (m - -0.05).abs() < 1e-15));
         }
         other => panic!("expected RingClearance, got {other}"),
     }
     let text = ring_clearance(face, -0.05, band()).unwrap_err().to_string();
     assert!(
-        text.contains("ring") && text.contains("reduce the fillet radius"),
+        text.contains("ring") && text.contains("reduce the blend size"),
         "refusal names the situation and the recourse: {text}"
     );
     // In band: escalates through the funnel with the SAME recourse.
     let err = ring_clearance(face, 5.0 * tol.eps, band()).expect_err("in-band escalates");
     match &err {
-        sweep::fillet::FilletError::Escalated { source, .. } => {
+        sweep::blend::BlendError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("fillet3_ring_clearance"));
         }
         other => panic!("expected Escalated, got {other}"),
     }
     assert!(
-        err.to_string().contains("reduce the fillet radius"),
+        err.to_string().contains("reduce the blend size"),
         "the escalated arm shares the definite arm's recourse: {err}"
     );
 }
@@ -484,7 +478,7 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
 fn the_surgery_front_door_refuses_its_named_gaps() {
     let (pipped, box_edges) = pipped_and_box_edges();
     // (a) One box edge: its corners' other edges are not requested.
-    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, band(), Tol::witness())
+    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, Tol::witness())
         .expect_err("a partially-requested corner is a run-out, not implemented");
     let text = format!("{err}");
     assert!(
@@ -498,7 +492,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
     // The refusal is one door earlier than the surgery's own front
     // door, and that is the honest order: verdict before assembly.
     let rims = rim_edges(&pipped);
-    let err = fillet_edges(&pipped, &rims[..1], RIM_R, band(), Tol::witness())
+    let err = fillet_edges(&pipped, &rims[..1], RIM_R, Tol::witness())
         .expect_err("an open rim arc has no classifiable termination");
     let text = format!("{err}");
     assert!(
@@ -519,8 +513,7 @@ fn the_shrunk_faces_keep_their_rings_and_senses() {
         .map(|(k, f)| (k, f.rings.len(), f.sense))
         .collect();
     assert_eq!(rings_before.len(), 6, "six pipped faces");
-    let out =
-        fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness()).expect("the surgery");
+    let out = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness()).expect("the surgery");
     for (k, n, sense) in rings_before {
         let f = out.body.get_face(k).expect("the shrunk face keeps its key");
         assert_eq!(f.rings.len(), n, "ring count carried");

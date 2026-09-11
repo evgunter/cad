@@ -9,21 +9,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
+use crate::common::approx::band;
+use geom_brep::SurfaceKind;
+use geom_core::{Affine3, Point2, Vec2, Vec3};
+use geom_core::{MarginDiag, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::battery::{ChainClosure, Convexity, FilletRequest, run_battery};
-use sweep::fillet::blend::BlendArm;
-use sweep::fillet::{CornerConfig, FilletError, RunOutPolicy};
+use sweep::blend::arms::BlendArm;
+use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
+use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, EdgeKey};
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -110,28 +108,17 @@ fn pipped(pip_r: f64, pip_h: f64) -> Body<f64> {
 /// The edges of `body` whose two support faces are a plane and a
 /// sphere — the pip rim.
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges()
-        .filter(|(_, e)| {
-            let kinds: Vec<&'static str> = [e.he_plus, e.he_minus]
-                .iter()
-                .filter_map(|he| {
-                    let h = body.get_half_edge(*he)?;
-                    let f = body.get_face(body.get_loop(h.parent_loop)?.face)?;
-                    Some(match body.get_surface(f.surface)? {
-                        geom::Surface::Plane { .. } => "plane",
-                        geom::Surface::Sphere { .. } => "sphere",
-                        _ => "other",
-                    })
-                })
-                .collect();
-            kinds.contains(&"plane") && kinds.contains(&"sphere")
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                body,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
         })
-        .map(|(k, _)| k)
         .collect()
-}
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
 }
 
 // ---------------------------------------------------------------------
@@ -147,10 +134,10 @@ fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 #[test]
 fn the_battery_passes_on_a_box_at_a_fitting_radius() {
     let body = boxy(1.0, 1.0, 1.0);
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
-        edges: all_edges(&body),
-        radius: 0.2,
+        edges: query::all_edges(&body),
+        size: 0.2,
     };
     let verdict = run_battery(&req, band()).expect("the box at r = 0.2 is a valid fillet request");
     assert_eq!(verdict.chains.len(), 12, "twelve one-link chains");
@@ -183,10 +170,10 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
     let body = pipped(0.5, 0.3);
     let edges = rim_edges(&body);
     assert!(!edges.is_empty(), "the S13 pip leaves a plane–sphere rim");
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
         edges,
-        radius: 0.05,
+        size: 0.05,
     };
     let verdict = run_battery(&req, band()).expect("the pip rim at r = 0.05 is valid");
     assert_eq!(verdict.chains.len(), 1, "one rim, one chain");
@@ -217,14 +204,18 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
 #[test]
 fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
     let body = pipped(0.5, 0.3);
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
         edges: rim_edges(&body),
-        radius: 0.9,
+        size: 0.9,
     };
     match run_battery(&req, band()) {
-        Err(FilletError::RadiusHeadroom { margin, radius, .. }) => {
-            assert!(margin < 0.0, "the headroom margin is definitely negative");
+        Err(BlendError::RadiusHeadroom { margin, radius, .. }) => {
+            assert_eq!(margin.predicate, "fillet3_radius_headroom");
+            assert!(
+                margin.value().is_some_and(|m| m < 0.0),
+                "the headroom margin is definitely negative"
+            );
             assert!((radius - 0.9).abs() < 1e-12);
         }
         other => panic!("expected a radius-headroom refusal, got {other:?}"),
@@ -242,14 +233,18 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
 #[test]
 fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
     let body = boxy(1.0, 1.0, 1.0);
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
-        edges: all_edges(&body),
-        radius: 0.6,
+        edges: query::all_edges(&body),
+        size: 0.6,
     };
     match run_battery(&req, band()) {
-        Err(e @ FilletError::FaceClearanceUncertified { margin, gap, .. }) => {
-            assert!(margin < 0.0);
+        Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
+            assert_eq!(margin.predicate, "fillet3_face_clearance");
+            assert!(margin.value().is_some_and(|m| m < 0.0));
+            let MarginDiag::Value(gap) = gap else {
+                panic!("this lane classifies at f64, so the gap is one number: {gap:?}")
+            };
             assert!((gap - 1.0).abs() < 1e-9, "the gap is the box side");
             // The box's opposite cap edges are PARALLEL with opposed
             // inward normals, which is exactly the configuration in
@@ -266,10 +261,10 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
 #[test]
 fn p2_face_clearance_passes_just_under_the_half_side() {
     let body = boxy(1.0, 1.0, 1.0);
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
-        edges: all_edges(&body),
-        radius: 0.45,
+        edges: query::all_edges(&body),
+        size: 0.45,
     };
     run_battery(&req, band()).expect("0.45 still leaves 0.1 m of face");
 }
@@ -287,14 +282,18 @@ fn p2_face_clearance_passes_just_under_the_half_side() {
 fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
     let body = pipped(0.5, 0.02);
     let edges = rim_edges(&body);
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
         edges,
-        radius: 0.2,
+        size: 0.2,
     };
     match run_battery(&req, band()) {
-        Err(FilletError::SpineIrregular { margin, radius }) => {
-            assert!(margin <= 0.0, "the spine margin is definitely non-positive");
+        Err(BlendError::SpineIrregular { margin, radius }) => {
+            assert_eq!(margin.predicate, "fillet3_spine_regularity");
+            assert!(
+                margin.value().is_some_and(|m| m <= 0.0),
+                "the spine margin is definitely non-positive"
+            );
             assert!((radius - 0.2).abs() < 1e-12);
         }
         // A shallow rim is also a consumption hazard; either refusal
@@ -335,14 +334,21 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
         .take(2)
         .map(|he| body.get_half_edge(*he).unwrap().edge)
         .collect();
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
         edges: two,
-        radius: 0.1,
+        size: 0.1,
     };
     match run_battery(&req, band()) {
-        Err(FilletError::ChainNotG1 { margin, arm, .. }) => {
-            assert!(margin > 0.0, "a 90° kink has a definitely positive margin");
+        Err(BlendError::ChainNotG1 { margin, arm, .. }) => {
+            assert_eq!(margin.predicate, "fillet3_chain_g1");
+            assert!(
+                margin.value().is_some_and(|m| m > 0.0),
+                "a 90° kink has a definitely positive margin"
+            );
+            let MarginDiag::Value(arm) = arm else {
+                panic!("this lane classifies at f64, so the arm is one number: {arm:?}")
+            };
             assert!(arm > 0.0);
         }
         other => panic!("expected a G1 refusal, got {other:?}"),
@@ -382,10 +388,10 @@ fn p5_convexity_sign_flip_refuses_across_the_notch() {
     let mut convex = 0;
     let mut concave = 0;
     for e in &verticals {
-        let req = FilletRequest {
+        let req = BlendRequest {
             body: &body,
             edges: vec![*e],
-            radius: 0.1,
+            size: 0.1,
         };
         match run_battery(&req, band()) {
             Ok(v) => match v.chains[0].first().convexity {
@@ -395,7 +401,7 @@ fn p5_convexity_sign_flip_refuses_across_the_notch() {
             // A concave vertical edge terminates at vertices whose
             // corner is mixed-convexity — a predicate-6 refusal that
             // still proves the sign was read.
-            Err(FilletError::FilletCornerUnsupported {
+            Err(BlendError::UnsupportedCorner {
                 corner: CornerConfig::MixedConvexity { .. },
                 ..
             }) => concave += 1,
@@ -429,24 +435,24 @@ fn p6_mixed_convexity_corner_refuses_naming_the_feather_policy() {
             (d.z.abs() > 0.9 * d.norm()).then_some(k)
         })
         .find(|k| {
-            let req = FilletRequest {
+            let req = BlendRequest {
                 body: &body,
                 edges: vec![*k],
-                radius: 0.1,
+                size: 0.1,
             };
             matches!(
                 run_battery(&req, band()),
-                Err(FilletError::FilletCornerUnsupported { .. })
+                Err(BlendError::UnsupportedCorner { .. })
             )
         })
         .expect("the reflex edge");
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
         edges: vec![reflex],
-        radius: 0.1,
+        size: 0.1,
     };
     match run_battery(&req, band()) {
-        Err(FilletError::FilletCornerUnsupported {
+        Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },
             policy,
             ..

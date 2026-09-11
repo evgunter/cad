@@ -13,15 +13,21 @@
 //! every downstream door consumes it with no new arms — `die_tool`
 //! feeds its group straight into a `Boolean` in this same corpus.
 //!
-//! # What did NOT move, and why (numbered finding 1)
+//! # What this document does NOT carry, and why
 //!
-//! The heat sink's BASE is not unioned here. The kernel's `combine`
-//! door takes two SINGLE-SOLID operands (`JoinDesync: "operand A/B is
-//! not a single-solid body"`), so fusing a five-solid group into a base
-//! needs a kernel door that does not exist — a multi-solid boolean
-//! operand, not a recipe-layer question. Reported rather than worked
-//! around: this document says exactly what the group node buys, and no
-//! more.
+//! The heat sink's BASE is not unioned here — this fixture's subject is
+//! the GROUP node, and it stops there.
+//!
+//! It is not stopping at a wall. This finding used to read that fusing
+//! the group into a base "needs a kernel door that does not exist",
+//! because `combine` takes two SINGLE-SOLID operands; that described
+//! the pre-#571 lowering, whose output was N solids. The adjudicated
+//! lowering grafts onto existing solids, so the value is ONE solid of N
+//! shells — the representation the pairwise chain it replaces produced,
+//! and the one the seamed boolean path accepts (`topo::instance`'s door
+//! docs). `die_tool` in this same corpus feeds its group straight into
+//! a `Boolean`, and the demo tour's heat sink now unions one into a
+//! base.
 //!
 //! Vocabulary: Profile, Extrude, PlacedUnion (Linear), `InsertNode`,
 //! `SetDocParam`, `SetStructuralParam`, `SetParam`.
@@ -43,7 +49,8 @@
 
 use editor_core::{Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId};
 
-use super::super::fixture::{desc, len, scl};
+use crate::fixture::{len, scl};
+
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// The fin count the document starts at (`heat_sink`'s).
@@ -58,7 +65,7 @@ pub fn document() -> CorpusDoc {
         name: ParamName::new("fins"),
         value: DocParam::Count { value: FINS },
     });
-    let fin_p = r.insert(Node::Profile(desc(
+    let fin_p = r.profile(
         [0.0, 0.0, 0.1875],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
@@ -68,7 +75,7 @@ pub fn document() -> CorpusDoc {
             (0.4375, 0.875),
             (0.25, 0.875),
         ]],
-    )));
+    );
     let fin = r.insert(Node::Extrude {
         profile: fin_p,
         distance: len(0.8125),

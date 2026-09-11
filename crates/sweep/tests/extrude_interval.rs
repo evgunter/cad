@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point2, Real};
 use profile::RawLoop;
@@ -54,7 +54,7 @@ fn interval_l_profile_extrudes_and_passes_all_tiers() {
                 .certified()
                 .unwrap()
                 .description(),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
     // A raised corner's enclosure is the exact point it was built from

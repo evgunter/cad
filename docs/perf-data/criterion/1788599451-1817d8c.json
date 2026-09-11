@@ -1,0 +1,83 @@
+{
+ "benchmarks": {
+  "kernel/boolean/two_bricks": {
+   "mean_ns": 173526.74658695832,
+   "median_abs_dev_ns": 1000.5875514059882,
+   "median_ci_ns": [
+    171940.18181818182,
+    172747.20238095237
+   ],
+   "median_ns": 172340.7155612245,
+   "samples": 50
+  },
+  "kernel/build/extrude": {
+   "mean_ns": 24806.2487409626,
+   "median_abs_dev_ns": 95.3101922639494,
+   "median_ci_ns": [
+    24398.636949516647,
+    24474.09799437016
+   ],
+   "median_ns": 24447.138296066867,
+   "samples": 50
+  },
+  "kernel/mass_props/washer": {
+   "mean_ns": 2224.859906526835,
+   "median_abs_dev_ns": 8.259855303656934,
+   "median_ci_ns": [
+    2214.9606437969924,
+    2220.3231360108484
+   ],
+   "median_ns": 2217.734170247046,
+   "samples": 50
+  },
+  "kernel/validate/tier23_washer": {
+   "mean_ns": 29902.508229110845,
+   "median_abs_dev_ns": 67.13912797470678,
+   "median_ci_ns": [
+    29781.59458333333,
+    29831.69335788325
+   ],
+   "median_ns": 29804.028723867596,
+   "samples": 50
+  },
+  "tessellate/washer/1e-4": {
+   "mean_ns": 12726515.55875397,
+   "median_abs_dev_ns": 33524.199958159996,
+   "median_ci_ns": [
+    12694656.2,
+    12743803.5875
+   ],
+   "median_ns": 12712065.685714286,
+   "samples": 10
+  },
+  "tessellate/washer/1e-6": {
+   "mean_ns": 862940627.6,
+   "median_abs_dev_ns": 599301.7504602671,
+   "median_ci_ns": [
+    862296842.5,
+    863269277.0
+   ],
+   "median_ns": 862776060.5,
+   "samples": 10
+  }
+ },
+ "commit": "1817d8c2fd3e3e670e4d294093942d3213301067",
+ "environment": {
+  "arch": "x86_64",
+  "cargo_profile_overrides": [],
+  "cpu_flags": [
+   "avx2",
+   "avx512f"
+  ],
+  "cpu_model": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+  "debug_assertions": false,
+  "mem_total_kb": 16372440,
+  "nproc": 4,
+  "os": "linux",
+  "runner": "Linux/X64 ubuntu-latest",
+  "rustflags": "",
+  "rustup_toolchain": "1.97.0-x86_64-unknown-linux-gnu"
+ },
+ "measured_at_epoch_s": 1788599450,
+ "method": "criterion 0.8.2 over benches/benches/kernel.rs; per-row sample counts set in that file; bench profile (release, debug-assertions OFF \u2014 the manifest says why); times in nanoseconds, `median` is the figure to read and `median_ci` the interval criterion resolved WITHIN this run. Cross-run spread is wider than that interval: treat a move under ~10% as noise unless consecutive entries agree."
+}

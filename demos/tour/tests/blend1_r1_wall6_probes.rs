@@ -1,0 +1,228 @@
+//! BLEND-1 review probes (r1), tour half — the PR's wall-6 re-measure,
+//! reproduced through the public façade as an outside consumer would.
+//!
+//! The PR body claims, on the tour's lily lantern: (a) wall 6 as
+//! authored — EVERY edge requested — still refuses
+//! `TangentialEdge { margin: 0.0 }` before any closed-rim door;
+//! (b) requested one rim at a time, the three transverse rims at
+//! carrier radii ~0.090, ~0.183, ~0.052 fillet whole at r = 0.02
+//! through the new door; (c) the fourth (~0.253, the mouth) is CONCAVE
+//! and carves through the same door, ADDING material (re-measured when
+//! the material-adding closed-rim band landed; it refused before).
+//!
+//! The lantern here is rebuilt from `demos/tour/src/lily.rs`'s own
+//! meridian numbers (globe 0.44, top 0.40, mouth 0.36, lip 0.09, drop
+//! 0.16, neck (0.052, 70°)) at identity placement — carrier radii are
+//! profile-intrinsic, so the PR's numbers must reproduce.
+//!
+//! Authored in the review lane and ADOPTED into the unit at its fix
+//! pass, so the findings below are re-taken by the suite on every run
+//! rather than living only in a review thread.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use pncad::authoring::{p2, validated};
+use pncad::geom::Curve3;
+use pncad::geom_core::{Tol, Vec2};
+use pncad::prelude::{BlendError, Open, Start, fillet_edges};
+use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::sweep::{Revolution, RevolveAxis, revolve};
+use pncad::topo::{Body, EdgeKey};
+
+#[path = "common/rim_select.rs"]
+mod rim_select;
+use rim_select::{Seeds, rim_at};
+
+const GLOBE: f64 = 0.44;
+const TOP: f64 = 0.40;
+const MOUTH: f64 = 0.36;
+const LIP_R: f64 = 0.09;
+const LIP_DROP: f64 = 0.16;
+const NECK_R: f64 = 0.052;
+const NECK_HALF_ANGLE: f64 = 70.0 * core::f64::consts::PI / 180.0;
+
+/// The lantern, and its four transverse rims as `(radius, station)` —
+/// the throat, the shoulder, the mouth and the lip. The rims come back
+/// beside the body because they are the meridian's own vertices: a
+/// carrier radius and station are profile-intrinsic, so deriving them
+/// twice is two places for the fixture to say different things.
+fn lily_lantern(tol: Tol) -> (Body<f64>, [(f64, f64); 4]) {
+    let r_top = (GLOBE.powi(2) - TOP.powi(2)).sqrt();
+    let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
+    let shoulder = (r_top - NECK_R) / NECK_HALF_ANGLE.tan();
+    let t_mouth = shoulder + TOP + MOUTH;
+    let t_end = t_mouth + LIP_DROP;
+    let rims = [
+        (NECK_R, 0.0),
+        (r_top, shoulder),
+        (r_mouth, t_mouth),
+        (LIP_R, t_end),
+    ];
+    let meridian: ProfileLoop<f64> = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(NECK_R, 0.0), tol)
+        .expect("throat disk")
+        .line_to(p2(r_top, shoulder), tol)
+        .expect("neck cone")
+        .arc_to(
+            Center {
+                c: p2(0.0, shoulder + TOP),
+                winding: ArcSweep::Ccw,
+                p: p2(r_mouth, t_mouth),
+            },
+            tol,
+        )
+        .expect("belly rides the globe")
+        .line_to(p2(LIP_R, t_end), tol)
+        .expect("pucker cone")
+        .line_to(p2(0.0, t_end), tol)
+        .expect("lip disk")
+        .line_to(Start, tol)
+        .expect("axis seam")
+        .into();
+    let profile = validated(SketchPlane::xy(), vec![meridian], tol).expect("meridian validates");
+    let lantern = revolve(
+        &profile,
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        Revolution::Full,
+        tol,
+    )
+    .expect("the lantern revolves")
+    .body;
+    (lantern, rims)
+}
+
+/// The stored radius of an edge's carrier circle — a read-back off the
+/// body, which is what makes a claim about it a claim about geometry.
+fn carrier_radius(body: &Body<f64>, edge: EdgeKey) -> f64 {
+    let e = body.get_edge(edge).expect("the edge");
+    let c = body
+        .get_curve_geom(e.curve)
+        .and_then(|g| g.certified())
+        .expect("a revolved rim carries a certified carrier");
+    match *c.carrier() {
+        Curve3::Circle { radius, .. } => radius,
+        ref other => panic!("a latitude rim is a circle, got {other:?}"),
+    }
+}
+
+/// Wall 6 as authored: every edge, one call — the battery refuses the
+/// co-surface chart seams at margin exactly zero, before any door.
+#[test]
+fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
+    let tol = Tol::witness();
+    let (lant, _) = lily_lantern(tol);
+    let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
+    match fillet_edges(&lant, &all, 0.02, tol).map_err(|r| r.error) {
+        Err(BlendError::TangentialEdge { margin, .. }) => {
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a co-surface seam, not a near-tangency"
+            );
+        }
+        other => panic!("wall 6 as authored refuses tangential, got {other:?}"),
+    }
+}
+
+/// One rim at a time: the three transverse convex rims the PR names
+/// fillet whole at r = 0.02, each as one band over two arcs.
+#[test]
+fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
+    let tol = Tol::witness();
+    let (lant, [throat, shoulder, _, lip]) = lily_lantern(tol);
+    for (name, (rim_r, rim_y)) in [
+        ("the lip rim", lip),           // ~0.090
+        ("the shoulder rim", shoulder), // ~0.183
+        ("the throat rim", throat),     // ~0.052
+    ] {
+        let arcs = rim_at(&lant, rim_r, rim_y, Seeds::TwoSided);
+        assert_eq!(arcs.len(), 2, "{name} is seam-split into two arcs");
+        let out = fillet_edges(&lant, &arcs, 0.02, tol)
+            .unwrap_or_else(|e| panic!("{name} fillets whole at r = 0.02, got {e:?}"));
+        pncad::topo::validate_geometric(&out.body, tol)
+            .unwrap_or_else(|e| panic!("{name} carves tier-3 valid, got {e:?}"));
+        assert_eq!(out.band_faces.len(), 1, "{name} leaves one band");
+    }
+}
+
+/// The mouth rim (~0.253) is CONCAVE — the sphere zone meets the
+/// conical pucker in a valley — and it carves through the same door as
+/// the three convex rims: one annulus band, tier-3 valid, and the
+/// volume GROWS by the band's fill, because a concave band adds
+/// material where a convex one removes it. The lily's fourth
+/// transverse rim is not a frontier.
+#[test]
+fn t3_the_mouth_rim_carves_and_adds_material() {
+    let tol = Tol::witness();
+    let (lant, rims) = lily_lantern(tol);
+    let (r_mouth, y_mouth) = rims[2];
+    let arcs = rim_at(&lant, r_mouth, y_mouth, Seeds::TwoSided);
+    assert_eq!(arcs.len(), 2, "the mouth rim is seam-split too");
+    // A separate claim, with its own window, and taken off the BODY: the
+    // arc the scan selected really carries the ~0.253 radius this row is
+    // named for, to the three digits the name states. Red if the fixture
+    // ever mints its mouth somewhere else.
+    let stored = carrier_radius(&lant, arcs[0]);
+    assert!(
+        (stored - 0.253).abs() < 5e-4,
+        "the mouth arc's stored radius is the PR's fourth radius, got {stored}"
+    );
+    let v0 = pncad::topo::mass_properties(&lant, tol)
+        .expect("mass properties")
+        .volume;
+    let out = fillet_edges(&lant, &arcs, 0.02, tol)
+        .unwrap_or_else(|e| panic!("the concave mouth rim carves whole at r = 0.02, got {e:?}"));
+    pncad::topo::validate_geometric(&out.body, tol)
+        .unwrap_or_else(|e| panic!("the mouth carves tier-3 valid, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "the mouth leaves one band");
+    let props = pncad::topo::mass_properties(&out.body, tol).expect("mass properties");
+    assert_eq!(props.volume_pad, 0.0, "closed-form inventory");
+    assert!(
+        props.volume > v0,
+        "a concave band ADDS material: {} must exceed {v0}",
+        props.volume
+    );
+}
+
+/// **The recourse is true at a REACHABLE concave site.** One arc of the
+/// lily's own concave mouth rim refuses `SeamVertex` — the tag reads
+/// incidence and never convexity — and t3 above is the whole-rim request
+/// it names, which CARVES. This row was the r1 review's consumer-side
+/// witness while the sentence over-promised a carve the door then
+/// refused; the sentence now promises the carve on either material side
+/// and the door keeps the promise, so this row pins the two together on
+/// a body a real user holds rather than only on a synthetic fixture.
+#[test]
+fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
+    let tol = Tol::witness();
+    let (lant, rims) = lily_lantern(tol);
+    let (r_mouth, y_mouth) = rims[2];
+    let arcs = rim_at(&lant, r_mouth, y_mouth, Seeds::TwoSided);
+    assert_eq!(arcs.len(), 2);
+    match fillet_edges(&lant, &arcs[..1], 0.02, tol).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedCorner { corner, .. }) => {
+            let shown = format!("{corner}");
+            assert!(
+                shown.contains("seam"),
+                "one mouth arc stops at a seam vertex, got {shown}"
+            );
+        }
+        other => panic!("one mouth arc refuses SeamVertex, got {other:?}"),
+    }
+    // And the sentence it carries names the request t3 EXECUTES — the
+    // rim whole — and promises it on either material side. The
+    // hedge-shape pin has one home, `sweep::test_support::assert_promises_either_side`,
+    // which the tour (a consumer, outside the kernel's test-support
+    // door) does not reach; what the tour pins is that the sentence is
+    // followed here: t3 is the whole-rim request, and it carves.
+    let shown = pncad::sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE;
+    assert!(
+        shown.contains("rim whole") && shown.contains("either material side"),
+        "the sentence names the whole-rim request t3 takes, on both sides: {shown}"
+    );
+}

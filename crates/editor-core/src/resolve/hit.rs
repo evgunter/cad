@@ -50,6 +50,53 @@ pub enum HitTestError {
     },
 }
 
+// LIB-DOORS F6: the human-readable rendering a consumer prints instead
+// of composing a sentence about somebody else's refusal. Each arm
+// states the PROBLEM in this layer's vocabulary — which node, and what
+// about it makes the inversion impossible — plus the recourse where a
+// user has one. The entity kind renders through `EntityKind::noun`,
+// never `Debug`: an arena key is editor-core-private (N4) and means
+// nothing to a person, so the `Unnamed` arm names the kind and the
+// body index and calls the violation what it is.
+impl core::fmt::Display for HitTestError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NodeNotEvaluated { node } => write!(
+                f,
+                "hit test: node {} has no result in this evaluation — \
+                 the pick names a node this run did not produce (a \
+                 canceled suffix, or an id from another document)",
+                node.0
+            ),
+            Self::NodeFailed { node } => write!(
+                f,
+                "hit test: node {} failed, so it has no name table to \
+                 invert — fix the node's own failure before picking \
+                 against it",
+                node.0
+            ),
+            Self::NodePoisoned { node, through } => write!(
+                f,
+                "hit test: node {} is poisoned by the failure at node \
+                 {}, so it has no name table to invert — the repair is \
+                 upstream, at node {}",
+                node.0, through.0, through.0
+            ),
+            Self::Unnamed { node, entity } => write!(
+                f,
+                "hit test: node {}'s {} in output body {} evaluated but \
+                 has no name in its table — naming emission is total, \
+                 so this is a kernel bug",
+                node.0,
+                entity.key.kind().noun(),
+                entity.body
+            ),
+        }
+    }
+}
+
+impl core::error::Error for HitTestError {}
+
 /// Inverts one entity of one node's value to its stable name — the
 /// bidirectional table read (N4), total for every key the evaluation
 /// exposes.

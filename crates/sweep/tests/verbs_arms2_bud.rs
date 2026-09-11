@@ -37,22 +37,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::{Curve3, Surface};
-use geom_core::{Band, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
-use sweep::fillet::battery::{FilletRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::test_support::revolved_about_y;
+use sweep::blend::BlendError;
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::test_support::{arcs_at, one_edge_rim_at, revolved_about_y};
 use topo::{Body, EdgeKey, FaceSurface, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// The **bud's meridian**: bore at `0.2`, a flat base annulus at `t = 0`,
@@ -88,49 +85,6 @@ fn census(body: &Body<f64>) -> (usize, usize, usize) {
         body.edges().count(),
         body.faces().count(),
     )
-}
-
-/// The CLOSED latitude rims of `body` whose circle carrier has radius
-/// `r` (to 1e-9), in key order. Selection is by the analytically known
-/// radius, not by uniqueness — the bud's bore carries two.
-fn closed_rims(body: &Body<f64>, r: f64) -> Vec<(EdgeKey, f64)> {
-    body.edges()
-        .filter_map(|(k, e)| {
-            let start = body.get_half_edge(e.he_plus)?.start;
-            if Some(start) != body.half_edge_end(e.he_plus) {
-                return None;
-            }
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                Curve3::Circle { radius, center, .. } if (radius - r).abs() < 1e-9 => {
-                    Some((k, center.y))
-                }
-                _ => None,
-            }
-        })
-        .collect()
-}
-
-/// The one closed rim of radius `r`, when the radius alone names it.
-fn closed_rim(body: &Body<f64>, r: f64) -> EdgeKey {
-    let hits = closed_rims(body, r);
-    assert_eq!(hits.len(), 1, "exactly one closed rim of radius {r}");
-    hits[0].0
-}
-
-/// The one closed rim of radius `r` at axial station `y`.
-fn closed_rim_at(body: &Body<f64>, r: f64, y: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = closed_rims(body, r)
-        .into_iter()
-        .filter(|(_, cy)| (cy - y).abs() < 1e-9)
-        .map(|(k, _)| k)
-        .collect();
-    assert_eq!(
-        hits.len(),
-        1,
-        "exactly one closed rim of radius {r} at y = {y}"
-    );
-    hits[0]
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64) {
@@ -190,8 +144,8 @@ fn the_bud_mouth_rim_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
         (5, 10, 5),
         "the bud is five walls, five latitude rims and five seams"
     );
-    let mouth = closed_rim(&source, 0.8);
-    let out = fillet_edges(&source, &[mouth], R, band(), tol())
+    let mouth = one_edge_rim_at(&source, 0.8, 0.6);
+    let out = fillet_edges(&source, &[mouth], R, tol())
         .unwrap_or_else(|e| panic!("the bud's sphere-cone mouth rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the filleted bud must be tier-3 valid, got {e:?}"));
@@ -232,8 +186,8 @@ fn the_bud_mouth_rim_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
 #[test]
 fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
     let source = bud();
-    let mouth = closed_rim(&source, 0.8);
-    let out = fillet_edges(&source, &[mouth], R, band(), tol()).unwrap();
+    let mouth = one_edge_rim_at(&source, 0.8, 0.6);
+    let out = fillet_edges(&source, &[mouth], R, tol()).unwrap();
     let (cx, cy) = ball_centre();
     let s10 = 10.0f64.sqrt();
     // On the sphere: `C + (R/(R−r))·(c − C)` for `C = 0`, `R = 1`.
@@ -245,7 +199,7 @@ fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
         (sphere_trim.0, sphere_trim.1, "sphere"),
         (cone_trim.0, cone_trim.1, "cone"),
     ] {
-        let e = closed_rim(&out.body, want_r);
+        let e = one_edge_rim_at(&out.body, want_r, want_y);
         let c = out
             .body
             .get_curve_geom(out.body.get_edge(e).unwrap().curve)
@@ -273,8 +227,8 @@ fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
 #[test]
 fn the_bud_band_is_a_ring_free_wall_with_two_closed_circles_and_a_slit() {
     let source = bud();
-    let mouth = closed_rim(&source, 0.8);
-    let out = fillet_edges(&source, &[mouth], R, band(), tol()).unwrap();
+    let mouth = one_edge_rim_at(&source, 0.8, 0.6);
+    let out = fillet_edges(&source, &[mouth], R, tol()).unwrap();
     let f = out.band_faces[0];
     let fd = out.body.get_face(f).unwrap();
     assert!(fd.rings.is_empty(), "a curved face must be ring-free");
@@ -309,8 +263,8 @@ fn the_bud_lip_and_bore_rims_fillet_through_their_own_arms() {
         (0.2, 0.0, 0.03, "the bore's base (cylinder-plane)"),
     ] {
         let source = bud();
-        let rim = closed_rim_at(&source, rim_r, rim_y);
-        let out = fillet_edges(&source, &[rim], radius, band(), tol())
+        let rim = one_edge_rim_at(&source, rim_r, rim_y);
+        let out = fillet_edges(&source, &[rim], radius, tol())
             .unwrap_or_else(|e| panic!("{which} rim fillets, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{which}: tier-3 valid, got {e:?}"));
@@ -329,8 +283,8 @@ fn the_bud_lip_and_bore_rims_fillet_through_their_own_arms() {
 #[test]
 fn the_filleted_bud_removes_material_and_stays_closed_form() {
     let source = bud();
-    let mouth = closed_rim(&source, 0.8);
-    let out = fillet_edges(&source, &[mouth], R, band(), tol()).unwrap();
+    let mouth = one_edge_rim_at(&source, 0.8, 0.6);
+    let out = fillet_edges(&source, &[mouth], R, tol()).unwrap();
     let before = mass_properties(&source, tol()).expect("the bud's mass properties");
     let after = mass_properties(&out.body, tol()).expect("the filleted bud's mass properties");
     let removed = before.volume - after.volume;
@@ -370,12 +324,12 @@ fn the_filleted_bud_removes_material_and_stays_closed_form() {
 #[test]
 fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
     let mut source = bud();
-    let mouth = closed_rim(&source, 0.8);
+    let mouth = one_edge_rim_at(&source, 0.8, 0.6);
     // Baseline: coaxial, and the battery passes.
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &source,
         edges: vec![mouth],
-        radius: R,
+        size: R,
     };
     run_battery(&req, band()).expect("the coaxial mouth passes the battery");
 
@@ -405,13 +359,13 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
         )
         .expect("planting a surface certifies nothing");
 
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &source,
         edges: vec![mouth],
-        radius: R,
+        size: R,
     };
     match run_battery(&req, band()) {
-        Err(e @ FilletError::SpineUnsupported { .. }) => {
+        Err(e @ BlendError::SpineUnsupported { .. }) => {
             let text = format!("{e}");
             assert!(
                 text.contains("do not share one axis of revolution"),
@@ -432,21 +386,14 @@ fn the_partial_revolve_of_the_bud_still_refuses() {
         Revolution::Partial(core::f64::consts::PI),
         tol(),
     );
-    // The open mouth arc: the one arc of radius 0.8 that is not closed.
-    let arc = source
-        .edges()
-        .find(|(_, e)| {
-            let c = source
-                .get_curve_geom(e.curve)
-                .and_then(|g| g.certified())
-                .map(|c| c.carrier().clone());
-            matches!(c, Some(Curve3::Circle { radius, .. }) if (radius - 0.8).abs() < 1e-9)
-        })
-        .map(|(k, _)| k)
-        .expect("the partial bud carries a mouth arc");
-    match fillet_edges(&source, &[arc], R, band(), tol()) {
-        Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
-        }
+    // The open mouth arc. Half a revolve leaves the mouth ONE arc, and
+    // the raw scan is what selects an arc that is deliberately not a
+    // rim.
+    let arcs = arcs_at(&source, 0.8, 0.6);
+    assert_eq!(arcs.len(), 1, "half a revolve leaves one mouth arc");
+    let arc = arcs[0];
+    match fillet_edges(&source, &[arc], R, tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("a partial revolve's open mouth arc must refuse, got {other:?}"),
     }
 }

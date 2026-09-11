@@ -6,7 +6,7 @@
 //! This is the surface analogue of [`crate::curves::projection`] and
 //! implements the same contract: both halves take their iteration
 //! budget, seed schedule and acceptance thresholds from
-//! `crate::projection`, which is the one place that policy is
+//! `crate::projection_policy`, which is the one place that policy is
 //! declared. What differs is dimension — two orthogonality conditions
 //! instead of one, solved through a 2×2 Jacobian instead of a scalar
 //! derivative — and that is why the iteration is written here rather
@@ -14,7 +14,7 @@
 //!
 //! # This half's reading of the shared policy
 //!
-//! `crate::projection` carries the policy itself — the C6 `f64`
+//! `crate::projection_policy` carries the policy itself — the C6 `f64`
 //! lane, the `f64`-structure + `T`-payload lift, the honesty contract,
 //! and the four constants named below, declared once for both halves.
 //! What follows is what that policy means in two parameters.
@@ -53,7 +53,7 @@
 //!
 //! # Honesty, in two parameters
 //!
-//! The shared contract is `crate::projection`'s. Here the residual
+//! The shared contract is `crate::projection_policy`'s. Here the residual
 //! set is three — `distance`, `orthogonality_u`, `orthogonality_v` —
 //! and all three ride the [`SurfaceProjection`] so the consumer can
 //! band them together: a far sheet fails on `distance`, a domain-edge
@@ -64,7 +64,7 @@
 
 use geom_core::{Bounds, CertifiedBounds, Point3, Real};
 
-use crate::projection::{
+use crate::projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, mid,
 };
 use crate::surfaces::NurbsSurface;
@@ -75,7 +75,7 @@ use crate::surfaces::NurbsSurface;
 ///
 /// **At `T = Dual` every `T`-valued field here carries a partial
 /// derivative rather than a total one — issue #874.** `u` and `v` are
-/// selected as `f64` and frozen (`crate::projection::mid`), so each field
+/// selected as `f64` and frozen (`crate::projection_policy::mid`), so each field
 /// is differentiated at fixed `(u*, v*)` and is short by the two
 /// `∂/∂u × du*/dp` and `∂/∂v × dv*/dp` terms a frozen parameter cannot
 /// produce — `S_u`, `S_v` for `foot`; `S_uu·r + |S_u|²` and
@@ -153,7 +153,7 @@ impl core::fmt::Display for SurfaceProjectionInconclusive {
 impl core::error::Error for SurfaceProjectionInconclusive {}
 
 /// The seeding sweep is not a certification door and keeps the sole
-/// bracket bound — `crate::projection`'s `# Scalars` for why.
+/// bracket bound — `crate::projection_policy`'s `# Scalars` for why.
 impl<T: Bounds> NurbsSurface<T> {
     /// The fixed-count seeding sweep (module docs: the seeding rule).
     /// Public for warm-start consumers (the PR 7 marcher and its
@@ -181,7 +181,7 @@ impl<T: Bounds> NurbsSurface<T> {
                         #[allow(clippy::cast_precision_loss)]
                         let fv = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let v = b0 + (b1 - b0) * fv;
-                        let d = self.eval_in_span(win, T::from_f64(u), T::from_f64(v)) - p;
+                        let d = win.eval_in_span(T::from_f64(u), T::from_f64(v)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -239,7 +239,9 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
         let mut last_fv = f64::NAN;
         let mut last_dist = f64::NAN;
         while iterations < PROJECT_MAX_ITERS {
-            let j = self.ders_in_span(self.window_at(u, v), T::from_f64(u), T::from_f64(v));
+            let j = self
+                .window_at(u, v)
+                .ders_in_span(T::from_f64(u), T::from_f64(v));
             let r = j.point - p;
             // The iteration reads structure through the brackets; the
             // T-valued jet above is what the accepted payload is built
@@ -284,8 +286,9 @@ impl<T: CertifiedBounds> NurbsSurface<T> {
             // through the chart (domain-edge feet land here).
             let moved = j.du * T::from_f64(un - u) + j.dv * T::from_f64(vn - v);
             if mid(moved.norm()) <= PROJECT_EPS_POINT {
-                let jn =
-                    self.ders_in_span(self.window_at(un, vn), T::from_f64(un), T::from_f64(vn));
+                let jn = self
+                    .window_at(un, vn)
+                    .ders_in_span(T::from_f64(un), T::from_f64(vn));
                 let r = jn.point - p;
                 let dist = r.norm();
                 if !mid(dist).is_nan() {

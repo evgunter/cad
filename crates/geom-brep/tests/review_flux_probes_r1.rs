@@ -15,17 +15,17 @@ use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
 fn line(a: Point3<f64>, b: Point3<f64>, s: u32, e: u32) -> LoopEdge<f64> {
-    LoopEdge {
-        carrier: Curve3::Line {
+    LoopEdge::hand_built(
+        Curve3::Line {
             origin: a,
             dir: b - a,
         },
-        t0: 0.0,
-        t1: 1.0,
-        forward: true,
-        start: s,
-        end: e,
-    }
+        0.0,
+        1.0,
+        true,
+        s,
+        e,
+    )
 }
 
 /// Region under y = t(1−t) over x = t ∈ [0,1] (a degree-2 Bézier),
@@ -44,14 +44,14 @@ fn quadratic_bezier_area_is_exact() {
     )
     .unwrap();
     let edges = vec![
-        LoopEdge {
-            carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
-            t0: 0.0,
-            t1: 1.0,
-            forward: true,
-            start: 0,
-            end: 1,
-        },
+        LoopEdge::hand_built(
+            Curve3::Nurbs(std::sync::Arc::new(curve)),
+            0.0,
+            1.0,
+            true,
+            0,
+            1,
+        ),
         line(Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0), 1, 0),
     ];
     let a = loop_vector_area(&edges, Point3::new(0.3, 0.7, 0.0)).unwrap();
@@ -88,14 +88,14 @@ fn quintic_multispan_area_is_exact() {
         .collect();
     let curve = NurbsCurve3::new(kv, control, vec![1.0; 6]).unwrap();
     let edges = vec![
-        LoopEdge {
-            carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
-            t0: 0.0,
-            t1: 1.0,
-            forward: true,
-            start: 0,
-            end: 1,
-        },
+        LoopEdge::hand_built(
+            Curve3::Nurbs(std::sync::Arc::new(curve)),
+            0.0,
+            1.0,
+            true,
+            0,
+            1,
+        ),
         line(Point3::new(1.0, 1.0, 0.0), Point3::new(1.0, 0.0, 0.0), 1, 2),
         line(Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0), 2, 0),
     ];
@@ -132,14 +132,14 @@ fn multispan_alternating_bumps_cancel_exactly() {
     }
     let curve = NurbsCurve3::new(kv, control, vec![1.0; 9]).unwrap();
     let edges = vec![
-        LoopEdge {
-            carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
-            t0: 0.0,
-            t1: 4.0,
-            forward: true,
-            start: 0,
-            end: 1,
-        },
+        LoopEdge::hand_built(
+            Curve3::Nurbs(std::sync::Arc::new(curve)),
+            0.0,
+            4.0,
+            true,
+            0,
+            1,
+        ),
         line(Point3::new(4.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0), 1, 0),
     ];
     let a = loop_vector_area(&edges, Point3::new(-1.0, 2.0, 0.0)).unwrap();
@@ -171,14 +171,14 @@ fn partial_interval_span_clip_is_exact() {
     }
     let curve = NurbsCurve3::new(kv, control, vec![1.0; 9]).unwrap();
     let edges = vec![
-        LoopEdge {
-            carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
-            t0: 0.0,
-            t1: 1.0,
-            forward: true,
-            start: 0,
-            end: 1,
-        },
+        LoopEdge::hand_built(
+            Curve3::Nurbs(std::sync::Arc::new(curve)),
+            0.0,
+            1.0,
+            true,
+            0,
+            1,
+        ),
         line(Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0), 1, 0),
     ];
     let a = loop_vector_area(&edges, Point3::origin()).unwrap();
@@ -198,14 +198,14 @@ fn degree_six_refuses_typed() {
     .unwrap();
     let control: Vec<Point3<f64>> = (0..7).map(|i| Point3::new(i as f64, 0.0, 0.0)).collect();
     let curve = NurbsCurve3::new(kv, control, vec![1.0; 7]).unwrap();
-    let edges = vec![LoopEdge {
-        carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
-        t0: 0.0,
-        t1: 1.0,
-        forward: true,
-        start: 0,
-        end: 0,
-    }];
+    let edges = vec![LoopEdge::hand_built(
+        Curve3::Nurbs(std::sync::Arc::new(curve)),
+        0.0,
+        1.0,
+        true,
+        0,
+        0,
+    )];
     match loop_vector_area(&edges, Point3::origin()) {
         Err(PropsError::QuadratureUnsupported { .. }) => {}
         other => panic!("degree 6 must refuse typed: {other:?}"),
@@ -226,14 +226,14 @@ fn rational_carrier_refuses_typed() {
         vec![1.0, 2.0, 1.0],
     )
     .unwrap();
-    let edges = vec![LoopEdge {
-        carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
-        t0: 0.0,
-        t1: 1.0,
-        forward: true,
-        start: 0,
-        end: 0,
-    }];
+    let edges = vec![LoopEdge::hand_built(
+        Curve3::Nurbs(std::sync::Arc::new(curve)),
+        0.0,
+        1.0,
+        true,
+        0,
+        0,
+    )];
     match loop_vector_area(&edges, Point3::origin()) {
         Err(PropsError::Unimplemented) => {}
         other => panic!("rational must refuse typed: {other:?}"),
@@ -257,14 +257,14 @@ fn reference_point_invariance() {
     )
     .unwrap();
     let edges = vec![
-        LoopEdge {
-            carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
-            t0: 0.0,
-            t1: 1.0,
-            forward: true,
-            start: 0,
-            end: 1,
-        },
+        LoopEdge::hand_built(
+            Curve3::Nurbs(std::sync::Arc::new(curve)),
+            0.0,
+            1.0,
+            true,
+            0,
+            1,
+        ),
         line(Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0), 1, 0),
     ];
     let a1 = loop_vector_area(&edges, Point3::origin()).unwrap();

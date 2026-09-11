@@ -1,40 +1,26 @@
 ---
 name: cad-working-style
-description: How Evan works on the CAD project — discuss/ratify in DESIGN.md before implementing
+description: How Ev works on the CAD project — discuss/ratify in DESIGN.md before implementing
 metadata: 
   node_type: memory
   type: feedback
   originSessionId: 11974b46-1641-48d9-9802-fdf44dcb6927
 ---
 
-Design decisions are discussed in chat, refined through Evan's pushback,
-then ratified into docs/DESIGN.md and committed — keep the doc synced with
-every settled point, and present proposals for genuinely-open questions
-rather than deciding unilaterally.
+Design decisions are discussed in chat, refined through Ev's pushback,
+then ratified into docs/DESIGN.md and committed — keep the doc synced
+with every settled point, and for genuinely-open questions propose with
+a firm recommendation and honest counterarguments rather than deciding
+unilaterally. Prefer principled/structural solutions over escape hatches
+— Ev deliberately omits fallback variants as a design challenge.
+Fail-loud over limp-along, always. See [[ev-profile]].
 
-**Why:** the doc is deliberately the durable contract across
-sessions/agents; conversation is where refinement happens. Evan's pushback
-has consistently improved the design (intensional edge geometry,
-dropping the decision log, import-as-adoption, prefer-intrinsic rule all
-originated from or were sharpened by their objections).
+**Doc prose discipline (Ev).** Living docs state the PRESENT design
+only — no history narration (that lives in the M-logs, PR descriptions
+and git), and no references to things not planned. When retiring a
+mechanism, a one-line pointer at the log/PR suffices; cut the story.
 
-**How to apply:** for open questions, propose with a firm recommendation
-and honest counterarguments; expect and welcome refinement. Prefer
-principled/structural solutions over escape hatches — Evan deliberately
-omits fallback variants (e.g. no `Explicit` edge geometry) as a design
-challenge. Fail-loud over limp-along, always. During implementation,
-treat the deferred Q1 items as design discussions in the first PRs, not
-things to batch-implement silently. See [[evan-profile]].
-
-**Doc prose discipline (Evan, 2026-07-28/29, #124 round 11 +
-#132)**: living docs state the PRESENT design only — no history
-narration (that lives in the M-logs, PR descriptions, and git),
-and no references to things not planned ("the docs don't need to
-reference things that we don't plan on doing unless it's a change
-from before"). When retiring a mechanism, a one-line pointer at
-the log/PR suffices; cut the story.
-
-**Writing memories (Evan, 2026-08-18).** `MEMORY.md` is read at the
+**Writing memories (Ev, 2026-08-18).** `MEMORY.md` is read at the
 start of every session and its pointers are followed as relevance
 dictates — so an index line is paid for every session, and a file is
 paid for whenever anyone follows its pointer, which for the
@@ -73,7 +59,7 @@ Then, for what survives:
   that re-takes it, the way the index's `K telemetry state` line
   does.
 
-**Code comments (Evan, 2026-08-21).** The same tests apply, with a
+**Code comments (Ev, 2026-08-21).** The same tests apply, with a
 lower bar: keep a comment only if something would go wrong without it.
 The obligation a caller must uphold, why a match is exhaustive, why an
 API is private, why a panic path is absent, what a refusal means, a

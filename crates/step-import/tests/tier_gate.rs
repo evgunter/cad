@@ -71,6 +71,16 @@
 //! not its disposition, and the row is pinned on the new reason.
 //! `iso-rect/rect.step` / `iso-rect/xsplit.step` beside them are the
 //! controls that keep the tightening from being a blanket refusal.
+//!
+//! **Issue 723 (2026-08-29) added the two `halfcap/` rows; one of
+//! them is a newly-passing body class.** Both twins are the same
+//! half-of-a-spherical-cap solid whose sphere face's meridian side is
+//! a pole-crossing great-circle arc. `halfcap.step` (the arc split by
+//! one ordinary vertex) USED to pass this gate and then measure 47%
+//! low with `pad = 0.0`; `halfcap_nosplit.step` USED to refuse
+//! `DegenerateFace` on the endpoint fold's `lo == hi`. With the
+//! sphere's `v`-extent derived from each arc's stored span, both pass
+//! and `halfcap_pole.rs` holds both to the exact closed-form volume.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::path::{Path, PathBuf};
@@ -177,7 +187,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
     }
 }
 
-/// **The ε-row pins.** Three corpus files' dispositions are a function
+/// **The ε-row pins.** Six corpus files' dispositions are a function
 /// of the ambient ε, and hiding that behind one row per file would make
 /// the suite either red for an honest reason or green for a wrong one.
 /// Each cell is `(file, ambient ε, eps_in row, disposition)`; the
@@ -207,7 +217,31 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
 ///   says so by name instead of certifying a carrier it cannot.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 15] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
+    // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
+    // The AMBIENT sweep only, at the files' own ε_in (they state
+    // themselves to full double precision). At ambient 1e-6 both
+    // twins refuse at EDGE ADOPTION — the rim/plane wedge angle's
+    // certification margin (~8.6e-6 rad) is inside the ambiguity
+    // band, so no props arithmetic is even reached; at the default
+    // and fine bands both certify with the exact closed-form volume
+    // (`cert1_r1_import_probes.rs` holds the value).
+    (NEARPOLAR_SPLIT, 1e-9, "file", Pass(1, 1, 3, 4, 3)),
+    (
+        NEARPOLAR_SPLIT,
+        1e-6,
+        "file",
+        Refused(NEARPOLAR_WEDGE_ESCALATED),
+    ),
+    (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
+    (
+        NEARPOLAR_NOSPLIT,
+        1e-6,
+        "file",
+        Refused(NEARPOLAR_WEDGE_ESCALATED),
+    ),
+    (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
@@ -247,20 +281,79 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 15] = [
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
     (DM1, 1e-9, "file", Refused(RATIONAL_FLUX_STALL)),
-    (DM1, 1e-6, "file", Refused(LADDER_NO_DESCRIPTION)),
+    // The coarse band reaches the GATE now and escalates there: the
+    // enclosure lands ~1% under the loose `1024·ε` target, inside the
+    // convergence predicate's ambiguity band. That masks — it does not
+    // fix — the `#389` ladder gap that used to be this cell.
+    (DM1, 1e-6, "file", Refused(QUAD_CONVERGED_ESCALATED)),
     (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
+    // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
+    // The AMBIENT sweep only, at the files' own ε_in (they state
+    // themselves to full double precision). The near-pole feature is
+    // 0.9e-9 m by construction, so which certification refuses is a
+    // function of the ambient band alone: the span escalates in the
+    // default band's indeterminate zone, certifies ZERO at 1e-6, and
+    // at 1e-12 the spans clear and the rim/sphere near-tangency
+    // refuses at adoption — `poleguard.rs` holds the route argument.
+    (POLEBAND, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
+    (POLEBAND, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
+    // The ε-relative sibling's cells mirror the twins' one band down:
+    // its 5.65e-12 m span escalates exactly where the band is 1e-12
+    // and certifies ZERO at both coarser bands.
+    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEBAND12, 1e-12, "file", Refused(PARAM_SPAN_ESCALATED)),
+    (POLEFRUSTUM, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
+    (POLEFRUSTUM, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (
+        POLEFRUSTUM,
+        1e-12,
+        "file",
+        Refused(TANGENT_SECOND_ORDER_ZERO),
+    ),
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
+const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step";
+/// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
+/// angle's adoption certification, by predicate name, so a regression
+/// that moves the refusal to another door fails these cells.
+const NEARPOLAR_WEDGE_ESCALATED: &str = "predicate 'dihedral_wedge' indeterminate";
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
+const POLEBAND: &str = "tests/fixtures/poleguard/poleband.step";
+const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
+const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
+/// The poleguard twins' coarse-band sub-reason: the sub-band span
+/// certifies zero, and the attachment gate refuses the degenerate
+/// interval by name.
+const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward";
+/// Their fine-band sub-reason: with the spans certified, adoption
+/// refuses the rim/sphere near-tangency — the second-order arm's own
+/// verdict, so a regression that moves the refusal to another door
+/// fails these cells.
+const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero at sample 1";
 /// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
-/// the exact-B-rep volume of a RATIONAL cylinder wall — the banked
-/// rational-patch-flux lane, named specifically so the gate's preamble
-/// (which a tier-1/2 regression would also match) cannot stand in.
-const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at";
+/// the exact-B-rep volume of a RATIONAL cylinder wall to target. The
+/// quadrature converges there — it quarters cleanly per refinement
+/// round — and what it runs out of is the FIXED round budget, inside a
+/// factor of two. Named specifically so the gate's preamble (which a
+/// tier-1/2 regression would also match) cannot stand in.
+const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure cannot reach the";
+/// dm1's coarse-band sub-reason: the convergence predicate declines to
+/// decide, by name, so a regression that turned this into a silent
+/// answer (or into a different door) fails the cell.
+const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeterminate";
 /// dm1's coarse-band sub-reason: the ladder's own refusal on edge
 /// `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline that stays NURBS
 /// and is offered zero candidates.
+/// dm1's `#389` polyline gap. **No cell reaches it any more**: it was
+/// the coarse band's first refusal until the patch-flux enclosure
+/// tightened enough to escalate ahead of it. Kept, not deleted — the
+/// gap is real, unfixed, and would become reachable again the moment
+/// anything at the gate moves.
+#[allow(dead_code)]
 const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
@@ -284,7 +377,7 @@ const TANGENT_PLANES_COINCIDE: &str = "tangent planes coincide at interior sampl
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: &str =
-    "ParamSpan at sample 0 escalated: predicate 'interval_span_forward' indeterminate";
+    "ParamSpan (not a sampled check) escalated: predicate 'interval_span_forward' indeterminate";
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
 const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: EndpointStart residual at sample 0 \
@@ -293,7 +386,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 62] = [
+const CORPUS: [(&str, Disposition); 73] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -349,6 +442,58 @@ const CORPUS: [(&str, Disposition); 62] = [
         "tests/fixtures/freecad/twobody_importexport.step",
         Pass(2, 2, 8, 14, 10),
     ),
+    // -- tests/fixtures/cert1-r1/ (reviewer probes, adopted) ----------
+    // R1's adversarial near-polar variants of the halfcap generator:
+    // `nearpolar_*` puts the rim 0.0208 rad off the pole; `polesplit_*`
+    // is issue 723's body with the split vertex EXACTLY on the pole
+    // (the pole-membership decide sits on its Zero through this door).
+    // `cert1_r1_import_probes.rs` holds all four to the closed form.
+    // The nearpolar twins are AMBIENT-sensitive: their rim sits
+    // 0.0208 rad off the pole on a 0.208 mm circle, and at ambient
+    // 1e-6 the rim/plane wedge angle's adoption margin (~8.6e-6)
+    // lands in the escalation band — the coarse band honestly cannot
+    // tell this near-tangency from a tangency. Pinned cell by cell
+    // in `EPS_ROWS`.
+    (
+        "tests/fixtures/cert1-r1/nearpolar_nosplit.step",
+        EpsSensitive,
+    ),
+    ("tests/fixtures/cert1-r1/nearpolar_split.step", EpsSensitive),
+    (
+        "tests/fixtures/cert1-r1/polesplit_nosplit.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/cert1-r1/polesplit_split.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    // -- tests/fixtures/halfcap/ (issue 723) --------------------------
+    // Half of a spherical cap, whose sphere face's meridian side is one
+    // POLE-CROSSING great-circle arc — the sphere's v-extent must come
+    // from the arc's stored span, not its endpoint latitudes. The two
+    // twins are the same solid; the split one carries one ordinary
+    // vertex on the arc. That vertex once flipped the disposition —
+    // no-split refused degenerate (endpoint fold saw lo == hi) while
+    // split MEASURED, tier 3 green, 47% low at pad = 0.0. Both now
+    // pass, and `halfcap_pole.rs` holds both to the exact closed-form
+    // volume.
+    ("tests/fixtures/halfcap/halfcap.step", Pass(1, 1, 3, 4, 3)),
+    // The near-pole split twins: the same solid with the ordinary
+    // vertex 1e-6 / 1e-7 rad off the pole, landing the
+    // pole-membership margin inside or beside the default band —
+    // refused `Escalated` until the indeterminate outcome folded.
+    (
+        "tests/fixtures/halfcap/halfcap_eps6.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/halfcap/halfcap_eps7.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/halfcap/halfcap_nosplit.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
     // -- tests/fixtures/iso-rect/ (S58 / #649) ------------------------
     // #649's own fixtures, committed with the fix. Both plus-domain
     // solids are geometrically VALID — manifold, closed, χ = 2 — and
@@ -378,6 +523,25 @@ const CORPUS: [(&str, Disposition); 62] = [
         "tests/fixtures/iso-rect/xsplit.step",
         Pass(1, 1, 18, 40, 24),
     ),
+    // -- tests/fixtures/poleguard/ (issue 896) ------------------------
+    // The mesh walk's undeclared-pole guard, import-door half: a
+    // sphere truncated 9e-8 rad below its pole, so its top rim's
+    // vertices sit 0.9e-9 m from a chart pole no vertex declares.
+    // `poleguard.rs` states the route argument (any authoring of the
+    // state carries a boundary feature of at most 2π·ε, which the
+    // K = 10 band cannot certify clear); here the twins are corpus
+    // like any other file, AMBIENT-sensitive by construction, pinned
+    // cell by cell in `EPS_ROWS`: the sub-band span escalates at the
+    // default band, certifies ZERO at 1e-6, and at 1e-12 — where the
+    // spans certify — the near-tangent rim/sphere contact refuses one
+    // level up, at adoption.
+    ("tests/fixtures/poleguard/poleband.step", EpsSensitive),
+    // The ε-relative sibling: the same band form with the vertex
+    // 0.9e-12 m from the pole, so the 1e-12 band also pins a fixture
+    // whose near-pole feature is INSIDE it (the two twins above sit
+    // 900× outside that band and pin the adoption bar there instead).
+    ("tests/fixtures/poleguard/poleband_eps12.step", EpsSensitive),
+    ("tests/fixtures/poleguard/polefrustum.step", EpsSensitive),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
     // two collinear `EDGE_CURVE`s, which is what every exporter emits
@@ -473,9 +637,9 @@ const CORPUS: [(&str, Disposition); 62] = [
         //
         // What is left is the SHARED AT-REST GATE on those same
         // rational walls: the exact-B-rep volume's quadrature
-        // enclosure stalls short of its target — the banked
-        // rational-patch-flux lane, the lane a NATIVELY built
-        // rational-walled loft refuses on too. The fragment names that
+        // enclosure stalls short of its target within the fixed round
+        // budget — the same lane, and the same budget, a NATIVELY
+        // built rational-walled loft refuses on too. The fragment names that
         // stall specifically rather than the gate's preamble, because
         // the preamble would also match a tier-1/2 verdict, which
         // would be a regression and not this lane.
@@ -804,42 +968,70 @@ fn every_corpus_import_passes_the_shared_gate() {
     }
 }
 
-/// The reader touches the kernel's validator at exactly ONE place (the
-/// #260 ask: make skipping it structurally hard). The gate is asked
-/// about several subjects — each solid alone, then the assembled body
-/// — but always through `lib.rs`'s `gate`, which maps the verdicts to
-/// a typed refusal and does nothing else. Import owns no validation
-/// logic of its own: no second entry, no kind predicate deciding who
-/// is asked, no verdict filter deciding which failures count. This
-/// counts the validator calls in the crate's sources and pins the
-/// count at one; a second call is not automatically wrong, but it is
-/// exactly the shape the old band-only backstop had, so it must be
-/// argued for here rather than appear.
+/// The reader touches the kernel's at-rest validators at exactly TWO
+/// places (the #260 ask: make skipping them structurally hard). The
+/// gate is asked about several subjects — each solid alone, then the
+/// assembled body — but always through `lib.rs`'s `gate` (per-solid,
+/// tier 3) and `gate3` (the aggregate, tier 3′), each of which maps the
+/// verdicts to a typed refusal and does nothing else. Import owns no
+/// validation logic of its own: no third entry, no kind predicate
+/// deciding who is asked, no verdict filter deciding which failures
+/// count. This counts the validator call sites in the crate's sources
+/// and pins the count at two; a third is not automatically wrong, but
+/// it is exactly the shape the old band-only backstop had, so it must
+/// be argued for here rather than appear.
+///
+/// # What the needle covers, and what it does not
+///
+/// COVERS the tier-3 and tier-3′ door FAMILIES by name — every
+/// spelling of `validate_geometric` and `validate_pseudomanifold`
+/// (structural, `_declared`, `_certificate`) — and `contact_marks`,
+/// which is not one of those doors but runs the SAME tier-3 battery
+/// over the same body, so a reader that grew a gate there would be
+/// growing exactly the second entry this row exists to refuse.
+///
+/// DOES NOT COVER a battery composed by hand out of parts that are not
+/// gates: `validate_closed` (tier 2) followed by `mass_properties` is
+/// two public doors, neither of them an at-rest validator, and a reader
+/// that spelled its gate that way would read as zero sites here. That
+/// is a real hole and it is named rather than papered over — the needle
+/// is a name census, so it can only see doors that exist and are
+/// called by name. What closes it is not a wider pattern but the
+/// refusal rows below, which assert the reader's typed verdicts ARE the
+/// kernel's: a hand-rolled battery does not produce
+/// `StepImportError::TierInvalid` carrying `topo::ValidationError`s.
 #[test]
 fn exactly_one_validation_call_site_in_the_reader() {
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut sites = Vec::new();
-    let mut files = Vec::new();
-    let mut stack = vec![src];
-    while let Some(dir) = stack.pop() {
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let p = entry.unwrap().path();
-            if p.is_dir() {
-                stack.push(p);
-            } else if p.extension().is_some_and(|e| e == "rs") {
-                files.push(p);
-            }
-        }
-    }
-    files.sort();
-    for path in files {
+    // The needle is a CALL, so comments and literal bodies are both
+    // blanked: a commented-out door must not answer for a live one,
+    // and prose naming the validator must not manufacture a site. The
+    // blanked view keeps line structure, so the line number is real.
+    //
+    // It matches the door FAMILY, not one spelling. Each tier has more
+    // than one entry — `validate_geometric` and
+    // `validate_geometric_certificate`, `validate_pseudomanifold` and
+    // `validate_pseudomanifold_certificate`, plus the structural and
+    // `_declared` forms — and they are the same door with the same
+    // verdicts. A needle pinned to one spelling would let the reader
+    // grow a second entry by taking a sibling, which is exactly the
+    // shape this row exists to catch.
+    //
+    // `contact_marks` is in the set for the same reason and it is NOT a
+    // sibling spelling: it is a different door that runs the same
+    // tier-3 battery over the same body (its own product is the marks
+    // channel). A gate grown there would be a third entry wearing a
+    // fourth name.
+    const DOORS: [&str; 3] = [
+        "validate_geometric",
+        "validate_pseudomanifold",
+        "contact_marks",
+    ];
+    for path in test_utils::source::rust_sources(&src) {
         let text = std::fs::read_to_string(&path).unwrap();
-        for (i, line) in text.lines().enumerate() {
-            let code = line.trim_start();
-            if code.starts_with("//") {
-                continue;
-            }
-            if code.contains("validate_geometric(") || code.contains("validate_pseudomanifold(") {
+        for (i, line) in test_utils::source::code_only(&text).lines().enumerate() {
+            if DOORS.iter().any(|door| line.contains(door)) {
                 sites.push(format!("{}:{}", path.display(), i + 1));
             }
         }
@@ -851,8 +1043,11 @@ fn exactly_one_validation_call_site_in_the_reader() {
     assert_eq!(
         sites.len(),
         2,
-        "the reader must call the kernel's at-rest validators at exactly the two \
-         named doors (per-solid tier 3, aggregate tier 3′): {sites:?}"
+        "the reader must call the kernel's at-rest validators at exactly the two named \
+         doors — per-solid tier 3 (`gate`) and aggregate tier 3′ (`gate3`). Every \
+         spelling of both door families is counted, and so is `contact_marks`, which \
+         runs the same battery; what is NOT counted is a battery hand-composed out of \
+         non-gate parts (see this row's docs): {sites:?}"
     );
 }
 

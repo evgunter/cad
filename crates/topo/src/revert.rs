@@ -244,6 +244,13 @@ impl<T: Real> Body<T> {
         // (`rev ∘ rev = id`) — the negated description is the SAME
         // recipe source seen from the other side. Curve and point
         // records are untouched (their descriptions are).
+        //
+        // The per-field ParamSource rows are untouched too, and that is
+        // a decision rather than an omission: a token names the
+        // EXPRESSION a stored scalar came from, and a radius is the
+        // same number whichever side of the surface the material is on.
+        // The channel carries no orientation to flip
+        // (`crate::param_source`).
         for (_, gs) in out.surface_sources.iter_mut() {
             *gs = gs.reverted();
         }

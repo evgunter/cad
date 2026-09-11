@@ -1,0 +1,308 @@
+#!/usr/bin/env bash
+# Stamps a tessellation-budget sweep with the tree it was cut from:
+# a `# tess-budget-cut: <commit> <date>` line above the CSV header,
+# which `tools/tess-lint` reads and prints beside every verdict.
+#
+# Usage:
+#   scripts/tess_budget_cut.sh <sweep.csv>
+#   scripts/tess_budget_cut.sh --selftest
+#
+# WHY the sweep carries its provenance at all: the gate fails a scene
+# the baseline has no rows for, and that finding has two readings —
+# a scene the corpus gained in the PR being gated, and a scene the
+# baseline was already outgrown by. Without the cut both read as
+# "absent" and the second one, which is the decay #1038 named, is
+# invisible. With it a reader compares the scene's own age against the
+# cut and knows which they are looking at.
+#
+# The commit is DERIVED, never passed in, by one rule with three arms:
+#
+#   * The file is tracked, unmodified, and ALREADY STAMPED — REFUSED.
+#     Its rows have not moved, so its cut has not either, and by then
+#     the commit that last wrote the file is the commit that wrote the
+#     STAMP: re-stamping would walk the recorded cut forward past the
+#     data it describes, and a scene added in between would read as
+#     "arrived after the cut" when the truth is the opposite. That is
+#     the exact inversion this record exists to prevent, so the answer
+#     is a refusal rather than a fresher number.
+#   * The file is tracked and unmodified and carries no valid stamp —
+#     its rows are the ones some commit wrote, so the cut is THAT
+#     commit. This is the arm that stamps a baseline already in the
+#     tree without re-cutting it, and that repairs a stamp the lint
+#     would refuse to read.
+#   * Otherwise — it was just written (a fresh sweep, or a baseline the
+#     sweep has overwritten), so the cut is the tree that produced it:
+#     HEAD, marked `-dirty` when the worktree carries uncommitted
+#     changes.
+#
+# `-dirty` IS THE ORDINARY READING ON A CI RUNNER and must not be taken
+# for a signal there: every hosted job's first act is a step that
+# deletes `local-scripts/` and `.claude/` from the checkout, so the tree
+# a hosted sweep runs over genuinely is not its HEAD — and on a pull
+# request the SHA it names is the ephemeral merge ref, not a commit on
+# any branch. Both are honest, both are restated at the echo below, so
+# that a log reader does not spend a minute on them.
+#
+# Outside a git checkout, and before a repository's first commit, there
+# is no commit to record: the stamp is skipped with a warning on stderr,
+# and the lint then says the baseline records no cut rather than
+# pretending to one.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+root=$(pwd)
+
+# What counts as ALREADY STAMPED. This is the shell's reading of the
+# format `tess_lint::split_cut` parses, and the two are held to each
+# other by `tools/tess-lint/tests/cut_line_pin.rs`: it reads this file
+# as text, holds every executable spelling of the prefix to
+# `tess_lint::CUT_PREFIX`, and runs this regex under `grep -E` as the
+# oracle for the shell's half of a truth table of candidate lines. That
+# suite is a cargo root OUTSIDE the workspace, so an edit to this
+# regex, to the prefix, or to the `echo`'s field list reds there and
+# not in a `cargo test` at the repo root; hosted CI runs it, and
+# `--selftest` covers what this side can answer on its own.
+#
+# BOTH ENDS are anchored, and the tail is `[^ ]*` rather than `.*`
+# because the reader takes the date by splitting the text after the
+# prefix on SPACES and demanding exactly two fields: any non-space
+# bytes after the calendar day are part of the date it reads (the
+# writer below emits a whole ISO timestamp), and a third field is a
+# line it refuses. A tail that admitted a space would admit a line the
+# reader calls harness breakage, and that line has no repair path —
+# the already-stamped arm refuses it, so the backfill arm below never
+# sees it and the gate stays unreadable.
+#
+# The asymmetry to keep in mind when editing this: a drift that
+# LOOSENS the regex costs a refusal that should not have fired — the
+# file is left alone, never given a wrong cut — while a drift that
+# TIGHTENS it makes the already-stamped test miss, so a stamped file
+# falls into the backfill arm and is re-stamped from the commit that
+# wrote the STAMP, a whole commit newer than its rows. The pin asserts
+# that second direction on its computed answers rather than off its
+# table, but neither half reaches further than the table's rows.
+CUT_RE='^# tess-budget-cut: [0-9a-f]{7,40}(-dirty)? [0-9]{4}-[0-9]{2}-[0-9]{2}[^ ]*$'
+
+stamp() {
+  local csv=$1 commit= date= tmp before
+  if ! git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "tess_budget_cut: not a git checkout — no cut recorded" >&2
+    return 0
+  fi
+
+  if git -C "$root" ls-files --error-unmatch "$csv" >/dev/null 2>&1 &&
+     git -C "$root" diff --quiet HEAD -- "$csv"; then
+    if head -1 "$csv" | grep -Eq "$CUT_RE"; then
+      before=$(head -1 "$csv")
+      echo "tess_budget_cut: $csv is already stamped ($before) and its rows have" \
+           "not moved. The cut moves only when the data moves — re-run the sweep" \
+           "to move it. Refusing to walk the record forward past the rows it" \
+           "describes." >&2
+      return 1
+    fi
+    # `read` returns 1 on empty input, which under `errexit` would take
+    # the script down before it could say what was wrong — so the read
+    # is guarded and the EMPTINESS is what gets checked, below.
+    read -r commit date < <(git -C "$root" log -1 --format='%h %cI' -- "$csv") || true
+  else
+    # Same guard, one arm over: before a repository's first commit
+    # `rev-parse HEAD` fails, and an unguarded assignment made the
+    # documented skip unreachable.
+    commit=$(git -C "$root" rev-parse --short=12 HEAD 2>/dev/null) || commit=
+    date=$(git -C "$root" show -s --format=%cI HEAD 2>/dev/null) || date=
+    if [ -n "$commit" ] && ! git -C "$root" diff --quiet HEAD --; then
+      commit="$commit-dirty"
+    fi
+  fi
+
+  if [ -z "$commit" ] || [ -z "$date" ]; then
+    echo "tess_budget_cut: git named no commit for $csv — no cut recorded" >&2
+    return 0
+  fi
+
+  # Re-stamping replaces the line rather than stacking a second one:
+  # the lint reads exactly one, above the header.
+  tmp=$(mktemp)
+  {
+    echo "# tess-budget-cut: $commit $date"
+    grep -v '^# tess-budget-cut:' "$csv"
+  } > "$tmp"
+  mv "$tmp" "$csv"
+  case "$commit" in
+    *-dirty) echo "cut: $commit $date (the tree carries uncommitted changes —" \
+                  "on a CI runner that is the prune step, and is expected)" ;;
+    *)       echo "cut: $commit $date" ;;
+  esac
+}
+
+# --- the selftest ---------------------------------------------------
+#
+# Every case is a REAL subprocess invocation of a COPY of this script
+# inside a scratch repository, for the reason `gate-roster.sh
+# --selftest` gives: a diagnosis lost to `errexit` has to FAIL the
+# self-test rather than pass it silently, and two of the cases below
+# exist only because the unguarded spelling died before it could speak.
+selftest() {
+  local t u rc=0 out status
+  t=$(mktemp -d)
+  # A SECOND scratch root, deliberately a sibling of the first rather
+  # than a directory inside it: case (7) needs a tree with no repository
+  # anywhere above it, and one nested in the scratch repo has one.
+  u=$(mktemp -d)
+  trap 'rm -rf "$t" "$u"' RETURN
+  mkdir -p "$t/scripts"
+  cp "$root/scripts/tess_budget_cut.sh" "$t/scripts/"
+  git -C "$t" init -q
+  git -C "$t" config user.email selftest@example.invalid
+  git -C "$t" config user.name selftest
+
+  local subject=$t/scripts/tess_budget_cut.sh
+  local csv=$t/b.csv
+
+  run() {  # run <csv>; sets `out` and `status`
+    status=0
+    out=$("$subject" "$1" 2>&1) || status=$?
+  }
+  want() {  # want <label> <rc> <substring>
+    if [ "$status" != "$2" ]; then
+      echo "SELFTEST FAILED: $1: exit $status, wanted $2 — $out" >&2
+      rc=1
+    elif [ "${out#*"$3"}" = "$out" ]; then
+      echo "SELFTEST FAILED: $1: output does not name '$3' — $out" >&2
+      rc=1
+    fi
+  }
+  # The same check where the expected text has to be a whole LINE of the
+  # output rather than any part of it. Every diagnostic `stamp` writes
+  # begins `tess_budget_cut: `, which CONTAINS `cut: `, so a substring
+  # test for the announcement is satisfied by every message the script
+  # can emit — including the two that say no cut was recorded. The rows
+  # that pin what the announcement SAYS take this form instead.
+  want_line() {  # want_line <label> <rc> <ERE matching a whole line>
+    if [ "$status" != "$2" ]; then
+      echo "SELFTEST FAILED: $1: exit $status, wanted $2 — $out" >&2
+      rc=1
+    elif ! printf '%s\n' "$out" | grep -Eq "$3"; then
+      echo "SELFTEST FAILED: $1: no output line matches '$3' — $out" >&2
+      rc=1
+    fi
+  }
+
+  # (1) BEFORE THE FIRST COMMIT there is no HEAD to name, so the
+  # documented skip has to actually happen: `rev-parse HEAD` fails here,
+  # and the unguarded spelling exited 1 having said nothing.
+  printf 'scene,face\n' > "$csv"
+  run "$csv"
+  want "unborn HEAD" 0 "git named no commit"
+  head -1 "$csv" | grep -q '^scene' ||
+    { echo "SELFTEST FAILED: unborn HEAD: the file was stamped anyway" >&2; rc=1; }
+
+  # (2) A FRESH SWEEP (untracked) takes HEAD. The scratch tree is clean,
+  # so the dirty marker must be ABSENT — the reading a CI log gets
+  # compared against.
+  git -C "$t" commit -q --allow-empty -m first
+  run "$csv"
+  want_line "fresh sweep" 0 '^cut: [0-9a-f]{7,40}(-dirty)? [0-9]{4}-[0-9]{2}-[0-9]{2}'
+  head -1 "$csv" | grep -Eq "$CUT_RE" ||
+    { echo "SELFTEST FAILED: fresh sweep: no valid cut line written" >&2; rc=1; }
+  if [ "${out#*-dirty}" != "$out" ]; then
+    echo "SELFTEST FAILED: a clean tree stamped -dirty: $out" >&2
+    rc=1
+  fi
+
+  # (3) A TRACKED, UNMODIFIED, ALREADY-STAMPED file is REFUSED — the
+  # case the whole record exists for. By now the commit that last wrote
+  # the file is the one that wrote the STAMP, a whole commit newer than
+  # the rows, and taking it would date the cut after data it describes.
+  git -C "$t" add b.csv
+  git -C "$t" commit -q -m stamped
+  local before
+  before=$(head -1 "$csv")
+  run "$csv"
+  want "re-stamp refused" 1 "already stamped"
+  [ "$before" = "$(head -1 "$csv")" ] ||
+    { echo "SELFTEST FAILED: the refusal rewrote the file anyway" >&2; rc=1; }
+
+  # (4) A MALFORMED stamp is REPAIRED rather than refused: the lint
+  # reads an unreadable provenance line as harness breakage, so leaving
+  # it in place leaves the gate broken. Tracked and unmodified, so the
+  # repair takes the commit that wrote the ROWS.
+  printf '# tess-budget-cut: nonsense\nscene,face\n' > "$csv"
+  git -C "$t" commit -q -am malformed
+  run "$csv"
+  want_line "malformed repaired" 0 '^cut: [0-9a-f]{7,40}(-dirty)? [0-9]{4}-[0-9]{2}-[0-9]{2}'
+  head -1 "$csv" | grep -Eq "$CUT_RE" ||
+    { echo "SELFTEST FAILED: malformed stamp not repaired: $(head -1 "$csv")" >&2; rc=1; }
+
+  # (5) A WELL-FORMED CUT WITH A THIRD FIELD is REPAIRED too, and this
+  # is the case that decides where `CUT_RE` ends. `tess_lint::split_cut`
+  # takes exactly two fields after the prefix, so it reads this line as
+  # harness breakage and the gate cannot run at all; if the validator
+  # above read it as a stamp instead, the refusal arm would fire and the
+  # backfill arm that repairs case (4) would be unreachable for this
+  # shape — a file nothing in this script could fix.
+  printf '# tess-budget-cut: 1a2b3c4 2026-08-30 extra\nscene,face\n' > "$csv"
+  git -C "$t" commit -q -am trailing
+  run "$csv"
+  want_line "third field repaired" 0 '^cut: [0-9a-f]{7,40}(-dirty)? [0-9]{4}-[0-9]{2}-[0-9]{2}'
+  head -1 "$csv" | grep -Eq "$CUT_RE" ||
+    { echo "SELFTEST FAILED: third-field stamp not repaired: $(head -1 "$csv")" >&2; rc=1; }
+
+  # (6) THE VALIDATOR'S TWO ENDS, asserted directly, because (5) shows
+  # only what a whole run does with one of them. `tess_lint::split_cut`
+  # splits the text after the prefix on SPACES and demands exactly two
+  # fields, so the boundary this regex has to land on is the space and
+  # not whitespace: a tail that admits a space admits a line the reader
+  # refuses (case (5)), and a tail that refuses a non-space byte refuses
+  # a line the reader READS — which is the direction that walks the
+  # record past its rows, since the already-stamped test then misses and
+  # the backfill arm re-stamps. Three lines, one per boundary.
+  if printf '# tess-budget-cut: 1a2b3c4 2026-08-30 extra\n' | grep -Eq "$CUT_RE"; then
+    echo "SELFTEST FAILED: CUT_RE admits a third field, which the lint refuses" >&2
+    rc=1
+  fi
+  if printf '# tess-budget-cut: 1a2b3c4 2026-08-30 \n' | grep -Eq "$CUT_RE"; then
+    echo "SELFTEST FAILED: CUT_RE admits an EMPTY third field, which the lint refuses" >&2
+    rc=1
+  fi
+  if ! printf '# tess-budget-cut: 1a2b3c4 2026-08-30\textra\n' | grep -Eq "$CUT_RE"; then
+    echo "SELFTEST FAILED: CUT_RE refuses a non-space tail, which the lint reads" >&2
+    rc=1
+  fi
+
+  # (7) OUTSIDE A GIT CHECKOUT the skip is documented, so it has to
+  # happen rather than crash.
+  mkdir -p "$u/scripts"
+  cp "$root/scripts/tess_budget_cut.sh" "$u/scripts/"
+  printf 'scene,face\n' > "$u/b.csv"
+  status=0
+  out=$("$u/scripts/tess_budget_cut.sh" "$u/b.csv" 2>&1) || status=$?
+  want "outside a checkout" 0 "not a git checkout"
+  head -1 "$u/b.csv" | grep -q '^scene' ||
+    { echo "SELFTEST FAILED: outside a checkout: the file was stamped anyway" >&2; rc=1; }
+
+  if [ "$rc" = 0 ]; then
+    echo "tess_budget_cut selftest OK, 7 cases: stamps a fresh sweep from HEAD and" \
+         "leaves the dirty marker off a clean tree; backfills a tracked file, and" \
+         "repairs an unreadable stamp — malformed, or well-formed with a third field" \
+         "the lint refuses — from the commit that wrote its ROWS, announcing each on" \
+         "a line of its own that carries the record; REFUSES to re-stamp a tracked," \
+         "unmodified, already-stamped file and leaves it untouched, which is what" \
+         "stops the record drifting forward past its data; holds CUT_RE to the" \
+         "reader's own splitting rule at three boundaries (a third field, an EMPTY" \
+         "third field, a non-space tail); and says which skip it took rather than" \
+         "dying where there is no HEAD and where there is no repository"
+  fi
+  return $rc
+}
+
+if [ "${1:-}" = "--selftest" ]; then
+  selftest
+  exit $?
+fi
+
+csv=${1:?usage: tess_budget_cut.sh <sweep.csv> | --selftest}
+case "$csv" in
+  /*) ;;
+  *) csv=$root/$csv ;;
+esac
+stamp "$csv"

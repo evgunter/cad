@@ -1,0 +1,164 @@
+//! Aggregated integration-test binary for `viewer`.
+//!
+//! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! Each suite keeps its own `//!` docs and its inner attributes
+//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! attributes). What it does NOT keep is a `mod <helper>;` line of its
+//! own: the shared helper trees are declared once, below, as modules of
+//! THIS root, and a suite that wants one says `use crate::<helper>;`.
+//! One declaration means one parse, one resolve, one type-check and one
+//! codegen of that helper per binary instead of one per including suite.
+//!
+//! What that gives up: a suite file is no longer compilable as its own
+//! crate root, because `crate::` now names this binary. Nothing in the
+//! tree compiles them that way — `autotests = false` plus the guard below
+//! make this file the only root — but it was true before and is not now.
+//!
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
+//!
+//! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
+//! below. `autotests = false` in Cargo.toml means a file that is not
+//! listed here does not compile and does not run — `every_suite_file_is_
+//! aggregated` below fails loudly if you forget.
+//!
+//! Test IDs gain a module prefix (`export::round_trip` rather than
+//! `round_trip`, under binary `all` rather than binary `export`); the set
+//! of tests is otherwise identical.
+
+// The shared helper trees, declared ONCE for the whole binary. This file
+// is the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/common/mod.rs` — and every consumer
+// reaches that one instance through `use crate::<helper>;`.
+//
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
+// (`every_suite_file_is_aggregated` counts them against the directory
+// walk), and a helper module directory is not a suite. `mod` without the
+// attribute is also what `test_utils::source::suite_files` assumes when
+// it skips a directory carrying a `mod.rs`.
+//
+// There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+// loaded twice any more; if one ever is, the lint is meant to fire.
+mod common;
+
+#[path = "assembly_display.rs"]
+mod assembly_display;
+#[path = "assembly_walk.rs"]
+mod assembly_walk;
+#[path = "blend_authoring.rs"]
+mod blend_authoring;
+#[path = "camera_ops.rs"]
+mod camera_ops;
+#[path = "cascade_delete.rs"]
+mod cascade_delete;
+#[path = "chrome_labels.rs"]
+mod chrome_labels;
+#[path = "combine_ops.rs"]
+mod combine_ops;
+#[path = "creation_ops.rs"]
+mod creation_ops;
+#[path = "datum_draw.rs"]
+mod datum_draw;
+#[path = "debug_dumps.rs"]
+mod debug_dumps;
+#[path = "display_budget.rs"]
+mod display_budget;
+#[path = "doc_io.rs"]
+mod doc_io;
+#[path = "docm1_face_frame.rs"]
+mod docm1_face_frame;
+#[path = "edge_pick.rs"]
+mod edge_pick;
+#[path = "error_display.rs"]
+mod error_display;
+#[path = "eval_seam.rs"]
+mod eval_seam;
+#[path = "focus_highlight.rs"]
+mod focus_highlight;
+#[path = "frame_policy.rs"]
+mod frame_policy;
+#[path = "gesture_table.rs"]
+mod gesture_table;
+#[path = "input_mapping.rs"]
+mod input_mapping;
+#[path = "instance_authoring.rs"]
+mod instance_authoring;
+#[path = "landing_gathers.rs"]
+mod landing_gathers;
+#[path = "mate_tool_flow.rs"]
+mod mate_tool_flow;
+#[path = "msolve3_placer_refused.rs"]
+mod msolve3_placer_refused;
+#[path = "msolve4_blame_rows.rs"]
+mod msolve4_blame_rows;
+#[path = "msolve5_read_below_a_root.rs"]
+mod msolve5_read_below_a_root;
+#[path = "panel_display.rs"]
+mod panel_display;
+#[path = "panel_edits.rs"]
+mod panel_edits;
+#[path = "path_authoring.rs"]
+mod path_authoring;
+#[path = "pick_windows.rs"]
+mod pick_windows;
+#[path = "prefs.rs"]
+mod prefs;
+#[path = "review_gui0_r1.rs"]
+mod review_gui0_r1;
+#[path = "review_gui0_r2.rs"]
+mod review_gui0_r2;
+#[path = "review_gui2_r1.rs"]
+mod review_gui2_r1;
+#[path = "review_gui2_r2.rs"]
+mod review_gui2_r2;
+#[path = "review_gui3_r1.rs"]
+mod review_gui3_r1;
+#[path = "review_gui3_r2.rs"]
+mod review_gui3_r2;
+#[path = "review_gui4_r1.rs"]
+mod review_gui4_r1;
+#[path = "review_gui4_r2.rs"]
+mod review_gui4_r2;
+#[path = "review_m10_1_r1.rs"]
+mod review_m10_1_r1;
+#[path = "scene_build.rs"]
+mod scene_build;
+#[path = "select_pick.rs"]
+mod select_pick;
+#[path = "story_assembly.rs"]
+mod story_assembly;
+#[path = "story_authoring.rs"]
+mod story_authoring;
+#[path = "story_parametric.rs"]
+mod story_parametric;
+#[path = "theme.rs"]
+mod theme;
+#[path = "tree_badges.rs"]
+mod tree_badges;
+#[path = "tree_shape.rs"]
+mod tree_shape;
+#[path = "undo_tree.rs"]
+mod undo_tree;
+#[path = "valid_range.rs"]
+mod valid_range;
+
+/// The aggregation and ONE HOME checks, whose one home — the walk, the
+/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
+#[test]
+fn every_suite_file_is_aggregated() {
+    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
+}

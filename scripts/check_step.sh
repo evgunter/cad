@@ -90,7 +90,7 @@ for f in "${files[@]}"; do
     # KERNEL_* lines (the native kernel census, consumed by the cargo
     # suites) do not match the EXPECT_ grep and are ignored here.
     if ! env $(grep -E '^EXPECT_[A-Z0-9_]+=' "$expect" | xargs) STEP_FILE="$f" \
-        "$freecadcmd" "$repo_root/scripts/step_import_check.py"; then
+        "$freecadcmd" "$repo_root"/scripts/step_import_check.py; then
         fail=1
     fi
     # Optional per-fixture geometric probe: a sibling <fixture>.probe.py

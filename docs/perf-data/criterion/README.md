@@ -1,0 +1,129 @@
+# criterion benchmark history
+
+One file per measurement, named `<epoch-seconds>-<short-sha>.json` so a
+lexicographic sort is a chronological one. Written and committed by
+`.github/workflows/nightly.yml`'s `criterion benchmarks (reporting)` job,
+on a hosted runner. Same idiom, same reasons, as
+`docs/perf-data/rebuild-latency/` and `docs/perf-data/opt-level/`.
+
+**Append-only.** A run adds a filename; it never edits an existing one. An
+overwritten reference would launder a slow drift — 5% per merge over 20
+merges is 165% with no single flag — and an accumulating one cannot.
+
+## What it measures
+
+`benches/benches/kernel.rs`, which is PERF-PLAN §5's item 1: the six rows
+that document names as its five scenarios. Each is a cost center §1.3
+ranks, sited where the plan says the cost is.
+
+| row | the cost center it watches |
+|---|---|
+| `tessellate/washer/1e-4` | CDT insertion (finding 7b); the cheap end |
+| `tessellate/washer/1e-6` | the same, where the quadratic bites — the row a `spade` bulk-load adoption (§2.1) has to move |
+| `kernel/validate/tier23_washer` | the commit lane's validation ladder (findings 4, 5, 16) |
+| `kernel/mass_props/washer` | per-face flux quadrature; §2.2's idiom-2 parallelism target |
+| `kernel/build/extrude` | Euler-op surgery through the sweep door (finding 9) |
+| `kernel/boolean/two_bricks` | the boolean commit path (findings 4, 13, 14, 15) |
+
+The two tessellation rows are one scenario measured twice on purpose: the
+finding is about the QUADRATIC, so the 1e-4 → 1e-6 ratio is the shape, and
+neither number alone is.
+
+## Before quoting a sample
+
+* **Read the `environment` block first.** Runner, core count, memory,
+  `cpu_model`, `cpu_flags`, toolchain, RUSTFLAGS, every `CARGO_PROFILE_*` and
+  the debug-assertions posture are recorded per sample, because a committed
+  timing is worth nothing if you cannot say which box produced it
+  (`memories/perf-measurement-lane.md`).
+
+  **What that block can now tell you**: which host CPU a sample ran on, by
+  model string and by whether `avx2` / `avx512f` were available — the two
+  fields that vary within one runner class, where every other field in the
+  list is constant across the whole `ubuntu-latest` pool. Two samples whose
+  `cpu_model` differs came off different silicon, so a difference between
+  them has a candidate explanation the block used to hide. **How much of a
+  difference a host swap accounts for is not yet measured** — that is what
+  these fields are being accumulated to find out. Until enough samples carry
+  them, a differing `cpu_model` is a reason to be careful with a comparison,
+  not a threshold that disqualifies one.
+
+  **Reading the pair.** `cpu_flags` is the field that says whether
+  `/proc/cpuinfo` was read at all: `null` means it could not be, and ANY
+  list — the empty one included — means it could. So there are three shapes,
+  not two:
+
+  | `cpu_model` | `cpu_flags` | what happened |
+  |---|---|---|
+  | a string | a list | read; the ordinary case, and `[]` there means neither extension was present |
+  | `null` | `null` | `/proc/cpuinfo` unreadable — the box is unidentified, not featureless |
+  | `null` | a list | read, but it carried no `model name` line (an aarch64 one spells its flags `Features` and names no model) |
+
+  So `cpu_model: null` is not by itself a reading: pair it with `cpu_flags`
+  before concluding anything about the host.
+
+  **What it still cannot.** *These fields start with the first sample written
+  after they were added; every sample before that carries the old field set
+  and stays unattributable, because the history is append-only and nothing
+  retro-fits it.* It also cannot distinguish two boxes of the same model, and
+  it says nothing about what else was running on the host. And there is one
+  known step change it only half-covers: the runner class moved from 2 vCPU /
+  7 GB to 4 vCPU / 16 GB on 2026-09-03 (`.github/workflows/ci.yml`), so
+  `nproc` separates the two eras and nothing separates the boxes within
+  either. Do not read a trend across that date as a property of the tree.
+* **`median_ci_ns` is a WITHIN-run interval and it understates what a
+  comparison across two entries can resolve.** Three consecutive runs on a
+  quiet 4-core box (2026-08-27) spread ~3–9% against within-run intervals
+  of ±2–3%; a shared hosted runner has a fatter tail than that. Treat a
+  move under ~10% as noise unless consecutive entries agree — and note that
+  the ~10% was calibrated on the 2 vCPU / 7 GB pool and has not been
+  re-measured on the 4 vCPU / 16 GB one.
+* **Debug assertions are OFF here, and the kernel's own `[profile.release]`
+  turns them ON.** `benches/Cargo.toml` carries the argument and the
+  measurement behind it: turning them on cost **6.5×** on
+  `kernel/build/extrude` and **5.2×** on `kernel/boolean/two_bricks` and
+  nothing on the other four, which was the per-op debug full-body tier-1
+  sweep measured for the first time. **That ratio is historical**: D1's
+  sweep runs once per public door since the ruling on
+  `work/perf/d1-per-op-tier1-sweep-price` (Ev, PR 2305), so an
+  assertions-ON build pays one whole-body walk per door rather than one
+  per operator, and nothing has re-taken the ON column since. What the
+  bullet decides is unchanged either way: these numbers are the kernel's
+  own cost, and they are **not** the cost of the profile real parts
+  meet.
+* **Reporting only, never gated** (`memories/perf-measurement-lane.md`,
+  PERF-PLAN Q-P4). No CI row fails on a millisecond. The one thing that
+  does fail is `scripts/criterion-emit.py`'s roster pin: a renamed or
+  dropped benchmark would silently start a new column and end an old one,
+  which reads in the trend as a cost that went away.
+
+## Cadence, and what it costs
+
+Nightly, and only on a night where `main` actually moved — the workflow's
+`gate` job — a few billed minutes when it runs, nothing when it does not.
+No figure is quoted here on purpose: it is a build plus a run on a shared
+runner, both of which move, and `docs/CI-MINUTES-2026-08.md` is where a
+reading of CI's cost belongs.
+
+PERF-PLAN's ratified Q-P4 says post-merge, never a PR gate, and named
+pushes to `main`. The nightly is strictly cheaper than that and satisfies
+the same requirement — the trend merely has to predate the first change it
+would police. What it gives up is per-commit attribution: a regression
+lands somewhere in a day's merges rather than on one commit. The workflow's
+`workflow_dispatch` **ref** input is the handle that closes that gap; a
+dispatch at a SHA runs the rows and **writes nothing**, so a bisection
+cannot corrupt this history with measurements of an old tree.
+
+## Running it yourself
+
+    cd benches && cargo bench                        # the six rows
+    cd benches && cargo run --release --example counts   # the δ sweep
+
+The first is the lane's own measurement; the second walks chordal
+tolerance over four decades and prints the exponent in triangle count,
+which is what tells a steep constant from a bad asymptote. Both are the
+right local act and neither writes anything here — deliberately. Your
+milliseconds are not comparable with a runner's, which is the design and
+not a limitation. `scripts/criterion-emit.py` is declared hosted-only in
+`scripts/check-ci-mirror-parity.py`'s exemption table for exactly that
+reason.

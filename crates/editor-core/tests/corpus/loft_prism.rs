@@ -34,18 +34,23 @@
 //! suite (`sweep/tests/m6_loft_body.rs`), where the derivation above
 //! is asserted against the certified enclosure.
 
-use editor_core::{DocEdit, Expr, LoopProgram, Node, ProfileProgram, SlotId};
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
+use editor_core::{DocEdit, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId};
 
+use super::super::fixture::frame;
 use super::{CorpusDoc, Recorder};
 
-/// One quad section at height `z` from its four corners.
-fn section(z: f64, pts: [(f64, f64); 4]) -> ProfileProgram {
-    ProfileProgram {
-        plane: SketchPlane::from_frame(Point3::new(0.0, 0.0, z), Vec3::unit_x(), Vec3::unit_y()),
+/// One quad section at height `z` from its four corners: the frame
+/// the section is drawn on, then the profile that names it.
+///
+/// The three sections sit at three DIFFERENT heights, so each gets its
+/// own frame — a shared one would be a shared plane, which is exactly
+/// what a loft's sections are not.
+fn section(r: &mut Recorder, z: f64, pts: [(f64, f64); 4]) -> RecipeNodeId {
+    let plane = r.insert(frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    r.insert(Node::Profile(ProfileProgram {
+        plane,
         loops: vec![LoopProgram::polygon(pts).unwrap()],
-    }
+    }))
 }
 
 /// The loft-prism corpus document.
@@ -53,9 +58,9 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
     let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let bottom = r.insert(Node::Profile(section(0.0, square)));
-    let middle = r.insert(Node::Profile(section(1.0, trapezoid)));
-    let top = r.insert(Node::Profile(section(2.0, square)));
+    let bottom = section(&mut r, 0.0, square);
+    let middle = section(&mut r, 1.0, trapezoid);
+    let top = section(&mut r, 2.0, square);
     let loft = r.insert(Node::Loft {
         profiles: vec![bottom, middle, top],
         v_degree: Expr::count(2),

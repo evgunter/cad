@@ -24,7 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod revolve_common;
+use crate::revolve_common;
 
 use geom_core::Tol;
 use profile::{ProfileLoop, RawLoop};
@@ -76,18 +76,32 @@ fn one_call_hollow_ring() {
     assert!(meridians[1].iter().all(Option::is_some));
     // The revolve's seam conventions hold inside the cavity exactly as
     // on the outer shell: meridians of periodic walls (the two
-    // cylinders) re-describe as `Seam`; meridians of plane annuli
-    // honestly keep `MappedCurve` (a plane chart is not periodic).
-    let hole_seams = meridians[1]
+    // cylinders) re-describe as the wall chart's own seam; meridians
+    // of plane annuli honestly do not (a plane chart is not periodic)
+    // and stay images the profile segment declared.
+    //
+    // **Re-expressed at PCURVE P-1b.** The old filter counted the
+    // `IsoCurve`/`Seam` VARIANT against `MappedCurve`. Both are chart
+    // images since U2, so counting variants would return 4 here and
+    // discriminate nothing; the fact the row is about — which
+    // meridians carry the chart's seam obligation — is the `seam` flag
+    // on the image, so that is what is counted. The census is
+    // unchanged at 2, and it now also states what the other two are:
+    // declared images, not seams.
+    let hole = &meridians[1];
+    let hole_seams = hole
         .iter()
-        .filter(|m| {
-            matches!(
-                description(&t.body, m.unwrap()),
-                geom_brep::EdgeGeometry::Seam { .. }
-            )
-        })
+        .filter(|m| chart_image(&t.body, m.unwrap()).seam)
         .count();
     assert_eq!(hole_seams, 2);
+    let hole_declared = hole
+        .iter()
+        .filter(|m| {
+            let c = chart_image(&t.body, m.unwrap());
+            !c.seam && authority(&t.body, m.unwrap()).is_declared()
+        })
+        .count();
+    assert_eq!(hole_declared, 2, "the plane annuli's two meridians");
 
     // Mass properties = outer minus hole, both derived independently
     // by Pappus (2π·r̄·A for volumes, 2π·r̄·L per wall for areas):
@@ -120,9 +134,9 @@ fn hollow_torus_runs_no_crossing_machinery() {
     let inner = profile::circle(p2(rc, 0.0), ri, tol).unwrap();
     let vp = validated(vec![outer.into(), inner.into()]);
 
-    geom_core::k_stats::start_verdict_log();
+    let bracket = geom_core::k_stats::Bracket::open();
     let t = revolve(&vp, axis_y(), Revolution::Full, tol).unwrap();
-    let verdicts = geom_core::k_stats::take_verdict_log();
+    let verdicts = bracket.finish().verdicts;
     assert!(
         !verdicts.is_empty(),
         "the construction decides through the funnel"

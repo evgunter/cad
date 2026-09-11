@@ -43,7 +43,7 @@
 //!    4 seams, and the #210 fold's two skinned documents), and nowhere
 //!    else, plus the placeholder-surface refusal.
 //!
-//!    *Lineage (the names are cited in `docs/M5-EXIT-WALK.md`)*:
+//!    *Lineage*:
 //!    `CENSUS` succeeds `no_body_at_rest_carries_a_nurbs_carrier_or_face`,
 //!    `no_export_corpus_body_carries_a_nurbs_carrier_or_face` and
 //!    `nurbs_geometry_appears_exactly_where_the_kernel_put_it`. The
@@ -58,7 +58,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::collections::HashMap;
 

@@ -109,7 +109,6 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
-use geom_core::spline::hull;
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Real, RingInterval, Sign, Vec3,
 };
@@ -545,13 +544,30 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     let coords = fine.ring_coords();
     let kv = fine.knots();
     let mut out = Vec::new();
+    // One pair per coordinate channel, minted once outside the span
+    // walk. The coordinates and the knots are both read from `fine` —
+    // the SAME refined curve — so the count relation is
+    // `NurbsCurve3::new`'s fact and the refusal arm is unreachable by
+    // construction; it returns an EMPTY chain, which limb 3 reads as a
+    // definite refusal (no box, so nothing banked).
+    let (Some(cx), Some(cy), Some(cz)) = (
+        kv.with_coeffs(&coords[0]),
+        kv.with_coeffs(&coords[1]),
+        kv.with_coeffs(&coords[2]),
+    ) else {
+        return out;
+    };
     for index in kv.first_span()..=kv.last_span() {
-        // Emptiness check and span validation are one step.
-        let Some(span) = kv.span(index) else { continue };
+        // Emptiness check and window construction are one step; the
+        // three channels share the vector, so they refuse alike.
+        let (Some(wx), Some(wy), Some(wz)) = (cx.span(index), cy.span(index), cz.span(index))
+        else {
+            continue;
+        };
         let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
-        let hx = hull::span_hull(kv, &coords[0], span);
-        let hy = hull::span_hull(kv, &coords[1], span);
-        let hz = hull::span_hull(kv, &coords[2], span);
+        let hx = wx.hull();
+        let hy = wy.hull();
+        let hz = wz.hull();
         let bx = Box3 {
             x: hx,
             y: hy,
@@ -633,15 +649,25 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     let kv = pcurve.knots();
     let boxes = NurbsBoxes::new(surface);
     let coords = pcurve.ring_coords();
+    // One pair per chart channel, minted once: the coordinates and the
+    // knots are both the pcurve's, so the count is `NurbsCurve2::new`'s
+    // fact and the refusal arm is unreachable by construction; it
+    // returns `None` — no span probed, the structural refusal below —
+    // which is a stricter answer than any finite probe.
+    let (Some(cu), Some(cv)) = (kv.with_coeffs(&coords[0]), kv.with_coeffs(&coords[1])) else {
+        return None;
+    };
     let mut worst = f64::INFINITY;
     let mut count = 0u32;
     for index in kv.first_span()..=kv.last_span() {
-        // Emptiness check and span validation are one step.
-        let Some(span) = kv.span(index) else { continue };
+        // Emptiness check and window construction are one step.
+        let (Some(wu), Some(wv)) = (cu.span(index), cv.span(index)) else {
+            continue;
+        };
         let (a, b) = (kv.knots()[index], kv.knots()[index + 1]);
         let m = 0.5 * (a + b);
-        let hu = hull::span_hull(kv, &coords[0], span);
-        let hv = hull::span_hull(kv, &coords[1], span);
+        let hu = wu.hull();
+        let hv = wv.hull();
         let (u0, u1) = (hu.lo() - radius_uv.0, hu.hi() + radius_uv.0);
         let (v0, v1) = (hv.lo() - radius_uv.1, hv.hi() + radius_uv.1);
         let du = boxes.deriv_box(u0, u1, v0, v1, true);
@@ -663,7 +689,13 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
         let t = pcurve.deriv(T::from_f64(m));
         let tn = (t.x.powi(2) + t.y.powi(2)).sqrt().hi();
-        if tn.is_nan() || tn <= 0.0 {
+        // Positive FINITE only — the same class the chart-speed guards
+        // refuse. An admitted `+∞` here does not certify a wrong
+        // number today (`ex`/`ey` become `0` or NaN and the stretch
+        // guard below catches the residue), but which guard answers
+        // would then depend on the poison's arithmetic path rather
+        // than on this test saying what it means.
+        if !tn.is_finite() || tn <= 0.0 {
             return None;
         }
         let (tx, ty) = (t.x.hi(), t.y.hi());
@@ -686,7 +718,11 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         };
         let stretch =
             (vt.x.mag() * vt.x.mag() + vt.y.mag() * vt.y.mag() + vt.z.mag() * vt.z.mag()).sqrt();
-        if stretch.is_nan() || stretch <= 0.0 {
+        // Positive FINITE only: an admitted `+∞` stretch divides the
+        // margin to an exact `0`, which the fold below then records as
+        // the certificate's worst transversality — a definite-looking
+        // number manufactured from an overflow, not a measurement.
+        if !stretch.is_finite() || stretch <= 0.0 {
             return None;
         }
         let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;
@@ -917,7 +953,13 @@ mod tests {
         use geom_core::Band;
 
         for zero in [1.0e-3_f64, 1.0e-6, 1.0e-9, 1.0e-12] {
-            let band = Band::new(zero, 10.0 * zero).unwrap();
+            // The escalate edge is arbitrary here: `tube_ladder` reads
+            // `band.zero()` and nothing else, so this row is a statement
+            // about the coincidence threshold alone. Any value above
+            // `zero` satisfies `Band::new`'s `zero < escalate`; it is
+            // deliberately NOT the run's K·zero, which would read as a
+            // second quantity the ladder consults.
+            let band = Band::new(zero, 2.0 * zero).unwrap();
             let floor = SSI_TUBE_RADIUS * zero;
             // An extent chosen so the floor BINDS: the ladder's last
             // possible rung is below it, so the row is about where the

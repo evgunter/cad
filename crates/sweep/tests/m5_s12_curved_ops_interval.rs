@@ -262,7 +262,12 @@ mod certified {
     /// upper-bound-only guard would admit in silence. Either way the
     /// answer is the same: re-measure and re-state the constant, never
     /// loosen the guard around it.
-    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.1414768974413613e-12;
+    // **Re-measured 2026-08-31.** Was `1.1414768974413613e-12`. The arc
+    // chain tightened under enclosure work that merged with gates
+    // drawing default-ε only, so no run compared this constant until a
+    // later branch drew (interval, 1e-12). Re-stated, not loosened, as
+    // the constant's own doc requires.
+    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
 
     /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
     /// the sphere class now goes ALL the way through at the certified

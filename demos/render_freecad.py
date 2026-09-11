@@ -270,18 +270,27 @@ def main():
             raise SystemExit(f"unknown scene(s): {', '.join(unknown)}")
     doc = App.newDocument("scenes")
     by_scene, skipped = import_bodies(doc, scenes, outdir, use_step)
-    # A scene every one of whose bodies was skipped renders BLANK, and a
-    # blank cell is this lane's known crash signature. So it gets a
-    # sidecar note, the same way a missing render gets a `.fail.txt`,
-    # and `compose_montage` stamps the cell neutrally: a declared gate
-    # must not be indistinguishable from a wedge.
+    # A skipped body leaves a hole this lane cannot otherwise explain,
+    # and an unexplained hole is its known crash signature. So every
+    # scene that lost a body gets a sidecar note, the same way a missing
+    # render gets a `.fail.txt`, and `compose_montage` stamps the cell
+    # neutrally: a declared gate must not be indistinguishable from a
+    # wedge. Two shapes of hole, and BOTH are stamped — a scene that
+    # lost everything renders blank, and one that lost SOME of its
+    # bodies renders a picture with a part missing, which is the more
+    # deceiving of the two because it looks like a finished cell.
     for name, n in skipped.items():
-        if not by_scene[name]:
-            (renderdir / f"{name}.note.txt").write_text(
+        drew = len(by_scene[name])
+        (renderdir / f"{name}.note.txt").write_text(
+            (
                 "no STEP — declared writer frontier\n"
                 if n == 1
                 else f"no STEP for any of {n} bodies — declared writer frontier\n"
             )
+            if not drew
+            else f"{n} of {n + drew} bodies have no STEP — declared writer "
+            f"frontier; the other {drew} drew\n"
+        )
     view = Gui.activeDocument().activeView()
     view.setCameraType("Orthographic")
     done = []

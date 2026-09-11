@@ -34,7 +34,7 @@ use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 use super::axis::{AxisFrame, AxisRun, LoopClasses};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
-use super::surfaces::{strut_spec, wall_surface};
+use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
@@ -153,14 +153,18 @@ pub(super) fn build_full<T: Decide>(
         meridians.push(mer_c);
     }
 
+    // **Unconditional, and it is the door's whole postcondition.** The
+    // phase builders above run under a surgery scope, so tier 1 is not
+    // re-derived inside them; this is where the body a caller sees is
+    // checked, and at tier 2, which subsumes it. It used to run on the
+    // holed arm only, beside a tier-1 sweep per phase — two walks
+    // there and a weaker check on the single-loop arm.
     #[cfg(debug_assertions)]
-    if loops.len() > 1 {
-        debug_assert_eq!(
-            topo::validate_closed(&out.body),
-            Ok(()),
-            "revolve (full, holed) postcondition: cavity insertion broke tier 2 (kernel bug)",
-        );
-    }
+    debug_assert_eq!(
+        topo::validate_closed(&out.body),
+        Ok(()),
+        "revolve (full) postcondition: result is not tier-2 valid (kernel bug)",
+    );
     Ok(out)
 }
 
@@ -184,7 +188,13 @@ fn build_lamina<T: Decide>(
     // ---- Phase 1: the profile lamina (extrude's shape). Both faces
     // are transient seam discs (killed by the zip), so the closing mef
     // face keeps an honest Nurbs no-description, like the mvfs seed.
-    let mut body = Body::<T>::new();
+    // One surgery scope for the whole build (`topo::surgery`): tier 1
+    // is the door's postcondition, and `build_full` pays it over the
+    // finished body — at tier 2, which subsumes it — so the close
+    // here adds no second whole-body walk. The guard owns the borrow,
+    // so a refusal on the way closes the scope by dropping it.
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qs[0])?;
     let lamina = build_chain(
         &mut body,
@@ -240,29 +250,29 @@ fn build_lamina<T: Decide>(
             None => he_edge(&body, hes[j])?,
         });
     }
+    // The site's two keys are read out before the call: a `Surgery`
+    // guard derefs, and a deref is not a two-phase borrow.
+    let (target, ring) = (e_minus(&body, hes[n - 1])?, c_plus(&body, tops[0])?);
     let n0 = body.mekr(
-        MekrSite::Cycles {
-            target: e_minus(&body, hes[n - 1])?,
-            ring: c_plus(&body, tops[0])?,
-        },
+        MekrSite::Cycles { target, ring },
         EdgeCurveSpec::self_loop_circle_at(qs[0]),
         tol,
     )?;
     body.kev(n0.he_plus)?;
     for j in 1..n {
+        let (he1, he2) = (e_minus(&body, hes[j - 1])?, c_plus(&body, tops[j])?);
         let nj = body.mef(
-            MefSite::Chords {
-                he1: e_minus(&body, hes[j - 1])?,
-                he2: c_plus(&body, tops[j])?,
-            },
+            MefSite::Chords { he1, he2 },
             EdgeCurveSpec::self_loop_circle_at(qs[j]),
             FaceSurface::Inherit,
             tol,
         )?;
         body.kev(nj.he_plus)?;
-        body.kef(c_plus(&body, tops[j - 1])?)?;
+        let victim = c_plus(&body, tops[j - 1])?;
+        body.kef(victim)?;
     }
-    body.kef(c_plus(&body, tops[n - 1])?)?;
+    let victim = c_plus(&body, tops[n - 1])?;
+    body.kef(victim)?;
 
     // ---- Phase 4: meridian upgrades — each surviving chain edge now
     // has both halves in its wall; periodic walls take `Seam`, plane
@@ -286,13 +296,14 @@ fn build_lamina<T: Decide>(
     let mut walls_c = vec![None; n];
     let mut rims_c = vec![None; n];
     let mut mer_c = vec![None; n];
+    body.close_already_checked();
     for (j, s) in segs.iter().enumerate() {
         walls_c[s.canonical_segment] = swept.faces[j];
         rims_c[s.canonical_vertex] = swept.rims[j];
-        mer_c[s.canonical_segment] = Some(he_edge(&body, hes[j])?);
+        mer_c[s.canonical_segment] = Some(he_edge(&built, hes[j])?);
     }
     Ok(Revolved {
-        body,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         cavities: Vec::new(),
@@ -353,7 +364,9 @@ fn build_wire<T: Decide>(
 
     // ---- Phase 1: the open chain (a wire: one face, loop up one side
     // and back the other; no closing mef). ----
-    let mut body = Body::<T>::new();
+    // One surgery scope for the whole build — see `build_lamina`.
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qw[0])?;
     let mut hes = Vec::with_capacity(k);
     let first = body.mev(
@@ -408,7 +421,7 @@ fn build_wire<T: Decide>(
                 he2: hes[i],
             },
             qpi[i],
-            strut_spec(
+            revolved_strut_spec(
                 segs[wseg(i)].a,
                 cls.verts[wseg(i)].r,
                 qw[i],
@@ -472,6 +485,7 @@ fn build_wire<T: Decide>(
         let k_prev = face_surface_key(&body, faces[i - 1])?;
         let k_next = face_surface_key(&body, faces[i])?;
         if k_prev == k_next {
+            body.describe_at_rest(strut.edge, k_prev, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -510,8 +524,12 @@ fn build_wire<T: Decide>(
             })?
             .he_minus;
         let center = frame.foot3(segs[wseg(i)].a);
+        let rim = qpi[i] - center;
+        // The same rim identity as `revolve::surfaces`', at the same
+        // guarantee (its comment carries the argument).
+        crate::swept::register_rim_identity(rim, cls.verts[wseg(i)].r);
         let spec = EdgeCurveSpec {
-            description: geom_brep::EdgeGeometry::MappedCurve(
+            description: geom_brep::EdgeDescriptionSpec::Scaffold(
                 geom_brep::MappedCurve::RevolvedPoint {
                     point: segs[wseg(i)].a,
                     place: place_pi,
@@ -524,15 +542,16 @@ fn build_wire<T: Decide>(
                 center,
                 axis: axis_c,
                 radius: cls.verts[wseg(i)].r,
-                u_ref: (qpi[i] - center).normalize(),
+                u_ref: rim.normalize(),
             },
             param_start: T::zero(),
             param_end: half.abs(),
         };
+        let carrier = face_surface_key(&body, faces[i])?;
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
             spec,
-            FaceSurface::Shared(face_surface_key(&body, faces[i])?),
+            FaceSurface::Shared(carrier),
             tol,
         )?;
         // The band-2 wall is the same classified wall as its band-1
@@ -557,6 +576,7 @@ fn build_wire<T: Decide>(
         let k_prev = face_surface_key(&body, band2_faces[i - 1])?;
         let k_next = face_surface_key(&body, band2_faces[i])?;
         if k_prev == k_next {
+            body.describe_at_rest(rim2, k_prev, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -577,12 +597,17 @@ fn build_wire<T: Decide>(
 
     // ---- Phase 4: meridian upgrades — angle-0 chain edges sit on the
     // u = 0 seam of their (periodic) wall surfaces; the angle-π copies
-    // are NOT the seam and stay conventional `MappedCurve` (module
-    // docs). ----
+    // are NOT the seam, so they take the wall's chart image WITHOUT
+    // D1's seam obligation (module docs; D3's transience fence — the
+    // wall exists by now, so neither copy needs the scaffolding
+    // door). ----
     for i in 0..k {
         let wall = face_surface_key(&body, faces[i])?;
         let edge = he_edge(&body, hes[i])?;
         upgrade_meridian_seam(&mut body, edge, wall, tol)?;
+        if body.get_edge(tops[i]).is_some() {
+            body.describe_at_rest(tops[i], wall, tol)?;
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -616,8 +641,9 @@ fn build_wire<T: Decide>(
     let mut poles_c = vec![None; n];
     poles_c[segs[wvert(0)].canonical_vertex] = Some(pole_near);
     poles_c[segs[wvert(k)].canonical_vertex] = Some(pole_far);
+    body.close_already_checked();
     Ok(Revolved {
-        body,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         cavities: Vec::new(),

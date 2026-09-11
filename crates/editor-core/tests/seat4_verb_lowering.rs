@@ -1,0 +1,396 @@
+//! **The migrated verbs moved onto the verb substrate and nothing
+//! observable moved with them.** These are the pins for that claim —
+//! the blend pair's first (SEAT-4), and the boolean's beside them on
+//! the same method (SEAT-5).
+//!
+//! The lowering the blend nodes run through is one generic function
+//! driven by a per-verb correspondence (`editor_core::verbs::blend`),
+//! the boolean runs through the two-operand lowering driven by its own
+//! (`editor_core::verbs::boolean`), the kernel doors are reached
+//! through the `verbs` run doors, and every migrated content tag is a
+//! function of the kernel's name for the verb rather than a number
+//! written inline. Every one of those is a re-plumbing, and a
+//! re-plumbing's failure mode is a difference nobody looks for. So:
+//!
+//! - **The wire format**: a document carrying BOTH blends saves, loads
+//!   and re-saves byte-identically, and the bytes carry the same schema
+//!   version they did before; a registered boolean document (declared
+//!   contact included) does the same.
+//! - **The evaluation**: each pinned document's body geometry and name
+//!   table digest to committed constants, per document, so a red says
+//!   WHICH document moved.
+//!
+//! # What already covers this, and what these rows add
+//!
+//! Two corpus-wide goldens overlap this suite deliberately:
+//! `m10_p_fence` digests every body POINT's bits across the whole
+//! registry, and `lib_g16_corpus_name_digests` digests every document's
+//! name tables. Either would have caught a lowering that changed
+//! geometry or names — and being corpus-wide, neither says which
+//! document did it, neither covers a document that carries both
+//! blends at once (the registry has one of each, in separate files),
+//! and neither reaches a boolean value's non-body halves (the result
+//! classification and the surviving declared contacts, which the
+//! digest here feeds). These rows are the per-document form. A red in
+//! both places is one fact; a red only here is a migrated-verb one.
+//!
+//! # Why the digests are eps-independent
+//!
+//! Nothing rendered from a classification band enters them (the
+//! `m10_p_fence` rule): point bits and name spellings only, and no
+//! outcome text. The hosted matrix samples one tolerance row per run,
+//! so a constant that moved with eps would gate one row in three.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::corpus;
+use crate::fixture;
+
+use editor_core::{
+    DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
+};
+use fixture::digest::digest;
+use fixture::{len, prism_edges};
+use geom_core::Tol;
+
+fn tol() -> Tol {
+    Tol::witness()
+}
+
+/// The cube side and the two blend sizes, all dyadic.
+const L: f64 = 1.0;
+const R: f64 = 0.125;
+const D: f64 = 0.125;
+
+/// **One document carrying both blend nodes.** Two siblings over one
+/// cube: the same twelve authored edges, filleted on one branch and
+/// chamfered on the other, so a single file exercises both wire
+/// spellings and both lowering paths.
+fn both_blends() -> BothBlends {
+    let mut r = corpus::Recorder::new();
+    // The saved SNAPSHOT is the empty document and the log is
+    // everything (the recorder's convention), so a load replays the
+    // whole recipe through `apply`'s doors — which is what makes the
+    // round-trip a test of the wire spelling of every node.
+    let snapshot = r.doc.clone();
+    let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
+    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        plane: xy_frame_0,
+        loops: vec![square],
+    }));
+    let cube = r.insert(Node::Extrude {
+        profile,
+        distance: len(L),
+    });
+    let edges: Vec<StableName> = prism_edges(cube, 4);
+    let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
+    let chamfered = r.insert(Node::chamfer(cube, len(D), edges));
+    BothBlends {
+        snapshot,
+        doc: r.doc,
+        edits: r.edits,
+        blends: [filleted, chamfered],
+    }
+}
+
+/// The two-blend fixture: what to save, what to evaluate, and the two
+/// blend nodes' ids.
+struct BothBlends {
+    snapshot: ProfileDoc,
+    doc: ProfileDoc,
+    edits: Vec<DocEdit<ProfileProgram>>,
+    blends: [RecipeNodeId; 2],
+}
+
+/// **The wire format is untouched**: save → load → save reproduces the
+/// bytes exactly, for a document carrying a fillet and a chamfer.
+///
+/// Byte equality is the whole assertion. A schema bump, a field rename,
+/// a reordered payload or a changed number format each break it, and
+/// none of them would be visible in an evaluation digest.
+#[test]
+fn a_fillet_and_chamfer_document_round_trips_byte_identical() {
+    let fixture = both_blends();
+    let first =
+        persist::save(&fixture.snapshot, &fixture.edits, tol()).expect("the document saves");
+    let loaded = persist::load(&first, tol()).expect("its own bytes load back");
+    assert_eq!(loaded.edits, fixture.edits, "the edit log did not survive");
+    assert!(
+        loaded.doc.bit_eq(&fixture.doc),
+        "the replayed document is not bit-identical to the authored one"
+    );
+    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
+        .expect("the loaded document re-saves");
+    assert_eq!(
+        first, second,
+        "a fillet+chamfer document does not round-trip byte-identically"
+    );
+    // The header the bytes carry, asserted separately: the format has
+    // no version line (the persist module docs say why), so the whole
+    // header is the document's `id:` line.
+    assert!(
+        first.starts_with(&format!("id: {}\n", fixture.doc.id())),
+        "the saved header is not the document's id line"
+    );
+}
+
+/// **Both blend nodes evaluate**, in one document, through the one
+/// generic lowering — the fillet under a fillet's node id and the
+/// chamfer under a chamfer's, each with a full name table.
+#[test]
+fn both_blends_evaluate_in_one_document() {
+    let fixture = both_blends();
+    let [filleted, chamfered] = fixture.blends;
+    let ev = corpus::eval::<f64>(&fixture.doc);
+    let failures = corpus::failures(&ev);
+    assert!(
+        failures.is_empty(),
+        "the two-blend document failed: {failures:?}"
+    );
+    for id in [filleted, chamfered] {
+        let value = ev.value(id).expect("the blend node produced a value");
+        assert!(
+            value.name_table.iter().count() > 0,
+            "node {id:?} produced an empty name table"
+        );
+    }
+    // The two branches are different geometry under different node ids,
+    // so their tables share no name: this is what "the discrimination
+    // is the minting id" means, executed.
+    let names = |id: RecipeNodeId| -> std::collections::BTreeSet<String> {
+        ev.value(id)
+            .unwrap()
+            .name_table
+            .iter()
+            .map(|(n, _)| format!("{n:?}"))
+            .collect()
+    };
+    let (a, b) = (names(filleted), names(chamfered));
+    assert!(
+        a.intersection(&b).next().is_none(),
+        "the fillet's and chamfer's tables collide"
+    );
+}
+
+// The digest these rows pin with is `fixture::digest::digest` — ONE feed
+// for every verb-migration suite, with what it covers (and the measured
+// reasons each half is load-bearing, first found here at SEAT-4) stated
+// at that home. The constants below are this suite's own.
+
+/// **The existing blend documents' evaluations are bit-identical**,
+/// body and name table, one committed number each.
+///
+/// The numbers were taken on this branch and re-taken on a PRE-CHANGE
+/// tree with this same file copied onto it — the whole suite, this row
+/// and the round-trip both, passes unchanged there. That differential
+/// is what "nothing observable moved" means here; without it the
+/// constants would only say the branch agrees with itself.
+///
+/// They are goldens in the ordinary sense — when one moves the question
+/// is whether the new behaviour is right, never how to restore the old
+/// number.
+///
+/// RE-BLESSED for the sketch frame, and the differential above no
+/// longer stands behind these numbers: a profile's plane became a
+/// document node, so each of these documents gained frames and every
+/// later node was renumbered. The digest feeds each node's id and each
+/// `StableName` — which carries the id of the node that minted it — so
+/// it moves for renumbering alone. What did NOT move is the body half:
+/// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
+/// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
+/// green across this change untouched, and those are id-free.
+#[test]
+fn the_blend_documents_evaluate_to_their_committed_digests() {
+    for (name, want) in [
+        ("die_fillet", 0x39ae_92cf_f632_e603_u64),
+        ("die_chamfer", 0x7dfb_8a42_246e_bd75),
+    ] {
+        let doc = corpus::documents()
+            .into_iter()
+            .find(|d| d.name == name)
+            .expect("the document is registered");
+        let ev = corpus::eval::<f64>(&doc.doc);
+        let got = digest(&ev);
+        println!("seat4 {name}: {got:#018x}");
+        assert_eq!(got, want, "{name}'s evaluation moved — body or name table");
+    }
+}
+
+/// **A registered boolean document's bytes survive the migration**:
+/// save → load → save reproduces the file exactly. The document is
+/// `crossing_slots` — two subtracts, one carrying a `Declare` operand —
+/// so the wire spelling under pin includes the boolean node's whole
+/// payload: the op, both operand edges and the declare edge. The
+/// corpus-wide round-trip covers the same bytes; this is the
+/// per-document form beside the digest row, so a red here names the
+/// boolean rather than the registry.
+#[test]
+fn a_boolean_document_round_trips_byte_identical() {
+    let doc = corpus::documents()
+        .into_iter()
+        .find(|d| d.name == "crossing_slots")
+        .expect("the document is registered");
+    let snapshot = ProfileDoc::empty_derived("seat5_boolean_roundtrip", tol());
+    let first = persist::save(&snapshot, &doc.edits, tol()).expect("the document saves");
+    let loaded = persist::load(&first, tol()).expect("its own bytes load back");
+    assert_eq!(loaded.edits, doc.edits, "the edit log did not survive");
+    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
+        .expect("the loaded document re-saves");
+    assert_eq!(
+        first, second,
+        "a boolean document does not round-trip byte-identically"
+    );
+}
+
+/// **The existing boolean documents' evaluations are bit-identical**
+/// through the two-operand verb lowering — the SEAT-4 differential
+/// method on the boolean's own channels.
+///
+/// The three documents split the semantics between them:
+/// `crossing_slots` runs subtract twice, once with a DECLARED rest
+/// contact (so `resolve_declarations`' face-pair arm exercises under
+/// pin) and once undeclared; `heat_sink` runs the union chain;
+/// `kiss_carry` is the one whose boolean values carry NON-EMPTY
+/// surviving contacts (a discovered corner kiss, then the same record
+/// re-entered through `resolve_declarations`' carried-v-v arm). The
+/// digest feeds the boolean value's kind and contacts beside the
+/// stamped body and the name table, so the constants cover exactly
+/// what `wire_boolean` writes.
+///
+/// `kiss_carry` is load-bearing for the contacts half, MEASURED: on
+/// the other two documents alone, replacing the lowering's contact
+/// carry with `ContactRecords::default()` leaves every constant
+/// standing (their surviving records are empty — declared REST
+/// contacts are consumed into seam structure), so the channel was fed
+/// but dead. With `kiss_carry` pinned that same mutation reds its
+/// row (the other two constants stand, re-measured); deleting the
+/// `stamp_minted` write reds the suite at `crossing_slots` already.
+///
+/// All three numbers were taken on this branch and re-taken on a
+/// PRE-CHANGE tree (extracted main, with this file and the
+/// `kiss_carry` corpus files copied onto it) — the whole suite passes
+/// unchanged there, `kiss_carry`'s row included, since the document
+/// authors through doors the migration did not add. That differential
+/// is what "nothing observable moved" means here; without it the
+/// constants would only say the branch agrees with itself.
+///
+/// RE-BLESSED for the sketch frame, and the differential above no
+/// longer stands behind these numbers: a profile's plane became a
+/// document node, so each of these documents gained frames and every
+/// later node was renumbered. The digest feeds each node's id and each
+/// `StableName` — which carries the id of the node that minted it — so
+/// it moves for renumbering alone. What did NOT move is the body half:
+/// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
+/// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
+/// green across this change untouched, and those are id-free.
+#[test]
+fn the_boolean_documents_evaluate_to_their_committed_digests() {
+    for (name, want) in [
+        ("crossing_slots", 0x75b5_a599_f62f_bee0_u64),
+        ("heat_sink", 0x4ba6_9485_51b0_1e91),
+        ("kiss_carry", 0x56f8_69db_87a8_065a),
+    ] {
+        let doc = corpus::documents()
+            .into_iter()
+            .find(|d| d.name == name)
+            .expect("the document is registered");
+        let ev = corpus::eval::<f64>(&doc.doc);
+        let failures = corpus::failures(&ev);
+        assert!(
+            failures.is_empty(),
+            "{name} failed to evaluate: {failures:?}"
+        );
+        let got = digest(&ev);
+        println!("seat5 {name}: {got:#018x}");
+        assert_eq!(
+            got, want,
+            "{name}'s evaluation moved — body, value or name table"
+        );
+    }
+}
+
+/// **The typed empty success is pinned by an input that PRODUCES it** —
+/// a disjoint intersect, authored in-suite because the corpus has no
+/// empty-boolean document and the empty path needs none of the corpus's
+/// other rows (no body to round-trip eps rows over, no mass to pin).
+///
+/// This row exists because the digest's `b"empty"` token was measured
+/// FED BUT DEAD — the same class as the contacts channel before
+/// `kiss_carry`: no pinned document ever took the `Empty` arm, so
+/// perturbing the token left every constant standing. The value under
+/// pin is asserted to actually BE `BooleanValue::Empty` first, so the
+/// constant cannot go vacuous if the fixture drifts; with that,
+/// perturbing the token reds THIS row while the three document
+/// constants stand (measured), and a lowering that turned the typed
+/// empty into anything else — or an empty result into a phantom body —
+/// moves this number. The constant reproduces on the same extracted
+/// pre-change tree as the document rows (the empty path predates the
+/// migration), so it is a differential pin, not a self-agreement.
+#[test]
+fn an_empty_boolean_evaluates_to_its_committed_digest() {
+    let mut r = corpus::Recorder::new();
+    let square =
+        |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
+    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
+    let pa = r.insert(Node::Profile(ProfileProgram {
+        plane: xy_frame_1,
+        loops: vec![square(0.0)],
+    }));
+    let a = r.insert(Node::Extrude {
+        profile: pa,
+        distance: len(L),
+    });
+    let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
+    let pb = r.insert(Node::Profile(ProfileProgram {
+        plane: xy_frame_2,
+        loops: vec![square(3.0)],
+    }));
+    let b = r.insert(Node::Extrude {
+        profile: pb,
+        distance: len(L),
+    });
+    let boolean = r.insert(Node::Boolean {
+        op: editor_core::BooleanOp::Intersect,
+        a,
+        b,
+        declare: None,
+    });
+    let ev = corpus::eval::<f64>(&r.doc);
+    let failures = corpus::failures(&ev);
+    assert!(failures.is_empty(), "the fixture evaluates: {failures:?}");
+    assert!(
+        matches!(
+            &ev.value(boolean).expect("the boolean has a value").payload,
+            editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Empty)
+        ),
+        "a disjoint intersect is the typed empty; the fixture no longer produces it"
+    );
+    let got = digest(&ev);
+    println!("seat5 empty_intersect: {got:#018x}");
+    assert_eq!(
+        got, 0xef2f_77c3_6271_e2eb,
+        "the empty-boolean evaluation moved — value token, bodies or name tables"
+    );
+}

@@ -1,8 +1,11 @@
 # Draft — the molding-taper design conversation
 
-**Status: DRAFT — design conversation, awaiting Evan's sign-off**
-(VERBS program; the register's "no design record yet — needs its own
-conversation" row). Proposals DR1–DR6. Substrate anchors verified on
+**Status: RATIFIED (Ev's sign-off on PR #908 — planes-only to
+start is Ev's own note). NOT YET IMPLEMENTED: no draft unit has
+been cut; the register's draft row (`docs/KERNEL-VERBS.md`) is the
+live scheduling record.**
+(VERBS program; the register's draft row names this document as its
+design record). Proposals DR1–DR6. Substrate anchors verified on
 main 2026-08-21 by the survey lane; the row is genuinely greenfield —
 no open issue mentions draft, and nothing in docs/ pre-derives it
 beyond LONGTERM-IDEAS' checker note.
@@ -27,17 +30,19 @@ land next:
 - where the new cone meets a drafted plane neighbor at generic tilt,
   `plane_cone_section` routes to rung 3 **permanently** — "parabola
   and hyperbola are outside the conic inventory **by decision, not
-  by omission**" (R1, `intersect.rs:1069-1076`). Cone SSI coverage
+  by omission**" (R1, `intersect.rs:228-235`). Cone SSI coverage
   is otherwise zero (cyl×cone, cone×cone, cone×sphere all
   unimplemented in the C5 table).
-- a single cone face makes the whole body boolean-unavailable
-  (per-face-KIND gate) and fillet-unavailable (`build.rs` reads
-  plane supports only) — the drafted body would be one-way.
+- a cone face is boolean-live only where the pair-scoped operand
+  gate (VERBS-GATE, #1001) finds no unsupported PAIR it could
+  enter, and fillet's cone arms are the COAXIAL ones (VERBS-ARMS-2)
+  — a cone meeting a drafted plane at generic tilt is neither, so
+  the drafted body is still one-way there.
 
 **Recommendation**: v1 ships plane-only with a typed
 `DraftUnsupported`-class refusal naming the wall kind.
 
-**The cylinder arm's cost, corrected per Evan's #908 note.** R1's
+**The cylinder arm's cost, corrected per Ev's #908 note.** R1's
 "permanent" refusal bars only the *exact conic special cases*
 (parabola/hyperbola never join the analytic curve inventory); a
 generic plane×cone section as a **fitted NURBS curve** is fine —
@@ -47,10 +52,10 @@ its real content is a **plane×cone fitted-SSI lane** (march + fit +
 certify, the `plane_nurbs_ssi` shape with a cone chart), sequenced
 with Wave 2's cone-operand work since they share the substrate.
 Still a separate later unit — but plumbing, not a ratified-decision
-change — plus (or after) Wave 2's per-face-KIND operand-gate
-re-scope so the drafted body is not boolean-dead.
+change. The operand-gate re-scope it was to queue behind has landed,
+pair-scoped (#1001).
 
-## DR2 — Mechanism: a certified re-geom pass (a new small op class)
+## DR2 — Mechanism: a certified re-geom pass (a small op class)
 
 For an all-plane body, draft changes **no topology**: every selected
 wall gets a new plane, every affected strut a new line carrier, every
@@ -66,6 +71,11 @@ pass**, and the kernel has partial vocabulary for it:
 - **The vertex half has no public door**: `get_vertex_mut` is
   `pub(crate)`; the only whole-body point rewriter is
   `transform_rigid`, which is rigid by checked contract.
+- **The pass shape has one shipped inhabitant**:
+  `topo::replace_face_offset` (VERBS OFF-D, #1043) replaces ONE
+  face's surface, re-describes its boundary and places the vertices
+  those edges end at — decided first, applied to a clone, validated
+  once. Draft's pass is that shape over a selected wall SET.
 
 **Recommendation**: draft is implemented as a kernel verb whose body
 follows M6-1's discipline verbatim — decide everything first (all
@@ -82,7 +92,7 @@ territory; it can land independently as a recipe convenience without
 this conversation.
 
 Validity predicates, per the ratified pre-construction stance
-(DESIGN.md:1823): neutral-trace non-degeneracy per wall (the pivot
+(DESIGN.md, Banked principles: fillet/blend validity is reified predicates): neutral-trace non-degeneracy per wall (the pivot
 line must actually cross the wall), angle vs adjacent-face
 consumption (a drafted wall must not sweep past its neighbor — the
 face-clearance shape from the fillet battery, re-instantiated), and
@@ -92,17 +102,21 @@ named margined Q1 trilean.
 ## DR3 — Selection: the pull-direction predicate is a SELECT-DESIGN amendment
 
 Draft's natural spelling is "every face whose outward normal leans
-against the pull direction". No such predicate exists —
-`GeomPred` has surface-kind and datum-distance arms only, and
-SELECT-DESIGN makes any new geometric predicate a DECIDED one with
-its own `sel_*` K-funnel row and in-band refusal. **Recommendation**:
-a `GeomPred::NormalLeans { direction, comparison }`-shaped predicate
+against the pull direction". No such predicate exists — `GeomPred`
+carries curve-kind, surface-kind, adjacent-kinds and datum-distance
+arms only, and SELECT-DESIGN makes any new geometric predicate a
+DECIDED one with its own `sel_*` K-funnel row and in-band refusal.
+**Recommendation**: a
+`GeomPred::NormalLeans { direction, comparison }`-shaped predicate
 (margin = the lever-folded sine against the pull direction,
 trilean, in-band refusal per the selection ladder) lands as a small
 co-requisite unit, proposed as a SELECT-DESIGN amendment in the same
-PR that implements it. Kernel-direct callers keep the hand-scan
-(the register's "selection is document-layer only" note stands; the
-predicate at least gives the document layer the natural spelling).
+PR that implements it. Kernel-direct callers say the EXACT half
+through `topo::query` since SEAT-2 (the register's
+"document-layer only" note is retired), but a leaning-normal test is
+a DECIDED atom, which at that seat is only the datum-distance door —
+the predicate proposed here at least gives the document layer the
+natural spelling.
 
 ## DR4 — Neutral plane: bare point+normal, no datum machinery
 
@@ -111,7 +125,7 @@ The house pattern is `SplitPlane { origin, normal }` passed by value
 Draft takes the same shape plus the pull direction and angle; datums
 appear only when the recipe layer wraps the node (`Node::Split`'s
 tool-evaluates-to-DatumValue pattern, reused). Derivable; adopted
-here unless Evan objects.
+here unless Ev objects.
 
 ## DR5 — Naming: drafted faces are survivors
 
@@ -124,10 +138,10 @@ that straddles the neutral plane both ways) would mint, and
 ## DR6 — Sequencing and the checker twin
 
 - Draft lands **after VERBS-RIM/CHAMFER** (shared review bandwidth,
-  no code dependency) and is indifferent to Wave 2 in v1 (plane-only
-  output keeps the body boolean-live). The cylinder arm, if ratified
-  later, queues behind Wave 2's operand-gate work by DR1's own
-  logic.
+  no code dependency; both merged) and is indifferent to Wave 2 in
+  v1 (plane-only output keeps the body boolean-live). Wave 2's
+  operand-gate work has landed (#1001), so the cylinder arm, if
+  ratified later, queues only behind its own plane×cone lane.
 - LONGTERM-IDEAS' **moldability checker** ("1-1 along the pull
   direction with derivative bounded — hull bounds on surface normals
   vs pull direction; the M5 normal-enclosure substrate exists;
@@ -136,7 +150,7 @@ that straddles the neutral plane both ways) would mint, and
   lands — same pull-direction input, and it is the natural
   acceptance instrument for the verb (a drafted body should CERTIFY
   moldable at its own angle).
-  **Its reach is NOT plane-limited (answering Evan's #908
+  **Its reach is NOT plane-limited (answering Ev's #908
   question)**: the checker consumes certified normal enclosures,
   which exist per KIND, not per verb — closed forms for the five
   analytic kinds and the patch-hull machinery for NURBS (the M5

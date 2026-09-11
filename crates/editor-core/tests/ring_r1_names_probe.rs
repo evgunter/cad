@@ -8,13 +8,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
-    CancelToken, Datum, EntityKind, EvalOptions, Evaluation, MeridianEnd, NameTable, Node,
-    ProfileDoc, ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, evaluate,
+    CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, NameTable, Node, ProfileDoc,
+    ProfileEdgeRef, RecipeNodeId, RoleSeg, StableName, band, band_pi, band_rim, evaluate,
+    meridian_vertex,
 };
-use fixture::{ang, desc, insert, len};
+use fixture::{ang, axis_in_plane, insert, on_frame_keeping};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -48,36 +49,27 @@ fn pe(l: u32, s: u32) -> ProfileEdgeRef {
     }
 }
 
-fn pv(l: u32, v: u32) -> ProfileVertexRef {
-    ProfileVertexRef {
-        loop_index: l,
-        vertex: v,
-    }
-}
-
 #[test]
 fn full_wire_holed_revolve_names_totally() {
     let doc = ProfileDoc::empty_derived("ring_r1_names_probe", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, plane, p) = on_frame_keeping(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![
-                // Outer touches the axis along its left edge (wire
-                // case); the hole is strictly off-axis.
-                vec![(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)],
-                vec![(0.5, 1.0), (1.5, 1.0), (1.5, 2.0), (0.5, 2.0)],
-            ],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![
+            // Outer touches the axis along its left edge (wire
+            // case); the hole is strictly off-axis.
+            vec![(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)],
+            vec![(0.5, 1.0), (1.5, 1.0), (1.5, 2.0), (0.5, 2.0)],
+        ],
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, rev) = insert(
         doc,
@@ -94,14 +86,8 @@ fn full_wire_holed_revolve_names_totally() {
     // The hole's entities land under loop index 1, seam-meridian
     // taxonomy (holes are lamina even under a wire outer).
     for s in 0..4 {
-        assert!(
-            t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(1, s))))
-                .is_some()
-        );
-        assert!(
-            t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::BandRim(pv(1, s))))
-                .is_some()
-        );
+        assert!(t.lookup(&band(rev, 1, s)).is_some());
+        assert!(t.lookup(&band_rim(rev, 1, s)).is_some());
         assert!(
             t.lookup(&name1(
                 EntityKind::Edge,
@@ -111,17 +97,10 @@ fn full_wire_holed_revolve_names_totally() {
             .is_some()
         );
         assert!(
-            t.lookup(&name1(
-                EntityKind::Vertex,
-                rev,
-                RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(1, s))
-            ))
-            .is_some()
+            t.lookup(&meridian_vertex(MeridianEnd::Seam, rev, 1, s))
+                .is_some()
         );
     }
     // And the wire outer keeps its π-band names (loop 0).
-    assert!((0..4).any(|s| {
-        t.lookup(&name1(EntityKind::Face, rev, RoleSeg::BandPi(pe(0, s))))
-            .is_some()
-    }));
+    assert!((0..4).any(|s| t.lookup(&band_pi(rev, 0, s)).is_some()));
 }

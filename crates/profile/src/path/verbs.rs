@@ -40,8 +40,17 @@ use crate::sugar::ArcSweep;
 /// fused verbs alone (§2c "Bounds"): the generic lattice doors that
 /// later complete the arrival call through this pointer without ever
 /// naming the bound.
-pub(crate) type ArcResolver<T> =
-    fn(FilletSide<T>, FilletSide<T>, T, Tol) -> Result<ArcFilletTrims<T>, PathError<T>>;
+///
+/// The leading guide is the chain's own: a resolution is where the
+/// discrete choices live, so it is where a recording pass writes them
+/// down and a guided pass reads them back.
+pub(crate) type ArcResolver<T> = fn(
+    &mut crate::structure::Guide<T>,
+    FilletSide<T>,
+    FilletSide<T>,
+    T,
+    Tol,
+) -> Result<ArcFilletTrims<T>, PathError<T>>;
 
 // ------------------------------------------------------------------
 // Bare state values (the binding bits, nothing else).
@@ -136,7 +145,7 @@ impl<T: Real> Pending<T> {
 /// The one discrete bit every endpoint-free/derived mode carries in its
 /// own dress (§2c): which half-plane of the departure tangent the
 /// carrier centre sits on. `Left` of travel curves the arc CCW.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ArcSide {
     /// Centre on the left of travel (counterclockwise arc).
     Left,

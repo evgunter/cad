@@ -24,8 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use std::collections::BTreeSet;
 
@@ -36,12 +35,7 @@ use topo::{SweepStrategy, SweepTrace, sweep_traces};
 
 fn eval_with<T>(doc: &editor_core::ProfileDoc, strategy: SweepStrategy) -> Evaluation<T>
 where
-    T: geom_core::Decide
-        + editor_core::ContentBits
-        + geom_core::Bounds
-        + Send
-        + Sync
-        + topo::PropsQuadLane,
+    T: editor_core::EvalScalar,
 {
     let opts = EvalOptions {
         boolean_sweep: strategy,

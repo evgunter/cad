@@ -57,8 +57,9 @@ pub(crate) fn neg_frac_pi_2() -> DInterval {
 /// Here rather than inline in `trig.rs` for the same reason
 /// [`neg_frac_pi_2`] is here: `grid_possibly_hits`' four phase offsets
 /// (`frac_pi_2`, `neg_frac_pi_2`, `zero`, `pi`) are one family, and a
-/// family with three members in this module and one built at a call
-/// site is a family that can drift.
+/// family is only checkable while all of it is in one module — the four
+/// are, and a fifth built at a call site would be the drift this
+/// placement refuses.
 pub(crate) fn zero() -> DInterval {
     DInterval::make(0.0, 0.0, Decoration::Com)
 }

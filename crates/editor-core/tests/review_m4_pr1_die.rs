@@ -132,10 +132,7 @@ struct Authored {
 fn depth_param() -> TEdit {
     TEdit::SetDocParam {
         name: ParamName::new("pip_depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 0.002,
-        },
+        value: DocParam::continuous(Dimension::Length, 0.002),
     }
 }
 

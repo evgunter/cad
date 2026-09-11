@@ -20,11 +20,20 @@
 # Matching a MENTION of the feature is wrong: a doc comment naming it is
 # not a gate, and the substring form let prose satisfy the floor below —
 # including prose describing this very mechanism. Requiring the ATTRIBUTE
-# form, anchored to the whole line, is what makes the census a statement
-# about what compiles rather than about what is written. Requiring it
-# VERBATIM is the same mistake from the other side, which is case 2
-# below: the condition is therefore matched anywhere inside the
-# attribute's parentheses, so `all(…)`, `any(…)` and conjunctions count.
+# form is what makes the census a statement about what compiles rather
+# than about what is written. Requiring it VERBATIM is the same mistake
+# from the other side, which is case 2 below: the condition is therefore
+# matched anywhere inside the attribute's parentheses, so `all(…)`,
+# `any(…)` and conjunctions count.
+#
+# AND WHY IT READS A VIEW RATHER THAN THE FILE. Prose is kept out by
+# `lib.sh`'s reader, not by an anchor: the census scans the
+# `code_and_literals` view (comments stripped, string literals kept),
+# which is the view a needle CONTAINING a literal wants and the third of
+# `test_utils::source`'s three. The anchors that did that job before
+# charged for it — a gate line with a trailing comment was invisible,
+# and a gate line commented out inside a `/* … */` block was counted —
+# and both are fixtures below now.
 #
 # THREE WAYS A COUNTED GATE CAN GO UNCOVERED, AND WHAT ANSWERS EACH. The
 # predicate above is one of them; naming the other two is the point.
@@ -73,13 +82,52 @@
 # dated, sourced evidence, not a baseline — a taker who needs them
 # re-measures.
 #
+# WHAT READING A VIEW COSTS, AS A DATED READING AND NOT AS A CLAIM
+# ABOUT TODAY. Lexing every `crates/*/tests/**.rs` is the whole of the
+# difference, and it lands on EVERY MODE THAT READS THE CENSUS, not
+# only on the real pass. Best of three, 2026-09-06, 4-core container at
+# load average ~0.8, `mawk`, against the same tree before the
+# conversion:
+#
+#   real pass             0.29 -> 2.42     `discipline`
+#   --crates              0.05 -> 1.11     k-lint, dev-probe row
+#   --check-listing CRATE 0.07 -> 1.18     k-lint, once PER CRATE (6)
+#   --suites              0.06 -> 1.05     not called by CI today
+#   --selftest           17.99 -> 21.32    three jobs
+#   --citations           0.03 -> 0.06     unchanged, and NOT an
+#                                          accident: `--citations` and
+#                                          `--check-executed` return
+#                                          before `census_read_code`,
+#                                          so neither reads the view.
+#
+# WHERE THAT ADDS UP: the dev-probe row calls `--crates` once and
+# `--check-listing` once per censused crate, so about +7 s in a job
+# whose two probe steps already sum to ~220 s; `discipline` pays +2 s
+# on the pass and +3 s on the self-test; `mirror` pays the self-test
+# only. NOTHING IN `ci.yml` CARRIES A `timeout-minutes` — zero
+# occurrences — so no budget is at risk and this is a statement about
+# wall clock, not about a threshold. Every other gate in the directory
+# is unmoved to two decimal places (0.02–0.52 s).
+#
+# There is NO PREFILTER between the file list and the reader,
+# deliberately: one on the raw text would be sound only under an
+# argument about what a comment can sit inside, and this gate would
+# then be as fast as it was and blind in a way its fixtures do not
+# reach. A taker who needs the numbers re-measures.
+#
 # WHAT THE PREDICATE CANNOT MATCH, stated because the previous one's blind
-# spot was not: a gate split across lines; a gate with a TRAILING COMMENT
-# (the whole-line anchors are what keep prose out, and this is their
-# price); a gate reached through `cfg_attr` or a macro; and
+# spot was not: a gate split across lines (the reader emits one record
+# per line, and `[^]]` holds a match inside one attribute); a gate
+# reached through `cfg_attr` or a macro; and
 # `cfg(not(feature = "probe"))`, counted though it means the opposite — an
 # over-count, and the harmless direction, since such a file compiles under
-# the DEFAULT rows. WHAT THE LISTING HALF CANNOT SEE: a counted suite
+# the DEFAULT rows. AND WHAT IT MATCHES THAT IS NOT A GATE, which is what
+# keeping literals costs: a RAW string literal spelling the attribute
+# verbatim (`r#"#![cfg(feature = "probe")]"#`) is counted, because the
+# view keeps it and its inner quotes are unescaped. An ORDINARY literal
+# cannot — Rust escapes its inner quotes, so the view carries
+# `feature = \"probe\"`, which this needle does not match, and the clean
+# fixture plants one. WHAT THE LISTING HALF CANNOT SEE: a counted suite
 # declaring no `#[test]` of its own lists nothing and is reported missing.
 # None exists today; the remedy if one arrives is a test or a de-count,
 # never an exception list — that would be the second roster this
@@ -138,13 +186,33 @@ CENSUS_FLOOR=(editor-core:2 geom-brep:4 geom-core:1 profile:4 sweep:1 topo:5)
 # selection runs nothing, because that row is what reports the
 # complement.
 RUN_FLOOR=(
+  ignored:editor-core:m10_3_driver_k_probe_interval:1
   ignored:editor-core:m4_pr8_k_probe:1
   ignored:sweep:k_report:1
+  plain:editor-core:m10_3_driver_k_probe_interval:1
+  plain:editor-core:m10_p_fence:2
   plain:editor-core:m4_pr8_k_probe:1
   plain:editor-core:m5_pr5_corpus_probe:1
+  plain:geom-brep:m8_f67_r1_probes:8
+  plain:geom-brep:rim_dim_review_probes:2
+  plain:geom-brep:rim_dim_scale_twins:6
+  plain:geom-brep:span_meter_dim_twins:5
   plain:geom-core:certified_door:6
+  plain:geom-core:k_stats_doors:2
+  plain:geom-core:m10_7_r1_retag_probe:1
+  plain:geom-core:m10_7_r2_sym_probes:18
+  plain:profile:review_m2_pr2_probe:2
+  plain:profile:review_s2_probe:1
+  plain:profile:scalar_channels_probe:4
+  plain:profile:validate_ok_probe:1
   plain:sweep:k_report:0
   plain:sweep:review_chamfer_r1_probes:7
+  plain:sweep:review_fillet_e1_probes:4
+  plain:topo:probe_census:1
+  plain:topo:probe_s5_sectors:1
+  plain:topo:review_m3_pr2:9
+  plain:topo:rim_dim_boolean_twins:1
+  plain:topo:rim_dim_review_probes:2
 )
 
 # EVERY CENSUSED SUITE DECLARES WHICH SIDE IT IS ON. What the executed
@@ -206,11 +274,11 @@ CITING_FILES=(
 # NOT LIVE CLAIMS, and the reason this list exists at all. A dated scan
 # or a milestone log RECORDS what CI did on the day it was written; the
 # step name in it is history and stays correct when the step is renamed.
-# `docs/SMELL-SCAN-2026-08.md` used to sit in CITING_FILES, which made a
-# 12,000-line living document a hard CI dependency on a literal string —
-# every lane on every concurrent track edits it daily, and archiving or
-# reorganising it would have reddened the build for a reason its diff
-# could not explain. Removing it is not narrowing the guard: the rename
+# A living register under `docs/` used to sit in CITING_FILES, which made
+# a document every concurrent lane edits daily into a hard CI dependency
+# on a literal string: archiving or reorganising it would have reddened
+# the build for a reason its diff could not explain. The argument is
+# about a document's rate of change, not its size. Removing it is not narrowing the guard: the rename
 # it exists to catch is caught by the `ci.yml` check below, which is the
 # load-bearing half, and by the four live claims above.
 #
@@ -232,10 +300,18 @@ CITING_FILES=(
 # rename — that ci.yml still carries a step of this name — is unaffected.
 #
 # Shell globs, matched against the repo-relative path; `*` matches `/`.
+# `work/*` IS EXEMPT ON THE SAME ARGUMENT AS `docs/*`, and it is the
+# tracker rather than a document tree: an item file is a DATED FINDING,
+# and a finding that quoted the step name on the day it was written
+# stays true when the step is renamed — the finding is history the
+# moment it is filed. It is also the tree where a closed issue's note
+# most naturally quotes the step it was about, which is exactly how
+# this exemption came to be needed (the four k-probe items, 2026-09-03).
 CITATION_EXEMPT=(
   '.github/workflows/ci.yml'                # the step itself
   'scripts/gates/probe-suite-census.sh'     # this gate
   'docs/*'                                  # records, plans, prompts, logs
+  'work/*'                                  # the tracker: dated findings
 )
 
 # The clippy row that makes a misspelt cfg gate a hard error.
@@ -278,17 +354,64 @@ gate_parse_args ${gate_args[@]+"${gate_args[@]}"}
 # The cfg ATTRIBUTE, file-level or per-item — both spellings are live
 # (`crates/topo/tests/review_m3_pr2.rs` gates a single test) — with the
 # `probe` condition anywhere inside its parentheses.
-PROBE_GATE_RE='^[[:space:]]*#!?\[cfg\(.*feature = "probe".*\)\][[:space:]]*$'
+#
+# NOT ANCHORED TO THE WHOLE LINE, because it no longer has to be. The
+# needle CONTAINS A STRING LITERAL, so the census reads its files
+# through `lib.sh`'s `code_and_literals` view (comments stripped,
+# literals kept) — the one of `test_utils::source`'s three views this
+# needle wants. Prose is then gone before the matcher runs, which is
+# what the anchors were for, and their price is gone with them: a gate
+# line carrying a TRAILING COMMENT is counted, and a gate line sitting
+# in a `/* … */` block is not. `[^]]` in place of `.` keeps the match
+# inside one attribute, which is what the closing anchor also did.
+PROBE_GATE_RE='#!?\[cfg\([^]]*feature = "probe"[^]]*\)\]'
 # The WHOLE-FILE spelling of the same predicate, derived from it rather
 # than written again: the disposition half needs to tell "no test in this
 # file runs" from "one item is gated and the rest run", and two hand-kept
 # regexes for one shape drift.
 FILE_GATE_RE=${PROBE_GATE_RE/'#!?'/'#!'}
 
-census_files() {
-  find crates/*/tests -type f -name '*.rs' 2>/dev/null | sort |
-    xargs -r grep -lE "$PROBE_GATE_RE" 2>/dev/null || true
+# THE CENSUSED TREES, READ ONCE. `code_and_literals` records for every
+# `crates/*/tests/**.rs`, in the `FILE:LINE:TEXT` shape `grep -rn`
+# emits, held in one variable because both predicates below ask the same
+# text a different question and a second read is a second answer.
+# `find`'s stderr stays suppressed: its only failure here (no
+# crates/*/tests) is diagnosed loudly by the guard the gate runs before
+# calling this.
+CENSUS_CODE=
+census_read_code() {
+  local -a candidates=()
+  local c
+  mapfile -t candidates < <(find crates/*/tests -type f -name '*.rs' 2>/dev/null | sort)
+  CENSUS_CODE=
+  [ "${#candidates[@]}" -gt 0 ] || return 0
+  # THE PREFIX CUT BELOW IS ONLY SOUND WHILE A PATH CARRIES NO COLON, so
+  # that is CHECKED and not asserted: `FILE:LINE:TEXT` is cut at the
+  # first `:<digits>:`, and a path holding one would hand every
+  # downstream check a truncated name — a file reported as censused
+  # under a name that is not its own, and a rostered suite reported
+  # missing. A filesystem allows the character; nothing else here does.
+  for c in "${candidates[@]}"; do
+    case $c in
+      *:*) gate_error "$(gate_name): $c is a censused test path containing a colon, and this gate cuts the shared reader's \`FILE:LINE:\` prefix at the first one — so the path it would report is not the path it read. Rename the file"
+           exit 1 ;;
+    esac
+  done
+  CENSUS_CODE=$(gate_rust_code --keep-literals "${candidates[@]}")
 }
+
+# The files whose code carries a gate matching $1, one path per line.
+# The matcher runs through `gate_grep` (lib.sh): exit 1 is an empty
+# census, which the caller diagnoses; anything else is grep saying it
+# could not search, which must end the gate rather than read as an empty
+# tree. `sed` cuts the reader's `FILE:LINE:` prefix at the first
+# `:<digits>:`, which `census_read_code` has proved is the separator.
+census_gated_files() {
+  [ -n "$CENSUS_CODE" ] || return 0
+  printf '%s\n' "$CENSUS_CODE" | gate_grep -E "$1" |
+    sed 's/:[0-9][0-9]*:.*$//' | sort -u
+}
+census_files() { census_gated_files "$PROBE_GATE_RE"; }
 
 census_tally() {
   sed 's|^crates/\([^/]*\)/tests/.*|\1|' | sort | uniq -c |
@@ -332,9 +455,12 @@ census_citations() {
     [ "$exempt" = true ] && continue
     gate_error "$(gate_name): $hit names CI's \`$CITED_STEP\` step but is neither a live claim this gate keeps true (CITING_FILES) nor declared history (CITATION_EXEMPT). A citation nobody checks is how the sentences this gate guards became false in the first place — add it to one list or the other, with the reason"
     rc=1
-  done < <(grep -rlF "$CITED_STEP" . \
+  # `gate_grep` although the status cannot cross a process substitution:
+  # the marker it leaves is what `gate_ok` below refuses to print over,
+  # so a completeness scan that could not run cannot end in a green.
+  done < <(gate_grep -rlF "$CITED_STEP" . \
              --exclude-dir=.git --exclude-dir=target --exclude-dir=node_modules \
-             2>/dev/null | sort)
+             | sort)
 
   [ "$rc" -eq 0 ] || exit 1
   GATE_SCAN_FILES=${#CITING_FILES[@]}
@@ -443,7 +569,7 @@ census_tally_max() {
 gate() {
   local files tally rc=0 entry want n have silenced hosted
   local suite crate rest listed missing suites
-  local rostered dcrate dmod marked mismarked rmod want_marker other_marker shape sweep_live
+  local rostered file_gated dcrate dmod marked mismarked rmod want_marker other_marker shape sweep_live
 
   if [ "$CENSUS_CITATIONS" = true ]; then
     census_citations
@@ -463,6 +589,7 @@ gate() {
     exit 1
   fi
 
+  census_read_code
   files=$(census_files)
   if [ -z "$files" ]; then
     gate_error "$(gate_name): no crates/*/tests file carries a \`probe\` cfg gate under $PWD. Either every probe-gated suite is gone, or the gate spelling changed and this predicate no longer matches it. Both mean the type-check loop covers NOTHING, so this is a failure and not a clean tree."
@@ -558,11 +685,16 @@ gate() {
   # sentence would be a false claim that this gate then enforces. The
   # wrong sentence is refused in both directions.
   rostered=$(printf '%s\n' "${RUN_FLOOR[@]}" | awk -F: '{ print $2"/"$3 }' | sort -u)
+  # THE SAME VIEW THE CENSUS COUNTED, asked the whole-file question. A
+  # herestring and a fixed-string match, never a regex over the path:
+  # the file names are the reader's own output, so a path is compared as
+  # a path.
+  file_gated=$(census_gated_files "$FILE_GATE_RE")
   while IFS= read -r suite; do
     [ -n "$suite" ] || continue
     dcrate=${suite#crates/}; dcrate=${dcrate%%/*}
     rest=${suite#crates/*/tests/}; dmod=${rest%.rs}
-    if grep -qE "$FILE_GATE_RE" "$suite"; then
+    if grep -qxF "$suite" <<<"$file_gated"; then
       want_marker=$FILE_NOT_RUN_MARKER; other_marker=$ITEM_NOT_RUN_MARKER
       shape='every test in it is behind a whole-file `#![cfg(feature = "probe")]`'
     else
@@ -591,9 +723,20 @@ gate() {
   # The roster names files, so it can name one that is gone or is not a
   # probe suite at all — in which case --check-executed is floored on a
   # module that cannot exist.
+  # A HERESTRING, NEVER A PIPE INTO `grep -q` — the rule for this whole
+  # file. `grep -q` exits at its first match; a producer still writing
+  # then takes SIGPIPE, and `pipefail` reports the pipeline failed over
+  # content that matched. Which side wins is a race the producer usually
+  # wins on a short list — this exact site lost it once on a hosted
+  # runner, reporting a rostered suite as un-censused over a green tree
+  # while the same run's real census passed. A herestring has no reader
+  # to close, so the race is impossible at this site — and it is held
+  # impossible by `selftest_roster_listing_survives_a_long_census`,
+  # whose fixture forces the pre-fix shape deterministically rather
+  # than leaving this paragraph as the only guard.
   while IFS= read -r rmod; do
     [ -n "$rmod" ] || continue
-    printf '%s\n' "$files" | grep -qxF "crates/${rmod%%/*}/tests/${rmod#*/}.rs" ||
+    grep -qxF "crates/${rmod%%/*}/tests/${rmod#*/}.rs" <<<"$files" ||
       { gate_error "$(gate_name): RUN_FLOOR rosters \`${rmod#*/}\` in ${rmod%%/*} as an executed probe suite, but no such probe-gated file is censused under $PWD"; rc=1; }
   done <<<"$rostered"
 
@@ -604,7 +747,7 @@ gate() {
   # the "prose satisfies the floor" mistake this file's own predicate was
   # hardened against.
   if [ -f "$SWEEP_SCRIPT" ]; then
-    sweep_live=$(grep -vE '^[[:space:]]*#' "$SWEEP_SCRIPT" || true)
+    sweep_live=$(gate_grep -vE '^[[:space:]]*#' "$SWEEP_SCRIPT")
     grep -qE "$SWEEP_CHECK_RE" <<<"$sweep_live" ||
       { gate_error "$(gate_name): $SWEEP_SCRIPT no longer feeds its executed-set tally to \`$(gate_name).sh --check-executed\` in a live line. That call is the only thing that turns a sweep which selected everything and ran nothing into a failure; restore it, or re-argue the floor here"; rc=1; }
   else
@@ -623,14 +766,18 @@ gate() {
     # `grep -v`, and `pipefail` calls the whole pipeline failed. Which
     # side wins is a race — this passed locally on a six-line fixture and
     # fired against a correctly wired ci.yml on the first hosted run.
-    hosted=$(grep -vE '^[[:space:]]*#' .github/workflows/ci.yml || true)
+    hosted=$(gate_grep -vE '^[[:space:]]*#' .github/workflows/ci.yml)
     grep -qE "$CLIPPY_ROW_RE" <<<"$hosted" ||
       { gate_error "$(gate_name): .github/workflows/ci.yml has no workspace \`cargo clippy … --all-targets -- -D warnings\` row. That row is what turns a misspelt cfg gate (\`feature = \"prboe\"\`) into a failure, through rustc's \`unexpected_cfgs\`; without it such a suite compiles to nothing under every row and this census never sees it. Restore the row or re-argue the coverage here"; rc=1; }
   else
     gate_error "$(gate_name): .github/workflows/ci.yml does not exist under $PWD — the clippy row that reports a misspelt cfg gate cannot be checked"
     rc=1
   fi
-  silenced=$(grep -rlE "$CFG_LINT_SILENCED_RE" crates 2>/dev/null || true)
+  # `gate_grep`, and with stderr VISIBLE: the old spelling suppressed the
+  # exit-2 diagnostic twice — `2>/dev/null` ate grep's own message and
+  # `|| true` ate the status — so a matcher that could not search read as
+  # "nothing silences the lint", which is a green this gate never earned.
+  silenced=$(gate_grep -rlE "$CFG_LINT_SILENCED_RE" crates)
   if [ -n "$silenced" ]; then
     gate_error "$(gate_name): $(printf '%s' "$silenced" | tr '\n' ' ')silences \`unexpected_cfgs\`, which is the only thing that reports a test suite gated on a misspelt feature. Code that needs an unknown cfg name declares it in check-cfg values, never by allowing the lint"
     rc=1
@@ -675,8 +822,16 @@ gate_plant_clean() {
   mkdir -p "$t/scripts/gates"
   printf '#!/usr/bin/env bash\nscripts/gates/probe-suite-census.sh --check-executed < "$ran"\n' \
     > "$t/$SWEEP_SCRIPT"
+  # THE VIEW'S OWN NEGATIVE CONTROL, in the clean fixture because a
+  # count that grew here would fire the disposition half on a file with
+  # no gate. The census keeps STRING LITERALS — its needle contains one
+  # — so the thing to prove is that a literal SPELLING the attribute is
+  # not a gate. It cannot be one: Rust escapes the inner quotes, and
+  # `feature = \"probe\"` is not `feature = "probe"`. A raw literal is
+  # the one that would count, and the header says so.
   mkdir -p "$t/crates/plain/tests"
-  printf '// mentions feature = "probe" in prose only\n' > "$t/crates/plain/tests/all.rs"
+  printf 'fn t() { let _ = "#![cfg(feature = \\"probe\\")]"; }\n' \
+    > "$t/crates/plain/tests/all.rs"
   mkdir -p "$t/.github/workflows"
   {
     printf 'jobs:\n  clippy:\n    steps:\n'
@@ -694,14 +849,85 @@ gate_plant_clean() {
 plant_no_tests_dirs() { rm -rf "$1"/crates/*/tests; }
 # The gate spelling changed under every file at once.
 plant_gate_renamed() { sed -i 's/"probe"/"probe2"/' "$1"/crates/*/tests/*.rs; }
-# ONE file re-gated onto an always-off feature: the per-crate floor is
-# what turns 5 -> 4 into a failure.
-plant_one_file_misgated() { sed -i 's/"probe"/"prboe"/' "$1/crates/topo/tests/probe_0.rs"; }
-# The gate line deleted, the file's PROSE mention of the feature left —
-# the case the substring predicate could not tell from a real gate.
-plant_prose_only() {
-  printf '// this file is #![cfg(feature = "probe")] in spirit\n' \
-    > "$1/crates/geom-brep/tests/probe_0.rs"
+# ONE CRATE's gates re-spelt onto an always-off feature, so its census
+# drops to zero and the per-crate floor is what reports it. Crate-wide
+# and not one file, because most crates are now rostered ABOVE their
+# floor and a single drop there is caught by the ROSTER check
+# (`plant_roster_orphan`) rather than by the floor — the subject here is
+# that a misspelt gate is NOT COUNTED, and the floor is what says so.
+plant_crate_misgated() { sed -i 's/"probe"/"prboe"/' "$1"/crates/topo/tests/*.rs; }
+# EVERY GATE LINE IN ONE CRATE COMMENTED OUT — a real attribute, at
+# column zero, inside a `/* … */`. The anchored predicate this gate
+# carried before it read `code_and_literals` COUNTED these: the line is
+# the attribute and nothing else, which is all that predicate asked. So
+# the suites were gone and the census said they were there, which is
+# the silent direction. It replaces the prose plant it grew out of: a
+# mention in prose is refused twice over now (comment-stripped, and not
+# the attribute form), while this one is refused only by the reader.
+plant_gates_commented_out() {
+  local f
+  for f in "$1"/crates/geom-brep/tests/*.rs; do
+    printf '/*\n#![cfg(feature = "probe")]\n*/\n' > "$f"
+  done
+}
+
+# THE SAME THING ONE NESTING DEEPER, which is a fixture for the READER
+# rather than for this predicate: the block that hides the gate line
+# contains a block of its own, so a reader that ends a comment at the
+# FIRST `*/` puts the attribute back into the code view and censuses a
+# suite that is commented out. Rust nests block comments; so does the
+# shared reader, and this is what holds it there.
+plant_gates_in_a_nested_block_comment() {
+  local f
+  for f in "$1"/crates/geom-brep/tests/*.rs; do
+    printf '/* outer /* inner */\n#![cfg(feature = "probe")]\n*/\n' > "$f"
+  done
+}
+
+# AND THE SHAPE A NESTED COMMENT IS ACTUALLY WRITTEN IN: the inner one
+# spans lines. A depth counter that only counts an opener when a closer
+# sits on the SAME line leaves the depth at one here, so the third
+# line's `*/` ends the outer comment and the attribute below it is code
+# again. Both shapes are planted because passing the one-line one is no
+# evidence about this one — that is exactly the state this reader was in.
+plant_gates_in_a_multiline_nested_block_comment() {
+  local f
+  for f in "$1"/crates/geom-brep/tests/*.rs; do
+    printf '/* outer\n/* inner\n*/\n#![cfg(feature = "probe")]\n*/\nfn a() {}\n' > "$f"
+  done
+}
+
+# THE PROSE MENTION, in a line comment — the control that says the `//`
+# strip is load-bearing here and not merely present. Without it this
+# file's own description of a gate reads as the gate, which is the
+# substring predicate's original mistake reached by a different route.
+plant_gate_only_in_a_line_comment() {
+  local f
+  for f in "$1"/crates/geom-brep/tests/*.rs; do
+    printf '// this file is #![cfg(feature = "probe")] in spirit\n' > "$f"
+  done
+}
+
+# THE PRICE THE ANCHORS USED TO CHARGE, now a passing case: a gate line
+# with a TRAILING COMMENT is a gate. The whole-line anchor could not see
+# one, so every suite in this crate would have gone uncounted and its
+# floor would have fired.
+# EVERY gate line in the fixture, both cfg forms, so the case is about
+# the comment and not about which file it landed on: the anchored
+# predicate would have censused nothing at all.
+#
+# AND ONE TRAILING COMMENT THAT SPELLS THE OTHER CFG FORM, because the
+# rest of this plant passes whether the comment is stripped or not — an
+# unanchored needle finds the attribute either way, so it is no evidence
+# about the strip. The item-gated suite's comment names the WHOLE-FILE
+# spelling: read as text, this file is wholly gated and owes the blanket
+# sentence it does not carry, so the disposition half fires. Only the
+# strip makes it the item-gated file it is.
+plant_gates_with_trailing_comments() {
+  sed -E -i 's|^(#!?\[cfg\(.*\)\])$|\1 // the k-stats probe lands here|' \
+    "$1"/crates/*/tests/*.rs
+  printf '//! %s\n#[cfg(feature = "probe")] // one item, not the whole-file #![cfg(feature = "probe")]\n#[test]\nfn gated() {}\n#[test]\nfn ungated() {}\n' \
+    "$ITEM_NOT_RUN_MARKER" > "$1/crates/itemgated/tests/probe_item.rs"
 }
 plant_citation_dropped() { printf 'no longer cites it\n' > "$1/${CITING_FILES[1]}"; }
 plant_citing_file_gone() { rm -f "$1/${CITING_FILES[2]}"; }
@@ -716,7 +942,7 @@ plant_undeclared_citation() {
 # the NEGATIVE CONTROL for the case above.
 plant_exempt_citation() {
   mkdir -p "$1/docs/prompts"
-  printf 'On 2026-08-20 CI ran %s.\n' "$CITED_STEP" > "$1/docs/SMELL-SCAN-2026-08.md"
+  printf 'On 2026-08-20 CI ran %s.\n' "$CITED_STEP" > "$1/docs/zz-dated-scan.md"
   printf 'A brief quoting %s.\n' "$CITED_STEP" > "$1/docs/prompts/zz-new-brief.md"
 }
 # A NEW probe suite with no declared disposition: the state every unrun
@@ -768,6 +994,29 @@ plant_disposition_not_a_doc_comment() {
     > "$1/crates/topo/tests/probe_0.rs"
 }
 plant_step_renamed() { printf 'jobs: {}\n' > "$1/.github/workflows/ci.yml"; }
+# THE PRODUCER OF THE EXECUTED-SET FLOOR, GONE. Distinct from a sweep
+# that stopped calling `--check-executed`: there the wiring is false and
+# here there is no file to read, and the second is what a moved or
+# renamed script looks like.
+plant_sweep_gone() { rm -f "$1/$SWEEP_SCRIPT"; }
+# AND THE FILE BOTH CI-FACING CHECKS READ. A census whose ci.yml is not
+# there cannot decide the clippy row that turns a misspelt gate into an
+# error, and undecided is not clean.
+plant_ci_yml_gone() { rm -f "$1/.github/workflows/ci.yml"; }
+# A PROBE SUITE NESTED UNDER tests/. The module a `--list` listing names
+# is the file stem alone, so a nested suite cannot be matched against one
+# — the gate refuses it rather than reporting it missing. Reached only in
+# the modes that derive module names, which is why the case runs there.
+plant_nested_suite() {
+  mkdir -p "$1/crates/topo/tests/nested"
+  printf '#![cfg(feature = "probe")]\n' > "$1/crates/topo/tests/nested/probe_deep.rs"
+}
+# A TEST PATH WITH A COLON IN IT. The filesystem allows it and the
+# reader's `FILE:LINE:` records cannot survive it, so the gate refuses
+# the tree rather than reporting files under names that are not theirs.
+plant_colon_in_a_test_path() {
+  printf '#![cfg(feature = "probe")]\n' > "$1/crates/topo/tests/probe:9:x.rs"
+}
 # The clippy row loses the flag that promotes `unexpected_cfgs`.
 plant_clippy_undenied() { sed -i 's/ -- -D warnings//' "$1/.github/workflows/ci.yml"; }
 # The lint silenced at the site instead.
@@ -850,6 +1099,52 @@ selftest_hosted_half_is_large() {
   rm -rf "$tmp"
 }
 
+# A MATCHER HANDED A PATTERN THE REAL GREP REJECTS must end the gate
+# with a diagnosis, never in a green. The corruption is an invalid
+# backreference appended to whatever pattern the call carries, through
+# lib.sh's targeted shim, so it reaches this gate's own `-rlE` scan —
+# the silence scan, whose old spelling suppressed the resulting exit 2
+# twice (`2>/dev/null` ate grep's message, `|| true` ate the status)
+# and printed OK over it. Every other grep call passes through, so the
+# gate gets exactly as far as a healthy run before its matcher dies —
+# which is what distinguishes this arm from the stubbed-grep one
+# beside it: that one proves the FIRST matcher cannot die silently,
+# this one proves the LAST cannot either.
+selftest_malformed_pattern() {
+  gate_selftest_with_broken_tool grep 'it is grep saying it could not search' \
+    'case " $* " in *" -rlE "*) exec "$GATE_REAL_TOOL" "$@" -e '\''\9|(?'\'' ;; esac
+exec "$GATE_REAL_TOOL" "$@"'
+}
+
+# THE FLAKE'S OWN SHAPE, FORCED. The roster-listing check once piped the
+# censused-file list into `grep -q`, which exits at its first match; on
+# a list longer than a pipe buffer the producer then takes SIGPIPE and
+# `pipefail` reds the check over content that matched — hosted, that
+# read as a rostered suite "not censused" while the real census in the
+# same run passed. The check now reads a herestring, which has no
+# reader to close; this fixture is what holds it that way: enough
+# LONG-NAMED pad suites that the censused list clears a 64 KiB pipe
+# buffer, with every rostered name sorting before the pad, so the
+# pre-fix spelling loses the race deterministically and the current one
+# must pass.
+selftest_roster_listing_survives_a_long_census() {
+  local tmp out i pad
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  pad=$(printf 'x%.0s' {1..140})
+  mkdir -p "$tmp/crates/zzpad/tests"
+  for ((i = 0; i < 400; i++)); do
+    printf '//! %s\n#![cfg(feature = "probe")]\n' "$FILE_NOT_RUN_MARKER" \
+      > "$tmp/crates/zzpad/tests/probe_pad_$(printf '%03d' "$i")_$pad.rs"
+  done
+  if ! out=$("$0" --root "$tmp" 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate FAILED on a clean fixture whose census is long enough to race the roster-listing check\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+}
+
 # A COMPOUND GATE IS CORRECT, NOT A VIOLATION, and the fixture asserts
 # the census counts it — `sweep`'s floor is 1 over exactly one file, so
 # a predicate with no vocabulary for `all(…)` reds this case.
@@ -926,8 +1221,11 @@ selftest_executed() {
   # THE CALL DROPPED ALTOGETHER.
   executed_case 'never invoked' 'a rostered invocation missing' tail -n +2
   # A SWEEP THAT RECORDED NOTHING looks exactly like a clean one to
-  # anything that only reads rows.
-  executed_case 'is EMPTY' 'an empty tally' head -0
+  # anything that only reads rows. `sed d`, not `head -0`: `head` closes
+  # its input at once, SIGPIPEs the fixture producer, and this harness
+  # then depends on the same closed-reader race the gate itself must not
+  # carry; `sed d` drains its input and emits the same empty tally.
+  executed_case 'is EMPTY' 'an empty tally' sed d
   # AN EXECUTION NOBODY ROSTERED, which is how a roster goes stale.
   executed_case 'does not roster it' 'an execution absent from RUN_FLOOR' \
     sed '$a\plain\ttopo\tprobe_0\t3\t0'
@@ -937,8 +1235,13 @@ selftest_executed() {
   # an `#[ignore]`d test, every rostered count is still met, and the new
   # test is executed by nothing. The default selection reports it as
   # skipped and no `--ignored` invocation accounts for it.
+  # Bumped on the FIRST `plain` row rather than a fixed line number:
+  # the tally is emitted in `RUN_FLOOR` order, so a line number is a
+  # silent dependency on the roster's alphabetical accidents — adding a
+  # suite whose name sorts early moved the `ignored` block over the
+  # planted line and the case stopped planting anything.
   executed_case 'the `--ignored` selection ran' 'an `#[ignore]`d test no selection runs' \
-    awk -F'\t' 'BEGIN{OFS="\t"} $1=="plain" && NR==3 {$5=$5+1} {print}'
+    awk -F'\t' 'BEGIN{OFS="\t"; done=0} $1=="plain" && !done {$5=$5+1; done=1} {print}'
   # AND THE ROW THAT MAKES THE COMPLEMENT KNOWABLE. A suite rostered
   # under `--ignored` alone reports no skipped count at all, so nothing
   # can tell whether its plain tests run.
@@ -964,10 +1267,42 @@ gate_selftest() {
   selftest_listing
   selftest_executed
   selftest_compound_counted
+  selftest_malformed_pattern
+  selftest_roster_listing_survives_a_long_census
+  gate_selftest_without_tool grep "it is grep saying it could not search"
+  # THE READER'S OWN DEATH. The census reads its files through
+  # `lib.sh`'s shared reader, so `awk` is now as load-bearing here as
+  # `grep` is: a reader that cannot run delivers no records, every
+  # matcher below it matches nothing, and an empty census reads exactly
+  # like a tree whose gate spelling changed. This is the fixture that
+  # holds lib.sh's guard on that shut — no other gate reaching the
+  # reader carries one.
+  gate_selftest_without_tool awk "the shared Rust reader exited"
+  # AND THE READER DYING ON THE ONE CALL THAT MATTERS, over a tree with
+  # a real breach planted in it. The shim fails only the
+  # `code_and_literals` call (`KEEPLIT=1`); every other awk in the gate
+  # passes through, so the gate gets exactly as far as a healthy run. The
+  # planted suite declares no disposition, which a live gate fires on —
+  # so this case says the thing the clean tree cannot: the gate reports
+  # the DEAD READER and not the breach, because a reader that died could
+  # not have seen it.
+  gate_selftest_with_broken_tool awk 'the shared Rust reader exited' \
+    'case " $* " in *" KEEPLIT=1 "*) exit 7 ;; esac
+exec "$GATE_REAL_TOOL" "$@"' plant_disposition_undeclared
+  gate_selftest_case 'containing a colon' plant_colon_in_a_test_path
   gate_selftest_case 'scanned nothing' plant_no_tests_dirs
   gate_selftest_case 'no longer matches it' plant_gate_renamed
-  gate_selftest_case 'topo carries 4 probe-gated test suite(s), below the 5' plant_one_file_misgated
-  gate_selftest_case 'geom-brep carries 3 probe-gated test suite(s), below the 4' plant_prose_only
+  gate_selftest_case 'topo carries 0 probe-gated test suite(s), below the 5' plant_crate_misgated
+  gate_selftest_case 'geom-brep carries 0 probe-gated test suite(s), below the 4' \
+    plant_gates_commented_out
+  gate_selftest_case 'geom-brep carries 0 probe-gated test suite(s), below the 4' \
+    plant_gates_in_a_nested_block_comment
+  gate_selftest_case 'geom-brep carries 0 probe-gated test suite(s), below the 4' \
+    plant_gates_in_a_multiline_nested_block_comment
+  gate_selftest_case 'geom-brep carries 0 probe-gated test suite(s), below the 4' \
+    plant_gate_only_in_a_line_comment
+  gate_selftest_passes 'a gate line carrying a trailing comment' \
+    plant_gates_with_trailing_comments
   gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
   gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
   gate_selftest_case 'does not say so' plant_disposition_undeclared
@@ -978,6 +1313,18 @@ gate_selftest() {
   gate_selftest_case 'no such probe-gated file is censused' plant_roster_orphan
   gate_selftest_case 'no longer feeds its executed-set tally' plant_sweep_unwired
   gate_selftest_case 'no longer feeds its executed-set tally' plant_sweep_commented_out
+  gate_selftest_case 'the executed-set floor has no producer' plant_sweep_gone
+  gate_selftest_case 'the clippy row that reports a misspelt cfg gate cannot be checked' \
+    plant_ci_yml_gone
+
+  # THE MODULE-NAME DERIVATION's own refusal, in the mode that reaches
+  # it: the nested-suite diagnosis lives inside the command substitution
+  # that builds `<crate><TAB><module>` rows, which only `--suites` and
+  # `--check-listing` enter. A case in the default mode cannot reach it,
+  # and that is why it had none.
+  GATE_SELFTEST_ARGS=(--suites)
+  gate_selftest_case 'nested under tests/' plant_nested_suite
+  GATE_SELFTEST_ARGS=()
 
   # THE CITATION HALF's cases, selected through ARGV. The old harness
   # ran the gate in a command substitution, and a subshell inherits a
@@ -994,9 +1341,17 @@ gate_selftest() {
   gate_selftest_case 'has no step named' plant_step_renamed
   gate_selftest_case 'neither a live claim' plant_undeclared_citation
   gate_plant_clean_exempt_control
+  # THE MARKER-TO-gate_ok PATH, in the one mode whose scanning matcher
+  # lives inside a process substitution: the completeness scan's status
+  # is invisible to its caller by construction, so only the marker read
+  # at gate_ok can red it. The shim fails just the `-rlF` call; every
+  # predicate before it passes the way a healthy run does.
+  gate_selftest_with_broken_tool grep 'a matcher failed to run during this pass' \
+    'case " $* " in *" -rlF "*) exec "$GATE_REAL_TOOL" -E '\''\9|(?'\'' ;; esac
+exec "$GATE_REAL_TOOL" "$@"'
   GATE_SELFTEST_ARGS=()
 
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, one whose census is long enough to race the roster-listing check, a compound gate, a complete listing, a tally meeting every rostered execution, and every gate line in the tree carrying a TRAILING COMMENT (which the whole-line anchor this predicate used to need could not see); fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another COMMENTED OUT inside a `/* */` block (which that anchor counted), inside a NESTED one (which a reader ending a comment at the first `*/` counts), inside a nested one whose inner comment SPANS LINES (which a reader counting depth per line counts) and in a `//` line comment (the prose mention this predicate has refused since it stopped being a substring), a test path carrying a colon (which the reader'"'"'s `FILE:LINE:` records cannot survive), a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, a sweep that stopped feeding --check-executed or commented the call out, a sweep script that is not there at all, a ci.yml that is not there at all, and — in --suites mode, the only one that derives module names — a probe suite nested under tests/, whose module a listing cannot name, and — matcher-death, both ends — on grep vanishing out from under the gate, on awk vanishing with it (the shared reader is this census'"'"'s first matcher now), on the reader alone dying over a tree carrying a planted breach it therefore never saw, and on the real grep rejecting a live matcher'"'"'s pattern (an invalid backreference riding the -rlE scan), each ending in a diagnosis rather than a green — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, on its completeness scan dying inside its process substitution (the marker path through gate_ok), while PASSING the same citation in a declared-history file\n' "$(gate_name)"
 }
 
 # The negative control for the completeness check: the same planted

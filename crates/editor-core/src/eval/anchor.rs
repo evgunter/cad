@@ -30,7 +30,7 @@
 //! the offset, and the bulge sign pins the orientation parity (which
 //! positions alone cannot decide at n = 2 — see `derive_naming`).
 
-use profile::{Profile, ProfileLoop, RawLoop, ValidatedProfile};
+use profile::{Profile, ProfileLoop, ValidatedProfile};
 
 use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName};
 
@@ -109,19 +109,40 @@ pub struct ProfileValue<T: geom_core::Real> {
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed
-/// loops assembled into a `Profile<f64>` plus the derived naming
-/// anchor. Computed in `eval_node`'s resolution stage, OUTSIDE the
-/// node's verdict-log bracket — replay and the f64 validation are C6
-/// STRUCTURE SELECTION (the v1 substrate's stored bits, one
-/// derivation earlier), not per-lane op decisions, so they do not
-/// enter the node's logged verdicts; the lane's own `validate` (the
-/// op) remains the logged surface, exactly as before the switch.
+/// loops assembled into a `Profile<f64>`, its validated form, and the
+/// derived naming anchor. Computed in `eval_node`'s resolution stage,
+/// inside the node's verdict frame: replay and the f64 validation are
+/// C6 STRUCTURE SELECTION (the v1 substrate's stored bits, one
+/// derivation earlier), decided once on the node's behalf and logged
+/// as the node's own. Under the pinned lift the op's value is
+/// [`ProfilePre::validated_f64`] lifted, and the op decides nothing;
+/// under the guided lift the op's own validation follows in the log.
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePre {
-    /// The replayed profile at f64 (program order).
+    /// The replayed profile at f64 (program order). Its `plane` is the
+    /// 2-D record's assembly frame: [`ProfilePre::placement_f64`]
+    /// where there is one, the conventional `SketchPlane::xy()` where
+    /// there is not — validation is 2-D and the naming anchor is
+    /// loop-derived, so no decision reads it. What a consumer PLACES
+    /// with is `placement_f64`, never this field's plane.
     pub profile_f64: Profile<f64>,
+    /// [`ProfilePre::profile_f64`]'s canonical form, minted by the
+    /// pre-pass's one validation. Its plane is `profile_f64`'s
+    /// assembly frame, with the same caveat: a consumer places with
+    /// `placement_f64` (or the lane's derived frame), never with it.
+    pub validated_f64: ValidatedProfile<f64>,
+    /// The profile's `f64` placement, where the profile HAS one: an
+    /// authored frame's document read, or a section's lane read pinned
+    /// to `f64`. `None` for a profile on a derived frame (DM1c), whose
+    /// only placement is the lane's — the invariant carried in the
+    /// type rather than by a placeholder a reader could mistake for a
+    /// placement.
+    pub placement_f64: Option<profile::SketchPlane<f64>>,
     /// The canonical→program naming anchor.
     pub naming: ProfileNaming,
+    /// The discrete decisions this f64 pass made — the witness the
+    /// lift's second pass consumes and re-verifies at its own scalar.
+    pub structure: profile::ProfileStructure,
 }
 
 /// Derives the anchor by bit-matching the canonical f64 loops against
@@ -221,40 +242,24 @@ pub(crate) fn derive_naming(
     Some(ProfileNaming { loops: anchors })
 }
 
-/// Embeds a stored exact-`f64` profile into any evaluation scalar (the
-/// retired payload's `embed`, now a free function; the `from_f64`
-/// embedding the parameter environment uses).
-pub fn embed_profile<T: geom_core::Real>(p: &Profile<f64>) -> Profile<T> {
-    let v = |w: geom_core::Vec3<f64>| {
-        geom_core::Vec3::new(T::from_f64(w.x), T::from_f64(w.y), T::from_f64(w.z))
-    };
-    let a = &p.plane.placement;
-    let placement = geom_core::Affine3::from_parts(
-        geom_core::Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
-        v(a.translation),
-    );
-    let loops = p
-        .loops
-        .iter()
-        .map(|lp| {
-            ProfileLoop::new(
-                lp.vertices()
-                    .iter()
-                    .map(|vx| {
-                        profile::ProfileVertex::new(
-                            geom_core::Point2::new(
-                                T::from_f64(vx.pos().x),
-                                T::from_f64(vx.pos().y),
-                            ),
-                            T::from_f64(vx.bulge()),
-                        )
-                    })
-                    .collect(),
-            )
-            .with_tangent_joints(lp.tangent_joints().to_vec())
-        })
-        .collect();
-    Profile::new(profile::SketchPlane::new(placement), loops)
+/// The fallible per-coordinate walk over a placement: every one of the
+/// twelve components through `f`, the three columns and the
+/// translation kept in their places, the first refusal returned. Its
+/// infallible direction is the kernel's [`geom_core::Affine3::map`]
+/// (and [`profile::SketchPlane::map`] over the type that carries a
+/// frame); this walk exists only because the kernel offers no
+/// fallible one, and it has one caller, the lane → `f64` crossing in
+/// [`super::wire::pinned_plane`], where a component refuses by the
+/// scalar's type.
+pub(crate) fn map_affine<A: geom_core::Real, B: geom_core::Real, E>(
+    a: &geom_core::Affine3<A>,
+    f: impl Fn(A) -> Result<B, E>,
+) -> Result<geom_core::Affine3<B>, E> {
+    let v = |w: geom_core::Vec3<A>| Ok(geom_core::Vec3::new(f(w.x)?, f(w.y)?, f(w.z)?));
+    Ok(geom_core::Affine3::from_parts(
+        geom_core::Mat3::from_cols(v(a.linear.c0)?, v(a.linear.c1)?, v(a.linear.c2)?),
+        v(a.translation)?,
+    ))
 }
 
 /// Rewrites one profile ref canonical → program.
@@ -312,6 +317,7 @@ fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
         R::OutputBody
         | R::Cap(..)
         | R::RevolveCap(..)
+        | R::FromMember { .. }
         | R::FromA(..)
         | R::FromB(..)
         | R::Seam { .. }
@@ -335,6 +341,9 @@ fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
         | R::BandCross(..)
         | R::BandCut(..)
         | R::BandSlit(..)
+        | R::Inner(..)
+        | R::Rim(..)
+        | R::HoleRim { .. }
         | R::InPart { .. }
         | R::Instance { .. } => seg,
     }
@@ -367,4 +376,67 @@ pub(crate) fn remap_table(table: &NameTable, naming: &ProfileNaming) -> Option<N
         }
     }
     Some(out)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod map_affine_probe {
+    use super::map_affine;
+    use geom_core::{Affine3, Dual64, Point3, Real, Vec3};
+
+    /// The twelve components in a fixed order, so a transposition
+    /// between two walks cannot hide.
+    fn bits<T: Real>(a: &Affine3<T>, f: impl Fn(T) -> u64) -> [u64; 12] {
+        let (l, t) = (a.linear, a.translation);
+        [
+            f(l.c0.x),
+            f(l.c0.y),
+            f(l.c0.z),
+            f(l.c1.x),
+            f(l.c1.y),
+            f(l.c1.z),
+            f(l.c2.x),
+            f(l.c2.y),
+            f(l.c2.z),
+            f(t.x),
+            f(t.y),
+            f(t.z),
+        ]
+    }
+
+    /// `map_affine` with an `f` that never refuses IS `Affine3::map`:
+    /// the same twelve components in the same places. Goes red if
+    /// either walk ever transposes a column or drops the translation,
+    /// and pins the round trip through the fallible direction.
+    #[test]
+    fn map_affine_is_affine3_map_when_f_never_refuses() {
+        let a = Affine3::from_frame(
+            Point3::new(10.0, 11.0, 12.0),
+            Vec3::new(1.0, 2.0, 3.0),
+            Vec3::new(4.0, 5.5, -6.0),
+        );
+        let door: Affine3<Dual64> = a.map(Dual64::from_f64);
+        let walk: Affine3<Dual64> = map_affine(&a, |x| {
+            Ok::<Dual64, core::convert::Infallible>(Dual64::from_f64(x))
+        })
+        .unwrap_or_else(|never| match never {});
+        let value = |x: Dual64| x.value.to_bits();
+        let deriv = |x: Dual64| x.deriv.to_bits();
+        assert_eq!(bits(&door, value), bits(&walk, value));
+        assert_eq!(bits(&door, deriv), bits(&walk, deriv));
+        assert_eq!(
+            bits(&door, value),
+            bits(&a, f64::to_bits),
+            "the lift is exact"
+        );
+        let back: Affine3<f64> = map_affine(&walk, |x| {
+            if x.deriv.to_bits() == 0.0_f64.to_bits() {
+                Ok(x.value)
+            } else {
+                Err(())
+            }
+        })
+        .expect("constants pin");
+        assert_eq!(bits(&back, f64::to_bits), bits(&a, f64::to_bits));
+    }
 }

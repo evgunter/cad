@@ -10,21 +10,20 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::Vec2;
-use pncad::prelude::{Open, Start, Via};
+use pncad::prelude::{Open, Start, Via, query};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::chamfer::chamfer_edges;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{p2, validated};
+use pncad::authoring::{p2, polygon, v2, validated};
 use pncad::geom_core::Tol;
 
 fn axis_y<S: Scalar>() -> RevolveAxis<S> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(S::from_f64(0.0), S::from_f64(1.0)),
+        dir: v2(0.0, 1.0),
     }
 }
 
@@ -97,11 +96,11 @@ pub fn bracket<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
 
 /// Rectangular plate with two circular holes: a genus-2 extrusion.
 pub fn plate<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
-    // Outer rectangle algebra-authored at LIB-U2 PR-2, the hole circles
-    // at LIB-G1 (see `circle`) — per-loop wholesale, never mixed within
-    // a loop.
+    // Per-loop wholesale, never mixed within a loop: the outer
+    // rectangle through the polygon door, the hole circles through
+    // `circle`.
     let outer =
-        crate::paths::path_polygon(&[(-3.0, -1.5), (3.0, -1.5), (3.0, 1.5), (-3.0, 1.5)], tol);
+        polygon(&[(-3.0, -1.5), (3.0, -1.5), (3.0, 1.5), (-3.0, 1.5)], tol).expect("plate outline");
     let holes = vec![circle(-1.5, 0.0, 0.7, tol), circle(1.5, 0.0, 0.7, tol)];
     let mut loops = vec![outer];
     loops.extend(holes);
@@ -261,8 +260,7 @@ pub fn sheave<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
 /// annular rims, and four cylinder bands. A more interesting partial
 /// revolve than the old plain rectangle, still boolean-free.
 pub fn chute<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
-    // C-channel polygon: algebra-authored (LIB-U2 PR-2).
-    let lp = crate::paths::path_polygon(
+    let lp = polygon(
         &[
             (1.0, 0.0),
             (1.75, 0.0),
@@ -274,7 +272,8 @@ pub fn chute<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
             (1.0, 0.625),
         ],
         tol,
-    );
+    )
+    .expect("the C-channel section");
     let body: pncad::topo::Body<S> = revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
         axis_y(),
@@ -340,14 +339,19 @@ fn stop(
 /// triangles, every face a plane — the exact analytic case, no fitted
 /// band anywhere on the part.
 ///
-/// **The friction this scene records** (demo-purpose rule): there is
-/// no whole-body edge selector on the PLAIN body API, so "break every
-/// edge" is spelled by enumerating the arena's own edge keys. The
-/// document layer has the door (`Node::fillet`'s `all_edges`
-/// materializer, which `diefillet` uses); the kernel-level verb does
-/// not, because there is no `Node::chamfer` yet to reach it through.
-/// A consumer wanting a chamfer in a RECIPE — with names, with a
-/// rebuild — cannot have one today.
+/// **The friction this scene records** (demo-purpose rule): the
+/// kernel verb takes arena KEYS, so a document's own selection cannot
+/// be handed to it — `diechamfer` prices that one. "Every edge of it"
+/// is no longer a friction on either seat: `query::all_edges` says it
+/// at the body door (this scene), `all_edges` over an evaluation says
+/// it at the document door (`diefillet`).
+///
+/// `Node::Chamfer` exists (LIB-G16), so a consumer wanting a chamfer
+/// in a recipe — with names, with a rebuild — has one, and says this
+/// part as `Node::chamfer` over `all_edges`. This scene deliberately
+/// stays on the plain-body API, because that is the seat it is
+/// evidence about: what it measures is what the kernel verb costs a
+/// caller who has a body and no document.
 pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     let (x, y, z) = (4.0, 2.4, 1.0);
     let setback = 0.15;
@@ -369,21 +373,15 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     )
     .expect("extrude spacer")
     .body;
-    // "Every edge of it" — spelled the only way the plain-body door
-    // allows (see the note above).
-    let edges: Vec<pncad::topo::EdgeKey> = pad.edges().map(|(k, _)| k).collect();
-    let t = tol.get();
-    let band = pncad::geom_core::Band::new(t.eps, t.k * t.eps).expect("a band from the tolerance");
-    let broken = chamfer_edges(&pad, &edges, S::from_f64(setback), band, tol)
+    // "Every edge of it" — the kernel materializer.
+    let edges = query::all_edges(&pad);
+    let broken = chamfer_edges(&pad, &edges, S::from_f64(setback), tol)
         .expect("every edge of a rectangular pad breaks at 0.15");
     let note = format!(
         "chamfer_edges over the plain body API: {} strips + {} corner patches, every face a \
-         plane. Friction recorded: (1) the plain-body door has no whole-body edge selector, \
-         so `all twelve` is spelled by enumerating arena keys; (2) there is no \
-         `Node::chamfer`, so the verb is unreachable from a recipe; (3) the call wants BOTH \
-         a `Tol` and a `Band`, and the `Band` this scene passes is derived from that same \
-         `Tol` — every caller in the tour writes the same three-line derivation, so the \
-         second argument carries no information the first did not.",
+         plane. `all twelve` is one call on this seat too (`query::all_edges`). Friction \
+         recorded: the kernel verb takes arena KEYS, so a document's own selection cannot \
+         be handed to it — `diechamfer` prices that one.",
         broken.blend_faces.len(),
         broken.corner_faces.len()
     );
@@ -425,7 +423,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket(tol),
             None,
         )),
-        stop(
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
+        // 2026-08-30): `diechamfer` carries the chamfer verb on the
+        // sheet, on a better part and at the SAME setback as
+        // `diefillet`'s radius, so the two panels compare verbs. This
+        // scene's content is not its silhouette but the three
+        // FRICTIONS its note records about the plain-body seat, and a
+        // friction is narration. Standalone render, probe/corpus roles
+        // and the whole note are untouched.
+        off_sheet(stop(
             "spacer",
             "machined spacer with every edge broken (12 flat strips + 8 flat corner patches)",
             "extrude(Distance) -> chamfer_edges(all twelve edges, equal setback)",
@@ -438,8 +444,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             [0.62, 0.66, 0.72],
             spacer_body,
             Some(spacer_note),
-        ),
-        stop(
+        )),
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
+        // 2026-08-30): the genus-2 holed-profile EXTRUDE moves onto
+        // `twopeg`, whose plate Q is authored as one extrude of a
+        // profile with two circular inner loops (it was two boolean
+        // subtracts before this curation). The fact keeps a cell; it
+        // stops costing one of its own.
+        off_sheet(stop(
             "plate",
             "plate with two circular holes — genus 2 (each hole: 2 rings, wall band)",
             "polygon outer + two closed arc-carrier holes -> extrude(Distance)",
@@ -452,8 +464,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             [0.86, 0.51, 0.27],
             plate(tol),
             None,
-        ),
-        stop(
+        )),
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
+        // 2026-08-30): every surface this axis-touching full revolve
+        // shows is on the sheet elsewhere — the teapot's pot IS this
+        // meridian (foot cylinder, one sphere-zone arc, mouth) and the
+        // sheave carries plane + cylinder + cone + torus on one part.
+        off_sheet(stop(
             "vase",
             "solid vase — axis-touching profile, spherical belly zone + conical lip",
             "PATHS algebra (line_to/arc_to Via) -> revolve(axis y, Full); sphere/cone/plane faces",
@@ -466,7 +483,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             [0.42, 0.72, 0.50],
             vase(tol),
             None,
-        ),
+        )),
         stop(
             "sheave",
             "rope-groove sheave — hub, web, TAPERED rim shoulders, semicircular groove: \
@@ -482,7 +499,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             sheave_body,
             Some(sheave_note),
         ),
-        stop(
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
+        // 2026-08-30). `Revolution::Partial` stays legible on the
+        // sheet through klein's tubes and the lily's bud (three
+        // partial revolves of the lantern meridian), so what the cell
+        // uniquely showed was the wedge caps, not the verb. Note the
+        // teapot's handle does NOT cover this: that is
+        // `tube_along_arc`, the parameter door, not a profile revolve.
+        off_sheet(stop(
             "chute",
             "quarter-turn chute — C-channel profile swept 270 degrees; wedge caps, \
              curved trough",
@@ -496,11 +520,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             [0.44, 0.68, 0.78],
             chute_body,
             Some(chute_note),
-        ),
+        )),
     ]
 }
 
-// RE-HOMED (LIB-RETTAIL, Evan's ruling on #413): `finale_fail_loud` —
+// RE-HOMED (LIB-RETTAIL, Ev's ruling on #413): `finale_fail_loud` —
 // the bowtie coda — left the tour. A broken-on-purpose scene is not a
 // use case, and it was the last thing keeping a raw public authoring
 // tier alive. Its fail-loud contract did not evaporate: it is
@@ -561,16 +585,26 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     )
     .expect("revolve bud")
     .body;
-    // The mouth: the one CLOSED latitude rim of radius 0.8. Selected by
-    // the analytically known radius, the way every rim fixture is.
-    let mouth: Vec<pncad::topo::EdgeKey> = body
+    // The mouth: the rim at the analytically known radius 0.8. The
+    // scene names ONE of its arcs — by that radius, the way every rim
+    // is named from outside the kernel — and the query seat hands back
+    // the rim whole, chart seams and all. The radius is read through
+    // `Bounds`, not compared as a scalar: `Scalar` is the recording
+    // lane too, where a bare `<` is not available and would not mean
+    // what it says.
+    // The co-surface exclusion stays in the SEED search, and it is not
+    // decoration here: a sphere's chart seam is a great circle that can
+    // carry a rim's radius exactly, and seeding the door with one asks
+    // it about a seam meridian — which it refuses `CoSurface`, correctly
+    // and unhelpfully. A scene names the arc it means; the door says
+    // what rim that arc belongs to.
+    let surface_of = |he| {
+        let l = body.get_half_edge(he)?.parent_loop;
+        Some(body.get_face(body.get_loop(l)?.face)?.surface)
+    };
+    let seed = body
         .edges()
-        .filter(|(_, e)| {
-            let closed =
-                body.get_half_edge(e.he_plus).map(|h| h.start) == body.half_edge_end(e.he_plus);
-            // The radius is read through `Bounds`, not compared as a
-            // scalar: `Scalar` is the recording lane too, where a bare
-            // `<` is not available and would not mean what it says.
+        .find(|(_, e)| {
             let r = body
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
@@ -578,18 +612,17 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
                     pncad::geom::Curve3::Circle { radius, .. } => Some(radius),
                     _ => None,
                 });
-            closed && r.is_some_and(|r| (r - S::from_f64(0.8)).abs().hi() < 1e-9)
+            let two_sided = match (surface_of(e.he_plus), surface_of(e.he_minus)) {
+                (Some(a), Some(b)) => a != b,
+                _ => false,
+            };
+            two_sided && r.is_some_and(|r| (r - S::from_f64(0.8)).abs().hi() < 1e-9)
         })
         .map(|(k, _)| k)
-        .collect();
+        .expect("the bud carries a mouth arc of radius 0.8");
+    let mouth = query::rim_of(&body, seed).expect("the mouth arc names one whole rim");
     assert_eq!(mouth.len(), 1, "the bud has one mouth rim of radius 0.8");
-    pncad::sweep::fillet::fillet_edges(
-        &body,
-        &mouth,
-        S::from_f64(0.05),
-        pncad::geom_core::Band::linear(tol).expect("the run's band"),
-        tol,
-    )
-    .expect("the sphere-cone mouth rim fillets")
-    .body
+    pncad::sweep::blend::fillet_edges(&body, &mouth, S::from_f64(0.05), tol)
+        .expect("the sphere-cone mouth rim fillets")
+        .body
 }

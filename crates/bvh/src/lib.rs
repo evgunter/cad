@@ -1,16 +1,43 @@
 //! Deterministic AABB bounding-volume hierarchy (C10, PERF-PLAN §2.1).
 //!
-//! One tree, several duties — **one of them wired so far**:
+//! One tree, several duties — **four of them wired so far** (the count
+//! was stale before this crate gained its proximity lane; the bullets
+//! below are the roster, and LIVE/INTENDED is the truth of each):
 //!
 //! - **Boolean edge×face sweep** candidate generation — LIVE since
 //!   M5 PR 8 (`topo::boolean::reduce`).
+//! - **Placement separation** — LIVE (`topo::separation`): the
+//!   pairwise certificate that no two placed copies of a prototype
+//!   can meet.
 //! - **SSI seeding / C3 exhaustiveness subdivision** — INTENDED, not
 //!   yet wired. `geom_brep::ssi::exhaust` still enumerates cells by
 //!   recursive bisection with a linear scan over tubes, and says so
 //!   ("Brute force, deliberately, for now"): this tree swaps in under
 //!   that module's already-merged differential suite when profiling
 //!   asks for it. Nothing in the C3 contract changes when it does.
-//! - **Viewport picking** — INTENDED, blocked on there being a GUI.
+//! - **Clearance candidate pairs at the certified scalar** — LIVE
+//!   (`editor_core::clearance`): [`Bvh::build_bounded`] builds the tree
+//!   over item point clouds read at `T: Bounds`, and [`Bvh::within`] and
+//!   [`Bvh::pairs_within`] answer the proximity queries the E7 clearance
+//!   engine subdivides from. Those three doors are the whole surface the
+//!   engine uses, and the crate ships no other proximity door: a form
+//!   with no consumer is not kept here on the chance one arrives. At
+//!   `T = Interval` an item box encloses every real configuration in the
+//!   analysis leaf's parameter box, so the candidate set is conservative
+//!   over the whole box.
+//!
+//!   **The pruning threshold is the consumer's, and it is not the
+//!   consumer's own decision threshold.** These queries drop a pair when
+//!   [`Aabb::separation_lo`] exceeds the pad, on a raw comparison; a
+//!   consumer whose own answers come from a tolerance band must
+//!   therefore hand a pad that already carries the band, or it will have
+//!   let this crate decide a case its funnel would have called
+//!   indeterminate. `editor_core::clearance` pads by the funnel's
+//!   escalate threshold for exactly that reason.
+//! - **Viewport picking** — LIVE since GUI-1: [`Bvh::ray`], the
+//!   conservative ray-slab query the editor-core hit-test service
+//!   traverses (candidates ordered by conservative entry parameter;
+//!   see the method's contract).
 //!
 //! # The conservative-superset contract (load-bearing)
 //!
@@ -52,8 +79,26 @@
 //!
 //! This crate reads coordinate brackets (`geom_core::Bounds`) as
 //! spatial-index driver code — ratified 2026-07-29, see geom-core
-//! `real.rs`, Bounds scope rule (the CI discipline grep allowlists
-//! exactly these seams).
+//! `real.rs`, Bounds scope rule.
+//!
+//! **`bounds-allowlist.sh` does not watch these reads**: they are SOLE
+//! `T: Bounds` bounds, which is that gate's planted must-not-fire case,
+//! so this crate is in none of its filters and cannot be. What watches
+//! the sole form is `geom-core/tests/bounds_census.rs`, whose roster
+//! carries `Aabb::from_points` with its disposition.
+//!
+//! The gate does see the COMPOUND form here, and `crates/bvh/` is not on
+//! its allowlist, so a `T: Decide + Bounds` in this crate fires today —
+//! the 2026-07-29 amendment names the crate, but a ratification in the
+//! rule is not one in the allowlist.
+//!
+//! **That absence is deliberate, and is not a mismatch to close from
+//! this side.** Its home, with the reason a crate-wide filter is the
+//! wrong repair and the record that the first such red will be FALSE, is
+//! `scripts/gates/bounds-allowlist.sh`'s header, under *"A crate the
+//! rule names is not a filter"*. What is owed when that red lands is a
+//! per-FILE filter, written by the first file here that writes the
+//! compound form — not a ratification, and not an entry for the crate.
 //!
 //! # The SSI-cell seam (wiring deferred, and UNSCHEDULED)
 //!
@@ -69,7 +114,9 @@
 //! subdivision structure, the payloads live beside it.
 
 pub mod aabb;
+pub mod ray;
 pub mod tree;
 
 pub use aabb::{Aabb, Axis};
+pub use ray::{Ray, RayCandidate};
 pub use tree::{Bvh, LEAF_SIZE};

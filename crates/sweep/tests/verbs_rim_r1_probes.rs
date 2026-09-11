@@ -38,23 +38,32 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Surface;
-use geom_core::{Band, Point2, Tol};
+test_utils::gated_to![
+    "crates/sweep/src/blend/",
+    "crates/sweep/src/revolve/",
+    "crates/sweep/src/extrude.rs",
+    "crates/sweep/src/test_support.rs",
+    "crates/geom-core/src/predicate.rs",
+    // The fixtures this suite builds its bodies from: a change there is a
+    // change to what every row here asserts on.
+    "crates/sweep/tests/common/",
+];
+
+use crate::common::approx::band;
+use geom_brep::SurfaceKind;
+use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::battery::{FilletRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{ChainClosure, Convexity, FilletError};
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, ChainClosure, Convexity};
 use sweep::test_support::{cube, revolved_about_y};
 use test_utils::fuzz;
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -66,35 +75,26 @@ fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
 
-/// The surface kind on each side of an edge, plus whether the edge is
-/// closed (start vertex == end vertex).
-fn edge_sides(body: &Body<f64>, edge: EdgeKey) -> (Surface<f64>, Surface<f64>, bool) {
+/// Whether an edge is closed: its `he_plus` returns to its own start.
+fn closed_edge(body: &Body<f64>, edge: EdgeKey) -> bool {
     let e = body.get_edge(edge).unwrap();
-    let surf = |he| {
-        let l = body.get_half_edge(he).unwrap().parent_loop;
-        let f = body.get_loop(l).unwrap().face;
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
-    let start = body.get_half_edge(e.he_plus).unwrap().start;
-    let end = body.half_edge_end(e.he_plus).unwrap();
-    (surf(e.he_plus), surf(e.he_minus), start == end)
+    Some(body.get_half_edge(e.he_plus).unwrap().start) == body.half_edge_end(e.he_plus)
 }
 
 /// Every edge matching a two-sided support predicate and a closedness
 /// requirement.
+/// Every edge of the requested closedness whose two supports have kinds
+/// drawn one from each set — the kernel's own unordered adjacency
+/// predicate, asked at the fixture seat.
 fn find_edges(
     body: &Body<f64>,
     closed: bool,
-    pair: impl Fn(&Surface<f64>, &Surface<f64>) -> bool,
+    a: SurfaceKindSet,
+    b: SurfaceKindSet,
 ) -> Vec<EdgeKey> {
-    body.edges()
-        .map(|(k, _)| k)
-        .filter(|k| {
-            let (a, b, c) = edge_sides(body, *k);
-            c == closed && (pair(&a, &b) || pair(&b, &a))
-        })
+    query::all_edges(body)
+        .into_iter()
+        .filter(|k| closed_edge(body, *k) == closed && query::edge_adjacent_matches(body, *k, a, b))
         .collect()
 }
 
@@ -158,16 +158,8 @@ fn boss(r: f64) -> Body<f64> {
     )
 }
 
-/// The closed plane–sphere rim whose circle carrier has radius
-/// `rim_r` (to 1e-6) — the dome ring carries TWO closed plane–sphere
-/// rims (equator and top edge), so selection is by the analytically
-/// known radius, not by uniqueness.
-fn closed_rim_of_radius(body: &Body<f64>, rim_r: f64) -> EdgeKey {
-    sweep::test_support::closed_plane_sphere_rim(body, rim_r)
-}
-
-fn is_cone_cylinder(a: &Surface<f64>, b: &Surface<f64>) -> bool {
-    matches!(a, Surface::Cone { .. }) && matches!(b, Surface::Cylinder { .. })
+fn just(kind: SurfaceKind) -> SurfaceKindSet {
+    SurfaceKindSet::just(kind)
 }
 
 /// **The reduction property, at the bit level.** On a straight edge
@@ -185,10 +177,10 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
         let body = cube(l, tol());
         let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
         assert_eq!(edges.len(), 12, "a box has twelve edges");
-        let req = FilletRequest {
+        let req = BlendRequest {
             body: &body,
             edges: edges.clone(),
-            radius: 0.1 * l,
+            size: 0.1 * l,
         };
         let verdict = run_battery(&req, band())
             .unwrap_or_else(|e| panic!("a box passes the battery, got {e:?}; {}", fuzz::replay()));
@@ -222,15 +214,20 @@ fn closed_rims_meter_their_diameter_and_never_exceed_arc_length() {
     let mut rng = fuzz::start("rim-r1 closed-rim honesty");
     for _ in 0..fuzz::scaled(4) {
         let r = rng.range(0.7, 1.6);
-        for (body, expect_convexity, rim_r) in [
-            (dome(r), Convexity::Convex, r),
-            (boss(r), Convexity::Concave, r * (3.0f64).sqrt() / 2.0),
+        for (body, expect_convexity, rim_r, rim_y) in [
+            (dome(r), Convexity::Convex, r, 0.0),
+            (
+                boss(r),
+                Convexity::Concave,
+                r * (3.0f64).sqrt() / 2.0,
+                0.5 * r,
+            ),
         ] {
-            let rim = closed_rim_of_radius(&body, rim_r);
-            let req = FilletRequest {
+            let rim = sweep::test_support::one_edge_rim_at(&body, rim_r, rim_y);
+            let req = BlendRequest {
                 body: &body,
                 edges: vec![rim],
-                radius: 0.05 * r,
+                size: 0.05 * r,
             };
             let verdict = run_battery(&req, band()).unwrap_or_else(|e| {
                 panic!(
@@ -279,15 +276,20 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             (Revolution::Partial(sweep), false),
         ] {
             let body = neck_flare(a, rev);
-            let rims = find_edges(&body, closed, is_cone_cylinder);
+            let rims = find_edges(
+                &body,
+                closed,
+                just(SurfaceKind::Cone),
+                just(SurfaceKind::Cylinder),
+            );
             assert!(
                 !rims.is_empty(),
                 "a cone×cylinder corner exists at a = {a}; {}",
                 fuzz::replay()
             );
-            let v = fillet_edges(&body, &rims[..1], 0.05 * a, band(), tol());
+            let v = fillet_edges(&body, &rims[..1], 0.05 * a, tol()).map_err(|r| r.error);
             assert!(
-                !matches!(v, Err(FilletError::TangentialEdge { .. })),
+                !matches!(v, Err(BlendError::TangentialEdge { .. })),
                 "neck {a}, closed = {closed}: a transverse corner is not a tangency, \
                  got {v:?}; {}",
                 fuzz::replay()
@@ -295,7 +297,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             let expected = if closed {
                 v.is_ok()
             } else {
-                matches!(v, Err(FilletError::FilletCornerUnsupported { .. }))
+                matches!(v, Err(BlendError::UnsupportedCorner { .. }))
             };
             assert!(
                 expected,
@@ -323,15 +325,19 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
             ],
             Revolution::Full,
         );
-        let seams = find_edges(&ball, false, |a, b| {
-            matches!(a, Surface::Sphere { .. }) && matches!(b, Surface::Sphere { .. })
-        });
+        let seams = find_edges(
+            &ball,
+            false,
+            just(SurfaceKind::Sphere),
+            just(SurfaceKind::Sphere),
+        );
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
-        match fillet_edges(&ball, &seams[..1], 0.05 * r, band(), tol()) {
-            Err(FilletError::TangentialEdge { margin, .. }) => {
+        match fillet_edges(&ball, &seams[..1], 0.05 * r, tol()).map_err(|r| r.error) {
+            Err(BlendError::TangentialEdge { margin, .. }) => {
+                assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
-                    margin,
-                    0.0,
+                    margin.value(),
+                    Some(0.0),
                     "a co-surface seam's sine is structurally zero; {}",
                     fuzz::replay()
                 );
@@ -354,11 +360,11 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
 #[test]
 fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
     let body = dome(1.0);
-    let rim = closed_rim_of_radius(&body, 1.0);
-    let req = FilletRequest {
+    let rim = sweep::test_support::one_edge_rim_at(&body, 1.0, 0.0);
+    let req = BlendRequest {
         body: &body,
         edges: vec![rim],
-        radius: 0.05,
+        size: 0.05,
     };
     let verdict = run_battery(&req, band()).expect("the dome rim resolves");
     assert_eq!(verdict.chains.len(), 1);
@@ -385,8 +391,8 @@ fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
 #[test]
 fn a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band() {
     let body = dome(1.0);
-    let rims = [closed_rim_of_radius(&body, 1.0)];
-    let out = fillet_edges(&body, &rims[..1], 0.05, band(), tol())
+    let rims = [sweep::test_support::one_edge_rim_at(&body, 1.0, 0.0)];
+    let out = fillet_edges(&body, &rims[..1], 0.05, tol())
         .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one closed rim mints one band");
     assert!(
@@ -422,7 +428,12 @@ fn a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band() {
 fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
     let a = 1.0;
     let body = neck_flare(a, Revolution::Partial(core::f64::consts::TAU - 3.2e-3));
-    let corner = find_edges(&body, false, is_cone_cylinder);
+    let corner = find_edges(
+        &body,
+        false,
+        just(SurfaceKind::Cone),
+        just(SurfaceKind::Cylinder),
+    );
     assert!(!corner.is_empty(), "the near-full-period corner rim exists");
     // The collapsing-regime witness: the requested rim really is the
     // arc whose endpoint chord has collapsed.
@@ -431,13 +442,13 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
         chord < 0.01 * a,
         "the fixture must be in the collapsing regime (endpoint chord {chord})"
     );
-    let v = fillet_edges(&body, &corner[..1], 0.05, band(), tol());
+    let v = fillet_edges(&body, &corner[..1], 0.05, tol()).map_err(|r| r.error);
     assert!(
-        !matches!(v, Err(FilletError::TangentialEdge { .. })),
+        !matches!(v, Err(BlendError::TangentialEdge { .. })),
         "the dihedral must decide at the honest lever, not starve: {v:?}"
     );
     assert!(
-        matches!(v, Err(FilletError::FilletCornerUnsupported { .. })),
+        matches!(v, Err(BlendError::UnsupportedCorner { .. })),
         "expected the decided corner refusal at the honest lever, got {v:?}"
     );
 }

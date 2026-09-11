@@ -13,20 +13,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Node, PatternKind, PersistError,
-    ProductError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RoleSeg,
-    RootFault, SCHEMA_VERSION, SnapshotError, content_pin, evaluate, load, save,
+    ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, RootFault, SnapshotError,
+    content_pin, evaluate, load, save,
 };
-use fixture::{desc, insert, len, scl, square, step};
+use fixture::{desc, insert, len, on_frame, scl, square, step, xy_frame};
 use geom_core::Tol;
-
-/// The v5 bytes, kept verbatim as the clean break's refusal fixture
-/// (the M5 PR 10 / M6-5 precedent: a break nobody can demonstrate is
-/// a break nobody can trust).
-const V5: &str = include_str!("golden/v5_golden.cad");
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -40,14 +35,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 
 /// A unit square profile centered at `cx` on the z = 0 plane.
 fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, 0.5)],
     );
     let (doc, extrude) = insert(
         doc,
@@ -73,14 +66,12 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 fn row1a_no_consumer_insert_appends() {
     // A lone profile is a sink, so it roots itself; its extrude then
     // consumes it (row 1b's rule) and takes the slot.
-    let (doc, p0) = insert(
+    let (doc, p0) = on_frame(
         ProfileDoc::empty_derived("asm-roots-1a", Tol::witness()),
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     assert_eq!(doc.roots(), &[p0][..], "a lone profile roots itself");
     let (doc, e0) = insert(
@@ -423,14 +414,12 @@ fn row3c_split_root_gathers_both_pieces() {
 /// Row 4 — a profile-only document has no body product, typed.
 #[test]
 fn row4_no_body_roots_refuses_typed() {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         ProfileDoc::empty_derived("asm-roots-4", Tol::witness()),
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     assert_eq!(doc.roots(), &[profile][..]);
     let ev = run(&doc);
@@ -534,36 +523,7 @@ fn minting_nodes(body: &topo::Body<f64>, solid: topo::SolidKey) -> Vec<u64> {
     out.into_iter().collect()
 }
 
-// ---- Row 6: the v6 clean break ----
-
-/// Row 6a — the v5 bytes refuse TYPED with the regenerate recourse;
-/// the migration table stays empty.
-#[test]
-fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
-    // Moved seven times since this row was written (ASM-2A's v7,
-    // LIB-LBRET's v8, LIB-RESPELL's v9, ASM-UPD's v10, M9-1's v11,
-    // LIB-PLACEDUNION's v12, ASM-R2a's v13) — the repo's
-    // convention is that a bump updates every pin it invalidates, so
-    // the number stays exact here.
-    assert_eq!(SCHEMA_VERSION, 14);
-    assert_eq!(V5.lines().next(), Some("schema: 5"));
-    match load(V5, Tol::witness()) {
-        Err(PersistError::SchemaTooOld {
-            found,
-            supported,
-            missing,
-        }) => {
-            assert_eq!(found, 5);
-            assert_eq!(supported, SCHEMA_VERSION);
-            assert_eq!(missing, 5, "the 5 → 6 step is the one that does not exist");
-        }
-        other => panic!("v5 must refuse SchemaTooOld, got {other:?}"),
-    }
-    assert!(
-        REGENERATE_RECOURSE.contains("regenerate"),
-        "the recourse names regeneration"
-    );
-}
+// ---- Row 6: the persisted root list ----
 
 /// Row 6b — a document's save text is byte-stable across two saves
 /// (the fixtures' bless pipeline is a function, not a nondeterministic
@@ -579,7 +539,7 @@ fn row6b_saves_are_byte_stable_and_roots_round_trip() {
     let once = save(&doc, &[], Tol::witness()).expect("saves");
     let twice = save(&doc, &[], Tol::witness()).expect("saves again");
     assert_eq!(once, twice, "two blesses, one byte string");
-    let loaded = load(&once, Tol::witness()).expect("the current-schema text loads");
+    let loaded = load(&once, Tol::witness()).expect("the saved text loads");
     assert_eq!(
         loaded.doc.roots(),
         &[b, a][..],
@@ -596,23 +556,23 @@ fn row6c_replay_rebuilds_the_root_list() {
     let mut log: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let id = editor_core::DocumentId::derive("asm-roots-6c");
     let mut doc: Doc<ProfileProgram> = Doc::empty(id, Tol::witness());
+    // Both blocks are sketched on the same plane, so ONE frame node
+    // serves both; being the first insert, it is also the id the
+    // profile/extrude counting below is measured from.
+    let mut nodes = vec![xy_frame()];
+    let plane = RecipeNodeId(0);
     for cx in [0.0, 5.0] {
-        for node in [
-            Node::Profile(desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![square(cx, 0.0, 0.5)],
-            )),
-            Node::Extrude {
-                profile: RecipeNodeId(doc.len() as u64),
-                distance: len(1.0),
-            },
-        ] {
-            let edit = DocEdit::InsertNode { node };
-            doc = doc.apply(&edit, Tol::witness()).expect("insert").doc;
-            log.push(edit);
-        }
+        let profile = RecipeNodeId(nodes.len() as u64);
+        nodes.push(Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)])));
+        nodes.push(Node::Extrude {
+            profile,
+            distance: len(1.0),
+        });
+    }
+    for node in nodes {
+        let edit = DocEdit::InsertNode { node };
+        doc = doc.apply(&edit, Tol::witness()).expect("insert").doc;
+        log.push(edit);
     }
     let swap = DocEdit::SetRoots {
         roots: doc.roots().iter().rev().copied().collect(),

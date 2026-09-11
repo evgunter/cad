@@ -1,0 +1,10 @@
+R2 MUTANT M4 (applied, run once, reverted): the NOT_IN_DOCUMENT roster
+emptied while the document gap remains.
+
+--- a/crates/editor-core/tests/switch_program_vocabulary.rs
++++ b/crates/editor-core/tests/switch_program_vocabulary.rs
+-const NOT_IN_DOCUMENT: &[(Verb, &str)] = &[( Verb::ContinueTo, "..." )];
++const NOT_IN_DOCUMENT: &[(Verb, &str)] = &[]; // R2 MUTANT M4
+
+Result: every_table_verb_is_a_document_program FAILED — "the document
+step vocabulary is short of the transition table: [ContinueTo]".

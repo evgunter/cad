@@ -1,5 +1,7 @@
-//! Sweep operations: solids from validated 2-D profiles (M2 PR 4:
-//! [`fn@extrude`]; PR 5 adds revolve).
+//! Sweep operations: solids from validated 2-D profiles —
+//! [`fn@extrude`], [`fn@revolve`], [`loft_body`], [`sweep_body`] (path
+//! sweep), [`fn@skin`], [`tube_along_arc`], and the blend family
+//! ([`mod@fillet`], [`mod@chamfer`], [`mod@blend`]).
 //!
 //! This crate sits on top of the whole M2 stack: it consumes the
 //! `profile` crate's [`profile::ValidatedProfile`] (the only accepted
@@ -71,19 +73,31 @@
 //!   (mint-time `Intersection` is impossible — the surfaces don't exist
 //!   yet). The choice is `geom_brep::classify_dihedral` at the strut
 //!   midpoint with the strut chord as extent: Transverse ⇒ upgrade;
-//!   Smooth ⇒ the edge keeps its conventional `MappedCurve` description
-//!   (the ratified no-face-merging split, D2); Indeterminate ⇒
+//!   Smooth ⇒ one order down, through the must-carry rule
+//!   ([`geom_brep::tangent_second_order`], M5 PR 9) — jet-determinate
+//!   ⇒ `TangentIntersection`, under-determined ⇒ an image at rest in
+//!   the previous wall's chart (the ratified no-face-merging split,
+//!   D2, which is a CONVENTIONAL description and no longer the
+//!   scaffolding `MappedCurve` the mint left); Indeterminate ⇒
 //!   [`ExtrudeError::SliverJoin`] (escalate-never-guess).
-//! - **Cap–wall rims upgrade too** (the ratified rim decision — Evan,
+//! - **Cap–wall rims upgrade too** (the ratified rim decision — Ev,
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
 //!   (bottom and top, outer and ring loops) re-describes as
 //!   `Intersection { cap plane, side surface, witness }` through the
 //!   same `classify_dihedral` → `set_edge_curve` pattern, with the
 //!   witness minted as the **carrier's mid-parameter point** (the S2
-//!   witness contract). Every rim of a normal extrusion is definitely
-//!   transverse (cap ⊥ wall), matching tier 3's prefer-intrinsic
-//!   enforcement: at rest, definitely-transverse edges must carry
-//!   `Intersection`.
+//!   witness contract). At the shipped ambiguity multiplier K = 10
+//!   every rim of a normal extrusion is definitely transverse, so the
+//!   upgrade is the only arm reached — matching tier 3's
+//!   prefer-intrinsic enforcement, under which definitely-transverse
+//!   edges must carry `Intersection` at rest. It is a fact about the
+//!   run's K rather than a geometric identity, because the wedge's
+//!   lever is the rim CHORD: below `K = √φ ≈ 1.272` a chord the
+//!   profile door admits, times a tilt the direction gates admit,
+//!   reads under ε. A definitely-smooth rim then keeps the
+//!   conventional description — an image at rest in the wall's chart —
+//!   and the body reaches the at-rest gate, which refuses it as
+//!   `SliverDihedral`. Indeterminate is [`ExtrudeError::SliverRim`].
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share
@@ -153,9 +167,10 @@ pub use revolve::{
 pub use geom_brep::SketchSegment;
 pub use profile::{ProfileLoop, ProfileVertex};
 pub use skin::{
-    LoftGeometry, Section, SkinError, lift_surface, loft_geometry, loft_parameters,
-    make_compatible, segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
+    LoftGeometry, Section, SkinError, loft_geometry, loft_parameters, make_compatible,
+    segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
 };
 
+pub mod blend;
 pub mod chamfer;
 pub mod fillet;

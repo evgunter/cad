@@ -27,6 +27,12 @@
 // `m <= 0.0` would let a NaN pass — same posture as the M8-14 suite.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
+test_utils::gated_to![
+    "crates/geom/src/curves/",
+    "crates/geom/src/curves.rs",
+    "crates/geom-core/src/spline/",
+];
+
 use geom::NurbsCurve3;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;

@@ -207,9 +207,14 @@ pub struct BooleanNaming {
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
-    /// Declared-licensed merge groups the output stage SKIPPED as
-    /// outside the never-elide inventory (M4 PR 5): faces + the
-    /// actual refusing diagnostics. The skip is visible HERE — a
+    /// Merge groups the output stage did NOT glue, as outside the
+    /// never-elide inventory (M4 PR 5) — the group's faces plus the
+    /// typed [`MergeCoplanarError`](crate::merge_faces::MergeCoplanarError)
+    /// that stopped each, carried whole. WHICH groups are recorded
+    /// here rather than refusing the whole call is the regime's own
+    /// statement, at
+    /// [`MergeCoplanarOutcome::skipped`](crate::merge_faces::MergeCoplanarOutcome::skipped),
+    /// and is not restated here. The skip is visible HERE — a
     /// consumer can see what was not glued and why; the skipped
     /// faces' in-plane descriptions are re-checked against the
     /// actual adjacency before the result ships (review F1/F2).
@@ -257,7 +262,7 @@ impl<T: Real> BooleanResult<T> {
 /// # Errors
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
-pub fn union<T: Decide + Bounds>(
+pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -277,7 +282,7 @@ pub fn union<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect<T: Decide + Bounds>(
+pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -297,7 +302,7 @@ pub fn intersect<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract<T: Decide + Bounds>(
+pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -318,7 +323,7 @@ pub fn subtract<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn union_with<T: Decide + Bounds>(
+pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -332,7 +337,7 @@ pub fn union_with<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect_with<T: Decide + Bounds>(
+pub fn intersect_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -353,7 +358,7 @@ pub fn intersect_with<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract_with<T: Decide + Bounds>(
+pub fn subtract_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -379,7 +384,7 @@ pub fn subtract_with<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`BooleanError`] — identical to [`union`] and friends.
-pub fn boolean_op_with<T: Decide + Bounds>(
+pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -415,11 +420,23 @@ pub fn boolean_op_with<T: Decide + Bounds>(
     // decided by boxes (`reduce::first_unsupported_pair` — non-overlap
     // is a certificate, overlap is a may). Operands untouched, no
     // reduction work before it.
+    //
+    // **No covered-pair rung here, and the asymmetry is the point.**
+    // The operand gate admits a declared pair because a declaration
+    // supplies the VERDICT a germ arm would have supplied. This roster
+    // is not about verdicts: it names the kinds that have a seam lane
+    // to revert through, and no declaration can supply one. A declared
+    // torus pair under ∖ or ∩ is therefore exactly as refused as an
+    // undeclared one, and says so at the same site.
     if !matches!(op, BooleanOp::Union) {
         let band = Band::linear(tol)?;
-        if let Some(p) =
-            super::reduce::first_unsupported_pair(a, b, band, super::reduce::revert_arm_exists)?
-        {
+        if let Some(p) = super::reduce::first_unsupported_pair(
+            a,
+            b,
+            band,
+            super::reduce::revert_arm_exists,
+            |_, _, _| false,
+        )? {
             return Err(BooleanError::CurvedPairUnsupported {
                 op: Some(op),
                 operand: p.operand,
@@ -437,7 +454,7 @@ pub fn boolean_op_with<T: Decide + Bounds>(
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
 /// is a loud invariant failure rather than a loop.
-fn boolean_op_recut<T: Decide + Bounds>(
+fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -500,7 +517,17 @@ fn boolean_op_recut<T: Decide + Bounds>(
     // (declared union), so undeclared and non-union ops pay nothing.
     let rest_door = op == BooleanOp::Union && !decls.coincident_faces.is_empty();
     let saved = rest_door.then(|| (red.a.clone(), red.b.clone()));
-    let connected = match bool_connect(&mut red, a, b, band, tol) {
+    // The join carves both reduction operands through the Euler
+    // operators; one scope per operand body, and what certifies the
+    // result is `gate` below, over the body they are finished into.
+    // The pair is guardless because the join takes the whole
+    // reduction — `BooleanReduction::enter_join_surgery` carries the
+    // argument — and `red` is a local of this pipeline, so a refusal
+    // on the way drops it.
+    red.enter_join_surgery();
+    let connected = bool_connect(&mut red, a, b, band, tol);
+    red.leave_join_surgery(connected.is_ok());
+    let connected = match connected {
         Ok(c) => c,
         Err(
             err @ (BooleanError::Join(_)
@@ -529,7 +556,14 @@ fn boolean_op_recut<T: Decide + Bounds>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
-    let mut body = fin.body;
+    // The zip, the merge, the re-description and the closing mint are
+    // one door's surgery (`crate::surgery`): the operators inside them
+    // do not each re-derive the whole body, and `gate` below — tier 1
+    // AND tier 2 over the result, on every build — is what this door
+    // pays instead. The guard owns the borrow, so a refusal on the way
+    // closes the scope by dropping it.
+    let mut finished = fin.body;
+    let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
     let mut vertex_merges = Vec::new();
     let mut desc = Descendants::default();
@@ -567,6 +601,8 @@ fn boolean_op_recut<T: Decide + Bounds>(
     // untouched bit-identically.
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
+    body.sweep_and_close();
+    let body = finished;
     gate(&body)?;
     volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&fin.graft);
@@ -759,7 +795,7 @@ pub(super) fn volume_backstop<T: Decide>(
     // ordinary mm-scale operands in the band and switched their bound
     // checks off. The skip zone survives, now meaning sub-resolution
     // thickness — which is what it always claimed to mean.)
-    // The backstops live on the INVARIANT LANE (Evan's #213 layering
+    // The backstops live on the INVARIANT LANE (Ev's #213 layering
     // ruling): consistency inequalities between integral results are
     // outside the length seam by design — no door, bare T — and a
     // certified violation is a kernel invariant failure, not a
@@ -943,14 +979,19 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeGeometry::Intersection { s1, s2, witness },
+                        description: geom_brep::EdgeDescriptionSpec::Intersection {
+                            s1,
+                            s2,
+                            witness,
+                        },
                         carrier: c.carrier().clone(),
                         param_start: t0,
                         param_end: t1,
                     }
                 } else {
                     let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                    spec.description = geom_brep::EdgeGeometry::Intersection { s1, s2, witness };
+                    spec.description =
+                        geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
                     spec
                 };
                 body.set_edge_curve(edge, spec, tol)
@@ -968,24 +1009,26 @@ pub(super) fn describe_minted_edges<T: Decide>(
                 // re-homed its neighbors, or the zip fused it between
                 // new faces). Re-describe conventionally where the
                 // surfaces under-determine the locus (D2's split).
-                let stale = match *body
+                let stale = match body
                     .get_curve_geom(edge_data.curve)
                     .and_then(crate::null::CurveGeom::certified)
                     .ok_or_else(corrupt)?
                     .description()
                 {
-                    geom_brep::EdgeGeometry::Intersection { s1: d1, s2: d2, .. }
-                    | geom_brep::EdgeGeometry::TangentIntersection { s1: d1, s2: d2, .. } => {
-                        !((d1 == s1 && d2 == s2) || (d1 == s2 && d2 == s1))
+                    geom_brep::EdgeDescription::Intersection { s1: d1, s2: d2, .. }
+                    | geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } => {
+                        !((*d1 == s1 && *d2 == s2) || (*d1 == s2 && *d2 == s1))
                     }
-                    geom_brep::EdgeGeometry::Seam { surface } => !(surface == s1 && surface == s2),
-                    // The iso description cites ONE adjacent surface
-                    // (its residual chart); stale iff neither side is
-                    // it (the attach-door adjacency rule, M6-3).
-                    geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
-                        !(surface == s1 || surface == s2)
+                    // A chart image cites ONE adjacent surface (its
+                    // residual chart); stale iff neither side is it
+                    // (the attach-door adjacency rule, M6-3) — except
+                    // a SEAM image, whose two sides are one surface by
+                    // what a seam is.
+                    geom_brep::EdgeDescription::Chart(c) if c.seam => {
+                        !(c.surface == s1 && c.surface == s2)
                     }
-                    geom_brep::EdgeGeometry::MappedCurve(_) => false,
+                    geom_brep::EdgeDescription::Chart(c) => !(c.surface == s1 || c.surface == s2),
+                    geom_brep::EdgeDescription::Scaffold(_) => false,
                 };
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order, exactly as the tier-3
@@ -1036,7 +1079,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     let spec = geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeGeometry::TangentIntersection {
+                        description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
                             s1,
                             s2,
                             witness,
@@ -1052,11 +1095,15 @@ pub(super) fn describe_minted_edges<T: Decide>(
                 } else if stale {
                     if curved {
                         // The conventional re-description for an arc
-                        // the adjacent surfaces under-determine: the
-                        // same pushforward posture as the planar chord
-                        // lane, on the UNCHANGED carrier (no silent
-                        // geometric rewrite — only the description
-                        // moves). Carrier kinds with no conventional
+                        // the adjacent surfaces under-determine, on the
+                        // UNCHANGED carrier (no silent geometric
+                        // rewrite — only the description moves). The
+                        // edge comes to REST here, so it is described
+                        // where it rests — as an image in `s1`'s own
+                        // chart (D3's transience fence) — and the arc
+                        // pushforward that used to BE the description
+                        // is recorded as the authority beside it.
+                        // Carrier kinds with no conventional
                         // pushforward keep the typed refusal.
                         let c = existing.as_ref().ok_or_else(corrupt)?;
                         let (t0, t1) = c.params();
@@ -1068,15 +1115,15 @@ pub(super) fn describe_minted_edges<T: Decide>(
                                        re-description lane exists for this carrier kind)",
                             });
                         };
-                        body.set_edge_curve(edge, spec, tol).map_err(|_| {
-                            BooleanError::JoinDesync {
+                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
+                            .map_err(|_| BooleanError::JoinDesync {
                                 what: "stale arc description failed re-certification",
-                            }
-                        })?;
+                            })?;
                     } else {
                         body.set_edge_curve(
                             edge,
-                            geom_brep::EdgeCurveSpec::line_between(p0, p1),
+                            geom_brep::EdgeCurveSpec::line_between(p0, p1)
+                                .at_rest_in_chart(s1, false),
                             tol,
                         )
                         .map_err(|_| BooleanError::JoinDesync {
@@ -1472,18 +1519,20 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                 continue;
             }
             seen.push(fd.surface);
-            // The group-arm discipline (PR 9c): the extent `center ± r`
-            // is the whole group's, so it is only honest for a CLOSED
-            // group — a trimmed sphere face refuses typed.
-            let Some(representative) = closed_sphere_group(x, face) else {
-                return Err(BooleanError::FallbackExtentUnsupported {
-                    operand: x_is,
-                    face,
-                    what: "a trimmed sphere face group — the extent certificate needs the \
-                           closed-group discipline, and no per-face chart-trim extent \
-                           exists",
-                });
-            };
+            // **Closedness is asked where it is USED, not on arrival.**
+            // The certificate this scan spends is `center ± r`, and for
+            // a TRIMMED group that box over-claims — which is the sound
+            // direction for every SEPARATION test below, because a
+            // trimmed face is a subset of the sphere and a box that
+            // proves the whole sphere clear proves the subset clear.
+            // What genuinely needs the closed group is the plane arm's
+            // ESCAPE conclusion: it reasons about the whole section
+            // circle of the sphere CARRIER, and it hands the result to
+            // a re-chart that rotates the group about its own centre —
+            // neither statement survives trimming. So the refusal lives
+            // at that conclusion, and a trimmed group whose extent
+            // clears everything gets its answer like any other.
+            let group = closed_sphere_group(x, face);
             let ball_box = bvh::Aabb {
                 min_x: center.x.lo() - radius.hi(),
                 min_y: center.y.lo() - radius.hi(),
@@ -1595,12 +1644,37 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             what: "extent scan: contfp met corrupt topology",
                                         }
                                     }
+                                    ContainError::ArcLoopUnsupported { r#loop } => {
+                                        BooleanError::ArcLoopContainmentUnsupported {
+                                            operand: x_is,
+                                            r#loop,
+                                        }
+                                    }
                                 })? {
                                     // The circle misses this face
                                     // (it crosses the carrier plane
                                     // elsewhere).
                                     FaceContainment::Out => {}
                                     FaceContainment::In => {
+                                        // The escape is the one
+                                        // conclusion the closed group
+                                        // is load-bearing for: the
+                                        // whole-circle membership just
+                                        // decided is the CARRIER's, and
+                                        // the re-chart it feeds rotates
+                                        // the group about its centre.
+                                        if group.is_none() {
+                                            return Err(BooleanError::FallbackExtentUnsupported {
+                                                operand: x_is,
+                                                face,
+                                                what: "a TRIMMED sphere face group escapes \
+                                                           through a plane face — the whole \
+                                                           section circle is the carrier's, not \
+                                                           the trimmed face's, and the re-chart \
+                                                           that would follow rotates a closed \
+                                                           group about its own centre",
+                                            });
+                                        }
                                         escape_normals.push(normal);
                                     }
                                     // Boxes cleared yet the witness is
@@ -1622,8 +1696,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // deviation 1, and since M6-2 its blocker is
                         // the unwired JOIN lane alone — the generic
                         // lift and Pcurve::Fitted both landed there.
-                        // Certified boxes prove separation, anything
-                        // closer refuses typed.
+                        // The exact DECLARED-coaxial classification
+                        // does not retire this and the message is
+                        // re-verified rather than moved: this scan asks
+                        // about NEARNESS between two arbitrary trimmed
+                        // faces, which no coaxial section answers, and
+                        // it has no declaration channel to reach one
+                        // through in any case. Certified boxes prove
+                        // separation, anything closer refuses typed.
                         if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,
@@ -1671,9 +1751,13 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             face,
                                             what: "two sphere boundaries meet (neither \
                                                    separated nor strictly nested) — the \
-                                                   sphere×sphere germ arm (a closed-form \
-                                                   Circle) has no join lane in this \
-                                                   build",
+                                                   sphere×sphere section is the exact \
+                                                   closed-form Circle and the germ frame \
+                                                   names it, but the JOIN has no arm for a \
+                                                   curved×curved germ pair: its arc-side \
+                                                   rule needs a chart the pair does not \
+                                                   have, and a crossing found here would \
+                                                   pierce a curved face first",
                                         });
                                     }
                                 }
@@ -1723,7 +1807,11 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                     }
                 }
             }
-            if let Some((&align, rest)) = escape_normals.split_first() {
+            // An escape was recorded, so the group is closed (the arm
+            // above refuses otherwise) and has a representative.
+            if let (Some((&align, rest)), Some(representative)) =
+                (escape_normals.split_first(), group)
+            {
                 // ONE alignment per group (M5 S13 fix pass, review
                 // MAJOR): the re-chart makes every section polar only
                 // when ALL of this group's escape planes share a
@@ -1819,8 +1907,18 @@ fn sphere_extent_scan<T: Decide + Bounds>(
 /// - against a SPHERE face the scan's own sphere arm already refuses
 ///   on reach, and it says so in the sphere's words rather than the
 ///   cylinder's — this gate must not shadow it.
-/// - cone, torus and NURBS partners never reach here: the operand gate
-///   refuses the pair up front.
+/// - cone and NURBS partners never reach here: the operand gate refuses
+///   the pair up front, on the KIND, and nothing can cover them — the
+///   certified carrier inventory has no rung for either, so neither can
+///   survive into a declaration.
+/// - a TORUS partner CAN reach here, and only through a declaration
+///   that covers the pair. The kind roster still refuses it otherwise.
+///   This gate is a cylinder-wall gate and says nothing about a torus
+///   partner either way; what answers a covered torus pair is the
+///   crossing layer's own frontier, typed. The premise this bullet used
+///   to state — that the kind never arrives — stopped being true when
+///   the gate learned to read declarations, and a stale "never reaches
+///   here" is exactly the sentence a later reader would build on.
 ///
 /// **Reach first, kind second** (the scan's cone/torus arm's rule,
 /// kept): the gate costs nothing to a wall whose certified box cannot
@@ -1872,7 +1970,7 @@ fn cylinder_extent_gate<T: Decide + Bounds>(
 /// polar axis lands on the escape normal (the same point set — a
 /// sphere is rotation-invariant about its center — with the seam
 /// meridians now transverse to the escape planes), and grafted back.
-fn apply_recuts<T: Decide + Bounds>(
+fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     a: &Body<T>,
     b: &Body<T>,
     recuts: &[SphereRecut<T>],
@@ -1982,7 +2080,7 @@ fn apply_recuts<T: Decide + Bounds>(
                 }
             }
         }
-        *out = rebuilt.ok_or(corrupt("re-cut produced no body"))?;
+        out.adopt(rebuilt.ok_or(corrupt("re-cut produced no body"))?);
     }
     Ok((out_a, out_b))
 }
@@ -2051,7 +2149,7 @@ fn classify_shells<T: Decide>(
 
 /// The containment fallback (F8): no crossings — classify whole
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
-fn fallback<T: Decide>(
+fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
     op: BooleanOp,
     red: &BooleanReduction<T>,
     a_pristine: &Body<T>,
@@ -2207,7 +2305,7 @@ fn fallback<T: Decide>(
 /// Finishes a single-operand fallback result (the merge output stage
 /// is a documented no-op on a maximal-faced operand but runs anyway —
 /// the contract is uniform), applying ∖'s B-side revert when needed.
-fn finish_fallback<T: Decide>(
+fn finish_fallback<T: Decide + geom_brep::PcurveFittedLane>(
     op: BooleanOp,
     body: Body<T>,
     contacts: &ContactRecords,

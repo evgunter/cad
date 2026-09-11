@@ -88,6 +88,15 @@ gate() {
   # The home must exist — a renamed subject would make this gate green
   # forever (see bit-identity-debug-only.sh's header for the live
   # instance) — and the trees it guards must actually hold sources.
+  #
+  # THE TWO ASK DIFFERENT QUESTIONS, and the gap between them is the
+  # second guard's live route. `gate_require_file` is `[ -f ]`, which
+  # FOLLOWS a symlink; `find … -type f` does not. So a home file that is
+  # a symlink to a real `.rs` outside the scanned trees clears the first
+  # guard and leaves the scan with nothing to read — planted as
+  # `plant_home_symlinked_out_of_the_scan`, where the second guard fires
+  # with its own diagnosis. The predicates are left disagreeing
+  # deliberately; the reasoning is at that planter.
   gate_require_file "$HOME_FILE"
   local files hits
   mapfile -t files < <(find "${SCAN_DIRS[@]}" -type f -name '*.rs' 2>/dev/null | sort)
@@ -96,10 +105,15 @@ gate() {
     gate_error "$(gate_name): no .rs files under ${SCAN_DIRS[*]} in $PWD — the gate scanned nothing, which is not a pass"
     exit 1
   fi
+  # THE HOME'S EXEMPTION IS ONE PATH, by construction rather than by
+  # coincidence: `gate_record_anchor` escapes the path and pins the
+  # `FILE:LINE:` shape. Which paths an anchor missing any of its three
+  # parts would exempt is argued once, in that function's header; the
+  # three planters below are this gate's half of it.
   hits=$(gate_rust_code --window 6 "${files[@]}" \
-    | grep -vE "^$HOME_FILE:" \
-    | grep -E "$PAT_BRANCH|$PAT_ADD|$PAT_ADD_REVERSED" \
-    | cut -c1-140 || true)
+    | gate_grep -vE "$(gate_record_anchor "$HOME_FILE")" \
+    | gate_grep -E "$PAT_BRANCH|$PAT_ADD|$PAT_ADD_REVERSED" \
+    | cut -c1-140)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "a negative-zero flush outside the sanctioned home ($HOME_FILE) — call crate::signed_zero instead of re-deriving it"
@@ -184,6 +198,68 @@ plant_reversed_add() {
     > "$1/crates/step-import/src/adopt.rs"
 }
 
+# THE SUBJECT EXISTING AND THE SUBJECT BEING SCANNABLE ARE TWO
+# QUESTIONS, and only the second one decides anything. `[ -f ]` follows
+# a symlink and `find … -type f` does not, so a home file symlinked to a
+# real `.rs` outside `SCAN_DIRS` passes `gate_require_file` while the
+# scan reads zero files. The gate must refuse, and the refusal it owes
+# is the empty-scan one, not the missing-file one.
+#
+# THE MISMATCH IS NOT REPAIRED, and that is a decision rather than an
+# omission. Giving `find` a `-L` would align the two by widening every
+# scan in this directory to symlink targets outside its own tree — a
+# behaviour change with no instance in this repo, and one that would
+# make this guard dead again. Tightening `gate_require_file` to reject a
+# symlink would align them by making it say "does not exist" about a
+# file that does. Both spellings are correct for the question they ask;
+# what was missing is a fixture proving the scan-side one still fires.
+plant_home_symlinked_out_of_the_scan() {
+  rm -f "$1/$HOME_FILE" "$1/crates/step-import/src/recognize.rs" \
+        "$1/crates/step-import/tests/probe.rs"
+  mkdir -p "$1/vendor"
+  printf 'pub fn plus_zero_scalar(x: f64) -> f64 { x }\n' \
+    > "$1/vendor/signed_zero.rs"
+  ln -s "$1/vendor/signed_zero.rs" "$1/$HOME_FILE"
+}
+
+# ONE PLANTER PER PART OF THE ANCHOR, and each is exempt from an anchor
+# missing THAT part and from no other. Their paths look strange because
+# the reachable set is: the argument for why these three and not the
+# flat `signed_zeroXrs` is at `gate_record_anchor` in `lib.sh`.
+
+# THE ESCAPING. `_` sits where the unescaped `.` reads as any character,
+# and `:9:` satisfies the rest of the anchor, so a raw interpolation
+# exempts this file. It is a colon and a digit rather than any two
+# characters because that leaves the case reading the ESCAPING alone:
+# an anchor that escapes but drops the `[0-9]+` still fires here.
+plant_sibling_the_raw_anchor_exempted() {
+  printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
+    > "$1/crates/step-import/src/signed_zero_rs:9:x.rs"
+}
+
+# THE `^`, which no fixture in this directory held until this one: it
+# could be deleted with every `--selftest` still green, the shared
+# escaping case included, since its four hand-built records all begin at
+# the path. An unanchored skip exempts every path ENDING in the home,
+# and a vendored sub-tree repeating the crate layout is the nearest such
+# path a real tree could grow.
+plant_nested_path_ending_in_the_home() {
+  mkdir -p "$1/crates/step-import/src/crates/step-import/src"
+  printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
+    > "$1/crates/step-import/src/crates/step-import/src/signed_zero.rs"
+}
+
+# THE `[0-9]+`, the half of the boundary a trailing `:` alone does not
+# hold: the home followed by a colon that is NOT a line number. An
+# anchor ending at `:` reads this file's own colon as the record's and
+# exempts it; one that ends at `:[0-9]+:` does not, because `x` is not a
+# line. A path ending in the home plus `.something.rs` would red only
+# when the whole suffix goes, which is why the case is spelled this way.
+plant_colon_after_the_home_that_is_not_a_line_number() {
+  printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
+    > "$1/crates/step-import/src/signed_zero.rs:x.rs"
+}
+
 # A suite is where a copy gets written to avoid touching `src`.
 plant_in_tests() {
   printf 'fn flush(x: f64) -> f64 { x + 0.0 }\n' \
@@ -235,6 +311,11 @@ RS
 
 gate_selftest() {
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   local want="outside the sanctioned home"
   gate_selftest_case "$want" plant_flush_after_a_string_with_slashes
   gate_selftest_case "$want" plant_rustfmt_branch
@@ -243,9 +324,13 @@ gate_selftest() {
   gate_selftest_case "$want" plant_deref_add
   gate_selftest_case "$want" plant_reversed_add
   gate_selftest_case "$want" plant_in_tests
+  gate_selftest_case "$want" plant_sibling_the_raw_anchor_exempted
+  gate_selftest_case "$want" plant_nested_path_ending_in_the_home
+  gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
+  gate_selftest_case "no .rs files under" plant_home_symlinked_out_of_the_scan
   gate_selftest_passes "innocent literals" plant_innocent_literals
   gate_selftest_passes "a comment-only mention" plant_comment_only
-  printf '%s selftest OK: 7 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/, and after a string literal containing `//`); clean fixture, innocent literals and comment-only mentions stay green\n' \
+  printf '%s selftest OK: 10 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/, after a string literal containing `//`, and at the three paths a home skip exempts when its escaping, its `^` or its `[0-9]+` is dropped); clean fixture, innocent literals and comment-only mentions stay green; fires on the empty scan a home file symlinked out of SCAN_DIRS produces, which `[ -f ]` clears and `find -type f` does not; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
     "$(gate_name)"
 }
 

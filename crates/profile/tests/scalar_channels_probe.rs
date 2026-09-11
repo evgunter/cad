@@ -9,17 +9,17 @@
 //! `Dual<f64>` cross-scalar tests stay ungated in `scalar_channels.rs`;
 //! only this file carries the whole-file gate.
 //!
-//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
-//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
-//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
-//! here can go red on a merge and its assertions are evidence for a reader
-//! rather than a gate. By hand:
+//! **CI EXECUTES THIS SUITE.** It is rostered in
+//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
+//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
+//! by `--check-executed`, so every assertion below is a gate and a red here
+//! fails the merge. By hand:
 //! `cargo test -p profile --features probe --test all -- scalar_channels_probe::`.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{annulus, lift, near_tangent_hole, profile, tol};
 use geom_core::Sign;
@@ -54,6 +54,13 @@ fn probe_records_margin_distributions_without_changing_decisions() {
                 assert!(s.margin.abs() > s.band_zero && s.margin.abs() < s.band_escalate);
             }
             SampleOutcome::Invalid => assert!(s.margin.is_nan()),
+            // The symbolic identity tier (ERROR-DESIGN E12) decides
+            // inside `geom_core::Sym`, which this suite never
+            // instantiates: it records at bare `Probe`, so no sample
+            // here can carry that outcome.
+            SampleOutcome::SymbolicZero | SampleOutcome::SignGated | SampleOutcome::Registered => {
+                panic!("no symbolic tier is installed on this path: {s:?}")
+            }
         }
     }
     // The suite's expected predicates all fired.

@@ -1,12 +1,12 @@
 # SELECT-DESIGN: geometric selectors, the detect/declare protocol, and the GQ7 re-homing
 
 Status: **RATIFIED** (design conversation PR #286, 2026-08-09:
-Evan approved the recommendations round 1; GS-Q3 AMENDED round 2 —
+Ev approved the recommendations round 1; GS-Q3 AMENDED round 2 —
 the ruled boundary is FUSION, not arity: `find_flush_candidates ->
 Vec<FlushFinding>` with both `declare(finding)` and
 `declare_all(Vec<FlushFinding>)` acceptable, a fused
 detect-and-declare door forbidden permanently (findings must pass
-through user-visible hands as values); Evan: "sounds good").
+through user-visible hands as values); Ev: "sounds good").
 GS-Q1 (sel_* K-census participation), GS-Q2 (convexity
 reserved-not-built), GS-Q4 (mixed-Tied refuses), GS-Q5 (this doc),
 GS-Q6 (datum-relative position) all as recommended. §1's
@@ -46,15 +46,25 @@ exact-vs-decided reframing signed off.
 **The demand evidence is the fillet-selection alphabet** — the two
 demo filters
 that stayed hand-written against the kernel body because U7 was
-structural-only (`demos/tour/src/diefillet.rs:203-244`), plus the
-flush helper's decision triple (`demos/tour/src/booleans.rs:60-118`):
+structural-only (`demos/tour/src/diefillet.rs:203-244`), plus, in the
+PAST TENSE, the flush helper's own decision triple. This paragraph is
+demand ARCHAEOLOGY: when it was written the tour's helper decided
+coincidence itself, and item 3 below is that hand triple. It has none
+now — `demos/tour/src/booleans.rs`'s helper detects through
+`topo::flush::find_flush_candidates` and declares what it is handed,
+and the deciding is the kernel ladder's (§3(b)) — so the alphabet
+records what the demand WAS, not where the code is:
 
 1. *carrier kind of an edge's curve* ("the straight edges of the
    pipped die" — `matches!(carrier, Curve3::Line{..})`);
 2. *adjacent-surface-kind pair across an edge* ("the plane/sphere
    rims" — face kind on `he_plus`/`he_minus`);
-3. *flush-plane face pairing* (parallel + co/anti-oriented + zero
-   offset — the flush helper's triple, §3's detector);
+3. *cosurface face pairing* (alignment + co/anti-orientation + zero
+   coincidence margin — spelled per carrier kind, and planar in the
+   hand triple this alphabet was read off). It is §3's detector, and
+   it is the one item of the five that BECAME a shipped door rather
+   than staying a demo's decision: `carrier_pair_relation` decides
+   it now, at the seat that verifies declarations;
 4. *convexity* — NOT actually used: the demo's comment says the kind-pair
    test "stands in for concave rim". Demand is inferred, not
    measured.
@@ -148,6 +158,7 @@ GeomPred =                       -- a CONJUNCTION of atoms
 select_where<T: Decide>(
     ev: &Evaluation<T>, node: RecipeNodeId,
     sel: &Selector, geom: &[GeomPred],
+    params: &ParamEnv<T>, tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal>
 ```
 
@@ -201,19 +212,47 @@ bare cosine, `demo_flush_offset` proper `Margin`) are the flagged
 bare-gate family the library version must not replicate. The honest
 library form is three separated pieces:
 
+*(Status, SEAT-3: retired in fact as well as in principle. The
+body-seat detector below gave the demo and test-common declarers a
+library door to call, both hand declarers are gone with their six
+flagged sites, and the fixture-twin disposition recorded in (b) and
+§6 has closed.)*
+
 **(a) Detect — findings, never declarations.**
 
 ```text
+-- the document seat
 find_flush_candidates<T: Decide>(
     ev: &Evaluation<T>, a: RecipeNodeId, b: RecipeNodeId,
-) -> Result<Vec<FlushFinding>, SelectRefusal>
+    tol: Tol,
+) -> Result<Vec<FlushFinding<(StableName, StableName)>>, SelectRefusal>
 
-FlushFinding {
-    pair: (StableName, StableName),   -- names, never keys (G1)
+-- the body seat (SEAT-3), the same finding over the other pair
+topo::flush::find_flush_candidates<T: Decide>(
+    a: &Body<T>, b: &Body<T>, tol: Tol,
+) -> Result<Vec<FlushFinding<(FaceKey, FaceKey)>>, FlushRefusal>
+
+FlushFinding<P> {
+    pair: P,                          -- the SEAT's pair vocabulary
     class: ContactClass,              -- Rest, in v1
     evidence: ...,                    -- the definite margins found
 }
 ```
+
+**The pair field is the seat's vocabulary (amended, SEAT-3):**
+findings are **names at the document door, keys at the body door, one
+verifier under both**. The document detector above answers
+`FlushFinding<(StableName, StableName)>` — names, never keys, which is
+G1 for everything above the kernel line; the kernel's own detector
+(`topo::flush::find_flush_candidates(&Body, &Body, tol)`, the
+producer `BooleanDeclarations` lacked) answers
+`FlushFinding<(FaceKey, FaceKey)>`, because arena keys ARE the body
+seat's vocabulary and a stable name cannot be spelled below G1. This
+does not weaken the anti-twin rule of (b) — it is that rule one layer
+down: both doors enumerate over the SAME per-pair verify rung, so
+neither seat can report a finding the other's verifier would refuse,
+and the type is literally one type over two pair vocabularies rather
+than two types kept in step.
 
 A finding is a REPORT: "this cross-body face pair would verify as
 `Rest` if declared." It glues nothing, changes no topology, and is
@@ -227,15 +266,26 @@ an in-band pair is refused into the result honestly
 **(b) Detector = the C4 verifier run in candidate-generation mode
 (the anti-twin rule).** The detector does NOT get
 its own predicate triple. C4's `Rest` verify table already names
-the ladder (the kind-generalized `oriented_plane_eq` — shipped,
-`topo/src/boolean/plane_eq.rs` — plus sense opposition and overlap);
-the detector enumerates candidate pairs and asks the SAME doors the
-declared rung will later verify with. Consequences: detect-then-
-declare can never disagree with verify-at-use (no twin drift — the
-demo twins' "kept in step BY HAND" comment in `eval/wire.rs` is the
-warning label); the flagged bare-gate family is retired on the
-public path rather than promoted (the demo fixture keeps its twins,
-per LB11 "fixture twins stay put"); and no new ledger rows are
+the ladder (`carrier_eq`, the kind-generalized `oriented_plane_eq` —
+`topo/src/boolean/carrier_eq.rs` — plus sense opposition and
+overlap); the detector enumerates candidate pairs and asks **the
+identical entry point** the declared rung will later verify with:
+one function, `carrier_pair_relation`, in two postures.
+`declared: false` DETECTS — "no one has declared these; would a
+declaration verify?", whose `Undeclared` refusal on a definite-zero
+coincidence margin IS the affirmative answer — and `declared: true`
+VERIFIES. The postures share a traversal, not merely a verdict
+function: the same `data_rungs` walk decides alignment and
+coincidence before either posture's answer is shaped, so a pair the
+detector reports cannot be a declaration the ladder then refuses.
+Consequences: detect-then-declare can never disagree with
+verify-at-use, and there is no second implementation to keep in step
+by hand; the flagged bare-gate family is retired on the
+public path rather than promoted — and, since SEAT-3 gave the body
+seat the same door, retired at the fixtures too: the demo and
+test-common declarers call the library rather than mirroring it, so
+LB11's "fixture twins stay put" has closed rather than been waived;
+and no new ledger rows are
 minted for detection — the interpretation-discipline contract is
 "the detector interprets nothing the verifier doesn't".
 
@@ -264,10 +314,17 @@ contact, matching C4's failure table verbatim. The error message
 renders the finding; the GUI renders the same finding as its
 declare-affordance dialog (§4's one-type rule at work).
 
-**What ships first**: flush/`Rest` planes is the whole v1 detector —
-it is the only demand-evidenced case (the flush helper, the boolean
-test suites,
-the M4 declarer), and `Rest`'s verify ladder is the most mature.
+**The detector's scope is the `Rest` ladder's scope, rung for
+rung** — plane, sphere, cylinder and torus cosurface pairs, which is
+every carrier `carrier_pair_relation` verifies; a face whose kind is
+outside that inventory (cone, NURBS, `Approx`) has no description to
+compare and is honestly no candidate. The scope is not a property of
+the detector at all, which is what keeps detection and declarability
+from parting: a pair that is DECLARABLE is DETECTABLE, so a finding
+is a faithful offer rather than a subset of one. (It shipped
+plane-only at SEAT-3 — the demand-evidenced case, and the door it
+enumerated over was the ladder's planar projection — and SEAT-FW
+pointed it at the ladder itself. No verify table moved either time.)
 `Tangent` and `Fit` findings reuse the same `FlushFinding`/
 `ContactClass` shape when their demand arrives; the type is built
 for that from day one (the `class` field, not a `flush: bool`).
@@ -284,6 +341,18 @@ door re-exports the rest of the vocabulary a rendered refusal needs
 (`CONTACT_RECOURSE`, `FIT_DEFERRAL`, `ContactVerdict`,
 `ContactRefusal`, `DeclaredContact`) so a message quotes the kernel's
 sentence rather than paraphrasing it.
+
+SEAT-3 put the FINDING vocabulary on the same chain and for the same
+reason: `FlushFinding`, `FlushEvidence` and `FlushRung` are defined in
+`topo::flush` beside the detector that produces them, and
+`editor_core::names::flush` re-exports them (its `FlushFinding` is the
+kernel type at this seat's pair vocabulary — the amendment in (a)), so
+every path above is spelled as it was. The kernel doors themselves
+reach the prelude as a MODULE (`pub use topo::flush;`, the `topo::query`
+precedent): all three names — `find_flush_candidates`, `declare`,
+`declare_all` — exist at both seats, answering names from an evaluation
+above and keys from a body below, and a prelude must not make one
+shadow the other.
 
 M9-1 PR-2 closed the gap between (a) and (c): `Node::Declare`'s pairs
 each carry their class, so the class a finding reports is the class
@@ -306,9 +375,26 @@ next step rather than approximated: a detector that reported tangency
 candidates without a locus would be reporting something the verifier
 cannot check.
 
+A CURVED conformal (`Rest`) pair it DOES report, and how that came
+about is worth one paragraph because the shape recurs. The `Rest`
+verify ladder has covered the carrier inventory since M9-3
+(`carrier_pair_relation`: plane, sphere, cylinder, torus), and asked
+in its DETECTOR posture it answers a cylindrical cosurface pair with
+the same "would verify if declared" encoding it answers a flush plane
+pair with. The detector nevertheless enumerated over that door's
+PLANAR projection, so a curved cosurface pair was declarable and not
+detectable — the two halves of one protocol disagreeing about their
+own reach. Closing it was a door swap and nothing else
+(`flush_pair_relation` → `carrier_pair_relation`, the carrier
+verdict and refusal in place of the plane ones, which are type
+aliases of each other): no verify table moved, and the substance was
+the content review the swap forced — both seats' answers grow curved
+findings, and the scenes that assembled curved declarations by hand
+say them through the detector instead.
+
 ## 4. GQ7 re-homing
 
-Per Evan's LB7-note ruling ("a bunch of general-usefulness stuff
+Per Ev's LB7-note ruling ("a bunch of general-usefulness stuff
 got originally mentioned in GUI-DESIGN even though it's more
 broadly applicable" — the GUI becomes a consumer, not the owner):
 
@@ -347,34 +433,18 @@ and from that point the GUI is indistinguishable from a library
 caller. No parallel "GUI selection object", no conversion layer,
 no second staleness story.
 
-## 5. Sequencing and sizing
+## 5. What this design does not depend on
 
-**No SWITCH dependency.** Selectors interrogate EVALUATED bodies
-through the name table; nothing here touches profile representation,
-schema v4, or Expr binding. `Node::Declare` is shipped vocabulary,
-so §3's sugar adds no schema change. The one soft ordering:
-implementation extends `names/select.rs` and `pncad::select`, which
-U7's R2/fix-pass is still churning — start after U7's merge settles
-(days, not units).
+**No representation dependency.** Selectors interrogate EVALUATED
+bodies through the name table; nothing here touches profile
+representation, the persisted schema, or Expr binding.
+`Node::Declare` is shipped vocabulary, so §3's sugar adds no schema
+change.
 
-**Position in the ladder**: parallel with SWITCH-P/E, before U9 —
-U9 (Python bindings) wants this surface bound once, not rebound
-(the same reason U7 preceded it), and the GUI's G3 minimum consumes
-§4's one-type rule. The datum-distance predicate takes an `Expr`
-value; if U8b's unit storage lands first it inherits units for
-free, but a plain `Expr` is correct either way — soft, not a gate.
-
-**Sizing** (house scale): the whole design is **L, staged as two
-PRs / one A/B unit**:
-- PR-1 (**M**): `GeomPred` + `select_where` + Tied/in-band refusals
-  + pncad doors + tour demo rework (the hand-written filters
-  become the acceptance evidence — diefillet's two filters rewrite
-  to one `select_where` call each).
-- PR-2 (**M**): `find_flush_candidates` on the C4 verify ladder +
-  declare sugar + the `UndeclaredContact` menu carrying
-  `FlushFinding` + flush-helper demo rework. (If the verifier needs
-  refactoring to expose candidate-generation mode, PR-2 leans L —
-  the named spec risk.)
+**The datum-distance predicate takes an `Expr` value**, never a bare
+float: a selection rule written against a named document parameter
+is the whole point of the value type. Unit storage rides along
+wherever it exists; a plain `Expr` is correct either way.
 
 ## 6. Out of scope, recorded
 
@@ -386,8 +456,10 @@ PRs / one A/B unit**:
   future S8-ladder site; not v1.
 - **`Tangent`/`Fit` detectors**: the finding type reserves the slot
   (§3); demand decides when.
-- **Fixture twins**: the demo/test declarers stay as they are —
-  LB11's ruling; the ledger rows continue to document them.
+- **Fixture twins**: CLOSED at SEAT-3, not carried. LB11's ruling
+  ("stay put") held while no library door existed to replace them;
+  the body-seat detector is that door, so both declarers and their
+  six flagged sites are gone.
 
 ## 7. Question ledger — the rulings and their grounds
 

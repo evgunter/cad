@@ -31,6 +31,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/topo/src/euler.rs",
+    "crates/topo/src/euler_ring.rs",
+    "crates/topo/src/euler_kill.rs",
+    "crates/topo/src/body.rs",
+    "crates/topo/src/entity.rs",
+    "crates/topo/src/validate.rs",
+    "crates/topo/src/iso.rs",
+    "crates/topo/src/seqgen.rs",
+    "crates/topo/src/fixtures.rs",
+];
+
 use geom_core::Point3;
 
 use crate::body::Body;
@@ -1294,10 +1306,12 @@ fn kef_rejects_a_corrupt_edge_bijection() {
 //    "never a hang; every traversal is bounded" (D9's footnote as
 //    amended by the D2 addendum, which retired the garbage-out half).
 //    These rows also run in debug, where the errors are
-//    precondition-caught. The release side is the
-//    `corrupt input (release profile)` job in .github/workflows/ci.yml,
-//    which greps that job name out of this comment, so a rename is loud
-//    rather than quietly falsifying this sentence.
+//    precondition-caught, on every code-tier run. The release side is the
+//    `corrupt input (release profile)` job, which runs once a night in
+//    .github/workflows/nightly.yml (and on every local gate) rather than
+//    per PR: the argument that a persistence-detector may sit on a cadence
+//    is at the job. It greps that job name out of this comment, so a
+//    rename is loud rather than quietly falsifying this sentence.
 // =====================================================================
 
 #[test]
@@ -1417,7 +1431,9 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
         "mekr_empty_target",
         "mekr_both_empty",
         "kfmrh",
+        "kfmrh_fuse",
         "mfkrh",
+        "movefac",
         "ring_move",
         "split_edge",
         "split_edge_strut",
@@ -1499,7 +1515,9 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Mekr(MekrSite::EmptyTarget { .. }) => "mekr_empty_target",
                 OpChoice::Mekr(MekrSite::BothEmpty { .. }) => "mekr_both_empty",
                 OpChoice::Kfmrh(..) => "kfmrh",
+                OpChoice::KfmrhFuse(..) => "kfmrh_fuse",
                 OpChoice::Mfkrh(_) => "mfkrh",
+                OpChoice::Movefac(_) => "movefac",
                 OpChoice::Kev(_) => "kev",
                 OpChoice::Kef(_) => "kef",
                 OpChoice::Kvfs(_) => "kvfs",

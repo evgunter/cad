@@ -1,4 +1,4 @@
-//! **SMELL-SCAN §S49 — who owns a planar face on a curved solid.**
+//! **Who owns a planar face on a curved solid.**
 //!
 //! The census's cross-solid proximity arm (arm 1) used to skip every
 //! pair of PLANAR faces, justified by a claim about planar-only
@@ -16,10 +16,11 @@
 //! pass examines DECLARED pairs only.
 //!
 //! These rows need a real arc-bounded planar face, so they live here
-//! rather than in `topo`'s own suite. The fixture is #S16's extruded
+//! rather than in `topo`'s own suite. The fixture is the extruded
 //! three-arc cylinder (radius 0.5, three arc edges per cap).
 //!
-//! **§H14's row is here too**, on the same fixtures and for the same
+//! **The containment-deferral row is here too**, on the same fixtures
+//! and for the same
 //! reason: arm 1's v-on-f deferral named the other SOLID where the
 //! finding it suppresses is about the other FACE, and separating the
 //! two needs one solid with several faces reaching the same plane
@@ -34,13 +35,15 @@ use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
+use topo::query;
 use topo::{Body, ContactRecords, EntityId, FaceKey, ValidationError, validate_pseudomanifold};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// The three-arc cylinder of §S16, at `z ∈ [z0, z0 + 1]` and turned
+/// The three-arc cylinder these rows share, at `z ∈ [z0, z0 + 1]` and
+/// turned
 /// by `rot` degrees about its axis: radius 0.5, three ARC edges per
 /// cap, three cap vertices at `rot + {0°, 120°, 240°}`.
 fn cylinder(z0: f64, rot: f64) -> Body<f64> {
@@ -98,14 +101,16 @@ fn is_planar(body: &Body<f64>, f: FaceKey) -> bool {
 /// exactly the two faces in contact, so a row can name the pair it
 /// means instead of accepting any planar refusal.
 fn faces_in_plane(body: &Body<f64>, h: f64) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
-            Some(Surface::Plane { origin, normal, .. }) => {
-                normal.x.abs() < 1e-12 && normal.y.abs() < 1e-12 && (origin.z - h).abs() < 1e-12
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
+    query::all_faces(body)
+        .into_iter()
+        .filter(
+            |&f| match body.get_face(f).and_then(|fd| body.get_surface(fd.surface)) {
+                Some(Surface::Plane { origin, normal, .. }) => {
+                    normal.x.abs() < 1e-12 && normal.y.abs() < 1e-12 && (origin.z - h).abs() < 1e-12
+                }
+                _ => false,
+            },
+        )
         .collect()
 }
 
@@ -231,7 +236,7 @@ fn a_cap_resting_on_a_line_bounded_face_is_examined_too() {
 }
 
 // =====================================================================
-// §H14 — the same defect one deferral over, in the same arm.
+// The same defect one deferral over, in the same arm.
 //
 // Arm 1's v-on-f deferral read `planar_face_bridged(a.face, b.solid)`:
 // a record naming the planar face and ANY vertex of the other SOLID.
@@ -259,7 +264,8 @@ fn face_vertices(body: &Body<f64>, f: FaceKey) -> Vec<topo::VertexKey> {
             // A lone-vertex loop has no cycle to walk. Extruded bodies
             // have none; the skip is a shape requirement of the walk,
             // not a judgement that an empty loop carries nothing —
-            // which is the reading §H14's residue 2 was about.
+            // which is the reading that turns a shape requirement
+            // into a silent skip.
             continue;
         };
         for he in body.loop_cycle(first).unwrap() {
@@ -303,7 +309,8 @@ fn walls_by_vertex(body: &Body<f64>, v: topo::VertexKey) -> (Vec<FaceKey>, Vec<F
                 // A lone-vertex loop has no cycle to walk. Extruded
                 // bodies have none; the skip is a shape requirement of
                 // the walk, not a judgement that an empty loop carries
-                // nothing — the reading §H14's residue 2 was about.
+                // nothing — the reading that turns a shape
+                // requirement into a silent skip.
                 continue;
             };
             for he in body.loop_cycle(first).unwrap() {
@@ -317,7 +324,8 @@ fn walls_by_vertex(body: &Body<f64>, v: topo::VertexKey) -> (Vec<FaceKey>, Vec<F
     (holding, apart)
 }
 
-/// **§H14's regression row.** A three-arc cylinder standing on a
+/// **The containment-deferral regression row.** A three-arc cylinder
+/// standing on a
 /// brick, with ONE of its three rim vertices declared v-on-f on the
 /// brick's top face. The deferral that record earns must cover the
 /// faces at THAT interface and no others.

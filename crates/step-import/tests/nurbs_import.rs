@@ -16,8 +16,8 @@
 //!   body whose volume the kernel cannot compute is not one — so the
 //!   limitation now lands as a typed refusal instead of riding out on
 //!   a shipped body. Same verdict, same recourse text, earlier;
-//!   the class returns to importing when the banked rational-wall
-//!   quadrature lands;
+//!   the class returns to importing when the rational-wall quadrature
+//!   reaches the ambient target on it;
 //! - the **description state**: imported seams carry `IsoCurve`,
 //!   imported cap rims `MappedCurve` — the native loft's own
 //!   description classes, which is what makes one adoption pass a
@@ -35,7 +35,7 @@
 //! anything left to say about the rational one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::import_body;
 use geom_core::Tol;
@@ -121,13 +121,29 @@ fn reverse_data_section(text: &str) -> String {
 /// The honest posture of a rational-wall body's mass properties at the
 /// run's ε (M8-3). The schedule is FIXED (D9) and the target is
 /// `1024·ε`, so `Ok` at one ε and a typed budget refusal at a tighter
-/// one are both correct; nothing else is. `Ok` carries the certified
+/// one are both correct; nothing else is. `Certified` carries the
 /// enclosure — the caller reuses it rather than paying a second
 /// rational quadrature, which is the expensive thing in these rows.
-fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::MassProperties<f64>> {
+///
+/// The two refusing postures stay DISTINCT rather than collapsing into
+/// one "no enclosure": they are different verdicts about the same
+/// schedule, and a row that logged an escalation as a budget refusal
+/// would report a frontier the run never reached.
+#[derive(Debug)]
+enum Posture {
+    /// Bounds returned.
+    Certified(topo::MassProperties<f64>),
+    /// The schedule cannot reach `1024·ε` — typed, with its width (the
+    /// last round's own, or the bound the loop refused on after round 0).
+    Budget,
+    /// The convergence predicate could not be decided in-band.
+    Escalated,
+}
+
+fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
     let target = 1024.0 * geom_core::Tol::witness().get().eps;
     match topo::mass_properties(body, Tol::witness()) {
-        Ok(props) => Some(props),
+        Ok(props) => Posture::Certified(props),
         Err(err) => {
             let topo::MassPropsError::Face { source, .. } = &err else {
                 panic!("{who}: expected a per-face volume refusal, got: {err:?}");
@@ -136,6 +152,7 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
                 geom_brep::props::PropsError::QuadratureBudget {
                     width_len,
                     target_len,
+                    ..
                 } => {
                     assert!(
                         width_len.is_finite() && width_len > target_len,
@@ -146,7 +163,7 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
                         (target_len - target).abs() <= target * 1e-12,
                         "{who}: the refused target must BE 1024·ε: {target_len:e} vs {target:e}"
                     );
-                    None
+                    Posture::Budget
                 }
                 geom_brep::props::PropsError::Escalated { cause } => {
                     assert_eq!(
@@ -154,7 +171,7 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
                         Some("props_quad_converged"),
                         "{who}: only the convergence predicate may escalate here: {cause:?}"
                     );
-                    None
+                    Posture::Escalated
                 }
                 other => panic!("{who}: not an honest quadrature posture: {other:?}"),
             }
@@ -230,24 +247,28 @@ fn arc_loft_natively_computes_its_rational_volume() {
     //
     // WHAT THIS ROW ACTUALLY PAYS, so the next reader does not have to
     // re-measure it: (1) this native quadrature; (2) the at-rest gate
-    // INSIDE `import_step` below, which runs the same
-    // `topo::validate_geometric` and its +V invariant; (3) the
-    // `mass_properties` call on the imported body, which is what
-    // produces the number the bit-identity assertion needs — the gate
-    // computes the same flux but hands nothing back, so the two cannot
-    // be shared without a kernel API change; (4) the gate inside the
-    // reversed-DATA re-import. Four, not one. The FIFTH — a
-    // `mass_properties` on the reordered body — was removed on
-    // 2026-08-22 in favour of a body-identity comparison; see that arm.
+    // INSIDE `import_step` below — the tier-3′ door, which computes
+    // the imported body's enclosure to decide its +V invariant and
+    // hands it back as `StepImport::Solid`'s `enclosure`, so the
+    // bit-identity assertion below reads THAT object and no second
+    // quadrature runs on the imported body; (3) the gate inside the
+    // reversed-DATA re-import. Three, not four and not one. The
+    // fourth — a `mass_properties` on the reordered body — was removed
+    // on 2026-08-22 in favour of a body-identity comparison; see that
+    // arm.
     //
     // Tier 3 consumes exactly this number through its +V invariant, and
     // the sweep suite's
     // `tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion`
     // pins the verdict itself — paying for it twice here would only buy
     // the same quadrature at the same ε.
-    let native_props = rational_props_posture(&native, "native");
+    let posture = rational_props_posture(&native, "native");
+    let native_props = match &posture {
+        Posture::Certified(props) => Some(props),
+        Posture::Budget | Posture::Escalated => None,
+    };
     let certified = native_props.is_some();
-    if let Some(want) = &native_props {
+    if let Some(want) = native_props {
         assert!(
             want.volume > 12.0 && want.volume < 13.0,
             "native arc-loft volume: {}",
@@ -268,7 +289,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             want.volume, want.volume_pad
         );
     } else {
-        println!("M8-3 arc loft @ eps={eps:e}: Budget (the fixed schedule's honest frontier)");
+        println!("M8-3 arc loft @ eps={eps:e}: {posture:?} (the fixed schedule's honest frontier)");
     }
 
     // ---- The ROUND TRIP, which the bank used to block entirely. ----
@@ -279,16 +300,21 @@ fn arc_loft_natively_computes_its_rational_volume() {
     )
     .expect("the writer exports the rational-walled body");
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-        Ok(step_import::StepImport::Solid { body, .. }) => {
+        Ok(step_import::StepImport::Solid {
+            body, enclosure, ..
+        }) => {
             assert!(
                 certified,
                 "an imported Solid means the at-rest gate passed, which means the \
                  quadrature certified — it cannot happen at an ε where the native \
                  body's own flux ran out of schedule"
             );
-            let got = topo::mass_properties(&body, Tol::witness())
-                .expect("imported rational mass properties");
-            let want = native_props.as_ref().expect("the native side certified");
+            // The gate's own enclosure of this body, not a second one:
+            // `import_step` cannot hand back a `Solid` without its
+            // aggregate gate having certified it, and the field IS what
+            // that check decided on.
+            let got = enclosure;
+            let want = native_props.expect("the native side certified");
             // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
             // what soundness needs — two certified enclosures of one
             // solid must intersect — but it is not what actually
@@ -431,7 +457,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 "the RATIONAL patch flux bank is RETIRED — no refusal may name it: {msg}"
             );
             assert!(
-                msg.contains("stalled at a mean boundary displacement"),
+                msg.contains("the certified quadrature enclosure cannot reach the"),
                 "the only surviving refusal is the quadrature budget, with its number: {msg}"
             );
         }
@@ -459,40 +485,69 @@ fn loft_prism_walls_get_distinct_surface_keys() {
     );
 }
 
-/// **The description state, re-pinned at M7-6** (stage-1 promotion).
-/// The four wall–wall seams still adopt as `IsoCurve` — each seam has
-/// at least one stays-NURBS wall beside it, and its carrier
-/// bitwise-matches that wall's boundary column (the native at-rest
-/// preference, undisturbed by the neighbour's promotion). The cap
-/// rims split by wall class: the four rims on the stays-NURBS walls
-/// keep the conventional `MappedCurve` (the Nurbs-adjacency
-/// exemption), while the four rims on the PROMOTED walls become
-/// honest cap-plane × wall-plane `Intersection`s — a strictly
-/// stronger description (certified against both surfaces) that
-/// promotion unlocked; the ruling accepts the divergence and this
-/// row enumerates it.
+/// **The description state, re-pinned at M7-6** (stage-1 promotion),
+/// **re-expressed at PCURVE P-1b over the collapsed taxonomy**.
+///
+/// The three NUMBERS below are unchanged and so is every fact they
+/// state; what changed is that two of the class names they used to
+/// count no longer exist. U2 collapsed `IsoCurve` and `MappedCurve`
+/// into the one conventional form, so counting them would now read
+/// `(8, 0, 4)` — the same body, described the same way, with the
+/// row's whole discriminating power thrown away. **This row therefore
+/// counts the distinction that survived rather than the names that
+/// did not**: which CHART each image is drawn in.
+///
+/// - The four wall–wall seams are images in a **spline wall's** own
+///   chart — each seam has at least one stays-NURBS wall beside it and
+///   its carrier bitwise-matches that wall's boundary column (the
+///   native at-rest preference, undisturbed by the neighbour's
+///   promotion).
+/// - The four rims on the stays-NURBS walls are images in the **cap
+///   PLANE**, which is the analytic side of their own
+///   NURBS-plus-plane pair. Before the collapse these were the
+///   conventional `MappedCurve` rung (the Nurbs-adjacency exemption);
+///   they say the same thing about the same locus, in the chart the
+///   rim actually lies in.
+/// - The four rims on the PROMOTED walls are honest cap-plane ×
+///   wall-plane `Intersection`s — a strictly stronger description
+///   (certified against both surfaces) that promotion unlocked; the
+///   ruling accepts the divergence and this row still enumerates it.
+///
+/// So the split is 4 / 4 / 4 exactly as before, and a regression that
+/// merged the two chart populations would still be caught.
+///
+/// **The principle, because the alternative was available and worse.**
+/// Re-baselining this row to `(8, 0, 4)` would have kept its SHAPE and
+/// thrown away its TEETH: every body in which the cap rims stopped
+/// being described in the cap plane would still read `(8, 0, 4)` and
+/// pass. A re-baseline over a retired taxonomy should re-express what
+/// the row was actually discriminating, not adjust the number until
+/// it matches.
 #[test]
 fn loft_prism_descriptions_land_in_the_native_classes() {
     let (body, _) = import_body("loft_prism");
-    let mut iso = 0;
-    let mut mapped = 0;
+    let mut on_wall_chart = 0;
+    let mut on_cap_plane = 0;
     let mut intersection = 0;
     for (_, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(topo::CurveGeom::Certified(curve)) => match curve.description() {
-                geom_brep::EdgeGeometry::IsoCurve { .. } => iso += 1,
-                geom_brep::EdgeGeometry::MappedCurve(_) => mapped += 1,
-                geom_brep::EdgeGeometry::Intersection { .. } => intersection += 1,
+                geom_brep::EdgeDescription::Chart(chart) => match body.get_surface(chart.surface) {
+                    Some(topo::Surface::Nurbs(_)) => on_wall_chart += 1,
+                    Some(topo::Surface::Plane { .. }) => on_cap_plane += 1,
+                    other => panic!("a chart image on neither wall nor cap: {other:?}"),
+                },
+                geom_brep::EdgeDescription::Intersection { .. } => intersection += 1,
                 other => panic!("unexpected description class on a loft edge: {other:?}"),
             },
             other => panic!("every imported edge is certified, got: {other:?}"),
         }
     }
     assert_eq!(
-        (iso, mapped, intersection),
+        (on_wall_chart, on_cap_plane, intersection),
         (4, 4, 4),
-        "4 wall–wall seams under IsoCurve, 4 stays-NURBS-wall cap rims under \
-         MappedCurve, 4 promoted-wall cap rims under Intersection"
+        "4 wall–wall seams as images in a spline wall's chart, 4 stays-NURBS-wall cap \
+         rims as images in the cap PLANE, 4 promoted-wall cap rims as Intersection"
     );
 }
 
@@ -539,8 +594,11 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     let mut columns: Vec<f64> = body
         .curves()
         .filter_map(|(_, geom)| match geom {
-            topo::CurveGeom::Certified(c) => match *c.description() {
-                geom_brep::EdgeGeometry::IsoCurve { surface, u, .. } if surface == wall => Some(u),
+            topo::CurveGeom::Certified(c) => match c.description() {
+                geom_brep::EdgeDescription::Chart(cc) if cc.surface == wall => match cc.pcurve {
+                    geom_brep::Pcurve::IsoLine { p0, .. } => Some(p0.x),
+                    _ => None,
+                },
                 _ => None,
             },
             _ => None,

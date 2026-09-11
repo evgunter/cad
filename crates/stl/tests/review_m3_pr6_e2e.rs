@@ -19,7 +19,7 @@ use topo::{
     validate_pseudomanifold,
 };
 
-mod common;
+use crate::common;
 use common::brick;
 use geom_core::Tol;
 

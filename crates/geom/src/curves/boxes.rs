@@ -3,17 +3,26 @@
 //! the carrier's true locus over the stated span lies inside it — and
 //! every computation here errs outward only.
 //!
-//! These land now and are consumed later (the planar boolean consumes
-//! only vertex-extent boxes in PR 8); they live HERE, not in the `bvh`
-//! crate, so the tree stays below the geometry crates (PR 7's SSI
-//! subdivision duty inside them must be able to consume it — see
-//! `bvh`'s crate docs) and each constructor sits next to the invariant
-//! it cites.
+//! **Outward is the only sound direction; it is not a free one.** A
+//! wider box is a weaker answer, not a cheaper one: a consumer that
+//! reads non-overlap as its ANSWER loses that answer to width, and
+//! which consumers read a box that way is not visible from here —
+//! `topo` depends on `geom`, not the reverse. So these docs state the
+//! containment contract and stop. What looseness costs is the reading
+//! door's to state, per door, where the doors are.
+//!
+//! They live HERE, not in the `bvh` crate, so the tree stays below the
+//! geometry crate (the SSI subdivision duty inside them must be able
+//! to consume it — see `bvh`'s crate docs) and each constructor sits
+//! next to the invariant it cites. [`conic_arc_aabb`] is the one door
+//! a consumer boxing an edge of unknown conic kind reads; the two kind
+//! doors under it are its arms.
 //!
 //! This is certified-box driver code, a **sole**-bound [`Bounds`] seam
 //! under the 2026-07-29 amendment (geom-core `real.rs`, Bounds scope
-//! rule): every scalar enters as its `[lo(), hi()]` bracket, poison
-//! (NaN) flows to the poison box, which never prunes.
+//! rule): every scalar enters as its `[lo(), hi()]` bracket, and
+//! poison (NaN) flows to the poison box, which overlaps everything —
+//! the honest answer when no cheap superset is known.
 //!
 //! **Not "allowlisted", which is what this said before.** The amendment
 //! ratifies the box constructors to write the COMPOUND `Decide + Bounds`
@@ -27,6 +36,7 @@ use geom_core::{Bounds, Point3};
 
 use crate::curves::Curve3;
 use crate::curves::nurbs::NurbsCurve3;
+use crate::net;
 
 /// A one-dimensional outward bracket: plain `f64` interval arithmetic
 /// where every ring operation widens its result by one ulp per side.
@@ -102,7 +112,8 @@ fn pfold(a: f64, b: f64, f: fn(f64, f64) -> f64) -> f64 {
 /// test below: it absorbs `libm::atan2`'s deviation from the exact
 /// value (observed ≤ 4 ulps in the geom-core census — this is 6+ orders
 /// more) plus the membership arithmetic's own rounding. Slack only ever
-/// *includes* more extrema, so it errs outward (a looser box).
+/// *includes* more extrema, so it errs outward — the sound direction,
+/// and not a free one (module docs).
 const ANGLE_SLOP: f64 = 1e-6;
 
 /// Whether some 2πk-translate of the angle INTERVAL `[phi_lo, phi_hi]`
@@ -126,28 +137,42 @@ fn angle_interval_in_span(phi_lo: f64, phi_hi: f64, lo: f64, hi: f64) -> bool {
 }
 
 /// The extremal-angle INTERVAL of `atan2(v, u)` over the bracket
-/// rectangle `u × v` (fix-pass item 3 — the reviewer's wide-bracket
-/// gap): evaluated on the four corners, which carry the angular
-/// extremes of a convex region not containing the origin (a
-/// supporting ray through the origin touches a polygon at a vertex).
-/// `None` means "no bound" — the rectangle possibly contains the
-/// origin (amplitude sign unknown) or crosses the atan2 branch cut
-/// (the wedge wraps ±π): the caller must include BOTH extrema.
+/// rectangle `u × v`: evaluated on the four corners, which carry the
+/// angular extremes of a convex region not containing the origin (a
+/// supporting ray through the origin touches a polygon at a vertex) —
+/// provided the wedge does not cross `atan2`'s ±π cut, where the
+/// corner angles would read as a full turn. A rectangle touching the
+/// negative `u` axis (`v` straddling zero, `u ≤ 0`) does cross it, so
+/// its corners are read in the frame rotated by π, `atan2(−v, −u)`,
+/// whose cut lies on the positive `u` axis the rectangle is clear of,
+/// and the interval is shifted back by π; the translate-aware span
+/// test downstream reads it like any other. The exact case that
+/// matters is an extremal angle of exactly π — a conic in a tilted
+/// plane has one on the axis its plane's normal tilts along — and
+/// it now yields the point interval `[π, π]` rather than "no bound".
+///
+/// `None` means "no bound": the rectangle possibly contains the
+/// origin, so the amplitude's sign is unknown and the caller must
+/// include BOTH extrema.
 fn extremal_angle_interval(u: Brk, v: Brk) -> Option<(f64, f64)> {
     if u.lo.is_nan() || u.hi.is_nan() || v.lo.is_nan() || v.hi.is_nan() {
         return None; // poison: no exclusion possible
     }
     let u_straddles = u.lo <= 0.0 && u.hi >= 0.0;
     let v_straddles = v.lo <= 0.0 && v.hi >= 0.0;
-    if v_straddles && (u_straddles || u.hi <= 0.0) {
-        // Origin possibly inside, or the wedge crosses the ±π cut.
-        return None;
+    if u_straddles && v_straddles {
+        return None; // origin possibly inside
     }
+    let (sign, shift) = if v_straddles && u.hi <= 0.0 {
+        (-1.0, core::f64::consts::PI)
+    } else {
+        (1.0, 0.0)
+    };
     let corners = [
-        geom_core::Real::atan2(v.lo, u.lo),
-        geom_core::Real::atan2(v.lo, u.hi),
-        geom_core::Real::atan2(v.hi, u.lo),
-        geom_core::Real::atan2(v.hi, u.hi),
+        geom_core::Real::atan2(sign * v.lo, sign * u.lo),
+        geom_core::Real::atan2(sign * v.lo, sign * u.hi),
+        geom_core::Real::atan2(sign * v.hi, sign * u.lo),
+        geom_core::Real::atan2(sign * v.hi, sign * u.hi),
     ];
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
@@ -158,7 +183,7 @@ fn extremal_angle_interval(u: Brk, v: Brk) -> Option<(f64, f64)> {
         lo = lo.min(c);
         hi = hi.max(c);
     }
-    Some((lo, hi))
+    Some((lo + shift, hi + shift))
 }
 
 /// The certified-conservative box of a **circular arc**: the carrier's
@@ -179,7 +204,7 @@ fn extremal_angle_interval(u: Brk, v: Brk) -> Option<(f64, f64)> {
 ///
 /// `None` when `carrier` is not a `Circle` (the caller named the wrong
 /// lane — refuse loudly rather than guess). Poison anywhere yields
-/// poison bounds, which never prune.
+/// poison bounds, which overlap everything.
 pub fn circle_arc_aabb<T: Bounds>(
     carrier: &Curve3<T>,
     theta0: T,
@@ -208,7 +233,11 @@ pub fn circle_arc_aabb<T: Bounds>(
     let vy = az.mul(ux).sub(ax.mul(uz));
     let vz = ax.mul(uy).sub(ay.mul(ux));
 
-    // The slop-widened span (orientation-normalized outward).
+    // The slop-widened span (orientation-normalized outward). On a
+    // DESCENDING run at a wide scalar these are the INNER ends of the
+    // two brackets; the range is still covered because the endpoint
+    // hull above enters both ends as whole brackets — that seed is
+    // load-bearing for span coverage, not a convenience.
     let (s0, s1) = (theta0.lo(), theta1.hi());
     let lo = pfold(s0, s1, f64::min) - ANGLE_SLOP;
     let hi = pfold(s0, s1, f64::max) + ANGLE_SLOP;
@@ -292,7 +321,7 @@ fn axis_extremum(min: &mut f64, max: &mut f64, c: Brk, u: Brk, v: Brk, r: Brk, l
 /// as an INTERVAL over the scaled-bracket corners, branch-cut wedges
 /// (and possibly-origin rectangles) include BOTH extrema, span
 /// membership is `ANGLE_SLOP`-widened and conservative-inclusive, and
-/// poison never prunes.
+/// poison flows to the poison box.
 ///
 /// `None` when `carrier` is not an `Ellipse` (wrong lane — refuse
 /// loudly rather than guess). Residual padding stays the caller's
@@ -327,7 +356,11 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     let vy = az.mul(ux).sub(ax.mul(uz));
     let vz = ax.mul(uy).sub(ay.mul(ux));
 
-    // The slop-widened span (orientation-normalized outward).
+    // The slop-widened span (orientation-normalized outward). On a
+    // DESCENDING run at a wide scalar these are the INNER ends of the
+    // two brackets; the range is still covered because the endpoint
+    // hull above enters both ends as whole brackets — that seed is
+    // load-bearing for span coverage, not a convenience.
     let (s0, s1) = (theta0.lo(), theta1.hi());
     let lo = pfold(s0, s1, f64::min) - ANGLE_SLOP;
     let hi = pfold(s0, s1, f64::max) + ANGLE_SLOP;
@@ -369,6 +402,28 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     Some(b)
 }
 
+/// The certified-conservative box of a conic ARC, whichever conic the
+/// carrier is: [`circle_arc_aabb`] for a `Circle`, [`ellipse_arc_aabb`]
+/// for an `Ellipse` — one match on the kind, so a consumer that has
+/// already decided "this edge is a conic" reads one door. `None` for a
+/// `Line` or `Nurbs` carrier: those kinds have their own rule (the
+/// chord; the control hull, [`nurbs_curve_aabb`]) and this door refuses
+/// rather than guesses. Everything else — span restriction, outward
+/// rounding, poison — is the kind door's contract, verbatim.
+pub fn conic_arc_aabb<T: Bounds>(
+    carrier: &Curve3<T>,
+    theta0: T,
+    theta1: T,
+    end0: Point3<T>,
+    end1: Point3<T>,
+) -> Option<Aabb> {
+    match carrier {
+        Curve3::Circle { .. } => circle_arc_aabb(carrier, theta0, theta1, end0, end1),
+        Curve3::Ellipse { .. } => ellipse_arc_aabb(carrier, theta0, theta1, end0, end1),
+        Curve3::Line { .. } | Curve3::Nurbs(_) => None,
+    }
+}
+
 /// The certified-conservative box of a NURBS curve: the AABB of its
 /// control-point brackets. Sound by the convex-hull property — every
 /// curve point is a convex combination of control points because the
@@ -377,9 +432,17 @@ pub fn ellipse_arc_aabb<T: Bounds>(
 /// enforced by [`NurbsCurve3::new`]; negative weights would void
 /// convexity, Book p. 293). Valid over the whole domain, a fortiori
 /// over any certified span (span-tight hulls via knot refinement are a
-/// later sharpening; looser is conservative). No arithmetic — brackets
-/// only — so no rounding to pad. The placeholder curve's all-poison
-/// control points yield the poison box, which never prunes.
+/// later sharpening; a wider box still contains the locus). No
+/// arithmetic — brackets only — so no rounding to pad.
+///
+/// **A net carrying poison ANYWHERE yields the poison box**, which
+/// overlaps everything: the placeholder curve (all-poison by
+/// construction) and equally a described net poisoned in one channel
+/// of one point. The screen is `net::any_poison`, whose docs carry why
+/// a box asks the wider question than the state discriminator does.
 pub fn nurbs_curve_aabb<T: Bounds>(curve: &NurbsCurve3<T>) -> Aabb {
+    if net::any_poison(curve.control()) {
+        return Aabb::poison();
+    }
     Aabb::from_points(curve.control().iter().copied()).unwrap_or_else(Aabb::poison)
 }

@@ -14,23 +14,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::p3 as p;
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey, tangent_certificate_lane, tangent_jet,
+    EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, tangent_certificate_lane,
+    tangent_jet,
 };
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::Vec3;
 use slotmap::SlotMap;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
-
-fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
 
 fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
@@ -120,7 +113,7 @@ fn the_corner_ball_cylinder_circle_certifies_as_a_tangent_intersection() {
         r,
     );
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k_sphere,
             s2: k_cyl,
             witness,

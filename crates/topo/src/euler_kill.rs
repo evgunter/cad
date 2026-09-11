@@ -280,7 +280,7 @@ use crate::entity::{
 use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
-use crate::live::Live;
+use crate::live::{Live, require_key};
 use crate::provenance::Provenance;
 
 /// The outcome of one [`Body::kvfs`] call: five dead topology keys plus
@@ -576,11 +576,7 @@ impl<T: Decide> Body<T> {
         if v == w {
             return Err(EulerOpError::SelfLoopEdge { edge, vertex: v });
         }
-        if !self.vertices.contains_key(v) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Vertex(v),
-            });
-        }
+        require_key(&self.vertices, v, EntityId::Vertex)?;
         let w_point = self
             .get_vertex(w)
             .ok_or(EulerOpError::StaleKey {
@@ -810,11 +806,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::FaceHasRings { face: f1 });
         }
         let shell = f1_data.shell;
-        if !self.shells.contains_key(shell) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Shell(shell),
-            });
-        }
+        require_key(&self.shells, shell, EntityId::Shell)?;
         // The dying loop's full cycle (bounded, D9): everything after he
         // is the remnant that moves to the mate's loop. The walk steps
         // `next` and resolves every member it returns, so it proves
@@ -844,11 +836,7 @@ impl<T: Decide> Body<T> {
         let u = he_data.start;
         let w = m_data.start; // may equal u (self-loop edge)
         for vertex in [u, w] {
-            if !self.vertices.contains_key(vertex) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::Vertex(vertex),
-                });
-            }
+            require_key(&self.vertices, vertex, EntityId::Vertex)?;
         }
 
         // ---- Mutation (infallible from here on). ----
@@ -1058,11 +1046,7 @@ impl<T: Decide> Body<T> {
         }
         let shell = old_face_data.shell;
         let (inherit_surface, inherit_sense) = (old_face_data.surface, old_face_data.sense);
-        if !self.shells.contains_key(shell) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Shell(shell),
-            });
-        }
+        require_key(&self.shells, shell, EntityId::Shell)?;
         // Geometry gate: a Shared surface key must resolve now (the M1
         // surface-anchor rule retired with the placeholder surfaces).
         self.check_face_surface(&surface)?;

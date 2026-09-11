@@ -38,7 +38,10 @@
 //! `EdgeCurve::certify`'s rung-3 gate and the cache through
 //! `PcurveCache::certify_fitted`, both of which refuse typed.
 
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::sync::Arc;
@@ -46,7 +49,7 @@ use std::sync::Arc;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
-use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache};
+use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};
@@ -346,7 +349,7 @@ where
             },
             p1,
             EdgeCurveSpec {
-                description: EdgeGeometry::Intersection {
+                description: EdgeDescriptionSpec::Intersection {
                     s1: cyl_key,
                     s2: sph_key,
                     witness: carrier.eval(mid),
