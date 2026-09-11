@@ -168,6 +168,74 @@ pinned seed re-certifies one fixed sample forever, however deep it is.
 Fresh millions each firing is worth more than the same millions
 faster."* It is the precedent, not the exception.
 
+## Depth keys on the NAMED PATHS, not the closure (Ev, 2026-09-11)
+
+Ev, in chat: *"the fuzzers should run for longer if the PR touches the
+files they're actually about, rather than only including them by
+closure"*. This is charter lever 3 of this program, restated for the
+depth side — and the good news is that **the mechanism already works
+this way and needs nothing built.**
+
+`GatedSuite.selected_by` (`scripts/ci-filter.py`) compares the marker's
+declared paths against the DIFF's own file list: equality for a file,
+prefix for a directory written with a trailing `/`, plus the suite's own
+file implicitly and — since 2026-09-11 — its sibling helper directory.
+Nothing in that reads the crate closure. The closure decides which
+crates' tests are BUILT (`CARGO_SCOPE`); the marker decides which suites
+are selected, and those are different questions. So "run deeper when the
+PR touches the files it is about" is `selected_by` unchanged, pointed at
+a different consequence.
+
+**What does have to change is the fail-open direction, and it inverts.**
+Today `gated_filter` fails open — emits no filter, so everything runs —
+on tier `all`, tier `docs`, an unreadable diff, a change to the
+derivation's own inputs, and any exception. That is right for EXISTENCE:
+failing open means running MORE, which is the safe direction.
+
+For DEPTH it is the wrong direction twice over. Tier `all` fires on most
+merges (`memories/test-suite-cost.md`: *"demos/, .github/ and scripts/
+dominate"*), so a depth selection that failed open would buy the deep run
+on most merges — turning the exception into the rule and spending the
+thing the dial exists to ration. And it is not needed for safety: under
+this ruling a run that resolves nothing still executes every sweep at
+EFFORT = 1, so failing CLOSED on depth costs depth and never existence,
+which is the whole shape of the ruling.
+
+So: **depth is selected by the marker's named paths against the diff,
+with no tier fail-open at all.** An unresolvable marker, an unreadable
+diff and a tier-`all` run all get the smoke level and no deep leg — and
+the deep run is then something a lane asks for deliberately, which is
+what the nightly's retirement leaves room for.
+
+**One live instance of the residue, found by checking rather than
+assumed away.** A marker may name a path in a crate its own crate does
+not depend on. The change filter's closure follows dev-dependency edges
+UPWARD — a changed crate pulls in its DEPENDENTS — so such a crate's
+tests are never built on that diff, and the marker's promise cannot be
+kept in either direction: the suite does not run today, and could not
+run deep tomorrow, on exactly the change it names.
+
+Swept at `486557f5` over all 56 markers, resolving each named path's
+crate against its home crate's dependency set from `cargo metadata`.
+**Exactly one:**
+
+`crates/sweep/tests/tcost_k3_certificate.rs` names
+`crates/step-import/src/lib.rs`, and the dependency runs the other way
+(`crates/step-import/Cargo.toml:56` takes `sweep`), so a change to that
+file never builds `sweep`'s tests.
+
+**It is harmless today, and the reason is worth keeping**: TCOST-K3
+wrote TWO suites, one per crate, and the sibling
+`crates/step-import/tests/tcost_k3_import_certificate.rs` names the same
+path from inside `step-import`, which IS in the closure on that diff. So
+the import-path claim is covered — by the other suite, not by this
+marker's entry, which is inert.
+
+The fix if it ever bites is to widen the run's scope for that suite, not
+to key depth on the closure. Recorded here rather than filed because it
+is one inert entry with a working sibling; if a second appears without
+one, it is a row.
+
 ## Retiring the nightly re-take (Ev, 2026-09-11)
 
 Ev, in chat: *"can we get rid of the nightly job in favor of just
