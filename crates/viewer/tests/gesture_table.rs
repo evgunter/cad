@@ -72,8 +72,8 @@ use pncad::prelude::{EntityKind, MM, StableName};
 use pncad::select::ContactClass;
 use viewer::props::SlotValue;
 use viewer::session::{
-    BoundsTarget, DatumSpec, DocSession, FaceSelection, Hovered, PatternRuleSpec, Refusal,
-    Selection, SessionOp,
+    BoundsTarget, CancelDoor, DatumSpec, DocSession, FaceSelection, Hovered, PatternRuleSpec,
+    Refusal, Selection, SessionOp,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -593,4 +593,362 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         );
         perform(&mut session, SessionOp::CancelFreeMove);
     }
+}
+
+// --- the cancel doors -----------------------------------------------
+
+/// **Which operations cancel a GESTURE**, written down exhaustively so
+/// that a fortieth operation cannot join the enum without answering
+/// whether the chrome owes it a door.
+///
+/// The rule ranges over what an operation cancels, NOT over what it is
+/// called. [`SessionOp::CancelEvaluation`] is spelled `Cancel` and
+/// cancels a RUN: its control is the one beside the spinner that
+/// reports the run, and it is available exactly while a run is
+/// outstanding rather than while a gesture is. A name-shaped sweep —
+/// every variant whose identifier starts `Cancel` — would hand it a
+/// gesture door, and would keep agreeing with itself while the door
+/// was wrong.
+fn cancels_a_gesture(op: &SessionOp) -> bool {
+    match op {
+        SessionOp::CancelGesture | SessionOp::CancelFreeMove => true,
+        SessionOp::Select(_)
+        | SessionOp::Hover(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::ProbeBounds { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetParam { .. }
+        | SessionOp::CreateParam { .. }
+        | SessionOp::BeginGesture { .. }
+        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::Reevaluate
+        | SessionOp::Open(_)
+        | SessionOp::Save(_)
+        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove
+        | SessionOp::AddMate { .. }
+        | SessionOp::NewDocument { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddRevolve { .. }
+        | SessionOp::AddBoolean { .. }
+        | SessionOp::AddSplit { .. }
+        | SessionOp::AddTransform { .. }
+        | SessionOp::AddPattern { .. }
+        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFillet { .. }
+        | SessionOp::AddChamfer { .. }
+        | SessionOp::AddInstance { .. } => false,
+    }
+}
+
+/// Same variant, without asking [`SessionOp`] for an equality it does
+/// not have: a door's operation carries no payload, so the
+/// discriminant is the whole of its identity.
+fn same_variant(a: &SessionOp, b: &SessionOp) -> bool {
+    core::mem::discriminant(a) == core::mem::discriminant(b)
+}
+
+/// **Every gesture cancel has a chrome door, and nothing else does.**
+///
+/// The population is [`cancels_a_gesture`]'s — a match over `SessionOp`
+/// the compiler completes — asked of `every_op`'s samples, which
+/// `the_table_answers_for_every_op` holds to one per variant. So this
+/// row ranges over the whole enum and not over the two variants its
+/// author had in mind: adding a third gesture with a cancel and no
+/// door reds here, and so does a door for an operation that cancels no
+/// gesture.
+///
+/// It is also the row that fails if `cancel_doors` loses a door. The
+/// stranded-drag row below exercises one door; this one is what says
+/// there are exactly as many as there are operations behind them.
+#[test]
+fn every_gesture_cancel_has_a_chrome_door() {
+    let tol = Tol::witness();
+    let dir = common::tempdir("view-cancel-door-census");
+    let (session, node) = fixture(tol);
+    let doors = session.cancel_doors();
+    let mut cancels = 0;
+    for op in every_op(node, &dir.join("saved.pncad")) {
+        let wanted = usize::from(cancels_a_gesture(&op));
+        let found = doors
+            .iter()
+            .filter(|door| same_variant(&door.op, &op))
+            .count();
+        assert_eq!(found, wanted, "chrome doors for {op:?}");
+        cancels += wanted;
+    }
+    assert_eq!(
+        doors.len(),
+        cancels,
+        "a door with no cancelling operation behind it"
+    );
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A door that cannot act says the refusal its OWN operation gives.**
+///
+/// The sentence a disabled control shows is composed from the refusal
+/// the operation answers with rather than written beside the button, so
+/// the two cannot come to disagree — the defect
+/// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
+/// reason-elsewhere.md` is open about one facility over. Both doors,
+/// with no gesture of either kind open.
+#[test]
+fn a_closed_door_says_what_its_own_operation_refuses() {
+    let tol = Tol::witness();
+    for door in fixture(tol).0.cancel_doors() {
+        let CancelDoor { label, op, blocked } = door;
+        let blocked = blocked.expect("a fresh session holds no gesture of either kind");
+        let (mut session, _) = fixture(tol);
+        let refusal = session
+            .perform(op)
+            .refusal
+            .expect("a cancel with no gesture behind it refuses");
+        assert_eq!(
+            blocked.to_string(),
+            refusal.to_string(),
+            "{label}: the disabled control's words"
+        );
+        assert_eq!(
+            format!("{blocked:?}"),
+            format!("{refusal:?}"),
+            "{label}: and the same refusal, not merely the same sentence"
+        );
+    }
+}
+
+/// **A slot drag can lose its only exit under the pointer still
+/// holding it — traced, not supposed — and the door is what is left.**
+///
+/// The drag's exit is the release event on the field that opened it, so
+/// the exit exists only on a frame the field is drawn. `slot_rows`
+/// answers NOTHING for a selection whose standing is not live
+/// (`Standing::live`: a face whose name did not resolve is not live),
+/// and `pane::properties` draws one row per group it is handed — so on
+/// such a frame the field is not there to report the release.
+///
+/// The drag itself is what kills the standing: every frame it moves
+/// submits its scratch document, and a preview that takes the extrude's
+/// distance to zero lands an evaluation the picked face does not
+/// survive. No second pointer, no relayout and no other operation is
+/// involved; `Select` and the feature rows are click-driven and cannot
+/// fire under a held pointer, which is why the item that filed this
+/// could not trace it through them.
+///
+/// **What this row establishes and what it does not.** It establishes
+/// that the state the release would have to be reported in is a state
+/// with no row to report it — the session half, end to end, through the
+/// ops the widget emits. The last link, *a group that is not in the
+/// list is not drawn and so reports no release*, is
+/// `pane::properties_ui`'s `for group in &groups` and this crate has no
+/// headless egui harness to execute it (`panel_display.rs` says the
+/// same of the field's own wiring). It is read, not run.
+///
+/// Where it goes red: give `CancelGesture` back to the no-op it would
+/// be if `perform` stopped taking the gesture, or take the door out of
+/// `cancel_doors`, and the recovery half fails; make a dead standing
+/// keep its rows and the first half fails.
+#[test]
+fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = fixture(tol);
+    session.pump();
+    let index = common::asm::index_of(&session);
+    let face = index
+        .face_at(
+            session.evaluation().expect("the inline seam landed"),
+            &common::asm::down_at(0.0, 0.0),
+        )
+        .expect("the pick is not refused")
+        .expect("the plate is under a ray straight down at the origin");
+    session.perform(SessionOp::Select(Selection::Face(face)));
+    assert!(session.standing().live(), "the picked face resolves");
+    assert_eq!(
+        session.slot_rows().len(),
+        1,
+        "and the extrude's distance row — the field the drag opens on — is drawn"
+    );
+
+    // The drag opens, and its first preview takes the distance to zero.
+    assert!(
+        session
+            .perform(SessionOp::BeginGesture {
+                node: extrude,
+                slot: SlotId::Distance,
+            })
+            .refusal
+            .is_none(),
+        "the drag opens on a literal slot"
+    );
+    assert!(
+        session
+            .perform(SessionOp::PreviewGesture { value: 0.0 })
+            .refusal
+            .is_none(),
+        "a drag through zero is an ordinary drag"
+    );
+    session.pump();
+
+    assert!(
+        !session.standing().live(),
+        "a zero-height extrude has no face for the picked name"
+    );
+    assert!(
+        session.slot_rows().is_empty(),
+        "so the panel is handed no row, and the field that would report \
+         the release is not drawn"
+    );
+    assert!(
+        matches!(
+            session.perform(SessionOp::Undo).refusal,
+            Some(Refusal::GestureInFlight)
+        ),
+        "while the drag is still open: every document move now refuses, \
+         naming a remedy the release event can no longer deliver"
+    );
+
+    // The door, which is drawn whatever the panel is showing.
+    let door = session
+        .cancel_doors()
+        .into_iter()
+        .find(|door| same_variant(&door.op, &SessionOp::CancelGesture))
+        .expect("the drag's door");
+    assert!(
+        door.blocked.is_none(),
+        "the door is live exactly while there is a gesture to close: {:?}",
+        door.blocked
+    );
+    assert!(
+        session.perform(door.op).refusal.is_none(),
+        "and it closes the stranded drag"
+    );
+    session.pump();
+    assert!(
+        session.standing().live(),
+        "after which the cancelled preview is off the screen and the \
+         picked face is back"
+    );
+    assert!(
+        session
+            .perform(SessionOp::SetSlot {
+                node: extrude,
+                slot: SlotId::Distance,
+                value: SlotValue::of(Dimension::Length, 0.006),
+            })
+            .refusal
+            .is_none(),
+        "and the document moves again — this fixture's history is empty, \
+         so the op that shows the fence is gone is an edit and not an undo"
+    );
+}
+
+/// **The free-move door is live exactly while the probe is**, and
+/// closing it through the door takes the preview away.
+///
+/// The value drag's stranding trace above does not carry over to this
+/// gesture and this row does not claim it does: the probe's field is
+/// drawn off the shown document (`display::is_instance` and
+/// `display::free_move_check`), not off the landed evaluation, and a
+/// document change while a probe is in flight is pruned rather than
+/// stranded. What holds here is the other half of the item — the
+/// operation had no emitter at all, so the refusal that tells a reader
+/// to *finish the free-move first* named a remedy the chrome did not
+/// offer.
+#[test]
+fn the_free_move_door_is_live_exactly_while_the_probe_is() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("view-cancel-door-free-move", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let post = bench.post_a;
+
+    let door = |session: &DocSession| {
+        session
+            .cancel_doors()
+            .into_iter()
+            .find(|door| same_variant(&door.op, &SessionOp::CancelFreeMove))
+            .expect("the probe's door")
+    };
+    assert!(
+        door(&session).blocked.is_some(),
+        "no probe, no door to open"
+    );
+
+    assert!(
+        session
+            .perform(SessionOp::BeginFreeMove { instance: post })
+            .refusal
+            .is_none()
+    );
+    let probe = Frame::translation([0.0, 0.0, 0.011]);
+    assert!(
+        session
+            .perform(SessionOp::PreviewFreeMove { frame: probe })
+            .refusal
+            .is_none()
+    );
+    let open = door(&session);
+    assert!(
+        open.blocked.is_none(),
+        "a probe in flight opens the door: {:?}",
+        open.blocked
+    );
+    assert!(session.perform(open.op).refusal.is_none(), "and it closes");
+    assert_eq!(session.display().probing(), None, "the probe is gone");
+    assert_eq!(
+        session.display().free_move_of(post),
+        None,
+        "and it left no committed placement behind — a cancel is not a commit"
+    );
+    assert!(
+        door(&session).blocked.is_some(),
+        "the door is shut again, with the reason the operation gives"
+    );
+}
+
+/// **The doors reach a user, which is the whole of what this item was
+/// filed about**: both operations had zero emitters in the crate, so
+/// `perform` held two arms no chrome could reach.
+///
+/// **The population is reads of `DocSession::cancel_doors` under
+/// `crates/viewer/src`, outside the module that declares it**, and that
+/// is the rule rather than a search for the operations' own names: the
+/// chrome pushes `door.op` and never spells `SessionOp::CancelGesture`,
+/// so a name-shaped sweep finds only `perform`'s arms and reports the
+/// defect as still open. One read, in the toolbar.
+///
+/// What it cannot see is whether that read is REACHED — the toolbar is
+/// an `egui` closure and this crate has no headless harness for one.
+/// This row holds the emitter count against going back to zero, which
+/// is the state the item describes; the call site being three lines of
+/// a panel drawn on every frame is the rest of it.
+#[test]
+fn the_cancel_doors_have_a_reader_in_the_chrome() {
+    let dir = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"));
+    let app = test_utils::source::code_only(
+        &std::fs::read_to_string(dir.join("src/app.rs")).expect("src/app.rs"),
+    );
+    assert_eq!(
+        app.matches("cancel_doors()").count(),
+        1,
+        "the toolbar's read of the cancel doors"
+    );
+    let session = test_utils::source::code_only(
+        &std::fs::read_to_string(dir.join("src/session.rs")).expect("src/session.rs"),
+    );
+    assert_eq!(
+        session.matches("fn cancel_doors").count(),
+        1,
+        "declared once, so the read above is a read of this door"
+    );
 }

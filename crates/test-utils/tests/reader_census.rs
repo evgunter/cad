@@ -304,6 +304,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the README's badge-door and store-read counts, code view
     },
     Entry {
+        path: "crates/viewer/tests/gesture_table.rs",
+        disposition: Shared, // the cancel doors' chrome reader, code view
+    },
+    Entry {
         path: "crates/viewer/tests/landing_gathers.rs",
         disposition: Shared, // the gather counter's three gated sites, code view
     },
