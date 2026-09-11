@@ -13,18 +13,15 @@
 use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
-use geom_core::{Affine3, Band, Point3, Sign, Tol, Vec3};
+use geom_core::{Affine3, Point3, Sign, Tol, Vec3};
 use topo::ShellNaming;
 use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey, VoidContainment, VoidEvidence};
 
+use crate::common::approx::band;
 use crate::verbs_shell::{boxy, hollow_box, v, vessel};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::linear(tol()).expect("a band")
 }
 
 /// `other` placed `d` along `+x` beside `body` as a second solid, through

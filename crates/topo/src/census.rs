@@ -1672,6 +1672,17 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                                 },
                                 verdict: crate::contact::ContactVerdict::Definite,
                             };
+                            // Rendered in the arm's own order. A
+                            // census face pair is unordered for
+                            // EQUALITY alone — the order stays in the
+                            // value, and in what `Debug` prints — and
+                            // the arm's order is a function of the
+                            // input (D9), so no run-to-run instability
+                            // exists for a normalisation to cure.
+                            // Normalising here would also disagree
+                            // with the typed pair on the finding
+                            // beside it, which is what a consumer
+                            // resolves against.
                             errors.push(ValidationError::UndeclaredContact {
                                 contact: CensusContact::ConformalPatch { finding },
                                 witness: format!("{fa:?}~{fb:?}"),
@@ -2821,6 +2832,14 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
         ) {
             Ok(verdict) => verdict,
             Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
+                // Rendered in the declared record's own order,
+                // which is the reader's index back into the records
+                // they supplied — not this run's arena order. A census
+                // face pair is unordered for EQUALITY alone: the order
+                // stays in the value, and normalising it here would
+                // disagree with `declaration` beside it, the same two
+                // keys in the same order and what a consumer resolves
+                // against.
                 errors.push(ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
                         a: c.face_a,

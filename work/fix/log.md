@@ -1267,3 +1267,430 @@ The two brief instructions that caught all four cost minutes each and
 are now standing for this program: **a row citing a clause gets "read
 the clause, not the row's summary"; a row citing a site list gets
 "re-derive it at your merge base".**
+
+## Second orchestrator handoff, 2026-09-11 — the review posture drops, and the slate is triaged whole
+
+### Ev's instruction, and what it changes
+
+**Light style reviews, or none at all; no A/B protocol** (Ev, in-chat,
+2026-09-11). The A/B half was already the standing posture and is
+unchanged. What moves is the style lane: `plan.md` promised every unit
+one, and from here a unit gets one only if the orchestrator asks for it
+off the back of the diff.
+
+The three units `plan.md` named for a second correctness-focused
+reviewer — `transform-rigid-refuses-described-nurbs`, the two census
+declines, `split-crossings-skip-pattern-mate-ends` — are **all
+closed**, so nothing on the live slate invokes that clause and dropping
+it costs nothing that was going to be spent.
+
+**The discipline does not vanish; it moves into the brief.** A lane
+with no reviewer downstream gets the three instructions this log
+earned in the 2026-09-11 wave, as standing text in every dispatch:
+
+1. a row citing a clause gets *"read the clause, not the row's summary"*;
+2. a row citing a site list gets *"re-derive it at your merge base"*;
+3. a unit changing a RENDERING owes *"does any existing pin
+   discriminate the old rendering from the new one?"* — where **no**
+   means the pin is part of the defect.
+
+And one addition that is this posture's own price: **a lane running
+without a reviewer states every place it was unsure, explicitly, in
+the PR body and its report.** Less review bought with more disclosed
+uncertainty is a trade; less review bought with smoother prose is not.
+
+### The board, read whole: nothing is waiting on Ev
+
+Asked directly, and the answer is clean. **Zero `needs_ev: true` in
+`work/fix/`** — the flag appears nowhere in this program's directory —
+and no open `[ev]` PR belongs to FIX (2363 is the fuzzing policy, 2135
+is BOOL-10, 1700 is M10's draft walk). `plan.md`'s one named ruling,
+`nested-pattern-mate-heads-refuse`, closed.
+
+Nineteen items are open and **every open decision on them is an
+agent's, not Ev's.** Read one by one, they fall in four groups:
+
+- **Dispatchable as written** (fix in the body, no decision):
+  `cert-check-renders-through-debug`,
+  `band-helper-duplicated-across-suites` (free half),
+  `pair-subject-witness-strings-unswept`,
+  `circle-constructors-are-literal-only`,
+  `coherence-findings-have-no-consumer`,
+  `error-census-keyed-on-bare-type-name`,
+  `collapsed-continuation-guard-belongs-in-the-prose-census`,
+  `underflow-gate-owed-at-five-more-doors`,
+  `validation-arms-delegate-a-recourse-their-carriers-do-not-give`,
+  `mate-clocking-has-no-gui-path` half (1).
+- **Dispatchable, decision belongs to the lane** — the row names the
+  fork and the lane resolves it at the site:
+  `node-error-kind-has-no-fieldless-projection` (fieldless mirror, or
+  carry `NodeErrorKind` itself),
+  `levered-clash-margins-hide-their-arm` (a typed unit, a second arm
+  in the sentence, or a small-angle argument — but see the re-home
+  below before dispatching it),
+  `census-containment-flatten-fabricates-its-diagnostic`,
+  `normalize-without-the-length-question-two-more-sites`.
+- **Question-first** — the output is an answer, and the diff is
+  downstream of it: `unify-discipline-machinery-onto-registry`
+  (dispatched today as a reading pass),
+  `circle-constructors-are-literal-only` (where a parametric author's
+  dimensions get checked, before the doc sentence),
+  `transform-recertifies-through-the-narrow-lane`.
+- **Two rows sharing one door question, and it is a lane's to settle:**
+  `band-derivation-has-a-scalar-twin` and
+  `band-helper-duplicated-across-suites` — does the
+  `(zero, escalate)` pair get a named door, and on what? The free
+  `crates/sweep` half was cut away from that question today
+  precisely so a mechanical change is not held behind it.
+
+**The three worth naming to Ev anyway, none of them blocking**, on the
+ground that they add or change PUBLIC surface rather than rendering:
+`transform-recertifies-through-the-narrow-lane` (a public generic
+signature change on a kernel door — `transform_rigid` would take a
+`T: Decide + CertifiedBounds` bound); `kind-mirrors-have-no-single-
+declaration` (an `error_kinds!` macro generating four public error/kind
+pairs tree-wide); and the band pair's door, if it lands as new
+vocabulary on `Tolerance`. The kind-mirror row already pre-cleared the
+nearest precedent itself — `scripts/gates/README.md:49` records Ev
+rejecting a PROC-macro for the CI gates, an objection about an opt-in
+rule that must hold everywhere, which does not reach a `macro_rules!`
+that generates a declaration at the one site declaring the type.
+
+### Wave dispatched, 2026-09-11
+
+Five lanes, file-disjoint by construction so the merges do not race:
+
+| unit | branch | ground |
+|---|---|---|
+| `cert-check-renders-through-debug` | `fix/certcheck-display` | `geom-brep/src/certify.rs` |
+| `band-helper-duplicated-across-suites` (sweep half) | `fix/sweep-band-helper` | `crates/sweep/tests/*` |
+| `pair-subject-witness-strings-unswept` | `fix/census-pair-order` | `topo/src/census.rs` |
+| `circle-constructors-are-literal-only` | `fix/circle-parametric-door` | `editor-core/src/program.rs` |
+| `unify-discipline-machinery-onto-registry` (reading pass) | `fix/unify-discipline-triage` | tracker + docs only |
+
+Every lane is told to update **only its own item file** — not this log
+and not `plan.md` — because five concurrent lanes editing one narrative
+file is five merge conflicts, and one-file-one-item exists to make that
+visible rather than to make it happen.
+
+### Two mate rows are on ground FIX no longer has a clean claim to
+
+Held back from this wave deliberately, and this is the finding the
+triage turned up that is worth more than the triage.
+`levered-clash-margins-hide-their-arm` says it *"needs S-MATE's assent
+or a re-home"*. **S-MATE left the tracker on 2026-09-04**
+(`docs/DOC-LEDGER.md` sweep 6), which reads at first like the
+blocker evaporating. It is the opposite: its territory did not go
+unowned, it was **inherited by two open programs**. Both
+`work/docm/program.md` and `work/msolve/program.md` now carry
+`crates/editor-core/src/mate/*` in `paths`. So the assent is still
+owed — to DOCM and MSOLVE rather than to a program that no longer
+exists — and a row that reads "the owner is gone, take it" would have
+walked a FIX lane into two live fences.
+
+**And MSOLVE is not merely the owner, it is working this exact
+subject right now.** Open PR **#2116, "MSOLVE-6: the mate's lever is
+the mated parts' own extent."** This row is about three levered
+mate-fold clash margins reaching the refusal with their arm invisible.
+Same file family, same quantity. Dispatching it here would have raced
+a live PR on the lever it is about.
+
+**Disposition: re-home `levered-clash-margins-hide-their-arm` to
+MSOLVE** (a header edit and a `git mv`, per `work/README.md` —
+the file MOVES, keeping its id, and never gets copied), once #2116
+lands or MSOLVE says how it wants the two sequenced.
+`mate-clocking-has-no-gui-path` sits the same way: its own `## Home`
+section still names `work/mate/`, a directory that is gone, and
+`plan.md` holds half (1) here on a fence that has since been claimed
+twice. Both go to MSOLVE/DOCM before any lane sees them.
+
+This is the "fired trigger is not a blocker" shape one level up from
+what lint checks: the row named a blocker that has since closed, and
+the closure did not free the row — it substituted two new owners for
+one. Nothing mechanical could have caught it, because the row's
+blocker was prose.
+
+**The band row's counts were already stale at dispatch and the brief
+says so.** The item claims 24 `crates/sweep` copies and 36 overall; a
+shape-only grep on this head finds 30 in sweep and 60 across six
+crates. That is instruction 2 firing before a lane even started, which
+is the argument for keeping it standing.
+
+
+### Wave results, 2026-09-11 — three landed, and all three closed by refuting their own row
+
+PRs **2373**, **2372**, **2374**. The striking thing is not that they
+landed; it is that **not one of them did what its item asked for**, and
+in each case the row was wrong in the same direction.
+
+**`unify-discipline-machinery-onto-registry` (PR 2373) — step 1 had
+already shipped.** The brief offered two arms, spec or `parked`, and
+the answer was neither: the sink is `crates/editor-core/src/finding.rs`,
+whose own header reads *"The document layer's finding sink
+(DISCIPLINES-DESIGN DS8; **#981 part 1**)"* — `#981` being this row's
+own `github:` number. Three consumers wired, not the two DS8 needs:
+`CheckFinding` (`checks.rs:381`), `UndeclaredContactFinding`
+(`eval/mod.rs:1376`), `AtRestFinding` (`assembly.rs:450`, which the
+row never named). It landed as PR **#984**, on 2026-08-25, *before
+this row was ever homed here*. The row has sat on the slate since the
+program opened, held as the one item whose fix was not written in its
+body, while the thing it was tracking was already in the tree.
+
+**Here instruction 1 fired in the direction nobody expected.** The
+four previous instances were rows that misread a clause. DS8 said
+exactly what this row claimed. What was four months stale was the
+row's **premise about the tree** — and no amount of reading the clause
+would have caught that. Only reading the code did. The instruction
+wants a second half: *read the clause, AND check the row's claim about
+the tree is still true.*
+
+**`pair-subject-witness-strings-unswept` (PR 2372) — the cited
+settlement says the opposite.** The row reads PR 1750's unordered-pair
+settlement as reaching the rendering. `validate.rs:317-344` says, in
+the same paragraph: `FacePair` is *"the candidate face pair, **in the
+arm's own order**"*, and the hand-written `PartialEq`'s comment is
+*"the order is **kept in the value** (the arm's own, and what `Debug`
+prints) and **dropped from the comparison**."* Unordered for equality,
+ordered in what it prints. `CensusSubject`'s own ratified `Display`
+prints the arm's order for that reason — so the row's complaint, if
+sound, would condemn the impl the same PR wrote. The row's stated harm
+(*"two runs that differ only in arena order"*) is not a state D9
+admits at all (`docs/DESIGN.md:797`).
+
+So both pair sites already showed the right order and now say why.
+**And the lane found the real defect underneath**: `UndeclaredContact`'s
+`witness` is documented *"a debug rendering of the witnessing
+**position**"* and both `Display` arms put it after *at* — while at
+`:1677` and `:2830` that locative slot holds a **repeat of the subject
+the same sentence already names**, at `:2830` verbatim, the same two
+keys through the same `{:?}` two clauses apart. Filed as
+`census-witness-string-repeats-the-subject`, not fixed, because
+`:1677` has no position to give without changing CURVED's predicate
+and `witness` is `String` rather than `Option<String>`, so "no
+position" has no spelling.
+
+**`circle-constructors-are-literal-only` (PR 2374) — and the wrong
+characterisation this time was the ORCHESTRATOR's.** The disposition
+written on this row on 2026-09-11 asserted the constructors *"are the
+**dimension-checking** door, and they return `DimensionError`"*, and
+made the whole unit turn on it. **It is false.** `len_lit`/`ang_lit`
+are `Expr::literal(v, dim)`, whose only refusals are
+`LiteralCountIsInteger` — unreachable at a fixed Length or Angle —
+and `NonFiniteLiteral` (`crates/editor-core/src/expr.rs:605-619`).
+The only error `circle` can return is non-finiteness, which its
+`# Errors` section already said. Dimension-wise the constructor does
+not CHECK, it **PICKS**.
+
+The disposition survived anyway, for a better reason than it gave: the
+lane executed the question instead of arguing it, and found the check
+at the **document** door — `check_node_slots`
+(`crates/editor-core/src/edit.rs:1314`, comparison at `:1325`),
+refusing `EditError::SlotDimensionMismatch` before a program enters
+the document, on insert, on every slot write, and on a parameter
+redeclaration. A probe run and reverted covered the two shapes the
+existing pin does not.
+
+### The characterisation drift is not a lane-quality problem
+
+The log has now recorded this five times in two days, and **the fifth
+was written by the orchestrator, in the act of dispatching a brief
+warning lanes about the first four.** That settles what the pattern
+is. It is not carelessness and it is not a lane defect: it is what
+happens whenever anyone writes a confident sentence about a site they
+have read rather than run. The dispatching seat has no immunity — it
+has *more* exposure, because an orchestrator disposition arrives at a
+lane carrying more authority than the row it corrects.
+
+**Standing, from here:** an orchestrator disposition that asserts what
+code DOES is subject to its own instruction. Either execute it before
+writing it, or mark it as unverified so the lane knows to check it
+rather than build on it. Three of this wave's five briefs told a lane
+to execute before fixing; the one that made a claim of its own did not
+hold itself to it.
+
+### Two fence corrections landed
+
+- **`eval/wire.rs` is WIRE's** as of WIRE opening 2026-09-11. This
+  program's `keep_out` still described it as unowned, and the brief
+  repeated that to a lane. Corrected.
+- **The `census.rs` seam clause was an enumeration** — "the two
+  typed-decline items edit it by recorded seam" — and FIX has now
+  crossed that file with a third row and filed a fourth. Rewritten as
+  a clause about the FILE, noting that CURVED's `keep_out` does not
+  name FIX, so the record is one-sided and the crossing is invisible
+  from CURVED's side. `census-witness-string-repeats-the-subject`'s
+  fix reaches CURVED's chart-region predicate and wants CURVED's
+  assent rather than announcement.
+
+### A harness hazard, for whoever dispatches the next wave
+
+Five concurrent lanes shared one scratchpad directory and collided on
+filenames: `poll.py` and `pr.md` were overwritten mid-task, with four
+concurrent `poll.py` processes running under three different argv.
+Nothing was lost this time. A lane that writes a PR body to a shared
+`pr.md` and posts it a minute later posts a sibling's text. **Give
+each lane its own scratchpad subdirectory in the brief.** Not filed —
+no program owns it and it is a harness convention, not a repo defect.
+
+### `band-helper-duplicated-across-suites`, sweep half (PR 2377) — and the row's counts were wrong in both directions
+
+**39 wrappers removed, 43 `use` sites now reaching
+`crates/sweep/tests/common/approx.rs`, 47 files.** The item stays
+`open`: the sweep half was cut away from the shared-home decision
+precisely so a mechanical change would not wait on a design question,
+and the decision is still undispatched.
+
+**The re-derivation instruction earned its place again, and this time
+against the orchestrator's own number too.** The item said 24 sweep
+copies and 36 across three crates. The dispatch brief corrected that
+to 30 sweep and 60 across six, from a shape-only grep. The lane, with
+a grep that actually filters on the body, found **42 declarations in
+sweep** and a remaining population of **22 `tests/` sites across six
+crates** — `topo` 9, `geom-core` 7, `geom-brep` 3, `editor-core` 1,
+`mesh` 1, `step-import` 1. The row missed three crates entirely and
+undercounted `geom-core` sevenfold. Three successive counts, each
+closer, none right until someone ran the right pattern.
+
+**A second population the row has never scoped**: 20 more copies in
+`crates/*/src` `#[cfg(test)] mod tests` blocks (`topo` 13,
+`geom-brep` 5, `geom-core` 2). These **cannot reach a `tests/` helper
+tree at all**, so the shared-home question as this row and its sibling
+frame it does not cover them. That is a real re-shaping of what the
+band decision has to answer, and it is now in the item.
+
+**Four things the dispatch did not predict**, all of which the lane
+handled and any of which could have reddened CI:
+
+1. **`Band::new(tol.eps(), tol.k() * tol.eps())` IS `Band::linear(tol)`** —
+   verified through `linear` → `from_zero_threshold(tol, tol.eps())` →
+   `from_thresholds(tol.eps(), tol.k())` → `new(zero, k*zero)`
+   (`crates/geom-core/src/predicate.rs:364-425`). Two copies spelled
+   that way were collapsed. Outside the brief's literal filter, and the
+   lane flagged it as its main judgement call; it is the same class, a
+   spelling of one derivation, which is what the sibling row
+   `band-linear-spelling-not-swept` was about.
+2. **Three copies lived in helper modules, not suites** —
+   `tests/common/cone_nappe.rs` held a second `band()` *inside the
+   shared tree itself*, and `tests/shell8_common.rs` a third that six
+   suites imported.
+3. **Deleting a wrapper orphans its imports — 30 files**, and **the
+   default feature lane cannot see them all**: three surface only under
+   `--features interval`. A lane checking one lane would have pushed
+   red. This is the twelve-job matrix doing exactly what it is for.
+4. **The dead-wrapper re-check found one, not six**, and **the item's
+   premise for it is false on this tree**: no sweep suite and not
+   `all.rs` carries `#![allow(dead_code)]` — only the helper trees do.
+
+**And the lane found the convention the whole class had been breaking.**
+`common/mod.rs` requires a suite that keeps its own copy of something
+the `common` tree holds to say so AT the copy, carrying the literal
+``NOT `common::``. No band copy anywhere carried one. The single
+deliberate survivor — `m9_2_chart_region_loft.rs`, a FIXED 1e-9/1e-8
+band rather than the run's — now does.
+
+### Filed from that sweep: `fixed-band-literals-are-an-unscoped-class`
+
+55 sites decide against a hard-coded `Band::new(1e-9, 1e-8)` rather
+than the run's band, and exactly one of them says why. At eps = 1e-6
+and eps = 1e-12 a fixed band asks a different question from the run's,
+so the class is worth a reading pass; a wrong collapse changes what a
+row decides against, which is never free.
+
+**One framing dropped, because it was checked and is false.** The lane
+suggested these collide with the suites whose header declares *"ε
+posture: no ε literal"*. Measured before filing: **the two populations
+are disjoint** — no file carrying that header carries a fixed band. The
+finding survives weaker than first stated, and the item says so, because
+the stronger version is the more attractive one and would send a taker
+hunting a contradiction that is not in the tree.
+
+That check is the wave's fourth instance of the same thing: a real
+finding whose stated mechanism does not hold. The lane disclosed its
+own uncertainty on exactly this point ("did not verify intent rather
+than inheritance"), which is what the no-review posture asks for and
+what made the check cheap to run.
+
+### `cert-check-renders-through-debug` (PR 2379) — the wave's one real rendering change, and the one that found its own pins
+
+`CertCheck` now says its own words through a `Display` on its
+declaring row, exhaustive and wildcard-free, and `CertifyError`'s
+three arms forward. 21 variants, arms re-derived at **370, 412, 420**
+(the item said 369 for the first).
+
+**The decision went to the PHRASE, not the identifier** — `the
+out-of-halfplane component`, not `SeamHalfplane` — and the argument
+that settled it is one the item did not have. The item reasoned from
+"these are not doors anyone CALLS", which is true and is why
+PR 2368 went the other way for `VerbKind`. The lane found something
+stronger in the file itself: **every other arm of that same `Display`
+is English prose, and one of them already names a member of this very
+taxonomy in prose** — `NotSecondOrderSeparated` writes *"the
+tangency's second-order margin (relative transverse normal curvature,
+tangent_second_order)"*, which is `CertCheck::TangentSecondOrder`
+(`certify.rs:386`). The file had already decided; the three
+`{check:?}` arms were the ones out of step. Checked before merging.
+
+**And the hardcoded noun was measurably wrong.** `ResidualExceeded`
+wrote *"{check} **residual** at sample …"* for all fifteen checks that
+reach it, and **five of those meter no residual** — two sup bounds, a
+parallelism defect, a component, an excess. So the word carries the
+KIND of quantity and the sentence keeps only the grammar. That is a
+wrong word reaching a user, the same shape PR 2368 found under a row
+filed as a style finding, and it was invisible to the item.
+
+**Instruction 3 did the most work here of anywhere in the wave.**
+Four existing pins carried the rendered word, all `to_string()`
+(Display), all re-baselined, all discriminating. **Two of the four
+were on no list and the lane's own first grep missed them too** —
+`SEAM_HALFPLANE_ESCALATED` matches neither "residual at sample" nor
+"not a sampled check". What found them was sweeping all 21
+identifiers inside string literals, and the blind spot is stated
+rather than buried. Two further pins read `Debug`
+(`poleguard.rs:143`, `recognize_pins.rs:344`, both
+`format!("{e:?}")`) and correctly stay green: they pin the
+coordinate, which this unit deliberately leaves alone. **Telling those
+two classes apart is the whole of instruction 3** — had they been
+Display pins they would have been part of the defect.
+
+Three new rows in `certify.rs`'s own module so the unit does not lean
+on a downstream corpus, each proven red-capable **by mutation rather
+than by argument**. One of them asserts that no check's phrase IS its
+identifier — which is what makes every row able to tell `Display` from
+`Debug`, and is the direct answer to PR 2368's weak-pin lesson.
+
+**A judgement call the lane flagged for overruling, and I checked it
+rather than accepting it.** `check_residual` takes both a
+`&'static str` predicate name and a `CertCheck`, hand-paired at 18
+call sites — the shape of two vocabularies that drift. The lane
+judged it not a defect because the pairing is deliberately
+many-to-one, and filed nothing. Verified: `CertCheck::Surface1Residual`
+is reached as `carrier_on_surface_1` (`certify.rs:1681`) and as
+`tangent_on_surface_1` (`:1723`), one per certification lane. Two
+vocabularies serving different purposes — a funnel name against a
+taxonomy coordinate — not one restated twice. The judgement stands and
+no file is owed.
+
+### Wave closed: five dispatched, five merged, and what the slate looks like
+
+PRs **2372, 2373, 2374, 2377, 2379**. Slate **19 → 17 open** (four
+closed, two new rows filed: `census-witness-string-repeats-the-subject`
+and `fixed-band-literals-are-an-unscoped-class`), **35 closed**.
+
+**Four of five units closed by refuting their own row**, and the fifth
+(`band-helper`) closed its half only after correcting counts that were
+wrong in three successive tellings. Every one of these rows was filed
+by a competent lane from a real sweep. The defects were real in all
+five; the *characterisations* were wrong in four, always in the
+direction of sounding sharper or narrower than the truth.
+
+**What the no-review posture actually cost and bought.** Nothing was
+caught late, and nothing merged that a reviewer would have stopped —
+but that is not because the risk was absent. It is because every
+brief carried "execute, do not read" and every lane reported its own
+uncertainty, which is what let the orchestrator check the four
+load-bearing claims cheaply before each merge (the `Band::linear`
+equivalence chain, the `CensusSubject` settlement, `Expr::literal`'s
+refusals, the many-to-one `check_residual` pairing). **The posture
+works on the condition that the disclosed-uncertainty half is
+actually honoured.** A lane that smooths over its doubts under this
+posture ships unreviewed and unexamined at once.

@@ -53,9 +53,8 @@ needs_ev: true             # a question for Ev is open on an [ev] PR
 opened: 2026-09-02
 closed:                    # date; required once status is closed
 refs: [S330, 1588]         # related items or numbers, no semantics
-track: R                   # the code-quality track letter, on the rows
-                           # that carry one (see
-                           # docs/CODE-QUALITY-CONVENTIONS.md)
+track: R                   # historical: the code-quality track letter,
+                           # on the rows that still carry one
 github: 1601               # migrated GitHub issue number, if any
 ---
 ```
@@ -65,9 +64,10 @@ Program headers carry, in addition: `area` (`kernel`, `api`, `gui`,
 (the away-channel role tag), `ab_band` (the A/B ordinal band, claimed
 in `docs/MODEL-AB-LOG.md`), `paths` (territory globs), `keep_out`
 (prose pointers, one string each), and `blocks` (id blocks a program
-allocates from). No open program carries `blocks` today: the
-code-quality block ledger is the territories table in
-`docs/CODE-QUALITY-CONVENTIONS.md`.
+allocates from). **No open program carries `blocks`, and none should**:
+an item's id comes from its name, not from a per-track number block.
+The block scheme belonged to the 2026-08 findings register and left the
+tree with it (`docs/DOC-LEDGER.md`, sweep 11).
 
 Unknown keys are lint errors. Add a key by adding it to the script's
 schema in the same PR that first uses it.
@@ -115,15 +115,13 @@ only closed items.
   (`docs/DOC-LEDGER.md`, sweep 11) once all 110 of its live rows had
   gone to the eleven programs opened for them, so **a finding now goes
   straight onto the slate of the program whose ground it lands on**, and
-  `work/issues/` is the last resort it always was. The conventions those
-  rows run on — the numbering blocks, how a finding and an item are
-  read, the ordering rules, the track letters and their fences — are
-  `docs/CODE-QUALITY-CONVENTIONS.md`. A `keep_out` clause saying a
-  claimed row stays where it was is the thing to delete.
+  `work/issues/` is the last resort it always was. A `keep_out` clause
+  saying a claimed row stays where it was is the thing to delete.
 - **Ids are stable.** An item keeps its id for life; a program keeps
-  its directory for as long as it is open. Code-quality rows keep the
-  row ids they were cited by (`D102`, `S330`, `C15`) wherever they now
-  live.
+  its directory for as long as it is open. The rows migrated from the
+  2026-08 findings register keep the ids they were cited by (`D102`,
+  `S330`, `C15`) wherever they now live; nothing mints new ones in that
+  shape.
 - **A closed program's directory is deleted.** `work/` tracks work
   still to be done, not work that has been done, so once a program
   closes — its exit walk ratified, or Ev's ruling that it needs none —

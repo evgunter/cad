@@ -9026,3 +9026,60 @@ run went green, but a report that says *here is the PR* without a
 say to wait for it.
 
 **VIEW stands at 71 open / 78 closed, nothing waiting on Ev.**
+
+## 2026-09-11 — `view/delta-round-trip`: a draft is text a user typed
+
+`seeded-draft-is-the-commit-path-and-does-not-round-trip` is **closed**.
+The View pane's δ field seeded `drafts.delta_mm` with a `{:.3}` render
+of the δ in force, and that same field is what `lost_focus` parses and
+commits — so focusing the field and leaving it committed a number
+nobody typed: `0.0` below 500 nm (refused by
+`DisplayTolerance::new`), and a quantisation to the nearest micrometre
+everywhere else, silently.
+
+**The shape taken was the item's third, not its first.** A keystroke is
+now the only thing that makes the draft `Some`; an untouched field has
+nothing to commit. That is not merely the preferred shape — it is the
+one `crates/viewer/src/drafts.rs:33-39` **already documents**, *"the
+View pane's δ field … in millimetres AS TYPED"*, and which the seeding
+made false. The field's whole body moved out of `ViewerBehavior` into a
+free `delta_field` taking the four things it actually reads, so its
+focus lifecycle is testable without building a thirty-field behaviour;
+`pane/viewport.rs`'s `land` is the precedent.
+
+**The item's first shape — seed the exact spelling — was measured
+before it was dropped, and the measurement corrects the dispatch.**
+Seeding the shortest round-tripping spelling of `δ · 1e3` and parsing
+it back through `· 1e-3` returns a different `f64` for 4,155 of 28,600
+sampled δ in [1e-12, 1e-1] m — 14.5%, every one by exactly 1 ULP,
+because the lossy step is the unit conversion and not the format. The
+dispatch said no spelling can close it; that is true of 669 of those
+28,600 (2.3%), which have no `f64` millimetre preimage at all, and for
+the other 97.7% a preimage does exist within 1 ULP of the naive
+product. It is unreachable in practice rather than in arithmetic: a
+budget-chosen δ is `constant / TRIANGLE_BUDGET`
+(`crates/viewer/src/scene.rs:972`), whose exact spelling is seventeen
+significant figures in a 56-point field. The conclusion stands and the
+reason for it is narrower than stated.
+
+**The three siblings were checked, not taken.** `Bounds::wording`
+reaches `pane/properties.rs:702` and `:756` through `ui.weak`,
+`frame::delta_badge` builds a `Badge`, `FittedDelta::wording` is that
+badge's detail; nothing parses any of them back. Render-only, as the
+item says. What the fix leaves behind in the δ field itself — the
+render still reads `0.000` for a sub-micrometre δ, and an
+edit-then-undo commits that reading — is the fourth member of that
+family and has its own file,
+`delta-field-renders-a-sub-micrometre-delta-as-zero`, filed in the same
+PR that discloses it.
+
+**Six rows, driven through a headless `egui::Context`.** Nothing short
+of egui's own focus lifecycle tells a typed field from a visited one,
+so the rows run real `RawInput` against `Context::run_ui` rather than a
+stub for `changed`/`lost_focus`. Re-seeding the draft unconditionally
+makes exactly the two failure rows fail, with `Some(0.0)` and
+`Some(2e-6)` — the item's own two numbers. `egui::Response::changed()`
+was checked rather than assumed: `TextEdit` marks it from
+`text_changed` alone, set only inside the `has_focus` event pass
+(egui 0.36.1, `src/widgets/text_edit/builder.rs:551-589,810-812`), so
+it cannot fire on focus gain or on hover.
