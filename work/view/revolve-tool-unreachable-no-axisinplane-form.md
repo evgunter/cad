@@ -16,7 +16,7 @@ because no unit's diff contains both halves.
 ## What happens
 
 `add_revolve` requires a `NodeKindWanted::SketchAxis` seat
-(`crates/viewer/src/session.rs:1700`, the `require_kind` at `:1677`;
+(`crates/viewer/src/session.rs:1767`, the `require_kind` at `:1677`;
 the seat itself is `crates/viewer/src/seats.rs:161`), and `admits`
 (`crates/viewer/src/session/refuse.rs:61`, the `SketchAxis` arm at
 `:65`) satisfies that seat for

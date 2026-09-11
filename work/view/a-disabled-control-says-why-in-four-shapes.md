@@ -35,7 +35,7 @@ sites), then each read for what it hands the reader.
    the new one).
 2. **A literal composed at the button** — `app.rs:1175`,
    `pane/create.rs:830`, `pane/create.rs:1132`,
-   `pane/properties.rs:205`, `pane/properties.rs:715`,
+   `pane/properties.rs:208`, `pane/properties.rs:727`,
    `pane/create.rs:589-592`.
 3. **A `&'static str` composed AWAY from the value that knows** —
    `frame::NO_CHOOSER_BACKEND` at `app.rs:1197` and `:1227`. Already
@@ -52,7 +52,7 @@ And the two the call-shaped rule misses, both in `pane/create.rs`:
   a field with the SAME NAME as `CancelDoor::blocked` and the opposite
   typing: a string, not a refusal, rendered through `ui.weak` beside
   the control rather than as its disabled reason.
-- `pane/properties.rs:347-352`, the free-move probe's ineligibility:
+- `pane/properties.rs:350-355`, the free-move probe's ineligibility:
   `ui.weak(fault.to_string())` **where the control would be**, with a
   typed `DisplayFault` — *"the same sentence the op would refuse with"*.
   The typed discipline of shape 1, rendered as shape 3's neighbour.

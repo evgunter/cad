@@ -1973,9 +1973,12 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
             instance: bench.post_b,
         },
         SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
             frame: Frame::translation([0.04, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

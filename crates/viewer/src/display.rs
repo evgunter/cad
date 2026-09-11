@@ -184,6 +184,15 @@ pub enum DisplayFault {
     NoFreeMove,
     /// A free-move gesture is already in flight.
     FreeMoveInFlight,
+    /// A free-move operation named an instance that is not the one
+    /// being probed — a preview or a commit for an instance other
+    /// than the one the open probe was begun on.
+    ///
+    /// [`crate::session::Refusal::WrongGesture`]'s twin on this drag,
+    /// and separate from [`DisplayFault::FreeMoveInFlight`] for its
+    /// reason: that fault answers a second BEGIN, this one answers a
+    /// driving operation whose subject is not the probe it reaches.
+    WrongFreeMove,
 }
 
 impl core::fmt::Display for DisplayFault {
@@ -213,6 +222,7 @@ impl core::fmt::Display for DisplayFault {
             ),
             Self::NoFreeMove => write!(f, "no free-move is in progress"),
             Self::FreeMoveInFlight => write!(f, "finish the free-move first"),
+            Self::WrongFreeMove => write!(f, "that is not the free-move in progress"),
             Self::FusedGeometry {
                 instance,
                 root,
@@ -748,13 +758,26 @@ impl DisplayState {
     /// preview REPLACES the last — the composed display value is
     /// `frame`, never an accumulation of deltas.
     ///
+    /// **It names the instance it is probing**, and the name is
+    /// checked before the frame is: a drag on a second instance's
+    /// field cannot compose its frame onto the instance an open probe
+    /// holds. [`DisplayFault::WrongFreeMove`] carries the argument.
+    ///
     /// # Errors
     ///
-    /// [`DisplayFault::NoFreeMove`], [`DisplayFault::NonRigidFrame`].
-    pub fn preview_free_move(&mut self, frame: Frame) -> Result<(), DisplayFault> {
+    /// [`DisplayFault::NoFreeMove`], [`DisplayFault::WrongFreeMove`],
+    /// [`DisplayFault::NonRigidFrame`].
+    pub fn preview_free_move(
+        &mut self,
+        instance: RecipeNodeId,
+        frame: Frame,
+    ) -> Result<(), DisplayFault> {
         let Some(gesture) = self.free_move.as_mut() else {
             return Err(DisplayFault::NoFreeMove);
         };
+        if gesture.instance != instance {
+            return Err(DisplayFault::WrongFreeMove);
+        }
         if !is_rigid(&frame) {
             return Err(DisplayFault::NonRigidFrame {
                 determinant: frame.determinant(),
@@ -773,12 +796,19 @@ impl DisplayState {
     /// same picture as "not probed", and the distinctness treatment
     /// must not mark a part that is not displaced.
     ///
+    /// Names its instance for [`DisplayState::preview_free_move`]'s
+    /// reason, and the name is checked before the probe is taken: a
+    /// refused commit leaves the probe it does not name in flight.
+    ///
     /// # Errors
     ///
-    /// [`DisplayFault::NoFreeMove`].
-    pub fn commit_free_move(&mut self) -> Result<(), DisplayFault> {
-        let Some(gesture) = self.free_move.take() else {
-            return Err(DisplayFault::NoFreeMove);
+    /// [`DisplayFault::NoFreeMove`], [`DisplayFault::WrongFreeMove`].
+    pub fn commit_free_move(&mut self, instance: RecipeNodeId) -> Result<(), DisplayFault> {
+        let Some(gesture) = self.free_move.take_if(|open| open.instance == instance) else {
+            return Err(match self.free_move {
+                Some(_) => DisplayFault::WrongFreeMove,
+                None => DisplayFault::NoFreeMove,
+            });
         };
         if let Some(frame) = gesture.preview {
             if frame.is_identity_bits() {

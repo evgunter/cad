@@ -25,7 +25,7 @@ Rustdoc reads `///` and `//!` and **nothing else**, so a name written
 in a plain `//` comment is unreachable however it is spelled — the
 bracket would not be checked, it would just be punctuation. The
 closing PR's own two fixes are the demonstration: the same dead name
-sat at `session/op.rs:753` in a `///` comment and at `app.rs:950` in a
+sat at `session/op.rs:828` in a `///` comment and at `app.rs:950` in a
 `//` comment, and only the first could become a link. The second had
 to be corrected by hand and is held by nothing afterwards.
 
@@ -116,7 +116,7 @@ gate's cost:
 ## Note (`view/gesture-doors`, 2026-09-11): both worked-example sites are gone
 
 The two sites this row's demonstration rests on —
-`session/op.rs:753` (`///`, linkable) and `app.rs:950` (`//`, not) —
+`session/op.rs:828` (`///`, linkable) and `app.rs:950` (`//`, not) —
 were deleted when the three hand-written `notices.extend` calls became
 one `frame::Withdrawal::all` call and `OpOutcome`'s re-declared fields
 became the report. The MECHANISM claim is untouched: rustdoc still
