@@ -2,8 +2,9 @@
 id: named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites
 kind: issue
 title: eleven bare own-module spans are deliberate and say so nowhere, in a crate with three module headers that explain the same choice
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-09-11
 ---
 
 
@@ -85,3 +86,30 @@ it is a unit, not a paragraph.
 sentence per file in the theme.rs voice, four files, one census. Not a
 per-site comment — the disposition is a property of the module pair,
 not of each sentence.
+
+## Closed (2026-09-11) — dissolved, not fixed
+
+**Category A is gone.** Its thirteen spans are links now
+(`rustdoc-posture-test-names-one-axis-of-three`, closed the same day on
+Ev's ruling), so there is no silent disposition left to annotate: a
+reader meets a bracket and the bracket resolves. The convention this row
+measured at 2-of-13 is not applied more widely — the thing it was a
+convention *for* stopped existing. The two notes that carried it
+(`theme.rs:9-12`, `vocab.rs:51-52`) retired in the same change, because
+the reason they gave stopped being true.
+
+**The cheap shape this row proposed — one module-header sentence per
+file, four files, one census — was not taken and is not owed.** It
+costs lines in the four most heavily cited files in the tracker, and
+the ruling removed the thing it would have explained. The census it
+worried about came in at zero for those four files: the thirteen edits
+are in-place on their own lines, so `frame.rs`, `pickindex.rs`,
+`props.rs` and `tree.rs` are all exactly the length they were.
+
+**Category B is NOT dissolved and does not die here.** Its seven
+`#[cfg(test)]` spans are untouched by the ruling, which is about what
+rustdoc renders and these are rendered by nothing. Re-filed as
+`bare-spans-outside-the-path-rule-have-no-stated-disposition`, together
+with a second population this row's own rule could not see — five spans
+that name an `app`-gated item through a possessive two-span spelling
+(`` `app`'s `unit_picker` ``) rather than a path.

@@ -1476,7 +1476,7 @@ setting only the flag fails the build, which is why the feature is
 declared here so the flag is all a builder has to remember
 (`local-scripts/serve-wasm.sh`). The browser lane itself is deferred.
 
-### Rustdoc posture: the host pass is the gate
+### Rustdoc posture: the host all-features pass is the link gate
 
 **At the browser target every link into host-only code is unresolvable
 BY CONSTRUCTION, so a lint that cannot tell that from a broken link is
@@ -1490,10 +1490,41 @@ answer for the same reason, and the reason is not that the browser docs
 do not matter: it is that the lint cannot tell *this link is broken*
 from *this link's target is in the other half*.
 
-**So the gate is the HOST pass**, at `-D warnings`, which CI runs. It
-holds every page it renders — including the case no by-construction
-argument covers: a link that resolves at NEITHER target is broken on a
-host page and reds there.
+**So the link gate is the host pass at `--all-features`**, at
+`-D warnings`, which CI runs. It holds every page it renders —
+including the case no by-construction argument covers: a link that
+resolves at NEITHER target is broken on a host page and reds there.
+
+**There are TWO host passes, and only one of them judges links.**
+`scripts/doc-gate.sh` documents this crate a second time at DEFAULT
+features on any run whose change filter did not seed the toolkit
+(`--skip-viewer-toolkit`), and that pass renders the renderer-free half
+ALONE: `app`, `drafts`, `forms`, `gpu`, `pane` and `widgets` are not
+compiled there, so a link into any of them is unresolvable by
+construction — the same shape as the feature and target axes above, in
+a third place. **Ev ruled on 2026-09-11 that the renderer-free half MAY
+link into the `app`-gated half**, and that pass runs
+`RUSTDOC_LINTS_INERT` accordingly, stated at its site. What is checked
+where, exhaustively:
+
+- **At `--all-features`** — every link in this crate, both halves. A
+  branch whose diff touches `crates/viewer` takes this pass, because
+  `scripts/ci-filter.py` seeds `RUN_VIEWER_TOOLKIT` off that diff, so
+  whoever writes a broken link reds on their own branch.
+- **At DEFAULT features** — every rustdoc lint EXCEPT
+  `broken_intra_doc_links`. The renderer-free half's prose is held to
+  all of the rest on every run, which is what that pass is still for.
+- **Nowhere** — a broken link in the renderer-free half written on a
+  branch that never takes the all-features pass. No branch can be in
+  that position: writing the link means diffing `crates/viewer`, and
+  that diff seeds the toolkit.
+
+Someone who runs `cargo doc` on this crate without `app` — the reader
+the renderer-free half exists for — meets one of those links as the
+literal text `[crate::app::…]`, brackets and all, because the target is
+not there to link to. That is the cost and it is accepted: a
+`cfg(not(feature))` configuration is allowed to render badly (Ev,
+2026-09-11).
 
 **A browser pass, if one is ever run, allows that one lint.** None is
 run today, and the feature axis is better off here than this one:
@@ -1527,13 +1558,13 @@ drifted citation to show for it, and this crate has spent four such
 findings in a day.
 
 **The one shape that is a DEFECT rather than a cost, and how to decide
-it without an attribute grep.** Ask whether the host pass renders a page
-for the item the doc comment sits on — the same `cargo doc` without
+it without an attribute grep.** Ask whether the host all-features pass
+renders a page for the item the doc comment sits on — the same `cargo doc` without
 `--target`, then look for the page under `doc/viewer/`; it is there or
 it is not:
 
-- **It does** — the host pass holds that link, and a browser-pass error
-  on it is by construction. Permitted.
+- **It does** — the host all-features pass holds that link, and a
+  browser-pass error on it is by construction. Permitted.
 - **It does not** — the item is absent at the host, so the browser pass
   is that link's ONLY reader and it has to resolve there. A bracket
   resolving at neither target spells a checked claim nothing anywhere
@@ -1547,9 +1578,10 @@ on the item, because the two come apart inside this very file:
 comments carry no `cfg` of their own, so an attribute test reads them as
 unconditional and reaches the wrong bullet. It is not a test on the
 LINKED item's `cfg` either, and it needs no special case for the `app`
-feature: `mod app` is `cfg(feature = "app")`, and the host pass
+feature: `mod app` is `cfg(feature = "app")`, the host all-features pass
 documents this crate WITH that feature, so its page exists and its links
-are held.
+are held — and the default-features pass beside it judges no link at
+all, so there is no second answer for this test to disagree with.
 
 ## Banked post-v1
 

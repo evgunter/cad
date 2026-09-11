@@ -270,7 +270,7 @@ const FRAME_Y_ARM_FRACTION: f64 = 0.62;
 /// mark.
 const POINT_ARM_PX: f64 = 14.0;
 
-/// Which kind of datum a drawing came from/// Which kind of datum a drawing came from — carried so a consumer can
+/// Which kind of datum a drawing came from — carried so a consumer can
 /// say what it is pointing at without re-reading the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatumKind {
