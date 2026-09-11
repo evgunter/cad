@@ -130,8 +130,8 @@ fn kiss_vertex_names(
         ),
     );
     (
-        vname(u, RoleSeg::FromA(Box::new(va))),
-        vname(u, RoleSeg::FromB(Box::new(vb))),
+        vname(u, RoleSeg::FromA(va.into())),
+        vname(u, RoleSeg::FromB(vb.into())),
     )
 }
 
@@ -306,7 +306,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     // start cap lies in the SAME plane (z = 0.5) — declared.
     let floor1 = fname(
         s1,
-        RoleSeg::FromB(Box::new(fname(b1, RoleSeg::Cap(CapEnd::Start)))),
+        RoleSeg::FromB(fname(b1, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
     let (doc, decl) = insert(
@@ -346,7 +346,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         doc: &doc,
         eval: &ev,
     };
-    let wrapped_floor1 = fname(s2, RoleSeg::FromA(Box::new(floor1)));
+    let wrapped_floor1 = fname(s2, RoleSeg::FromA(floor1.into()));
     let merged_row: StableName = ev
         .value(s2)
         .unwrap()
@@ -731,7 +731,7 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
     );
     let floor2 = fname(
         s1,
-        RoleSeg::FromB(Box::new(fname(b2, RoleSeg::Cap(CapEnd::Start)))),
+        RoleSeg::FromB(fname(b2, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, decl) = insert(
