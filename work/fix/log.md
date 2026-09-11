@@ -1118,3 +1118,70 @@ regex; what made the question decidable was a pass that ran the regex,
 looked at every hit, and reported where the classes actually separate.
 Worth asking for by default the next time a row proposes a mechanical
 guard.
+
+### `validate-drops-the-material-sign-refusal-silently` closed (PR 2365, 2026-09-11) — the item was wrong, and the lane was right to refuse the fix it asked for
+
+The row said `validate.rs`'s `Ok(Unencoded) | Err(_) => {}` was *"a
+refusal examined and discarded"*, *"arguably worse"* than the flatten
+class, and *"the shape A5's letter exists to forbid"*. I dispatched it
+question-first — establish reachability, and read A5 rather than the
+row's summary of it. Both instructions earned their place.
+
+**`Err(_)` IS reachable** — executed, not argued. The lane swapped the
+arm for a push and ran `sweep`'s
+`f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable`: five
+faces refuse (`FaceKey(1v5)`, `(11v9)`, `(14v7)`, `(17v3)`,
+`(18v15)`). So the arm is not deletable.
+
+**A5 is not about this.** A5 is `crates/editor-core/ASSEMBLY.md:164`,
+*"the at-rest gate"* — `assembly::assemble`, product gathering,
+`MintedDeclaration`/`RefusedRef`. It governs `editor-core`, not tier
+3's check 6, and forbids nothing here. It arguably cuts the other way:
+A5 has a *third* verdict (`Uncertified`) precisely so "not decided"
+need not be forced into the refusal channel.
+
+**And the raise the row asked for would have been a real regression —
+which the tree already documents at the site.**
+`crates/geom-brep/src/props/curved.rs:1174` says in terms:
+*"[`boundary_material_sign`]'s callers must treat an error as exempt
+(the check-7 posture)"*, and then names the exact failure: *"tier 3's
+curved check 6 raises a `CurvedSenseInverted` from the wrong ±1 and,
+check 7 being gated on `errors.is_empty()`, SUPPRESSES the honest
+`NotIsoRectangle` the flux lane raises on the same face."* The
+mutation run reproduced that sentence exactly — with the raise in,
+five `CurvedSenseInverted`s were the whole error vector and the
+`VolumeUncomputable` was gone. **The row proposed introducing a bug
+the code had already written down.**
+
+**So what landed is legibility plus a real pin.** The arm splits in
+two, each stating its own invariant — an ANSWER of "no side encoded"
+and an EXEMPT refusal are different events. No behaviour change.
+
+The durable half is the test. `m5_pr12_fix_pass.rs`'s one witness
+asserted through `format!("{errs:?}").contains("VolumeUncomputable")
+&& contains("NotIsoRectangle")` — a substring match over a Debug dump,
+which passes on any output carrying those words anywhere. It is now
+structural and pins **both halves including the negative**: no
+`CurvedSenseInverted`, AND a `VolumeUncomputable` carrying
+`NotIsoRectangle`. The exemption was load-bearing and unpinned; now
+turning it into a raise goes red.
+
+### The pattern under three items in one day
+
+`direction-underflow`'s residue characterisation, the
+collapsed-continuation site list, and now this row's A5 claim. Each
+was filed by a competent lane from a real sweep; each got the *shape*
+right and the *characterisation* wrong, in the direction of making the
+defect sound sharper than it was. The row that claimed the strongest
+authority — a named design clause — was the one that had not read it.
+
+The cheap defence is already in the reviewer brief and is worth
+promoting to how this program dispatches: **the dispatch is a
+hypothesis.** A row citing a clause gets "read the clause, not the
+row's summary" in its brief; a row citing a site list gets "re-derive
+it". Both instructions paid for themselves today, and neither costs a
+lane more than minutes.
+
+**Flagged, not actioned:** open PR **#2339** (PERF-6) also edits
+`validate.rs`, at or before ~line 2900 against this diff's ~4163. No
+textual conflict; whoever lands second should look.
