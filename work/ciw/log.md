@@ -2756,3 +2756,116 @@ duplicate-`github` warnings mid-slate, and one names a CIW row —
 `work/meta/parked-on-an-int-is-invisible-to-the-fired-trigger-rule` is
 META's item on exactly this class, so the rule question is theirs and
 the record is not reached across a fence to tidy.
+
+## 2026-09-11 — unit 5 merged: a wrapped idiom is spelled only through its wrapper
+
+PR 2345 (`35d39eea`), run `34570068912` green. Item closed; four filed.
+The largest unit this program has run: a 1770-line gating script.
+
+**The guard found the defect it was written to prevent, already in the
+tree, on its first run over `main`.** `.claude/hooks/session-start.sh`
+was spelling `DEBIAN_FRONTEND=noninteractive $sudo apt-get update -qq &&
+… install -y -qq admesh` inline. PR 2277 routed the *workflows*; nobody
+had looked at the hook, and no check in the tree could.
+
+**Four blockers, all executed, all in the reader.** Three were the
+program's standing shape — *a body that parses to nothing, reported as
+"no apt-get here"*:
+
+1. **Four valid block-scalar headers were never read.** `run: |2`,
+   `|2-`, `| # install`, `&r |` — each valid YAML whose value is exactly
+   `sudo apt-get install -y foo`, each **green**, because the header did
+   not match `^\s*\|[-+]?\s*$` and fell through to the inline-scalar arm.
+2. **An unterminated quote that a later quote pairs with swallowed the
+   commands between them**, turning RED into GREEN — and the census went
+   **up**, to 13393. A lone stray quote silently dropped 29 commands.
+3. **The header asserted `ssh host <<EOF` was read and it was not**;
+   `_feeds_a_shell` knew only the five shells, so `ssh`, `.` and
+   `source` were data.
+4. **The sibling was not swept.** The YAML-quoting hole this unit found
+   was live in `check-status-capture.py`, a **merged gate**. Measured
+   through `yaml_bodies` on `origin/main` at `7d674b8`: a real
+   `PIPESTATUS` defect in a single-quoted inline `run:` scalar gives
+   **0 violations**; unquoted and double-quoted give 1. Fixed here, and
+   both re-measured at the merge.
+
+Re-verified by the orchestrator on a clean clone, each injection asserted
+to have applied: `|2` RED, `| # install` RED, `&r |` BAIL, the paired
+quote BAIL, `ssh host <<EOF` RED — and both must-stay-green cases green,
+including `apt-get() { scripts/apt-install.sh "$@"; }` **and a call to
+it**.
+
+**Two things the lane did that are worth copying.** It **measured before
+choosing a blanket refusal**: the tree has 72 legitimate multi-line
+quoted strings across 19 files, and **zero name an idiom**, so the
+refusal is narrowed to exactly that rather than to every multi-line
+string — a false-red machine avoided by counting instead of guessing.
+And the false-RED repair needed a second round it disclosed: fixing the
+function *definition* left the **call** red, which defeats the point of
+defining a wrapper function at all.
+
+**A correction to the census that is itself the fix showing through.**
+13392 → 12306 commands, because `case` patterns and function-definition
+names are no longer counted as commands. The number fell because the
+false reds went away.
+
+**And the dispatch's central premise was wrong.** I told this lane that
+`check-status-capture.py` "respects quotes, comments, escapes, line
+continuations and heredoc bodies" and "may already do most of your
+parsing work". It **discards** heredoc bodies (*"Its text is data, never
+code"*) and keeps quoting as written — its own mutant table asserts that
+a defect inside single quotes stays green. Two of the ten mutants I
+required must be RED. The two readers answer **opposite** questions in
+exactly the two places this property lives, so "extend the existing one"
+was never available. Fourth premise of mine a lane corrected this slate,
+and the most consequential.
+
+## 2026-09-11 — the third slate is complete, and what it cost
+
+**All seven units merged**: 1 (#2326), 2 (#2324), 3 (#2330), 4 (#2329),
+5 (#2345), 6 (#2325), 7 (#2327). Twelve rows closed. **Thirty-one rows
+filed**, twenty-nine of them still open.
+
+**That ratio is the finding.** A slate that closes 12 and opens 31 is not
+converging, and the plan should not pretend otherwise. Two things make it
+less alarming than it reads, and one makes it worse:
+
+- Every one of the 31 carries a **measurement**, not a suspicion. That is
+  the difference between a backlog and a receipt, and it is the reason
+  the count went up: this slate measured things that were previously
+  asserted.
+- The 31 are not 31 subjects. **Seven of them are one file** —
+  `check-ci-mirror-parity.py`'s growth, its three-copy reader preamble,
+  its population layer duplicated into a second checker, three shell
+  splitters nothing compares, both arms blind through `bash -c`,
+  `SEMANTIC_ENV` fail-open where `PIN_FREE` is fail-closed, and the step
+  keys still discarded. Four more are **selftest fixtures that cannot see
+  the failure they exist for**. Four are the **provisioning surface no
+  gate reads**. Four are **one argument written in three to five prose
+  homes**. That is four subjects, not nineteen.
+- The worse reading: this program's units keep **finding their own
+  defect inside their own diff** — a partial match read as a whole
+  verdict inside the diff fixing partial matches (unit 2), an unreadable
+  input read as an empty set inside the arm whose rule is that it must
+  not be (unit 4), stderr becoming a version inside the unit that stops
+  restating versions (unit 7), a guard promoted as strong while 14 of 18
+  mutations survive it (unit 3). Four of seven. **The reviews caught all
+  four; no lane caught its own.**
+
+**What actually caught things, counted.** Every blocker this slate — and
+there were nine across five units — was found by **injecting the failure
+and watching the row stay green**. None was found by reading a diff. The
+orchestrator's own re-injections caught two further cases where a
+reported-dead mutant had never been applied at all, because a no-op edit
+is indistinguishable from a surviving mutant unless you assert the edit
+took. That practice is now the program's, not a lane's.
+
+**The orchestrator was wrong four times and it cost real work.** `tools/*`
+is INSTR's, not code-quality Track K's — and acting on a lane's first
+draft, I relayed a correction that would have written a **closed**
+program into CIW's own header, and had to retract it mid-unit.
+`scripts/ci-pin.py` is META's, so "widen it or write a second reader" was
+never the purely technical choice I framed. `check-status-capture.py`
+answers the opposite question to the one I said it answered. And I
+described `rebuild-latency` as the worst-guarded history when it is the
+best. A brief is a hypothesis; four of mine were asserted as facts.
