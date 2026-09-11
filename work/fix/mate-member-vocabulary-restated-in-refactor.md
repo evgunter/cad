@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-04
 refs: [1405, 1748]
 branch: fix/refactor-member-vocabulary
+pr: 2338
 ---
 
 Found by CHROME's style lane while reviewing PR 1748, under the
