@@ -198,7 +198,7 @@ pub fn grid_pitch(metres_per_pixel: f64) -> f64 {
 /// to zero.
 const PATCH_COVER: f64 = 2.2;
 
-/// **What one grid cell aims to span on screen**/// **What one grid cell aims to span on screen**, in pixels.
+/// **What one grid cell aims to span on screen**, in pixels.
 ///
 /// The pitch ladder picks the rung nearest this. A judgement, and the
 /// range around it is what the ladder's steps are worth: at a 1-2-5

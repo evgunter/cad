@@ -8082,8 +8082,12 @@ control in the other direction. `--selftest` exits 0.
 in-place on their own lines, so `frame.rs`, `pickindex.rs`, `props.rs`
 and `tree.rs` — **155** `file:line` citations between them — are
 exactly the length they were, and lines up to 88 characters are within
-this crate's practice (at the base, 74 doc lines already exceed 75, to
-a maximum of 116 at `datums.rs:273`). `theme.rs` loses 3 lines at
+this crate's practice: at the head tree **80** doc lines under
+`crates/viewer/src` exceed 75 characters, to a maximum of **114** at
+`drafts.rs:261`. (An earlier draft of this paragraph said *"116 at
+`datums.rs:273`"*, read off the first ten rows of an unsorted list —
+the plan's *distrust the first number out* in miniature, and the real
+maximum was a line this diff has since repaired.) `theme.rs` loses 3 lines at
 `:10-12`, so its `:13` and below move by -3; `vocab.rs` loses 2 at
 `:50-55`, so its `:56` and below move by -2;
 `crates/viewer/README.md` grows 32 below `:1493` and
@@ -8116,6 +8120,23 @@ there is no `unit_picker` anywhere in this workspace** — the class
 2026-09-10, alive in the same crate because that sweep's rule could not
 match the spelling. Filed as
 `possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`.
+
+**A second class fell out of checking that number, and it is three
+lines long.** Re-deriving the longest doc line turned up
+`sketch.rs:1015` at 125 characters, and the reason it was long is that
+it says its own first sentence twice with a `///` wedged between the
+copies: *"`/// **How big the tip marks in a profile preview are**/// **How
+big the tip marks…**, in sketch-plane metres`"*. Rustdoc renders that
+literally, on a page in the renderer-free half that BOTH host passes
+build. Swept with *a doc line carrying a second `///` or `//!` after
+column zero, outside backticks and outside an indented doc code block*
+— over every tracked `.rs` in the repository, not just this crate —
+and it is exactly **three**, all here: `datums.rs:201`, `:273` and
+`sketch.rs:1015`. All three repaired in place, no line shift. **No gate
+holds this**: it is not a broken link, so `doc-gate.sh` is green over
+it at every pass, and the sweep's blind spot is the honest one — a
+duplicated sentence that did NOT keep its `///` is invisible to this
+rule and to every other.
 
 **Two rows closed and two opened.**
 `rustdoc-posture-test-names-one-axis-of-three` is closed with the
