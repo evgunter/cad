@@ -1236,6 +1236,7 @@ fn resolution_status_tags_are_stable() {
 fn select_refusal_tags_are_stable() {
     use crate::tags::select_refusal_tag;
     use pncad::document::{Dimension, RecipeNodeId};
+    use pncad::geom_core::{BandError, BandField};
     use pncad::select::{EntityKind, InterrogateError, SelectRefusal};
 
     let name = Box::new(pncad::prelude::StableName {
@@ -1271,7 +1272,23 @@ fn select_refusal_tags_are_stable() {
         }),
         "not_a_length"
     );
-    assert_eq!(select_refusal_tag(&SelectRefusal::Band), "band");
+    // The band arm delegates: a Python caller branching on `reason`
+    // gets the constructor's own word, so a collapsed band and an
+    // overflowed one are two answers rather than one.
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::Band(BandError::Empty {
+            zero: 5e-324,
+            escalate: 5e-324,
+        })),
+        "empty"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::Band(BandError::InvalidValue {
+            field: BandField::Escalate,
+            value: f64::INFINITY,
+        })),
+        "invalid_value"
+    );
 }
 
 /// LIB-PYG5: `ContactClass` is `#[non_exhaustive]` kernel-side, so
@@ -3939,7 +3956,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "missing_upstream",
             "unnamed",
         ],
-        delegates: &[],
+        delegates: &["band_error_tag"],
     },
     TagEntry {
         function: "node_error_tag",
@@ -4348,7 +4365,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "select_refusal_tag",
         values: &[
             "bad_value",
-            "band",
             "in_band",
             "not_a_datum",
             "not_a_length",
@@ -4357,7 +4373,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unclassified",
             "unreadable",
         ],
-        delegates: &[],
+        delegates: &["band_error_tag"],
     },
     TagEntry {
         function: "shell_classify_error_tag",
