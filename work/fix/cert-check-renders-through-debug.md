@@ -2,9 +2,10 @@
 id: cert-check-renders-through-debug
 kind: issue
 title: CertifyError renders CertCheck through Debug at a user surface — the Display class in an eighth crate, on no program's ground
-status: open
+status: review
 opened: 2026-09-11
 refs: [verb-error-arity-renders-verbkind-through-debug]
+branch: fix/certcheck-display
 ---
 
 
