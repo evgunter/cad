@@ -1781,3 +1781,35 @@ Filed with both dispositions on
 `m10-3-chamber-row-reads-ten-times-its-recorded-cost`; whether
 `Sym<Interval>` is worth its seconds is M10's call and this program does
 not reopen it.
+
+## The M10-3 cost is 95 % symbolic tier; filed to M10 (2026-09-11)
+
+Ev asked for an issue on speeding up the symbolic form. Quantified first,
+one line changed (`SymbolicDials::default()`'s `enabled`), same box and
+command: **tier off 15.364 s, tier on 319.373 s** — the tier is 304 of
+319 seconds, **95.2 %, a 20.8x multiplier**. The rest of the kernel did
+not regress: with the tier off the suite is faster today than the whole
+suite was before E12 existed (21.041 s at `a4439fbef`). The entire delta
+is E12.
+
+Two corrections to yesterday's reasoning fall out of it. The degree-16
+result is **explained and the dial exonerated** — `drive.rs` predicts it
+in as many words (*"at 16 it freezes and the row does not move"*), so a
+frozen form sends work back to subdivision and 16 is slower than 128.
+And `CHAMBER_LEAVES` should NOT be re-cut: the budget was measured
+correctly, the rows assert what they assert, and the seconds belong to a
+kernel tier the real program pays too.
+
+Filed as `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive` —
+M10's slate, because M10 designed the tier (M10-7), owns `drive.rs` where
+both budget constants live, and owns the rows that pay. Named in it:
+`geom-core/src/sym*` is PROPS's by glob, so a fix inside the normal form
+is an announced cross-fence change. The row asks for a PROFILE first —
+which of degree growth, the `num-bigint` coefficient ring or per-term
+allocation dominates — because the one hypothesis taken from reading the
+code (the degree constant) was refuted by measurement, and a patch
+written the same way would have made the row slower.
+
+Recorded there without an argument attached: **all nine rows pass with
+the tier off**, which is a coverage question for M10 and not a case for
+turning it off.

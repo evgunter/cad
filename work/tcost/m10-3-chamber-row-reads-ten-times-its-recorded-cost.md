@@ -283,3 +283,41 @@ dispositions, and the choice belongs to whoever owns the rows:
 Either way the file's stale measured sentences are fixed in the same
 change — they are the reason this took a bisect to find rather than a
 read.
+
+
+## Quantified and handed to M10 (2026-09-11)
+
+The remaining question — how much of the 15.2x is the symbolic tier
+itself — is measured. Same box, same profile, same command, one line
+changed (`SymbolicDials::default()`'s `enabled`):
+
+| configuration | suite wall |
+|---|--:|
+| tier OFF | **15.364 s** |
+| tier ON, shipped dials | **319.373 s** |
+| the suite before the tier existed (`a4439fbef`) | 21.041 s |
+
+**The tier is 304 of 319 seconds — 95.2%, a 20.8x multiplier** — and the
+rest of the kernel did not regress at all: with the tier off the suite is
+FASTER today (15.4 s) than the whole suite was before E12 (21.0 s). The
+entire delta is the symbolic tier.
+
+Two things that fall out, both now on M10's slate as
+`work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`:
+
+- **The degree-16 result is explained and the dial is exonerated.**
+  `drive.rs`'s own note predicts it: *"the endpoint identity the tier's
+  headline row depends on needs degree >= 32 to cancel; at 16 it freezes
+  and the row does not move."* A frozen form sends work back to
+  subdivision, so 16 is slower than 128. The budget is correctly set and
+  this row is not about the dials.
+- **All nine rows pass with the tier off**, which is a coverage question
+  for M10 rather than a case for turning it off, and is recorded there
+  as one.
+
+So the disposition for THIS row narrows: nothing here should re-cut
+`CHAMBER_LEAVES`. The budget was measured correctly, the rows assert what
+they assert, and the seconds belong to a kernel tier that the real
+program pays too. Either M10's row makes the tier cheaper and this one
+closes with it, or the M10-3 suite is deliberately placed at ~84 s
+hosted and the file's stale prose is corrected to say so.
