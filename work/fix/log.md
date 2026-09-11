@@ -958,3 +958,63 @@ no row.
 norm once at `revolve/axis.rs` would swap `Margin::norm2` for
 `Margin::of`, and which dimensional door a decided quantity comes
 through is not cosmetic. Written at the site so nobody "fixes" it.
+
+### `census-flattens-the-typed-chart-region-declines` closed (PR 2354, 2026-09-11)
+
+Twelve typed chart-region refusals stop flattening onto one
+`CensusUnsupported`; the variant carries the refusing lane's own
+refusal and renders its sentence. The style review broke one of three
+claims and the fix pass turned that break into the unit's best work.
+
+**The recourse claim failed, and mechanising the repair found a ninth
+arm.** The unit dropped a blanket recourse tail on the grounds that the
+cause supplies one; **eight of twelve did not**, so a `TouchingBoundary`
+decline rendered strictly less usefully than before. Two repairs were
+available — restore a tail, or give the arms their recourse. The lane
+took the second, because it makes `chart_region.rs:202`'s existing
+claim (*"every arm names its recourse"*) TRUE rather than leaving an
+unenforced invariant behind a compensating wrapper. It then wrote the
+claim as a row, and **the row immediately found a ninth arm**
+(`NonPlanarTrim`) that a careful reading by eye had missed.
+
+The row is documented as a **floor, not a proof**: it is a
+verb-vocabulary check over rendered literals and cannot tell a recourse
+from a sentence with a verb in it. That is the right disclosure — and
+the ninth arm is the argument for writing such a row anyway.
+
+**The contact lane is now carried whole**, which resolved the style
+review's taste finding along with its correctness one. The first draft
+reduced `ContactRefusal` to a `&'static str` and re-prosed it, and the
+new prose appended exactly the two-arm menu `contact.rs:195` says in
+terms is a false lead. Carrying the refusal whole fixes both: the
+ratified composition holds, and `CensusUnsupportedCause` stops being an
+enum that exists to prevent flattening while flattening one of its own
+lanes.
+
+**A CI gate caught the withdrawal's consequence, and the gate's message
+was the useful part.** Pulling the façade carry left
+`CensusUnsupportedCause` an undecided payload rung under a curated
+carrier, and `payload-rung sweep` refused it with two named outs:
+carry it where its carrier is carried, or argue the non-carriage beside
+that carrier. The lane took the second and **wrote the falsifier into
+the argument** — a Python caller who must tell a stopped search from a
+thin overlap gets the sentence and no word. An argument that names what
+would refute it is the shape this repo keeps asking for and rarely
+gets.
+
+**Two judgement calls the lane flagged rather than buried**: it cited
+the argument's home as the carrier's crate rather than the façade's
+(the only such row in that table, and right — the argument is about
+what a façade carry would OWE, so it belongs where whoever carries it
+will be reading), and it registered `argued` rather than `filed`
+because a pointer to an item that did not yet exist would be worse than
+none. The item now exists —
+`work/lib/census-decline-class-not-published-at-the-python-door`, PR
+2357 — so that row can gain its pointer once both are on main.
+
+**Class B, swept and filed**:
+`validation-arms-delegate-a-recourse-their-carriers-do-not-give`. Four
+more `ValidationError` arms make the assumption this unit broke, two of
+them wrappers contributing four words (`"tier 3: {error}"`) over a
+carrier that names no repair in 0 of 2 and 1 of 9 of its literals. Six
+arms carrying `Indeterminate` are sound and are not on the list.
