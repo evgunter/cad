@@ -515,10 +515,8 @@ fn fold_runs<T: Decide>(runs: &[FaceRun<T>]) -> (MassProperties<T>, Option<(Face
     let mut area_pad = 0.0f64;
     let mut refused = None;
     for run in runs {
-        if refused.is_none() {
-            if let Some(refusal) = &run.refusal {
-                refused = Some((run.face, refusal.clone()));
-            }
+        if let (None, Some(refusal)) = (&refused, &run.refusal) {
+            refused = Some((run.face, refusal.clone()));
         }
         flux = flux + run.contribution.flux;
         area = area + run.contribution.area;

@@ -145,9 +145,9 @@ fn roster() -> String {
 /// which is how a new row gets cut.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
-        e if e == 1e-6 => Some(include_str!("reporting-door-digest/eps-1e-6.txt")),
-        e if e == 1e-9 => Some(include_str!("reporting-door-digest/eps-1e-9.txt")),
-        e if e == 1e-12 => Some(include_str!("reporting-door-digest/eps-1e-12.txt")),
+        1e-6 => Some(include_str!("reporting-door-digest/eps-1e-6.txt")),
+        1e-9 => Some(include_str!("reporting-door-digest/eps-1e-9.txt")),
+        1e-12 => Some(include_str!("reporting-door-digest/eps-1e-12.txt")),
         _ => None,
     }
 }

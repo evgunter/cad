@@ -57,6 +57,32 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use std::path::PathBuf;
 use step_import::{ImportOptions, StepImportError, import_step};
 
+/// **dm1's DISPOSITION at the at-rest gate**, and the wall time of
+/// getting there.
+///
+/// # What this row measured, and what happened to it
+///
+/// It measured a RESIDUAL: the mean boundary displacement dm1's
+/// rational cylinder wall stalls at, read out of the tier-3 refusal's
+/// own `width_len` payload, pinned to a wide window (1.5e-6 .. 2.5e-6)
+/// because the claim was the disposition and not the digit.
+///
+/// That refusal is gone at the fine band. Tier 3's check 7 certifies
+/// a SIGN, and dm1's volume enclosure excludes zero however far short
+/// of the reporting target `1024*eps` the schedule stops, so the gate
+/// admits the solid and the import goes on to meet the D7 ladder gap
+/// at edge `#389` that the stall used to mask
+/// (`work/exch/step-import-degree-one-line-promotion.md`;
+/// `r1_dm1_probe` pins that disposition cell by cell).
+///
+/// **The residual did not move — its instrument did.** The width the
+/// schedule stops at is now what a caller asking for the NUMBER is
+/// refused with, and `sweep`'s `reporting_door_bit_digest` carries
+/// two such widths verbatim in its committed 1e-12 rows. A moved
+/// width reds there, on a fixture that is not three thousand lines of
+/// STEP. What this row keeps is the part it is uniquely placed to
+/// say: which door dm1 stops at, at which band, and how long reaching
+/// it takes.
 #[test]
 fn dm1_residual_and_wall_time_remeasured() {
     let path: PathBuf = [
@@ -75,22 +101,9 @@ fn dm1_residual_and_wall_time_remeasured() {
     let dt = t0.elapsed();
     let coarse = Tol::witness().get().eps > 1e-9;
     match out {
-        // **The fine band no longer reaches the gate.** Tier 3's check
-        // 7 certifies a SIGN, and this file's enclosure excludes zero
-        // by orders of magnitude however far short of `1024·ε` it
-        // stops — so a valid solid is no longer refused for missing
-        // the REPORTING target, and dm1 goes on to meet the D7 ladder
-        // gap at edge `#389` that the gate used to mask
-        // (`work/exch/step-import-degree-one-line-promotion.md`, and
-        // `r1_dm1_probe` is where that disposition is pinned).
-        //
-        // The residual this row re-measured is therefore no longer
-        // reachable through the IMPORT door at this band. It is still
-        // reachable through the kernel's own: the width the schedule
-        // stops at is what a caller asking for the NUMBER is refused
-        // with, and `reporting_door_bit_digest` is where a moved
-        // width reds.
+        // The fine band clears the at-rest gate and meets the ladder.
         Err(StepImportError::Adoption { id, attempts }) => {
+            eprintln!("CERT5-R1 dm1: past the at-rest gate in {dt:?}, ladder gap at #{id}");
             assert!(
                 !coarse,
                 "the fine band is the one whose at-rest refusal the sign level retired"
@@ -100,51 +113,19 @@ fn dm1_residual_and_wall_time_remeasured() {
                 attempts.is_empty(),
                 "the polyline GAP, not a refusal with candidates"
             );
-            eprintln!("CERT5-R1 dm1: past the at-rest gate in {dt:?}, ladder gap at #389");
         }
+        // The coarse band still stops at the gate, and by ESCALATION:
+        // the enclosure lands just under the loose target and
+        // `props_quad_converged` declines to call it, which leaves the
+        // face with no enclosure and check 7 with no sign to read.
         Err(StepImportError::TierInvalid { solid, errors }) => {
             eprintln!("CERT5-R1 dm1: TierInvalid solid {solid:?} in {dt:?}: {errors:?}");
-            let text = format!("{errors:?}");
-            // What is left at the at-rest gate is the ESCALATION: at a
-            // coarse ambient band this file's enclosure lands just
-            // under the loose target and `props_quad_converged`
-            // declines to call it, which leaves the face with no
-            // enclosure and check 7 with no sign to read.
+            let shown = format!("{errors:?}");
             assert!(
-                coarse && text.contains("Escalated"),
+                coarse && shown.contains("Escalated"),
                 "dm1's at-rest refusal must be the convergence predicate's ambiguity \
-                 band; a budget refusal here would be check 7 consuming a precision \
-                 again: {text}"
-            );
-            eprintln!("CERT5-R1 dm1: coarse band escalates rather than refusing on budget");
-            return;
-            // Extract the width from the debug text.
-            let w = text
-                .split("width_len:")
-                .nth(1)
-                .and_then(|s| s.trim().split([',', ' ']).next())
-                .and_then(|s| s.parse::<f64>().ok())
-                .expect("the refusal must carry a width");
-            eprintln!("CERT5-R1 dm1: width_len {w:e}");
-            // **The re-measured residual.** The PR originally claimed
-            // 1.5435e-6. That figure was taken mid-development, after
-            // the hull blocks were knot-aligned but BEFORE the shared
-            // area rule was — and the meter is
-            // `flux.width() / (3·area_mid)`, so it moved when the
-            // DENOMINATOR did. The flux enclosure is bit-identical
-            // across that change (1.960408001025648e-9); what changed
-            // is that the area stopped being inflated by the hull rule
-            // its straddling cells used to take, and then tightened
-            // again when the rule began intersecting both bounds.
-            //
-            // The window is wide because this row's claim is the
-            // DISPOSITION — dm1 still refuses, and nowhere near the
-            // 2.7e-4 floor it used to sit on — not the digit. The digit
-            // lives in the PR description, where it can be argued.
-            assert!(
-                (1.5e-6..2.5e-6).contains(&w),
-                "dm1 must still refuse, at a width that is the schedule running \
-                 out rather than the retired 2.7e-4 floor: {w:e}"
+                 band; a BUDGET refusal here would be check 7 consuming a precision \
+                 again, which is the thing the sign level removed: {shown}"
             );
         }
         other => panic!("dm1's disposition has moved again, got {other:?}"),
