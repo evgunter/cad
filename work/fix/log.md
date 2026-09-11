@@ -707,3 +707,58 @@ a citation the lane's own diff invalidated is the lane's to fix, and
 `work/README.md`'s conflict hazard is about two parties editing one
 item at once, not about touching a quiet row. A lane must not touch a
 row that is `dispatched` or `review`, because that one has a lane.
+
+### `boolean-kind-not-published-at-the-python-door` closed (PR 2350, 2026-09-11)
+
+**The premise moved again — the sixth item of the day whose written
+state was stale, and the most instructive of the six.** The item says
+the fix is *"`boolean_error_tag` beside `path_error_tag`, over
+`BooleanErrorKind`'s 41 variants, plus an accessor"*, and names two
+reasons PR 1806 did not carry it, one of which is a vocabulary
+decision this orchestrator then spent a paragraph deciding.
+
+`boolean_error_tag` **already existed** — exhaustive over all 41 arms,
+zero `_` arms, feeding `EvaluationError.inner_kind`, with all 41 words
+already in the committed `TAG_INVENTORY`. The "41 FFI names is a
+vocabulary decision" that both the item and this orchestrator treated
+as open had been settled in the tree the whole time, and the decision
+landed on was already the tree's.
+
+What was actually missing is one word narrower and nothing in the item
+names it: **the keying.** The map took the whole `BooleanError`, and
+the evidence carries only the class — a finding is `Clone + PartialEq`
+and `BooleanError` is neither. So the fix is a re-key onto
+`BooleanErrorKind` (the `path_error_tag` shape), one map serving both
+doors, plus the accessor. **No new FFI word is minted and the tag
+inventory is unchanged byte for byte.**
+
+Worth drawing the lesson sharply, because this orchestrator is the one
+who got it wrong: **an item's "why this was not done" section is the
+staleness-prone part, not its defect statement.** The defect was real
+and still true; the *reasons* were a week old and one had expired. A
+decision taken to unblock a reason that has expired is wasted work at
+best, and at worst it lands a second answer beside an existing one.
+The brief should have said "establish what exists before deciding what
+to add", which is what it says for defect statements already.
+
+**A design call the lane made and I endorse**: a new attribute
+`boolean_variant` rather than overloading `CheckEvidence.inner_variant`.
+The shell and boolean tag alphabets are not disjoint — `band` and
+`escalated` are words in both — so one attribute carrying either would
+be readable only after branching on `variant`, which is exactly the
+property `check_payload` exists to preserve.
+
+Measured rather than assumed, both directions: all 41 tags are the
+mechanical snake_case of their variant names (zero deviations), and
+`BooleanErrorKind` has no phantom variant (41 kinds, 41 distinct
+projections).
+
+### A tooling gotcha that has now cost two lanes a wrong answer
+
+**`python3 scripts/work.py territory` compares `origin/main...HEAD`, so
+it reports `0 paths` until you COMMIT.** A lane running it on a dirty
+worktree gets a clean bill for a diff that crosses four fences. This
+explains the `mate-member-vocabulary` lane's "0 paths in another
+program's territory" earlier today, which became "1 path, tcost's" the
+moment the work was committed. Every brief from here says: run it
+after committing, never before.
