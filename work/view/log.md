@@ -8559,3 +8559,57 @@ Residue filed rather than left in prose:
 three kinds are declared on `PruneReport`, re-declared on `OpOutcome`
 and hand-fanned into `app.rs`'s notices, and only the copy between the
 first two is exhaustive.
+
+### The out-of-fence table was wrong, and the corrections were wrong too
+
+Adjudication caught two defects in the table this unit published for
+other programs' rows, and running them down found three more proxy
+failures in the same resolver. Recording all five, because the census
+rule this program keeps re-learning is that **a shift map is not a
+citation check**.
+
+1. **The file token and the line number came from different
+   citations.** The resolver bound a bare `:NNNN` to the last filename
+   it had seen, and its extension list omitted `.yml` — so
+   `.github/workflows/ci.yml:4030` was read as a line number belonging
+   to a `README.md` mentioned elsewhere in the row. Two rows entered
+   the table that hold no `crates/viewer` citation at all.
+2. **The correction to that was wrong in the same way.** Told the rows
+   were misattributed, the lane re-resolved them by the nearest ROOTED
+   path in the row — `tools/README.md`, `demos/README.md` — and
+   published that as *"confirmed by the rooted paths in those rows' own
+   text"*. Same defect, one file further along, and this time inside a
+   verification claim on a PR. The strike verdict was right and the
+   stated reason was false twice over.
+3. **The shift map never asked whether the cited line exists.**
+   `crates/viewer/src/app.rs` is **2019** lines at the merge base and
+   `session.rs` is **2039**; fifteen of the table's entries cite lines
+   above those — `app.rs:5014`, `:4626`, `:3075` — relics of the
+   pre-split file (`app.rs` was 5,696 lines before #1830). Pure
+   arithmetic on a line number produced a confident "should read 5024"
+   for a line that does not exist.
+4. **No entry was checked against its SUBJECT.** Seven more are in
+   range and name something that is somewhere else:
+   `app-rs-doc-comment-merge-scars` cites `perform_batch` at
+   `app.rs:1722-1723` where it sits at `:918` — and that row states
+   outright *"Line numbers are as of PR 1776's head; the function names
+   are the durable anchors"*, so its numbers were never tracking the
+   tree.
+5. **Eight entries are quotations, not pointers.**
+   `drag-tick-row-cites-app-rs-for-a-finding-that-lives-in-forms-rs` is
+   a table OF the wrong `app.rs` numbers beside the right `forms.rs`
+   ones — repointing it edits the evidence — and
+   `wasm-row-warning-debt-…` quotes compiler diagnostics captured at a
+   named SHA.
+
+**Of 31 out-of-fence citations, exactly ONE is a true shift**, and it
+is the row someone had already re-derived by hand.
+
+The standing rule this yields, and it is the orchestrator's to put in
+`plan.md`: an out-of-fence table is a statement about ONE diff against
+ONE base and expires the moment another diff touches the same file —
+#2320 reported the same CHROME row as `1722-1723` → `1750-1751` where
+this unit reported `1722` → `1732`, both right about their own diff and
+neither right once both land. So a repoint is re-derived at PLACING
+time, by subject, and a citation already wrong at the base is disclosed
+rather than moved to a new wrong number.
