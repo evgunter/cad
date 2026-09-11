@@ -284,6 +284,10 @@ fi
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
+# The install-wrapper row is tier-blind for the same reason as the two above,
+# and its population is the widest of the three: every workflow file, every
+# composite action and every tracked shell script, this file among them.
+# HOSTED MIRROR: mirror / install wrappers (a wrapped idiom is spelled only through its wrapper)
 # The work tracker's lint (work/README.md) reads work/ and docs/ — markdown,
 # the docs tier — so it sits here too. The territory row is advisory on both
 # halves: it prints paths another program owns and never fails.
@@ -308,6 +312,8 @@ tier_blind_rows() {
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
+  python3 scripts/check-install-wrappers.py --selftest || rc=1
+  python3 scripts/check-install-wrappers.py || rc=1
   python3 scripts/work.py --selftest || rc=1
   python3 scripts/work.py lint || rc=1
   python3 scripts/work.py territory --base "$BASE" || rc=1
@@ -468,6 +474,19 @@ discipline() {
   # under docs/perf-data/opt-level/ that cannot be edited afterwards.
   # HOSTED MIRROR: discipline / opt-level calibrator selftest (the guard over an append-only history)
   python3 scripts/opt-level-calibrate.py --selftest || rc=1
+  # The criterion benchmark lane's history writer. The LANE has no local half
+  # and is not supposed to: its entries are comparable only because one box
+  # class produced all of them, so a developer box's milliseconds committed as
+  # a trend point are exactly the failure memories/perf-measurement-lane.md
+  # exists to distrust. The HARNESS is not one-sided — `cd benches && cargo
+  # bench` is the right local act, and it writes nothing here on purpose. What
+  # belongs in both halves, by exactly the base-test-listing argument above, is
+  # the SELFTEST: it drives the criterion-directory reader, the roster pin and
+  # the environment block against fixtures, no hosted run produces those paths
+  # on demand, and the emit mode they guard writes what nightly.yml appends to
+  # a history under docs/perf-data/criterion/ that cannot be edited afterwards.
+  # HOSTED MIRROR: discipline / criterion history emitter selftest (the guard over an append-only history)
+  python3 scripts/criterion-emit.py --selftest || rc=1
   return $rc
 }
 

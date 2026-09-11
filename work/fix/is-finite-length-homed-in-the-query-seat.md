@@ -2,10 +2,11 @@
 id: is-finite-length-homed-in-the-query-seat
 kind: issue
 title: is_finite_length is a bare-scalar predicate homed in the kernel query seat; geom-core is the argued natural home
-status: review
+status: closed
 opened: 2026-09-04
 branch: fix/is-finite-length-home
 pr: 2349
+closed: 2026-09-11
 ---
 
 

@@ -715,12 +715,14 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 
 /// Normalizes a direction-valued vector; a non-finite length refuses,
-/// decided-zero length refuses, in-band indeterminacy escalates.
+/// an underflowed one refuses, a decided-zero length refuses, in-band
+/// indeterminacy escalates.
 ///
 /// **The decision is the kernel's one body**
 /// ([`topo::query::decide_unit_direction`]): finiteness asked first through
-/// the value channel every scalar has, then which side of zero the
-/// length lies on, then normalize or refuse. This function is that
+/// the value channel every scalar has, then whether the length
+/// underflowed out of the format through the same channel, then which
+/// side of zero the length lies on, then normalize or refuse. This function is that
 /// call plus the two things the evaluation layer owns — the funnel
 /// name it is decided under ([`EVAL_DIRECTION_NORM`]) and the ROLE
 /// word each refusal carries, so a user reads which vector of theirs
@@ -772,6 +774,7 @@ pub(crate) fn unit<T: Decide>(
 fn refusal(e: UnitVec3Error, role: &'static str, predicate: &'static str) -> NodeErrorKind {
     match e {
         UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
+        UnitVec3Error::UnderflowedLength => NodeErrorKind::UnderflowedDirection { role },
         UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
         UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated { predicate, source },
     }

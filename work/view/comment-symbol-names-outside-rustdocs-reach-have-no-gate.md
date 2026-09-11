@@ -25,7 +25,7 @@ Rustdoc reads `///` and `//!` and **nothing else**, so a name written
 in a plain `//` comment is unreachable however it is spelled — the
 bracket would not be checked, it would just be punctuation. The
 closing PR's own two fixes are the demonstration: the same dead name
-sat at `session/op.rs:756` in a `///` comment and at `app.rs:950` in a
+sat at `session/op.rs:828` in a `///` comment and at `app.rs:950` in a
 `//` comment, and only the first could become a link. The second had
 to be corrected by hand and is held by nothing afterwards.
 
@@ -112,3 +112,16 @@ gate's cost:
    and every stale name this program has chased since traces to it.
    A bracketed link would have reded #1957 at the gate on its own
    branch. A `//` comment would not have, and did not.
+
+## Note (`view/gesture-doors`, 2026-09-11): both worked-example sites are gone
+
+The two sites this row's demonstration rests on —
+`session/op.rs:828` (`///`, linkable) and `app.rs:950` (`//`, not) —
+were deleted when the three hand-written `notices.extend` calls became
+one `frame::Withdrawal::all` call and `OpOutcome`'s re-declared fields
+became the report. The MECHANISM claim is untouched: rustdoc still
+reads only `///` and `//!`, and a `//` comment's symbol names are
+still held by nothing. What is gone is the pair a reader could open,
+so a successor needs a fresh example. No repoint is offered: the
+numbers named text that no longer exists, and a number moved onto its
+neighbour would be worse than a stale one.

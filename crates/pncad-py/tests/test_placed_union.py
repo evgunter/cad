@@ -605,6 +605,28 @@ class TestTheFrameValue(unittest.TestCase):
             Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
         self.assertEqual(caught.exception.variant, "degenerate_mirror_normal")
 
+    def test_a_direction_with_no_finite_length_is_refused_at_this_door(self):
+        """The public door with no pre-validation in front of it.
+
+        A normal past the ~1e154 overflow band makes the norm infinite,
+        which is maximally DEFINITE to the sign gate, and the division
+        that follows collapses the normal to zero: this call used to
+        return the IDENTITY — a mirror that mirrors nothing. It is not
+        a `degenerate_*` refusal, because the direction is not zero and
+        no tolerance lever reaches it."""
+        with self.assertRaises(FrameError) as caught:
+            Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (1e200, 0.0, 0.0))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "non_finite_mirror_normal")
+        self.assertIn("no finite length", str(refusal))
+        self.assertIn("scale the geometry into the session's range", str(refusal))
+        # Nothing was classified, so there is no classifier payload.
+        for absent in (
+            "inner_variant", "margin", "margin_low", "margin_high",
+            "zero", "escalate", "predicate", "field", "value",
+        ):
+            self.assertIsNone(getattr(refusal, absent), absent)
+
     def test_an_exactly_zero_direction_carries_no_classifier_payload(self):
         """A definite zero is not an escalation: the margin never
         landed in the band, so there is nothing for the classifier to

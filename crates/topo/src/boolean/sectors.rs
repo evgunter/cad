@@ -47,7 +47,7 @@ use super::{BooleanError, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
-use crate::sector_shape::{SectorShape, sector_shape};
+use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
 
 /// One (convex) sector of a vertex neighborhood.
@@ -163,8 +163,12 @@ pub(super) fn build_sectors<T: Decide>(
             unit_own: u_end,
             unit_next: u_start,
             bisector: bisec,
-        } = sector_shape(dir_end, dir_start, normal, he == next_he, band)
-            .map_err(|diag| BooleanError::Escalated { diag })?;
+        } = sector_shape(dir_end, dir_start, normal, he == next_he, band).map_err(|fault| {
+            match fault {
+                SectorFault::NonFiniteChord => BooleanError::NonFiniteSectorChord { vertex, face },
+                SectorFault::Rung(diag) => BooleanError::Escalated { diag },
+            }
+        })?;
         match bisec {
             None => sectors.push(BoolSector {
                 he,

@@ -8571,3 +8571,310 @@ doc comments that said their first sentence twice were repaired in
 place (`datums.rs:201`, `:273`, `sketch.rs:1015`).
 
 **VIEW stands at 73 open / 73 closed, with nothing waiting on Ev.**
+
+## 2026-09-11 — #2343 merged; the out-of-fence table is not a repoint
+
+**#2343 on main** (merge `a2447044`): the skip-mode CI hole, FIX's third
+face of the silent-coverage class, and the ninth proxy instance. Docs
+tier, 21 jobs, `docs-only ok` and `gate ok` both success.
+
+**A convention defect found while reviewing #2348, and it is the
+orchestrator's rather than a lane's.** Implementer-discipline §6 has
+lanes REPORT another program's shifted citations and the orchestrator
+place them. Two lanes have now reported the same CHROME row with
+different answers — #2320 said `app.rs:1722-1723` → `1750-1751`, #2348
+said `1722` → `1732` — each correct about its own diff and neither
+correct once both land. An out-of-fence table is a statement about one
+diff against one base and expires as soon as another diff touches the
+file. **The table's value is the population it identifies, not the
+numbers beside it**; placing it means re-deriving by subject at placing
+time. Written into `plan.md`.
+
+**With a second half that is sharper**: the table asserts *should read
+X* for citations it never checked against their subjects. CHROME's
+`app-rs-doc-comment-merge-scars.md:24` cites `app.rs:1722-1723` for a
+sentence about `perform_batch`, which is at `app.rs:918` at that
+branch's base and at its head. Shifting that number makes the row worse
+while looking like a correction — the exact thing
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` names, which
+this program already refuses in fence and had no rule for out of it.
+
+**The proxy class reached ten and eleven in one census, both in #2348's
+lane, and it self-reported all of them.** Its citation pattern required
+a repo-rooted path where the tracker also writes bare filenames and
+line-only continuations; it then applied the correction as a SECOND
+pass over rows the first had already moved, double-shifting fifteen —
+and the content check meant to catch that compares the old file's line
+against the new file's line, so it verifies the shift MAP rather than
+the starting point and returned true on every wrong answer. **That is
+the best find of the session**: a check that cannot fail for the reason
+it was written.
+
+An eleventh, which reached a published PR comment: the resolver paired
+a line number from one citation with a filename token from elsewhere in
+the same row, reporting `.github/workflows/ci.yml:4030` as
+`README.md:4030` — and the correcting comment then named a third wrong
+file. Sent back. The verdict (strike those rows) was right both times;
+the stated reason was false both times, and it was published as a
+verification claim.
+
+## 2026-09-11 — #2340 resolved without a row landing here
+
+FIX reworked #2340 after VIEW's answer and **dropped the row it had
+filed on our slate** — `git diff --name-only 8522bce76^1 8522bce76`
+returns twenty-two files and not one under `work/view/`. That is the
+right outcome: the red was cleared by #2332 before their PR merged, and
+the repair their row proposed (respell the link) is contradicted by
+Ev's ruling that the renderer-free half MAY link into the `app`-gated
+half. **Nothing is owed from VIEW on it.**
+
+The one part of their filing that was not answered by the ruling — the
+sweep, *an ungated module's doc linking a gated one is a class and
+nothing mechanical reads feature gates against intra-doc links* — is
+already homed, and was before they asked: within the crate the ruling
+makes it permitted rather than a defect, and the case that remains
+ungated is the cross-crate one, which is
+`renderer-free-cross-crate-links-are-ungated-off-the-seed-set` (filed
+by #2332's lane, with the measured fact that the nightly re-take cannot
+red). No new row; I said VIEW would home it and VIEW already had.
+
+**Fence record repaired on our own side.** S-TCOST split on 2026-09-11
+(`d6a9b948a2`, *"open S-TINT and move the non-cost half of S-TCOST's
+board to it"*) and both programs now declare `crates/*/tests/*` and
+`crates/test-utils/*`. VIEW's `keep_out` named only S-TCOST, so
+`work.py lint` reported the S-TINT overlap as *"neither `keep_out`
+names the other"* — invisible from both sides, on 54 paths this program
+writes to constantly. It now names S-TINT as well, and says which half
+a VIEW lane actually touches: the integrity half, not the cost half, is
+what a lane adding assertions to `crates/viewer/tests/*` is in. That
+moves the warning to one-sided, which is as far as VIEW can take it
+alone; S-TINT's own `keep_out` is theirs.
+
+## 2026-09-11 — `view/silent-withdrawals`: the two halves of one asymmetry
+
+Two rows, both in `crates/viewer/src/display.rs`, dispatched together
+because they are the two doors that withdraw display state and report
+differently.
+
+**`prune-kills-a-gesture-and-reports-nothing` — CLOSED by fixing.**
+`PruneReport` grew its third field and `prune` stopped throwing the
+fault away at the instant it had it. The field is
+`killed_gesture: Option<Withdrawn>`, an `Option` and not a `Vec`
+because a `DisplayState` holds ONE free-move gesture — which is also
+why the new sentence is the only kind with no plural, and why
+`Display for Withdrawal` now matches an `Option` for its count rather
+than carrying a `many` string its own constructor cannot reach. The
+wording followed #1886 twice over: a killed gesture is not a
+supersession (nothing substituted for it), so it is a third sentence —
+*"free move: the drag in flight was ended — <fault>"*.
+
+**`display-clear-drops-free-move-placements-silently-while-prune-reports-them`
+— CLOSED by ANSWERING.** The item offered a fork and its own
+counter-argument won, but not for the reason the item gave. Costing it
+against the tree rather than against the file moved it: implementing
+the proposal (`clear` reporting through `prune`'s channel) and MEASURING
+it, a reopen of the same file produces an EMPTY report while all three
+kinds of state are taken — ids are minted per `Doc`, so
+`free_move_check` answers `Ok(())` about the incoming document's nodes
+— and `NewDocument` produces `NoSuchNode { node: 0 }`, a true sentence
+about a document the user has never held state on. So the report cannot
+distinguish "nothing went" from "everything went". The silence is kept
+and is now written at `clear`, with a row that reds if it is widened
+back into an oversight. The IN-FLIGHT drag at that same door is left to
+`free-move-drag-dissolved-by-open`, whose fork is a refusal and not a
+report.
+
+**The census bit that cost the most.** The citation sweep's first
+pattern required a repo-rooted path and missed two other spellings the
+tracker actually uses — a BARE filename (`display.rs:861`) and a
+line-only continuation (`` `:1632` ``) — which is this program's proxy
+class again, the tenth instance. Worse, the correction was applied as a
+SECOND pass over rows the first had already moved, double-shifting
+fifteen of them; the content check that was supposed to catch it
+verifies the shift MAP rather than the starting point, so it passed on
+every wrong answer. Redone as one pass from the pre-repoint state. And
+`plan.md`'s two hits are QUOTATIONS of past citations, not pointers at
+the tree: repointing them corrupts the record, so `plan.md` is left
+alone. A shift-repoint cannot tell a pointer from a quotation, which is
+the same class one level up.
+
+Residue filed rather than left in prose:
+`a-fourth-withdrawal-kind-is-forced-at-one-of-its-three-sites` — the
+three kinds are declared on `PruneReport`, re-declared on `OpOutcome`
+and hand-fanned into `app.rs`'s notices, and only the copy between the
+first two is exhaustive.
+
+### The out-of-fence table was wrong, and the corrections were wrong too
+
+Adjudication caught two defects in the table this unit published for
+other programs' rows, and running them down found three more proxy
+failures in the same resolver. Recording all five, because the census
+rule this program keeps re-learning is that **a shift map is not a
+citation check**.
+
+1. **The file token and the line number came from different
+   citations.** The resolver bound a bare `:NNNN` to the last filename
+   it had seen, and its extension list omitted `.yml` — so
+   `.github/workflows/ci.yml:4030` was read as a line number belonging
+   to a `README.md` mentioned elsewhere in the row. Two rows entered
+   the table that hold no `crates/viewer` citation at all.
+2. **The correction to that was wrong in the same way.** Told the rows
+   were misattributed, the lane re-resolved them by the nearest ROOTED
+   path in the row — `tools/README.md`, `demos/README.md` — and
+   published that as *"confirmed by the rooted paths in those rows' own
+   text"*. Same defect, one file further along, and this time inside a
+   verification claim on a PR. The strike verdict was right and the
+   stated reason was false twice over.
+3. **The shift map never asked whether the cited line exists.**
+   `crates/viewer/src/app.rs` is **2019** lines at the merge base and
+   `session.rs` is **2039**; fifteen of the table's entries cite lines
+   above those — `app.rs:5014`, `:4626`, `:3075` — relics of the
+   pre-split file (`app.rs` was 5,696 lines before #1830). Pure
+   arithmetic on a line number produced a confident "should read 5024"
+   for a line that does not exist.
+4. **No entry was checked against its SUBJECT.** Seven more are in
+   range and name something that is somewhere else:
+   `app-rs-doc-comment-merge-scars` cites `perform_batch` at
+   `app.rs:1722-1723` where it sits at `:918` — and that row states
+   outright *"Line numbers are as of PR 1776's head; the function names
+   are the durable anchors"*, so its numbers were never tracking the
+   tree.
+5. **Eight entries are quotations, not pointers.**
+   `drag-tick-row-cites-app-rs-for-a-finding-that-lives-in-forms-rs` is
+   a table OF the wrong `app.rs` numbers beside the right `forms.rs`
+   ones — repointing it edits the evidence — and
+   `wasm-row-warning-debt-…` quotes compiler diagnostics captured at a
+   named SHA.
+
+**Of 31 out-of-fence citations, exactly ONE is a true shift**, and it
+is the row someone had already re-derived by hand.
+
+The standing rule this yields, and it is the orchestrator's to put in
+`plan.md`: an out-of-fence table is a statement about ONE diff against
+ONE base and expires the moment another diff touches the same file —
+#2320 reported the same CHROME row as `1722-1723` → `1750-1751` where
+this unit reported `1722` → `1732`, both right about their own diff and
+neither right once both land. So a repoint is re-derived at PLACING
+time, by subject, and a citation already wrong at the base is disclosed
+rather than moved to a new wrong number.
+
+## 2026-09-11 — `view/gesture-doors`: the two gesture doors, and one fan-out
+
+Two items, both adjacent to what #2348 landed.
+
+**`free-move-drag-dissolved-by-open` — the FREE-MOVE side was wrong.**
+The item asked which of the two drags gets the wrong treatment and
+#2348's `DisplayState::clear` clause had already removed one of the two
+possible answers: a per-instance report cannot be built truthfully at a
+replacement, because a `Withdrawn` carries a `DisplayFault` about a
+document and the only document left to ask is the incoming one. So the
+report half of the item's menu was never available, and the refusal is
+the answer. `SessionOp::permitted_during_free_move` is a SECOND
+exhaustive table rather than a widened first one: the two drags refuse
+different sets, and one predicate could serve both only by refusing the
+union — a commit landing under a probe is pruned and reported, which is
+a better answer than a refusal. The two tables agree on exactly the two
+doors that REPLACE the document.
+
+**`a-fourth-withdrawal-kind-is-forced-…` — both candidates, because
+neither alone is the fix.** `OpOutcome` holds the `PruneReport` (the
+re-declaration and the copy are gone, and with them `from_prune`'s
+destructure — the one site that held and the wrong one), and
+`frame::Withdrawal::all` destructures the report at the RENDERING call,
+with the three constructors made private so nothing outside `frame` can
+fan out by hand. `app.rs`'s three `extend`s are one.
+
+**The defect had a FOURTH instance and it was in a test.**
+`frame_policy.rs`'s hand-written mirror of the `app`-gated loop — the
+one whose own comment warns that a half-mirror passes while the real
+loop drops a kind — listed two producers after #2348 added the third
+beside it. Nobody found it by reading; it fell out of collapsing the
+fan-out and finding a caller that could not be collapsed. A comment
+saying *"this must model every producer"* is not a hold.
+
+**Two operational notes, both costs paid here.**
+
+1. `git checkout -- <file>` on an UNCOMMITTED tree is `git checkout
+   HEAD -- <file>`. A mutation harness that reverted three source files
+   that way discarded every uncommitted edit in them — #2089's clobber
+   in a new shape, and the fix is the same: commit first, or mutate in
+   a throwaway worktree with its own target dir. Nothing was lost
+   because the edits were scripted and re-runnable; that was luck about
+   the method, not a property of the harness.
+2. Adding a tenth `vocabulary!` moves SIX live counts in
+   `crates/viewer/README.md` and three in `src/vocab.rs`, and the
+   README states one HISTORICAL census beside a live one ("Ten `const
+   ALL` tables existed…; nine were of this kind") which must not be
+   bumped with the others. A count that is a claim about the tree at a
+   named moment is not the same count as a claim about the tree.
+
+Residue filed:
+`census-table-in-the-viewer-readme-is-not-its-own-population` — the
+README's non-dump census table says nine and `PruneReport::is_empty`
+(`display.rs:592-599`) is a tenth it does not carry, added by #2348
+after the table was built.
+
+## 2026-09-11 — `view/gesture-identity`: the driving operations name their gesture
+
+`preview-and-commit-carry-no-gesture-identity` closed. Shape 1 of the
+item's three, spelled as the tree spells the two begins rather than as
+the item wrote it, and the free-move quartet taken with it.
+
+**Costing the fork against the tree moved two of the three.** The
+item's shape 1 — `PreviewGesture { node, slot, value }` — has nothing to
+say for a document-parameter drag, so it is either a union payload (a
+second spelling of a target vocabulary `BeginGesture` and
+`BeginParamGesture` already have between them) or one preview and one
+commit per door. The second is what `BeginParamGesture`'s own docs
+argue for, costs no new public type and no translation at any call
+site, and is what landed: 39 operations became 41.
+
+Shape 3 cannot be built where the item puts it. The chrome queues ops
+and `ViewerApp::perform_batch` performs them after the layout walk, and
+a begin and its first preview reach the same batch — `Refusal::rank`'s
+own worked example says so. Nothing in `widgets::drag_gesture_ops` can
+know a refusal that has not happened yet, and the cheapest form that
+works asks the session which gesture is open, which needs the identity
+public anyway and then sites the decision where no other driver of
+`SessionOp` can reach it.
+
+Shape 2 refuses the one recovery the chrome has. A stranded drag's own
+field, dragged again, names the same slot: its begin is refused and its
+preview and release land the number the user dragged it to, against the
+same base document because nothing that moves the document is permitted
+mid-drag. A per-begin token would refuse that and strand the reader
+twice. `the_open_drags_own_field_dragged_again_lands_its_number` holds
+it, and mutation 7 below is what reds it.
+
+**The refusals are spelled apart from the in-flight ones**, and that is
+the tree's answer rather than taste: `permitted_during_value_gesture`
+is a function of the operation alone and cannot answer a question about
+a payload, so folding the mismatch into `GestureInFlight` would make
+`every_op_behaves_as_the_table_says` unable to tell a table answer from
+a payload answer. `Refusal::WrongGesture` and
+`DisplayFault::WrongFreeMove` rank with the bookkeeping refusals: they
+arrive in a batch behind the `GestureInFlight` that refused the drag's
+begin, and that is the sentence with the remedy in it.
+
+**#2358's precedent followed rather than departed from**: no new
+predicate and no third table. Each check sits in the door of the state
+it is about — `DocSession::preview_gesture`/`commit_gesture` and
+`DisplayState::preview_free_move`/`commit_free_move` — which is the
+same argument that gave the two drags two tables.
+
+**The reachability route holds on today's tree**, re-checked rather
+than assumed: `a_drags_own_preview_can_strand_it_and_the_door_closes_it`
+passes at `dba1afd053`, and its strand half is now a helper two rows
+share — the second continues into the drag a reader makes when the
+panel comes back.
+
+**The free-move half is API-reachable only.** No route to a second
+probe under an open one has been traced; that is
+`free-move-in-flight-refusal-has-no-reachable-producer`'s question and
+is not answered here. What changed for that row is its population:
+`DisplayFault` now has two arms with the same standing, not one.
+
+Residue: `the-two-drags-name-their-gestures-in-two-shapes` — the
+identity is a `(node, slot)`, a name, or an instance, and `drag_ops` is
+generic over the difference with nothing holding the three to each
+other.

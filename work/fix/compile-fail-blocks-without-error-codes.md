@@ -2,11 +2,12 @@
 id: compile-fail-blocks-without-error-codes
 kind: issue
 title: Bare compile_fail doctest blocks accept any compile error: 16 blocks without an error code
-status: review
+status: closed
 opened: 2026-09-05
 refs: [1969]
 branch: fix/compile-fail-error-codes
 pr: 2335
+closed: 2026-09-11
 ---
 
 ## What

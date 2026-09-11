@@ -1973,9 +1973,12 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
             instance: bench.post_b,
         },
         SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
             frame: Frame::translation([0.04, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -1994,10 +1997,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     };
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -2018,21 +2021,22 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         "and names the mate that landed, which is what the line then reads"
     );
 
-    // What the chrome does with it, in `perform_batch`'s order. This
-    // is a HAND-WRITTEN MIRROR of app-gated code no row can reach, so
-    // it has to model every producer that feeds the notices there —
-    // both withdrawal channels, not just the one this row provokes. A
-    // half-mirror would pass while the real loop dropped the other.
-    let notices: Vec<frame::Message> = frame::Withdrawal::superseded(&outcome.superseded)
-        .into_iter()
-        .chain(frame::Withdrawal::dropped_hide(&outcome.dropped_hides))
+    // What the chrome does with it, in `perform_batch`'s order. The
+    // app-gated loop no row can reach is now ONE call, and this is
+    // that call rather than a hand-written mirror of it — which is the
+    // point: the mirror stood here listing two of the three producers
+    // after a third was added beside it, and a half-mirror passes
+    // while the real loop drops a kind. There is no list here to fall
+    // behind any more.
+    let notices: Vec<frame::Message> = frame::Withdrawal::all(&outcome.withdrawn)
         .map(|withdrawal| withdrawal.notice())
         .collect();
     assert_eq!(
         notices.len(),
         1,
-        "a mate landing on a probed instance withdraws a placement and no \
-         hide, so the second producer is silent here rather than absent"
+        "a mate landing on a probed instance withdraws a placement and \
+         neither of the other two kinds, so they are silent here rather \
+         than absent"
     );
     let update = frame::frame_status(
         &notices,
