@@ -2,8 +2,10 @@
 id: collapsed-string-continuations-ship-space-runs-to-users
 kind: issue
 title: eleven user-facing messages ship multi-space runs from collapsed line continuations, and a one-line grep finds them
-status: open
+status: review
 opened: 2026-09-11
+branch: fix/collapsed-continuations
+pr: 2364
 ---
 
 
