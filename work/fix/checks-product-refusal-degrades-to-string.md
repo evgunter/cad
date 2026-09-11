@@ -5,6 +5,7 @@ title: ChecksError::Product carries product::ProductError as reason: String — 
 status: review
 opened: 2026-09-04
 branch: fix/product-error-kind
+pr: 2344
 ---
 
 
