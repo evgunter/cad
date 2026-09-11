@@ -386,11 +386,13 @@ GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 #     inert for it: nothing names it, so nothing is checked and nothing is
 #     said. Arm A still covers its value.
 #   * THE TREE IS `local-scripts/`, tracked files only.
-#     `.claude/hooks/session-start.sh` restates three pins the same way and is
-#     NOT reachable from here: every hosted job deletes `.claude/` at checkout,
-#     so a claim about it would pass hosted and red locally, which is worse
-#     than not making it. `work/ciw/session-start-hook-restates-ci-pins`
-#     carries that one.
+#     `.claude/hooks/session-start.sh` is NOT reachable from here and never
+#     will be: every hosted job deletes `.claude/` at checkout, so a claim
+#     about it would pass hosted and red locally, which is worse than not
+#     making it. That file no longer restates a pin — it READS all three
+#     through `scripts/ci-pin.py` — which is the repair this exemption's
+#     reasoning forces: where a checker cannot follow, the copy has to stop
+#     existing rather than be checked from one side.
 #   * A PIN ci.yml SETS THAT NOTHING IN THE LOCAL TREE NAMES is not an error.
 #     A tool the local half does not mention is not drift.
 #   * ARM B READS ONE LINE. A tool named in a sentence whose version sits on
