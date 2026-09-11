@@ -128,10 +128,12 @@ several markers can cite ONE row and run their hosted steps in DIFFERENT
 directories, so the hosted sides of a row's markers are unioned and the
 comparison is set equality — every directory named on either side must be
 named on the other. The population is why it is worth an arm: every directory
-either half names today is a cargo root `Cargo.toml` EXCLUDES from the
-workspace, so a row that moves on one half only runs a different check under
-the same name. The arm has NO exemption vocabulary, alone among the three, and
-`PAIR_EXEMPT`'s header says why.
+either half names today is a cargo root `--workspace` CANNOT SEE — two of them
+`Cargo.toml` `exclude` entries and the rest under one — so a row that moves on
+one half only runs a different check under the same name.
+`scripts/doc-gate.sh --print-roots` derives that list; no count is written
+here. The arm has NO exemption vocabulary, alone among the three; the argument
+is at `PAIR_EXEMPT`'s header, under THE DIRECTORY CLASS HAS NO ENTRIES.
 
 WHAT THE DIRECTORY ARM REFUSES rather than reads as "this half stays put",
 because those two answers are one empty set: `pushd`/`popd`, a `cd` whose
@@ -155,6 +157,16 @@ changed:
     `--manifest-path` today; `scripts/doc-gate.sh` does, inside a script, which
     is a third spelling of this fact sitting where claim 2 covers the file and
     nothing covers the directory.
+  * A directory named INSIDE a `${{ … }}` expression, which the env arm would
+    call INCOMPLETE and this arm cannot. `${{ … }}` is masked before the line
+    is scanned, so `cd ${{ matrix.dir }}` Bails (the masked token still carries
+    a `$`) but an expression that EXPANDS to a directory change — `${{
+    matrix.prefix }} cargo test` — leaves no `cd` for the scan to find and the
+    half reports the empty set. There is deliberately no INCOMPLETE here: the
+    env arm grew one because ci.yml's archived-test rows really do write a
+    whole prefix that way, and no row writes a directory that way, so the
+    concept would buy nothing today and would silently withhold verdicts from
+    every row that carries a `${{ matrix.shard }}`.
 
 CLAIM 4 HAS TWO ARMS OVER ONE POPULATION: does a script under `scripts/` or
 `demos/` run at all, and does its `--selftest` mode run. They are one question
@@ -195,7 +207,6 @@ claims 7 and 8 — only job-level `if:` is read.
 from __future__ import annotations
 
 import importlib.util
-import itertools
 import os
 import re
 import shlex
@@ -602,6 +613,21 @@ def semantic_env(name: str) -> bool:
 # one ("declare the pair in FLAG_EXEMPT with the reason it differs" landed the
 # reader on an entry that then reported itself expired).
 #
+# THE DIRECTORY CLASS HAS NO ENTRIES, and cannot have one without a decision
+# taken here first. Claim 10's third arm compares the DIRECTORY a mirrored row
+# runs in, and it is the only arm of the three whose verdict this table does
+# not offer a way out of. Two reasons, and the second is the one that matters.
+# The shape: a token here is a flag when it starts with `-` and a variable
+# otherwise, which is a two-class key — a directory is neither, so an entry
+# would cost a third class and its own expiry arms. The substance: the
+# population of deliberate directory asymmetries is EMPTY and is not the kind
+# of thing that fills up. Two halves running one check in two cargo roots is
+# this claim's own defect stated plainly, not a divergence anyone ratifies the
+# way `CAD_RENDER_LOCAL_OVERRIDE` is ratified. If a real one ever appears, the
+# fix is the reviewed diff that adds the class — the same trade every `Bail`
+# in this file makes — and not an entry smuggled in under one of the two
+# spellings above.
+#
 # THE FLAG ENTRIES: three of them, two facts. The two `--partition` entries
 # are the same fact on two archives — hosted shards each test row across a
 # pair of jobs and the local half runs one row on one tree. The `--features`
@@ -769,6 +795,17 @@ class Bail(Exception):
 # a small diff someone reviews; that is the whole trade this strictness rests
 # on.
 SELF = "scripts/check-ci-mirror-parity.py"
+
+# THE THIRD OPTION THE OTHER TWO ARMS OFFER AND THIS ONE DOES NOT. A flag or a
+# variable verdict ends "…or declare the pair in PAIR_EXEMPT"; a directory
+# verdict cannot, and a developer reading a red row is exactly the person who
+# needs to know that is a decision and not an oversight.
+DIR_NO_EXEMPTION = (
+    " There is deliberately NO exemption spelling for a directory — the argument is at "
+    f"`PAIR_EXEMPT` in {SELF}, and in short it is that two halves running one check in two cargo "
+    "roots is this claim's own defect rather than an asymmetry anyone ratifies. If this one is "
+    "genuinely correct, that argument is what to change, in a diff someone reviews.")
+
 
 # Some refusals have no shape to learn — a tab, a non-UTF-8 byte, a file that is
 # not there. They still owe the reader an action, and they say this so the
@@ -1066,6 +1103,32 @@ def _env_block(path: str, where: str, n: int, value: str,
     return out
 
 
+def _workdir_value(path: str, n: int, job: str, raw: str) -> str:
+    """One `working-directory:` value, as the runner would read it.
+
+    A NEW SURFACE, and it has YAML's shapes rather than the shell's: the value
+    was discarded until claim 10's directory arm read it, so nothing here had
+    ever had to decide what a quoted one, a commented one or an ALIASED one
+    says. Quotes come off as `_env_value` takes them off; a trailing comment on
+    an unquoted scalar is comment and not path; an alias or an anchor is
+    refused, because the module docstring says anchors are refused and reading
+    `*benchdir` as a directory literally named `*benchdir` would be this file
+    quietly supporting one badly.
+    """
+    v = raw.strip()
+    if len(v) > 1 and v[0] == v[-1] and v[0] in "'\"":
+        return v[1:-1]
+    if v[:1] in ("*", "&"):
+        raise Bail(f"{path}:{n}: the step's `working-directory:` in job `{job}` is a YAML "
+                   f"{'alias' if v[:1] == '*' else 'anchor'} ({v!r}). Anchors and aliases are "
+                   "refused by this recogniser, not supported — and claim 10's directory arm would "
+                   "otherwise compare the local half against a directory literally named "
+                   f"{v!r}." + teach("`_workdir_value`"))
+    # An unquoted plain scalar ends at ` #`, which is YAML's own rule.
+    cut = v.find(" #")
+    return (v[:cut] if cut >= 0 else v).strip()
+
+
 def _env_value(raw: str) -> str:
     """One `env:` value, normalised to what the shell would see.
 
@@ -1160,7 +1223,7 @@ def _read_step(path: str, job: Job, step: Step, item_indent: int,
         elif key == "run":
             step.run.append(value)
         elif key == "working-directory":
-            step.workdir = value.strip("'\"")
+            step.workdir = _workdir_value(path, n, job.name, value)
         # A block scalar's body is opaque text, not keys — `run: |` is where
         # every invocation this file reads actually lives.
         j = k + 1
@@ -1563,7 +1626,29 @@ def _skip_substitution(text: str, at: int) -> int:
 
 
 def _simple_commands(where: str, text: str) -> list[str]:
-    """Split one logical line into simple commands, quote-aware.
+    """Every simple command on one logical line, the substitutions' contents
+    last. `_command_spans` does the work; this is the flat view of it that the
+    flag and env arms want, neither of which cares where one command ended and
+    the next began."""
+    spans, nested = _command_spans(where, text)
+    out = [chunk for chunk, _sep in spans]
+    for inner in nested:
+        out.extend(_simple_commands(where, inner))
+    return out
+
+
+def _command_spans(where: str, text: str) -> tuple[list[tuple[str, str]], list[str]]:
+    """`([(simple command, the separator that ENDED it)], substitution bodies)`.
+
+    THE SEPARATOR IS WHY THIS RETURNS PAIRS. Claim 10's directory arm has to
+    know whether a `)` stood between two `cd`s — a subshell boundary, which
+    scopes the first one — and reading that off the RAW line cannot work: a
+    `)` from a command substitution or one inside quotes satisfies a substring
+    test while closing no subshell, and the answer is then a silently wrong
+    directory rather than a refusal. This walk already tracks quotes and masks
+    substitutions, so the boundary it reports is a real one.
+
+    Split one logical line into simple commands, quote-aware.
 
     `cargo fmt --check && cargo clippy --all-targets` is two commands, and
     reading it as one gives `cargo fmt` a flag it does not have. The split has
@@ -1577,7 +1662,7 @@ def _simple_commands(where: str, text: str) -> list[str]:
     them stay on the command they belong to. See `CMD_BREAK`'s comment for why
     that direction is the one that matters.
     """
-    out: list[str] = []
+    out: list[tuple[str, str]] = []
     cur: list[str] = []
     nested: list[str] = []
     i = 0
@@ -1624,7 +1709,7 @@ def _simple_commands(where: str, text: str) -> list[str]:
             continue
         elif c == "&":
             if text[i + 1:i + 2] == "&":          # `&&`, an and-list
-                out.append("".join(cur))
+                out.append(("".join(cur), "&&"))
                 cur = []
                 i += 2
                 continue
@@ -1632,12 +1717,12 @@ def _simple_commands(where: str, text: str) -> list[str]:
                 cur.append(c)                     # `2>&1`, `<&0`, `&>log` — text
                 i += 1
                 continue
-            out.append("".join(cur))              # a background `&`
+            out.append(("".join(cur), "&"))       # a background `&`
             cur = []
             i += 1
             continue
         elif c in CMD_BREAK:
-            out.append("".join(cur))
+            out.append(("".join(cur), c))
             cur = []
             i += 1
             continue
@@ -1648,11 +1733,9 @@ def _simple_commands(where: str, text: str) -> list[str]:
                    "This line names `cargo`, so claim 10 has to read its flags and cannot: the rest of "
                    "the line could be argv or could be text inside the quote, and guessing is how a "
                    "dropped flag reads as agreement. Close the quote, or if the line is not a command,"
-                   + teach("`_simple_commands`"))
-    out.append("".join(cur))
-    for inner in nested:
-        out.extend(_simple_commands(where, inner))
-    return out
+                   + teach("`_command_spans`"))
+    out.append(("".join(cur), ""))
+    return out, nested
 
 
 def cargo_flags(where: str, lines: list[str]) -> dict[str, list[dict[str, str | None]]]:
@@ -1898,7 +1981,63 @@ CD_COMMANDS = frozenset({"cd", "pushd", "popd"})
 # and a reader that stopped at the command word would find `run_row` there and
 # report a row that names no directory.
 SHELL_C = frozenset({"bash", "sh", "dash", "zsh"})
+# A command whose argument string this reader cannot have: `eval` builds its
+# argv at runtime. Refused, never read.
+EVAL_COMMANDS = frozenset({"eval"})
+# `env -C dir cmd` and `env --chdir=dir cmd` are the shell-free spelling of the
+# same fact. `env` is a `CMD_WRAPPERS` member, so the walk steps over its
+# options and the directory vanishes — the empty set, which is this arm's one
+# forbidden answer. Refused, with the option named.
+CHDIR_OPTS = ("-C", "--chdir")
 CD_RE = re.compile(r"(^|[^A-Za-z0-9_./-])(cd|pushd|popd)([^A-Za-z0-9_./-]|$)")
+# What a directory may be SPELLED as, before it is normalised. A literal
+# relative path and nothing else: a placeholder, a glob or a brace expansion is
+# a directory some other tool decides, and this reader would compare the
+# placeholder.
+REL_DIR_RE = re.compile(r"[A-Za-z0-9_.][A-Za-z0-9_./-]*")
+# WHICH LINES THE DIRECTORY ARM LOOKS AT. Wider than `CD_RE` on purpose: a
+# directory can be named by `eval` and by a wrapper's `-C`, neither of which
+# spells `cd`, and a line this filter skips is answered with the empty set.
+WORKDIR_HINT_RE = re.compile(
+    r"(^|[^A-Za-z0-9_./-])(cd|pushd|popd|eval)([^A-Za-z0-9_./-]|$)"
+    r"|(^|\s)(-C|--chdir)(\s|=)")
+# A here-document opener. `<<` is found on text whose quoted spans have been
+# blanked — `ci.yml` writes `echo 'roots<<DOC_GATE_ROOTS'`, which is a string
+# and not an operator — and the DELIMITER is then read off the raw text, where
+# the masking has not eaten it. `<<<` is a here-STRING: one word, no body.
+HEREDOC_OPEN_RE = re.compile(r"<<-?(?!<)")
+HEREDOC_NAME_RE = re.compile(r"<<-?\s*[\'\"]?[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _opens_heredoc(line: str) -> bool:
+    masked = _mask_quotes(line)
+    return any(HEREDOC_NAME_RE.match(line, m.start())
+               for m in HEREDOC_OPEN_RE.finditer(masked))
+
+
+def _mask_quotes(text: str) -> str:
+    """`text` with the contents of quoted spans blanked out.
+
+    ONE USE, AND IT IS NOT ARGV: deciding whether a `<<` is a here-document
+    operator or a character inside a string. `ci.yml` writes
+    `echo 'roots<<DOC_GATE_ROOTS'`, which is the second, and a detector that
+    could not tell would refuse a correct step.
+    """
+    out = []
+    quote = ""
+    for c in text:
+        if quote:
+            out.append(" ")
+            if c == quote:
+                quote = ""
+                out[-1] = " "
+            continue
+        if c in "'\"":
+            quote = c
+            out.append(" ")
+            continue
+        out.append(c)
+    return "".join(out)
 
 
 def _norm_dir(where: str, raw: str, chunk: str) -> str | None:
@@ -1924,6 +2063,20 @@ def _norm_dir(where: str, raw: str, chunk: str) -> str | None:
                    "row names and does not track the shell's history, so it cannot say what this "
                    "one is. Write the directory as a literal path,"
                    + teach("`_norm_dir`"))
+    if raw.startswith("/"):
+        raise Bail(f"{where}: this changes directory to the ABSOLUTE path {raw!r}: "
+                   f"{chunk.strip()[:100]!r}. Claim 10's directory arm compares the two halves as "
+                   "paths from the repo root, and an absolute path is not one — comparing it as if "
+                   "it were would say two halves agree because they spell the same string, in two "
+                   "different trees. Write the directory as a path from the repo root,"
+                   + teach("`_norm_dir`"))
+    if not REL_DIR_RE.fullmatch(raw):
+        raise Bail(f"{where}: this changes directory to {raw!r}, which this reader cannot read as a "
+                   f"path at all: {chunk.strip()[:100]!r}. A placeholder another tool substitutes "
+                   "(`{}` under `xargs`), a glob, or anything else that is not a literal relative "
+                   "path leaves the directory decided somewhere this arm cannot see. Write the "
+                   "directory as a literal path from the repo root,"
+                   + teach("`REL_DIR_RE` and `_norm_dir`"))
     norm = os.path.normpath(raw)
     if norm == ".":
         return None
@@ -1961,36 +2114,86 @@ def work_dirs(where: str, lines: list[str]) -> set[str]:
     directories a row already names is invisible — the same shape as the env
     arm's "which command carries the variable".
 
-    WHAT IT REFUSES rather than reads as "this half stays put", because those
-    two answers are indistinguishable and one of them is the silent pass this
-    arm exists to close: `pushd`/`popd`, a `cd` whose argument is an expansion,
-    `cd -`, an ascent above the row's own root, a `cd` this cannot attribute to
-    a command, and two `cd`s on one logical line with no subshell boundary
-    between them (the second may be relative to the first, and this reader
-    records directories rather than composing them).
+    ONE ANSWER IS FORBIDDEN HERE, and every refusal below exists to avoid it:
+    the EMPTY SET is what a half that never moves returns, so a shape this
+    reader cannot take apart must raise rather than return it. The refusals are
+    enumerated at the module docstring; two of them live in this function and
+    the rest in `_chunk_dirs` and `_norm_dir`.
+
+    TWO `cd`s ON ONE LINE COMPOSE unless a subshell closed between them, and
+    the boundary is read off `_command_spans`' SEPARATORS rather than off the
+    raw text. A substring test for `)` on the line was the first spelling of
+    this rule and it was wrong in the one direction that matters: a `)` from a
+    command substitution or from inside a quote satisfied it while closing no
+    subshell, so `cd a && echo $(pwd) && cd b` recorded two directories the row
+    never ran in and reported agreement. Silently — which is the answer this
+    arm must not have.
+
+    A HEREDOC BODY IS NOT ARGV and this reader cannot tell it from argv, so a
+    row that opens one and names a directory anywhere is refused outright: the
+    `cd` may be text the step prints rather than a directory it enters.
     """
     out: set[str] = set()
-    for line in _join_continuations(lines):
+    joined = _join_continuations(lines)
+    if any(WORKDIR_HINT_RE.search(GH_EXPR_RE.sub("$GHEXPR", ln)) for ln in joined):
+        for ln in joined:
+            if _opens_heredoc(ln):
+                raise Bail(f"{where}: this row opens a here-document and names a directory "
+                           f"somewhere: {ln.strip()[:100]!r}. A heredoc body is text the shell hands "
+                           "to a command, not argv, and this reader scans it as argv — so a `cd` "
+                           "printed inside one is recorded as a directory the step enters. Move the "
+                           "heredoc out of a row a HOSTED MIRROR marker cites,"
+                           + teach("`work_dirs`'s heredoc refusal"))
+    for line in joined:
         line = GH_EXPR_RE.sub("$GHEXPR", line)
-        if not CD_RE.search(line):
+        if not WORKDIR_HINT_RE.search(line):
             continue
-        hits = list(CD_RE.finditer(line))
-        for first, second in itertools.pairwise(hits):
-            if ")" not in line[first.end():second.start()]:
-                raise Bail(f"{where}: two directory changes on one command line with no subshell "
-                           f"boundary between them: {line.strip()[:120]!r}. The second may be "
-                           "relative to the first, and this reader records the directories a row "
-                           "names rather than composing them — so it would report two places the "
-                           "row never runs in and miss the one it does. Put each in its own "
-                           "subshell, or write the second as a path from the repo root,"
-                           + teach("`work_dirs`'s one-`cd`-per-line rule"))
-        for chunk in _simple_commands(where, line):
-            out |= _chunk_dirs(where, chunk)
+        spans, nested = _command_spans(where, line)
+        seen = False
+        boundary = True
+        for chunk, sep in spans:
+            here = _chunk_dirs(where, chunk)
+            if here or _names_cd(chunk):
+                if seen and not boundary:
+                    raise Bail(f"{where}: two directory changes on one command line with no "
+                               f"subshell boundary between them: {line.strip()[:120]!r}. The second "
+                               "may be relative to the first, and this reader records the "
+                               "directories a row names rather than composing them — so it would "
+                               "report two places the row never runs in and miss the one it does. "
+                               "Put each in its own subshell, or write the second as a path from "
+                               "the repo root,"
+                               + teach("`work_dirs`'s one-`cd`-per-line rule"))
+                seen = True
+                boundary = False
+            if sep == ")":
+                boundary = True
+            out |= here
+        for inner in nested:
+            # A substitution's body is its own command line: `$(cd x && …)`
+            # runs in a subshell, so its `cd` composes with nothing outside it.
+            out |= work_dirs(where, [inner])
     return out
 
 
+def _names_cd(chunk: str) -> bool:
+    """Does this simple command change directory at all — including inside a
+    shell string it hands to `bash -c`? Used only by the composition rule,
+    which has to count directory changes it cannot always name."""
+    return bool(CD_RE.search(chunk))
+
+
 def _chunk_dirs(where: str, chunk: str) -> set[str]:
-    """The directory one simple command names, if it names one."""
+    """The directory one simple command names, if it names one.
+
+    THE LAST BRANCH IS THE IMPORTANT ONE. Everything this walk recognises is
+    read; everything else that so much as MENTIONS a directory change raises,
+    because the alternative is the empty set and the empty set already means
+    "this half stays put". The first version of this function refused only a
+    token spelled exactly `cd`, which let four live-looking spellings through
+    silently — `bash -lc '…'`, `/bin/bash -c '…'`, `eval "cd … && …"`, and
+    `env -C dir cmd`. Each was measured passing a pair whose two halves ran in
+    demonstrably different cargo roots.
+    """
     try:
         toks = shlex.split(chunk)
     except ValueError as exc:
@@ -1999,14 +2202,30 @@ def _chunk_dirs(where: str, chunk: str) -> set[str]:
                    + teach("`work_dirs`")) from exc
     if not toks:
         return set()
+    # A WRAPPER'S OWN `-C`, refused before the walk that would step over it.
+    # `_command_word` consumes a wrapper's dash-options, so `env -C sub cargo
+    # test` reaches the rest of this function having lost `sub` entirely.
+    for j, tok in enumerate(toks):
+        if tok not in CMD_WRAPPERS:
+            continue
+        for opt in toks[j + 1:]:
+            if not opt.startswith("-"):
+                break
+            if opt in CHDIR_OPTS or any(opt.startswith(o + "=") for o in CHDIR_OPTS):
+                raise Bail(f"{where}: `{tok} {opt}` changes directory without naming `cd`: "
+                           f"{chunk.strip()[:100]!r}. It is the same fact a `cd` states and this "
+                           "reader steps over it as one of the wrapper's options, which leaves the "
+                           "half reporting the directory it started in. Write it as a subshell "
+                           "`cd`," + teach("`CHDIR_OPTS` and `_chunk_dirs`"))
     i, _found, _standing, _opaque = _command_word(toks)
     # A SHELL ON A COMMAND STRING IS A COMMAND LINE, wherever in the chunk it
     # sits. The local half's benches row reaches this reader as
     # `run_row "rustfmt (benches)" bash -c 'cd benches && …'`, whose command
     # word is the row dispatcher — so anchoring on the command word alone
     # finds no `cd` and reports the one row in the repo that has to be read.
+    # Matched on the BASENAME, so `/bin/bash -c` is read rather than refused.
     for j in range(i, len(toks) - 1):
-        if toks[j] in SHELL_C and "-c" in toks[j + 1:]:
+        if os.path.basename(toks[j]) in SHELL_C and "-c" in toks[j + 1:]:
             k = toks.index("-c", j + 1)
             if k + 1 >= len(toks):
                 raise Bail(f"{where}: `{toks[j]} -c` with no command string after it: "
@@ -2014,36 +2233,42 @@ def _chunk_dirs(where: str, chunk: str) -> set[str]:
                            "the string to know which directory the row runs in."
                            + teach("`_chunk_dirs`'s `SHELL_C` branch"))
             return work_dirs(where, [toks[k + 1]])
-    if i >= len(toks):
-        return set()
-    word = toks[i]
-    if word in ("pushd", "popd"):
-        raise Bail(f"{where}: `{word}` is a directory STACK, and this reader records the directories "
-                   f"a row names rather than replaying one: {chunk.strip()[:100]!r}. A push read "
-                   "without its pop reports a directory the row has already left, and reading "
-                   "neither is what a half that stays put looks like. Write the directory change as "
-                   "a subshell `cd`," + teach("`_chunk_dirs`"))
-    if word == "cd":
-        if i + 1 >= len(toks):
-            raise Bail(f"{where}: `cd` with no argument goes to $HOME, which is not a directory in "
-                       f"this repo: {chunk.strip()[:100]!r}. Claim 10's directory arm compares paths "
-                       "from the repo root, and a row that leaves the tree is one it cannot compare "
-                       "against the other half at all. Name the directory,"
+    if i < len(toks):
+        word = os.path.basename(toks[i])
+        if word in ("pushd", "popd"):
+            raise Bail(f"{where}: `{word}` is a directory STACK, and this reader records the "
+                       f"directories a row names rather than replaying one: "
+                       f"{chunk.strip()[:100]!r}. A push read without its pop reports a directory "
+                       "the row has already left, and reading neither is what a half that stays "
+                       "put looks like. Write the directory change as a subshell `cd`,"
                        + teach("`_chunk_dirs`"))
-        here = _norm_dir(where, toks[i + 1], chunk)
-        return {here} if here is not None else set()
+        if word in EVAL_COMMANDS:
+            raise Bail(f"{where}: `{word}` builds its command line at run time and this reader has "
+                       f"only the text: {chunk.strip()[:100]!r}. Whether it changes directory is "
+                       "not a question the text answers, and answering it `no` is what a half that "
+                       "never moves answers. Write the command without `eval`,"
+                       + teach("`EVAL_COMMANDS` and `_chunk_dirs`"))
+        if word == "cd":
+            if i + 1 >= len(toks):
+                raise Bail(f"{where}: `cd` with no argument goes to $HOME, which is not a directory "
+                           f"in this repo: {chunk.strip()[:100]!r}. Claim 10's directory arm "
+                           "compares paths from the repo root, and a row that leaves the tree is "
+                           "one it cannot compare against the other half at all. Name the "
+                           "directory," + teach("`_chunk_dirs`"))
+            here = _norm_dir(where, toks[i + 1], chunk)
+            return {here} if here is not None else set()
     # WHAT THE WALK COULD NOT ATTRIBUTE, on `env_prefixes`'s own rule and for
-    # its reason: a `cd` sitting after the command word is either an argument
-    # to something this reader does not know, or a construct it does not take
-    # apart. Reading it as "no directory here" is the one answer that cannot
-    # be right.
-    for tok in toks[i + 1:]:
-        if tok in CD_COMMANDS:
-            raise Bail(f"{where}: `{tok}` appears somewhere claim 10's directory arm cannot "
-                       f"attribute to a command: {chunk.strip()[:100]!r}. It sits after the command "
-                       "word, or inside a construct this reader does not take apart — and a "
-                       "directory change read as absent compares equal to a half that never made "
-                       "one." + teach("`_chunk_dirs`'s walk and `SHELL_C`"))
+    # its reason. The test is on the chunk's TEXT rather than on its tokens:
+    # a token spelled exactly `cd` is one spelling of an unattributable
+    # directory change and `bash -lc 'cd x && …'` is another, and a check that
+    # saw only the first returned the empty set for the second.
+    if CD_RE.search(chunk):
+        raise Bail(f"{where}: a directory change this arm cannot attribute to a command: "
+                   f"{chunk.strip()[:100]!r}. It sits after the command word, inside a string this "
+                   "reader does not hand to a shell it knows, or inside a construct it does not "
+                   "take apart — and a directory change read as absent compares equal to a half "
+                   "that never made one."
+                   + teach("`_chunk_dirs`'s walk, `SHELL_C` and `CMD_WRAPPERS`"))
     return set()
 
 
@@ -2793,9 +3018,14 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     # one fact compared by nothing, which is the shape the env arm found
     # between an `env:` block and a prefix. The population is what makes it
     # worth an arm rather than a sentence: every directory either half names
-    # today is one of the cargo roots `Cargo.toml` EXCLUDES from the
-    # workspace, so a row that moves on one half only runs a different check
-    # under the same name, and no roster claim above can see it.
+    # today is a cargo root OUTSIDE the workspace — `benches` and
+    # `interval-transcendentals` are `Cargo.toml` `exclude` entries, and
+    # `demos/tour`, `demos/wild`, `tools/k-lint`, `tools/tess-lint` and
+    # `tools/tess-meter` sit under one — so a row that moves on one half only
+    # runs a different check under the same row name, and no roster claim
+    # above can see it. NO COUNT IS WRITTEN HERE: `scripts/doc-gate.sh
+    # --print-roots` derives the list, and a root has landed before with every
+    # prose count in the repo left saying the old number.
     #
     # ITS EXTENT IS THE LOCAL ROW, not the pair, and that is the one place the
     # three arms differ. A directory is a property of a row and several
@@ -3025,16 +3255,17 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
         for where in sorted(group["hosted"] - group["local"]):
             err(f"{row_is} has a hosted half that runs in `{where}` and a local half that never "
                 "names that directory. A working directory decides which CARGO ROOT a row's "
-                "commands run in, and the roots either half names here are the ones the workspace "
-                "EXCLUDES — so the two halves run a different check under one row name, while every "
-                "claim above still says they run the same one. Spell the same directory on both "
-                "halves, as `working-directory:` or as a `cd`")
+                "commands run in, and every root either half names today is one `--workspace` "
+                "cannot see (`scripts/doc-gate.sh --print-roots` derives the list) — so the two "
+                "halves run a different check under one row name, while every claim above still "
+                "says they run the same one. Spell the same directory on both halves, as "
+                "`working-directory:` or as a `cd`." + DIR_NO_EXEMPTION)
         for where in sorted(group["local"] - group["hosted"]):
             err(f"{row_is} runs in `{where}` and the hosted half never names that directory. Same "
                 "defect as the hosted-only direction and the one that merges more easily: a `cd` "
                 "added or moved locally leaves the row's name, its flags, its environment and its "
                 "citation all unchanged. Spell the same directory on both halves, as "
-                "`working-directory:` or as a `cd`")
+                "`working-directory:` or as a `cd`." + DIR_NO_EXEMPTION)
 
     for (marker, token), (want, reason) in sorted(PAIR_EXEMPT.items()):
         if marker not in markers:
@@ -4004,11 +4235,19 @@ def selftest() -> None:
     def wd_local_stops_naming(t):
         _sub(t, LOCAL_HALF, FIXTURE_WD_LINE_TWO, f"  {FIXTURE_WD_ROW}\n")
 
-    # THE CASE THE ROW-WIDE EXTENT IS FOR, and the one a per-PAIR comparison
-    # gets wrong in both directions: the row names two directories, and one
-    # hosted step moves onto the other one. A subset rule passes it — hosted's
-    # set is still contained in local's — while the hosted half has stopped
-    # running one of the two checks entirely.
+    # ONE HOSTED STEP MOVES ONTO THE OTHER DIRECTORY THE ROW ALREADY NAMES. A
+    # subset rule passes it — hosted's set is still contained in local's —
+    # while the hosted half has stopped running one of the two checks.
+    #
+    # IT IS THE SAME VERDICT `wd_hosted_stops_naming` ASSERTS, said out loud
+    # because the two look like independent coverage and are not: both reach
+    # the local-only branch and both die to the same mutant (set equality
+    # relaxed to containment). They are kept as two because they are two
+    # different EDITS a person actually makes — deleting a declaration, and
+    # retargeting one — and the second is the one that leaves the row's text
+    # looking untouched. What proves the row-wide EXTENT is neither of them: it
+    # is that a per-marker grouping reds the clean fixture, and reds the real
+    # tree on `scene-inputs / compose`.
     def wd_hosted_moves_onto_the_other(t):
         _sub(t, HOSTED_HALF, _WD_HOSTED_TWO,
              f"      - name: {FIXTURE_WD_STEP_TWO}\n"
@@ -4091,6 +4330,59 @@ def selftest() -> None:
         "wd_ascent", f"  (cd ../{FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW})\n")
     wd_cd_dash = _wd_local_shape(
         "wd_cd_dash", f"  (cd - && {FIXTURE_WD_ROW})\n")
+
+    # THE FOUR SPELLINGS THAT RETURNED THE EMPTY SET, which is this arm's one
+    # forbidden answer: each was measured passing a pair whose halves ran in
+    # demonstrably different cargo roots before the reader refused them.
+    wd_bash_dash_lc = _wd_local_shape(
+        "wd_bash_dash_lc", f"  bash -lc 'cd {FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW}'\n")
+    wd_eval = _wd_local_shape(
+        "wd_eval", f'  eval "cd {FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW}"\n')
+    wd_env_chdir = _wd_local_shape(
+        "wd_env_chdir", f"  env -C {FIXTURE_WD_DIR_TWO} {FIXTURE_WD_ROW}\n")
+    wd_absolute = _wd_local_shape(
+        "wd_absolute", f"  (cd /tmp/{FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW})\n")
+    wd_placeholder = _wd_local_shape(
+        "wd_placeholder",
+        f"  echo {FIXTURE_WD_DIR_TWO} | xargs -I{{}} sh -c 'cd {{}} && {FIXTURE_WD_ROW}'\n")
+    # A heredoc body is text the step prints, and this reader scans it as argv.
+    wd_heredoc = _wd_local_shape(
+        "wd_heredoc", f"  cat <<'FIXEOF'\n  cd {FIXTURE_WD_DIR_TWO}\n  FIXEOF\n")
+    # THE SUBSHELL BOUNDARY, READ OFF A SEPARATOR AND NOT OFF A `)`. The
+    # substitution's own paren closes no subshell, so these two `cd`s compose
+    # into `othercrate/subcrate` — and the row names exactly the two
+    # directories hosted names, so a reader testing the raw line for `)`
+    # reported AGREEMENT. Silently, which is what makes it the worse bug.
+    wd_paren_from_substitution = _wd_local_shape(
+        "wd_paren_from_substitution",
+        f"  cd {FIXTURE_WD_DIR_TWO} && echo $(pwd) && cd {FIXTURE_WD_DIR} && {FIXTURE_WD_ROW}\n")
+    # …and the same shape with the paren inside QUOTES rather than in a
+    # substitution, which is the other way a raw-text test was satisfied.
+    wd_paren_in_quotes = _wd_local_shape(
+        "wd_paren_in_quotes",
+        f"  cd {FIXTURE_WD_DIR_TWO} && echo 'done (ok)' && cd {FIXTURE_WD_DIR} && {FIXTURE_WD_ROW}\n")
+
+    # A SHELL NAMED BY PATH IS STILL THAT SHELL, so this must be READ and not
+    # refused — the pair is correct and a refusal here would be a false red.
+    wd_bin_bash_c = _wd_local_shape(
+        "wd_bin_bash_c", f"  /bin/bash -c 'cd {FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW}'\n")
+    # A TRAILING COMMENT IS NOT A SECOND `cd`. The first spelling of the
+    # one-`cd`-per-line rule ran before comments were stripped, so this
+    # reddened the live benches row — the exact row the arm was built for.
+    wd_trailing_comment = _wd_local_shape(
+        "wd_trailing_comment",
+        f"  bash -c 'cd {FIXTURE_WD_DIR_TWO} && {FIXTURE_WD_ROW}'  # cd back afterwards\n")
+
+    # THE YAML SIDE OF THE VALUE, a surface that did not exist until this arm
+    # read `working-directory:` at all. A trailing comment on a plain scalar is
+    # comment; an alias is refused, as the module docstring says anchors are.
+    def wd_workdir_trailing_comment(t):
+        _sub(t, HOSTED_HALF, f"        working-directory: {FIXTURE_WD_DIR_TWO}\n",
+             f"        working-directory: {FIXTURE_WD_DIR_TWO}  # the other root\n")
+
+    def wd_workdir_alias(t):
+        _sub(t, HOSTED_HALF, f"        working-directory: {FIXTURE_WD_DIR_TWO}\n",
+             "        working-directory: *otherdir\n")
 
     # A hosted step that declares BOTH spellings composes them, and this
     # reader records places rather than composing them — so it would report
@@ -4419,6 +4711,22 @@ def selftest() -> None:
     _case("AND changes directory inside its own", wd_both_spellings_on_one_step)
     _case("carries a `defaults:` block", wd_job_defaults)
     _case("carries a top-level `defaults:` block", wd_workflow_defaults)
+    _case("cannot attribute to a command", wd_bash_dash_lc)
+    _case("builds its command line at run time", wd_eval)
+    _case("changes directory without naming `cd`", wd_env_chdir)
+    _case("the ABSOLUTE path", wd_absolute)
+    _case("cannot read as a path at all", wd_placeholder)
+    _case("opens a here-document", wd_heredoc)
+    _case("two directory changes on one command line", wd_paren_from_substitution)
+    _case("two directory changes on one command line", wd_paren_in_quotes)
+    _case("is a YAML alias", wd_workdir_alias)
+    # THE VERDICT HAS TO CARRY THE ARGUMENT, because a failing developer reads
+    # the message and not the claim site, and this is the one arm with no
+    # third option to offer.
+    _case("There is deliberately NO exemption spelling", wd_local_stops_naming)
+    _ok_case(wd_bin_bash_c)
+    _ok_case(wd_trailing_comment)
+    _ok_case(wd_workdir_trailing_comment)
     _ok_case(wd_hosted_cd_equals_working_directory)
     _ok_case(wd_bash_c)
     _ok_case(wd_bash_c_dispatched)
@@ -4459,11 +4767,15 @@ def selftest() -> None:
           "unattributable assignment, a $GITHUB_ENV write, a mirrored pair cited at a `uses:` "
           "step, a DIRECTORY named by one half of a mirrored row and not the other — a "
           "`working-directory:` deleted, a `cd` deleted, and either of them moved onto the OTHER "
-          "directory the same row already runs in — a `pushd`, a `cd` to an expansion, to `-`, to "
-          "nothing, above the row's own root, one this reader cannot attribute to a command, two "
-          "on one line with no subshell between them, a step declaring both spellings at once, and "
-          "a `defaults:` block on a cited job or its workflow, an argv whose flag has no value or "
-          "whose quote never "
+          "directory the same row already runs in — a `pushd`, an `eval`, an `env -C`, a `cd` to "
+          "an expansion, to `-`, to nothing, to an absolute path, to a placeholder another tool "
+          "substitutes, above the row's own root, one this reader cannot attribute to a command "
+          "(a `bash -lc` string among them), two on one line with no subshell between them "
+          "(including a line whose only `)` comes from a substitution or from inside quotes), a "
+          "heredoc body naming a directory, a step declaring both spellings at once, a "
+          "`working-directory:` written as a YAML alias, and a `defaults:` block on a cited job or "
+          "its workflow — each verdict carrying the argument for why this arm has no exemption "
+          "spelling, an argv whose flag has no value or whose quote never "
           "closes, a PAIR_EXEMPT entry that expired, inverted, lost its pair or lost the token it "
           "excused, a tool pin bumped in ci.yml while the local half went on naming the old version, "
           "a local literal that drifted onto a DIFFERENT pin's value beside the tool it is not, and a "
@@ -4479,8 +4791,10 @@ def selftest() -> None:
           "standing where a prefix would, a throughput knob on either half, "
           "a redirection or a substitution sitting between a cargo command and its flags, and a "
           "directory the two halves spell differently and mean identically — a hosted `cd` "
-          "against a `working-directory:`, a local `bash -c 'cd …'` bare or behind a row "
-          "dispatcher, two subshells on one line, `./x/` against `x`, and a `cd .`")
+          "against a `working-directory:`, a local `bash -c 'cd …'` bare, behind a row "
+          "dispatcher, or named by path as `/bin/bash -c`, two subshells on one line, `./x/` "
+          "against `x`, a `cd .`, a trailing comment after a `cd`, and a `working-directory:` "
+          "with a comment after it")
 
 
 def _sub(t: str, path: str, a: str, b: str) -> None:
