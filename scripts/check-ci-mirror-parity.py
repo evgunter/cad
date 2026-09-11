@@ -481,7 +481,10 @@ PIN_FREE = {
 #     different verdict, which is this table's subject exactly. MEASURED when it
 #     was added: no pair in either half was one-sided on it, and dropping
 #     `-- -D warnings` from one half of the wasm viewer pair had passed silently
-#     until then.
+#     until then. It takes a value so that two halves denying DIFFERENT lints
+#     red as well; and both of its spellings are read, which is a property of
+#     `cargo_flags` rather than of this entry — see `ATTACHED_D_RE`, because an
+#     entry here buys nothing for a token the tokenizer does not recognise.
 SEMANTIC_FLAGS = {
     "--no-fail-fast": False,
     "--all-targets": False,
@@ -675,10 +678,12 @@ FIXTURE_MIRRORED_ROWS = 3
 NO_MIRROR_MIN_WORDS = 4
 NO_MIRROR_MIN_CHARS = 24
 
-# The clean fixture's two claim-10 pairs. They carry NO allowlisted flag, so
-# every case below can plant exactly one and read back exactly one message;
-# a fixture that already agreed on `--no-fail-fast` would hide the case that
-# matters most.
+# The clean fixture's two claim-10 pairs. The one every flag case plants into
+# carries NO allowlisted flag, so a case can plant exactly one and read back
+# exactly one message; a fixture that already agreed on `--no-fail-fast` would
+# hide the case that matters most. The `fn` row carries `-D warnings` on BOTH
+# halves on purpose — an agreeing pair, which is the shape a one-sided case
+# must be distinguishable from.
 FIXTURE_CARGO_STEP = "cargo row"
 FIXTURE_CARGO_ROW = "cargo nextest run --workspace"
 FIXTURE_CARGO_FN_STEP = "cargo fn row"
@@ -1408,7 +1413,17 @@ GH_EXPR_RE = re.compile(r"\$\{\{.*?\}\}")
 # absent from both halves today, and all three would need a `Bail` rather than
 # a wider guess.
 CMD_BREAK = frozenset("|;()`")
+# THE ATTACHED SPELLINGS, which are one token and therefore match no key in
+# `SEMANTIC_FLAGS` on their own. Both are the spelling their flag is usually
+# written in: `-j4`, and `-Dwarnings` — the form this repo prefers inside a
+# RUSTFLAGS string. A reader that knows only the spaced form sees NO flag in
+# them, so a half that spells it attached and a half that drops it entirely
+# read alike, which is the silence this whole arm exists to break; and the
+# reverse, two halves that both deny in different spellings, reads as a
+# divergence that is not one. Measured both directions on the wasm viewer pair
+# before this line existed.
 ATTACHED_J_RE = re.compile(r"-j\d+")
+ATTACHED_D_RE = re.compile(r"-D\S+")
 OPAQUE = "*"
 # What a masked substitution leaves behind: a token carrying `$`, so that if it
 # lands where a flag's value goes it is OPAQUE rather than compared as text.
@@ -1605,6 +1620,8 @@ def cargo_flags(where: str, lines: list[str]) -> dict[str, list[dict[str, str | 
                     name, value = tok.split("=", 1)
                 elif ATTACHED_J_RE.fullmatch(tok):
                     name, value = "-j", tok[2:]
+                elif ATTACHED_D_RE.fullmatch(tok):
+                    name, value = "-D", tok[2:]
                 else:
                     name = tok
                 if name in SEMANTIC_FLAGS:
@@ -3361,6 +3378,27 @@ def selftest() -> None:
     def flag_local_only(t):
         _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} --no-fail-fast\n")
 
+    # THE ATTACHED SPELLINGS, both of them and both directions. The loop above
+    # derives one case per allowlisted flag from `SEMANTIC_FLAGS` and writes
+    # every value-taking one SPACED, so the attached form — the form both of
+    # these flags are usually written in — had no case at all until it was
+    # measured passing a one-sided drop.
+    def flag_attached_hosted_only(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n",
+             f"run: {FIXTURE_CARGO_ROW} -Dwarnings\n")
+
+    def flag_attached_j_hosted_only(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n",
+             f"run: {FIXTURE_CARGO_ROW} -j4\n")
+
+    # The reverse direction, and the one a bad fix gets wrong: two halves that
+    # both deny, spelled differently. Same flag, same value, no divergence.
+    def flag_attached_equals_spaced(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n",
+             f"run: {FIXTURE_CARGO_ROW} -Dwarnings\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n",
+             f"{FIXTURE_CARGO_ROW} -D warnings\n")
+
     # The row whose argv is in a function the dispatch line names. Without the
     # closure in `marker_row` this pair reads as "no cargo command locally",
     # which is a pass.
@@ -3836,6 +3874,9 @@ def selftest() -> None:
         _case(f"passes `{_flag}` on `cargo nextest run` in the hosted half only",
               _flag_on_hosted_only(_flag))
     _case("passes `--no-fail-fast` on `cargo nextest run` in the local half only", flag_local_only)
+    _case("passes `-D` on `cargo nextest run` in the hosted half only", flag_attached_hosted_only)
+    _case("passes `-j` on `cargo nextest run` in the hosted half only", flag_attached_j_hosted_only)
+    _ok_case(flag_attached_equals_spaced)
     _case("passes `--all-targets` on `cargo clippy` in the local half only", flag_through_function)
     _case("with different values", flag_value_diverges)
     _case("on only some of them in the other", flag_on_only_some)

@@ -74,28 +74,35 @@ saying why. So the shapes are:
 None of these is a blocker; all three are places where the obvious edit
 and the intended guard differ.
 
-- **The two candidate spellings are not the same guard.**
-  `RUSTFLAGS='-Dwarnings' cargo check -p viewer …` compiles every
-  crate in the graph under the deny, and workspace path dependencies
-  (`kernel`, `editor-core`, `bvh`, …) are not `--cap-lints allow`-ed
-  the way registry dependencies are — so it reds on a warning anywhere
-  in the workspace at that target, not only in `viewer`. `cargo clippy
-  -p viewer … -- -D warnings` is scoped to `viewer` and additionally
-  denies clippy's own lints, which `cargo check` never runs. Worth
-  running both once and choosing deliberately rather than picking the
-  shorter diff; this item asserts the difference from how cargo caps
-  lints, not from having run it.
+- **The two candidate spellings differ on one axis, and it is not
+  scope.** ~~`cargo clippy -p viewer … -- -D warnings` is scoped to
+  `viewer`~~ — CORRECTED at the flip (`## Taken`), by running both.
+  BOTH spellings compile every crate in the graph under the deny,
+  because workspace path dependencies (`kernel`, `editor-core`,
+  `bvh`, …) are not `--cap-lints allow`-ed the way registry
+  dependencies are, and `cargo clippy`'s post-`--` arguments reach
+  every such unit rather than the `-p` package alone. So both red on a
+  warning anywhere in the workspace at that target. What clippy adds is
+  clippy's own lints, which `cargo check` never runs and which fire on
+  path dependencies too. Run both once and choose deliberately rather
+  than picking the shorter diff — this bullet originally asserted the
+  scope difference from how cargo caps lints, not from having run it,
+  and that is exactly how it came to be false.
 - **The row already carries a `RUSTFLAGS`, and `:2160-2163` explains
   why it is scoped to the command** rather than exported or set as an
   `env:` key: `RUSTFLAGS` silently REPLACES any `.cargo/config.toml`
   rustflags. A flip spelled through `RUSTFLAGS` appends to
   `--cfg getrandom_backend="wasm_js"` in that same string and inherits
-  that reasoning; one spelled through clippy does not.
+  that reasoning; one spelled through clippy carries the `RUSTFLAGS`
+  for the `getrandom` cfg regardless, so it keeps that reasoning too
+  and only the DENY moves out of the string (corrected at the flip).
 - **`--all-targets` must not be added.** `crates/viewer/tests/` reaches
   `ThreadEvaluator`, which `crates/viewer/src/lib.rs:139` re-exports
   under `#[cfg(not(target_family = "wasm"))]`, so a wasm row that
   builds the test targets fails to compile for a reason that has
-  nothing to do with warnings.
+  nothing to do with warnings. (Understated, corrected at the flip:
+  `crates/viewer/examples/` is in the population too and fails first,
+  and `prefs::file` is a second, independent cause.)
 
 ## The mirror
 
@@ -106,8 +113,10 @@ both, so whatever this row becomes, that one becomes with it.
 
 ## Taken: shape 1, spelled as clippy (2026-09-11)
 
-Line numbers above are the item's; the block is at `ci.yml:2144-2263`
-on `aa628e5`.
+Line numbers above are the item's, taken at `be0d8b3af`; they do not
+resolve on later trees. The block is `ci.yml`'s
+`THE VIEWER'S OWN WASM ROW` comment through the step it sits above —
+grep for that heading rather than a line number.
 
 **Shape 1, and the flip is spelled `cargo clippy -p viewer --features
 app --target wasm32-unknown-unknown -- -D warnings` with the existing
@@ -141,5 +150,11 @@ E0432, and the FIRST unit to fail is an example (`r1_e2e`), not a test.
 carries `#[cfg(not(target_family = "wasm"))]` at `app.rs:128`, and
 `deliver_status` has no occurrence anywhere under `crates/viewer/`.
 
+The three bullets under *"Three things to settle"* are corrected where
+they stand rather than only here: two of them were false and a third
+understated, and a reader quoting a bullet alone must not quote a
+falsehood.
+
 Residue, each its own file:
-`work/ciw/kernel-wasm-row-denies-no-warnings.md`.
+`work/ciw/kernel-wasm-row-denies-no-warnings.md`,
+`work/ciw/a-source-attribute-can-silence-a-ci-deny-unread.md`.

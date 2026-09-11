@@ -1172,15 +1172,9 @@ wasm_check() {
 # UNCONDITIONAL HERE, SEED-KEYED HOSTED — this file's standing asymmetry,
 # argued at the toolkit rows in the dispatch list below.
 #
-# CLIPPY AND `-D warnings`, the same deny every other viewer row here
-# carries: these arms are read by no other row in either half, so a lint
-# in them is a lint nothing reports. Both this and
-# `RUSTFLAGS='-Dwarnings …' cargo check` deny across the workspace path
-# dependencies — cargo caps lints on registry crates only — so the axis
-# they differ on is clippy's own lints, and they cost the same. NO
-# `--all-targets`: this crate's tests and examples import an item
-# `cfg(not(target_family = "wasm"))` re-exports, so they do not build
-# here at all. The hosted half carries the full argument.
+# CLIPPY AND `-D warnings`, and NO `--all-targets`: the hosted half
+# argues both, and this row's name is wider than `viewer` because its
+# verdict is.
 wasm_clippy_viewer() {
   rustup target add wasm32-unknown-unknown \
     && RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
@@ -1353,8 +1347,8 @@ rustdoc_gate() {
 run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
-# HOSTED MIRROR: fmt / wasm32 clippy (viewer app feature - the browser entry point)
-run_row "wasm32 clippy (viewer app)"   wasm_clippy_viewer
+# HOSTED MIRROR: fmt / wasm32 clippy (viewer app feature + its workspace deps - the browser entry point)
+run_row "wasm32 clippy (viewer app + deps)" wasm_clippy_viewer
 # ε battery {default, 1e-6, 1e-12} (Ev's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Over the default archive;

@@ -63,3 +63,26 @@ outside `{viewer, pncad, bvh}`, that this row already compiles". That
 argument covers BREAKS and not LINTS, because this row denies nothing;
 the viewer row's comment says so at the site. Denying here closes that
 gap rather than documenting it.
+
+## The class is wider than this row, twice over
+
+**The exclusions are a hole no deny reaches.** This row carries
+`--exclude pncad --exclude pncad-py --exclude viewer`. `viewer` is now
+denied by the row below it, but `pncad` is denied at wasm32 by NOTHING
+before or after this item lands: it is out of this row by exclusion, and
+the viewer row builds it only as a dependency of `viewer`, which is
+enough for a lint IN `pncad`'s own wasm arm to red there — but only when
+the viewer row's seed axis is true. So a `pncad` wasm-arm lint on a
+kernel-only change is read by nothing. Denying here does not close that;
+the exclusion has to be re-argued or the deny has to reach past it.
+
+**Neither row says what the other already compiled.** These two steps
+are in the same job, install the same target, and compile a large
+overlapping crate set — one denying and one not — and nothing in either
+comment says WHICH crates both read. That overlap is the whole content
+of the seed-key sufficiency argument at the viewer row (*"every such
+crate is a member the workspace wasm row above already compiles"*), and
+it is asserted from the exclusion list rather than measured. A
+`cargo tree` reading of both, named at one of the two sites, is the
+cheap half of this item and worth taking first: it is what tells you
+whether one deny could replace both rows.
