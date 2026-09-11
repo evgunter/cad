@@ -315,3 +315,34 @@ at `--pr --scope '-p viewer' --skip-viewer-toolkit`.
 the local runs are recorded here: `scripts/ci-filter.py --files` over a
 diff touching `crates/viewer` sets `RUN_VIEWER_TOOLKIT=true`, so
 `ci.yml:1834` takes the non-skip path and the skip-mode pass never runs.
+
+### The re-sweep before landing found a fourteenth, and `main` red
+
+A sweep is accurate as of its merge base, not its merge. Re-run after
+merging `origin/main` (#2320, `view/cancel-doors`), the population is
+**fourteen**, not thirteen: `session/op.rs:797` names
+`` `pane::create` `` in a production `///` comment, and that file
+arrived with the merge. Linked with the rest.
+
+**And the merge brought a live instance of this row's whole thesis.**
+`session/op.rs:773` carries `` [`crate::widgets::drag_gesture_ops`] ``
+— a renderer-free module linking into an `app`-gated one, as a LINK —
+so **`origin/main` is red on the skip-mode viewer pass today**:
+
+```
+$ scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit
+error: unresolved link to `crate::widgets::drag_gesture_ops`
+ERROR: doc-gate: rustdoc rejected the viewer pass at DEFAULT features
+exit 1
+```
+
+Taken at `origin/main` in a throwaway worktree with its own target dir.
+It never appeared on #2320's CI for exactly the reason this row was
+filed: that PR's diff touched `crates/viewer`, so
+`RUN_VIEWER_TOOLKIT=true` and `ci.yml:1834` took the non-skip path. The
+red is waiting for the next branch that reaches `viewer` through the
+dependency closure without seeding the toolkit — a stranger's branch,
+which is the argument *"why it is worth Ev's eye rather than a lane's
+edit"* made in the abstract and is now a fact about `main`. **This PR
+clears it**, as a side effect of the ruling rather than as a fix aimed
+at it.

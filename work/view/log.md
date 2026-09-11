@@ -8480,3 +8480,28 @@ the review asked for and the opposite of what the citation would have
 said. The repairs that would make it a real backstop live in
 `nightly.yml` and `scripts/ci-filter.py` — CIW's and S-TCOST's — and
 are named in the row rather than taken here.
+
+**The re-sweep before landing found a fourteenth site, and `main` red.**
+*A sweep is accurate as of your merge base, not your merge.* Re-run
+after merging `origin/main` (#2320, `view/cancel-doors`), the
+path-shaped population is **fourteen**: `session/op.rs:797` names
+`` `pane::create` `` in a production `///` comment, in a file that
+arrived with the merge. Linked with the other thirteen; the red-before
+on the merged tree is **17** distinct sites, not 15.
+
+**Sixteen of those seventeen are this branch's. The seventeenth is
+`main`'s, and it is this row's thesis firing in the wild.**
+`session/op.rs:773` carries `` [`crate::widgets::drag_gesture_ops`] ``
+— renderer-free module, `app`-gated target, spelled as a LINK — so
+`origin/main` is **red on the skip-mode viewer doc pass right now**.
+Measured at `origin/main` in a throwaway worktree with its own target
+dir: `error: unresolved link to `crate::widgets::drag_gesture_ops``,
+exit 1. It never showed on #2320's CI because that diff touched
+`crates/viewer`, so `RUN_VIEWER_TOOLKIT=true` and `ci.yml:1834` took the
+non-skip path — *"the defect fires on someone else's branch, not on the
+branch that writes it"*, which was an argument when the row was filed
+and is now a property of `main`. The next branch to reach `viewer`
+through the closure without seeding the toolkit would have worn it.
+**This PR clears it as a side effect of the ruling**, which is worth
+saying plainly: the merge is not only a docs improvement, it takes a
+standing red off `main`.

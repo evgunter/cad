@@ -69,7 +69,7 @@ crate now spells one relationship two ways with nothing saying which.
 **`blend.rs:169` names `unit_picker`, and there is no `unit_picker`
 anywhere in this workspace** (`grep -rn unit_picker --include=*.rs
 crates/ demos/ tools/` — zero hits; the word *picker* appears only in
-prose, `app.rs:380`, `:1031`, `:1372`, `:1383`, `forms.rs:269`, `:275`,
+prose, `app.rs:380`, `:1031`, `:1400`, `:1411`, `forms.rs:269`, `:275`,
 `:293-294`, `:299`). That is exactly the class
 `doc-comments-name-symbols-that-do-not-exist` closed on 2026-09-10 over
 64 spans, surviving inside the same crate because that sweep's rule
