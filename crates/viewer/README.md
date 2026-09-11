@@ -974,6 +974,64 @@ permitted mid-gesture and `open` is refused, which is what the code did
 before the table existed. Whether that asymmetry is right is a separate
 question with its own item.
 
+### Every gesture has a cancel door
+
+A gesture's ordinary exit is the release event on the field that opened
+it, and that exit exists only on a frame the field is drawn. The panel
+is handed no slot row for a selection whose standing is not live, so a
+slot drag whose own preview lands an evaluation its picked face does
+not survive loses its only door under the pointer still holding it:
+nothing reports the release, the drag stays open with no pointer behind
+it, and `Refusal::GestureInFlight` — *"finish the drag first"* — then
+answers every operation that moves the document. A refusal naming a
+remedy that does not exist is the honesty rule inverted, and it was the
+state of both gestures: `SessionOp::CancelGesture` and
+`SessionOp::CancelFreeMove` each had an arm in `perform` and no emitter
+anywhere in the crate.
+
+**Every operation that cancels a gesture is a control in the toolbar.**
+The population is the operations that cancel a GESTURE, not the
+variants spelled `Cancel`: `CancelEvaluation` cancels a run and its
+control is the one beside the spinner that reports the run. So the
+sweep rule is a match over `SessionOp` the compiler completes —
+`gesture_table.rs`'s `cancels_a_gesture`, checked against
+`DocSession::cancel_doors` in both directions — and a third gesture
+cannot join the enum with no door. What that rule cannot see is whether
+the toolbar's read of `cancel_doors` is REACHED, because the control is
+an `egui` closure: the emitter count is held against returning to zero
+by `the_cancel_doors_have_a_reader_in_the_chrome`, not by a row that
+draws the button.
+
+**The doors are in the toolbar and not on the field**, which is the one
+siting that answers the defect: the field is what can stop being drawn,
+so a cancel beside it would vanish with the exit it replaces. And **a
+door that cannot act says so rather than vanishing** — the posture the
+two file-dialog controls take: each door is drawn whatever the
+selection, the standing and the evaluation are, and enabled exactly
+while its own gesture is in flight. (Drawn, not *reachable at every
+window width*: the toolbar is one non-wrapping `ui.horizontal`, which
+`work/view/the-toolbar-row-does-not-wrap.md` is open about.)
+
+**How it says so is a different precedent from where it is drawn**, and
+citing one for both is wrong: the dialog controls hand
+`frame::NO_CHOOSER_BACKEND`, a `&'static str` composed at each button,
+to `on_disabled_hover_text` — the shape
+`environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
+is open about. A cancel door follows `pane::create`'s catalogue entry
+instead — *carrying the op's own refusal, read off the entry, not
+minted here* — so `CancelDoor::blocked` is a `Refusal` and the disabled
+control's words are the refused operation's own. **That the two cannot
+come to say different things is held by a test, not by the type**:
+`gesture_table.rs`'s `a_closed_door_says_what_its_own_operation_refuses`
+performs each door's operation with no gesture open and compares both
+the rendering and the variant. Nothing structural stops a future door
+composing its own sentence; that row is what would red.
+
+**There is no key for it**: this crate binds no key to any operation at
+all (`input::PRESETS` states what a keyboard vocabulary would have to
+decide first), so an Escape binding is that decision and not a row to
+add.
+
 ### One open tool, not seven optional ones
 
 `Tools` holds one `Option<OpenTool>`, an enum with one variant per tool
