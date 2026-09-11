@@ -190,3 +190,67 @@ precedent. **Whether DOOR should hold the remainder at all is a
 question for Ev**, put to them in-chat: the mirror class and the four
 independent rows are coherent here, and the rest may simply be FIX's.
 No lane is dispatched until that is answered.
+
+## The mirror class's first PR landed (#2387, 2026-09-11)
+
+`topo::BooleanOp::ALL` is published and three hand-written complete
+lists of that enum are retired — the two the row named plus a third the
+lane found, `EVERY_OPERATION` in `crates/editor-core/tests/boolean_op_wire.rs`,
+whose own doc asserted such a list *could not* be tied to the variant
+list. Closes `boolean-op-has-a-third-hand-written-complete-list` and
+`hand-maintained-mirrors-of-a-kernel-enum-are-unforced`, which is the
+two-rows-one-PR departure `plan.md`'s **Order** rules and the reason
+those rows were claimed from VIEW before any code was written.
+
+**The brief's correction held.** `ContactClass::ALL`'s argument is
+`#[non_exhaustive]`'s and does not transfer to a closed enum; the lane
+wrote the narrower true one instead of copying it — a list cannot be
+derived from a match in safe Rust, so only the declaring crate can site
+the list beside the matches that force a new variant through the same
+impl block.
+
+**Retiring the mirror was not a viewer-local edit**, which nobody
+predicted. `scripts/gates/viewer-vocab-declared-once.sh` reads
+`crates/viewer/README.md`'s roster and reds on a row whose list is gone,
+so the roster row had to go, and the ratified KIND it claimed then had
+zero instances — a ratification amendment costing the gate's
+`KIND_ANCHOR` and `KIND_COUNT`. The README documents that amendment
+procedure for ADDING a kind; this ran it in reverse. Gate and
+`--selftest` both green, checked by the orchestrator and again by the
+reviewer, and the orchestrator has flagged the ratification change to Ev
+rather than letting it pass unremarked.
+
+**Ordering rule 5 fired, exactly as the plan warned it would.** The fix
+for a hand-written list minted a hand-written census, and the first PR
+body asserted *"No new census"* two lines after admitting it created
+one. The reviewer caught it; the orchestrator had read the census,
+called it a red-able guard, and not executed it. Executed, the hole is
+plain: add a fourth variant, copy-paste the arm the failing match asks
+for, and the row passes green with the variant absent from `ALL`. **The
+census forces the visit, not the update.** Both docs now claim only
+that, `kernel_wire`'s deleted "NOT the compiler: that a new operation
+reaches `ALL`" bullet is restored and re-aimed, and the hole — which is
+inherited verbatim at all three sites of the idiom
+(`param_source.rs`, `verb.rs`, and now here) — is filed as
+`all-census-idiom-forces-the-visit-not-the-update`.
+
+The lesson generalises past this unit and is why the review posture
+holds: **reading a guard is not running it.** Two lanes and an
+orchestrator read that census and approved it; a `rustc` invocation
+costing thirty seconds falsified it.
+
+**Five more items filed**, four of them residue of the two closed rows,
+given files at disclosure rather than left in a merged PR body. The best
+is `surface-and-curve-kind-mirrors-have-a-tautological-guard`:
+`the_surface_kind_mirror_is_complete` asserts
+`count(of(ALL)) == len(ALL)` where both sides derive from the list under
+test, so a kind missing from the list is missing from both and the row
+stays green — and two doc comments state the guard as real. Verified
+from scratch by the reviewer rather than taken on trust.
+
+**Also learned, and worth the next lane's time:** running a gate is not
+running its `--selftest`; the lane had all 21 gates green in plain mode
+and was red on the self-test's planted README fixture. And this
+program's `keep_out` did not anticipate `crates/viewer/README.md` or
+`scripts/gates/` — territory named eight foreign paths where the brief
+predicted three, all announced.

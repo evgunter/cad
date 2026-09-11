@@ -12,8 +12,8 @@ Away-channel tag `(DOOR orchestrator)`. A/B ordinal band
 
 A row belongs here on one test: **reading it tells you the diff.** Not
 "the problem is understood" — the *fix* is written, in the row, and a
-lane can land it without deciding anything first. Seven of the ten
-are `E` on that test; the three `M` rows are here because the fix is
+lane can land it without deciding anything first. Most of the cut's
+rows are `E` on that test; the `M` rows are here because the fix is
 still written, and what they add is a second file or one small call
 (where a shared helper's home goes, what a refusal's signature becomes),
 not a question.
@@ -51,9 +51,27 @@ one FIX ran on and it is strict:
 
 ## The slate
 
-Ten rows. Three of the eleven the program opened with are gone and two
-came in on 2026-09-11, the first day of dispatch — see **Opening
-corrections** below.
+**The count is not written here, deliberately.** `python3 scripts/work.py
+status --program door` derives it; a number in this paragraph would be a
+hand-maintained census of the table below it, which is the defect this
+program exists to close, and the orchestrator got it wrong once already
+in the paragraph this one replaces.
+
+Three of the cut's eleven rows are gone and two came in from VIEW — see
+**Opening corrections** below. The mirror class's first PR (#2387,
+`topo::BooleanOp::ALL`) then closed two rows and filed five, four of
+them residue of the rows it closed, given files at the moment they were
+disclosed rather than left in a merged PR body (`work/README.md`):
+`mate-primitives-is-a-partial-mirror-with-no-growth-alarm`,
+`viewport-pointer-buttons-mirror-a-toolkit-enum-by-hand`,
+`surface-and-curve-kind-mirrors-have-a-tautological-guard`,
+`vectorslot-all-has-no-reader`, and from the review
+`all-census-idiom-forces-the-visit-not-the-update`.
+
+**Those five are not on the table below.** The table is the cut's
+slate and the two rows claimed from VIEW; the residue is on the board
+through `work.py status`, which reads the directory. Anything else is a
+second roster to keep in step by hand.
 
 | item | class | what it is | where the work lands |
 | --- | --- | --- | --- |
@@ -61,8 +79,6 @@ corrections** below.
 | `D306` | **E** | Reword one note; collapse two calls into existing bit-identical `ders1_in_span`. | `crates/geom-brep/src/offset_fit.rs` (cert-record note by the fit door — **its cited lines have drifted**, the file is 2232 lines now), `crates/geom-brep/src/props/loop_area.rs:165-166` (eval+deriv pair, exactly as cited) |
 | `S114` | **E** | Two two-line test helpers in one crate; only question is the shared home. | `crates/geom/src/curves.rs:1212`, `crates/geom/src/surfaces.rs:1264` — both `#[cfg(feature="interval")] mod interval` test helpers |
 | `S414` | **E** | Move the finiteness check above the `self_loop` early return; one file | `crates/step-import/src/geometry.rs:86-88` ahead of the check at `:93`, a refusal test in `crates/step-import/tests/` |
-| `boolean-op-has-a-third-hand-written-complete-list` | **E** | Three files; `ContactClass::ALL` is the precedent, so the fix is stated not designed. | `crates/topo/src/boolean/mod.rs`, `crates/editor-core/src/persist/kernel_wire/boolean_op.rs`, `crates/viewer/src/forms.rs:67`; unswept neighbours `crates/topo/src/{query.rs,param_source.rs,contact.rs}`, `crates/editor-core/src/{checks.rs,node.rs,names/role.rs}` |
-| `hand-maintained-mirrors-of-a-kernel-enum-are-unforced` | **E** | The class head, claimed from VIEW. Closed by the same publication as the row above. | `crates/viewer/src/forms.rs:67` (`BOOLEAN_OPS`); `MATE_PRIMITIVES` at `:483` is **deliberately partial** and is argued at the site, not projected |
 | `dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum` | **E** | The class's third instance, claimed from VIEW; an INLINE array, so no table-name scan sees it. | `crates/viewer/src/pane/properties.rs:159-163`, `crates/editor-core/src/expr.rs:33` (`Dimension`, four variants) |
 | `viewer-grid-pitch-nonfinite-fallback` | **M** | Small refusal-shaped signature change, but caller and tests ripple; unowned, fence drawn in the PR | `crates/viewer/src/datums.rs:159-163` (`grid_pitch` + its sole caller), `crates/viewer/tests/datum_draw.rs` |
 | `patherror-display-renders-float-noise` | **M** | **Narrowed**: the `profile` half is done; the cross-crate half and the helper's home are what is left. | `ProfileError` and other crates' error `Display`s; helper home `crates/geom-core/src` beside `Real`. NOT `path.rs`'s arms — all 38 already go through `num`. |
