@@ -612,7 +612,7 @@ fn split_names_sections_fragments_and_crossings() {
                     split,
                     RoleSeg::SplitFragment {
                         side,
-                        parent: Box::new(lateral.clone())
+                        parent: lateral.clone().into()
                     }
                 ))
                 .is_some(),
@@ -624,7 +624,7 @@ fn split_names_sections_fragments_and_crossings() {
                     split,
                     RoleSeg::SectionEdge {
                         side,
-                        face: Box::new(lateral)
+                        face: lateral.into()
                     }
                 ))
                 .is_some(),
@@ -637,7 +637,7 @@ fn split_names_sections_fragments_and_crossings() {
                     split,
                     RoleSeg::SplitFragment {
                         side,
-                        parent: Box::new(strut.clone())
+                        parent: strut.clone().into()
                     }
                 ))
                 .is_some(),
@@ -649,7 +649,7 @@ fn split_names_sections_fragments_and_crossings() {
                     split,
                     RoleSeg::CrossingVertex {
                         side,
-                        edge: Box::new(strut)
+                        edge: strut.into()
                     }
                 ))
                 .is_some(),
@@ -701,7 +701,7 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
             pat,
             RoleSeg::Instance {
                 i,
-                of: Box::new(master_end.clone()),
+                of: master_end.clone().into(),
             },
         );
         match tp.lookup(&wrapped) {

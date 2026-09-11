@@ -161,10 +161,14 @@ fn torn_cycle_yields_typed_error() {
 /// must terminate quickly (no O(inf) hang). Mirrors PR 1's torn-link
 /// attack through the operator path.
 ///
-/// Promotion note: in debug builds the shipped per-op postcondition
-/// sweep makes the construction loop quadratic (minutes at n=3000), so
-/// the strut count is scaled down there; the torn-walk timing assertion
-/// under attack is identical in both profiles.
+/// Promotion note: this loop calls `mev` DIRECTLY, so every call is
+/// its own door and sweeps the whole body (`topo::surgery`) — which
+/// makes the construction quadratic in debug builds (minutes at
+/// n=3000), so the strut count is scaled down there. A composing door
+/// would pay one sweep for the whole loop; a consumer's own loop
+/// cannot, because nothing has undertaken to check the body later.
+/// The torn-walk timing assertion under attack is identical in both
+/// profiles.
 #[test]
 fn large_torn_body_terminates_quickly() {
     let tol = Tol::witness();
@@ -289,6 +293,11 @@ fn foreign_parent_loop_garbage_in_garbage_out_release() {
 #[cfg(debug_assertions)]
 fn debug_postcondition_fires_on_corrupt_input() {
     let tol = Tol::witness();
+    // The hook is process-global and this suite runs in parallel; every
+    // taker in the crate holds this lock first (its docs carry why).
+    let _serialized = crate::surgery::tests::PANIC_HOOK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     let sink = std::sync::Arc::clone(&captured);
     let previous = std::panic::take_hook();

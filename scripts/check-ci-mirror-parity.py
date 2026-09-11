@@ -199,6 +199,12 @@ TIER_BLIND = (
     # checkout. Sited under `if: run_build` the change class that can break it
     # is the class that would skip it.
     "scripts/check-status-capture.py",
+    # The render-lane parity check. Its inputs are `.github/workflows/render.yml`
+    # and `local-scripts/render-hosted.sh` — the second in a tree that
+    # classifies TIER=docs and that every hosted job but `mirror` deletes at
+    # checkout, so sited under `if: run_build` it could not fire on the half of
+    # its own subject that changes most often.
+    "scripts/check-render-lane-parity.py",
     # Not because its inputs are prose — because a change WIDENING the
     # filter's docs branch classifies itself as docs, so the tier that would
     # skip this self-test is the tier it is about.
@@ -250,6 +256,18 @@ MIRROR_EXEMPT = {
         "locally, being told about drift is the whole point. What IS mirrored "
         "is that lane's committed output, through ci-local.sh's `render "
         "provenance (demos)` row",
+    ),
+    "demos/render-gui.sh": (
+        "hosted",
+        "the viewer's GUI montage. It starts the real `viewer` binary and "
+        "photographs its window, so it needs a software Vulkan ICD (lavapipe), "
+        "an X server with no window manager, xdotool to drive the window and a "
+        "RELEASE build of the eframe/wgpu toolkit — a stack no developer box is "
+        "asked to install, and one whose committed pixels are a function of the "
+        "runner image's mesa exactly as the two FreeCAD lanes' are. The lane "
+        "also RE-BASELINES, committing the captured cells from a bot token, "
+        "which is the half no developer box performs. render.yml's `gui` job "
+        "says the same thing at its own key",
     ),
     "scripts/ci-pin.py": (
         "hosted",

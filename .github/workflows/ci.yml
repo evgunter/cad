@@ -1047,6 +1047,19 @@ jobs:
         run: |
           python3 scripts/check-status-capture.py --selftest
           python3 scripts/check-status-capture.py
+      # THE LANE ROSTER THE HELPER WORKS FROM, HELD AGAINST THE ONE
+      # render.yml DECLARES: every lane fact in
+      # `local-scripts/render-hosted.sh` — the lanes, what `--lane all`
+      # expands to, each artifact, each committed directory, the jobs the
+      # poll waits for — is a statement about render.yml, and this
+      # compares them. Sited here for the same reason as the row above:
+      # its inputs are a workflow file and `local-scripts/`, a tree that
+      # classifies TIER=docs and that every hosted job but this one
+      # deletes at checkout.
+      - name: render lane parity (the helper knows the lanes render.yml declares)
+        run: |
+          python3 scripts/check-render-lane-parity.py --selftest
+          python3 scripts/check-render-lane-parity.py
       # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
       # its own rather than by association. `scripts/ci-filter.py` decides
       # whether every `if: run_build` job below runs at all, and its `docs`
@@ -2464,6 +2477,26 @@ jobs:
             echo '      Every other workspace member is linted at --all-features below.'
             cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
           fi
+
+      # THE SCALPEL, EXERCISED. D1's whole-body tier-1 postcondition
+      # runs once per public door; `topo/per-op-postcondition` puts it
+      # back after every operator, and it is the only way a door-level
+      # failure is localized to the operator that caused it
+      # (work/perf/d1-per-op-tier1-sweep-price, Ev, PR 2305). A scalpel
+      # nothing runs is a scalpel nobody knows is blunt: the two-arm
+      # corruption row asserts the OPERATOR's name in the panic under
+      # this feature and the DOOR's without it, so the arm below is the
+      # only place the first half is ever taken.
+      #
+      # It rides this job because this job already compiles the
+      # workspace with the feature on (`--all-features` includes it),
+      # so the marginal cost is the test binary's link and a handful of
+      # rows. Plain `cargo test`, not nextest: this job installs no
+      # extra tooling and one filtered module does not need a runner.
+      - name: the per-op postcondition scalpel (topo)
+        run: |
+          cargo test -p topo --lib --features topo/per-op-postcondition -- \
+            --nocapture surgery::tests::
 
   # ============================================================
   # CACHE PRIMING — the two jobs below are the ONLY compiling jobs on the

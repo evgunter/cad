@@ -277,6 +277,10 @@ fi
 # — local-scripts/ is the tree that classifies TIER=docs and that every hosted
 # job but `mirror` deletes at checkout.
 # HOSTED MIRROR: mirror / status capture (PIPESTATUS is read before anything rewrites it)
+# The render-lane parity row is tier-blind for the same reason and one more of
+# its own: its inputs are render.yml and THIS TREE — the helper it checks is
+# local-scripts/render-hosted.sh, which no hosted job but `mirror` can even see.
+# HOSTED MIRROR: mirror / render lane parity (the helper knows the lanes render.yml declares)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
@@ -298,6 +302,8 @@ tier_blind_rows() {
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/check-status-capture.py --selftest || rc=1
   python3 scripts/check-status-capture.py || rc=1
+  python3 scripts/check-render-lane-parity.py --selftest || rc=1
+  python3 scripts/check-render-lane-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
@@ -1273,6 +1279,14 @@ run_row "test (viewer app)"            cargo nextest run -p viewer --features ap
 # HOSTED MIRROR: clippy-all-features / clippy (--all-features)
 # HOSTED MIRROR: viewer-toolkit / clippy (viewer, all features)
 run_row "clippy (--all-features)"      cargo clippy --workspace --all-targets --all-features -- -D warnings
+# THE SCALPEL, EXERCISED — the mirror of this job's `the per-op
+# postcondition scalpel (topo)` step. D1's tier-1 sweep runs once per
+# public door; `topo/per-op-postcondition` puts it back after every
+# operator, and the two-arm corruption row asserts the OPERATOR's name
+# in the panic under the feature and the DOOR's without it. This is the
+# only place the first arm is ever taken.
+run_row "scalpel (per-op postcondition)" \
+    cargo test -p topo --lib --features topo/per-op-postcondition -- surgery::tests::
 # The same shape one crate over: `crates/pncad-py/src/py/` — the whole
 # PyO3 surface — compiles only under the crate's non-default `python`
 # feature, so the `clippy` row above, which runs at DEFAULT features,

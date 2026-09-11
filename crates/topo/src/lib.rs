@@ -222,6 +222,7 @@ pub mod shell;
 pub mod source;
 pub mod split;
 pub mod splitting;
+pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
 // must be compiled wherever any of their three consumers is — the
@@ -289,6 +290,7 @@ pub use boolean::{
     point_in_solid, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
     union_with,
 };
+pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
