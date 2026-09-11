@@ -516,3 +516,58 @@ whose owner closed is not blocked, it is unowned, and this one has been
 sitting on a dead trigger since the sweep that re-homed it. Worth a
 check across the board: `keep_out` prose naming a closed program is
 invisible to lint, which resolves ids and not sentences.
+
+### `literal-k-where-the-runs-k-belongs` closed (PR 2346, 2026-09-11)
+
+Per-site, as the item demanded — and the per-site reading is what made
+it worth a unit, because the six sites split three ways:
+
+- **Two mean the run's K** and now consult `Tol`. Verified live rather
+  than assumed: in both, the band reaches a door where a residual in
+  (ε, K·ε) escalates, so the escalate edge is read.
+- **Two are genuinely arbitrary** — the item's reading, which the lane
+  checked rather than inherited: `tube_ladder` and `MarchTol::from_band`
+  read `band.zero()` and nothing else. They now carry a sentence saying
+  the escalate edge is inert, and a multiplier that does not read as K.
+- **One is deliberately pinned on BOTH edges, and "consult `Tol`" would
+  have been WRONG there.** `pcurve_p1a_meter.rs` asserts
+  `d·sec α = 1.1316 ε` is in band; patched to the run's K and run at
+  `CAD_AMBIGUITY_K=1.05`, **two of four rows go red**. Reverted, and the
+  site now says why it keeps ×10. That is the row that justifies the
+  item's insistence that this is judgement and not a sweep.
+
+**Running at another K found two defects red on `main`'s own tree**,
+neither reachable by reading: `dsc_checks.rs` (a slab `10ε` thick, so
+the escalation it asserts happens only for K > 5 — red at K = 3 and
+1.05) and `bool3_torus_doors.rs` (shell measured at the run's band, law
+computed from a literal `10·ε` — at K = 100 it fires its own law
+assertion, *a false accusation against the kernel*). Both repaired in
+the unit under the sibling-sweep rule. They are outside FIX's `paths`
+and inside the item's class; repairing a row that is actually red under
+a legal configuration beats reporting it, and the fence is named.
+
+**Three findings placed, each against the owner's open PRs first:**
+
+- `work/ciw/no-ci-row-runs-the-suite-at-a-non-default-k.md` — the one
+  that matters most. **No workflow mentions `AMBIGUITY_K` at all**, so
+  all twelve `test (…)` jobs run at `DEFAULT_K` while the eps axis gets
+  three values × two lanes. Three K-dependent defects in one day, none
+  findable by the gate. `k_probe_sweep.sh` runs on every code-tier run
+  and is not this coverage — it measures margins to inform K, it does
+  not execute at another one.
+- `work/props/band-has-no-door-for-an-explicit-eps-with-the-runs-k.md`
+  — **four** suites want the door, not the one the item named.
+- `work/tint/torus-tangency-shell-floor-does-not-scale-with-k.md` — a
+  fixed floor against a shell growing as K^⅓, red at K = 30 on `main`,
+  latent only because nothing draws that axis.
+
+Note the shape the CIW row shares with this morning's viewer doc-link
+red: **a defect class reachable only from a configuration the gate
+never draws is invisible for exactly as long as nobody varies it by
+hand.** Two instances in one day, on two different axes.
+
+Sweep: 125 `Band::new` call sites at the merge base (the parent unit's
+close recorded 117 at `7514cc6`), 11 fixed, 6 classes dispositioned.
+Blind spot worth carrying: a ratio spelled as **two literals** — the
+~50-site `Band::new(1e-9, 1e-8)` family — is separable only by reading,
+not by any pattern.
