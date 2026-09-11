@@ -9083,3 +9083,65 @@ was checked rather than assumed: `TextEdit` marks it from
 `text_changed` alone, set only inside the `has_focus` event pass
 (egui 0.36.1, `src/widgets/text_edit/builder.rs:551-589,810-812`), so
 it cannot fire on focus gain or on hover.
+
+## 2026-09-11 — `view/free-move-reachability`: the refusal is reachable, and the keyboard is the second hand
+
+`free-move-in-flight-refusal-has-no-reachable-producer` asked whether
+`DisplayFault::FreeMoveInFlight` can be shown to anybody. It can, and
+the answer is a row rather than an argument:
+`crates/viewer/src/widgets.rs`'s
+`a_keyboard_bump_begins_a_second_probe_under_a_held_drag` drives the
+probe field's three `DragValue`s through the real `drag_ops` against a
+headless `egui::Context` and reads the ops back — a pointer press and
+move give `["begin", "preview"]`, and a Tab/ArrowUp pair on a component
+the pointer is not holding gives `["begin", "preview", "commit"]` with
+no commit and no cancel between it and the first begin. The mutation
+the row's own doc comment names as its repair — a typed arm guarded on
+the drag state — turns it red.
+
+**The item's two untraced candidates were the wrong two, and one of
+them is dead structurally.** egui carries `dragged`, `drag_started` and
+`drag_stopped` as a single `Option<Id>` each
+(`egui-0.36.1/src/interaction.rs:24-40`), so no second pointer and no
+touch opens a second drag; multi-touch feeds `MultiTouchInfo`, a
+zoom/rotate aggregate. The hand the search missed is not a pointer at
+all: a `DragValue` enters keyboard-edit mode the frame it takes focus,
+deliberately, for screen readers (`drag_value.rs:462-466`), and egui's
+focus and key handling never consult the pointer. The same blindness
+covers buttons — `Response::clicked` is true from keyboard focus plus
+Space/Enter, or from an AccessKit `Action::Click`, with no pointer
+(`context.rs:1464-1478`, `response.rs:183-184`). **A reachability
+question asked over pointer states is a proxy for one about input**, and
+this program's table gains a twelfth row for it.
+
+**#2358 had already moved the answer and the item predates it.**
+`session.rs:1089-1090` raises the same `DisplayFault::FreeMoveInFlight`
+for every operation `permitted_during_free_move` refuses — `Open` and
+`NewDocument` — so a second `BeginFreeMove` was never the only route,
+and the item's *"every route needs the free-move strand"* was false
+when it was written. #2348's `killed_gesture` cuts the other way and
+closes the strand the item was hunting: `prune` runs on every document
+transition (`session.rs:1611`, `:1994`) with the same predicate that
+takes the field away.
+
+**The honesty inversion does not land on this arm.** Every route above
+has the pointer still holding the drag, so *"finish the free-move
+first"* is followable; and `cancel_doors` draws *"Cancel free-move"*
+enabled exactly while `probing()` is `Some` (`session.rs:660`) anyway.
+What the search did NOT rule out is the selection: `instance_ui` draws
+only for `selection().node()` and no prune covers that, so a `Select`
+under an open probe would strand it. Every `Select` producer in
+`crates/viewer/src/` today is a pointer click and cannot land under the
+same pointer's drag — but the keyboard reaches those controls too. The
+row closed without it, and it is written down rather than left in a
+head.
+
+Two residues, each its own file in the same PR:
+`escape-commits-a-free-move-instead-of-abandoning-it` (egui aborts a
+drag on Escape by clearing `dragged`, so `drag_stopped` fires and the
+chrome commits the probe the user asked to abandon — measured
+`["commit"]`), and
+`a-keyboard-bump-lands-and-closes-the-pointers-own-probe` (all three
+components name one instance, so the typed arm's preview overwrites and
+its commit lands and closes the pointer's own gesture — the user is
+shown a refusal naming a state the same batch destroyed).
