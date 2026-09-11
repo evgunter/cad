@@ -2,11 +2,12 @@
 id: two-d-director-doors-skip-the-finiteness-question
 kind: issue
 title: four direction doors decide a length they never asked to be finite — the SEAT-DV overflow class, swept (profile ×2, sweep, geom-core, topo)
-status: review
+status: closed
 opened: 2026-09-05
 refs: [1564, 1738, is-finite-length-homed-in-the-query-seat, normalize-without-the-length-question-two-more-sites]
 branch: fix/director-doors-finiteness
 pr: 2356
+closed: 2026-09-11
 ---
 
 ## The class

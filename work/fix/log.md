@@ -896,3 +896,65 @@ is asked to execute it.
 That was this orchestrator's fault, not the lane's — a finished lane's
 19 GB target was still sitting there. The lane pruned its own target and
 never touched another's, which is the right behaviour, and said so.
+
+### `two-d-director-doors-skip-the-finiteness-question` closed (PR 2356, 2026-09-11)
+
+The unit this program's slate existed for, and the only one of the wave
+to get a correctness reviewer. Five doors that decided a length's SIGN
+without asking whether it was a finite NUMBER now ask first and refuse
+typed. CI green on the fix-pass head (34 success, 4 skipped).
+
+**Claim 1 — "only the order of questions changes" — survived a mutation
+test.** The reviewer removed both the `definitely_positive` and the
+`sector_shape` gates and saw exactly the new rows plus the three
+re-pinned NaN rows go red, and nothing else. So the pins are
+load-bearing and discriminate *refused for finiteness* from *refused*.
+That evidence still stands over the fix-pass head: every
+`is_finite_length` line the fix pass touched is a **comment**, and no
+gate call site changed.
+
+**The mechanism behind row 3, which nobody had.** The lane's original
+account was wrong and the reviewer's correction was right, and the fix
+pass found the reason both were half-blind: **`Real::min` propagates
+`NaN` but not infinity.** `min(3, ∞) = 3` hides the overflow end and
+lets rung 1 pass; `min(3, NaN) = NaN` stops the poison end there. That
+single asymmetry generates the whole eight-shape table — two silent
+`Ok`s with `full_circle` set (one of them returning a
+*plausible-looking* non-zero bisector out of a collapsed chord, which
+is the worse of the two because nothing downstream can smell it), rung
+3 spikes with it clear, and the NaN shape refusing at rung 1 in both.
+"`min` hides one chord" was true and silent about **which end**, and
+that silence is exactly the gap the false rung attribution fell
+through.
+
+**m2 was acted on rather than commented.** The dead FFI word came from
+a variant combination the type permitted and the kernel could not
+build. The fix is a new `FrameVector` (four arms — the vectors that can
+actually overflow) as the `NonFiniteLength` payload, with
+`From<FrameVector> for FrameInput` for the shared `Degenerate` arm, so
+the dead combination is **unrepresentable** rather than documented.
+`FrameInput::ReferenceLadder` stays, and its docs now carry the
+straddling-enclosure construction that makes it reachable at the
+generic signature — replacing an orthogonality argument that only holds
+at a point scalar.
+
+**m5 bit harder than it read.** The two rewritten assertions were not
+merely tautological: the NaN shape's rung-1 refusal is a `decide`
+**escalation** and the spike is the body's own `invalid()`, and the two
+**compare equal** — so the rewrite could not distinguish an escalation
+from a spike refusal at all. Literal pins on `predicate`/`margin`/`band`
+restored across the boundary, with that reason at the site.
+
+**Declined, with reasons, and I endorse both**: no end-to-end row
+through `boolean`/`split_reduce` (it needs a >1e154 orbit chord
+surviving body construction) and no Python row for `carrier_tangent`
+(it needs an arc anchor 1e200 from its centre, likely tripping an
+earlier gate). The lane's sentence is the right standard: *I would not
+add a Python row I cannot run locally and cannot confirm exercises the
+door it names.* A row that passes for an unknown reason is worse than
+no row.
+
+**n5 declined and documented rather than silently kept**: binding the
+norm once at `revolve/axis.rs` would swap `Margin::norm2` for
+`Margin::of`, and which dimensional door a decided quantity comes
+through is not cosmetic. Written at the site so nobody "fixes" it.
