@@ -218,6 +218,7 @@ property:
 | the NAME `store` (#2293) | the FIELD `ViewerApp::store` |
 | "the host pass" (#2304) | doc-gate, which runs two |
 | `add_enabled` + `on_disabled_hover_text` (#2320) | a control's DISPOSITION |
+| a bracket-backtick grep (#2332) | an intra-doc link, which has two spellings |
 
 The last is the orchestrator's own: I handed a lane a sweep over the two
 call names, and `pane/properties.rs:348-353` shows a typed ineligibility
@@ -228,6 +229,18 @@ both and corrected me. **The check is to name the property first and the
 pattern second, then ask what a member could look like that the pattern
 cannot match** — which is a different question from whether the pattern
 finds what it finds.
+
+**The ninth arrived inside the review of the eighth, and it was mine
+too.** Reviewing #2332 I swept the renderer-free half for cross-crate
+links to test an exhaustiveness claim, got six sites, and handed the
+lane six. There are twelve: `sketch.rs:939` is
+``[`ProfileVertex`](pncad::profile::ProfileVertex)``, the reference
+form, and a bracket-backtick pattern cannot see it. The property is *an
+intra-doc link into another crate*; my pattern was *a span shaped like
+`` [`x::y`] ``*. The conclusion did not move — all twelve target
+`pncad`, which is in `VIEWER_TOOLKIT_SEEDS` — but the population did,
+and the population was the whole argument. Writing the class down does
+not exempt the next sweep from it.
 
 **Settle a CI-scope question by RUNNING the filter, not by reading a
 manifest.** The same review reported `prose_census` as possibly sited
@@ -491,6 +504,50 @@ stays pending precisely when a narrowed matrix would otherwise read as a
 pass. `neutral` is a passing conclusion, not a failure —
 `render drift (…)` is a check run posted by the rebaseline action and
 designed to be neutral (`ci.yml:4964-4976`).
+
+**A `crates/viewer` diff's own CI structurally cannot read the
+skip-mode viewer doc pass, and #2320 landed a red on `main` through
+that hole while I watched its CI go green.** `run_viewer_toolkit` is
+keyed on the SEEDS — `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad",
+"bvh"}` (`scripts/ci-filter.py:1428`) — while `cargo_scope` is the
+dependent closure. So any branch touching this crate takes the
+**non-skip** path and documents `viewer` at `--all-features`, where a
+link into the `app`-gated half resolves; the skip-mode pass, which
+renders the renderer-free half ALONE, runs only on branches that reach
+`viewer` through the closure without seeding the toolkit — that is,
+never on the branch that writes the link. #2320 added
+`session/op.rs:773`, ``[`crate::widgets::drag_gesture_ops`]`` from an
+ungated module into an `app`-gated one, was green on its own 39-job
+code tier, and left `main` red for every later branch seeded elsewhere.
+FIX's orchestrator found it from `crates/quantity` (#2335, #2340) and
+filed it rather than absorbing it. #2332 cleared it under Ev's ruling.
+
+**So: a VIEW diff that touches a doc comment in the renderer-free half
+owes `scripts/doc-gate.sh --pr --scope '-p viewer'
+--skip-viewer-toolkit` LOCALLY**, and the green it gets from CI is not
+that. The dispatch that found this said it about its own PR — *this
+PR's own CI cannot exercise the change it makes* — and the same
+sentence is true of every viewer diff, not only the one changing the
+gate. Green on a branch is a statement about the branch's tier, and a
+tier is a claim about what ran.
+
+**FIX's third face of the silent-coverage class, worth having beside
+the two already in `memories/agent-lane-operations.md`**: not a green
+job name over a skipped step, and not a run queued with zero jobs, but
+**a sequence of green `main` pushes none of which executed the step at
+all**. A red reachable only from a code-tier change stays invisible for
+as long as the repo happens to be landing docs. `main` being green is
+not evidence the step ran — on `main` any more than on a branch.
+
+**And the skip's named backstop cannot red.** `ci.yml:1821-1825` says
+what the skip stops documenting is re-taken by `nightly.yml`'s
+`rustdoc (viewer, all features)`. That row is `cargo doc -p viewer
+--all-features --no-deps` (`nightly.yml:291-293`) and `nightly.yml`
+sets no `RUSTDOCFLAGS` anywhere, so a planted broken link gives one
+warning and exit 0. It re-takes the RENDER, not the LINT —
+enough for a page that fails to build, not for a link that fails to
+resolve. `renderer-free-cross-crate-links-are-ungated-off-the-seed-set`
+owns the repair.
 
 **Running the crate's own suite is not running the suite, and the two
 runs are not nested.** #2293 reported 511/0/1 from `cargo test -p viewer
