@@ -600,9 +600,9 @@ impl SessionOp {
     /// - every committed edit prunes the display state against the new
     ///   document — a prune that DISCARDS committed probes and kills
     ///   an in-flight free-move whose instance stopped being eligible,
-    ///   reporting the first in [`OpOutcome::superseded`] and the
-    ///   second in [`OpOutcome::killed_gesture`], each with the fault
-    ///   that decided it.
+    ///   reporting the first in [`PruneReport::superseded`] and the
+    ///   second in [`PruneReport::killed_gesture`], each with the
+    ///   fault that decided it, on [`OpOutcome::withdrawn`].
     ///
     /// **The identity that makes all three the same answer**: a value
     /// gesture's edits are `SetParam` and `SetStructuralParam`, which

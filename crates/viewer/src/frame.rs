@@ -672,8 +672,9 @@ vocabulary! {
         /// does this part go", and the mate that landed answers it better,
         /// so the probe steps aside and the picture keeps the part.
         ///
-        /// [`crate::session::OpOutcome::superseded`] names the instances
-        /// whose COMMITTED free-move placement an operation's document
+        /// [`crate::display::PruneReport::superseded`], carried to the
+        /// chrome on [`crate::session::OpOutcome::withdrawn`], names the
+        /// instances whose COMMITTED free-move placement an operation's document
         /// transition discarded — the G3 supersession, reported by the
         /// session rather than inferred ([`crate::display::DisplayState::prune`] is
         /// where it happens, and [`crate::display::free_move_check`] is the
