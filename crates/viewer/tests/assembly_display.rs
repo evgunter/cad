@@ -20,6 +20,7 @@ use pncad::document::{Alignment, Frame, RecipeNodeId, SitedRef, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::display::DisplayFault;
+use viewer::frame;
 use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
@@ -637,10 +638,10 @@ fn a_landing_mate_discards_the_probe_value() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -727,10 +728,10 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
         b: bench.post_a,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [dropped] = &outcome.dropped_hides[..] else {
+    let [dropped] = &outcome.withdrawn.dropped_hides[..] else {
         panic!(
             "the fuse drops exactly one hide: {:?}",
-            outcome.dropped_hides
+            outcome.withdrawn.dropped_hides
         )
     };
     assert_eq!(dropped.instance, bench.post_b);
@@ -744,7 +745,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
         "the hide is gone from the state, not merely reported"
     );
     assert!(
-        outcome.superseded.is_empty(),
+        outcome.withdrawn.superseded.is_empty(),
         "a dropped hide is not a supersession and does not ride that field"
     );
 
@@ -763,10 +764,10 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     );
     let outcome = session.perform(SessionOp::DeleteNode { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [dropped] = &outcome.dropped_hides[..] else {
+    let [dropped] = &outcome.withdrawn.dropped_hides[..] else {
         panic!(
             "the delete drops exactly one hide: {:?}",
-            outcome.dropped_hides
+            outcome.withdrawn.dropped_hides
         )
     };
     assert_eq!(dropped.instance, bench.post_b);
@@ -796,9 +797,19 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
 /// document, and the only document left to ask is the replacement,
 /// where these ids mean other nodes or none.
 ///
+/// **The in-flight drag is the one thing the door no longer takes**,
+/// and the same clause is why: a drag dissolved under the pointer is
+/// the half-acted state a refusal exists to prevent, and the paragraph
+/// above is the reason a REPORT could not have been the answer for it
+/// either. So the door refuses while a probe is in flight
+/// (`SessionOp::permitted_during_free_move`) and takes everything else
+/// in silence once there is no drag to dissolve — which is the split
+/// this row now asserts, in that order.
+///
 /// This row is what goes red if the silence is ever widened back into
 /// an oversight — it asserts both halves, that everything went and
-/// that nothing was said about it.
+/// that nothing was said about it — and if the refusal in front of it
+/// is ever removed.
 #[test]
 fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     let tol = Tol::witness();
@@ -837,6 +848,35 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     assert_eq!(session.display().hidden().len(), 1);
     assert!(session.display().free_move_of(bench.post_b).is_some());
     assert_eq!(session.display().probing(), Some(bench.shelf_i));
+
+    // With the drag in flight the door does not open at all, and the
+    // refusal names the drag rather than the file: nothing of the
+    // outgoing document is touched, so there is nothing to have been
+    // silent about.
+    let held = session.display().revision();
+    let refused = session.perform(SessionOp::Open(bench.asm_path.clone()));
+    assert!(
+        matches!(
+            refused.refusal,
+            Some(Refusal::Display(DisplayFault::FreeMoveInFlight))
+        ),
+        "a replacement under a live probe refuses, in the free move's own \
+         vocabulary: {:?}",
+        refused.refusal
+    );
+    assert!(
+        session.display().hidden().len() == 1
+            && session.display().free_move_of(bench.post_b).is_some()
+            && session.display().probing() == Some(bench.shelf_i)
+            && session.display().revision() == held,
+        "…and takes nothing on the way out — a refusal that cleared \
+         anything would be the defect with a sentence in front of it"
+    );
+
+    // The user ends the drag themselves, which is the remedy the
+    // refusal names.
+    assert!(session.perform(SessionOp::CancelFreeMove).refusal.is_none());
+    assert!(session.display().probing().is_none());
     let before = session.display().revision();
 
     // Reopening the SAME file is still a replacement: the session's
@@ -844,22 +884,19 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     // by that document rather than inherited from the one that went.
     let outcome = session.perform(SessionOp::Open(bench.asm_path.clone()));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(
-        outcome.superseded.is_empty()
-            && outcome.dropped_hides.is_empty()
-            && outcome.killed_gesture.is_none(),
-        "a replacement reports no withdrawal of any of the three kinds: \
-         {:?} / {:?} / {:?}",
-        outcome.superseded,
-        outcome.dropped_hides,
-        outcome.killed_gesture
+    assert_eq!(
+        frame::Withdrawal::all(&outcome.withdrawn).count(),
+        0,
+        "a replacement reports no withdrawal of any kind — asserted \
+         through the one fan-out the chrome uses, so a FOURTH kind is \
+         covered by this row the day it exists: {:?}",
+        outcome.withdrawn
     );
     assert!(
         session.display().hidden().is_empty()
-            && session.display().free_move_of(bench.post_b).is_none()
-            && session.display().probing().is_none(),
-        "…and it took all three anyway, which is the asymmetry this row \
-         records as decided"
+            && session.display().free_move_of(bench.post_b).is_none(),
+        "…and it took the hide and the committed placement anyway, which \
+         is the asymmetry this row records as decided"
     );
     assert!(
         session.display().revision() > before,

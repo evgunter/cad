@@ -450,10 +450,10 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     });
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(first.committed.len(), 1);
-    let [superseded] = &first.superseded[..] else {
+    let [superseded] = &first.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            first.superseded
+            first.withdrawn.superseded
         )
     };
     assert_eq!(superseded.instance, bench.post_b);
@@ -839,13 +839,14 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        outcome.superseded.is_empty(),
+        outcome.withdrawn.superseded.is_empty(),
         "an in-flight gesture's death is not a SUPERSESSION: nothing \
          substituted for it, and it committed nothing to substitute \
          for: {:?}",
-        outcome.superseded
+        outcome.withdrawn.superseded
     );
     let killed = outcome
+        .withdrawn
         .killed_gesture
         .as_ref()
         .expect("the killed gesture is reported, with the fault that killed it");

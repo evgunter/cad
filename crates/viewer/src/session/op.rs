@@ -23,7 +23,7 @@ use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 use pncad::select::ContactClass;
 
-use crate::display::{PruneReport, Withdrawn};
+use crate::display::PruneReport;
 use crate::props::SlotValue;
 use crate::session::author::{DatumSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
@@ -556,9 +556,12 @@ impl SessionOp {
     /// **It is not a statement about the free-move gesture.** That is
     /// a second, independent drag living on the display state
     /// ([`crate::display::DisplayState::begin_free_move`]), with its own in-flight
-    /// refusal. The two can be open at once, and the four `*FreeMove`
-    /// rows below are what permits it. An operation this returns
-    /// `true` for is permitted mid-value-gesture and nothing more.
+    /// refusal and its own table
+    /// ([`SessionOp::permitted_during_free_move`], which carries why
+    /// the two cannot be one). The two can be open at once, and the
+    /// four `*FreeMove` rows below are what permits it. An operation
+    /// this returns `true` for is permitted mid-value-gesture and
+    /// nothing more.
     ///
     /// # Why the two drags may overlap, and until when
     ///
@@ -706,6 +709,105 @@ impl SessionOp {
             | Self::AddInstance { .. } => false,
         }
     }
+
+    /// Whether this operation is permitted while a **free-move
+    /// gesture** is in flight — the probe drag
+    /// [`SessionOp::BeginFreeMove`] opens on
+    /// [`crate::display::DisplayState`], the other of the session's
+    /// two independent drags.
+    ///
+    /// # Why there are two tables and not one
+    ///
+    /// The two drags refuse DIFFERENT sets, so one predicate could
+    /// only answer for both by refusing the union — and the union is
+    /// wrong in both directions. A value gesture refuses every
+    /// operation that moves the document, because it previews against
+    /// a snapshot of it. A free move does not: a commit that lands
+    /// under a probe is pruned against the new document and REPORTED
+    /// ([`crate::display::PruneReport`]), which is a better answer
+    /// than a refusal — the user learns the mate took their placement
+    /// instead of being told to finish a drag they can finish for
+    /// nothing.
+    ///
+    /// So this table refuses exactly the two doors a prune cannot
+    /// answer for: [`SessionOp::Open`] and [`SessionOp::NewDocument`]
+    /// **replace** the document rather than moving it, and
+    /// `DocSession::clear_for_new_document` then drops the whole
+    /// display state — the in-flight drag with it, under the pointer
+    /// still holding it. That is the half-acted state the value
+    /// gesture's table refuses for, applied to the other drag for the
+    /// same reason.
+    ///
+    /// **And a report is not available here as the alternative**, which
+    /// is what settles the fork rather than taste. A withdrawal names
+    /// an instance and carries a [`crate::display::DisplayFault`] about
+    /// a document; at a replacement the only document left to ask is
+    /// the incoming one, where a [`pncad::document::RecipeNodeId`]
+    /// minted by the outgoing document's counter means something else
+    /// or nothing. [`crate::display::DisplayState::clear`] states that
+    /// argument in full. A door that can neither report truthfully nor
+    /// act without destroying a gesture refuses.
+    ///
+    /// # What is NOT in this table
+    ///
+    /// The `*FreeMove` quartet is `true` here, and three of the four
+    /// have to be: a begin, a preview, a commit and a cancel are how a
+    /// drag is driven and ended, and refusing one would strand the
+    /// gesture this refusal exists to protect.
+    /// [`SessionOp::BeginFreeMove`] is the exception, and it is `true`
+    /// because it is already answered one layer down —
+    /// [`crate::display::DisplayState::begin_free_move`] refuses
+    /// [`crate::display::DisplayFault::FreeMoveInFlight`] off its own
+    /// state, with the same refusal this check raises. A second `false`
+    /// row would be a second spelling of one answer.
+    ///
+    /// [`SessionOp::Save`] is `true`, as it is in the value table and
+    /// for a narrower reason: a save writes the committed history and
+    /// a free-move probe enters no history at all, so there is nothing
+    /// of the drag for a save to write or to lose.
+    #[must_use]
+    pub fn permitted_during_free_move(&self) -> bool {
+        match self {
+            Self::Open(_) | Self::NewDocument { .. } => false,
+            Self::Select(_)
+            | Self::Hover(_)
+            | Self::PreviewGesture { .. }
+            | Self::CommitGesture
+            | Self::CancelGesture
+            | Self::CancelEvaluation
+            | Self::Reevaluate
+            | Self::Save(_)
+            | Self::SetInstanceHidden { .. }
+            | Self::BeginFreeMove { .. }
+            | Self::PreviewFreeMove { .. }
+            | Self::CommitFreeMove
+            | Self::CancelFreeMove
+            | Self::DeleteNode { .. }
+            | Self::SetSlot { .. }
+            | Self::ProbeBounds { .. }
+            | Self::SetSlotUnit { .. }
+            | Self::SetSlotExpression { .. }
+            | Self::SetParam { .. }
+            | Self::CreateParam { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginParamGesture { .. }
+            | Self::Undo
+            | Self::Redo
+            | Self::AddMate { .. }
+            | Self::AddDatum { .. }
+            | Self::AddProfile { .. }
+            | Self::AddExtrude { .. }
+            | Self::AddRevolve { .. }
+            | Self::AddBoolean { .. }
+            | Self::AddSplit { .. }
+            | Self::AddTransform { .. }
+            | Self::AddPattern { .. }
+            | Self::AddPlacedUnion { .. }
+            | Self::AddFillet { .. }
+            | Self::AddChamfer { .. }
+            | Self::AddInstance { .. } => true,
+        }
+    }
 }
 
 /// What an operation did.
@@ -718,57 +820,24 @@ pub struct OpOutcome {
     pub previewed: Vec<DocEdit<ProfileProgram>>,
     /// Why nothing (or nothing more) happened.
     pub refusal: Option<Refusal>,
-    /// Instances whose free-move probe was **discarded** by this
-    /// operation's document transition — the G3 supersession, reported
-    /// rather than inferred: a mate landing on a probed instance
-    /// removes its probe here, and the instance is drawn at its
-    /// solved placement from the next landed evaluation on.
+    /// What this operation's document transition WITHDREW from the
+    /// display state — the prune's own report, carried rather than
+    /// copied out field by field.
     ///
-    /// Each entry carries the [`crate::display::DisplayFault`] that
-    /// discarded it, straight from the predicate that decided
-    /// ([`crate::display::free_move_check`]), so the chrome can say WHY the
-    /// placement went — the mates to delete, the fuse, or the
-    /// instance being gone — instead of naming an id and stopping.
+    /// **The three kinds and the argument for wording them apart are
+    /// [`PruneReport`]'s**, stated once where the prune fills them in.
+    /// They were re-declared here for a while, with the same element
+    /// types and the same reasons written twice; what that bought was
+    /// a second place a fourth kind had to be added, and what it cost
+    /// is that neither copy was the place the kind is RENDERED. The
+    /// rendering door is [`crate::frame::Withdrawal::all`], which
+    /// destructures this report, so a fourth kind now reds at the
+    /// sentence that has to word it.
     ///
-    /// **Only COMMITTED probes.** A gesture in flight when the
-    /// transition lands dies too and is not named here, because it is
-    /// not a supersession — nothing substituted for a placement the
-    /// document was never asked for. It is
-    /// [`OpOutcome::killed_gesture`].
-    ///
-    /// The chrome renders this through
-    /// [`crate::frame::Withdrawal::superseded`].
-    pub superseded: Vec<Withdrawn>,
-    /// Instances whose HIDE this operation's document transition
-    /// dropped, each with the [`crate::display::display_check`] fault that
-    /// dropped it.
-    ///
-    /// **Not a supersession, and a separate field for that reason.**
-    /// A probe is superseded — the document answers the placement
-    /// question better than the hand placement did. A hide is not
-    /// answered better by anything: it stops being expressible, and
-    /// where the cause is a fuse the instance the user took out of the
-    /// picture is back in it. `crate::display::PruneReport` carries
-    /// the argument; the chrome renders this through
-    /// [`crate::frame::Withdrawal::dropped_hide`].
-    pub dropped_hides: Vec<Withdrawn>,
-    /// The in-flight free-move gesture this operation's document
-    /// transition KILLED, with the
-    /// [`crate::display::free_move_check`] fault that killed it.
-    ///
-    /// **Neither of the other two, and a separate field for that
-    /// reason.** It is not superseded — the placement it would have
-    /// landed was never asked of the document, so nothing answered it
-    /// better — and it is not a dropped hide. It is the drag the
-    /// user's hand was still on, and until it was reported the only
-    /// route to the reason was to start another gesture and read
-    /// *its* refusal. `crate::display::PruneReport` carries the
-    /// argument; the chrome renders this through
-    /// [`crate::frame::Withdrawal::killed_gesture`].
-    ///
-    /// At most one, because a session holds at most one free-move
-    /// gesture.
-    pub killed_gesture: Option<Withdrawn>,
+    /// Empty on every operation that moved no document — a refusal, a
+    /// selection, a hover — because there was no transition to prune
+    /// against.
+    pub withdrawn: PruneReport,
 }
 
 impl OpOutcome {
@@ -782,22 +851,16 @@ impl OpOutcome {
     /// Every withdrawal a prune reported, on the outcome that carries
     /// it to the chrome.
     ///
-    /// **Destructured rather than field-read**, so a fourth kind of
-    /// withdrawal is E0027 here rather than a report field with no
-    /// reader. The `..Self::default()` spread this replaced took the
-    /// three it knew about and would have taken a fourth nowhere,
-    /// silently — which is the defect this outcome exists to end, one
-    /// level up.
-    pub(super) fn from_prune(report: PruneReport) -> Self {
-        let PruneReport {
-            superseded,
-            dropped_hides,
-            killed_gesture,
-        } = report;
+    /// **Nothing is copied out.** This used to destructure the report
+    /// into three fields of the same names, so that a fourth kind was
+    /// E0027 at the COPY; the copy is gone and with it the second
+    /// declaration, and the exhaustiveness sits at
+    /// [`crate::frame::Withdrawal::all`] instead — the call that has
+    /// to word the kind, which is where a missed one was actually
+    /// reaching the user unworded.
+    pub(super) fn from_prune(withdrawn: PruneReport) -> Self {
         Self {
-            superseded,
-            dropped_hides,
-            killed_gesture,
+            withdrawn,
             ..Self::default()
         }
     }
