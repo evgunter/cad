@@ -347,3 +347,51 @@ runs operators directly, and scoping it is what moved `demos/wild`
 (246 → 76 ms). Contended-box readings: `die` 88 → 45 ms in the shipped
 profile, editor-core's test wall 56 → 20 s. Filed by the lane:
 `door-scopes-outside-topo-are-unguarded`. Dual review next.
+
+## PERF-2 and PERF-4 duals concluded; fix passes running (2026-09-11)
+
+**PERF-2** (PR 2311): R1 (opus) APPROVE-WITH-FIXES 1/3/4, rubric
+3/2/3; R2 (fable) APPROVE-WITH-FIXES 0/4/5, rubric 4/3/4. Both held the
+order-invariance claim under mechanical attack (a structural oracle
+over 722 770 ordered pairs, 15 836 unstamped probes, post-seal inserts,
+forward/reverse/rayon corpus digests; an 8-thread shared-handle probe)
+and both reproduced the win (`name_emitter` 18–20 → 4.3–5.1 ms, per-
+name cost flat where it grew 2.7× before). The one finding both made,
+rated MAJOR by one: the stamped-order invariant the repo-wide
+`clippy.toml` exception rests on is enforced by nothing — no test, no
+tripwire, `seal_order` unreachable from tests. Not a unilateral MAJOR.
+Adjudication: the shape stands (a per-evaluation interner was argued
+both ways by the two reviewers and is recorded, not re-litigated); the
+fix pass adds an O(n)-per-seal debug tripwire (not per-compare — the
+shipped release profile keeps assertions on) and unit tests, stops
+stamping at epoch saturation, routes the four iteration readers that
+bypass `upstream_name` through the sharing doors, corrects the
+`two_bricks` attribution (the bench runs no editor-core code), states
+the `RoleSeg` field-type change as source-breaking for library users,
+files the Θ(names) residual, and updates `names/README.md`.
+
+**PERF-4** (PR 2313): R1 (fable) APPROVE-WITH-FIXES 1/6/4, rubric
+3/4/4; R2 (opus) APPROVE-WITH-FIXES 1/5/6, rubric 4/4/4. Both held the
+mechanism (neutered sweeps red the three door rows; the scalpel arm
+fires; clones reset; every staging write is `adopt`). Both found one
+MAJOR and it is the same class from two sides — the guardless
+`enter_surgery`/`leave_surgery` pair: one proved by mutation that a
+deleted `leave_*` at any of 15 guardless sites goes undetected and the
+walk covers only the population where the guard already makes a leak
+impossible; the other that `enter_surgery` is a public `&self` method
+that silences D1 on any body from any crate, that `&mut self` compiles
+clean, and that only two of eleven sites need the guardless form. Not
+unilateral. Paired floor on one box: `die` 86.4 → 43.5 ms against a
+38.6 ms no-tier-1 floor (4.9 ms over 84 nodes, ~58 µs per door sweep);
+`demos/wild` 261 → 46 ms. Fix pass: guards everywhere they fit, the
+pair `&mut self` and `pub(crate)`, the hole sized honestly in the filed
+item and the D9 sentence narrowed to what fires, a per-PR CI row that
+runs the corruption rows under the scalpel feature, `DOORS_MEASURED`
+re-measured, five rotted premises, `revolve/full`'s double check, and
+the repaired-mid-door class named in `surgery.rs` and D1.
+
+Method note for both: PERF-2's R2 and PERF-4's R1 (both fable) parked
+on background monitors once and were corrected to foreground polling
+— corrections, not relaxations; the pairs stand. A reviewer's shared-
+target-dir hazard (one target serving two trees' example binaries by
+path-independent hash) is already in `memories/agent-lane-operations.md`.
