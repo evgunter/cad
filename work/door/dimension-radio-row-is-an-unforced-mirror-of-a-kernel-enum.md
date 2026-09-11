@@ -2,8 +2,11 @@
 id: dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum
 kind: issue
 title: the new-parameter radio row mirrors editor-core's Dimension completely and nothing forces it
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-11
+branch: door/mirror-dimension-all
+refs: [dimension-all-has-readers-outside-the-viewer]
 ---
 
 
@@ -101,3 +104,51 @@ inherits is decided and the remaining work is `Dimension`'s own:
 (that machinery is `crates/viewer/README.md`'s and this list is not in
 `crates/viewer/src` as a `const`), so this row does not carry the
 README-and-gate half PR 2387 did.
+
+## Closed (2026-09-11, branch `door/mirror-dimension-all`)
+
+`editor-core` publishes `Dimension::ALL`
+(`crates/editor-core/src/expr.rs`), beside the declaration and inside
+the crate whose exhaustive matches over the enum (`Display`,
+`Dimension::article`, the construction-time checker's own arms) fail to
+compile on a fifth dimension — so the author who adds one is on that
+page with the list in front of them, and a census row
+(`m4_pr1_dims::all_is_every_dimension`, the idiom `topo::BooleanOp::ALL`
+and `editor_core::CheckId::ALL` are held to) reds until the list has
+grown too. The spelling is `[Self; 4]`, which is this crate's own three
+siblings' spelling (`CheckId::ALL`, `VectorSlot::ALL`, `Axis3::ALL`)
+rather than `BooleanOp::ALL`'s slice; the census is the same either way.
+
+`crates/viewer/src/pane/properties.rs`'s inline array is gone. The row
+draws one radio per entry of `Dimension::ALL`, so a fifth dimension
+arrives in it with no membership edit in the viewer at all.
+
+**The labels are not a viewer-side match**, which is where this row
+departs from PR 2387's shape and why: `topo::BooleanOp` had no rendering
+of its own, so `forms::boolean_op_label` was the first place its words
+were written. `Dimension` already has one, and `expr.rs`'s clause calls
+that `Display` **the one home of the dimension-in-prose rule for the
+crate**, binding "wherever a dimension reaches a user". A radio button
+is such a place. A `dimension_label` match in the viewer would have been
+a fourth spelling of that word list beside the two `pncad-py` declares
+deliberately, so the row reads `dimension.to_string()` and writes no
+words. That also answers **The labels are a second copy too** above, in
+the direction the clause demands: the buttons now read `length`,
+`angle`, `count`, `scalar` and no longer render capitalised variant
+identifiers to a user.
+
+**The order does not move.** `Dimension::ALL` is declaration order and
+the retired array was already in it, so unlike PR 2387's boolean row
+this changes no button's position — only every button's word.
+
+The sweep this row asked for — shaped for INLINE arrays rather than for
+`const ALL`, since that is the defect this row carried beyond its
+class — is in the PR body, with its blind spot. It found the class alive
+outside `crates/viewer/src`, which is filed as
+`dimension-all-has-readers-outside-the-viewer`.
+
+The gate half this row predicted it did not carry is confirmed:
+`scripts/gates/viewer-vocab-declared-once.sh` reports the same three
+ratified rows before and after, `crates/viewer/README.md`'s roster never
+held this list, and nothing under `scripts/gates/` names it. Both the
+gate and its `--selftest` are green.
