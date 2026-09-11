@@ -168,6 +168,83 @@ pinned seed re-certifies one fixed sample forever, however deep it is.
 Fresh millions each firing is worth more than the same millions
 faster."* It is the precedent, not the exception.
 
+## Retiring the nightly re-take (Ev, 2026-09-11)
+
+Ev, in chat: *"can we get rid of the nightly job in favor of just
+turning the number of runs on that one test way down"*. **The first half
+is right and the argument for it is stronger than cost. The second half
+is the one operation that row was written to refuse.**
+
+### The job should go, and Ev's own ruling says so louder than the seconds
+
+`nightly.yml`'s `gated suites (ungated re-take)` has exactly one purpose
+and says so: *"what the gate gives up is LATENCY, and this row is the
+bound on it: at most a day, and only for a break reached by a path the
+marker did not name."* Under this ruling nothing is skipped, so there is
+no latency to bound and the job has no second job to fall back on.
+
+Three things make retiring it better than merely harmless:
+
+1. **The PR gate strictly dominates it.** The job is ONE LANE — it runs
+   `--features interval` only, and admits the gap: *"What this does NOT
+   re-take is a gated suite that breaks only in the DEFAULT compile
+   mode."* The PR legs are both lanes x three ε rows. Moving the
+   population to the PR gate upgrades its configuration coverage from
+   one point to six.
+2. **A detector nobody reads is not a control** — Ev's ruling of
+   2026-09-07 on `work/ciw/f3-recosting-on-a-public-repo`, and this job
+   is a live instance of it. Its own header asked for a reading from its
+   first firing (*"Whoever reads that run should replace this paragraph
+   with what it cost"*); the first reading was taken on 2026-09-11, by an
+   orchestrator going deliberately to the jobs API, and it found a row
+   marked `SLOW` at over 60 s that two nights had reported green and
+   unread. `work/ciw/nightly-demotions-have-never-run` found the same
+   shape one lane over.
+3. **It removes a whole `--workspace --features interval` build a day**
+   (424-575 s of its 456-625 s), which is the job's real cost and buys
+   only what the PR gate would then already have.
+
+### But the count is not the knob
+
+`CHAMBER_LEAVES = 1280` is not a dial with slack in it:
+
+- **1024 is a MEASURED THRESHOLD**, not a preference — the first budget
+  at which every boundary-touching box refines onto a flip rather than
+  refusing for `Budget`. Below it the row stops asserting what it says.
+- **The margin is already minimal and deliberate**: pinned at 1024 the
+  row *"would go red on any kernel change that costs the drive one box
+  of refinement, for a reason that has nothing to do with what the row
+  asserts."*
+- **The cut has already been taken** — TCOST-6 moved it 4096 -> 1280.
+- **The row reds if you cut it further, by construction**: an
+  anti-vacuity floor on `widest_frontier` at 64 exists so that *"a
+  budget cut that dropped the frontier under it reds here rather than
+  quietly turning the D9 comparison into two sequential runs."*
+
+Cutting it is the operation the file was written to refuse, and doing it
+anyway would trade a silent skip for a silently weaker assertion — the
+same failure shape this whole ruling is trying to remove.
+
+### So the sequencing, and it is short
+
+`m10-3-chamber-row-reads-ten-times-its-recorded-cost` is the blocker, and
+it got bigger when this was checked: **both** expensive rows in that file
+read 10-16x their recorded figures (6.7 cpu-s against 65.9/83.3 s; an
+in-file measured 1.46 s against 18.1/23.5 s). Two rows, two independent
+sources, one factor — a common cause rather than two coincidences.
+
+1. **Diagnose that first.** If it is a regression, both rows return to
+   their recorded costs, the whole gated set runs on every PR for about
+   a second of leg time, and the nightly job is deleted with nothing to
+   weigh. **This is the likely case and it makes everything else free.**
+2. **If the figures are honest**, the recorded ones are wrong and those
+   two rows need re-justifying at their real cost — which is its own
+   piece of work, not a budget cut — and until then the job stays or the
+   two rows are placed deliberately.
+
+Either way the nightly job's retirement rides the diagnosis and not this
+clause, so it is named here as the consequence and left unwired.
+
 ## Not taken: the timeout
 
 Ev's message floats *"perhaps literally by having a timeout?"*. The

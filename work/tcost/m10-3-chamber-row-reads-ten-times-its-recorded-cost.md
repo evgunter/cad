@@ -68,3 +68,69 @@ proposal has one row to place deliberately rather than a policy problem.
 It is also an argument for what the nightly job's own header already
 asks for and has never had: someone reading that job's output. Two nights
 of a row marked `SLOW` at over 60 s went unread until this week.
+
+
+## Widened (2026-09-11): it is BOTH expensive rows, and the file's own
+## in-file figures disagree too
+
+Ev asked whether the nightly re-take could be dropped in favour of
+"turning the number of runs on that one test way down". Checking what
+knob that row actually has turned the finding from one row into a class,
+and the class is what decides the answer.
+
+**The second row disagrees by the same factor.**
+`the_band_and_uniform_drives_ship_the_same_leaf_partition` is the
+18.102 s / 23.490 s row in the table above. Its budget's own doc comment
+(`crates/editor-core/tests/m10_3_r1_probes_interval.rs:358-366`) records
+a MEASURED cost for it: *"the pair of band/uniform drives costs 1.46 s
+here against 0.98 s at 1024, and the escalation row 0.45 s against
+0.21 s."*
+
+So the file carries two independent in-file figures and both are
+10-16x under the hosted reading:
+
+| row | recorded | hosted (two nights) | factor |
+|---|--:|--:|--:|
+| `the_driven_chamber_replays_bit_identically_…` | 6.7 cpu-s (TCOST-6 merge entry) | 65.9 / 83.3 s | ~10-12x |
+| `the_band_and_uniform_drives_ship_the_same_leaf_partition` | 1.46 s (in-file, `:364`) | 18.1 / 23.5 s | ~12-16x |
+
+Two rows, two sources, one factor. **That is a common cause, not two
+coincidences**, and it makes the "different ε" and "cpu-s vs wall"
+hypotheses above weaker than they looked: a 6.7-cpu-s row reading 83 s
+of WALL would have to be blocked rather than busy, and both rows ran at
+the END of the nightly's list (418/419 and 419/419) with nothing left to
+contend with. Whoever takes this should start from "what is common to
+this file" rather than from either row.
+
+## And the budget is not the knob Ev's question assumes
+
+Stated here because it is the reason the nightly cannot simply be
+deleted in favour of a smaller count:
+
+- **`CHAMBER_LEAVES = 1280`, and 1024 is a MEASURED THRESHOLD** — the
+  file says so at `:340-354`: *"1024 is the exact threshold: it is the
+  first budget at which every boundary-touching box has been refined
+  onto a flip rather than refused for `Budget`"*. Below it the row stops
+  asserting what it asserts.
+- **The 1280 margin is deliberate and already minimal**: *"a row pinned
+  there would go red on any kernel change that costs the drive one box
+  of refinement, for a reason that has nothing to do with what the row
+  asserts."*
+- **The cut was already taken.** TCOST-6 moved this row 4096 -> 1280,
+  about a third of what it used to pay, and documented why not 1024.
+- **The row reds if the budget is cut too far, by design.** `:480-495`
+  carries an anti-vacuity floor on `widest_frontier` at 64, *"the point
+  below which a `par_iter` over the frontier stops being a schedule at
+  all"*, precisely so that *"a budget cut that dropped the frontier
+  under it reds here rather than quietly turning the D9 comparison into
+  two sequential runs."*
+- **`FULL_PARTITION_LEAVES = 4096` is not cuttable on its own terms**:
+  for its two rows *"more leaves is more of the claim rather than more
+  of the same claim, so the budget is not cut."*
+
+So turning these counts down is the operation this file was written to
+refuse. If the 10-16x is a regression, fixing it returns both rows to
+their recorded figures and no cut is needed at all; if it is honest,
+then the recorded figures are wrong and the rows need re-justifying at
+their real cost — which is a different piece of work from a budget cut,
+and a bigger one.
