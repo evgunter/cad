@@ -13,6 +13,15 @@
 //! implied: `ChecksError::Product` and `AssemblyError::Product` are the
 //! WRAPPERS' arms — the gather is theirs — and a door handed a subject
 //! cannot raise them.
+//!
+//! **The gather counter is `cfg(debug_assertions)`, and the statements
+//! that read it carry the same gate.** `gathers_on_this_thread` exists
+//! only where debug assertions do, so a row here that counted gathers
+//! unconditionally made the whole crate uncompilable with them off. The
+//! gate is per STATEMENT, not per row: no test becomes debug-only, and
+//! every assertion that does not read the counter — the two spellings'
+//! equality, the skipped lists, the source counts, the refusal arms —
+//! is checked in every profile.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -160,8 +169,10 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     // A document that WOULD gather: the count is the claim.
     let plate = twin("docm5-lazy-plate");
     let ev: Evaluation<f64> = corpus::eval(&plate);
+    #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
     let report = run_checks(&plate, &ev, &off, tol).expect("the registry runs");
+    #[cfg(debug_assertions)]
     assert_eq!(
         editor_core::gathers_on_this_thread() - before,
         0,
@@ -181,9 +192,11 @@ fn a_run_that_needs_no_subject_does_not_gather() {
         product_recorded(&collide, &ev, tol).is_err(),
         "the premise: this document's gather refuses"
     );
+    #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
     let report = run_checks(&collide, &ev, &off, tol)
         .expect("with the subject-reading resident off there is nothing to gather for");
+    #[cfg(debug_assertions)]
     assert_eq!(editor_core::gathers_on_this_thread() - before, 0);
     assert_eq!(report.skipped, vec![CheckId::Separation]);
 }
@@ -303,8 +316,10 @@ fn the_registry_gathers_once_and_the_door_under_it_never_does() {
     let doc = twin("docm5-one-gather");
     let ev: Evaluation<f64> = corpus::eval(&doc);
 
+    #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
     run_checks(&doc, &ev, &cfg, tol).expect("the registry runs");
+    #[cfg(debug_assertions)]
     assert_eq!(
         editor_core::gathers_on_this_thread() - before,
         1,
@@ -312,8 +327,10 @@ fn the_registry_gathers_once_and_the_door_under_it_never_does() {
     );
 
     let subject = product_recorded(&doc, &ev, tol).expect("gathers");
+    #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
     run_checks_on(&doc, &ev, Subject::Product(&subject), &cfg, tol).expect("the door runs");
+    #[cfg(debug_assertions)]
     assert_eq!(
         editor_core::gathers_on_this_thread() - before,
         0,
@@ -406,16 +423,20 @@ fn the_assembly_gathers_in_one_place() {
     let tol = Tol::witness();
     let doc = twin("docm5-asm-one-gather");
     let ev: Evaluation<f64> = corpus::eval(&doc);
+    #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
     assemble(&doc, &ev, tol).expect("the wrapper assembles");
+    #[cfg(debug_assertions)]
     assert_eq!(
         editor_core::gathers_on_this_thread() - before,
         1,
         "one gather per `assemble`"
     );
     let product = product_recorded(&doc, &ev, tol).expect("gathers");
+    #[cfg(debug_assertions)]
     let before = editor_core::gathers_on_this_thread();
     assemble_gathered(product, tol).expect("the door assembles");
+    #[cfg(debug_assertions)]
     assert_eq!(
         editor_core::gathers_on_this_thread() - before,
         0,
