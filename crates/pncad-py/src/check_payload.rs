@@ -35,14 +35,15 @@
 //! `SeparationUnavailable` the boolean class beside its sentence;
 //! which shell, and which face, belong to those types' own
 //! vocabularies. What crosses here is the word a caller branches on —
-//! `inner_variant`, the shell refusal's own discriminant — and the
-//! prose those types render, as `reason`.
+//! `inner_variant` for the shell refusal's discriminant,
+//! `boolean_variant` for the boolean class — and the prose those
+//! types render, as `reason`.
 
 use std::borrow::Cow;
 
 use pncad::document::{CheckEvidence, RecipeNodeId};
 
-use crate::tags::shell_classify_error_tag;
+use crate::tags::{boolean_error_tag, shell_classify_error_tag};
 
 /// What one [`CheckEvidence`] arm carries, every field present.
 ///
@@ -67,6 +68,16 @@ pub struct CheckEvidencePayload<'a> {
     /// ([`crate::tags::shell_classify_error_tag`]) — which of its four
     /// ways it refused, on the two arms that carry one.
     pub inner_variant: Option<&'static str>,
+    /// **The boolean refusal's own class**, as the branchable word
+    /// ([`crate::tags::boolean_error_tag`]) — which kernel refusal
+    /// made separation unavailable, on the one arm that carries one.
+    ///
+    /// A field of its own rather than a second vocabulary under
+    /// `inner_variant`: the two alphabets are not disjoint (`band` and
+    /// `escalated` are words in both), so one attribute carrying
+    /// either would answer a caller that did not first branch on the
+    /// arm, and answer it wrong.
+    pub boolean_variant: Option<&'static str>,
 }
 
 impl CheckEvidencePayload<'_> {
@@ -76,7 +87,7 @@ impl CheckEvidencePayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`CheckEvidence`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 6] {
+    pub fn presence(&self) -> [(&'static str, bool); 7] {
         let Self {
             actual,
             expected,
@@ -84,6 +95,7 @@ impl CheckEvidencePayload<'_> {
             other_output,
             reason,
             inner_variant,
+            boolean_variant,
         } = self;
         [
             ("actual", actual.is_some()),
@@ -92,6 +104,7 @@ impl CheckEvidencePayload<'_> {
             ("other_output", other_output.is_some()),
             ("reason", reason.is_some()),
             ("inner_variant", inner_variant.is_some()),
+            ("boolean_variant", boolean_variant.is_some()),
         ]
     }
 
@@ -112,6 +125,7 @@ impl CheckEvidencePayload<'_> {
         other_output: None,
         reason: None,
         inner_variant: None,
+        boolean_variant: None,
     };
 }
 
@@ -153,11 +167,13 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
                 ..none
             }
         }
-        // `kind` is the boolean class a consumer MATCHES on and has
-        // no attribute of its own here; `reason` is the kernel's own
-        // sentence beside it, which is what this record carries.
-        CheckEvidence::SeparationUnavailable { kind: _, reason } => CheckEvidencePayload {
+        // The boolean refusal crosses the way the shell door's does:
+        // the class is the word a consumer MATCHES on, the kernel's
+        // own sentence rides beside it, and neither half is a
+        // substring hunt through the other.
+        CheckEvidence::SeparationUnavailable { kind, reason } => CheckEvidencePayload {
             reason: Some(Cow::Borrowed(reason)),
+            boolean_variant: Some(boolean_error_tag(*kind)),
             ..none
         },
     }

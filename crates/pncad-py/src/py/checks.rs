@@ -292,9 +292,9 @@ impl ChecksConfig {
 ///
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `actual`, `expected`, `other_root`,
-/// `other_output`, `reason`, `inner_variant`.
+/// `other_output`, `reason`, `inner_variant`, `boolean_variant`.
 ///
-/// The six read off ONE record, [`crate::check_payload`], whose
+/// They read off ONE record, [`crate::check_payload`], whose
 /// match over the kernel enum is exhaustive with no wildcard: an
 /// evidence arm added there is a compile error rather than a finding
 /// every accessor here silently answers `None` about.
@@ -356,6 +356,23 @@ impl CheckEvidence {
         self.payload().inner_variant
     }
 
+    /// Which kernel boolean refusal made separation unavailable, as a
+    /// branchable word, on `separation_unavailable` alone — the
+    /// `topo::BooleanErrorKind` vocabulary an evaluation refusal
+    /// already publishes as `EvaluationError.inner_kind`. `reason` is
+    /// that refusal's sentence; this is the part a caller matches on,
+    /// so which refusal it was is read rather than grepped out of the
+    /// prose.
+    ///
+    /// Its own word, not `inner_variant`'s: the shell and boolean
+    /// alphabets share spellings (`band`, `escalated`), so one
+    /// attribute carrying either would be a word a caller could only
+    /// read after branching on `variant`.
+    #[getter]
+    fn boolean_variant(&self) -> Option<&'static str> {
+        self.payload().boolean_variant
+    }
+
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -372,7 +389,7 @@ impl CheckEvidence {
     /// matching the enum itself, so the arm table is written once —
     /// exhaustively, with no wildcard, in `crate::check_payload` — and
     /// an arm added kernel-side is a compile error there instead of
-    /// six attributes silently answering `None`.
+    /// every attribute silently answering `None`.
     fn payload(&self) -> crate::check_payload::CheckEvidencePayload<'_> {
         crate::check_payload::check_payload(&self.0)
     }
