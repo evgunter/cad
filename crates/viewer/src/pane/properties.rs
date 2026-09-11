@@ -104,6 +104,7 @@ impl ViewerBehavior<'_> {
                                 value,
                             },
                             SessionOp::CommitParamGesture { name: name.clone() },
+                            SessionOp::CancelGesture,
                             |value| {
                                 vec![SessionOp::SetParam {
                                     name: name.clone(),
@@ -393,6 +394,7 @@ impl ViewerBehavior<'_> {
                                 frame: frame_of(mm),
                             },
                             SessionOp::CommitFreeMove { instance: node },
+                            SessionOp::CancelFreeMove,
                             |_| {
                                 vec![
                                     SessionOp::BeginFreeMove { instance: node },
@@ -570,6 +572,7 @@ impl ViewerBehavior<'_> {
                 node,
                 slot: row.slot,
             },
+            SessionOp::CancelGesture,
             self.ops,
         );
         // **Text that says what the slot already says is not an
