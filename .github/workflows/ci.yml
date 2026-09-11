@@ -2192,23 +2192,31 @@ jobs:
       # `work/ciw/kernel-wasm-row-denies-no-warnings.md`.
       #
       # WHAT IT COSTS WHEN IT FIRES: one lint pass over the toolkit
-      # graph at a SECOND target. Nothing in this job shares artefacts
-      # with it — the rows above are host-target — so it is a cold
-      # metadata build of eframe + wgpu + naga for wasm32 every time it
-      # runs, and `rust-cache` carries the registry but not that graph's
-      # artefacts across runs.
+      # graph at a SECOND target. Nothing in this JOB shares artefacts
+      # with it — the rows above are host-target — so within a run it
+      # builds eframe + wgpu + naga for wasm32 from nothing.
+      #
+      # ACROSS runs it is not reliably cold, which this row's own prose
+      # asserted and three readings refute: `rust-cache` restores this
+      # target's artefacts often enough that the step's time is bimodal.
+      # Do not describe it as a cold build every time, and do not budget
+      # for the low reading either.
       #
       # MEASURED, hosted (ubuntu-latest, the 4 vCPU public-repo runner
       # this file's header derives from the provenance step): THE STEP is
-      # 43 s and 55 s as the `cargo clippy` it is now (runs 34556713442
-      # and 34557952266), against 55-57 s as `cargo check` across four
-      # runs on its introducing PR. The two spellings' ranges OVERLAP, so
-      # the deny and the lint pass buy no measurable time here; do not
-      # read a delta out of any pair of these numbers, for the reason the
-      # paragraph below gives about this job's own baseline.
+      # 43 s, 55 s and 17 s as the `cargo clippy` it is now (runs
+      # 34556713442, 34557952266 and 34559116872, three consecutive
+      # pushes to one branch), against 55-57 s as `cargo check` across
+      # four runs on its introducing PR. The two spellings' ranges
+      # OVERLAP, so the deny and the lint pass buy no measurable time
+      # here; the 17 s is the warm-restore mode and not a speed-up from
+      # the spelling. Do not read a delta out of any pair of these
+      # numbers, for the reason the paragraph below gives about this
+      # job's own baseline.
       # Locally, from an empty CARGO_TARGET_DIR on 4 vCPU, 66 s as
-      # `cargo check` against 65 s as `cargo clippy`, which is the same
-      # answer taken where nothing else is competing for the machine.
+      # `cargo check` against 65 s as `cargo clippy` — the same answer,
+      # taken where nothing else is competing for the machine and where
+      # a cold build is genuinely cold.
       #
       # NO JOB-LEVEL DELTA IS QUOTED, and that is a finding rather than
       # an omission. Across the same four runs this job ran 307 s, 342 s
