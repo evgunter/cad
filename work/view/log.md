@@ -9430,3 +9430,134 @@ names the name field and catches only the array's first element, and
 CENSUS's names the name field alone. Both were wrong before this diff;
 the +1 is real but repointing either band would move a number that was
 never about its subject.
+
+## 2026-09-11 — `view/keyboard-bump`: the probe's three boxes become one gesture
+
+`a-keyboard-bump-lands-and-closes-the-pointers-own-probe` **closed,
+fixed at the CHROME.** The fork the item left open was *name the
+component, or the gesture, at the operation* against *one gesture
+mapping for the three components at the chrome*. The chrome side wins,
+and the argument that settles it is not taste:
+
+**The operation side cannot supply an identity the chrome does not
+already hold.** `widgets::drag_ops` is handed the whole vocabulary as
+VALUES before any of it is performed, and the typed arm literally
+builds `vec![Begin, Preview, Commit]` — so no payload in that batch can
+carry a token the begin returned. A client-minted id would work, and
+then the chrome is the thing deciding which drivers are one gesture,
+which is the chrome fix with an extra field on four operations. The
+component is dead outright: the op takes any rigid `Frame`
+(`crates/viewer/src/session/op.rs:321-335`) and three translation boxes
+are one chrome's decomposition of it.
+
+So `widgets::vec3_row_ops` (`crates/viewer/src/widgets.rs:168-211`)
+draws the row, unions the three responses with `egui::Response`'s `|`
+— egui's own documented summary of a row — and calls `drag_ops` once.
+Under the union `dragged()` means *the pointer is holding this gesture*
+rather than *this box*, which is the question the typed arm
+(`changed() && !dragged()`) was already asking and getting a per-box
+answer to. `drag_ops` and `drag_gesture_ops` became generic over the
+gesture's value type for it (`:93-166`); that is forced, not
+decorative, because once the row is one gesture there is no single
+box's number to pass.
+
+**The outcome is better than a refusal, which is worth saying.** The
+keyboard bump on a sibling box is not wrong and does not need
+refusing: the instance has one probe and all three components drive
+it, so the keystroke is another hand on the open gesture. It emits one
+`PreviewFreeMove` and the release still lands everything. The
+per-box mapping turned a legitimate input into a begin the door
+refused and a commit that closed the drag under the pointer.
+
+**#2390's two claims about this item, both re-derived rather than
+taken.** (a) *Escape does not reach the typed arm* — holds, and by
+construction rather than by observation: `DragValue` marks itself
+changed only on `get(..) != old_value`
+(`egui-0.36.1/src/widgets/drag_value.rs:671-673`) and both of its
+write paths are guarded on `!key_pressed(Escape)` (`:540`, `:582`), so
+an Escape frame cannot make `changed()` true and `changed() &&
+!dragged()` cannot fire. (b) *the test row moved to a shared
+five-frame preamble with its assertions unchanged* — holds for the
+row's own two assertions. One word moved inside the preamble that was
+extracted: the opening assertion's message read *"the pointer drag
+opens a probe and holds it open"* and reads *"opens a gesture"* now,
+and a comment about egui needing pointer motion before it calls a drag
+a drag was dropped in the move. Neither changes a predicate.
+
+**`the-two-drags-name-their-gestures-in-two-shapes` is neither closed
+nor mooted nor conflicted.** It asks where the gesture-identity CONCEPT
+lives across six operations in three spellings; this fix adds no
+spelling and removes none. It is strengthened if anything: the probe's
+identity is now *the instance, because the chrome gives it one driver*,
+which is a fact about a convention rather than a type — exactly that
+row's complaint.
+
+**Residue, filed rather than disclosed**:
+`probe-identity-stops-at-the-instance`. The door still cannot refuse a
+second DRIVER on one instance; today's chrome has one, and
+*unreachable from today's chrome* is precisely the claim
+`free-move-in-flight-refusal-has-no-reachable-producer` was filed on
+and that was false twice over. `gesture_table.rs`'s
+`a_drag_on_another_field_cannot_steer_the_open_one` is the value drag's
+row for this property; the probe has no counterpart because there is
+nothing for one to assert.
+
+**`DisplayFault::FreeMoveInFlight` keeps a producer** — `Open` and
+`NewDocument`, the two `false` rows of `permitted_during_free_move`
+(`crates/viewer/src/session/op.rs:875`), raised at
+`crates/viewer/src/session.rs:1089-1091`. The fix removes the keyboard
+route to it and not the fault.
+
+**Sweep**: every chrome site that emits a gesture triple, found by
+grepping `SessionOp::(Begin|Preview|Commit|Cancel)` under
+`crates/viewer/src/` — three, all in `pane/properties.rs`. The
+parameter drag (`:98`) is one widget and one gesture. The probe
+(`:388`) was three widgets and one gesture: fixed. The slot row
+(`:563`) is three widgets and three gestures and is not an instance, on
+two independent grounds — each component is its own `SlotId` so the
+identity is per-field, and it calls `drag_gesture_ops` with no typed
+arm at all, its typed path being `SetSlot`. **Blind spot**: the pattern
+is a literal `SessionOp::` constructor in `src/`, so it cannot see a
+site that builds a gesture op through a helper or a variable, nor one
+outside `crates/viewer/src/`.
+
+**One prose universal corrected.** `crates/viewer/README.md`'s *"A
+driving operation names its own gesture"* section ended *"The subject
+of a driving operation is the field the user has hold of, and naming it
+is what makes the mismatch refusable"* — stated over all six driving
+ops, and false of the probe, whose three boxes were three fields over
+one named subject. The section now carries the probe's asymmetry, what
+makes it enough, and the row that owns what it does not close.
+`SessionOp::PreviewFreeMove`'s *"the identity is one node rather than a
+target"* is KEPT and argued rather than corrected: #2361 wrote it
+deliberately and it is right — one node is the whole identity because
+an instance has one probe.
+
+**Citation census over the bands this diff moved** (`widgets.rs`,
+`pane/properties.rs`, `session/op.rs`, `crates/viewer/README.md`):
+47 rows carry a citation into those four files; mapping every one
+through the diff gives 45 citations that actually move, across 24 rows
+— 46 counting the one written bare, below, which a filename-anchored
+scan cannot see. Six of those 24 rows are open, this item among them. Repointed, subject checked at the base and
+at the head: `a-disabled-control-says-why-in-four-shapes`'
+`pane/properties.rs:736` → `:734` (the `on_disabled_hover_text`
+literal), and `the-two-drags-name-their-gestures-in-two-shapes`' four —
+`op.rs:309-323` → `:321-335`, `widgets.rs:78-151` → `:93-166`,
+`widgets.rs:38-49` → `:46-57` (written bare, which a filename-anchored
+scan does not see), `pane/properties.rs:563-583` → `:561-581`.
+
+**Left alone and disclosed, because the number was never about its
+subject**: `two-hand-written-copies-of-the-g1-gesture-machine`'s
+`widgets.rs:30-52` names `crate::widgets::drag_ops` and points at
+`GestureVocabulary`'s doc and struct — #2390 inserted that struct above
+`drag_ops` and the row has been stale since. `stale-file-citations-
+after-the-split`'s `op.rs:586` calls itself the exhaustive table and
+lands inside `SessionOp::AddChamfer`'s doc comment; it and `:633` are
+QUOTATIONS in a table recording what a past repoint said, which is a
+record rather than a pointer. `comment-symbol-names-outside-rustdocs-
+reach-have-no-gate`'s two `session/op.rs:828` are worked-example sites
+the row's own Note already records as deleted. The eighteen closed rows
+in the population are records, not guards, and are untouched.
+
+**Nothing out of fence.** Every citation this diff moved is in
+`work/view/`.
