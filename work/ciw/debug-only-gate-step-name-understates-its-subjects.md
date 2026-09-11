@@ -2,8 +2,9 @@
 id: debug-only-gate-step-name-understates-its-subjects
 kind: issue
 title: ci.yml's 'bit-identity debug-only guard (topo/source.rs)' step title names one subject of a gate that now scans a list
-status: open
+status: dispatched
 opened: 2026-09-06
+branch: ciw/pin-residue
 ---
 
 

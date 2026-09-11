@@ -2,9 +2,10 @@
 id: session-start-hook-restates-ci-pins
 kind: issue
 title: the agent-container hook restates three ci.yml pins as literals, out of every gate's reach
-status: open
+status: dispatched
 opened: 2026-09-06
 refs: [local-half-restates-ci-pins-as-literals, ruff-pin-read-shares-the-first-match-shape]
+branch: ciw/pin-residue
 ---
 
 `.claude/hooks/session-start.sh:104,123,124` sets `NEXTEST_VERSION=0.9.140`,

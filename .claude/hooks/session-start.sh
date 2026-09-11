@@ -97,39 +97,6 @@ fi
 repo="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 cd "$repo"
 
-# Pinned to hosted CI's version (ci.yml is the single source of truth for
-# it; keep the two in sync). A dev/CI tool only — never in a shipped build
-# graph. Installed from the official get.nexte.st prebuilt, same as the
-# in-repo composite action, not from a third-party channel.
-NEXTEST_VERSION=0.9.140
-# ...with the project's OWN GitHub release asset as the second source.
-# get.nexte.st is a redirector in front of exactly these assets, so this
-# is the same artifact from the same publisher, not a third-party mirror
-# — the only thing that changes is which hostname the request names.
-#
-# It exists because a hosted container's egress is policy-filtered per
-# environment, and on this one get.nexte.st is DENIED (the gateway
-# answers 403 to CONNECT) while github.com is allowed. That denial is
-# what used to end the hook 14 seconds in. Trying the redirector first
-# keeps hosted-CI parity and costs ~1s when it is blocked: curl does not
-# retry a 403, so the fallback is reached immediately.
-NEXTEST_URLS=(
-  "https://get.nexte.st/${NEXTEST_VERSION}/linux"
-  "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
-)
-# The other two hosted pins, same single-source-of-truth rule (ci.yml's
-# `env:` block): maturin builds the abi3 wheel, `ty` is the static stub
-# checker behind tests/test_ty.py. Both dev/CI tools only.
-MATURIN_VERSION=1.14.1
-TY_VERSION=0.0.39
-# ci.yml pins the interpreter at 3.12 — the version the suite was written
-# and validated on. The container's default `python3` is 3.11, so name 3.12
-# explicitly rather than inheriting whatever `python3` happens to be.
-PY=/usr/bin/python3.12
-# Outside the repo on purpose: a venv under target/ would be destroyed by
-# `cargo clean` and confuse the wheel-vs-staged-cdylib install paths.
-VENV="$HOME/.cache/pncad-py/venv"
-
 say() { printf '\n== %s\n' "$1"; }
 
 # What this session does NOT have, and what each absence costs. Filled by
@@ -144,6 +111,98 @@ warn() {
   echo "         Cost: ${cost}" >&2
   echo "         Every other gate row is unaffected." >&2
 }
+
+# ONE PINNED TOOL VERSION, READ FROM ci.yml RATHER THAN RESTATED HERE.
+# `.github/workflows/ci.yml`'s workflow-level `env:` block is this repo's
+# single source of truth for every tool version CI installs, and
+# `scripts/ci-pin.py` is the one reader of it — anchored to that block, so
+# a per-job pin of the same name cannot be picked up by accident.
+#
+# The three versions below used to be shell literals in this file. Nothing
+# compared them to the block, and nothing can be MADE to: every hosted job
+# deletes `.claude/` at checkout, so a checker about this file would pass
+# on hosted CI and red only on a developer's box — a check whose verdict
+# depends on which half runs it. Reading the value is the repair that
+# works from both halves.
+#
+# WHAT A FAILED READ DOES, WHICH IS THIS FUNCTION'S REASON FOR EXISTING.
+# `ci-pin.py` refuses bluntly and exits 2 — a pin renamed, a second pin at
+# any indentation, the workflow moved — and `python3` itself is one more
+# thing a bare container might not have at this point in the hook. Each of
+# the three pins feeds a TEST-RUNNER OR CHECKER in the taxonomy at the top
+# of this file: cargo-nextest, maturin, `ty`. Each costs its own gate row
+# and nothing else. So a refusal is handled exactly as a failed download
+# is — THE TOOL IS NOT INSTALLED, the absence goes into DEGRADED and is
+# replayed at the end, and the session still gets its compiler.
+#
+# The three other answers, and why each is worse:
+#
+#   * FALL BACK TO A LITERAL re-creates the defect being removed. A
+#     version this file states and nothing compares to ci.yml is exactly
+#     what the read replaced, and a last-resort copy drifts on the same
+#     schedule as a first-resort one.
+#   * INSTALL UNPINNED — whatever `latest` resolves to — is the silent
+#     wrong-version install this whole class is about, and it would be
+#     silent HERE, in the one lane no gate of record can see.
+#   * FAIL THE HOOK denies the session its compiler over a checker. This
+#     script's own rule, argued at length above, is that no single tool
+#     may cost the session its toolchain; a pin that cannot be read is a
+#     smaller event than a mirror outage, not a larger one.
+#
+# The refusal is reprinted verbatim: `ci-pin.py` names the lines it saw,
+# and that text is the diagnosis a session needs in order to fix the
+# workflow it names.
+ci_pin() {
+  local name=$1 out rc=0
+  out=$(python3 "$repo/scripts/ci-pin.py" "$name" 2>&1) || rc=$?
+  if [ "$rc" -eq 0 ] && [ -n "$out" ]; then
+    printf '%s\n' "$out"
+    return 0
+  fi
+  echo "WARNING: cannot read ${name} from .github/workflows/ci.yml." >&2
+  printf '%s\n' "$out" | sed 's/^/         /' >&2
+  echo "         Nothing is installed unpinned; the tool it pins is skipped." >&2
+  return 1
+}
+
+# cargo-nextest: a dev/CI tool only, never in a shipped build graph.
+# Installed from the official get.nexte.st prebuilt, same as the in-repo
+# composite action, not from a third-party channel...
+NEXTEST_VERSION="$(ci_pin NEXTEST_VERSION)" || NEXTEST_VERSION=
+# ...with the project's OWN GitHub release asset as the second source.
+# get.nexte.st is a redirector in front of exactly these assets, so this
+# is the same artifact from the same publisher, not a third-party mirror
+# — the only thing that changes is which hostname the request names.
+#
+# It exists because a hosted container's egress is policy-filtered per
+# environment, and on this one get.nexte.st is DENIED (the gateway
+# answers 403 to CONNECT) while github.com is allowed. That denial is
+# what used to end the hook 14 seconds in. Trying the redirector first
+# keeps hosted-CI parity and costs ~1s when it is blocked: curl does not
+# retry a 403, so the fallback is reached immediately.
+#
+# EMPTY WHEN THE PIN WAS NOT READ, because a URL built out of an unread
+# version names an artifact nobody asked for. The install step below
+# refuses on the version first, so this array is never reached empty.
+NEXTEST_URLS=()
+if [ -n "$NEXTEST_VERSION" ]; then
+  NEXTEST_URLS=(
+    "https://get.nexte.st/${NEXTEST_VERSION}/linux"
+    "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+  )
+fi
+# The other two hosted pins, read the same way: maturin builds the abi3
+# wheel, `ty` is the static stub checker behind tests/test_ty.py. Both
+# dev/CI tools only.
+MATURIN_VERSION="$(ci_pin MATURIN_VERSION)" || MATURIN_VERSION=
+TY_VERSION="$(ci_pin TY_VERSION)" || TY_VERSION=
+# ci.yml pins the interpreter at 3.12 — the version the suite was written
+# and validated on. The container's default `python3` is 3.11, so name 3.12
+# explicitly rather than inheriting whatever `python3` happens to be.
+PY=/usr/bin/python3.12
+# Outside the repo on purpose: a venv under target/ would be destroyed by
+# `cargo clean` and confuse the wheel-vs-staged-cdylib install paths.
+VENV="$HOME/.cache/pncad-py/venv"
 
 # curl | tar, with each candidate URL tried in turn. Extracts into a temp
 # directory first: `curl | tar` in a pipeline puts a HALF-WRITTEN binary
@@ -196,8 +255,14 @@ cargo clippy --version
 # workspace has real ones (docs/GUIDE.md's Rust blocks are doctests of
 # `pncad`). `cargo test --doc` is a separate row in ci.yml for that reason.
 # ---------------------------------------------------------------------------
-say "cargo-nextest ${NEXTEST_VERSION}"
-if cargo nextest --version 2>/dev/null | grep -qw "${NEXTEST_VERSION}"; then
+say "cargo-nextest ${NEXTEST_VERSION:-(pin unread)}"
+# An empty version is a REFUSED READ, never "any version will do": every
+# test below it compares against the pin, and `grep -qw ""` would call any
+# cargo-nextest on PATH a match.
+if [ -z "$NEXTEST_VERSION" ]; then
+  warn "cargo-nextest (pin unread)" \
+    "ci.yml's NEXTEST_VERSION could not be read — the refusal is above, and nothing is installed unpinned. \`cargo nextest run\` is unavailable; use \`cargo test\` instead (slower, no per-test process isolation, and NOT what ci.yml runs)."
+elif cargo nextest --version 2>/dev/null | grep -qw "${NEXTEST_VERSION}"; then
   echo "already installed: $(cargo nextest --version)"
 # --retry (inside fetch_tool): ~10 hosted jobs per run taught us that an
 # unretried fetch turns one bad minute on a CDN edge into a whole-gate
@@ -223,8 +288,11 @@ fi
 # — so installing it is the difference between the stub lattice being
 # MEASURED in a session and merely not-failing.
 # ---------------------------------------------------------------------------
-say "maturin ${MATURIN_VERSION}"
-if maturin --version 2>/dev/null | grep -qw "${MATURIN_VERSION}"; then
+say "maturin ${MATURIN_VERSION:-(pin unread)}"
+if [ -z "$MATURIN_VERSION" ]; then
+  warn "maturin (pin unread)" \
+    "ci.yml's MATURIN_VERSION could not be read — the refusal is above, and nothing is installed unpinned. The WHEEL path of crates/pncad-py is unavailable; run-python-tests.sh still runs by staging the plain cdylib, which is the degraded-box path it was written for."
+elif maturin --version 2>/dev/null | grep -qw "${MATURIN_VERSION}"; then
   echo "already installed: $(maturin --version)"
 elif fetch_tool maturin \
     "https://github.com/PyO3/maturin/releases/download/v${MATURIN_VERSION}/maturin-x86_64-unknown-linux-musl.tar.gz"; then
@@ -234,8 +302,11 @@ else
     "the WHEEL path of crates/pncad-py is unavailable; run-python-tests.sh still runs by staging the plain cdylib, which is the degraded-box path it was written for."
 fi
 
-say "ty ${TY_VERSION} (static stub checker, python 3.12 venv)"
-if [ -x "$VENV/bin/ty" ] && "$VENV/bin/ty" --version 2>/dev/null | grep -qw "${TY_VERSION}"; then
+say "ty ${TY_VERSION:-(pin unread)} (static stub checker, python 3.12 venv)"
+if [ -z "$TY_VERSION" ]; then
+  warn "ty (pin unread)" \
+    "ci.yml's TY_VERSION could not be read — the refusal is above, and nothing is installed unpinned. tests/test_ty.py will skip — it says so loudly, so the stub lattice is UNMEASURED rather than silently passing."
+elif [ -x "$VENV/bin/ty" ] && "$VENV/bin/ty" --version 2>/dev/null | grep -qw "${TY_VERSION}"; then
   echo "already installed: $("$VENV/bin/ty" --version)"
 elif [ ! -x "$PY" ]; then
   warn "ty ${TY_VERSION} (no ${PY})" \
