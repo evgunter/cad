@@ -429,13 +429,13 @@ deleted. Recover either with `git show <this sweep's SHA>^:docs/<NAME>`.
   `work/code-quality/logs/migration-census-2026-09-03.md`; nothing
   was dropped.
   **Re-aimed at sweep 11 (2026-09-11), because that paragraph's three
-  live pointers all moved that day**: the rows are on the eleven
-  programs of the 2026-09-11 cut and no longer in one directory
-  (`docs/WORK-TRACKS-2026-09.md` addendum 3); the rules are
-  `docs/CODE-QUALITY-CONVENTIONS.md`; the observations are
-  `docs/CODE-QUALITY-OBSERVATIONS.md`, verbatim through both moves. The
-  migration census went to the archive with `logs/` and is recoverable
-  at sweep 11's SHA. One source defect is carried as a flagged
+  live pointers all went that day**: the rows are on the eleven programs
+  of the 2026-09-11 cut and no longer in one directory
+  (`docs/WORK-TRACKS-2026-09.md` addendum 3); the rules, the process
+  observations and the migration census went to the archive with the
+  directory and are recoverable at sweep 11's SHA. **The register's
+  numbering scheme is retired, not relocated** — see sweep 11's
+  amendment. One source defect is carried as a flagged
   reconstruction: partition rule 4's opening sentence was already
   missing from the document (its text began mid-sentence), and the
   plan states it as "A style review runs on every unit against …".
@@ -452,9 +452,10 @@ Every `docs/<NAME>-PLAN.md` / `docs/<NAME>-LOG.md` pair is now
 nine `SMELL-*-LOG.md` track logs were under `work/code-quality/logs/`
 and **left the tree at sweep 11** (2026-09-11), recoverable at the SHA
 that sweep names; they are closed tracks' execution records, and the one
-standing rule they were cited for — partition rule 5, *the fix mints a
-fresh instance of the defect it closes* — is stated in full in
-`docs/CODE-QUALITY-CONVENTIONS.md`, which is where it now lives. `MODEL-AB-LOG.md` stays in `docs/` as the
+standing rule they were cited for — *the fix mints a fresh instance of
+the defect it closes* — is now a bullet in
+`docs/prompts/reviewer-style-lane.md` §1, where every reviewer reads it.
+`MODEL-AB-LOG.md` stays in `docs/` as the
 experiment log it is. `scripts/work.py lint` refuses a plan or log
 reappearing in `docs/`.
 
@@ -1834,22 +1835,12 @@ survive relocation (criterion 3, the section that follows).
 
 ### What survived, and where
 
-Two documents carried live rules and were **moved, not deleted**, before
-the directory went. Both are the same text with the directory framing
-removed; git rename history is intact.
-
-| was | is now | why it could not be archived |
-| --- | --- | --- |
-| `work/code-quality/plan.md` | `docs/CODE-QUALITY-CONVENTIONS.md` | Still in force and cited 60 times across the tree: the `S`/`D`/`C` numbering and the per-track **number blocks** a new row is still minted from, how a finding and an item are read, the four ordering rules, the seven partition rules (rule 5 among them — *the fix mints a fresh instance of the defect it closes* — whose other home, `logs/SMELL-F-LOG.md`, went to the archive in this sweep), the territories table with each letter's fence and holder, the four stated seams, and what the partition leaves out |
-| `work/code-quality/process-observations.md` | `docs/CODE-QUALITY-OBSERVATIONS.md` | §C's `C1`–`C27`, which sweep 4 recorded as living here verbatim; the conventions document and several live rows cite them by number |
-
-`docs/CODE-QUALITY-CONVENTIONS.md` is now **the block ledger of record**.
-`work/code-quality/program.md`'s `blocks:` header is gone and no open
-program carries one, so a new row on any track letter takes its number
-from that document's territories table and is filed straight on the
-program that owns the ground it lands on. There is no longer a directory
-for it to wait in, and that is the one procedural thing this sweep
-changed.
+Two documents were **first moved to `docs/` and then, on Ev's
+correction the same day, deleted with everything else** — see the
+amendment at the end of this entry, which is the disposition of record.
+What survives of them is named there: one sentence in the reviewer
+brief, and the rules each of the eleven programs actually uses, inlined
+into that program's own `plan.md`.
 
 ### What was deleted
 
@@ -1882,7 +1873,7 @@ changed.
 
 | program | title | closed | done-state of record |
 | --- | --- | --- | --- |
-| `code-quality` | Code quality — where a structural finding waits until a program claims it | 2026-09-11 | this row; `docs/WORK-TRACKS-2026-09.md` addendum 3 for where its 110 live rows went; `docs/CODE-QUALITY-CONVENTIONS.md` and `docs/CODE-QUALITY-OBSERVATIONS.md` for the rules and observations it carried; the merged PRs of its closed tracks, named in the logs recoverable at the SHA above |
+| `code-quality` | Code quality — where a structural finding waits until a program claims it | 2026-09-11 | this row and the amendment below; `docs/WORK-TRACKS-2026-09.md` addendum 3 for where its 110 live rows went; the merged PRs of its closed tracks, named in the logs recoverable at the SHA above |
 
 ### The eighteen `refs:` this sweep rewrote
 
@@ -1931,8 +1922,8 @@ for and what GATES' and METER's sweeps did with their own. Two classes
 were fixed, because both are live contract text rather than a citation:
 
 - **The eleven programs of the 2026-09-11 cut** had their `plan.md`
-  charters re-aimed from `work/code-quality/plan.md` at
-  `docs/CODE-QUALITY-CONVENTIONS.md`; they cite its rules as in force.
+  charters re-aimed off `work/code-quality/plan.md`; see the amendment
+  below for where each rule they cited now lives.
 - **`work/README.md`** (META's file, edited here by announced seam
   because this sweep is what makes it false, in the same commit): the
   clause saying `work/code-quality/` is where a finding waits for a
@@ -1947,7 +1938,61 @@ were fixed, because both are live contract text rather than a citation:
 One consequence is named rather than left to be found: **`d321-row-number-reissued`
 (CITE's) and `S176` (CITE's) both ask for edits inside `SMELL-T-LOG.md`,
 `SMELL-KPW-LOG.md` and `SMELL-G-LOG.md`**, which this sweep archived.
-Their live halves are unaffected — `d321`'s retired-id rule lands in
-`docs/CODE-QUALITY-CONVENTIONS.md`, `S176`'s convention in the same place
-— and `work/cite/plan.md` records that the log half closes as overtaken
-rather than done.
+`S176`'s live half is its convention and is unaffected; `d321` is
+overtaken on both halves, which the amendment below explains and
+`work/cite/plan.md` records.
+
+
+### Amendment (2026-09-11, same day): the two relocated documents were deleted too
+
+This sweep first moved `plan.md` and `process-observations.md` into
+`docs/` on the argument that `plan.md` was cited 60 times and was
+therefore load-bearing. **Ev rejected that** (in-chat: *"where is it
+cited? we don't want to mint any new rows because we're using the in
+repo issue tracker now, not the one big doc that descends from"*), and
+the count did not survive being read:
+
+- **48 of the 60 are one of three provenance sentences** repeated
+  verbatim in `## Claimed by` sections — 17 rows in `work/tint/` and 14
+  in `work/topo/` — and each of those sentences says, in its own second
+  clause, that the content is **restated in the claiming program's own
+  plan**. They are history, not lookups.
+- 9 were this ledger, 3 `work/README.md`, 1 `docs/WORK-TRACKS-2026-09.md`.
+- **Ten were live**, all of them in the eleven new programs' `plan.md`
+  charters, and every one cited a single self-contained rule.
+
+**The block ledger was the other half of the argument and it is simply
+retired.** Ids in this tracker come from an item's name; the per-track
+`D<N>`/`S<N>` blocks were the numbering of the 2026-08 register that the
+tracker replaced, and keeping a document alive so that a future row
+could be minted from a block would have preserved the scheme this
+project stopped using. **No new row is minted from a block.** The rows
+that carry such an id keep it — ids are stable for life — and nothing
+allocates another.
+
+**So both documents are deleted**, recoverable at this entry's sweep
+SHA, and what was live in them went to where it is used:
+
+| what | where it went |
+| --- | --- |
+| *The fix mints a fresh instance of the defect it closes; naming the trap in your own PR body does not prevent it; only a reader who did not write the fix has ever caught it* | **`docs/prompts/reviewer-style-lane.md` §1**, as a bullet in the stance — the standing brief every reviewer reads, which is what the rule is for. It was the only sentence in either document with no surviving home |
+| The ordering, partition, seam and fence rules the eleven charters cited (ten citations) | **inlined into the citing `plan.md`**, one to three sentences each, so each program states the rule it runs on instead of pointing at a document about a program that no longer exists |
+| *Ask what a reported sweep's pattern could not match* (`C15`) | nowhere — it was **already** `docs/prompts/reviewer-style-lane.md` §Q1. `work/door/viewer-grid-pitch-nonfinite-fallback.md` now cites the brief instead of `§C` |
+| The `C2`/`H17` and `C21` labels on `work/comb/S37.md` and `work/door/run-on-whitespace-in-message-literals.md` | **folded into those rows** as the populations and dispositions they stood for; the labels themselves were a process-observation number and a track row id colliding, which is `C-namespace`'s point |
+| The W `test-utils` ceiling seam, and P's three sub-lanes | nowhere — already restated, the first in all 17 `work/tint/` rows that cite it and the second in `work/topo/plan.md`, both by the same sentence that cited the plan |
+| `C1`–`C27` otherwise | the archive. Of 27 process observations, **three were cited by a live row** and all three are handled above; the rest are a closed program's retrospective and are recoverable at the sweep SHA |
+
+One observation is worth naming here rather than leaving at a SHA,
+because it records a decision rather than a finding: **`C21` carries
+Ev's ruling of 2026-08-20** that the *skip-reading-as-a-pass* class
+stays un-rolled-up — a class rule was drafted around giving skips
+*floors*, which concedes the skip, and the prior question is whether the
+test should be skipping at all. A future scan re-opens that question
+rather than re-proposing the floors.
+
+`d321-row-number-reissued` (CITE's) is **overtaken on both halves** by
+this amendment: its retired-id rule has no number ledger to live in now
+that the blocks are retired, and its citation disambiguation was inside
+two `SMELL-*-LOG.md` files this sweep archived. `work/cite/plan.md`
+says so and names the one thing still worth doing — a `work.py` check
+that an id is never reissued — as META's, not the row's.
