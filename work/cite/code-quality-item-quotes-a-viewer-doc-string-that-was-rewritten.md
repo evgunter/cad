@@ -31,9 +31,16 @@ So the quoted string is no longer anywhere in the tree.
 and the citation this row carried for it was itself wrong.** The row as
 filed said *"`crates/viewer/src/forms.rs:190` says 'a verb with no word
 does not parse'"*, and all three parts of that miss. `forms.rs:190` is
-`pub(crate) const ALL;`. The sentence is not authored in `forms.rs` at
+blank. The line above it, `:189`, is `pub(crate) const ALL;` — and that
+exact line occurs **five** times in the file (`:49`, `:105`, `:128`,
+`:189`, `:296`,
+`grep -n "pub(crate) const ALL;" crates/viewer/src/forms.rs`), so a bare
+number never identified it in the first place. The one it means is
+`PathVerb`'s `const ALL`, the declaration inside the same `vocabulary!`
+invocation that declares `pub(crate) enum PathVerb`, and that is how it
+is named from here on. The sentence is not authored in `forms.rs` at
 all: `PathVerb` is declared through a `vocabulary!` invocation
-(`forms.rs`, the fourth of four in the file), and the sentence is part
+(`forms.rs`, the fourth of the five in the file), and the sentence is part
 of the doc that macro GENERATES for every `label`, written once at
 `crates/viewer/src/vocab.rs` in the `macro_rules! vocabulary` body. It
 reads *variant*, not *verb*, because it is written for every vocabulary
@@ -101,16 +108,43 @@ on `label` in the `macro_rules! vocabulary` body in
 `PathVerb::label` in `forms.rs` named beside it. The generator, because
 `forms.rs` holds no copy of the sentence: a reader who greps `forms.rs`
 for the quoted words finds nothing, which is the failure mode this row
-exists to name. `app.rs:514`, `app.rs:557` and `app.rs:4419` are
-repaired to names in `crates/viewer/src/forms.rs`.
+exists to name. The historical quotation stays in DOOR's body, marked as
+historical, with the replacement named next to it — the clause DOOR
+draws from it turns on the MENU, which the replacement sentence does not
+mention, so overwriting it would have left that clause resting on words
+that do not reach it.
 
-**Where this row's own re-derivation of 2026-09-11 was wrong.** It says
-`PathVerb` is declared in *"the fourth of four"* `vocabulary!`
-invocations in `forms.rs`. There are **five**
-(`grep -n "^vocabulary! {" crates/viewer/src/forms.rs`); fourth of five
-is right. The rest of the paragraph — that `forms.rs:190` was
-`pub(crate) const ALL;`, that the sentence is authored in `vocab.rs`,
-that it reads *variant* — holds at this base.
+`app.rs:514` and `app.rs:557` are repaired to names in
+`crates/viewer/src/forms.rs`: `pub(crate) enum PathVerb`, and the
+`pub(crate) const ALL;` in the same `vocabulary!` invocation.
+**`app.rs:4419` is deliberately NOT repaired.** Its subject was an
+iteration of `profile::ArcMode::ALL` in the viewer, and no viewer file
+iterates that any more; what carries the name `ArcMode` in the viewer
+now is the viewer's OWN `vocabulary!` enum in `forms.rs`, iterated in
+`crates/viewer/src/widgets.rs` (`for (option, label) in ArcMode::ALL`),
+which is a different thing. Repointing would invent a subject, so the
+citation is left in DOOR's body with a flag saying it no longer
+resolves, and the consequence — that the sentence calling the arc-mode
+half **fine** has lost its ground — is DOOR's, in the marked section.
+
+**Where this row's own re-derivation of 2026-09-11 was wrong, and what
+is corrected above.** Two things, both of them line-number claims made
+inside a row about line-number claims:
+
+- It said `PathVerb` is declared in *"the fourth of four"* `vocabulary!`
+  invocations in `forms.rs`. There are **five** —
+  `grep -n "^vocabulary! {" crates/viewer/src/forms.rs` prints `:36`,
+  `:73`, `:108`, `:131`, `:267` — and fourth of five is right.
+- It said `forms.rs:190` is `pub(crate) const ALL;`. It is not:
+  `:190` is blank and the const is `:189`
+  (`sed -n '189,190p' crates/viewer/src/forms.rs`), and the same line
+  occurs five times in the file, so the number identified nothing even
+  when it was one off. The paragraph above now names the const by the
+  `vocabulary!` invocation that declares it.
+
+The rest of that paragraph — that the sentence is authored in
+`vocab.rs`, and that it reads *variant* rather than *verb* — holds at
+this base.
 
 **Three things the repair turned up that are DOOR's, recorded in DOOR's
 file in a marked section and not decided here:** the transition table

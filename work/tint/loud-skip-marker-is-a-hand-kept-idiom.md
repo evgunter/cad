@@ -18,9 +18,9 @@ The copies (PR 1776 added the last of them):
 
 Cited by `fn` name, not by line: the name IS the landing spot and is
 one `grep -n` away in the named file, while three of the eight line
-numbers this table used to carry no longer resolved and a fourth had
-drifted since it was last certified (see the re-derivation section at
-the foot).
+numbers this table used to carry no longer resolved — and one of those
+three had been certified as resolving five days earlier (see the
+re-derivation section at the foot).
 
 | file | row (the `fn` name) |
 | --- | --- |
@@ -132,10 +132,22 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
 
-## All eight entries re-derived 2026-09-11 (CITE repair, `loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed`)
+## All eight table entries re-derived against the tree, 2026-09-11
 
-Ev authorised CITE to repair this row's citations in place rather than
-route them back. **Only what the row POINTS AT and QUOTES is touched.**
+Every file, line, `fn` name and quotation the table above and the
+sections around it point at was resolved against the repository as it
+stood on 2026-09-11, and re-cited by NAME where a name exists; the table
+below is that derivation, with the command that reproduces it. The
+derivation was re-run and corrected in a second pass the same day, after
+a review of the first.
+
+The repair was authorised by Ev and carried out in place rather than
+routed back; it came out of the CITE row
+`loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed`, which is
+a secondary reference only — that row's file is deleted when CITE
+closes, and nothing in this section depends on it.
+
+**Only what the row POINTS AT and QUOTES is touched.**
 The claim, the count in the title, the membership of the table and the
 two fix shapes are TINT's and are unchanged — including where the
 re-derivation below puts them in question.
@@ -154,13 +166,19 @@ All eight were resolved at this base with one command:
 | `m6_surgery_interval.rs:20` | `fn` at `:20` | resolves; line dropped, name kept |
 | `m6_2_fitted_at_rest.rs:188` | `fn` at `:188` | resolves; line dropped, name kept |
 
-**Three of the eight line numbers were wrong, and one of them is one of
-the two a 2026-09-11 re-derivation had recorded as still resolving**
-(`panel_display.rs:770` → the `fn` is at `:777`; it was certified fine
-five days ago). That is the reason the table now carries no line numbers
-at all: each name is one `grep -n` from its file, and every one of the
-eight names resolved at this base while three of the eight numbers did
-not.
+**Three of the eight line numbers were wrong** — `lib.rs:103`,
+`error_display.rs:307` and `panel_display.rs:770` — **and one of those
+three is one of the two a 2026-09-11 re-derivation had recorded as still
+resolving** (`panel_display.rs:770` → the `fn` is at `:777`; it was
+certified fine five days ago). That is the reason the table now carries
+no line numbers at all: each name is one `grep -n` from its file.
+
+**Seven of the eight names resolved at this base, not eight.** The
+eighth, `app_lane_skipped_no_chrome_or_gpu_coverage_here`, resolves
+nowhere in the tree — which is not a citation that drifted but a subject
+that is gone, and it is Entry 1 below. Names are the better citation
+here because the seven that have a subject all landed exactly; they are
+no defence against a subject being removed, and nothing is.
 
 The three citations in `## What is already settled` were checked too and
 all three resolve exactly — `crates/test-utils/src/vacuity.rs:201-203`
@@ -185,9 +203,15 @@ the one this row quoted as the fullest statement of the class — reads:
 > here to go stale when that block gains or loses a module. Read it as a
 > sentence the log carries, and keep gating to the rows themselves.
 
-Its `println!` names no rows: it says "every module this crate gates
-behind the `app` feature is absent from this build", which is the
-FEATURE and nothing hand-kept. So on its face this copy is no longer an
+Its `println!` keeps no hand-kept ENUMERATION, which is the load-bearing
+point — but it is not row-free. Verbatim, it reads *"every module this
+crate gates behind the `app` feature is absent from this build - their
+unit rows, including the pipeline-creation smoke row (every
+`create_render_pipeline` call in the viewport), run only where the `app`
+feature is built"*: the subject is the FEATURE, and the one row it names
+is named as an illustration of what the feature costs, not as a list
+that has to be edited when the `#[cfg(feature = "app")]` block gains or
+loses a module. So on its face this copy is no longer an
 instance of the class the row's own `## Finding` defines — *"whose
 entire body is a `println!` naming, BY HAND, the rows that did not
 compile"* — and fix shape 2 in `## What is already settled` ("drop the
@@ -218,22 +242,57 @@ from the table and have never been in it:
 
 Both are the exact shape the table's last four are: `#[cfg(not(feature =
 "interval"))] #[test] fn` whose entire body is a `println!`. Found by
-`grep -rn "lane_skipped" --include=*.rs crates/ demos/ tools/ benches/`
-and corroborated by `grep -rln "Loud skip" --include=*.rs .`, which
-returns exactly ten files — the eight in the table plus these two. CITE
-does not add them: the table is the row's membership and membership is
-TINT's.
+`grep -rn "lane_skipped" --include=*.rs crates/ demos/ tools/ benches/`,
+which returns fourteen lines: exactly ten `fn` declarations — the eight
+in the table plus these two — and four hits that are not declarations
+at all (`crates/test-utils/src/vacuity.rs:74` and
+`crates/step-import/tests/cert5_r1_import_probes.rs:255` are the two
+prose exclusions `## What is already settled` already quotes, and
+`crates/editor-core/tests/m10_5_r1_probes_interval.rs:477` and `:480`
+are `println!` strings in a RUNTIME diagnostic, not a `#[cfg]` marker
+row). Corroborated by `grep -rln "Loud skip" --include=*.rs .`, which
+returns the same ten files.
+
+**That second sweep agrees only because it is case-sensitive, and
+nothing enforces the capital L.** `grep -rlin "loud skip" --include=*.rs .`
+returns thirteen; the three extra are exactly the over-matches `## Home`
+already warns a taker off (`crates/step-import/tests/freecad.rs`,
+`crates/sweep/tests/m5_pr9_cosurface_merge.rs`,
+`crates/topo/src/merge_faces.rs`), so the count survives, but a sweep
+resting on how a sentence was capitalised is not evidence anyone should
+lean on. A third sweep on a different shape agrees:
+`grep -rln 'SKIPPED (' --include=*.rs .` returns eleven — the same ten
+plus `crates/test-utils/src/vacuity.rs`, which is the `stood_down` door
+`## What is already settled` above deliberately sets outside this idiom.
+Ten is the number all three sweeps reach.
+
+CITE does not add them: the table is the row's membership and membership
+is TINT's.
 
 **2. The `## Finding`'s "every copy admits in its own rustdoc that it
 goes stale silently" holds for three of the eight, not eight.**
 `chrome_labels.rs`, `error_display.rs` and `panel_display.rs` each carry
 a *"**This row closes no gate and cannot fail**"* paragraph that says
 the list is kept by hand. `lib.rs` carries the reversal quoted above.
-The four `interval_lane_skipped_…` copies carry a *"**Loud skip.**"*
-paragraph that argues only why the announcement exists — *"announce the
-skip so a lane that silently lost its certified rows stays visible in
-the battery log"* — and admits nothing about staleness. The two
-unlisted copies are the same. The underlying defect is unaffected (those
+The four `interval_lane_skipped_…` copies each carry a *"**Loud
+skip.**"* paragraph that argues only why the announcement exists and
+admits nothing about staleness — but they do not carry it in the same
+words, so the wording is attributed here only where it matches
+(`grep -n -A3 "Loud skip" <file>`, run on each of the four):
+
+- `m5_s13_pips_interval.rs` and `m6_surgery_interval.rs`, verbatim and
+  identically: *"announce the skip so a lane that silently lost its
+  certified rows stays visible in the battery log"*.
+- `m5_s12_curved_ops_interval.rs`: *"Announce the skip instead, so a
+  lane that silently lost its certified rows is visible in the log."*
+- `m6_2_fitted_at_rest.rs`: *"a lane that silently lost its interval
+  rows must stay visible in the battery log"*.
+
+Of the two unlisted copies, `blend_margin_payload_interval.rs` carries
+the first wording word for word; `review_fillet_e3_probes.rs` carries
+one sentence and no argument at all — *"**Loud skip.** Without
+`--features interval` this file is empty."* — which likewise admits
+nothing about staleness. The underlying defect is unaffected (those
 `println!`s do name rows by hand, and `m5_s12`'s names four of them),
 but the sentence claiming every copy SAYS so is wider than the tree.
 
