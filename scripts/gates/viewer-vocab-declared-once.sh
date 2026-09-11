@@ -50,7 +50,7 @@
 # section, because the README's own word for where the roster sits is
 # "below" and a reader finding it anywhere on the page makes that word
 # decide nothing. It also reads the KINDS from the bolded bullets of the
-# ONE list the section announces — the paragraph beginning "Three kinds
+# ONE list the section announces — the paragraph beginning "Two kinds
 # of list stay hand-written", `KIND_ANCHOR` below — so the vocabulary of
 # reasons is the ratification itself and not a copy of it: deleting a
 # bullet while leaving a row that claims it reds. That is
@@ -72,7 +72,7 @@
 # HOW MANY KINDS is held here and nowhere else, and it is the one number
 # this file does keep. Reading the bullets makes a row's kind be the
 # ratification; it does not make the SET of kinds be one, because a
-# fourth bullet plus a row claiming it is internally consistent and both
+# extra bullet plus a row claiming it is internally consistent and both
 # green. `KIND_COUNT` below is the assertion that the section still
 # ratifies three, so an amendment costs an edit to this file as well —
 # which is right for an amendment to a ratification and wrong for the
@@ -106,7 +106,7 @@
 # vocabulary and the table's own shape. A change set of only the README
 # classifies TIER=docs, `RUN_BUILD=false`, and every `if: run_build` job
 # — `discipline` included — is skipped. Sited there, a docs-only PR
-# adding a row, inventing a fourth kind or deleting the table would
+# adding a row, inventing an unratified kind or deleting the table would
 # merge with every one of those arms unrun.
 # `scripts/check-ci-mirror-parity.py`'s TIER_BLIND names this gate, so
 # the siting is enforced rather than remembered.
@@ -634,7 +634,7 @@ FENCE_AWK=$(load_fence_awk "$VIEWER_FENCE_AWK") || exit 1
 # CommonMark — and therefore GitHub — allows a list marker up to three
 # spaces in and lets the list interrupt a paragraph, so
 #
-#       - **A fourth kind** …
+#       - **An unratified kind** …
 #
 # two spaces in, on the line after the announcing sentence or above the
 # real bullets, renders to every human reader as the first item of the
@@ -646,7 +646,7 @@ FENCE_AWK=$(load_fence_awk "$VIEWER_FENCE_AWK") || exit 1
 # approximated with `[[:space:]]*`.
 #
 # FOUR IS THE OTHER SIDE OF IT, and each position is a different
-# renderer answer, none of them a fourth top-level kind: four spaces
+# renderer answer, none of them another top-level kind: four spaces
 # after the announcing paragraph is a LAZY CONTINUATION of it and the
 # marker is drawn as literal text; four after a bullet is a NESTED item
 # of that bullet; four after a blank line is an INDENTED CODE BLOCK;
@@ -903,13 +903,13 @@ gate() {
   abort_if_reader_failed
 
   # A row may claim only a kind the section ratifies. Without this a
-  # fourth kind arrives as a table edit — which is a docs-tier change
+  # kind arrives as a table edit — which is a docs-tier change
   # set, which is why this gate is sited where a docs-tier change set
   # still runs it.
   for row in ${rows[@]+"${rows[@]}"}; do
     kind=${row##*|}
     if ! contains "$kind" "${kinds[@]}"; then
-      gate_error "$README's \"$TABLE\" row \`${row%%|*}\` claims the kind \"$kind\", which is not one the \"$SECTION\" section ratifies. Its bolded bullets are the ratified kinds: $(printf '"%s" ' "${kinds[@]}")— a fourth kind is an amendment to that section, argued there, not a new word in this table"
+      gate_error "$README's \"$TABLE\" row \`${row%%|*}\` claims the kind \"$kind\", which is not one the \"$SECTION\" section ratifies. Its bolded bullets are the ratified kinds: $(printf '"%s" ' "${kinds[@]}")— a kind this list does not hold is an amendment to that section, argued there, not a new word in this table"
       rc=1
     fi
   done
@@ -1028,12 +1028,11 @@ readme_fixture() {
 
 Prose.
 
-Three kinds of list stay hand-written, and each is a different answer
+Two kinds of list stay hand-written, and each is a different answer
 rather than an exception:
 
 - **A registry of struct constants** is not an enumeration of variants.
 - **A deliberately partial list** claims no completeness.
-- **A mirror of an enum declared in another crate** cannot be projected.
 
 More prose.
 
@@ -1195,7 +1194,7 @@ plant_two_rows_for_one_list() {
   add_row "$1" 'Kind::KINDS' kinds 'A registry of struct constants'
 }
 
-plant_a_fourth_kind() {
+plant_an_extra_kind() {
   sed -i 's/^- \*\*A deliberately partial list\*\*.*$/&\n- **A list I felt like keeping** for no stated reason./' \
     "$1/crates/viewer/README.md"
   plant_unnamed_one_line "$1"
@@ -1234,20 +1233,20 @@ plant_kind_bullets_gone() {
 # THE ANCHOR IS HALF THIS HALF OF THE SUBJECT, so it can go wrong the
 # same three ways the table heading can: reworded away, written twice,
 # or separated from the list it announces. Reworded is the live one — an
-# amendment to a fourth kind rewrites that sentence's first word — and
+# amendment to the ratified kinds rewrites that sentence's first word — and
 # it must red rather than fall back to reading the whole section, which
 # is the behaviour this reader exists to end.
 plant_anchor_reworded() {
-  sed -i 's/^Three kinds of list stay hand-written,/Some kinds of list stay hand-written,/' \
+  sed -i 's/^Two kinds of list stay hand-written,/Some kinds of list stay hand-written,/' \
     "$1/crates/viewer/README.md"
 }
 
 # TWICE: two paragraphs claiming to enumerate the kinds, of which the
 # reader would read the first list only. The second here carries a
-# fourth kind, so a fold to "read the first" would be green over an
+# kind nobody ratified, so a fold to "read the first" would be green over an
 # unratified bullet.
 plant_the_anchor_twice() {
-  sed -i 's#^More prose\.$#Three kinds of list stay hand-written, and each is a different answer\nrather than an exception:\n\n- **A fourth kind** announced a second time.#' \
+  sed -i 's#^More prose\.$#Two kinds of list stay hand-written, and each is a different answer\nrather than an exception:\n\n- **An unratified kind** announced a second time.#' \
     "$1/crates/viewer/README.md"
 }
 
@@ -1268,13 +1267,13 @@ plant_a_paragraph_between_the_anchor_and_the_list() {
 # planters because they are two rules: the first meets state 1's escape
 # from the announcing paragraph (no blank line above it), the second
 # meets state 2's own bullet and the `sed` that extracts the name.
-plant_an_indented_fourth_kind_interrupting_the_paragraph() {
-  sed -i 's/^rather than an exception:$/rather than an exception:\n  - **A fourth kind** two spaces in./' \
+plant_an_indented_extra_kind_interrupting_the_paragraph() {
+  sed -i 's/^rather than an exception:$/rather than an exception:\n  - **An unratified kind** two spaces in./' \
     "$1/crates/viewer/README.md"
 }
 
-plant_an_indented_fourth_kind_in_the_list() {
-  sed -i 's/^- \*\*A registry of struct constants\*\*.*$/   - **A fourth kind** three spaces in.\n&/' \
+plant_an_indented_extra_kind_in_the_list() {
+  sed -i 's/^- \*\*A registry of struct constants\*\*.*$/   - **An unratified kind** three spaces in.\n&/' \
     "$1/crates/viewer/README.md"
 }
 
@@ -1344,11 +1343,11 @@ pass_a_fence_closes_so_the_section_still_ends() {
 # announcement sitting DIRECTLY under a closing fence was not read as
 # opening a paragraph, so it was not counted as an announcement: the
 # gate found one anchor, read three kinds under it and printed OK over a
-# duplicate announcement AND the unratified fourth kind bulleted beneath
+# duplicate announcement AND the unratified kind bulleted beneath
 # it. Exit 0 over exactly what this gate exists to refuse.
 plant_a_second_anchor_under_a_closing_fence() {
   local md=$1/crates/viewer/README.md
-  sed -i 's%^Prose\.$%```sh\necho hi\n```\nThree kinds of list stay hand-written, and here is a fourth.\n\n- **A fourth kind** that nobody ratified.\n\nProse.%' "$md"
+  sed -i 's%^Prose\.$%```sh\necho hi\n```\nTwo kinds of list stay hand-written, and here is an extra.\n\n- **An unratified kind** that nobody ratified.\n\nProse.%' "$md"
 }
 
 # THE FALSE RED IS THE SAME DEFECT, and it is the misdiagnosis this
@@ -1435,7 +1434,7 @@ pass_tests_are_not_scanned() {
 # directions, and this is the pair the section-wide scan got wrong. That
 # scan collected every `- **…**` line between the heading and the next
 # heading of any level — a hundred and fifty lines of ordinary prose —
-# so a bulleted list written about anything else counted as a fourth
+# so a bulleted list written about anything else counted as a ratified
 # kind, and the red told its author they had amended a ratification they
 # had not touched. One README rewrite was written with no bulleted list
 # anywhere to keep this gate green.
@@ -1457,7 +1456,7 @@ pass_no_blank_line_before_the_list() {
 
 # FOUR SPACES IS THE OTHER SIDE OF THAT BOUNDARY, and these are the
 # cases that keep it from being widened to `[[:space:]]*`. Each is a
-# different renderer answer and none of them is a fourth ratified kind:
+# different renderer answer and none of them is another ratified kind:
 # four spaces after the announcing paragraph is a LAZY CONTINUATION of
 # it, drawn as literal text inside the sentence; four under a bullet is
 # a NESTED item of that bullet; a leading TAB advances to column four
@@ -1487,7 +1486,7 @@ pass_a_tab_indented_marker() {
 # here continues a paragraph, and a lazy continuation is never a new
 # one, so nothing is announced.
 pass_the_anchor_quoted_inside_a_paragraph() {
-  sed -i 's/^More prose\.$/More prose, which mentions the sentence\nThree kinds of list stay hand-written and does not announce a list./' \
+  sed -i 's/^More prose\.$/More prose, which mentions the sentence\nTwo kinds of list stay hand-written and does not announce a list./' \
     "$1/crates/viewer/README.md"
 }
 
@@ -1590,25 +1589,25 @@ gate_selftest() {
   # THE ANCHOR, every way it can go wrong. It carries the scan now, so
   # each of these is a way the README half goes wrong that did not exist
   # while the scan was the whole section.
-  gate_selftest_case 'begins "Three kinds of list stay hand-written"' \
+  gate_selftest_case 'begins "Two kinds of list stay hand-written"' \
     plant_anchor_reworded
   gate_selftest_case 'announces the ratified kinds more than once' \
     plant_the_anchor_twice
   gate_selftest_case 'is followed by no `- **kind**` bullets' \
     plant_a_paragraph_between_the_anchor_and_the_list
   gate_selftest_case "says the section ratifies $KIND_COUNT kinds of hand-written list" \
-    plant_a_fourth_kind
+    plant_an_extra_kind
   # THE INDENT BOUNDARY, in the direction that was silent. The want
-  # string asserts the README SIDE of the count — "the bullets … are 4"
-  # — because a message that named only this file's number is what sent
-  # an author to add a fourth bullet.
-  gate_selftest_case "under \"$KIND_ANCHOR\" in $README are 4" \
-    plant_an_indented_fourth_kind_interrupting_the_paragraph
-  gate_selftest_case "under \"$KIND_ANCHOR\" in $README are 4" \
-    plant_an_indented_fourth_kind_in_the_list
+  # string asserts the README SIDE of the count — one bullet more than
+  # the ratified number — because a message that named only this file's
+  # number is what sent an author to add the extra bullet.
+  gate_selftest_case "under \"$KIND_ANCHOR\" in $README are $((KIND_COUNT + 1))" \
+    plant_an_indented_extra_kind_interrupting_the_paragraph
+  gate_selftest_case "under \"$KIND_ANCHOR\" in $README are $((KIND_COUNT + 1))" \
+    plant_an_indented_extra_kind_in_the_list
   # A CLOSING FENCE ENDS A BLOCK. Both directions, because one boolean
   # answer was wrong in both: the false GREEN over a second announcement
-  # and an unratified fourth kind, and the false RED at the anchor
+  # and an unratified kind, and the false RED at the anchor
   # itself. The near-miss half is with the other passing rows below.
   gate_selftest_case 'announces the ratified kinds more than once' \
     plant_a_second_anchor_under_a_closing_fence
