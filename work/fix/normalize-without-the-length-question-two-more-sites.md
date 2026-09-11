@@ -68,3 +68,57 @@ there are at least two.
 `keep_out`). `crates/geom-brep/*` is code-quality's geom-brep seam.
 Neither is FIX ground; this row is filed here because FIX's sweep
 found it, and it is the orchestrator's to route.
+
+## AMENDED 2026-09-11 — site 1 was EXECUTED, and the mechanism above is wrong
+
+A reviewer ran site 1 rather than reading it. **The defect is real and
+is worse than this file claimed. The mechanism this file names is not
+the one that fires, and the repair it implies would not close the
+row.** Both halves are recorded because the second is the more useful.
+
+**What reproduces.** Through `proper_crossings` with two-point loops:
+two collinear overlapping segments at finite scale give
+`Err(TouchingBoundary)`; the same configuration scaled by 1e199 gives
+**`Ok(0 crossings)`**. A touching boundary silently lost — the class,
+and worse than a mis-named refusal.
+
+**What actually fires.** Not the spurious `Zero` predicted above. The
+offset rung decides a **correct** `Zero`, and then `rhat =
+r.normalize()` is `(0, 0)`, which drives `s0 = s1 = 0`, so `overlap =
+0`, so `chart_region_collinear_overlap` decides `Zero` and the lane
+`continue`s past the crossing. The spurious-`Zero`-from-an-infinite-
+lever path was constructible only for genuinely SEPARATED parallel
+edges, where the outcome happens to be right anyway; transverse pairs
+with both norms infinite escalate at `chart_region_parallel` on a NaN
+`∞/∞`.
+
+**The operative consequence: a fix at the offset rung would not close
+this row.** The repair belongs where the collapsed `rhat` is USED, not
+where the offset is decided. Anyone taking this unit should start
+from the reviewer's reproduction, not from the argument above.
+
+**The generalisation, because this is twice in one day on this slate.**
+An argued reproduction is two claims — *a defect exists* and *this
+mechanism produces it* — and the first survives far more often than
+the second. The other instance is the parent unit's own row 3, filed
+as "both arms normalize to zero after a definite-positive decision"
+and measured as something narrower arriving by a different route. This
+is an argument for EXECUTING before filing, not for distrusting filed
+rows: both rows named real defects.
+
+## What the sweep that found these two actually covered
+
+The parent unit's pattern (a norm or `Margin` within 12 lines above a
+`.normalize()`) returned **58 hits**, all dispositioned. A
+shape-blind grep finds **186** `.normalize()` call sites in non-test
+source across `crates/`, `demos/` and `tools/`. The difference is
+exactly the four blind spots that PR disclosed — two-step norms,
+decide and normalize more than 12 lines apart or split across
+functions, normalization inside a helper, trait/macro expansion — so
+the disclosure is honest and the gap is accounted for.
+
+**"58 hits, all dispositioned" is not coverage of the family**, and
+this row exists partly to stop that reading hardening. `topo` (78
+sites) and `geom-brep` (21) are where the next look belongs;
+`geom-brep/src/enters.rs` was found there, which is why this row has
+two sites and not one.

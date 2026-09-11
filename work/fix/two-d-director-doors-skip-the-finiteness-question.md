@@ -138,11 +138,14 @@ its K consequence stated at the site.
 **Three of the item's five rows measured differently than filed**, and
 the corrections are in the PR body: `point_at`'s ROLL REFERENCE was a
 sixth silent site the item did not name (a frame with two zero
-columns, returned `Ok`); row 3's argued form does not reproduce — the
-door refuses in three of four shapes, at the wrong rung with the wrong
-recourse, and returns `Ok` only when one chord is finite, the other is
-not, and `full_circle` is set; row 5 reproduced exactly as argued and
-was executed here for the first time.
+columns, returned `Ok`); row 3's argued form does not reproduce, and
+the measured shape is *worse* than filed — over all EIGHT input
+shapes, **two** returned `Ok`, not one, and the second carries a
+plausible non-zero bisector `(-1,0,0)` built from the chord that
+survived, where the first at least looks wrong; the other six refuse
+at two different rungs (rung 1 for the poisoned pair, rung 3 for the
+overflowed), never for this reason; row 5 reproduced exactly as
+argued and was executed here for the first time.
 
 Residue filed rather than taken:
 `normalize-without-the-length-question-two-more-sites`.

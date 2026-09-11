@@ -68,7 +68,7 @@ use pncad::document::{
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
     SnapshotError, SplitError, UpdateError,
 };
-use pncad::geom_core::{BandError, BandField, FrameError, FrameInput};
+use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{
@@ -537,11 +537,10 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
         },
         FrameError::NonFiniteLength { input } => match input {
-            FrameInput::Aim => "non_finite_aim",
-            FrameInput::Tangent => "non_finite_tangent",
-            FrameInput::RollReference => "non_finite_roll_reference",
-            FrameInput::ReferenceLadder => "non_finite_reference_ladder",
-            FrameInput::MirrorNormal => "non_finite_mirror_normal",
+            FrameVector::Aim => "non_finite_aim",
+            FrameVector::Tangent => "non_finite_tangent",
+            FrameVector::RollReference => "non_finite_roll_reference",
+            FrameVector::MirrorNormal => "non_finite_mirror_normal",
         },
         FrameError::Band(_) => "band",
     }

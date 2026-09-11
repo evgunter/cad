@@ -619,20 +619,36 @@ pub trait Real:
 ///   share;
 /// - `sweep`'s `revolve::axis::AxisFrame::build`;
 /// - `topo`'s `sector_shape`, which asks it of each bounding chord
-///   separately because its arm is their `min` and a `min` hides a
-///   non-finite chord behind a finite one;
+///   separately because its arm is their `min` and [`Real::min`]
+///   propagates `NaN` but not infinity, so a `min` hides an
+///   OVERFLOWED chord behind a finite one;
 /// - `profile`'s two 2-D director doors (`unit_from_components`,
 ///   `arc_fillet::carrier_tangent`).
 ///
-/// Each refuses with its own typed arm and its own sentence — one
-/// rule, one spelling, one recourse, five wordings of it — because
-/// what a caller can DO about an overflowed direction differs by
-/// door while the question does not.
+/// Each refuses with its own typed arm, naming the recourse its own
+/// caller can reach: the question is one question, but what a caller
+/// can DO about an overflowed direction differs by door — a spelled
+/// component pair is divided through for free, a derived displacement
+/// is not.
 ///
-/// One further site normalizes without deciding at all, which is a
-/// different shape and the declined half of the direction family:
+/// **This roster is hand-kept and nothing enforces it.** It is a
+/// five-door cross-crate claim living in a leaf crate that cannot see
+/// four of them, so it is exactly as current as the last person to
+/// edit it. Treat it as a reading aid, not as a census; the census
+/// that is checked is `docs/K-REPORT.md`'s, and it is about decided
+/// names rather than about this question.
+///
+/// **The declined half of the family: normalize-without-deciding.**
+/// A site that normalizes a vector whose length it never decides at
+/// all is a different shape — there is no sign question in front of
+/// it to put this one before — and closing it is not this predicate's
+/// job as things stand. Known instances, and the count is a floor
+/// rather than a total because nothing sweeps for them:
 /// `editor-core`'s `clearance::chart_frame` (a bracket read of the
-/// normalized OUTPUT).
+/// normalized OUTPUT) and `geom-brep`'s `enters::enters_material`,
+/// which decides a caller-supplied arm and then normalizes a `dir`
+/// whose own length is never asked about — a `pub` door. Filed as
+/// `work/fix/normalize-without-the-length-question-two-more-sites`.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;

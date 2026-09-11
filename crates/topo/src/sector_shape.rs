@@ -226,18 +226,33 @@ pub(crate) struct SectorShape<T: Real> {
 /// legitimate rather than a spike.
 ///
 /// **Rung 0: are both chord lengths NUMBERS?** Asked before rung 1,
-/// and asked of each chord separately, because rung 1's arm is their
-/// `min` and `min` hides a non-finite chord behind a finite one. A
-/// chord past [`Vec3::normalize`]'s ~1e154 overflow band has an
-/// infinite norm; an infinite margin is maximally definite, so rung 1
-/// passes and the chord normalizes to the ZERO vector. Measured on
-/// this body before the question went first: with one finite chord,
-/// one overflowed, and `full_circle` set, the door returned `Ok` with
-/// `unit_next` and the bisector both the zero vector — a subdivision
-/// direction of nothing, out of a decided path. With `full_circle`
-/// clear, or with both chords overflowed, it refused — but at rung 3,
-/// as a spike or a poisoned straightness margin, naming neither the
-/// chord nor a recourse that could work.
+/// and asked of each chord SEPARATELY, because rung 1's arm is their
+/// `min` and [`Real::min`] propagates `NaN` but not infinity — so
+/// `min` hides an OVERFLOWED chord behind a finite one (`min(3, ∞) =
+/// 3`) while a poisoned one stops rung 1 on its own. A chord past
+/// [`Vec3::normalize`]'s ~1e154 overflow band has an infinite norm;
+/// hidden under the `min`, rung 1 sees a healthy arm, passes, and the
+/// chord normalizes to the ZERO vector.
+///
+/// Measured on this body before the question went first, over all
+/// eight shapes (four chord pairs × `full_circle`): **two** of them
+/// returned `Ok`, both with `full_circle` set and one chord
+/// overflowed, once in each order. One produced an all-zero bisector;
+/// the other produced `(-1,0,0)` — a unit direction built by `n ×
+/// unit_next` from the chord that survived, with nothing about it to
+/// smell. The other six refused, but never for this reason and never
+/// with a recourse that could work: the two poisoned shapes escalated
+/// at rung 1, the two doubly-overflowed ones at rung 3, and the two
+/// single-overflow shapes with `full_circle` clear were refused as
+/// SPIKES. The tests carry the full table.
+///
+/// **Point-scalar gate.** `is_finite_length` is a value question, and
+/// at `T = Interval` it is a no-op: `Interval::is_poison` is
+/// `is_nai() || is_empty()`, and `[1e200, ∞] − [1e200, ∞]` is
+/// `[−∞, ∞]`, which answers finite. So rung 0 bites at `f64` and
+/// `Probe` and waves an interval chord through to the rungs below. No
+/// live caller instantiates this body at `Interval` today; see
+/// `geom_core::is_finite_length` for the general statement.
 ///
 /// **K consequence.** Rung 0 refuses before the funnel, so a
 /// non-finite chord contributes no sample under `sector_arm` (nor,
@@ -420,7 +435,18 @@ mod tests {
     fn spike_between_distinct_edges_refuses_named() {
         let e = shape(v(1.0, 0.0, 0.0), v(1.0, 0.0, 0.0), false)
             .expect_err("a spike has no valid interior direction");
-        assert_eq!(e, invalid(band(), "sector_straight"));
+        // LITERAL pins, restored across the `SectorFault` boundary.
+        // `assert_eq!(e, invalid(band(), "sector_straight"))` reads
+        // shorter and says less: `invalid` is production code thirty
+        // lines up, so that form compares the thing under test against
+        // itself and stays green if it starts emitting a different
+        // `MarginDiag`.
+        let SectorFault::Rung(e) = e else {
+            panic!("a spike is a rung refusal, not a chord-length one: {e:?}");
+        };
+        assert_eq!(e.predicate, Some("sector_straight"));
+        assert_eq!(e.margin, MarginDiag::Invalid);
+        assert_eq!(e.band, band());
     }
 
     /// **Rung 0: a chord whose length is not a NUMBER.** A chord past
@@ -428,22 +454,55 @@ mod tests {
     /// which is maximally definite to the arm rung, and then
     /// normalizes to the zero vector.
     ///
-    /// Measured on this body at the merge base, all four shapes:
+    /// **Measured on this body at the merge base (`5fbdda206`), all
+    /// EIGHT shapes** — four chord pairs × `full_circle`. Every line
+    /// below was executed, not argued:
     ///
-    /// - one chord finite, one overflowed, `full_circle` SET —
-    ///   `Ok(SectorShape { arm: 3.0, unit_own: (0,1,0), unit_next:
-    ///   (0,0,0), bisector: Some((0,0,0)) })`. A subdivision
-    ///   direction of nothing, reported as success. `min` is why the
-    ///   arm looked healthy: it hid the infinite norm behind the
-    ///   finite one, which is why rung 0 asks each chord separately
-    ///   rather than asking the arm.
-    /// - the other three shapes refused, but at rung 3
-    ///   (`sector_straight`), as a spike or a poisoned straightness
-    ///   margin — a refusal naming neither the chord nor a recourse
-    ///   that could work.
+    /// | chords (own / next) | `full_circle` clear | `full_circle` set |
+    /// |---|---|---|
+    /// | `1e200` / `1e200` | rung 3 escalation | rung 3 escalation |
+    /// | finite / `1e200` | rung 3 `invalid` | **`Ok`, bisector `(0,0,0)`** |
+    /// | `1e200` / finite | rung 3 `invalid` | **`Ok`, bisector `(-1,0,0)`** |
+    /// | `NaN` / finite | rung 1 escalation | rung 1 escalation |
+    ///
+    /// **Two shapes returned `Ok`, not one, and the second is the
+    /// worse of the pair.** With `full_circle` set and ONE chord
+    /// overflowed, the door reported success either way round:
+    ///
+    /// - own finite, next overflowed — `arm: 3.0, unit_own: (0,1,0),
+    ///   unit_next: (0,0,0), bisector: Some((0,0,0))`. A subdivision
+    ///   direction of nothing.
+    /// - own overflowed, next finite — `arm: 3.0, unit_own: (0,0,0),
+    ///   unit_next: (0,1,0), bisector: Some((-1,0,0))`. The bisector
+    ///   is `n × unit_next`, built from the chord that SURVIVED, so
+    ///   it is a unit vector in a plausible direction with nothing
+    ///   about it to smell. The all-zero bisector above at least
+    ///   looks wrong to a downstream reader; this one does not.
+    ///
+    /// **Why `min` hides exactly one of the two ends.** [`Real::min`]
+    /// propagates `NaN` but not infinity, so `min(3.0, ∞) = 3.0`
+    /// (the arm looks healthy and rung 1 passes) while
+    /// `min(3.0, NaN) = NaN` (rung 1 escalates immediately). That is
+    /// the whole of the split above: the OVERFLOW end is hidden by
+    /// `min` and reaches rung 3 or slips through, the POISON end
+    /// never gets past rung 1. It is also why rung 0 asks each chord
+    /// separately rather than asking the arm — asking the arm would
+    /// have left both silent shapes open.
+    ///
+    /// The six loud shapes were loud in two different ways, neither
+    /// of which names the chord or a recourse that could work: the
+    /// two `NaN` rows and the two `1e200`/`1e200` rows are `decide`
+    /// ESCALATIONS (a poisoned margin, `MarginDiag::Invalid`), while
+    /// the two single-overflow rows with `full_circle` clear are this
+    /// body's own [`invalid`] spike refusal. Those two OUTCOMES are
+    /// indistinguishable by value — an escalation carrying
+    /// `MarginDiag::Invalid` and an `invalid(band, p)` compare equal —
+    /// which is why the rows below pin the two fields literally
+    /// instead of comparing against [`invalid`], which is production
+    /// code in this same file.
     ///
     /// The `full_circle` flag is carried through every row because it
-    /// is what separated the silent shape from the loud ones: a row
+    /// is what separates the silent shapes from the loud ones: a row
     /// that only tested the loud shapes would have gone green on the
     /// merge base.
     #[test]
@@ -486,7 +545,13 @@ mod tests {
     fn degenerate_arm_refuses_named() {
         let e = shape(v(1.0, 0.0, 0.0), v(0.0, 0.0, 0.0), false)
             .expect_err("a collapsed chord cannot meter the corner");
-        assert_eq!(e, invalid(band(), "sector_arm"));
+        // Literal pins, for the reason spelled out on the spike row.
+        let SectorFault::Rung(e) = e else {
+            panic!("a collapsed chord has a finite length: {e:?}");
+        };
+        assert_eq!(e.predicate, Some("sector_arm"));
+        assert_eq!(e.margin, MarginDiag::Invalid);
+        assert_eq!(e.band, band());
     }
 
     /// **The anti-re-fork row.** The three sector-shape K names are

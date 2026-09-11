@@ -1140,8 +1140,21 @@ pub enum PathError<T: Real> {
     /// vector is the anchor's displacement from the centre.
     ///
     /// Distinct from [`PathError::ZeroDirection`] on purpose: the
-    /// direction is **not** zero, and its recourse (scale the
-    /// components UP) is exactly backwards here.
+    /// direction is **not** zero, and that arm's recourse — scale the
+    /// components UP — is exactly backwards here.
+    ///
+    /// **The recourse is the ratio, not the geometry, wherever the
+    /// caller holds the numbers.** Both doors read only the ratio of
+    /// the components, so dividing the pair through by a common
+    /// factor is free and always sufficient. At
+    /// [`PartialPath::toward`] the caller spells the components and
+    /// can do exactly that; at the arc carrier's tangent they are a
+    /// displacement the caller does not hold directly, and moving the
+    /// authored geometry into range is the way to reach the same
+    /// division. Naming only the second would send a `toward` caller
+    /// to move geometry that does not need moving — the
+    /// wrong-recourse twin of the wrong-cause defect in
+    /// `memories/refusal-text-is-not-cause.md`.
     NonFiniteDirection {
         /// The refused x component.
         dx: T,
@@ -1616,9 +1629,11 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::NonFiniteDirection { dx, dy } => write!(
                 f,
-                "a direction derived from ({dx}, {dy}) has no finite length \u{2014} the \
-                 norm overflows, or a component is not a number; scale the geometry into \
-                 the session's range",
+                "a direction derived from ({dx}, {dy}) has no finite length \u{2014} its \
+                 components overflow the norm, or one of them is not a number; only the \
+                 ratio of the components is read, so divide them through by a common \
+                 factor \u{2014} or, where they are derived from authored geometry rather \
+                 than spelled, scale that geometry into the session's range",
                 dx = num(dx),
                 dy = num(dy)
             ),
@@ -4211,16 +4226,27 @@ mod tests {
             )
             .is_ok()
         );
-        // The sentence names the cause and a recourse that can work,
-        // and is not the zero-direction sentence.
+        // The sentence names the cause and a recourse that can work
+        // AT BOTH DOORS, and is not the zero-direction sentence.
         let s = PathError::NonFiniteDirection {
             dx: 1e200_f64,
             dy: 0.0,
         }
         .to_string();
         assert!(s.contains("no finite length"), "{s}");
+        // The arm is shared by a door whose components are SPELLED
+        // (`toward`) and one whose vector is DERIVED (the arc
+        // carrier's tangent). Only the ratio is read at either, so the
+        // free recourse — divide the pair through — must be named
+        // first; sending a `toward` caller to move geometry instead
+        // would be a refusal naming the wrong recourse.
         assert!(
-            s.contains("scale the geometry into the session's range"),
+            s.contains("only the ratio of the components is read"),
+            "{s}"
+        );
+        assert!(s.contains("divide them through by a common factor"), "{s}");
+        assert!(
+            s.contains("scale that geometry into the session's range"),
             "{s}"
         );
         assert!(!s.contains("scaling them up costs nothing"), "{s}");

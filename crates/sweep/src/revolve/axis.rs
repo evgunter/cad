@@ -52,6 +52,26 @@ impl<T: Decide> AxisFrame<T> {
     /// coordinate zero, every axial coordinate zero, out of a decided
     /// path. So the length is asked whether it is a NUMBER first.
     ///
+    /// **Point-scalar gate.** `is_finite_length` asks through the
+    /// value channel, and at `T = Interval` it is a no-op:
+    /// `Interval::is_poison` is `is_nai() || is_empty()`, and
+    /// `[1e200, ∞] − [1e200, ∞]` is `[−∞, ∞]`, which answers finite.
+    /// So this gate bites at `f64` and `Probe` and waves an overflowed
+    /// enclosure through to the sign decision below. No live caller
+    /// builds this frame at `Interval` today; see
+    /// `geom_core::is_finite_length` for the general statement.
+    ///
+    /// **The length is evaluated twice**, by `axis.dir.norm()` here
+    /// and again inside `Margin::norm2(axis.dir)` below, which is
+    /// `Self(v.norm())` verbatim — so the two are bit-identical and
+    /// the gate cannot disagree with the decision it guards. It is
+    /// spelled this way, rather than binding the norm once and
+    /// switching to `Margin::of`, because `norm2` is the dimensional
+    /// door this site is supposed to come through and changing which
+    /// door a decided quantity uses is not a cosmetic edit. The other
+    /// four doors in this family bind once; this one is the exception
+    /// and the reason is here rather than in a reviewer's head.
+    ///
     /// **K consequence.** The refusal precedes the funnel, so a
     /// non-finite axis contributes no `revolve_axis_direction` sample.
     /// The sample it used to contribute was a `+∞` margin recorded as

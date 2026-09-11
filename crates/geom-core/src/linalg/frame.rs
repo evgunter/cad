@@ -56,10 +56,12 @@
 //!    coincident and the ambiguous outcomes advance to the next rung
 //!    (an ambiguous reference is not a usable reference).
 //! 4. **True degeneracy refuses, typed.** A zero-length or poisoned
-//!    tangent refuses [`FrameInput::Tangent`]; a unit tangent can
-//!    never miss both ladder rungs (world +Z and +X are orthogonal),
-//!    so [`FrameInput::ReferenceLadder`] refuses rather than
-//!    inventing a frame and no input is known to reach it.
+//!    tangent refuses [`FrameInput::Tangent`]; a unit tangent at a
+//!    POINT scalar can never miss both ladder rungs (world +Z and +X
+//!    are orthogonal), so [`FrameInput::ReferenceLadder`] refuses
+//!    rather than inventing a frame and no input is known to reach
+//!    it. "Known" is doing real work there — see the variant's docs
+//!    for the enclosure that is not ruled out.
 //! 5. **Finiteness is asked before sign.** Every length here is
 //!    classified by `definitely_positive`, which asks
 //!    [`is_finite_length`] first: a direction past
@@ -67,8 +69,17 @@
 //!    norm, which is maximally DEFINITE to the classifier and
 //!    normalizes to the zero vector, so deciding the sign first
 //!    returns a frame built from nothing. That refusal is
-//!    [`FrameError::NonFiniteLength`], and it names the input whose
-//!    length is not a number.
+//!    [`FrameError::NonFiniteLength`], and it names the
+//!    [`FrameVector`] whose length is not a number.
+//!
+//!    **This gate is a POINT-scalar gate.** [`is_finite_length`] asks
+//!    through the value channel, and at `T = Interval` the question
+//!    is a no-op: `Interval::is_poison` is `is_nai() || is_empty()`,
+//!    and `[1e200, ∞] − [1e200, ∞]` is `[−∞, ∞]`, which answers
+//!    finite. So clause 5 bites at `f64` and `Probe` and waves an
+//!    overflowed enclosure through to the sign decision below. No
+//!    live caller instantiates this module at `Interval` today; the
+//!    honest scope is stated at [`is_finite_length`] itself.
 //!
 //! The ladder is a *convention*, and conventions are discontinuous:
 //! the frame flips as the tangent crosses the ladder's switch-over.
@@ -132,15 +143,27 @@ pub enum FrameInput {
     /// first, at its own name.
     RollReference,
     /// [`path_start_frame`]'s reference ladder ran out: neither world
-    /// +Z nor world +X was definitely off the tangent line. The two
-    /// are orthogonal, so no unit tangent can do this, and the
+    /// +Z nor world +X was definitely off the tangent line. The
     /// overflow class that used to arrive here — a tangent past
     /// [`Vec3::normalize`]'s ~1e154 band, which normalizes to the zero
     /// vector after passing a decision taken on an infinite norm — is
     /// now refused at the tangent's own name as
-    /// [`FrameError::NonFiniteLength`]. **No input is known to reach
-    /// this variant**; it refuses rather than inventing a frame if one
-    /// ever does.
+    /// [`FrameError::NonFiniteLength`].
+    ///
+    /// **No input is known to reach this variant, and that is weaker
+    /// than "it is dead".** At a point scalar the two rungs are
+    /// orthogonal, so a unit tangent is definitely off at least one of
+    /// them. That argument does not carry to every `T: Decide`: a wide
+    /// enclosure whose norm is definitely positive but whose
+    /// components each straddle zero escalates BOTH rungs and lands
+    /// here. So the variant is kept and refuses rather than inventing
+    /// a frame — deleting it would be a claim about the generic
+    /// signature that this module cannot make.
+    ///
+    /// What IS provably dead is the combination of this input with
+    /// [`FrameError::NonFiniteLength`], because the ladder decides its
+    /// rungs with a bare `decide` rather than through the funnel that
+    /// raises that arm. [`FrameVector`] is the type that removes it.
     ReferenceLadder,
     /// [`mirror_across_plane`]'s plane normal, whose length was not
     /// definitely nonzero.
@@ -156,6 +179,60 @@ impl FrameInput {
             FrameInput::RollReference => "roll reference",
             FrameInput::ReferenceLadder => "reference ladder (world +Z, then world +X)",
             FrameInput::MirrorNormal => "mirror plane normal",
+        }
+    }
+}
+
+/// **Which CALLER-SUPPLIED vector had no finite length** — the
+/// payload of [`FrameError::NonFiniteLength`], and deliberately a
+/// smaller type than [`FrameInput`].
+///
+/// [`FrameInput`] has a fifth member, [`FrameInput::ReferenceLadder`],
+/// which names a pair of unit CONSTANTS rather than anything a caller
+/// hands in. Structurally the ladder never asks this question at all:
+/// it decides its rungs with a bare [`decide`] rather than through
+/// `definitely_positive`, which is the only site that raises
+/// [`FrameError::NonFiniteLength`] — so nothing can construct a
+/// non-finite refusal naming the ladder. Reusing [`FrameInput`] here
+/// would make that dead combination REPRESENTABLE, and — because the
+/// payload crosses to Python as a tag word — would mint
+/// `non_finite_reference_ladder`, an FFI word for a state no input
+/// produces, on a public surface where a caller could branch on it
+/// forever. The four members below are exactly the four vectors the
+/// four doors take.
+///
+/// This is NOT a claim that [`FrameInput::ReferenceLadder`] is dead.
+/// It is not: that variant's own docs record why no unit tangent is
+/// known to reach it and why it is kept anyway. What is provably dead
+/// is the COMBINATION, and that is what this type removes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FrameVector {
+    /// [`point_at`]'s aim, `target − eye`.
+    Aim,
+    /// [`path_start_frame`]'s tangent.
+    Tangent,
+    /// [`point_at`]'s roll reference — specifically, its
+    /// perpendicular offset from the aim line.
+    RollReference,
+    /// [`mirror_across_plane`]'s plane normal.
+    MirrorNormal,
+}
+
+impl FrameVector {
+    /// The vector's name, for messages and pins — the same words
+    /// [`FrameInput::name`] uses for the same four inputs.
+    pub fn name(self) -> &'static str {
+        FrameInput::from(self).name()
+    }
+}
+
+impl From<FrameVector> for FrameInput {
+    fn from(v: FrameVector) -> Self {
+        match v {
+            FrameVector::Aim => FrameInput::Aim,
+            FrameVector::Tangent => FrameInput::Tangent,
+            FrameVector::RollReference => FrameInput::RollReference,
+            FrameVector::MirrorNormal => FrameInput::MirrorNormal,
         }
     }
 }
@@ -176,13 +253,20 @@ pub enum FrameError {
         indeterminate: Option<Indeterminate>,
     },
     /// An input direction's length is **not a finite number**, so no
-    /// sign decision about it means anything — see [`FrameInput`] for
-    /// which input. Distinct from [`FrameError::Degenerate`] on
+    /// sign decision about it means anything — see [`FrameVector`]
+    /// for which one. Distinct from [`FrameError::Degenerate`] on
     /// purpose: the direction is not zero and no tolerance lever
     /// reaches it.
+    ///
+    /// The payload is [`FrameVector`], NOT the [`FrameInput`] its
+    /// sibling carries, and the narrowing is the point: only a
+    /// caller-supplied vector can be non-finite, so
+    /// [`FrameInput::ReferenceLadder`] — a pair of unit constants
+    /// decided outside this question's only door — is not
+    /// representable here. See [`FrameVector`] for the whole argument.
     NonFiniteLength {
-        /// The offending input.
-        input: FrameInput,
+        /// The offending vector.
+        input: FrameVector,
     },
     /// The run's tolerance does not yield a usable band (see
     /// [`Band::linear`]) — reported, not worked around.
@@ -243,7 +327,7 @@ fn definitely_positive<T: Decide>(
     name: &'static str,
     length: T,
     band: Band,
-    input: FrameInput,
+    input: FrameVector,
 ) -> Result<(), FrameError> {
     if !is_finite_length(length) {
         return Err(FrameError::NonFiniteLength { input });
@@ -251,11 +335,11 @@ fn definitely_positive<T: Decide>(
     match decide(name, Margin::of(length), band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(_) => Err(FrameError::Degenerate {
-            input,
+            input: input.into(),
             indeterminate: None,
         }),
         Err(i) => Err(FrameError::Degenerate {
-            input,
+            input: input.into(),
             indeterminate: Some(i),
         }),
     }
@@ -323,7 +407,7 @@ pub fn point_at<T: Decide>(
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
     let aim = target - eye;
-    definitely_positive("frame_point_at_aim", aim.norm(), band, FrameInput::Aim)?;
+    definitely_positive("frame_point_at_aim", aim.norm(), band, FrameVector::Aim)?;
     let unit = aim.normalize();
     let perp = roll_reference.cross(unit);
     let len = perp.norm();
@@ -331,7 +415,7 @@ pub fn point_at<T: Decide>(
         "frame_point_at_roll_offset",
         len,
         band,
-        FrameInput::RollReference,
+        FrameVector::RollReference,
     )?;
     Ok(frame_from_unit_aim(eye, unit, perp, len))
 }
@@ -359,6 +443,9 @@ pub fn point_at<T: Decide>(
 /// - [`FrameInput::ReferenceLadder`] when neither rung is definitely
 ///   off the tangent line — unreachable for an actual direction; see
 ///   the variant's docs.
+/// - [`FrameError::NonFiniteLength`] at [`FrameInput::Tangent`] when
+///   the tangent's length is not a finite number — asked before the
+///   sign, so it precedes the [`FrameInput::Tangent`] row above.
 /// - [`FrameError::Band`] from [`Band::linear`].
 pub fn path_start_frame<T: Decide>(
     origin: Point3<T>,
@@ -370,7 +457,7 @@ pub fn path_start_frame<T: Decide>(
         "frame_path_start_tangent",
         tangent.norm(),
         band,
-        FrameInput::Tangent,
+        FrameVector::Tangent,
     )?;
     let unit = tangent.normalize();
     // The ladder, in order. A rung is taken only on a DEFINITE
@@ -470,9 +557,13 @@ pub fn path_start_frame<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`FrameInput::MirrorNormal`] when the normal's length is not
-/// definitely nonzero (no plane is named), or [`FrameError::Band`]
-/// from [`Band::linear`].
+/// - [`FrameInput::MirrorNormal`] when the normal's length is not
+///   definitely nonzero — no plane is named.
+/// - [`FrameError::NonFiniteLength`] at [`FrameInput::MirrorNormal`]
+///   when that length is not a finite number. Asked first: an
+///   overflowed normal used to read maximally definite and return the
+///   IDENTITY, a mirror that mirrors nothing.
+/// - [`FrameError::Band`] from [`Band::linear`].
 pub fn mirror_across_plane<T: Decide>(
     point: Point3<T>,
     normal: Vec3<T>,
@@ -483,7 +574,7 @@ pub fn mirror_across_plane<T: Decide>(
         "frame_mirror_normal",
         normal.norm(),
         band,
-        FrameInput::MirrorNormal,
+        FrameVector::MirrorNormal,
     )?;
     let n = normal.normalize();
     let two = T::from_f64(2.0);
@@ -687,7 +778,7 @@ mod tests {
             )
             .unwrap_err(),
             FrameError::NonFiniteLength {
-                input: FrameInput::Aim
+                input: FrameVector::Aim
             }
         );
         // Poison refuses too — as a length that is not a number,
@@ -704,7 +795,7 @@ mod tests {
             matches!(
                 p,
                 Err(FrameError::NonFiniteLength {
-                    input: FrameInput::Aim
+                    input: FrameVector::Aim
                 })
             ),
             "{p:?}"
@@ -799,7 +890,7 @@ mod tests {
                 Tol::witness()
             ),
             Err(FrameError::NonFiniteLength {
-                input: FrameInput::Tangent
+                input: FrameVector::Tangent
             })
         ));
         // A tangent whose components exceed the normalization range
@@ -817,7 +908,7 @@ mod tests {
             )
             .unwrap_err(),
             FrameError::NonFiniteLength {
-                input: FrameInput::Tangent
+                input: FrameVector::Tangent
             }
         );
         // For every input that IS a direction, the ladder always finds
@@ -926,7 +1017,7 @@ mod tests {
                 Tol::witness()
             ),
             Err(FrameError::NonFiniteLength {
-                input: FrameInput::MirrorNormal
+                input: FrameVector::MirrorNormal
             })
         ));
     }
@@ -983,11 +1074,11 @@ mod tests {
         let tol = Tol::witness();
         let rows = [
             (
-                FrameInput::MirrorNormal,
+                FrameVector::MirrorNormal,
                 mirror_across_plane(Point3::origin(), Vec3::new(big, 0.0, 0.0), tol),
             ),
             (
-                FrameInput::Aim,
+                FrameVector::Aim,
                 point_at(
                     Point3::origin(),
                     Point3::new(big, 0.0, 0.0),
@@ -998,7 +1089,7 @@ mod tests {
             (
                 // A finite aim, a reference whose perpendicular offset
                 // overflows: the offset is this input's own length.
-                FrameInput::RollReference,
+                FrameVector::RollReference,
                 point_at(
                     Point3::origin(),
                     Point3::new(0.0, 0.0, 1.0),
@@ -1007,7 +1098,7 @@ mod tests {
                 ),
             ),
             (
-                FrameInput::Tangent,
+                FrameVector::Tangent,
                 path_start_frame(Point3::origin(), Vec3::new(big, 0.0, 0.0), tol),
             ),
         ];
@@ -1022,7 +1113,7 @@ mod tests {
         // claim the direction is zero — it is not — nor offer the
         // coincidence recourse, which no tolerance lever can reach.
         let s = FrameError::NonFiniteLength {
-            input: FrameInput::Tangent,
+            input: FrameVector::Tangent,
         }
         .to_string();
         assert!(s.contains("path tangent"), "{s}");
