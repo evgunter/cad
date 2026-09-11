@@ -1326,9 +1326,8 @@ agent's, not Ev's.** Read one by one, they fall in four groups:
   `node-error-kind-has-no-fieldless-projection` (fieldless mirror, or
   carry `NodeErrorKind` itself),
   `levered-clash-margins-hide-their-arm` (a typed unit, a second arm
-  in the sentence, or a small-angle argument — and S-MATE is CLOSED,
-  so the "needs S-MATE's assent" line in that row is stale and there
-  is no assent left to get),
+  in the sentence, or a small-angle argument — but see the re-home
+  below before dispatching it),
   `census-containment-flatten-fabricates-its-diagnostic`,
   `normalize-without-the-length-question-two-more-sites`.
 - **Question-first** — the output is an answer, and the diff is
@@ -1373,6 +1372,43 @@ Every lane is told to update **only its own item file** — not this log
 and not `plan.md` — because five concurrent lanes editing one narrative
 file is five merge conflicts, and one-file-one-item exists to make that
 visible rather than to make it happen.
+
+### Two mate rows are on ground FIX no longer has a clean claim to
+
+Held back from this wave deliberately, and this is the finding the
+triage turned up that is worth more than the triage.
+`levered-clash-margins-hide-their-arm` says it *"needs S-MATE's assent
+or a re-home"*. **S-MATE left the tracker on 2026-09-04**
+(`docs/DOC-LEDGER.md` sweep 6), which reads at first like the
+blocker evaporating. It is the opposite: its territory did not go
+unowned, it was **inherited by two open programs**. Both
+`work/docm/program.md` and `work/msolve/program.md` now carry
+`crates/editor-core/src/mate/*` in `paths`. So the assent is still
+owed — to DOCM and MSOLVE rather than to a program that no longer
+exists — and a row that reads "the owner is gone, take it" would have
+walked a FIX lane into two live fences.
+
+**And MSOLVE is not merely the owner, it is working this exact
+subject right now.** Open PR **#2116, "MSOLVE-6: the mate's lever is
+the mated parts' own extent."** This row is about three levered
+mate-fold clash margins reaching the refusal with their arm invisible.
+Same file family, same quantity. Dispatching it here would have raced
+a live PR on the lever it is about.
+
+**Disposition: re-home `levered-clash-margins-hide-their-arm` to
+MSOLVE** (a header edit and a `git mv`, per `work/README.md` —
+the file MOVES, keeping its id, and never gets copied), once #2116
+lands or MSOLVE says how it wants the two sequenced.
+`mate-clocking-has-no-gui-path` sits the same way: its own `## Home`
+section still names `work/mate/`, a directory that is gone, and
+`plan.md` holds half (1) here on a fence that has since been claimed
+twice. Both go to MSOLVE/DOCM before any lane sees them.
+
+This is the "fired trigger is not a blocker" shape one level up from
+what lint checks: the row named a blocker that has since closed, and
+the closure did not free the row — it substituted two new owners for
+one. Nothing mechanical could have caught it, because the row's
+blocker was prose.
 
 **The band row's counts were already stale at dispatch and the brief
 says so.** The item claims 24 `crates/sweep` copies and 36 overall; a
