@@ -436,3 +436,14 @@ process-global mutex now) and rustdoc links to private items.
 `docs/DESIGN.md` D1/D9 now state the once-per-door rule with the
 ruling cited. Block PERF-B2 slot 0 done; PERF-5 under dual review,
 PERF-6 implementing.
+
+## Side unit merged: `budget_faces` rows (2026-09-11, PR 2321)
+
+Test-only, no A/B row, orchestrator-reviewed: the 70-cell
+`fit_offset_at` sweep becomes fourteen `(base, δ)` rows nextest can
+spread, every cell's assertion kept, the two witness faces (sample cap;
+not-finite with no finite round) asserted by name on the columns that
+reach them, and every column refusing if it fitted all five tolerances
+— the one way the sweep could rot silently. S-TCOST territory, landed
+from PERF by announcement (their census predates the file). The lane
+measures the geom-brep binary's wall in its report; recorded there.
