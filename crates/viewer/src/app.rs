@@ -1238,6 +1238,34 @@ impl eframe::App for ViewerApp {
                     ops.push(SessionOp::Redo);
                 }
                 ui.separator();
+                // **The cancel doors**, beside the history controls
+                // because that is where a reader whose every edit is
+                // being refused already is. They are HERE and not on
+                // the field that opened the gesture: the field is what
+                // can stop being drawn mid-drag, and a cancel sited on
+                // it would vanish with the exit it exists to replace
+                // (`session::CancelDoor`). This panel is drawn on every
+                // frame whatever the selection, the standing and the
+                // layout are.
+                //
+                // Enabled exactly while the door's own gesture is in
+                // flight, and out of flight it says the refusal the
+                // operation itself would give — the value that knows
+                // carries the words, so the two cannot disagree.
+                for door in self.session.cancel_doors() {
+                    let button =
+                        ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
+                    let clicked = match &door.blocked {
+                        Some(refusal) => {
+                            button.on_disabled_hover_text(refusal.to_string()).clicked()
+                        }
+                        None => button.clicked(),
+                    };
+                    if clicked {
+                        ops.push(door.op);
+                    }
+                }
+                ui.separator();
                 if ui
                     .button("Zoom to fit")
                     .on_hover_text("frame the whole model in the viewport")

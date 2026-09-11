@@ -765,3 +765,72 @@ impl OpOutcome {
         }
     }
 }
+
+/// **One cancel door**: a gesture's exit that is NOT the widget the
+/// gesture was opened on.
+///
+/// A gesture's ordinary exit is the release event on the field that
+/// opened it ([`crate::widgets::drag_gesture_ops`]'s `drag_stopped`
+/// arm), and that exit exists only on a frame the field is drawn.
+/// `DocSession::slot_rows` answers nothing for a selection whose
+/// standing is not live, so a slot drag whose own preview lands an
+/// evaluation its picked face does not survive loses its only door
+/// under the pointer still holding it: no release operation is
+/// emitted, the gesture stays open with no pointer behind it, and
+/// [`Refusal::GestureInFlight`] — *"finish the drag first"* — then
+/// answers every operation that moves the document, naming a remedy
+/// with nothing behind it. A cancel door is that remedy, and its
+/// absence is what made the refusal dishonest.
+///
+/// **A door that cannot act says so rather than vanishing**, which is
+/// the posture `frame::ChooserBackend`'s two dialog controls take: the
+/// door is drawn whatever the selection, the standing and the
+/// evaluation are, and disabled rather than absent when it can do
+/// nothing.
+///
+/// **How it says so is the OTHER precedent**, and the two part company
+/// exactly here: the dialog controls hand
+/// `frame::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
+/// button — to `on_disabled_hover_text`, which is the shape
+/// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
+/// reason-elsewhere.md` is open about. The one this follows is
+/// `pane::create`'s catalogue entry: *carrying the op's own refusal —
+/// read off the entry, not minted here*. So [`CancelDoor::blocked`] is
+/// a [`Refusal`] and not a sentence, and the disabled control's words
+/// are the refused operation's own.
+#[derive(Debug)]
+pub struct CancelDoor {
+    /// What the control is called.
+    pub label: &'static str,
+    /// The operation a click emits.
+    pub op: SessionOp,
+    /// `None` while the gesture this door closes is in flight — the
+    /// one state the door can act in — and otherwise the refusal
+    /// [`CancelDoor::op`] answers with, which is the whole of what the
+    /// disabled control has to say.
+    pub blocked: Option<Refusal>,
+}
+
+impl CancelDoor {
+    /// One door, from the gesture's own in-flight state and the
+    /// refusal its operation gives when there is no gesture.
+    ///
+    /// **Both doors are composed here rather than spelled twice.** The
+    /// two gestures are held by different values, opened by different
+    /// operations and refuse in different vocabularies; that a cancel
+    /// is available exactly while its gesture is in flight, and says
+    /// the operation's own refusal otherwise, is the part that is not
+    /// a difference.
+    pub(super) fn of(
+        label: &'static str,
+        op: SessionOp,
+        in_flight: bool,
+        refused: Refusal,
+    ) -> Self {
+        Self {
+            label,
+            op,
+            blocked: (!in_flight).then_some(refused),
+        }
+    }
+}
