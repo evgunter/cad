@@ -196,12 +196,13 @@ impl Frame {
     /// evaluation order (D9): a proper frame's is `+1`, an improper
     /// (mirroring) frame's `−1`.
     pub fn determinant(&self) -> f64 {
-        self.linear::<f64>().determinant()
+        self.linear_f64().determinant()
     }
 
-    /// The linear part, in the backend scalar.
-    pub fn linear<T: Real>(&self) -> Mat3<T> {
-        let col = |c: [f64; 3]| Vec3::new(T::from_f64(c[0]), T::from_f64(c[1]), T::from_f64(c[2]));
+    /// The linear part at the scalar it is STORED in — the one place
+    /// the column arrays become a matrix.
+    fn linear_f64(&self) -> Mat3<f64> {
+        let col = |c: [f64; 3]| Vec3::new(c[0], c[1], c[2]);
         Mat3::from_cols(
             col(self.columns[0]),
             col(self.columns[1]),
@@ -209,17 +210,32 @@ impl Frame {
         )
     }
 
-    /// The affine map this frame denotes, in the backend scalar — what
-    /// the kernel's placement door consumes.
-    pub fn affine<T: Real>(&self) -> Affine3<T> {
+    /// The affine map at the scalar it is STORED in — the one place
+    /// the stored arrays become geometry, and the value every other
+    /// reader of this frame is one structural step from.
+    fn affine_f64(&self) -> Affine3<f64> {
         Affine3::from_parts(
-            self.linear::<T>(),
+            self.linear_f64(),
             Vec3::new(
-                T::from_f64(self.translation[0]),
-                T::from_f64(self.translation[1]),
-                T::from_f64(self.translation[2]),
+                self.translation[0],
+                self.translation[1],
+                self.translation[2],
             ),
         )
+    }
+
+    /// The linear part, in the backend scalar: the stored matrix
+    /// through [`Mat3::map`]. Structural — no arithmetic, so exact,
+    /// and the identity at `f64`, where [`Real::from_f64`] is.
+    pub fn linear<T: Real>(&self) -> Mat3<T> {
+        self.linear_f64().map(T::from_f64)
+    }
+
+    /// The affine map this frame denotes, in the backend scalar — what
+    /// the kernel's placement door consumes. The stored map through
+    /// [`Affine3::map`], on the same terms as [`Frame::linear`].
+    pub fn affine<T: Real>(&self) -> Affine3<T> {
+        self.affine_f64().map(T::from_f64)
     }
 
     /// The composition `self ∘ inner`: the frame that places by
@@ -231,8 +247,9 @@ impl Frame {
     /// makes the split/inline round trip exact: the frames a split
     /// hoists or leaves behind compose back with zero arithmetic, so
     /// D-4's bit-level volume identity never meets a rounding step.
-    /// The general product is plain f64 matrix arithmetic in a fixed
-    /// order (D9-deterministic, not claimed exact).
+    /// The general product is [`Affine3`]'s own multiplication at
+    /// `f64` — plain matrix arithmetic in that operator's fixed order
+    /// (D9-deterministic, not claimed exact).
     pub fn compose(&self, inner: &Frame) -> Frame {
         if self.is_identity_bits() {
             return *inner;
@@ -240,25 +257,7 @@ impl Frame {
         if inner.is_identity_bits() {
             return *self;
         }
-        let l = self.linear::<f64>() * inner.linear::<f64>();
-        let t = self.linear::<f64>()
-            * Vec3::new(
-                inner.translation[0],
-                inner.translation[1],
-                inner.translation[2],
-            );
-        Frame {
-            columns: [
-                [l.c0.x, l.c0.y, l.c0.z],
-                [l.c1.x, l.c1.y, l.c1.z],
-                [l.c2.x, l.c2.y, l.c2.z],
-            ],
-            translation: [
-                t.x + self.translation[0],
-                t.y + self.translation[1],
-                t.z + self.translation[2],
-            ],
-        }
+        Frame::from_affine(self.affine_f64() * inner.affine_f64())
     }
 
     /// Whether this frame is the stored identity, BY BITS — the
@@ -288,5 +287,106 @@ impl Frame {
 impl Default for Frame {
     fn default() -> Self {
         Self::IDENTITY
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    //! The bit-level claims the stored-arrays-to-geometry doors make,
+    //! which the eval-level tests exercise only through whole
+    //! documents: that reading a frame at `f64` moves no bits, and
+    //! that [`Frame::compose`] is the affine product of the two
+    //! stored maps, term for term.
+
+    use super::*;
+
+    fn sample() -> Frame {
+        Frame {
+            columns: [
+                [0.5, -0.25, 3.0],
+                [1.0e-9, 2.0, -0.125],
+                [-7.0, 0.75, 1.0 / 3.0],
+            ],
+            translation: [1.0e12, -0.0, 0.1],
+        }
+    }
+
+    fn other() -> Frame {
+        Frame {
+            columns: [
+                [2.0, 0.3, -1.5],
+                [-0.125, 1.0 / 7.0, 4.0],
+                [9.0, -2.5, 0.25],
+            ],
+            translation: [-3.0, 0.5, 1.0e-13],
+        }
+    }
+
+    #[test]
+    fn affine_at_f64_carries_the_stored_bits() {
+        let f = sample();
+        let a = f.affine::<f64>();
+        for (j, c) in [a.linear.c0, a.linear.c1, a.linear.c2]
+            .into_iter()
+            .enumerate()
+        {
+            for (i, x) in [c.x, c.y, c.z].into_iter().enumerate() {
+                assert_eq!(
+                    x.to_bits(),
+                    f.columns[j][i].to_bits(),
+                    "column {j} entry {i}"
+                );
+            }
+        }
+        for (i, x) in [a.translation.x, a.translation.y, a.translation.z]
+            .into_iter()
+            .enumerate()
+        {
+            assert_eq!(x.to_bits(), f.translation[i].to_bits(), "translation {i}");
+        }
+        let l = f.linear::<f64>();
+        for (m, n) in [
+            (a.linear.c0, l.c0),
+            (a.linear.c1, l.c1),
+            (a.linear.c2, l.c2),
+        ] {
+            assert_eq!(
+                [m.x.to_bits(), m.y.to_bits(), m.z.to_bits()],
+                [n.x.to_bits(), n.y.to_bits(), n.z.to_bits()],
+            );
+        }
+    }
+
+    #[test]
+    fn compose_is_the_affine_product_bit_for_bit() {
+        let (outer, inner) = (sample(), other());
+        let l = outer.linear::<f64>() * inner.linear::<f64>();
+        let t = outer.linear::<f64>()
+            * Vec3::new(
+                inner.translation[0],
+                inner.translation[1],
+                inner.translation[2],
+            );
+        let expected = Frame {
+            columns: [
+                [l.c0.x, l.c0.y, l.c0.z],
+                [l.c1.x, l.c1.y, l.c1.z],
+                [l.c2.x, l.c2.y, l.c2.z],
+            ],
+            translation: [
+                t.x + outer.translation[0],
+                t.y + outer.translation[1],
+                t.z + outer.translation[2],
+            ],
+        };
+        assert!(outer.compose(&inner).bit_eq(&expected));
+    }
+
+    #[test]
+    fn compose_with_an_identity_returns_the_other_operand_verbatim() {
+        let f = sample();
+        assert!(Frame::IDENTITY.compose(&f).bit_eq(&f));
+        assert!(f.compose(&Frame::IDENTITY).bit_eq(&f));
     }
 }
