@@ -103,8 +103,13 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
 
     // Through the wrapper, which gathers.
     match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses") {
-        ChecksError::Product { reason } => {
+        ChecksError::Product { kind, reason } => {
             assert_eq!(reason, refusal.to_string(), "the gather's own sentence");
+            assert_eq!(
+                kind,
+                Some(refusal.kind()),
+                "and the class of that same refusal"
+            );
         }
         other => panic!("expected the subject refusal, got {other}"),
     }
@@ -113,9 +118,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     // the same, and it is raised whether or not the connectedness
     // resident ran: what it is NOT raised by is a resident that reads
     // no subject.
-    let unavailable = || Subject::Unavailable {
-        reason: refusal.to_string(),
-    };
+    let unavailable = || Subject::refused(&refusal);
     for cfg in [
         ChecksConfig::default(),
         ChecksConfig {
@@ -124,7 +127,10 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
         },
     ] {
         match run_checks_on(&doc, &ev, unavailable(), &cfg, tol).expect_err("the door refuses") {
-            ChecksError::Product { reason } => assert_eq!(reason, refusal.to_string()),
+            ChecksError::Product { kind, reason } => {
+                assert_eq!(reason, refusal.to_string());
+                assert_eq!(kind, Some(refusal.kind()));
+            }
             other => panic!("expected the subject refusal, got {other}"),
         }
     }

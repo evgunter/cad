@@ -231,7 +231,9 @@ pub use editor_core::ContentBits;
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
-pub use editor_core::{Product, ProductError, RootFault, product, product_recorded};
+pub use editor_core::{
+    Product, ProductError, ProductErrorKind, RootFault, product, product_recorded,
+};
 
 // The gather's own witness, and only where `debug_assertions` are on:
 // how many times this thread has gathered a product. A consumer that

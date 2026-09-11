@@ -536,6 +536,14 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
+    # The gather's refusal class, flattened to the tag its carrier
+    # already publishes — the `NodeErrorKind` row's shape exactly.
+    # `product_error_tag` mints one name per `ProductError` arm and
+    # `ProductError.variant` answers it, so the fieldless mirror asks
+    # the Python caller no new question; what it buys is a Rust
+    # consumer matching the class of a refusal that is neither `Clone`
+    # nor `PartialEq`.
+    "ProductErrorKind": "ProductError.variant",
     # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
     # internal wiring-bug refusal — and cross exactly as their carrier
     # does: flattened to the `verb_arity` tag `EvaluationError.kind`
