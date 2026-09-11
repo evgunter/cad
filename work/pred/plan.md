@@ -75,7 +75,7 @@ available here.
 ## Review posture
 
 Full v6 dual with Fable specs on every unification: a wrong margin is
-reachable and silent, so `work/code-quality/plan.md`'s ADV marking
+reachable and silent, so `docs/CODE-QUALITY-CONVENTIONS.md`'s ADV marking
 applies by default rather than by exception.
 ## How the class column is read
 

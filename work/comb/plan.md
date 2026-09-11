@@ -58,7 +58,7 @@ written down here, because the answer changes weekly.
 ## Order
 
 Partition before sweep, and within that, decide before you delete and
-delete before you polish (`work/code-quality/plan.md`'s ordering rule 1,
+delete before you polish (`docs/CODE-QUALITY-CONVENTIONS.md`'s ordering rule 1,
 which this program inherits).
 
 1. **Partition the four roll-ups.** `S43` first — four of its five
