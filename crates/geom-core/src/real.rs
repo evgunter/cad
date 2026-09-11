@@ -608,39 +608,47 @@ pub trait Real:
 /// reach of the crates below it — `profile` depends on this crate
 /// alone — and a rule with two spellings is two rules.
 ///
-/// One rule, one spelling, one CALLER — **and the claim is exactly
-/// that literal one**: `topo::query::decide_unit_direction` is the
-/// workspace's only `Margin::norm3` decide-then-normalize spelling,
-/// and it is where this question is asked before that decision. It is
-/// NOT a claim that every length a direction is normalized by is asked
-/// about, and the difference is where the live holes are.
+/// **Every decide-then-normalize direction door in the workspace asks
+/// this first**, and the claim is the enumeration, not a generality:
 ///
-/// **Direction doors that decide a length and never ask whether it is
-/// finite**, each admitting a `1e200` component out of a DECIDED path
-/// (measured; each one its own crate's to fix, and every one of them
-/// can now reach this predicate — the class is
-/// `work/fix/two-d-director-doors-skip-the-finiteness-question`):
-///
+/// - `topo::query::decide_unit_direction` — the one
+///   [`Margin::norm3`](crate::Margin::norm3) spelling, behind the
+///   datum door and the evaluation layer's `unit()`;
 /// - this crate's own [`linalg::frame`](crate::linalg::frame)
-///   `definitely_positive` ([`Margin::of`](crate::Margin::of) on a
-///   norm, then `normalize` at four sites):
-///   `mirror_across_plane(p, (1e200, 0, 0), tol)` returns the IDENTITY
-///   — a mirror that mirrors nothing — and the door is public through
-///   `pncad-py`'s `Frame.mirror_across_plane`.
-/// - `sweep`'s `revolve::axis::AxisFrame::build`
-///   ([`Margin::norm2`](crate::Margin::norm2), then `normalize`): a
-///   `RevolveAxis` of `(1e200, 0)` builds with a `(0, 0)` direction.
-/// - `topo`'s own `sector_shape` (`Margin::of` on the shorter arm,
-///   then `normalize` on both): the same arithmetic collapses both
-///   arms to zero.
+///   `definitely_positive`, the one funnel its four normalizing sites
+///   share;
+/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+/// - `topo`'s `sector_shape`, which asks it of each bounding chord
+///   separately because its arm is their `min` and [`Real::min`]
+///   propagates `NaN` but not infinity, so a `min` hides an
+///   OVERFLOWED chord behind a finite one;
 /// - `profile`'s two 2-D director doors (`unit_from_components`,
-///   `arc_fillet::carrier_tangent`), the two that could not ask this
-///   question at all while it lived above them.
+///   `arc_fillet::carrier_tangent`).
 ///
-/// One further site normalizes without deciding at all, which is a
-/// different shape and the declined half of the direction family:
+/// Each refuses with its own typed arm, naming the recourse its own
+/// caller can reach: the question is one question, but what a caller
+/// can DO about an overflowed direction differs by door — a spelled
+/// component pair is divided through for free, a derived displacement
+/// is not.
+///
+/// **This roster is hand-kept and nothing enforces it.** It is a
+/// five-door cross-crate claim living in a leaf crate that cannot see
+/// four of them, so it is exactly as current as the last person to
+/// edit it. Treat it as a reading aid, not as a census; the census
+/// that is checked is `docs/K-REPORT.md`'s, and it is about decided
+/// names rather than about this question.
+///
+/// **The declined half of the family: normalize-without-deciding.**
+/// A site that normalizes a vector whose length it never decides at
+/// all is a different shape — there is no sign question in front of
+/// it to put this one before — and closing it is not this predicate's
+/// job as things stand. Known instances, and the count is a floor
+/// rather than a total because nothing sweeps for them:
 /// `editor-core`'s `clearance::chart_frame` (a bracket read of the
-/// normalized OUTPUT).
+/// normalized OUTPUT) and `geom-brep`'s `enters::enters_material`,
+/// which decides a caller-supplied arm and then normalizes a `dir`
+/// whose own length is never asked about — a `pub` door. Filed as
+/// `work/fix/normalize-without-the-length-question-two-more-sites`.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;

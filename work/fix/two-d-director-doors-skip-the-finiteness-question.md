@@ -2,9 +2,11 @@
 id: two-d-director-doors-skip-the-finiteness-question
 kind: issue
 title: four direction doors decide a length they never asked to be finite — the SEAT-DV overflow class, swept (profile ×2, sweep, geom-core, topo)
-status: open
+status: review
 opened: 2026-09-05
-refs: [1564, 1738, is-finite-length-homed-in-the-query-seat]
+refs: [1564, 1738, is-finite-length-homed-in-the-query-seat, normalize-without-the-length-question-two-more-sites]
+branch: fix/director-doors-finiteness
+pr: 2356
 ---
 
 ## The class
@@ -117,3 +119,33 @@ the Python tag census pins about that surface.
 PR 2349 saying what the overflow end costs a door that decides the sign
 first, and pointing at the predicate. The 2-D half was written for rows
 4 and 5.
+
+## What landed
+
+Branch `fix/director-doors-finiteness`. All five doors ask
+`geom_core::is_finite_length` before deciding the length's sign, in
+the one spelling, each with its own typed arm, its own sentence and
+its K consequence stated at the site.
+
+| door | refusal |
+|---|---|
+| `geom-core` `linalg::frame::definitely_positive` (the one funnel its four normalizing sites share) | `FrameError::NonFiniteLength { input }` |
+| `sweep` `revolve::axis::AxisFrame::build` | `RevolveError::NonFiniteAxis` |
+| `topo` `sector_shape` (rung 0, of EACH chord) | `SectorFault::NonFiniteChord`, wrapped as `BooleanError::NonFiniteSectorChord` / `SplitReduceError::NonFiniteSectorChord` |
+| `profile` `unit_from_components` | `PathError::NonFiniteDirection` |
+| `profile` `arc_fillet::carrier_tangent` | `PathError::NonFiniteDirection` |
+
+**Three of the item's five rows measured differently than filed**, and
+the corrections are in the PR body: `point_at`'s ROLL REFERENCE was a
+sixth silent site the item did not name (a frame with two zero
+columns, returned `Ok`); row 3's argued form does not reproduce, and
+the measured shape is *worse* than filed — over all EIGHT input
+shapes, **two** returned `Ok`, not one, and the second carries a
+plausible non-zero bisector `(-1,0,0)` built from the chord that
+survived, where the first at least looks wrong; the other six refuse
+at two different rungs (rung 1 for the poisoned pair, rung 3 for the
+overflowed), never for this reason; row 5 reproduced exactly as
+argued and was executed here for the first time.
+
+Residue filed rather than taken:
+`normalize-without-the-length-question-two-more-sites`.

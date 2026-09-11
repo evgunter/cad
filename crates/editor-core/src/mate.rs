@@ -130,8 +130,13 @@ impl MateFrame {
     ///
     /// # Errors
     ///
-    /// [`FrameError`] when the axis has no definite direction or the
-    /// reference has no definite perpendicular offset from it.
+    /// [`FrameError`] when the axis has no definite direction, when
+    /// the reference has no definite perpendicular offset from it, or
+    /// — asked before either sign — when the axis's length or that
+    /// perpendicular offset is not a finite NUMBER
+    /// (`FrameError::NonFiniteLength`, at `Aim` and `RollReference`
+    /// respectively). This is `point_at`'s own list; the three cases
+    /// arrive here unchanged because `placement` calls it directly.
     pub fn placement(&self, tol: Tol) -> Result<Affine3<f64>, FrameError> {
         let eye = Point3::new(self.origin[0], self.origin[1], self.origin[2]);
         let axis = Vec3::new(self.axis[0], self.axis[1], self.axis[2]);

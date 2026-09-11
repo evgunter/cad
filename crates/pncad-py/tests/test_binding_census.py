@@ -743,7 +743,7 @@ BOUND_AS = {
     # was `different-shape` or `behind-a-door`, and both dispositions
     # were true when written: the arms differed only in PROSE, so
     # there was no Python shape to point at. There is one now, and it
-    # is a word per arm — twenty-one for `RevolveError`, forty-one for
+    # is a word per arm — twenty-two for `RevolveError`, forty-two for
     # `BooleanError`, twenty-two for `ShellError` — minted by an
     # exhaustive match, so a kernel arm added without a word stops the
     # bindings compiling. What still has no Python spelling is the
@@ -2900,6 +2900,7 @@ MEMBERS_BOUND_AS = {
     "PathError::ArcContinueNeedsArcCarrier": "PathError.variant",
     "PathError::ArcContinueOffCarrier": "PathError.variant",
     "PathError::ZeroDirection": "PathError.variant",
+    "PathError::NonFiniteDirection": "PathError.variant",
     "PathError::ArcViaCollinear": "PathError.variant",
     "PathError::DegenerateArcChord": "PathError.variant",
     "PathError::ArcCenterNotEquidistant": "PathError.variant",
