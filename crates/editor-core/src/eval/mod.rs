@@ -419,25 +419,10 @@ pub enum ValuePayload<T: Decide> {
 }
 
 /// **The family words** — the vocabulary a typed operand mismatch
-/// speaks on BOTH sides, written once.
-/// [`NodeErrorKind::WrongOperand`]'s `found` names the family a value
-/// landed in; its `expected` names the family the operand needed, and
-/// a refusal is only as good as the two agreeing.
-///
-/// Two readers answer `found` — [`ValuePayload::kind_name`] over a
-/// value and [`node_value_kind`] over a node. `expected` has no
-/// reader: [`crate::eval::wire`]'s operand doors name the const
-/// directly, so both sides of a refusal are the same words by
-/// construction rather than by a writer's care.
-///
-/// **A refusal whose `expected` is NARROWER than a family stays
-/// prose.** "datum frame", "datum axis" and "profile node" name a
-/// variant WITHIN a family, not a family, and the `found` beside them
-/// answers at the family grain deliberately: the sentence is "you
-/// gave me a datum; this operand needs the frame kind of one". A
-/// const here would claim those phrases are family words, and one
-/// spelling "datum" a second time would be the duplication this
-/// module exists to end.
+/// speaks ([`NodeErrorKind::WrongOperand`]'s `found` and `expected`),
+/// written once. [`ValuePayload::kind_name`] says them over a value,
+/// [`node_value_kind`] over a node, and `eval::wire`'s operand doors
+/// say them in the refusals they build.
 pub(crate) mod family {
     pub(crate) const DATUM: &str = "datum";
     pub(crate) const PROFILE: &str = "profile";
