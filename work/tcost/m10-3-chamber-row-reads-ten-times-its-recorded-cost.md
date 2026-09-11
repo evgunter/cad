@@ -1,7 +1,7 @@
 ---
 id: m10-3-chamber-row-reads-ten-times-its-recorded-cost
 kind: issue
-title: m10_3_r1_probes_interval's chamber row reads 66-83 s hosted against TCOST-6's recorded 6.7 cpu-s
+title: DIAGNOSED: the M10-3 interval suite is 15x slower since the driver moved to Sym<Interval> (PR 1725), unrecorded and hidden by its own gate
 status: open
 opened: 2026-09-11
 ---
@@ -134,3 +134,113 @@ their recorded figures and no cut is needed at all; if it is honest,
 then the recorded figures are wrong and the rows need re-justifying at
 their real cost — which is a different piece of work from a budget cut,
 and a bigger one.
+
+## DIAGNOSED (2026-09-11): a real regression, and the gate is why nobody saw it
+
+Ev asked for the diagnosis. It is a regression, it is attributable, and
+the recorded figures were never wrong.
+
+### The measurement
+
+Same box, same profile (`test` / opt-0), same command
+(`cargo nextest run -p editor-core --features interval --test all -E
+'test(/m10_3_r1_probes_interval/)'`), two trees:
+
+| row | at TCOST-6 (`a4439fbef`, 09-03) | at `origin/main` (09-11) | factor |
+|---|--:|--:|--:|
+| `the_driven_chamber_replays_bit_identically_…` | 21.016 s | 319.280 s | **15.2x** |
+| `the_band_and_uniform_drives_ship_the_same_leaf_partition` | 9.869 s | 88.936 s | **9.0x** |
+| `a_wrapped_escalation_never_certifies_inside_the_band` | 2.972 s | 18.612 s | **6.3x** |
+| whole suite | **21.041 s** | **319.373 s** | **15.2x** |
+
+**The recorded figures were RIGHT.** TCOST-6 recorded 6.7 cpu-s hosted
+for the chamber row. Today's local:hosted ratio, measured on the same
+row, is 319.3 / 83.3 = 3.8x (opt-0 against the archive's optimised
+build). Applying it to the pre-change 21.0 s gives **~5.5 s hosted**,
+which is TCOST-6's 6.7 cpu-s within noise. Nothing was mis-measured and
+no hypothesis in the section above survives: not ε, not cpu-s-vs-wall,
+not the runner. The row changed under its own figures.
+
+### The cause, by bisect
+
+`git bisect` over `a4439fbef..origin/main` (2 512 revisions, 11 steps) on
+the cheapest discriminating row (`a_wrapped_escalation`, 2.97 s good /
+18.6 s bad, cut at 8 s) lands on two adjacent commits, both in
+**PR #1725, `m10/m10-7-symbolic`**:
+
+- `bd64a9cdc` *"geom-core: the symbolic identity tier (Sym\<T\>, the
+  normal form, the session)"* — **3.030 s, good**
+- `ddbbd5a24` *"sym: the normal form is a quotient of polynomials…"* —
+  does not build standalone, skipped
+- `1979777f4` *"driver: **replay at Sym\<Interval\>**, the dials and the
+  receipt; re-cut the M10-3 limit rows"* — **21.313 s, bad**
+
+The commit names its own mechanism: the M10-3 driver stopped replaying
+at `Interval` and started replaying at `Sym<Interval>`, a symbolic
+expression type over intervals. The arithmetic under every box of the
+subdivision changed; the leaf budgets did not.
+
+**Caveat, stated rather than papered over**: the bisect ran on the
+escalation row alone, so `1979777f4` is established as the cause of THAT
+row's 7x. The chamber row's 15.2x is measured at the endpoints only and
+may have later contributions; anyone re-cutting the budget should
+re-measure it rather than assume one cause.
+
+### Nothing records that this cost anything
+
+- The test file still carries TCOST-6's measured prose beside the
+  constants — *"the pair of band/uniform drives costs 1.46 s here
+  against 0.98 s at 1024"* — with no mention of `Sym` anywhere in it.
+  Those sentences are now wrong by 10-60x and read as current.
+- `work/m10/` records the symbolic tier's API costs
+  (`sym-registration-flattens-two-axes`, the `COEFF_BITS` trade) and no
+  runtime cost for the replay at all.
+- `CHAMBER_LEAVES = 1280` was chosen as a *measured* margin over a
+  *measured* threshold of 1024. Both measurements were taken against the
+  old arithmetic. The margin may still hold — the threshold is about
+  refinement, not speed — but the cost half of that trade is void.
+
+### The gate is why it sat for eight days
+
+This is the part worth carrying beyond the row. The suite is
+`gated_to!` editor-core's driver/analysis/distribution/resolve/tolerance
+modules. **PR #1725 changed `geom-core`**, which is not in that set — so
+the gate skipped the suite on the pull request that made it 15x more
+expensive, and on nearly every one since. A skipped test contributes no
+row to the `Slowest N tests` cost report, so the instrument that exists
+to catch exactly this could not see it.
+
+The one lane that did run it is the nightly ungated re-take, which has
+run it every night at 66-83 s, flagged `SLOW` at over 60 s, in green,
+unread — until an orchestrator went to the jobs API on 2026-09-11 for a
+different reason. `work/ciw/nightly-demotions-have-never-run` found the
+same shape one lane over, and Ev's ruling of 2026-09-07 is the general
+form: **a detector nobody reads is not a control.**
+
+So this row is now evidence in two open arguments rather than only a
+cost bug:
+
+- for `fuzz-depth-not-existence-run-everything-at-effort-1`, that a
+  gate deciding EXISTENCE hides what a dial deciding DEPTH would have
+  shown — the cost report would have carried this row on every run;
+- for retiring the nightly re-take, that its output has never been read
+  and a row screaming `SLOW` for eight nights is what that costs.
+
+### What is NOT concluded
+
+That the change was wrong. Replaying at `Sym<Interval>` is M10-7's
+design and may be worth every second of it; this row does not reopen it
+and has not read that argument. What is wrong is that a 15x cost change
+landed with no figure attached, under a gate that hid it. Two honest
+dispositions, and the choice belongs to whoever owns the rows:
+
+1. **Re-cut the budget against the new arithmetic.** The 1024 threshold
+   and the 1280 margin were measured on the old one; re-derive both and
+   the row may come back near its old cost with its claim intact.
+2. **Record the new cost and keep the budget.** Then the row is a
+   deliberate 66-83 s on the interval lane, the file's prose is corrected
+   to say so, and it is placed on purpose rather than by accident.
+
+Either way the file's stale measured sentences are fixed in the same
+change — they are the reason this took a bisect to find rather than a
+read.

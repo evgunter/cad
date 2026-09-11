@@ -1743,3 +1743,41 @@ changes that reach it.
 Also: `work/tcost/program.md`'s `keep_out` now names S-TINT, making that
 territory overlap two-sided (22 warnings from 23; the rest pre-date this
 and mirror overlaps S-TCOST already had).
+
+## The M10-3 cost discrepancy is diagnosed: a 15x regression the gate hid (2026-09-11)
+
+Ev asked for the diagnosis; it is a regression, it is attributable, and
+the recorded figures were never wrong.
+
+**Measured**, one box, same profile and command, two trees: the suite
+goes **21.041 s at TCOST-6's merge (`a4439fbef`) to 319.373 s at
+`origin/main`** — 15.2x, with the three rows at 15.2x / 9.0x / 6.3x.
+TCOST-6's recorded 6.7 cpu-s is CORRECT for the tree it was taken on:
+21.0 s at opt-0 over the 3.8x local:hosted ratio measured on this same
+row is ~5.5 s. Nothing was mis-measured.
+
+**Bisected** over `a4439fbef..origin/main`, 2 512 revisions, 11 steps, on
+the cheapest discriminating row: **PR #1725 (`m10/m10-7-symbolic`)**, at
+the commit that names its own mechanism — *"driver: replay at
+`Sym<Interval>`, the dials and the receipt; re-cut the M10-3 limit
+rows"*. The leaf budgets did not move; the arithmetic under every box of
+the subdivision did. Nothing in `work/m10/` or in the test file records a
+runtime cost for that change, and the file still carries TCOST-6's
+measured prose ("1.46 s here against 0.98 s at 1024") beside constants it
+no longer describes.
+
+**The gate is why it sat eight days.** The suite is `gated_to!`
+editor-core's modules; #1725 changed `geom-core`, which is not in that
+set — so the gate SKIPPED the suite on the pull request that made it 15x
+more expensive, and on nearly every one since. A skipped test contributes
+no row to the `Slowest N tests` report, so the instrument that exists to
+catch this could not see it. The one lane that ran it is the nightly
+ungated re-take: eight nights at 66-83 s, flagged `SLOW`, green, unread.
+
+Two open arguments now have this as evidence rather than reasoning: that
+a gate deciding EXISTENCE hides what a dial deciding DEPTH would show,
+and that a detector nobody reads is not a control (Ev, 2026-09-07).
+Filed with both dispositions on
+`m10-3-chamber-row-reads-ten-times-its-recorded-cost`; whether
+`Sym<Interval>` is worth its seconds is M10's call and this program does
+not reopen it.

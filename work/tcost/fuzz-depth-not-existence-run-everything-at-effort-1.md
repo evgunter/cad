@@ -349,14 +349,34 @@ read 10-16x their recorded figures (6.7 cpu-s against 65.9/83.3 s; an
 in-file measured 1.46 s against 18.1/23.5 s). Two rows, two independent
 sources, one factor — a common cause rather than two coincidences.
 
-1. **Diagnose that first.** If it is a regression, both rows return to
-   their recorded costs, the whole gated set runs on every PR for about
-   a second of leg time, and the nightly job is deleted with nothing to
-   weigh. **This is the likely case and it makes everything else free.**
-2. **If the figures are honest**, the recorded ones are wrong and those
-   two rows need re-justifying at their real cost — which is its own
-   piece of work, not a budget cut — and until then the job stays or the
-   two rows are placed deliberately.
+**DIAGNOSED, 2026-09-11 — it is case 1.** Measured on one box, same
+profile and command, at TCOST-6's tree and at `origin/main`: the suite
+goes **21.04 s -> 319.37 s**, 15.2x. `git bisect` over 2 512 revisions
+lands in **PR #1725 (`m10/m10-7-symbolic`)**, at the commit that says so
+itself — *"driver: replay at `Sym<Interval>`"*. The leaf budgets did not
+move; the arithmetic under every box of the subdivision did. And
+TCOST-6's 6.7 cpu-s checks out for the tree it was taken on (21.0 s at
+opt-0, divided by the 3.8x local:hosted ratio measured on this same row,
+is ~5.5 s). Full workings on
+`m10-3-chamber-row-reads-ten-times-its-recorded-cost`.
+
+**So the blocker is a regression with an owner, not a budget the gated
+set cannot afford.** Once those rows are back near their recorded cost —
+by re-cutting the budget against the new arithmetic, or by recording the
+new cost deliberately — the whole gated set runs on every PR for about a
+second of leg time and the nightly job retires with nothing left to
+weigh.
+
+**And the regression is itself an argument for this ruling.** The suite
+is gated to editor-core modules; PR #1725 changed `geom-core`, which is
+not in that set, so **the gate skipped the suite on the pull request
+that made it 15x more expensive**, and on nearly every one since. A
+skipped test contributes no row to the `Slowest N tests` report, so the
+instrument built to catch exactly this could not see it. Under this
+ruling the row would have run at its own cost on every PR and the cost
+report would have carried it. The only lane that did run it was the
+nightly re-take — eight nights of a row flagged `SLOW` at over 60 s, in
+green, unread.
 
 Either way the nightly job's retirement rides the diagnosis and not this
 clause, so it is named here as the consequence and left unwired.
