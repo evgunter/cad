@@ -901,6 +901,19 @@ pub enum NodeErrorKind {
         /// Which vector, by role.
         role: &'static str,
     },
+    /// A direction-valued vector whose LENGTH underflowed to zero:
+    /// components small enough (`≲1e-162` at `f64`) that their
+    /// squares are not representable, so the vector has a direction
+    /// and no measurable length. A separate fact from a zero length
+    /// and the same recourse as
+    /// [`NodeErrorKind::NonFiniteDirection`] — the model is outside
+    /// the range its own arithmetic can measure, and the fix is
+    /// scale, not direction. Which vectors those are is the ROLE
+    /// constants' to say, as for the two arms above.
+    UnderflowedDirection {
+        /// Which vector, by role.
+        role: &'static str,
+    },
     /// The ambient tolerance could not form a classification band.
     Band(geom_core::BandError),
     /// A slot the wiring expected was absent from the node — a wiring
@@ -1547,6 +1560,13 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} has zero length")
             }
+            Self::UnderflowedDirection { role } => write!(
+                f,
+                "the {role} underflowed to zero length — its components \
+                 are too small for their squares to be represented, so it \
+                 has a direction but no measurable length; scale the \
+                 geometry into the session's range"
+            ),
             Self::NonFiniteDirection { role } => write!(
                 f,
                 "the {role} has no finite length — its components \

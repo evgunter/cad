@@ -125,6 +125,13 @@ impl<T: Real> Vec2<T> {
     /// to come first is [`is_finite_length`](crate::is_finite_length),
     /// which is the predicate a caller normalizing a decided length
     /// owes its length.
+    ///
+    /// **The underflow end is a false CAUSE to that same door**: the
+    /// norm is exactly zero, so the door decides `Zero` and refuses —
+    /// correctly, but naming a zero length for a vector that has a
+    /// direction and needs the overflow end's recourse. The question
+    /// that separates the two is
+    /// [`is_underflowed_length`](crate::is_underflowed_length).
     pub fn normalize(self) -> Self {
         self / self.norm()
     }
@@ -249,6 +256,13 @@ impl<T: Real> Vec3<T> {
     /// to come first is [`is_finite_length`](crate::is_finite_length),
     /// which is the predicate a caller normalizing a decided length
     /// owes its length.
+    ///
+    /// **The underflow end is a false CAUSE to that same door**: the
+    /// norm is exactly zero, so the door decides `Zero` and refuses —
+    /// correctly, but naming a zero length for a vector that has a
+    /// direction and needs the overflow end's recourse. The question
+    /// that separates the two is
+    /// [`is_underflowed_length`](crate::is_underflowed_length).
     pub fn normalize(self) -> Self {
         self / self.norm()
     }
