@@ -861,3 +861,22 @@ box comparison moved into `bvh`; the keys-short arm made
 `unreachable!` or typed; a `tol` row and a tree-for-tree row; one
 unreproduced measurement sentence softened. One arm parked on a
 monitor once and was corrected (a correction, not a relaxation).
+
+## 2026-09-12 — the display probe is up for review
+
+PR 2464 (`perf/side-fit-delta-probe`, head `251efe3a4`, CI green):
+`fit_delta` walks a ladder down from the body's own extent, each rung
+priced at `TRIANGLE_BUDGET / PROBE_FACTOR` by construction, so no
+probe out-tessellates the picture it sizes (the ladder's total under
+`TRIANGLE_BUDGET / 4`). The probe is flat in the requested δ once the
+budget binds (`tube_ring` at 1e-6: 15.6 s → 149 ms); unbound
+documents pay 12–40 % more tessellation than one probe (+10 ms on the
+tour die). The 56-row δ-identity table was cut against main first: 49
+rows bit-identical, 7 budget-bound rows moved by −0.4…+4.2 % because
+main's answer depended on the REQUEST (one body, two requests, two δ)
+and the ladder finds the fixed point — a row asserting request-
+independence fails on main. Filed (VIEW): the budget's predicted
+count is not one-sided (main draws 1 002 536 against a 10⁶ budget).
+The item's own table predates PERF-1's torus sizing (tori are ~26×
+cheaper now); the defect needed a request a decade finer to bite, so
+the measurement adds a 1e-6 column. Single review dispatched (opus).
