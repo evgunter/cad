@@ -580,7 +580,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 /// # Correspondence — read this before authoring a rotated section
 ///
 /// Sections are paired **by index over the CANONICAL loops**, not over
-/// the vertex order you wrote: [`Profile::validate`] rotates every loop
+/// the vertex order you wrote: [`profile::Profile::validate`] rotates every loop
 /// to its lex-min vertex first, and it is those loops
 /// [`loft_geometry`] matches like to like. Both halves are deliberate
 /// and each is documented at its own door; the consequence of the pair
