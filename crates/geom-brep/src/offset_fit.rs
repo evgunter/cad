@@ -425,20 +425,21 @@ pub enum OffsetFitError {
     ///   constant of this loop — neither the budget nor the cap is
     ///   worth raising. What decides it is the limb's floors against
     ///   the request's own `|d|`: the regularity floor the door meters
-    ///   certify and the componentwise mignitude bound on `‖E‖`. The
-    ///   caller's move is there, not at the budget. Every instance in
-    ///   the shipped corpus and in a 518-request search over five
-    ///   bases stopped on the cap; a round-budget stop with no finite
-    ///   bound is reachable by the same test and has no row.
+    ///   certify and the floor on `‖E‖` — the larger of the
+    ///   componentwise mignitude assembly and the projection through
+    ///   the sign witness. The caller's move is there, not at the
+    ///   budget. Every instance the shipped corpus reaches stops on
+    ///   the cap; a round-budget stop with no finite bound is
+    ///   reachable by the same test and has no row.
     /// - **`last_finite: Some(b)` — a coarser grid reached the finite
     ///   bound `b` and a finer one lost it.** The bound was there and
     ///   the schedule moved off it, so the schedule is the lever and
     ///   `b` is the number the caller can size against. Structurally
     ///   reachable — the stall guard keeps refining after a finite
     ///   round is followed by a non-finite one, since an infinite
-    ///   bound is never a stall — and no fixture reaches it: the same
-    ///   518-request search saw no finite round followed by a
-    ///   non-finite one.
+    ///   bound is never a stall — and no fixture reaches it: no
+    ///   request in the shipped corpus produces a finite round
+    ///   followed by a non-finite one.
     ///
     /// Classification: the enum's, above.
     BoundNotFinite {
@@ -1572,7 +1573,10 @@ enum Refine {
 /// across two independent review lanes plus this unit's own seven
 /// fixtures (bumpy, cylinder both signs, sphere both signs, near-reach
 /// sphere, a 1000:1 thin patch, extreme weights at 0.05 and 8.0), over
-/// tolerances from 1e-6 to 1e-15. None stalled.
+/// tolerances from 1e-6 to 1e-15. None stalled. The [`fit_offset_at`]
+/// instrument does not reach it either — `budget_faces`' corpus is
+/// the standing count, and every refusal it produces is the budget,
+/// the cap or the not-finite face.
 ///
 /// **That is a property of the predicate's shape, not of the fixtures.**
 /// The test is `hull_sup < prev_sup` with no epsilon, so ANY decrease
@@ -2271,6 +2275,28 @@ mod tests {
         sup
     }
 
+    /// Every cell of a composite, under both readings: the witness
+    /// reading is a MAX over the componentwise one, so no cell's
+    /// bound may rise. Returns the worst (largest) ratio old/new.
+    fn no_cell_loosens(comp: &Composite, floor: f64, d: f64) -> f64 {
+        let (nu, nv) = comp.x.cell_counts();
+        let mut worst = 0.0f64;
+        for su in 0..nu {
+            for sv in 0..nv {
+                let old = decompose(comp, su, sv, floor, d, ELow::Componentwise).4;
+                let new = decompose(comp, su, sv, floor, d, ELow::Witness).4;
+                assert!(
+                    new <= old,
+                    "cell ({su},{sv}) loosened: {new:e} against {old:e}"
+                );
+                if old.is_finite() && new > 0.0 {
+                    worst = worst.max(old / new);
+                }
+            }
+        }
+        worst
+    }
+
     /// The rational quarter cylinder the micron row fits.
     fn quarter_cylinder() -> geom::NurbsSurface<f64> {
         let s = (core::f64::consts::FRAC_PI_2 * 0.5).cos();
@@ -2363,6 +2389,12 @@ mod tests {
             sup_c / sup
         );
 
+        // No cell anywhere on this grid loosens: the reading is a max
+        // over the one it replaces, and the row measures that rather
+        // than resting on the argument.
+        let worst = no_cell_loosens(&comp, reg.floor, d);
+        assert!(near(worst, 18.872), "the widest cell gain is {worst}");
+
         // One round finer — the grid the `1e-9` request stops on at
         // the sample cap. The cells are small enough that the
         // componentwise assembly no longer collapses (`7.80e-7`), so
@@ -2383,6 +2415,8 @@ mod tests {
         let (.., e_mig5, sup5_c) = decompose(&comp5, su5, sv5, reg.floor, d, ELow::Componentwise);
         assert!(near(e_mig5, 7.7991e-7), "componentwise floor is {e_mig5:e}");
         assert!(near(sup5_c, 3.7912e-7) && near(sup5_c / sup5, 1.0098));
+        let worst5 = no_cell_loosens(&comp5, reg.floor, d);
+        assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }
 
     /// The guard is silent while the bound is still `+∞`: an
