@@ -490,3 +490,5 @@ mod kstats_bracket_rows;
 mod m10_9_r1_probes_interval;
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
+#[path = "wire_frame_placement_carry.rs"]
+mod wire_frame_placement_carry;

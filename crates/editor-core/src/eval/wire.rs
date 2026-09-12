@@ -95,9 +95,12 @@ pub(crate) struct LaneEnv<'a, T> {
     /// The document's own f64 parameter environment, under no box and
     /// no seed, built once per evaluation beside `params`. THE CENSUS
     /// of its readers — every f64-pinned decision the evaluation makes:
-    /// the profile plane read ([`profile_plane_f64`]), the pre-pass's
-    /// resolution of a profile node's program (`eval_node`), a loft or
-    /// sweep section's resolution of its program ([`section_of`]), and
+    /// the nominal slot list `eval_node` evaluates for every node,
+    /// which is what an authored frame's placement is minted from
+    /// ([`frame_placement_f64`]) and what every profile drawn on that
+    /// frame then READS ([`profile_plane_f64`]); the pre-pass's
+    /// resolution of a profile node's program (`eval_node`); a loft or
+    /// sweep section's resolution of its program ([`section_of`]); and
     /// the placement the pinned lift embeds. It is therefore what a
     /// content key owes ([`super::tag::slot`]). Nothing under
     /// evaluation builds a second one.
@@ -845,8 +848,8 @@ fn datum_unit<T: Decide>(
 
 /// **An authored frame from its evaluated slots** — the one spelling
 /// of the read, shared by the frame's own evaluation at the lane
-/// scalar ([`wire_datum`]) and by the profile placement at f64
-/// ([`profile_plane_f64`]), so the two cannot keep different axes or
+/// scalar ([`wire_datum`]) and by its f64 placement
+/// ([`frame_placement_f64`]), so the two cannot keep different axes or
 /// refuse in different orders. The origin is read first; then `u` and
 /// `v` are orthonormalized through [`frame_axes`] with `u` kept — the
 /// frame's sketch +x is what the author wrote, and `v` is the axis
@@ -879,16 +882,20 @@ struct AuthoredFrame<T: geom_core::Real> {
     v: UnitVec3<T>,
 }
 
-/// **A profile's `f64` placement, where the document HOLDS one** — an
-/// authored frame's nine expressions, resolved and orthonormalized;
-/// `None` for a frame derived from a face, which the document does not
-/// elaborate at any scalar.
+/// **An authored frame's `f64` placement, minted once on the frame's
+/// own value** — its nine expressions at the document's nominal,
+/// resolved and orthonormalized; `None` for a frame derived from a
+/// face, which the document does not elaborate at any scalar, and for
+/// every node that is not a frame.
 ///
-/// # The two frame kinds (DM1c), and why the authored one is read here
+/// # The two frame kinds (DM1c), and why the fork is here
 ///
-/// This is the site that reads the plane, and it forks ONCE on the
+/// This is the site that MINTS the plane, and it forks ONCE on the
 /// frame node's kind, because the two kinds differ in where their
-/// numbers come from.
+/// numbers come from. Every reader takes the answer off the frame's
+/// [`super::NodeValue::placement_f64`] ([`profile_plane_f64`]), so the
+/// nine slots are evaluated at `f64` once per frame per evaluation
+/// rather than once per profile drawn on it.
 ///
 /// An AUTHORED frame ([`Datum::Frame`]) is document expressions, and
 /// they are read at `f64` rather than at the lane scalar for the C6
@@ -901,12 +908,13 @@ struct AuthoredFrame<T: geom_core::Real> {
 /// right answer to a different question (what a reader sees, what a
 /// measure measures). So an authored frame is read twice, at two
 /// scalars, for two purposes — `Pinned` places with THIS read,
-/// `Guided` with [`frame_plane_lane`]'s.
+/// `Guided` with [`frame_plane_lane`]'s — and the two rides of one
+/// value sit side by side on one result.
 ///
 /// A DERIVED frame ([`Datum::FaceFrame`]) has no document elaboration
 /// at all: its placement is read off an upstream body's value, at
 /// whatever scalar that body was evaluated at, so there is nothing
-/// here to read and the answer is `None`. The profile's placement into
+/// here to mint and the answer is `None`. The profile's placement into
 /// 3-D then comes from the lane under every lift
 /// ([`frame_plane_lane`]), and its 2-D structure record is assembled
 /// in the conventional `SketchPlane::xy()` ([`prepare_profile`]),
@@ -914,30 +922,24 @@ struct AuthoredFrame<T: geom_core::Real> {
 /// same `Option`, so a consumer that places with a derived frame's
 /// record has nothing to mistake for a placement.
 ///
-/// `nominal` is [`LaneEnv::nominal`]; the frame's nine slots are read
-/// at it through [`slots::eval_slots`] and [`frame_from_slots`].
+/// `nominal` is the node's slots already evaluated at
+/// [`LaneEnv::nominal`] — `eval_node`'s nominal list, the one the
+/// content key is owed ([`super::tag::slot`]) — so this mints from the
+/// values that are already in hand and evaluates no expression.
 ///
 /// # Errors
 ///
-/// [`NodeErrorKind::WrongOperand`] when the reference does not name a
-/// frame — the door every operand's kind is checked at — and the
-/// frame's own two direction refusals through [`frame_axes`].
-pub(crate) fn profile_plane_f64(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    plane: RecipeNodeId,
-    nominal: &crate::expr::ParamEnv<f64>,
+/// The frame's own two direction refusals through [`frame_axes`], and
+/// [`NodeErrorKind::MissingSlot`] for a slot the values do not carry.
+pub(crate) fn frame_placement_f64(
+    node: &Node<ProfileProgram>,
+    nominal: &SlotValues<f64>,
     tol: Tol,
 ) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
-    match frame_kind(doc, plane)? {
-        FrameKind::Authored => {}
-        FrameKind::Derived => return Ok(None),
-    }
-    let node = doc
-        .node(plane)
-        .ok_or(NodeErrorKind::MissingInput { input: plane })?;
-    let vals = slots::eval_slots(node, nominal)
-        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-    let f = frame_from_slots(&vals, band(tol)?)?;
+    let Node::Datum(Datum::Frame { .. }) = node else {
+        return Ok(None);
+    };
+    let f = frame_from_slots(nominal, band(tol)?)?;
     Ok(Some(profile::SketchPlane::from_frame(
         f.origin,
         f.u.get(),
@@ -945,40 +947,43 @@ pub(crate) fn profile_plane_f64(
     )))
 }
 
-/// Which kind of frame node a profile's `plane` names — the ONE fork
-/// DM1c adds, keyed by node kind and never by a number.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum FrameKind {
-    /// A [`Datum::Frame`]: nine document expressions, placed from the
-    /// document at `f64` under `Pinned`.
-    Authored,
-    /// A [`Datum::FaceFrame`]: placed from the frame's landed value at
-    /// the lane scalar under every lift.
-    Derived,
-}
-
-/// Classifies the frame node a profile's `plane` names — the variant
-/// read every by-value reader of a frame shares, so "is this a frame"
-/// is answered once with one refusal vocabulary.
+/// **A profile's `f64` placement — a READ of the frame's result**, not
+/// a second evaluation of the frame's slots: the value
+/// [`frame_placement_f64`] minted on the frame node, which the frame's
+/// own content key already fixes (its nominal slots and the tolerance
+/// are exactly what the placement is a function of, so a memo hit
+/// carries a placement equal bit for bit to the one a recompute would
+/// mint).
+///
+/// `None` is a DERIVED frame, and it can only mean that: the payload
+/// kind door below has already established that the reference names a
+/// frame, and a frame's value carries `Some` exactly when the node is
+/// authored.
+///
+/// The frame is a DAG input of the profile node ([`Node::inputs`]), so
+/// it precedes every reader in the schedule and a failed frame poisons
+/// them; a section's frame is its profile's input and so precedes the
+/// loft or sweep that reads it.
 ///
 /// # Errors
 ///
-/// [`NodeErrorKind::MissingInput`] for an absent node;
-/// [`NodeErrorKind::WrongOperand`] when the node is not a frame.
-pub(crate) fn frame_kind(
-    doc: &crate::doc::Doc<ProfileProgram>,
+/// [`NodeErrorKind::WrongOperand`] when the reference does not name a
+/// frame — the door every operand's kind is checked at, the same one
+/// [`frame_plane_lane`] uses — and [`NodeErrorKind::MissingInput`] for
+/// a reference with no value.
+pub(crate) fn profile_plane_f64<T: Decide>(
+    results: &Results<T>,
     plane: RecipeNodeId,
-) -> Result<FrameKind, NodeErrorKind> {
-    match doc.node(plane) {
-        None => Err(NodeErrorKind::MissingInput { input: plane }),
-        Some(Node::Datum(Datum::Frame { .. })) => Ok(FrameKind::Authored),
-        Some(Node::Datum(Datum::FaceFrame { .. })) => Ok(FrameKind::Derived),
-        Some(_) => Err(NodeErrorKind::WrongOperand {
+) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
+    let v = value_of(results, plane)?;
+    let ValuePayload::Datum(DatumValue::Frame { .. }) = &v.payload else {
+        return Err(NodeErrorKind::WrongOperand {
             input: plane,
             expected: "datum frame",
-            found: "not a datum frame",
-        }),
-    }
+            found: v.payload.kind_name(),
+        });
+    };
+    Ok(v.placement_f64)
 }
 
 /// **The sketch plane at the LANE scalar** — the frame's landed value,
@@ -4227,7 +4232,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // (`SectionScalar`, decided by the type); anywhere else the
     // section refuses typed, naming itself and the frame, rather than
     // placing on a fabricated point of the frame's bracket.
-    let plane = match profile_plane_f64(doc, program.plane, lane.nominal, tol)? {
+    let plane = match profile_plane_f64(results, program.plane)? {
         Some(authored) => authored,
         None => {
             let lane_plane = frame_plane_lane(results, program.plane)?;
