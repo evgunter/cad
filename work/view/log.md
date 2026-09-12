@@ -9960,3 +9960,96 @@ match is a render with no precision spec, a precision passed as a
 variable and a rounding done by hand, all three checked in the item.
 
 **VIEW stands at 69 open / 84 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — #2425 merged; a render that cannot lie, and four corrections to the brief
+
+**#2425 merged** (`99550244d6`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips, nothing failed.
+
+**Half A took none of the three shapes the dispatch named.** The render
+is now `DisplayTolerance::render_mm` — the shortest decimal spelling
+that fits, scientific when none does — with the arm chosen by **reading
+the candidate back through the door that refuses zero**, not by a
+magnitude threshold:
+
+    (0..=RENDER_MM_MAX_CHARS).map(|d| format!("{mm:.d$}"))
+        .find(|s| reads_back_as_this_delta(s, mm))
+        .unwrap_or_else(|| format!("{mm:.3e}"))
+
+0.4 µm → `0.0004`, 1.6 µm → `0.0016`, 1 pm → `1.000e-9`. A threshold
+would be a **proxy** for *"the fixed form lies here"* that can drift from
+the format string; the read-back **is** the property, so `0.000` is
+structurally unreachable rather than merely unlikely. The lane also
+measured and rejected *exact-while-it-fits*: that arm depends on the bit
+pattern, so δ = 0.1+0.2 mm renders `3.000e-1` and the field flips
+spelling for ordinary values. Its relative-closeness constant is derived
+rather than chosen — `{:.3e}` carries four significant figures, so a
+decimal form is preferred exactly while it is no less truthful than the
+form that would replace it. **A budget δ's seventeen figures render as
+four** (`0.0003746`), which is why the text stays a render and never a
+commit path.
+
+**Half B took the option I named, on a better argument than mine.** I
+offered "a draft character-identical to the render commits nothing" as
+the *untouched commits nothing* principle extended. The lane's argument
+is stronger: since the render is a **rounding** of δ, committing it can
+only move δ to a coarser spelling of itself, so **there is no δ for
+which committing its own render is the user's intent** — which means the
+cost I flagged (a deliberate re-assert gets silence) is not a cost at
+all, and the escape hatch is any *other* spelling of the same number,
+which still commits. It also declined the broader *"any draft that
+parses to the δ in force is a no-op"*: that is idempotence of the
+request and belongs to `delta_request`'s consumer, not to a field whose
+job is to tell a render from a draft.
+
+### Four corrections, all to the brief rather than to the work
+
+1. **The sibling population was three because I repeated it instead of
+   re-deriving it.** There are **four**, and the fourth is in the file
+   the lane was editing: `pane/view.rs:43` renders `distance {:.1} mm
+   (band {:.1}–{:.1})`, and `Camera::min_distance` is
+   `scene_radius * 0.05`, so any scene under about a millimetre of
+   radius reads `band 0.0–…` — a distance the camera refuses. **I
+   verified this before merging.** This program's own census rule says a
+   table is a population and placing it means re-deriving by subject; a
+   population quoted from the item into the dispatch is that defect one
+   step earlier.
+2. **`plan.md` was carrying a moving number as a fixed expectation.**
+   The `--test all` baseline was written as **524** and `main` is at
+   **527** four merges later, so a lane checking against it would read a
+   six-row gain it had not made. The register now asserts the SHAPE —
+   every `--test all` row passing, `--lib` one row red, that row and no
+   other — and says explicitly not to put the count there. The
+   `--no-fail-fast` half of that rule is right and the lane confirmed it
+   would have missed the suite without it.
+3. **Naming the unit-switching render as a fork option was a trap, not a
+   neutral offer.** The box is labelled `mm display δ` and parses
+   millimetres, and the same brief's Half B says the render is the text
+   an edit starts from — so a µm render is a **1000× wrong commit one
+   keystroke away**. It is not merely less legible than the
+   alternatives; it is the one shape that makes the defect worse. A fork
+   option named in a dispatch inherits the rest of the dispatch, and I
+   had not checked it against the other half.
+4. **"A 56-point field" understated the ceiling by more than it
+   sounds.** `desired_width` is not a character budget: `TextEdit`'s
+   `Margin::symmetric(4, 2)` leaves **48 points of text** at ~7.33 per
+   digit — about six and a half characters — so the old field could not
+   display `0.001667` even before any render change. A fix to the render
+   that left the width alone would have been delivered **clipped**, and a
+   clipped render reads as a different δ. The field is now 88 points,
+   with a row measuring both numbers through egui's own font metrics and
+   going red at 56. **That width change is a scope call the lane flagged
+   for me rather than slipping in**, and it is the right one: Half A
+   undelivered is Half A unfixed.
+
+All four are in `plan.md`.
+
+**The sibling class is filed on VIEW's own slate** as
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`,
+carrying all four members. Filing there is in-fence; the lane reported
+rather than wrote while `work/door/lane-cross-program-filing-two-binding-
+docs-conflict` is open for Ev, which is the conservative side of that
+unresolved ruling.
+
+**VIEW stands at 69 open / 84 closed, nothing waiting on Ev.**
