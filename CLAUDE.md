@@ -90,10 +90,11 @@ Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
     PRs) — they are design conversations.
   - PRs that **change an already-ratified decision**, in
     `docs/DESIGN.md` or in the `crates/<crate>/README.md` design pages
-    its companion table lists. Retiring or amending a ratified clause
-    is Ev's call even when a code change forces it and even when the
-    amendment is mechanical — a gate that reds until a roster row goes
-    is a reason the change is *needed*, not a reason it is *approved*.
+    its companion table lists. What waits is the **design choice** —
+    retiring a clause, or changing what it decides. A clause that has
+    to be re-worded because an approved code change moved something it
+    describes (a renamed symbol, a caller that went away, a count) is
+    not a second decision, and lands with the change that caused it.
   - PRs that add to or change **`memories/`** — that text is read at
     the start of every session, so what goes in it is Ev's call.
   - PRs that add to or change **`docs/prompts/`** — the standing
