@@ -50,7 +50,10 @@ fn arc_loft(s: f64) -> Body<f64> {
 /// target-level reading refuses and names a face.
 fn strip_loft(s: f64, delta: f64) -> Body<f64> {
     loft_body::<f64>(
-        &[strip_section(s, delta, false), strip_section(s, delta, false)],
+        &[
+            strip_section(s, delta, false),
+            strip_section(s, delta, false),
+        ],
         &stacked(&[0.0, 1.0], s),
         1,
         Tol::witness(),
@@ -68,7 +71,10 @@ fn roster() -> Vec<(String, Body<f64>)> {
         .iter()
         .map(|k| (format!("arc loft @ {k:e}·eps"), arc_loft(k * eps)))
         .collect();
-    out.push(("thin strip @ 1e12·eps".to_string(), strip_loft(1.0e12 * eps, 1.0e9 * eps)));
+    out.push((
+        "thin strip @ 1e12·eps".to_string(),
+        strip_loft(1.0e12 * eps, 1.0e9 * eps),
+    ));
     out
 }
 
@@ -152,7 +158,10 @@ fn tier_three_reads_the_same_verdict_and_log_at_one_and_four_threads() {
         };
         let (one, log_one) = on_pool(1, || gate(&body));
         let (four, log_four) = on_pool(4, || gate(&body));
-        assert_eq!(one, four, "{name}: tier 3's verdict moved with the thread count");
+        assert_eq!(
+            one, four,
+            "{name}: tier 3's verdict moved with the thread count"
+        );
         assert_eq!(
             log_one.verdicts, log_four.verdicts,
             "{name}: tier 3's verdict log moved with the thread count"
@@ -182,7 +191,9 @@ fn the_refusing_body_names_the_same_face_at_one_and_four_threads() {
     let body = strip_loft(1.0e12 * eps, 1.0e9 * eps);
     let (one, log_one) = on_pool(1, || reading(&body));
     let (four, log_four) = on_pool(4, || reading(&body));
-    let refusal = one.clone().expect_err("the thin strip's target reading refuses");
+    let refusal = one
+        .clone()
+        .expect_err("the thin strip's target reading refuses");
     assert!(
         refusal.contains("face"),
         "the refusal does not name a face: {refusal}"

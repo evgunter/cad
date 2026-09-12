@@ -765,12 +765,7 @@ mod face_walk_composition_tests {
             .collect()
     }
 
-    const NAMES: [&str; 4] = [
-        "walk_slot_a",
-        "walk_slot_b",
-        "walk_slot_c",
-        "walk_slot_d",
-    ];
+    const NAMES: [&str; 4] = ["walk_slot_a", "walk_slot_b", "walk_slot_c", "walk_slot_d"];
 
     #[test]
     fn every_recording_splices_in_arena_order_when_no_face_refuses() {
@@ -780,10 +775,7 @@ mod face_walk_composition_tests {
         let log = bracket.finish();
         assert_eq!(runs.len(), NAMES.len());
         assert_eq!(
-            log.verdicts
-                .iter()
-                .map(|v| v.predicate)
-                .collect::<Vec<_>>(),
+            log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>(),
             NAMES,
             "the fold did not splice the slots in arena order"
         );
@@ -803,10 +795,7 @@ mod face_walk_composition_tests {
             "the fold reported another face's refusal: {err}"
         );
         assert_eq!(
-            log.verdicts
-                .iter()
-                .map(|v| v.predicate)
-                .collect::<Vec<_>>(),
+            log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>(),
             &NAMES[..3],
             "the log is not the serial walk's: it stops at the first refusing face, \
              which had already decided what it decided before it refused"
