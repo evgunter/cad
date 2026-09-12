@@ -5,6 +5,7 @@ title: the containment census flattens three ContainError arms onto CensusEscala
 status: review
 opened: 2026-09-11
 branch: fix/census-containment-cause
+pr: 2420
 ---
 
 
