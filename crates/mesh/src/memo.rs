@@ -131,6 +131,12 @@ impl PatchKeys {
         self.0.iter().copied()
     }
 
+    /// The digest of the face at position `i`, if the tessellation
+    /// had one.
+    pub fn get(&self, i: usize) -> Option<PatchDigest> {
+        self.0.get(i).copied()
+    }
+
     pub(crate) fn push(&mut self, digest: PatchDigest) {
         self.0.push(digest);
     }
