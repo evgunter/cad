@@ -45,7 +45,15 @@
 //!   same holds for a rayon worker that steals another task while
 //!   waiting on a join: the stolen task runs to completion inside the
 //!   join, so its frames sit strictly above the waiting task's and are
-//!   gone before it resumes. A frame is popped by the bracket that
+//!   gone before it resumes. **That is now load-bearing rather than
+//!   hypothetical** — `topo::props` joins inside an open bracket — and
+//!   it carries an OBLIGATION on the stealer, not a guarantee from the
+//!   stack: a stolen task that decides WITHOUT opening a frame of its
+//!   own writes into whatever frame the waiting task left innermost,
+//!   which is the waiting task's. Every unit under a join through this
+//!   funnel therefore opens its own frame ([`detached`], or a
+//!   [`Bracket`] inside the mapped closure); the nesting argument above
+//!   is what makes that safe, and nothing enforces it. A frame is popped by the bracket that
 //!   pushed it, and only by it: every frame carries a per-thread unique
 //!   id the guard remembers, and a close pops the frame at the guard's
 //!   depth only when the ids agree. Brackets closed out of order are
@@ -58,12 +66,23 @@
 //!   empty [`Recorded`]. What is lost is that guard's own recording;
 //!   nothing above or below moves, and a stale guard never returns a
 //!   later bracket's decisions.
-//! - **Thread confinement.** A [`Bracket`] is `!Send` — it carries a
-//!   `PhantomData<*const ()>` — so the value that closes a frame cannot
-//!   leave the thread whose stack holds it; the compiler refuses the
-//!   move. The stack itself is thread-local, and idiom-1 parallelism
-//!   (whole nodes on one worker each) opens each node's bracket on the
-//!   worker that runs the op.
+//! - **Thread confinement, and the two ways to live with it.** A
+//!   [`Bracket`] is `!Send` — it carries a `PhantomData<*const ()>` —
+//!   so the value that closes a frame cannot leave the thread whose
+//!   stack holds it; the compiler refuses the move. The stack itself is
+//!   thread-local, so work sent to a worker records on the worker or
+//!   nowhere, and idiom-1 parallelism has two shapes over that:
+//!   - **the unit opens its own bracket on the worker** (whole nodes on
+//!     one worker each: `editor_core`'s evaluator brackets inside the
+//!     mapped closure and returns the [`Recorded`] on the node), or
+//!   - **the unit records into a frame of its own and the caller's fold
+//!     splices it back** ([`detached`] / [`splice`]): the shape a walk
+//!     needs when the CALLER holds the bracket — `topo::props`' face
+//!     walk, whose bracket is the op's and whose units are faces.
+//!
+//!   A map that does neither loses what its workers decided, and the
+//!   funnel cannot tell: see
+//!   `work/perf/rayon-maps-outside-props-lose-the-funnels-recordings.md`.
 //! - **Every path closes the frame.** [`Bracket`] pops in `Drop`, so a
 //!   bracket that leaves scope without `finish` — an early `return`, a
 //!   `?`, a panic unwinding through the op — still pops its frame, and
@@ -613,7 +632,13 @@ fn pop_frame(depth: usize, id: u64) -> Recorded {
 ///
 /// The two channels ride together for the reason `classify_in` writes
 /// them together: a consumer cannot take one and miss the other.
-#[derive(Debug, Clone, Default)]
+///
+/// Neither `Clone` nor `Default`, deliberately, and `#[must_use]` on
+/// the door that mints one: a recording silently dropped, or spliced
+/// twice, is exactly the loss this type exists to close, so the type
+/// refuses to make either cheap. A caller that genuinely wants a
+/// recording read rather than spliced has [`Detached::recorded`].
+#[derive(Debug)]
 pub struct Detached {
     recorded: Recorded,
     #[cfg(feature = "probe")]
@@ -678,6 +703,7 @@ impl Drop for SinkSwap {
 /// would reach neither channel; under a detached frame they reach one
 /// this call owns, and [`splice`] puts them where the caller's own
 /// decisions went.
+#[must_use = "a detached run's recording reaches no channel unless it is spliced"]
 pub fn detached<R>(work: impl FnOnce() -> R) -> (R, Detached) {
     let bracket = Bracket::open();
     #[cfg(feature = "probe")]
