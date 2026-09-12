@@ -76,6 +76,11 @@ pub mod orient;
 /// than into it: nothing here evaluates a surface.
 pub mod cap_rims;
 
+/// The Euler–Poincaré census — a built body's ring count and genus,
+/// through the kernel's census door. A check several suites make of
+/// a body they built, so it routes beside [`orient`].
+pub mod census;
+
 /// The `Surface::Approx` surgery vocabulary — the pulled-back base,
 /// the fixtures the OFF-C rows convert, and the surface + carrier +
 /// pcurve surgery itself. Body authoring, so it routes here.

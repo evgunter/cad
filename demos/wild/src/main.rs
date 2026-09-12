@@ -41,7 +41,8 @@
 use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::step_import::{ImportOptions, StepImport, import_step};
-use pncad::topo::Body;
+use pncad::topo::EulerCounts;
+use pncad::topo::readback::euler_counts;
 
 /// One montage cell: a render-OK wild fixture that imports first-class.
 struct Cell {
@@ -155,17 +156,6 @@ fn fixture_text(rel: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path}: {e}"))
 }
 
-/// Topology census + genus (the tour's own narration identity).
-fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
-    let v = body.vertices().count();
-    let e = body.edges().count();
-    let f = body.faces().count();
-    let r: usize = body.faces().map(|(_, face)| face.rings.len()).sum();
-    let s = body.shells().count();
-    let genus = s as i64 - (v as i64 - e as i64 + f as i64 - r as i64) / 2;
-    (v, e, f, r, s, genus)
-}
-
 /// Import + tessellate + export one cell; returns its manifest entry.
 fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     let name = cell.name;
@@ -188,7 +178,11 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
         panic!("{name}: expected a solid import, got a wireframe");
     };
 
-    let (v, e, f, r, s, genus) = census(&body);
+    let counts = euler_counts(&body);
+    let genus = counts
+        .genus()
+        .unwrap_or_else(|refusal| panic!("{name}: {refusal}"));
+    let EulerCounts { v, e, f, r, s } = counts;
     println!(
         "   [{name}] imported first-class: {v} vertices, {e} edges, {f} faces, \
          {r} rings, {s} shell(s) -> genus {genus}; eps_in = {eps_in:e} m"
