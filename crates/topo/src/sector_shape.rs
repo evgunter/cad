@@ -155,6 +155,7 @@
 use geom_brep::OutwardNormal;
 use geom_core::{
     Band, Decide, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3, is_finite_length,
+    is_underflowed_length,
 };
 
 use crate::validate::decide;
@@ -190,6 +191,18 @@ pub(crate) enum SectorFault {
     /// is not a distinction a caller can act on, and the recourse is
     /// the same either way.
     NonFiniteChord,
+    /// A bounding chord's length **underflowed out of the format**:
+    /// its components are small enough (below ~1e-162 at `f64`) that
+    /// `norm_squared` flushed to zero, so the norm is exactly zero for
+    /// a chord that has a perfectly good direction. Carries nothing,
+    /// for the reason its overflow sibling carries nothing.
+    ///
+    /// Its own arm because no tolerance lever reaches it either: the
+    /// squared norm is zero at every eps, so the arm rung below decides
+    /// `Zero` definitely and the corner is reported as an invalid
+    /// (non-positive) arm. That is true of the arithmetic and false of
+    /// the input, whose recourse is the overflow end's — scale.
+    UnderflowedChord,
     /// A rung refused or escalated, named by the rung inside.
     Rung(Indeterminate),
 }
@@ -246,12 +259,30 @@ pub(crate) struct SectorShape<T: Real> {
 /// single-overflow shapes with `full_circle` clear were refused as
 /// SPIKES. The tests carry the full table.
 ///
-/// **Point-scalar gate.** `is_finite_length` is a value question, and
-/// at `T = Interval` it is a no-op: `Interval::is_poison` is
+/// **Rung 0 asks the other end of the format too**, per chord for the
+/// same reason: a chord below `Vec3::normalize`'s ~1e-162 underflow
+/// band squares to zero, so `norm` is EXACTLY zero, and `min` puts that
+/// zero straight into the arm — an underflowed chord hides behind a
+/// good one exactly as an overflowed one did, and it hides HARDER,
+/// because zero is what `min` prefers. The arm rung then decides `Zero`
+/// definitely and the corner is refused as a non-positive arm: true of
+/// the arithmetic, false of the chord, and offering a band that cannot
+/// reach a squared norm of zero. `is_underflowed_length` is asked
+/// against each chord's own largest `|component|`
+/// (`Vec3::norm_witness`), which is that predicate's contract, and it
+/// is asked AFTER the finiteness question because an overflowed or
+/// poisoned length makes its two ratios non-finite for an unrelated
+/// reason.
+///
+/// **Point-scalar gates.** Both are value questions, and at
+/// `T = Interval` neither bites: `Interval::is_poison` is
 /// `is_nai() || is_empty()`, and `[1e200, ∞] − [1e200, ∞]` is
-/// `[−∞, ∞]`, which answers finite. So rung 0 bites at `f64` and
-/// `Probe` and waves an interval chord through to the rungs below. No
-/// live caller instantiates this body at `Interval` today; see
+/// `[−∞, ∞]`, which answers finite; and a norm whose lower end
+/// underflowed still ENCLOSES the true length, so the underflow ratio
+/// is an unbounded enclosure rather than poison and the question
+/// answers `false`. So rung 0 bites at `f64` and `Probe` and waves an
+/// interval chord through to the rungs below. No live caller
+/// instantiates this body at `Interval` today; see
 /// `geom_core::is_finite_length` for the general statement.
 ///
 /// **K consequence.** Rung 0 refuses before the funnel, so a
@@ -265,7 +296,9 @@ pub(crate) struct SectorShape<T: Real> {
 /// # Errors
 ///
 /// [`SectorFault::NonFiniteChord`] when either bounding chord's
-/// length is not a finite number; otherwise [`SectorFault::Rung`]
+/// length is not a finite number;
+/// [`SectorFault::UnderflowedChord`] when either underflowed out of
+/// the format; otherwise [`SectorFault::Rung`]
 /// named by the rung that produced it — a `decide` escalation passed
 /// through unchanged, or a [`MarginDiag::Invalid`] diagnostic when a
 /// definite verdict is one this predicate does not admit
@@ -282,6 +315,14 @@ pub(crate) fn sector_shape<T: Decide>(
     let (norm_own, norm_next) = (dir_own.norm(), dir_next.norm());
     if !is_finite_length(norm_own) || !is_finite_length(norm_next) {
         return Err(SectorFault::NonFiniteChord);
+    }
+    // Per CHORD, against that chord's own witness — the arm below is
+    // their `min`, which has no witness of its own and would hide the
+    // underflowed one behind the good one.
+    if is_underflowed_length(norm_own, dir_own.norm_witness())
+        || is_underflowed_length(norm_next, dir_next.norm_witness())
+    {
+        return Err(SectorFault::UnderflowedChord);
     }
     let arm = norm_own.min(norm_next);
     match decide(SECTOR_ARM, Margin::of(arm), band) {
@@ -447,6 +488,72 @@ mod tests {
         assert_eq!(e.predicate, Some("sector_straight"));
         assert_eq!(e.margin, MarginDiag::Invalid);
         assert_eq!(e.band, band());
+    }
+
+    /// **Rung 0, the other end: a chord whose length UNDERFLOWED.**
+    /// Components below ~1e-162 square to zero, so `norm` is exactly
+    /// zero for a chord that names its direction perfectly well.
+    ///
+    /// **Measured on this body without the underflow arm, all eight
+    /// shapes** — four chord pairs × `full_circle`. Every row was
+    /// executed: all eight refused identically, as
+    /// `Rung(Indeterminate { margin: Invalid, band, predicate:
+    /// Some("sector_arm") })` — this body's own [`invalid`] spike
+    /// refusal, which says the arm is non-positive and offers the
+    /// band. Both halves are false of the input: the chord is not
+    /// short, it is unmeasurable, and no band reaches a squared norm
+    /// of zero.
+    ///
+    /// **`min` hides this end HARDER than the overflow end.** There,
+    /// `min(3.0, ∞) = 3.0` let a healthy-looking arm through to rung
+    /// 3, where two of eight shapes returned `Ok`. Here
+    /// `min(3.0, 0.0) = 0.0`, so the underflowed chord always WINS the
+    /// `min` and the refusal is never silent — but it is never about
+    /// the chord either, and the arm it names is the good chord's
+    /// neighbour rather than the one that failed. Asking each chord
+    /// separately is what recovers the cause; asking the arm could not,
+    /// because the arm is a `min` of two chords and has no witness of
+    /// its own.
+    ///
+    /// `full_circle` is carried through every row for the same reason
+    /// the overflow rows carry it: it is the flag that separated silent
+    /// from loud there, and a row that dropped it would be testing less
+    /// than its sibling.
+    #[test]
+    fn a_chord_whose_length_underflowed_refuses_at_rung_zero() {
+        let tiny = 1e-200;
+        // The premise: the norm flushed, and the direction survives in
+        // the witness the underflow question is asked against.
+        assert_eq!(v(0.0, tiny, 0.0).norm(), 0.0);
+        assert_eq!(v(0.0, tiny, 0.0).norm_witness(), tiny);
+        for full_circle in [false, true] {
+            for (own, next) in [
+                (v(0.0, tiny, 0.0), v(0.0, tiny, 0.0)),
+                (v(0.0, 3.0, 0.0), v(tiny, 0.0, 0.0)),
+                (v(tiny, 0.0, 0.0), v(0.0, 3.0, 0.0)),
+                (v(tiny, tiny, tiny), v(0.0, 3.0, 0.0)),
+            ] {
+                assert_eq!(
+                    shape(own, next, full_circle).err(),
+                    Some(SectorFault::UnderflowedChord),
+                    "{own:?} / {next:?} / full_circle={full_circle}"
+                );
+            }
+        }
+        // A chord that is genuinely SHORT rather than unmeasurable is
+        // still the arm rung's, not this one's: 1e-12 squares to 1e-24,
+        // which the format holds.
+        assert_eq!(
+            shape(v(0.0, 1e-12, 0.0), v(0.0, 3.0, 0.0), false).err(),
+            Some(invalid(band(), SECTOR_ARM))
+        );
+        // And the zero chord is not an underflowed one: it has no
+        // direction to recover, so its witness is zero too and the
+        // predicate's two ratios are both poison.
+        assert_eq!(
+            shape(v(0.0, 0.0, 0.0), v(0.0, 3.0, 0.0), false).err(),
+            Some(invalid(band(), SECTOR_ARM))
+        );
     }
 
     /// **Rung 0: a chord whose length is not a NUMBER.** A chord past

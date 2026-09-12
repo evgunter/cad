@@ -111,8 +111,9 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
             }
             // Nothing was classified: the door refused before any
             // margin reached the funnel, so the whole payload is
-            // absent exactly as it is for a definite zero.
-            E::NonFiniteLength { .. } => (
+            // absent exactly as it is for a definite zero. Both format
+            // arms are that case — overflowed and underflowed alike.
+            E::NonFiniteLength { .. } | E::UnderflowedLength { .. } => (
                 none(),
                 none(),
                 none(),
