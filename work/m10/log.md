@@ -1387,3 +1387,86 @@ or by something the finer leaves see; whether the re-baselined
 goldens assert the mechanism; why the link, bracket and pad's identity
 residuals do not fold.
 
+
+## M10-10 dual review adjudication (2026-09-12)
+
+Both arms on frozen e904d9691 (PR #2100, green on the full matrix).
+R1 MERGE-AFTER-FIXES (3 MAJ / 7 MIN / 4 NOTE, rubric 4/4/3), delivered
+2026-09-07; R2 MERGEABLE-WITH-CHANGES (1 MAJ / 7 MIN / 3 NOTE, rubric
+4/3/3), delivered 2026-09-12 after dying on the Fable limit before its
+first step and being resumed in place when Ev said the limit had reset
+— no work lost, the pair counts. Both re-drove the plate's real study
+at 1,024 leaves and reproduced 431 certified / 593 refused, 89.07 % of
+the mass and the hull to the digit; both refined refused leaves and
+found the over-band set `{assert_bound}` alone at every leaf and
+depth (R2: bisecting 16 refused leaves, 84 of 128 children certify);
+both found every rule sound under attack at every point clause 1 does
+not refuse; R2's merge-base differential of eleven fixtures is
+byte-identical. The mechanism stands, and the acceptance stands with
+one correction to what it says.
+
+R1, BY EXECUTION, on the CODE: rule D's argument reader forms the
+dyadic multiple with `i128::checked_shl`, which refuses only shifts
+≥ 128 and otherwise WRAPS, so the `|k| ≤ MAX_MULTIPLE` guard reads a
+wrapped value and `cos((2^123 + 1)·32·atan x) − cos(32·atan x)`
+decides `Zero` as a theorem — unreachable from any document (a 53-bit
+product is `Int::Big`, rejected), one line to fix, a red row on its
+probe branch; four rows still read a first refusal at 2× the ceiling
+(one of them gating) while the order-artefact finding is closed on
+"nothing in the tree spells a bound that way"; `sym.rs`'s header still
+states two limits the shipped tier no longer has, and `SymRules`'s doc
+describes three flags on a struct carrying eight. R1's own correction,
+by execution: raising the per-node cap eightfold buys not one decision
+on six documents and costs the link 7× — so the sentence "past the
+per-node cap, so nothing reduces it" is wrong in five places; what
+holds the link and bracket is the coefficient/term budget freezing the
+squared components at any affordable width. R1's e2e: a literal bulge
+other than 1 (a major arc at bulge 2) leaves a third of the residue
+numeric and the ceiling unmoved.
+
+R2, BY EXECUTION, on the CLAIM: the plate's whole-certifying ceiling
+at 0.263 of its study is bounded by DEPENDENCY WIDENING of the
+assertion's own affine margin, not by a flip — `web − bound = 1e-4 +
+2·Δhs − Δr_a − Δr_b` has true range `1e-4 ± 1.6e-4·s`, so the flip
+first enters the box at s = 0.625, and at s = 0.263 the true margin is
+`[5.8e-5, 1.4e-4] > 0` while the enclosure is `[−2e-9, 2e-4]`: the
+class M10-7's R1 filed (`real-margin-dependency-widening`), which the
+spec said to NAME. The annulus at the finer rows likewise
+(`arc_diameter_clearance` cannot be zero for r > 0). "Bounded by
+genuine flips, not by ε" is therefore half right — not by ε, and the
+whole drive's refusals do sit around the real flip at s ≥ 0.625 and
+refine away, but the ceiling number is widening's. R2 also: the
+hosted interval test leg TRIPLED (2.3 → 7.3 min on one shard) and the
+body reports only the tour's minutes — which meets the item S-TCOST
+filed on main while this unit was frozen (the tier is 95 % of the
+M10-3 drive, nothing profiled inside the normal form); a parameter
+bulge is entirely outside the mechanism (ceiling identical on and
+off); `MAX_HALVINGS = 3` admits `q = 3/8` but the ring does not close
+there; the tour's stop 1 never states the violated mass.
+
+Correspondence: the surviving 2× reads (R1 MAJ-2 ⊃ R2 m1), the cap
+prose (R1's correction ≡ R2 m6, both by execution), the `atoms_of`
+underflow, the stale K-REPORT padding paragraph and the one-sided
+padding pins are bilateral. TALLY CANDIDATES: R1's wrapping-shift
+false theorem (unilateral, by execution) and R2's dependency-widening
+reading of the ceiling (unilateral, by execution) — the program's
+third symmetric pair. Unilateral MINORs: R1's undisclosed A/B over the
+top residual, D14's π dependency, the two gate-carry homes; R2's CI
+cost, the parameter-bulge reach, the unclosed halving. Silent
+deviations: R1 counted 6, R2 counted 5.
+
+Fix pass IMPLEMENTER-INHERITED, and it begins by merging main (2,400
+commits since the freeze; conflicts in `editor-core/tests/all.rs`,
+`demos/tour/src/tolerance.rs`, `docs/K-REPORT.md`): the shift guarded
+and R1's red row adopted; the acceptance re-stated everywhere with the
+widening class named and R2's affine-margin row pinned, the whole
+drive's refusals stated as the flip's; the four 2× rows re-cut; the
+header, the `SymRules` doc, the cap prose in five places, the tour row
+doc and K-REPORT re-cut; the padding pins asserting the leaf count in
+the right direction; the A/B-over-top-residual scope disclosed with
+the M10-8 row restored; D14's π dependency stated and pinned; the
+halving schedule closed at m ≤ 2; the reach limits (parameter bulge;
+literal bulge ≠ 1) stated as the mechanism's statement and filed as
+the next ceiling class; the hosted cost deltas disclosed and the
+S-TCOST item linked. Durable homes: the reach-limit item; the CI cost
+in the exit walk with S-TCOST's item.
