@@ -1,72 +1,81 @@
 ---
 id: readme-ratification-amendments-need-ev
 kind: ruling
-title: Does the viewer README kind-retirement merged in PR 2387 stand, now that README ratifications need Ev's sign-off?
+title: The viewer README paragraph that replaced a retired kind overstates; the approval-rule gap it exposed is closed in CLAUDE.md
 status: open
 opened: 2026-09-12
 needs_ev: true
 ---
 
 
-## The rule (Ev, 2026-09-12, in-chat)
+## It was a gap, and CLAUDE.md is where it is closed
 
-**README-level ratification changes generally need Ev's sign-off.** A
-crate README beside the code it governs is a design doc — `CLAUDE.md`
-says so — and retiring or amending a ratified clause in one is a design
-decision, not a lane's call, even when the code change forces it.
+Ev's instruction (2026-09-12) was to find where the approval rule lives,
+**decide whether this is genuinely a gap**, and only then clarify it
+there. The answer is yes, narrowly, and the diagnosis is this program's
+own subject.
 
-Recorded on this program's `keep_out` and here. It is a rule for every
-program, not just DOOR; DOOR records it because DOOR is where it was
-asked and where it was already broken once.
+**The spirit was already unambiguous.** `CLAUDE.md` calls
+`crates/<crate>/README.md` pages *"design docs for finished work … with
+their clause ids kept"*; it says of settled decisions *"do not
+re-litigate … discussed with Ev first"*; and
+`memories/orchestration-model.md` closes with *"when unsure which kind a
+decision is, treat it as a fork."* That catch-all covers retiring a
+ratified clause and should have stopped the orchestrator. It did not,
+which is a reading failure and not the document's.
 
-## What was already merged without it
+**The letter was a hand-written enumeration missing a member.** The
+Git-workflow exception named *"PRs that ratify **open** design
+questions"* and `memories/`. Retiring a **settled** clause is neither —
+it is close to the opposite of ratifying an open one. And
+`orchestration-model.md` names *"changes to ratified **DESIGN.md**
+decisions"*: `DESIGN.md` specifically, not the README pages the same
+document defines as design docs. So the rule was a list of two homes
+where the principle has four, and `docs/prompts/` — read by every lane
+by path, binding the orchestrator's own judgement — was the other one
+missing.
 
-PR #2387 (`topo::BooleanOp::ALL`, merged `3ad715d`) amended
-`crates/viewer/README.md`:
+That is the defect class DOOR spent the day closing, in the rule that
+governs DOOR.
 
-- the ratified sentence *"**Three** kinds of list stay hand-written"*
-  became *"**Two** kinds…"*;
-- the bullet **"A mirror of an enum declared in another crate"** was
-  retired and replaced by a prose paragraph arguing it is not a kind;
-- the roster row `| BOOLEAN_OPS | forms | A mirror of an enum declared
-  in another crate |` was deleted;
-- `scripts/gates/viewer-vocab-declared-once.sh`'s `KIND_ANCHOR` and
-  `KIND_COUNT` moved with it.
+**Closed in `CLAUDE.md`**, in the same PR as this row, by stating the
+test instead of the list: *"the exception is text that binds future work
+rather than describing this change"*, with the four homes as what it
+covers today and a sentence saying a new home is covered the day it
+exists rather than the day the line is updated. `docs/prompts/` is named
+per Ev's suggestion.
 
-**It was not gratuitous.** The gate reads that README's roster and reds
-on a row whose list no longer exists, so retiring `BOOLEAN_OPS` forced
-the roster edit; the kind it claimed then had zero instances. The README
-documents the amendment procedure for ADDING a kind and the lane ran it
-in reverse, argued in prose, with the gate and its `--selftest` green
-under three independent checks. The orchestrator flagged the change to
-Ev at the time and merged on the reading that a crate README is not
-`docs/DESIGN.md`. That reading is now superseded.
+## What is left for Ev, which is not a rule question
 
-## The question
+**PR #2387 broke no rule that existed** — the letter did not reach it —
+so nothing here is a violation to remedy, and nothing proposes
+reverting. What is left is a **substantive** defect the review of #2391
+found, and under the rule as now written its fix needs Ev's sign-off
+because it amends a ratified README clause.
 
-**Does the amendment stand?** Three answers are live and the row does
-not presume one:
+The paragraph #2387 put in place of the retired kind claims generally:
 
-1. **Ratify as merged.** The kind had no instances left and the gate
-   forced the edit; the tree is consistent today.
-2. **Ratify the mechanics, amend the argument.** The replacement
-   paragraph claims generally that *"a mirror claiming completeness has
-   an answer one crate over"*. The style review of #2391 found that
-   false in one live case: `work/door/viewport-pointer-buttons-mirror-a-toolkit-enum-by-hand`
-   documents a complete mirror of `egui::PointerButton`, whose declaring
-   crate cannot publish an `ALL`. So the retired kind's *reason* still
-   holds for at least one list inside `crates/viewer/src` — the gate does
-   not see it only because it is an inline array rather than a `const`.
-   On this reading the kind was vacated of rostered instances, not
-   falsified, and the paragraph overstates.
-3. **Restore the kind**, with the pointer-button list rostered under it.
+> a mirror claiming completeness has an answer one crate over, where the
+> owner publishes its own `ALL` beside the declaration and this crate
+> maps over it
 
-The orchestrator's read is **(2)**: the mechanics were right and forced,
-and the sentence claims more than the tree supports. But this is the
-call the new rule reserves for Ev, which is the point of the row.
+**That is false in a live case.**
+`work/door/viewport-pointer-buttons-mirror-a-toolkit-enum-by-hand`
+documents a complete mirror of `egui::PointerButton` inside
+`crates/viewer/src` whose declaring crate cannot publish an `ALL` — the
+gate misses it only because it is an inline array rather than a `const`.
+So the retired kind was vacated of *rostered* instances, not falsified,
+and the replacement paragraph overstates.
 
-## Not a precedent for reverting
+Three answers, and the row does not presume one:
 
-Nothing here proposes undoing the merge. `work/README.md` and this
-repo's merge-only rule make a merged amendment a fact to be ratified or
-amended forward, not rewound.
+1. **Leave it.** The roster is what the gate reads and it is correct.
+2. **Amend the paragraph** to say the kind was vacated rather than
+   falsified, naming the toolkit case as the reason the reason survives.
+3. **Restore the kind** and roster the pointer-button list under it —
+   which needs the gate to see inline arrays, and is therefore the
+   largest of the three.
+
+The orchestrator's read is **(2)**: cheapest, and it makes the sentence
+true without asking the gate to grow. But this is the call the rule now
+reserves for Ev.
