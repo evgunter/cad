@@ -563,3 +563,46 @@ STOP, that tier 1 has no per-shell entry (five of thirteen passes are
 arena-global by construction), kept on SHELL's
 `doors-still-read-the-whole-body-for-tier1` as a closure-check
 limitation rather than filed here. Signed (SHELL orchestrator).
+
+## The dual died at dispatch; four days idle; re-run on a merged-forward head (2026-09-12)
+
+Both blinded reviewers dispatched on the census door's frozen head
+`11257506c` (ordinal 2702) were killed by the account's usage limit
+within minutes of launch, before either had read past its brief — no
+report, no probe, no scratch file beyond the stored brief. The session
+then sat idle from 2026-09-08 01:15 UTC until Ev reset the limit on
+2026-09-12. Main moved by some 2,400 commits in between (SHELL's units
+5–10, the code-quality register leaving the tracker, PERF opening, the
+discipline documents rewritten) and `topo/census-door` now conflicts
+with it in four converted files (`verbs_shell.rs`,
+`verbs_shell_r2_probes.rs`, `demos/tour/src/main.rs`, `teapot.rs`),
+with 285 commits on the sweep's ground since its merge base.
+
+Decision: the implementer lane merges main forward FIRST — resolves
+the conflicts, re-derives the class receipt at the new merge base,
+files its two outside-the-fence findings per the rewritten
+`implementer-discipline.md` §6 (a lane files on the owner's slate in
+its own PR now; the census brief predated that rule), and rewrites its
+citations by name per the new §7 — then the dual runs on that head.
+Reviewing the stale head and merging forward afterwards would have
+put the conflict resolution and any new sites outside both reviews.
+Ordinal 2702 stays; the claim entry on main names `11257506c` as the
+frozen head and the row will carry the superseding SHA with this entry
+as its disclosure. Parity byte 70 stands (R1 OPUS, R2 FABLE); the
+briefs are regenerated from the merged PR body and re-hashed before
+dispatch. The dead reviewers' worktrees were removed; their scratch
+dirs held nothing but the brief.
+
+Rules that changed on main and bind this program's briefs from here:
+findings outside the fence are filed by the lane on the owner's slate
+(`work/README.md`, discipline §6); citations by name (§7); the style
+lane checks whether a structural fix mints a fresh instance of the
+defect it closes (`reviewer-style-lane.md`); PRs touching
+`docs/prompts/` or an already-ratified decision wait for Ev
+(`CLAUDE.md`). `S79` moved to `work/pipe/`; the nine-copies row to
+`work/suite/`. Ten rows were placed on this slate by other programs
+while the session was idle (SHELL's diagnoses on `revert`,
+`split_edge`, `move_shells_to_new_solid`, the attach postconditions,
+tier 3's shell roles and ring nesting; `D360`'s sweep rule;
+`geom-source-absence-conflates-four-origins`; the stale D107 citation)
+— read before the next unit is cut, not acted on here.
