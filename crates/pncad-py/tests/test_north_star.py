@@ -2551,16 +2551,16 @@ class TestTeapot(unittest.TestCase):
     #: `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`
     #: carries that; `circle_split` is the door.
     #:
-    #: The sections are ROUND, and the Rust scene does not currently
-    #: pass its own eps sweep because of it. A circle is RATIONAL, so
-    #: these walls are quadrature faces whose enclosure is chased to a
-    #: target derived from eps, and at eps = 1e-12 that target is
-    #: proven unreachable after round 0. That refusal is a KERNEL
-    #: finding the scene exhibits rather than dodges: tier 3's +V check
-    #: consumes only the SIGN of the enclosure, and the sign was
-    #: decided by five orders of magnitude at the round the body was
-    #: refused on. Filed as `work/perf`'s
-    #: `tier3-plus-v-needs-a-sign-and-pays-for-a-precision`.
+    #: The sections are ROUND, and at a tight eps that costs the body
+    #: its volume NUMBER rather than its certificate. A circle is
+    #: RATIONAL, so these walls are quadrature faces whose enclosure is
+    #: chased to a reporting target derived from eps, and at
+    #: eps = 1e-12 that target is proven unreachable after round 0.
+    #: Tier 3 admits the body anyway -- its +V check consumes only the
+    #: SIGN of the enclosure, and the sign is decided by five orders of
+    #: magnitude at the round the chase stops on -- so the Rust scene
+    #: certifies at every eps and its volume ribbon reports the
+    #: SIGN-level bracket where it has no number to report.
     SPOUT_ARCS: ClassVar[int] = 4
     #: The spout's total bend, root tangent to tip tangent.
     SPOUT_BEND: ClassVar[float] = math.pi / 4
@@ -3181,11 +3181,11 @@ class TestTeapot(unittest.TestCase):
         #
         # This binding runs at the default eps, where the door opens.
         # The Rust scene runs the same body at 1e-12 too, where it does
-        # NOT: the enclosure is chased to a target that is proven
-        # unreachable after round 0, and tier 3 fails
-        # VolumeUncomputable on a body whose volume SIGN was never in
-        # doubt. work/perf's
-        # tier3-plus-v-needs-a-sign-and-pays-for-a-precision.
+        # NOT: the enclosure is chased to a reporting target that is
+        # proven unreachable after round 0, so there is no volume
+        # NUMBER to bracket against. Tier 3 still certifies the body
+        # there, on the SIGN of that same enclosure, and the tour's
+        # ribbon prints the bracket instead.
         self.assertLessEqual(
             abs(props.volume - v_spout),
             props.volume_pad,

@@ -221,25 +221,28 @@
 //!    On the area it cannot, and the scene says so instead of
 //!    pretending otherwise** — see below.
 //!
-//!    **The sections are ROUND, and this scene does not currently pass
-//!    its own ε sweep because of it — which is the point.** A circle
-//!    is RATIONAL, so these lateral walls are rational patches, and a
-//!    rational patch is a QUADRATURE face whose enclosure is chased to
-//!    a target derived from ε. At ε = 1e-12 the schedule's own
-//!    last-round bound proves that target unreachable, so
+//!    **The sections are ROUND, and what that costs at a tight ε is a
+//!    volume NUMBER rather than a certificate.** A circle is RATIONAL,
+//!    so these lateral walls are rational patches, and a rational
+//!    patch is a QUADRATURE face whose enclosure is chased to a
+//!    reporting target derived from ε. At ε = 1e-12 the schedule's
+//!    own last-round bound proves that target unreachable, so
 //!    `mass_properties` refuses `QuadratureBudget` after round 0
-//!    (`rounds: 1`, no work spent) and tier 3 fails
-//!    `VolumeUncomputable`.
+//!    (`rounds: 1`, no work spent).
 //!
-//!    **The refusal is a KERNEL finding and this scene exhibits it.**
-//!    Tier 3's +V check consumes only the SIGN of the volume enclosure
-//!    — the tier's own docs say deciding that sign "is an act of
-//!    certification rather than a measurement" — and this body's
-//!    enclosure excluded zero by about five orders of magnitude at the
-//!    very round it was refused on. The solid was never in doubt; the
-//!    kernel declined to say so because a number nobody asked for was
-//!    not precise enough. Filed as `work/perf`'s
-//!    `tier3-plus-v-needs-a-sign-and-pays-for-a-precision`.
+//!    **Tier 3 admits the body anyway.** Its +V check consumes only
+//!    the SIGN of the volume enclosure — the tier's own docs say
+//!    deciding that sign "is an act of certification rather than a
+//!    measurement" — and this body's enclosure excludes zero by about
+//!    five orders of magnitude at the very round the chase stops on.
+//!    So the scene certifies at every ε, and where it has no number
+//!    to print the tour's ribbon prints the SIGN-level bracket
+//!    instead. What is left of the friction is a CONSUMER-side gap and
+//!    the scene meets it below: the refusal that carries no number
+//!    also drops the enclosure, so this probe cannot report the
+//!    bracket it was refused on without reaching two crates down
+//!    (`work/perf`'s
+//!    `budget-refusal-drops-the-enclosure-the-caller-needs`).
 //!
 //!    More budget is not the fix, and that is measured: at
 //!    `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early exit stops firing, so
@@ -247,10 +250,11 @@
 //!    the face then runs for over half an hour without finishing.
 //!
 //!    This scene was briefly re-authored with OCTAGONAL sections,
-//!    which certified at every ε: a polygon's sides are straight, so
-//!    its walls are polynomial and take the integral lane's exact
-//!    per-span rule. That is reverted. The shape a potter draws is
-//!    round, and a demo bent around a kernel bug hides the bug —
+//!    which had a volume number at every ε: a polygon's sides are
+//!    straight, so its walls are polynomial and take the integral
+//!    lane's exact per-span rule. That is reverted. The shape a potter
+//!    draws is round, and a demo bent around the kernel's reporting
+//!    floor hides the floor —
 //!    `memories/demo-purpose.md` says awkwardness is a LIBRARY
 //!    FINDING, never hidden. What the octagon bought is kept as
 //!    knowledge and stated where it belongs: the integral lane has an
@@ -437,24 +441,24 @@ const SPOUT_STATIONS: usize = 7;
 /// `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`,
 /// and `CircleSplit(4)` is the door through it.
 ///
-/// **The sections are ROUND, and this scene does not currently pass
-/// its own ε sweep because of it.** A circle is RATIONAL, so these
-/// lateral walls are rational patches, and a rational patch is a
-/// QUADRATURE face whose certified enclosure is chased to
-/// `QUAD_TARGET_LEN_FACTOR·ε`. At ε = 1e-12 that target is 1.024e-9,
-/// and the schedule's own last-round bound proves it unreachable, so
-/// `mass_properties` refuses `QuadratureBudget` after round 0 —
-/// `rounds: 1`, no work spent — and tier 3 fails `VolumeUncomputable`.
+/// **The sections are ROUND, and at a tight ε that costs this body
+/// its volume NUMBER.** A circle is RATIONAL, so these lateral walls
+/// are rational patches, and a rational patch is a QUADRATURE face
+/// whose certified enclosure is chased to `QUAD_TARGET_LEN_FACTOR·ε`.
+/// At ε = 1e-12 that target is 1.024e-9, and the schedule's own
+/// last-round bound proves it unreachable, so `mass_properties`
+/// refuses `QuadratureBudget` after round 0 — `rounds: 1`, no work
+/// spent.
 ///
-/// **That refusal is a kernel finding, not a property of circles, and
-/// it is filed**: `work/perf`'s
-/// `tier3-plus-v-needs-a-sign-and-pays-for-a-precision`. Tier 3's +V
-/// check consumes only the SIGN of the volume enclosure — the tier's
-/// own docs say deciding that sign "is an act of certification rather
-/// than a measurement" — and this body's enclosure excluded zero by
-/// about FIVE ORDERS OF MAGNITUDE at the round it was refused on. The
-/// solid was never in doubt; the kernel declined to say so because a
-/// number nobody asked for was not precise enough.
+/// **Tier 3 certifies the body all the same, which is why this
+/// authoring is the honest one.** Its +V check consumes only the SIGN
+/// of the volume enclosure — the tier's own docs say deciding that
+/// sign "is an act of certification rather than a measurement" — and
+/// this body's enclosure excludes zero by about FIVE ORDERS OF
+/// MAGNITUDE at the round the chase stops on. So the solid is
+/// certified at every ε and what it lacks at 1e-12 is a number, which
+/// the tour's ribbon reports as the SIGN-level bracket rather than
+/// dying on.
 ///
 /// Raising the round cap does not fix it either, measured: at
 /// `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early-exit stops firing (so the
@@ -463,12 +467,12 @@ const SPOUT_STATIONS: usize = 7;
 /// the answer; not demanding the precision is.
 ///
 /// This scene was briefly re-authored with OCTAGONAL sections to get
-/// around all of it, and that worked — a polygon's sides are straight,
-/// so its walls are polynomial and take the integral lane's exact
-/// per-span rule. It is reverted here because the shape a potter draws
-/// is round, and because a demo bent around a kernel bug hides the
-/// bug. `memories/demo-purpose.md` is the rule: awkwardness is a
-/// LIBRARY FINDING, never hidden.
+/// a number at every ε, and that worked — a polygon's sides are
+/// straight, so its walls are polynomial and take the integral lane's
+/// exact per-span rule. It is reverted here because the shape a potter
+/// draws is round, and because a demo bent around the kernel's
+/// reporting floor hides the floor. `memories/demo-purpose.md` is the
+/// rule: awkwardness is a LIBRARY FINDING, never hidden.
 const SPOUT_ARCS: u32 = 4;
 /// **The spout's total bend**, root tangent to tip tangent: half a
 /// right angle. The canal leaves the belly on [`SPOUT_DIR`] and
@@ -2030,18 +2034,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // that is the honest authoring — so they are QUADRATURE faces.
     // `mass_properties` publishes a certified ENCLOSURE rather than a
     // number, where every analytic body on this page publishes a pad
-    // of exactly 0. That enclosure is chased to a target derived from
-    // ε, and **at ε = 1e-12 it is not reachable**: the schedule's own
-    // last-round bound proves it after round 0, so the reading refuses
-    // `QuadratureBudget` and tier 3 fails `VolumeUncomputable`.
+    // of exactly 0. That enclosure is chased to a REPORTING target
+    // derived from ε, and **at ε = 1e-12 it is not reachable**: the
+    // schedule's own last-round bound proves it after round 0, so this
+    // reading refuses `QuadratureBudget`.
+    //
+    // Tier 3 admits the body regardless — its +V check consumes only
+    // the SIGN of this enclosure, decided by five orders of magnitude
+    // at the very round the chase stops on — so the refusal here is a
+    // missing NUMBER and not a missing certificate.
     //
     // So the scene PROBES rather than asserting through a door that
-    // may not open, and says which it got. That is not a workaround —
-    // it is the finding on screen, and `work/perf`'s
-    // `tier3-plus-v-needs-a-sign-and-pays-for-a-precision` is where it
-    // is being fixed: tier 3's +V check consumes only the SIGN of this
-    // enclosure, and the sign was decided by five orders of magnitude
-    // at the very round the body was refused on.
+    // may not open, and says which it got. What the refused arm CANNOT
+    // say is the part still worth reading: the error carries no
+    // enclosure, so this probe has nothing to report the bracket from
+    // even though the certificate the tier just took holds one
+    // (`work/perf`'s
+    // `budget-refusal-drops-the-enclosure-the-caller-needs`).
     //
     // Where the door DOES open, what is asserted is the bracket: the
     // straightened frustum lies inside the kernel's own certified
@@ -2089,15 +2098,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Err(e) => format!(
             "mass properties REFUSED TYPED at this tolerance — {e:?} — so the closed form \
              has nothing to be compared against here. These walls are RATIONAL, so they \
-             are QUADRATURE faces whose enclosure is chased to a width derived from eps, \
-             and at a tight enough eps that chase is proven unreachable after round 0. \
-             THE SIGN OF THAT VOLUME WAS NEVER IN DOUBT — the enclosure excludes zero by \
-             about five orders of magnitude — and tier 3's +V check consumes only the \
-             sign, so a valid solid is being reported unvalidatable for missing a \
-             precision the check does not read. Filed as work/perf's \
-             tier3-plus-v-needs-a-sign-and-pays-for-a-precision. The straightened \
-             frustum's own numbers, which do not depend on eps: V = {v_spout:.9} m^3, \
-             A = {a_spout:.9} m^2"
+             are QUADRATURE faces whose enclosure is chased to a REPORTING width derived \
+             from eps, and at a tight enough eps that chase is proven unreachable after \
+             round 0. What is missing is a NUMBER and not a certificate: tier 3 admitted \
+             this body at this same eps, because its +V check consumes only the SIGN of \
+             that enclosure and the enclosure excludes zero by about five orders of \
+             magnitude. The tour's own volume ribbon prints that SIGN-level bracket; THIS \
+             probe cannot, because the refusal carries no enclosure to print — \
+             work/perf's budget-refusal-drops-the-enclosure-the-caller-needs. The \
+             straightened frustum's own numbers, which do not depend on eps: \
+             V = {v_spout:.9} m^3, A = {a_spout:.9} m^2"
         ),
     };
     let spout_bend_deg = SPOUT_BEND.to_degrees();
@@ -2403,26 +2413,28 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              area. So the oracle is the STRAIGHTENED tube — outer radii R0 → R1, a bore \
              {SPOUT_BORE} of each, the spine length as the height — and the canal is \
              held to it INSIDE THE KERNEL'S OWN CERTIFIED ENCLOSURE rather than at a \
-             relative bound: {spout_reading}. THE SECTIONS ARE ROUND, AND THIS SCENE \
-             DOES NOT CURRENTLY PASS ITS OWN EPS SWEEP BECAUSE OF IT -- which is the \
-             point. A circle is RATIONAL, so these lateral walls are rational patches, \
-             and a rational patch is a QUADRATURE face whose enclosure is chased to a \
-             target derived from eps. At eps = 1e-12 the schedule's own last-round bound \
-             proves that target unreachable, so mass_properties refuses QuadratureBudget \
-             after round 0 -- rounds: 1, no work spent -- and tier 3 fails \
-             VolumeUncomputable. THE REFUSAL IS A KERNEL FINDING AND THIS SCENE EXHIBITS \
-             IT: tier 3's +V check consumes only the SIGN of that enclosure, and the \
-             enclosure excludes zero by about five orders of magnitude at the very round \
-             the body is refused on, so a valid solid is reported unvalidatable for \
-             missing a precision the check never reads. Filed as work/perf's \
-             tier3-plus-v-needs-a-sign-and-pays-for-a-precision. More budget is not the \
-             fix and that is measured: at one more round the early exit stops firing and \
-             the face then runs over half an hour without finishing. An OCTAGONAL \
-             authoring certified at every eps -- straight sides make polynomial walls, \
-             which take the integral lane's exact per-span rule, the same reason \
-             `twisted_tube` next door can be a loft and a solid at every eps -- and it is \
-             reverted, because the shape a potter draws is round and a demo bent around a \
-             kernel bug hides the bug. The handle checks by \
+             relative bound: {spout_reading}. THE SECTIONS ARE ROUND, AND WHAT THAT \
+             COSTS AT A TIGHT EPS IS A VOLUME NUMBER RATHER THAN A CERTIFICATE. A circle \
+             is RATIONAL, so these lateral walls are rational patches, and a rational \
+             patch is a QUADRATURE face whose enclosure is chased to a REPORTING target \
+             derived from eps. At eps = 1e-12 the schedule's own last-round bound proves \
+             that target unreachable, so mass_properties refuses QuadratureBudget after \
+             round 0 -- rounds: 1, no work spent. TIER 3 ADMITS THE BODY ANYWAY, which is \
+             what makes this authoring the honest one: its +V check consumes only the \
+             SIGN of that enclosure, and the enclosure excludes zero by about five orders \
+             of magnitude at the very round the chase stops on, so the scene certifies at \
+             every eps and the volume ribbon prints the SIGN-level bracket where it has \
+             no number to print. What is left is a consumer-side gap this probe sits in: \
+             the refusal carries no enclosure, so the reading above cannot report the \
+             bracket the tier just certified -- work/perf's \
+             budget-refusal-drops-the-enclosure-the-caller-needs. More budget would not \
+             buy the number back and that is measured: at one more round the early exit \
+             stops firing and the face then runs over half an hour without finishing. An \
+             OCTAGONAL authoring had a number at every eps -- straight sides make \
+             polynomial walls, which take the integral lane's exact per-span rule, the \
+             same reason `twisted_tube` next door can be a loft and a solid at every eps \
+             -- and it is reverted, because the shape a potter draws is round and a demo \
+             bent around the kernel's reporting floor hides the floor. The handle checks by \
              Pappus on its own disc. The document says a placement in AXIS-ANGLE and the \
              3-4-5 turn is not a binary-exact angle, so what that costs is MEASURED off \
              the PLACED BODY: the TIP cap, a whole spine-length off the turn's fixed \
