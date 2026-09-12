@@ -10222,3 +10222,71 @@ other slates. Handing them over is the honest move; silently shifting
 them would not be.
 
 **VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — §6's rewrite landed, and placing the handed-over citations found the class a third time
+
+**#2443 merged** (`5eec65ef5e`): **22 jobs**, the whole code matrix
+skipped, `gate ok` success — the docs tier by its shape, since the docs
+total moved 21 → 22 the same day the code total moved 38 → 42.
+
+**`implementer-discipline.md` §6's rewrite is now on `main`**, checked
+with a multiline-safe read rather than a grep. A lane now files
+out-of-fence findings directly on the owning program's slate, finding
+the owner with `work.py territory --files -` and grepping that
+directory for a duplicate first. Dispatches say so from here.
+
+### Placing the four handed-over shifts, and why holding them was right
+
+#2444's lane handed over four citation shifts in CHROME's and TINT's
+rows, reporting that it had verified **all** of them as true shifts —
+*"all three name their subjects at the old numbers"*. I had declined to
+apply them unchecked, on the rule that repointing another program's row
+needs that row's CLAIM checked against the new line. Now that §6
+permits placing them, I checked each. **Two of four were wrong, and the
+TINT one was not a shift at all.**
+
+| row | proposed | verified | verdict |
+|---|---|---|---|
+| `chrome/probe-rows…` `valid_range.rs:405` | `:441` | `:441` | correct |
+| `chrome/probe-rows…` `valid_range.rs:342` | `:378` | `:378` | correct |
+| `chrome/probe-rows…` `bounds.rs:380` | `:399` | **`:402`** | wrong subject |
+| `chrome/mispaired-ids…` `scene.rs:413` | `:374` | **`:445`** | wrong subject |
+| `tint/loud-skip…` `lib.rs:92-100` | `:93-101` | — | **not a shift** |
+
+`bounds.rs:399` is a doc-comment line; `MAX_REACHES` is at `:402`.
+`scene.rs:374` is `Self::empty(nowhere, delta)`; the `MispairedIds`
+guard the row quotes verbatim is at `:445`. **This is the out-of-fence
+citation class measured a third time** — after 1-placeable-of-31 and
+0-of-16 — and by the same mechanism each time: a shift map is
+arithmetic on an integer and cannot be wrong in its own terms, so it
+returns a number for every input and nothing in it asks whether that
+number names the subject.
+
+**The TINT row is the worse shape and the more useful find.** Its
+citation does not need moving; the sentence it QUOTES no longer exists.
+`grep -n "Nothing here goes red"` over `crates/viewer/src/lib.rs`
+returns nothing, and the loud-skip paragraph now at `:96` says the
+opposite of the quotation — *"the roster is the
+`#[cfg(feature = "app")]` block above, which the compiler keeps, so
+there is no hand-kept…"*. The hand-kept enumeration that row is about
+was replaced by a compiler-kept one at this site. Shifting the numbers
+would have preserved a quotation the source no longer contains: **a
+citation that still resolves and now misdescribes**, which is worse
+than one that dangles, because nothing about it looks wrong.
+
+Applied: the two correct shifts plus the two corrected ones, and one
+the lane did not list at all (`valid_range.rs:418` → `:455`, the
+`1.0e-4` threshold in the same row). TINT got a written note rather
+than an edit to its numbers, saying what VIEW checked and what it did
+not — `crates/viewer` is the only site on VIEW's ground, so whether the
+row closes depends on sites VIEW cannot speak for.
+
+**The rule this earns, and it is about receipts rather than citations:**
+a lane reporting *"I verified these as true shifts"* is reporting a
+CONCLUSION, and the conclusion is produced by the same arithmetic that
+cannot see its own failure mode. Handing four over with that sentence
+attached is not evidence about four; it is one claim about a method.
+**Check the subject at the new line, every time, no matter who did the
+arithmetic** — including when the arithmetic was mine.
+
+**VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
