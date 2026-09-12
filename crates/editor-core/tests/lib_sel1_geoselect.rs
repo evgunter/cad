@@ -487,9 +487,9 @@ fn a_valueless_node_is_empty_not_an_error() {
 /// **This does not pin the mirrors against their enums** — both sides
 /// of such an equality would be derived from the list under test, so a
 /// kind missing from the list would be missing from both. That census
-/// lives beside the lists, in `topo::query`'s
-/// `all_surface_kinds_is_the_whole_enum` and
-/// `curve_kind_all_is_the_whole_enum`.
+/// lives beside the lists, as the two `census!` invocations in
+/// `topo::query`'s test module — where it is the compiler, not an
+/// assertion, that reds when a list falls behind its enum.
 #[test]
 fn kind_sets_carry_exactly_their_members() {
     let all = SurfaceKindSet::of(editor_core::ALL_SURFACE_KINDS);

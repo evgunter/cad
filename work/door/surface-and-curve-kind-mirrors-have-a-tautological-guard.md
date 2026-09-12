@@ -88,15 +88,35 @@ names a failure it cannot see.
 
 ## What replaced it
 
-The census idiom, sited beside the lists as the row asked — in
+A `census!` macro, sited beside the lists as the row asked — in
 `crates/topo/src/query.rs`'s test module rather than an `editor-core`
-suite two crates downstream:
+suite two crates downstream — invoked once per mirror.
 
-- `all_surface_kinds_is_the_whole_enum` — exhaustive match over
-  `SurfaceKind`, every arm naming the same total, then `len` against it
-  plus the no-repeats half.
-- `curve_kind_all_is_the_whole_enum` — the edge-side twin.
-- `kind_bits_are_distinct` — a third row the fix bought cheaply: the
+It deliberately does NOT use the tree's shared-total census idiom
+(`all_is_the_whole_vocabulary` and its siblings). That idiom reds when
+an entry is REMOVED from the list but not when a variant is ADDED to
+the enum, which is the mistake this row is about; adopting it here
+would have closed this defect by minting a fresh instance of it. The
+measurement is in the next section.
+
+Instead the macro takes the enum, its list, and a roster of variants,
+and expands to two halves that close on each other:
+
+- an exhaustive match over the enum with one arm per ROSTER entry, so a
+  new variant reds with `E0004` and the only cure is to add it to the
+  roster;
+- one `assert!` per roster entry, inside a `const` block, saying the
+  list holds that variant at that seat — so the roster entry the first
+  half just forced asserts `list[7]`, which a seven-entry list cannot
+  evaluate.
+
+The edit the compiler demands is therefore the same edit that reds
+against a list of the old length. Both halves are compile-time; there
+is no runtime assertion left to be silent.
+
+Also kept:
+
+- `kind_bits_are_distinct` — a row the fix bought cheaply: the
   exhaustive `surface_bit` / `CurveKind::bit` match forces an arm to
   EXIST but cannot see that its value collides with another kind's, and
   a collision makes two kinds indistinguishable inside a set. Pinned as
@@ -115,14 +135,29 @@ corrected: `surface_bit`'s header no longer claims a unit test pins the
 list against it, and the test's own doc no longer claims to pin the
 pair.
 
-## What the fix does NOT buy, measured
+## The idiom this row nearly adopted, measured
 
-The census forces a visit and a re-decision, not the edit — and one
-notch worse than that: only the SCRUTINEE's arm is ever read, so an
-author who writes the honest new total in the arm the compiler pointed
-at and leaves the others alone still gets green. Measured on this
-lane's own new row and filed onto
-`work/door/all-census-idiom-forces-the-visit-not-the-update`, which
-already owns the class and is where the instrument that closes it
-belongs. The new rows' docs say this at the site rather than claiming
-more than they hold.
+The first attempt at the fix DID use the shared-total idiom, and the
+review caught that it inherited the class defect. Measured on that
+attempt, with the eighth `SurfaceKind::Probe` and every other
+exhaustive match given its honest arm:
+
+    let kinds = match SurfaceKind::Plane {
+        SurfaceKind::Plane => 7,   // …and five more arms at 7
+        SurfaceKind::Probe => 8,   // the new arm, honestly numbered
+    };
+
+`kinds` is the `Plane` arm's 7 and `ALL_SURFACE_KINDS.len()` is 7:
+**GREEN**, with the new kind absent from the list. Only the scrutinee's
+arm is ever read, so the other arms are not a second chance to catch
+the author.
+
+The replacement reds on that exact case, at compile time:
+
+    error[E0080]: index out of bounds: the length is 7 but the index is 7
+
+Filed onto `work/door/all-census-idiom-forces-the-visit-not-the-update`,
+which already owns the class — both the sharpened statement of the hole
+and the macro, offered there as the candidate instrument. That row's
+own preferred option, the discriminant walk, was measured failing the
+same way and is corrected there.
