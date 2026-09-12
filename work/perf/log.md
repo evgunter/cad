@@ -722,3 +722,25 @@ out-of-fence report: `gate-then-measure-class-remains-in-scene-modules`
 (the scene modules and an stl example; `validate_probe` stays as the
 telemetry instrument — ruled here). Single review dispatched (opus;
 brief stored).
+
+## 2026-09-12 — the ribbon side unit reviewed; fix pass dispatched
+
+Single review APPROVE-WITH-FIXES (2 / 8 / 9). Both MAJORs upheld:
+the PR's `teapotspout` measurement row was main's octagonal spout
+mislabelled — on the round spout the gate settles early and the
+continuation re-enters the lane's setup, so the saving there is nil
+(1.002× at 1e-9) while the 60 polynomial-walled tier-3 bodies save
+1.97–1.99×; the regime, not one number, is the claim to state at the
+sites. And `run_body`'s two tier-3′ arms (17 of 78 bodies) still pay
+two quadratures although `validate_pseudomanifold_certificate_
+certified` hands the number back — in scope by the item's own
+citation. MINORs: the slack read the enclosure's midpoint area, the
+soundness sentence argued a one-sided check for a two-sided
+assertion, the Python refusal row paid a redundant quadrature, a
+stale door count, the demo hand-spelling a kernel error pattern two
+crates deep (to be filed as a library finding — `target_refusal` is
+unreachable once `refine_to_target` consumes the certificate). Ruled
+no-change: the tour's bracket arm is unreached on main's corpus until
+PR 2306 merges (the next merge, exercised hosted at 1e-12 by k-lint);
+a containment check is monotone-wrong by nature and is stated as a
+sanity ribbon.
