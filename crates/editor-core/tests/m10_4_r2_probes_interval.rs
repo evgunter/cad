@@ -1371,9 +1371,19 @@ fn the_bore_pin_fit_as_a_consumer_reads_it() {
         2.0 * half,
         padding / half
     );
+    // Pinned at BOTH ends and with the leaf count (R1 MIN-6, R2 m2): a
+    // one-sided ceiling stays green when the tier's reach falls back
+    // to four narrow leaves and `1·half`, which is the regression the
+    // pin exists to notice. One leaf, the whole box, `4·half` exactly.
+    assert_eq!(
+        wc.leaves,
+        1,
+        "under M10-10's tier the ε/8 study is ONE leaf: {:?}",
+        verdict.receipt()
+    );
     assert!(
-        padding <= BORE_PIN_PADDING_PER_HALF_WIDTH * half + BORE_PIN_ROUNDING,
-        "padding {padding:e} exceeds the measured bound: {wc:?}"
+        (padding - BORE_PIN_PADDING_PER_HALF_WIDTH * half).abs() <= BORE_PIN_ROUNDING,
+        "padding {padding:e} is not the measured {BORE_PIN_PADDING_PER_HALF_WIDTH}·half: {wc:?}"
     );
     match report.rss {
         Rss::Advisory { sigma } => {

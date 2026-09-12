@@ -19,10 +19,7 @@ use geom_core::sym::with_session;
 use geom_core::{ParamSymbol, Sym, SymBudget, Tol};
 
 fn budget() -> SymBudget {
-    SymBudget {
-        max_terms: 4096,
-        max_degree: 128,
-    }
+    crate::m10_10_atan2_interval::shipped_budget()
 }
 
 fn band() -> Band {
@@ -165,8 +162,7 @@ fn r1_the_closed_forms_hold_over_boxes_including_straddling_x() {
                 let c = x.atan().cos();
                 let c2 = c * c;
                 (Sym::from_f64(4.0) * x.atan()).cos()
-                    - (Sym::from_f64(8.0) * c2 * c2 - Sym::from_f64(8.0) * c2
-                        + Sym::from_f64(1.0))
+                    - (Sym::from_f64(8.0) * c2 * c2 - Sym::from_f64(8.0) * c2 + Sym::from_f64(1.0))
             }),
             "theorem",
             "cos(4·atan X) over [{lo}, {hi}]"
@@ -326,7 +322,8 @@ fn r1_the_atan2_fold_refuses_everything_it_says_it_refuses() {
 #[test]
 fn r1_the_half_pi_fold_takes_the_indeterminate_and_not_the_literal() {
     let exact = how(|| Sym::<Interval>::pi().cos() + Sym::from_f64(1.0));
-    let three_halves = how(|| (Sym::from_f64(1.5) * Sym::<Interval>::pi()).sin() + Sym::from_f64(1.0));
+    let three_halves =
+        how(|| (Sym::from_f64(1.5) * Sym::<Interval>::pi()).sin() + Sym::from_f64(1.0));
     let third = how(|| (Sym::<Interval>::pi() / Sym::from_f64(3.0)).cos() - Sym::from_f64(0.5));
     let literal =
         how(|| Sym::<Interval>::from_f64(core::f64::consts::PI).cos() + Sym::from_f64(1.0));
@@ -459,8 +456,14 @@ fn r1_two_of_the_headers_documented_limits_no_longer_hold() {
         "R1: sqrt(x)*sqrt(x) - x => {sqrt_square}; sin^2+cos^2-1 => {pythagoras}; \
          |x| - x on x > 0 => {abs_of_nonneg} (the header says all three do NOT decide)"
     );
-    assert_eq!(sqrt_square, "theorem", "the header says this does not decide");
-    assert_eq!(pythagoras, "theorem", "the header says this does not decide");
+    assert_eq!(
+        sqrt_square, "theorem",
+        "the header says this does not decide"
+    );
+    assert_eq!(
+        pythagoras, "theorem",
+        "the header says this does not decide"
+    );
     assert_ne!(
         abs_of_nonneg, "theorem",
         "rule C is dial-off, so this one still stands"

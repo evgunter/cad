@@ -14,15 +14,23 @@
 //! the hull and the linearized sum part company (claim 6), and RSS
 //! totality over bands (claim 7).
 //!
-//! # The widths are in ε, and that is the honest limit
+//! # The widths were in ε, and the symbolic tier moved them
 //!
-//! Every box below that must CERTIFY is sized as a small multiple of ε,
-//! for the reason `m10_3_driver_interval.rs` measures: the certification
-//! predicates are identities whose interval enclosure widens with the
-//! box, and a leaf goes definite only once its own width is a fraction
-//! of ε. A macroscopic tolerance box refuses all of its mass as
-//! `Budget`, so today's stackup over a real study has NO certified leaf
-//! and refuses `NothingCertified` — pinned below rather than described.
+//! Through M10-9 every box below that had to CERTIFY was sized as a
+//! small multiple of ε, for the reason `m10_3_driver_interval.rs`
+//! measures: the certification predicates are identities whose
+//! interval enclosure widens with the box, and a leaf went definite
+//! only once its own width was a fraction of ε; a macroscopic box
+//! refused all of its mass as `Budget` and the stackup over a real
+//! study refused `NothingCertified`. Under M10-10's tier (rule D with
+//! amendment A1) the plate's whole-certifying half-width is a REAL
+//! margin at about 0.018 (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
+//! with `CAD_M10_10_CEILINGS`), so the `ε/8` rows certify in ONE leaf
+//! and the rows whose subject is a split (the band-totality row) are
+//! scaled to a real ±0.05 study. The no-third-state row drives its
+//! slab with the tier OFF (its subject is the refusal's shape, and
+//! since E12 that box certifies with the tier on), which the row says
+//! at the site.
 //!
 //! The file's basename carries `interval` because the driver, the
 //! chamber mark's certified variant and the gating `worst_case` all
@@ -540,9 +548,22 @@ fn the_two_hole_plate_stackup() {
         4.0 * half,
         padding / eps()
     );
+    // Pinned at BOTH ends and with the leaf count, so the pin is
+    // monotone the right way: a regression to more, narrower leaves
+    // (16 leaves, `2·half`) would pass a one-sided ceiling and hide
+    // the tier's reach falling (R1 MIN-6, R2 m2). The padding IS the
+    // leaf's width times four — one leaf, the whole box, `8·half`.
+    assert_eq!(
+        wc.leaves,
+        1,
+        "under M10-10's tier the ε/8 study is ONE leaf: {:?}",
+        verdict.receipt()
+    );
     assert!(
-        padding <= PLATE_PADDING_PER_HALF_WIDTH * half + PLATE_ROUNDING,
-        "padding {padding:e} exceeds the measured bound"
+        (padding - PLATE_PADDING_PER_HALF_WIDTH * half).abs() <= PLATE_ROUNDING,
+        "padding {padding:e} is not the measured {PLATE_PADDING_PER_HALF_WIDTH}·half \
+         (leaves {}): the leaves moved",
+        wc.leaves
     );
     assert!(
         wc.lo >= MIN_WEB,

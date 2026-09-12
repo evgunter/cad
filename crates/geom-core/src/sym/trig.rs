@@ -144,8 +144,26 @@ pub(super) fn manifestly_nonneg(n: &Form, sess: &Session) -> bool {
 /// The largest `|k|` in `q = k / 2ᵐ` this rule folds.
 pub(super) const MAX_MULTIPLE: i128 = 32;
 
-/// The most halvings `m` in `q = k / 2ᵐ` this rule folds.
-pub(super) const MAX_HALVINGS: u32 = 3;
+/// The most halvings `m` in `q = k / 2ᵐ` this rule folds: the
+/// certifier's schedule needs quarter angles at most (`q = i/2` from
+/// the carrier's samples and `i/4` from the pushforward's `s·θ/2`), and
+/// past that the ring does NOT close — at `m = 3` the fold of
+/// `3/8 · atan X` and the angle-addition spelling `1/4 + 1/8` carry the
+/// same three `c₂` atoms but the per-node reduction never meets them
+/// (R2's note: `3/8 = 1/4 + 1/8` refuses over every box). A fold that
+/// cannot be met by its own algebra is a missed cancellation, never a
+/// wrong one, but stating a schedule wider than the algebra closes is
+/// a claim the code does not keep, so the cap is the schedule's.
+///
+/// **What the minted atoms are keyed on.** `sqrt(1 + X²)` is keyed on
+/// the form `1 + X·X` exactly as built here — the un-reduced square —
+/// and each half-angle `c₂` on the un-cancelled quotient `(D + C)/(2D)`.
+/// A hand-spelled `sqrt(1 + x·x)` over the same `x` shares the atom;
+/// one spelled with a `sqrt` or a denominator inside `X`, or with the
+/// quotient cancelled by hand, mints a different atom and the residual
+/// stays NUMERIC (never false: two atoms that are not the same node
+/// are two indeterminates).
+pub(super) const MAX_HALVINGS: u32 = 2;
 
 /// The argument form read as `(k / 2ᵐ) · atan(X)`: `(k, m, X)`, or
 /// `None` where the form is not of that shape.
@@ -178,8 +196,19 @@ fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Rc<Form>)> {
     let super::Int::Small(k) = q.num else {
         return None;
     };
+    // The multiple `k · 2^e` is formed by CHECKED multiplication, never
+    // by a shift: `i128::checked_shl` refuses only a shift of 128 or
+    // more and WRAPS below that, so a coefficient such as `(2¹²³ + 1) ·
+    // 2⁵` read through it came back as `32` and folded — a false
+    // theorem, unreachable from any document (a 53-bit product is
+    // `Int::Big` and refused above) but a false theorem all the same
+    // (`work/m10/rule-d-multiple-reader-wraps-on-a-huge-dyadic-coefficient`,
+    // R1's `r1_the_multiple_reader_wraps_on_a_huge_dyadic_coefficient`
+    // is the pin). An overflow here is a multiple past every cap, and
+    // `None` is the answer.
     let (k, m) = if q.exp2 >= 0 {
-        (k.checked_shl(u32::try_from(q.exp2).ok()?)?, 0)
+        let scale = 2_i128.checked_pow(u32::try_from(q.exp2).ok()?)?;
+        (k.checked_mul(scale)?, 0)
     } else {
         (k, q.exp2.unsigned_abs())
     };
@@ -199,6 +228,17 @@ fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Rc<Form>)> {
 /// and once the `atan2` has folded to the zero form the phase IS `π`.
 /// Any other multiple (`π/3`), or a `π` beside anything else, stays an
 /// atom.
+///
+/// **What this fold depends on.** `INDET_PI` is read as the TRUE π —
+/// `cos π = −1` exactly — which is only right because the scalar's
+/// `pi()` node is the interval `[fl(π), next_up(fl(π))]`, the 1-ulp
+/// enclosure of the real π (`interval.rs`'s constants test pins that
+/// `Interval::pi()` has exactly those bounds), so every value the
+/// numeric channel ever computes for that node encloses the constant
+/// the form folds at. If the node were ever built from the `f64`
+/// literal `PI` alone the fold would be a theorem about a number the
+/// value never was; `sym::tests::the_pi_fold_and_the_interval_pi_enclose_the_same_constant`
+/// ties the two.
 fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
     if arg.poisoned {
         return None;
@@ -219,12 +259,19 @@ fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
     let super::Int::Small(n) = q.num else {
         return None;
     };
-    let k = if q.exp2 >= 0 {
-        n.checked_shl(u32::try_from(q.exp2 + 1).ok()?)?
-    } else {
-        n
+    // Only `k mod 4` is read, for `k = n · 2^(e+1)` with `n` ODD (`Rat`
+    // keeps its integer odd): `e ≥ 1` makes `k` a multiple of 4, `e =
+    // 0` makes it `2 mod 4`, and `e = −1` leaves `n` itself. No shift
+    // and no product is formed, so the wrap the multiple reader had
+    // (`read_argument`) has no counterpart here — and never did, since
+    // a wrapped shift preserves the low two bits.
+    let k_mod_4 = match q.exp2 {
+        _ if n == 0 => 0,
+        e if e >= 1 => 0,
+        0 => 2,
+        _ => n.rem_euclid(4),
     };
-    let (c, s) = match k.rem_euclid(4) {
+    let (c, s) = match k_mod_4 {
         0 => (1, 0),
         1 => (0, 1),
         2 => (-1, 0),
@@ -286,6 +333,43 @@ pub(super) fn fold(op: SymOp, arg: &Form, sess: &mut Session) -> Option<Form> {
     if let Some(f) = fold_at_half_pi(op, arg) {
         return Some(f);
     }
+    let closed = closed_forms(arg, sess)?;
+    let mut out = Form::quotient(
+        match op {
+            SymOp::Sin => closed.sin.clone(),
+            _ => closed.cos.clone(),
+        },
+        closed.den.clone(),
+    );
+    out.gated = closed.gated;
+    // Each quotient is held to the budget on its own, exactly as the
+    // two separate folds were.
+    within(sess.budget, &out).then_some(out)
+}
+
+/// `(cos kψ, sin kψ)` over their shared denominator for one argument
+/// form, built ONCE per session: the recurrence yields both at every
+/// step, and `sin` and `cos` of one argument are two nodes that used
+/// to run it twice (R2's Q7). A budget refusal is memoized too, so the
+/// pair fails once.
+pub(super) struct Closed {
+    cos: Poly,
+    sin: Poly,
+    den: Poly,
+    gated: bool,
+}
+
+fn closed_forms(arg: &Form, sess: &mut Session) -> Option<Rc<Closed>> {
+    let key = arg.digest();
+    if let Some(hit) = sess.trig_closed.get(&key) {
+        return hit.clone();
+    }
+    let built = build_closed_forms(arg, sess).map(Rc::new);
+    sess.trig_closed.insert(key, built.clone());
+    built
+}
+
+fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
     let (k, m, x) = read_argument(arg, sess)?;
     let budget = sess.budget;
     let one = Form::poly(Poly::one());
@@ -320,15 +404,12 @@ pub(super) fn fold(op: SymOp, arg: &Form, sess: &mut Session) -> Option<Form> {
     if k < 0 {
         sk = sk.neg()?;
     }
-    let mut out = Form::quotient(
-        match op {
-            SymOp::Sin => sk,
-            _ => ck,
-        },
-        dk,
-    );
-    out.gated = x.gated;
-    within(budget, &out).then_some(out)
+    Some(Closed {
+        cos: ck,
+        sin: sk,
+        den: dk,
+        gated: x.gated,
+    })
 }
 
 #[cfg(test)]
@@ -357,6 +438,7 @@ mod tests {
             params: IndetMap::default(),
             atoms: IndetMap::default(),
             registry: IdMap::default(),
+            trig_closed: IndetMap::default(),
             counts: Default::default(),
         };
         for (id, op) in [(atan, SymOp::Atan), (atan2, SymOp::Atan2)] {

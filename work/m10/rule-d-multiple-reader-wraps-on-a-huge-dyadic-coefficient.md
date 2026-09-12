@@ -2,10 +2,19 @@
 id: rule-d-multiple-reader-wraps-on-a-huge-dyadic-coefficient
 kind: issue
 title: rule D's argument reader forms its multiple with a wrapping shift, so a coefficient past i128 folds as if it were in range
-status: open
+status: closed
 opened: 2026-09-07
+closed: 2026-09-12
 ---
 
+**Closed by M10-10's fix pass.** `read_argument` forms the multiple by
+CHECKED multiplication against `2^e` (`k.checked_mul(2_i128.checked_pow(e)?)?`),
+so an overflow is a multiple past every cap and answers `None`; the
+row below is green as the pin
+(`geom-core`'s `m10_10_r1_sym_probes::r1_the_multiple_reader_wraps_on_a_huge_dyadic_coefficient`,
+adopted in-tree). `fold_at_half_pi` no longer shifts at all: it reads
+`k mod 4` directly from the dyadic's exponent and odd part, and says
+at the site why the wrap never reached it.
 
 **Found by M10-10's R1 review** (PR #2100 at `e904d9691`), reproduced
 at the scalar.

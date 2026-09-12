@@ -17,10 +17,7 @@ use geom_core::sym::with_session;
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, Tol};
 
 fn budget() -> SymBudget {
-    SymBudget {
-        max_terms: 4096,
-        max_degree: 128,
-    }
+    crate::m10_10_atan2_interval::shipped_budget()
 }
 
 fn band() -> Band {

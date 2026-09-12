@@ -439,15 +439,22 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
 }
 
 /// **R2's link, end to end**: what a real study gets today. The link's
-/// real study is driven door on and off (the receipts printed and
-/// compared), then its whole-certifying ceiling is bisected under both
-/// rule sets and the first refusal beyond it named with its enclosure.
+/// real study is driven under M10-9's tier with the door shut and under
+/// the SHIPPED set (the receipts printed and compared), then its
+/// whole-certifying ceiling is bisected under both and what bounds it
+/// read as the over-band SET at the refusing end of the bracket
+/// (ceiling + δ; `m10_8_harness::over_band_set`) with enclosures.
 ///
-/// Asserts: the door registers on the link (`registered > 0` on a
-/// certifying box); the two drives agree outside the receipt line; the
-/// ceiling bracket is the same under both (each end asserted at 0.5×
-/// and 2× of the door-on bracket's lower end).
+/// The two arms are M10-9's door-shut tier against M10-10's full set —
+/// NOT a door measurement any more (the shipped set carries the
+/// algebra too), which is why the arms are labelled that way and no
+/// ratio is printed as if it were the door's: the link's ceiling does
+/// not move under either (`m10_10_pins_interval` holds the bracket).
+/// EVIDENCE-ONLY since M10-10's fix pass (51 s release, and every
+/// claim it gated is pinned elsewhere: the door registers on the link
+/// in `m10_9_pins_interval`, the bracket in `m10_10_pins_interval`).
 #[test]
+#[ignore = "evidence-only: the link's real study and ceiling under M10-9's door-shut tier and the shipped set"]
 fn r2_link_end_to_end_with_and_without_the_door() {
     let tol = Tol::witness();
     let eps = tol.eps();
@@ -456,7 +463,10 @@ fn r2_link_end_to_end_with_and_without_the_door() {
     // The real study.
     let doc = at(1.0);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    for (label, rules) in [("door ON ", SymRules::shipped()), ("door OFF", shut())] {
+    for (label, rules) in [
+        ("shipped (M10-10)       ", SymRules::shipped()),
+        ("M10-9's tier, door shut", shut()),
+    ] {
         let v = drive(
             &doc,
             &analyzed,
@@ -474,8 +484,8 @@ fn r2_link_end_to_end_with_and_without_the_door() {
     // The ceiling, both ways.
     let mut lows = Vec::new();
     for (label, rules) in [
-        ("door OFF (M10-8)", shut()),
-        ("door ON  (shipped)", SymRules::shipped()),
+        ("M10-9's tier, door shut", shut()),
+        ("shipped (M10-10)", SymRules::shipped()),
     ] {
         let (lo, hi, per) = ceiling(&at, rules, tol, 1.0e-1 * eps, 1.0e6 * eps, 12);
         println!(
@@ -484,21 +494,17 @@ fn r2_link_end_to_end_with_and_without_the_door() {
             hi / eps
         );
         assert!(lo.is_finite() && lo > 0.0, "the link certifies somewhere");
-        let beyond = at(lo * 2.0);
+        // The bound: the over-band SET at ceiling + δ, never a first
+        // refusal at a multiple of the ceiling
+        // (`work/m10/first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
+        let beyond = at(hi);
         let analyzed = analyzed_box(&beyond, &AnalysisPolicy::default());
         let (shapes, refusal, counts) = replay(&beyond, &ParamBox::of(&analyzed), rules, tol);
-        println!("      beyond it: {refusal:?}\n      {counts:?}");
-        for s in shapes.iter().filter(|s| {
-            matches!(
-                s.outcome,
-                ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
-            )
-        }) {
-            println!(
-                "      [{:?}] {} enclosure {:?}",
-                s.outcome, s.predicate, s.enclosure
-            );
-        }
+        println!("      at ceiling + δ the drive stops at {refusal:?}\n      {counts:?}");
+        println!(
+            "{}",
+            crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(&shapes))
+        );
         lows.push(lo);
     }
     let [off_lo, on_lo]: [f64; 2] = lows.try_into().unwrap();
@@ -514,10 +520,11 @@ fn r2_link_end_to_end_with_and_without_the_door() {
         );
     }
     println!(
-        "   link ceiling: door off {:.4e}·eps, door on {:.4e}·eps (ratio {:.6})",
+        "   link ceiling: M10-9's tier door shut {:.4e}·eps, shipped {:.4e}·eps — the same \
+         bracket; neither the door nor the algebra moves the link (the scaffold residual \
+         stands on its carrier frame: `work/m10/symbolic-tier-census`)",
         off_lo / eps,
-        on_lo / eps,
-        on_lo / off_lo
+        on_lo / eps
     );
     // The door registers on the link.
     let certifying = at(0.5 * on_lo);

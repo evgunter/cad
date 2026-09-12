@@ -34,8 +34,10 @@
 //! outright. The plate's whole-certifying ceiling moves from
 //! `1.25e3 · ε` to 0.2368 (ε = 1e-6), 0.2631 (1e-9), 0.2631 (1e-12) of
 //! its REAL study — the staged walk's own end, to the bisection step —
-//! and is bounded by `assert_bound`, the document's own web assertion:
-//! a real margin, and past the band's floor at every row.
+//! and is bounded by `assert_bound`'s ENCLOSURE: dependency widening
+//! of the document's own web margin, which is affine and positive over
+//! the whole box there (`m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`);
+//! the leaves certify up to the real flip at 0.625 of the study.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -255,11 +257,13 @@ fn m10_10_the_eps_relative_ceilings_under_the_shipped_set_are_the_measured_brack
 /// 0.2631 with every identity residual passed by the dial) to the
 /// bisection step: the shipped tier is AT the end of the walk, and
 /// passing further residuals moves nothing. What bounds it is the
-/// document's web assertion — a study-scale margin, at `1e-9` and
-/// `1e-12` a genuine flip (the enclosure's lower end is past zero), at
-/// `1e-6` a margin whose lower end sits at the band's floor. The
-/// annulus at `1e-6` is likewise bounded by a real dihedral margin at
-/// the band's floor, and at the two finer rows by its arc-diameter
+/// document's web assertion's ENCLOSURE — dependency widening of a
+/// real margin, not a flip (the row below this one pins the
+/// arithmetic): the margin is affine and positive over the whole box
+/// at the ceiling while its enclosure straddles zero at `1e-9` and
+/// `1e-12` and sits in the band at `1e-6`. The annulus at `1e-6` is
+/// likewise bounded by its dihedral margin's enclosure at the band's
+/// floor, and at the two finer rows by its arc-diameter
 /// clearance flipping. The ceilings stopped scaling with ε on both.
 #[test]
 fn m10_10_the_plate_and_the_annulus_certify_a_fraction_of_their_real_studies() {
@@ -366,5 +370,63 @@ fn m10_10_the_door_and_the_algebra_move_the_plate_together() {
     assert!(
         !certifies_whole(&doc, SymRules::without_the_algebra(), tol),
         "the door with the algebra off does not: M10-9's ceiling is 7.81e2·ε"
+    );
+}
+
+/// **THE PLATE'S CEILING IS DEPENDENCY WIDENING OF A REAL MARGIN, NOT
+/// A FLIP** (R2's MAJOR, by execution; the class
+/// `work/m10/real-margin-dependency-widening` names). The web
+/// assertion's margin is AFFINE in the study's parameters — `web −
+/// floor = 1e-4 + 2·Δhalf_spacing − Δr_a − Δr_b` — so its TRUE range
+/// over the box at scale `s` of the study is exact arithmetic: `1e-4 ±
+/// 1.6e-4·s` (the spacing's ±5e-5·s doubled, and each radius's ±3σ =
+/// ±3e-5·s). The flip therefore first enters the box at `s = 0.625`.
+/// At the pinned ceiling (`s ≈ 0.2632`) the true margin is `[5.79e-5,
+/// 1.42e-4]`, positive everywhere, while the enclosure the replay
+/// reports for `assert_bound` straddles zero (`1e-9`, `1e-12`) or sits
+/// in the band (`1e-6`) — widened by ~6e-5 on each side. That widening
+/// is what bounds the whole-certifying ceiling; the flip is what the
+/// LEAVES certify up to (the whole drive's refusals refine to
+/// `{assert_bound}` alone at every depth: both reviews' rows).
+#[test]
+fn m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let row = eps_row(eps);
+    let s = [0.2369, 0.2632, 0.2632][row];
+    // The true margin over the box at the refusing end of the bracket.
+    let (true_lo, true_hi) = (1.0e-4 - 1.6e-4 * s, 1.0e-4 + 1.6e-4 * s);
+    assert!(true_lo > 0.0, "the true margin is positive at s = {s}");
+    let flip_enters_at: f64 = 1.0e-4 / 1.6e-4;
+    assert!((flip_enters_at - 0.625).abs() < 1.0e-12);
+    assert!(
+        s < flip_enters_at,
+        "the ceiling is well inside the flip-free box"
+    );
+    let doc = crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0;
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
+    let set = over_band_set(&shapes);
+    let ab = set
+        .iter()
+        .find(|e| e.predicate == "assert_bound")
+        .expect("assert_bound is over the band at ceiling + δ");
+    let (lo, hi) = ab.enclosure;
+    println!(
+        "   s = {s}: true margin [{true_lo:.4e}, {true_hi:.4e}], enclosure [{lo:.4e}, {hi:.4e}], \
+         widened {:.3e} below and {:.3e} above",
+        true_lo - lo,
+        hi - true_hi
+    );
+    // The enclosure reaches into the band (or past zero) while the
+    // true margin never comes within 5e-5 of it.
+    assert!(
+        lo < 10.0 * eps,
+        "the enclosure's lower end is what refuses: {lo:e} against a band of 10·ε"
+    );
+    let (below, above) = (true_lo - lo, hi - true_hi);
+    assert!(
+        (4.0e-5..=8.0e-5).contains(&below) && (4.0e-5..=8.0e-5).contains(&above),
+        "the widening is ~6e-5 on each side (measured 5.8e-5): {below:e} / {above:e}"
     );
 }

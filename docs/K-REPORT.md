@@ -2151,12 +2151,21 @@ ceiling + δ (`m10_10_pins_interval`, both bracket ends asserted):
 | R2 rounded pad | `[2.083e3, 2.084e3] · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` `[−1.0005 · ε, 1.0005 · ε]` |
 
 The plate's and the annulus's ceilings stopped scaling with ε: each
-is a fraction of its real study, bounded by a real margin. The
-plate's rows are the staged walk's own end (0.2368, 0.2630, 0.2631
-with every identity residual passed) to the bisection step — the
-shipped tier is at the end of the walk with nothing passed, and
-passing residuals moves it by nothing. The other three still scale
-with ε, bounded by identity residuals.
+is a fraction of its real study. What bounds each CEILING is
+dependency widening of a real margin's enclosure, not a flip
+(`work/m10/real-margin-dependency-widening`): the plate's assertion
+margin is affine with true range `1e-4 ± 1.6e-4·s`, positive over the
+whole box below `s = 0.625`, while its enclosure at the ceiling
+(`s ≈ 0.263`) straddles zero — widened ~6e-5 each side; the annulus's
+`arc_diameter_clearance` cannot be zero for any `r > 0`. The LEAVES
+certify up to the real flip (431/593 at 1024 leaves, every refusal
+the budget, refined refusals `{assert_bound}` alone). The plate's rows
+are the staged walk's own end (0.2368, 0.2630, 0.2631 with every
+identity residual passed) to the bisection step — the shipped tier is
+at the end of the walk with nothing passed, and passing residuals
+moves it by nothing. The other three still scale with ε, bounded by
+identity residuals whose squared components the term/coefficient
+budget freezes (the per-node cap is a cost wall, not a reach).
 
 ### The driver row
 
@@ -2179,11 +2188,16 @@ the delta is exactly the fixture's second leaf gone and, per leaf, the
 
 A stronger tier certifies a study in fewer, wider leaves, and the
 certified worst-case hull's dependency padding is proportional to the
-leaf's width: the plate's `ε/8` stackup certifies in 4 leaves instead
-of 16 and its hull padding is `4 · half` instead of `2 · half`; the
-bore/pin fit's in 2 instead of 4, `2 · half` instead of `1 · half`.
-Sound (every hull still encloses the true range), looser, and filed
-with what is owed (`work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`).
+leaf's width: the plate's `ε/8` stackup certified in 16 leaves under
+M10-9 (padding `2 · half`), in 4 under the first cut (`4 · half`) and
+in ONE under A1 (`8 · half`, the whole box); the bore/pin fit in 4, 2
+and 1 (`1`, `2`, `4 · half`) — four and two times the leaf's width at
+every step, and at one leaf the widest it can be. Sound (every hull
+still encloses the true range), looser, pinned at the measured value
+with the leaf count (`m10_4_stackup_interval::PLATE_PADDING_PER_HALF_WIDTH
+= 8`, `m10_4_r2_probes_interval::BORE_PIN_PADDING_PER_HALF_WIDTH = 4`),
+and filed with what is owed
+(`work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`).
 
 ## M11 addendum (2026-09-08): the CERT-1 roster fold — measured at `c39a904e`, and neither calibration witness moved
 

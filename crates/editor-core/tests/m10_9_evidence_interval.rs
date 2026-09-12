@@ -283,8 +283,8 @@ fn the_two_fillet_forms() {
     use geom_core::{Real, Sym, SymBudget, SymId};
 
     let budget = SymBudget {
-        max_terms: 4096,
-        max_degree: 128,
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
     };
     for n in ["r", "ax", "ay", "bx", "by"] {
         name_param(n);

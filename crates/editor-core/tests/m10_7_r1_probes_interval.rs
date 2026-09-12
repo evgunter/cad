@@ -124,11 +124,30 @@ fn r1_slab_ceiling_and_first_refusal() {
         }
     }
     println!("R1 slab ceiling: half-width {lo:.6} certifies whole, {hi:.6} does not");
-    for half in [lo, hi, 0.5, 0.75, 0.999] {
+    // What bounds it is the over-band SET at the refusing end of the
+    // bracket (ceiling + δ) — never a drive's first refusal at a wider
+    // box, where several predicates are over the band at once and the
+    // name is evaluation order
+    // (`work/m10/first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
+    // The wider boxes are read the same way, as SETS, labelled by
+    // their half-width: the regimes the widening finding names.
+    for half in [hi, 0.5, 0.75, 0.999] {
         let (ok, reasons, d) = whole(half);
         println!("  half={half:.6} whole={ok} decisions={d:?} refused={reasons:?}");
         let doc = slab(1.0, half);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let (shapes, _, _) = crate::m10_8_arc_family_interval::replay(
+            &doc,
+            &ParamBox::of(&analyzed),
+            geom_core::SymRules::shipped(),
+            tol,
+        );
+        let set = crate::m10_8_harness::over_band_set(&shapes);
+        println!(
+            "     over the band at half={half:.6}{}:\n{}",
+            if half == hi { " (ceiling + δ)" } else { "" },
+            crate::m10_8_harness::render_over_band(&set)
+        );
         for f in failures(&doc, ParamBox::of(&analyzed), SymbolicDials::default(), tol) {
             println!("     {f}");
         }

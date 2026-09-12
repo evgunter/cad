@@ -147,10 +147,15 @@ fn measure_the_ceiling_on_the_two_hole_plate() {
     let certifies_whole = |scale: f64, dials: SymbolicDials| {
         crate::m10_8_harness::certifies_whole_with(&doc_at(scale), dials, tol)
     };
-    let ceiling = |dials: SymbolicDials| -> f64 {
+    let ceiling = |dials: SymbolicDials| -> (f64, f64) {
         let (mut lo, mut hi) = (1.0e-12, 1.0);
         assert!(certifies_whole(lo, dials), "the bracket's floor certifies");
-        assert!(!certifies_whole(hi, dials), "the real study does not");
+        // Under M10-10's tier the real study is past the ceiling but
+        // not by decades; the search still starts at the study itself.
+        if certifies_whole(hi, dials) {
+            hi = 10.0;
+        }
+        assert!(!certifies_whole(hi, dials), "the bracket's top refuses");
         // Bisect the LOG of the scale: the answer spans decades.
         for _ in 0..30 {
             let mid = (0.5 * (lo.ln() + hi.ln())).exp();
@@ -160,37 +165,32 @@ fn measure_the_ceiling_on_the_two_hole_plate() {
                 hi = mid;
             }
         }
-        lo
+        (lo, hi)
     };
-    let off = ceiling(SymbolicDials::off());
-    let on = ceiling(SymbolicDials::default());
+    let (off, _) = ceiling(SymbolicDials::off());
+    let (on, on_hi) = ceiling(SymbolicDials::default());
     println!("   TIER OFF: the widest whole-certifying box is x{off:e} of the real study");
     println!("   TIER ON : the widest whole-certifying box is x{on:e} of the real study");
     println!("   the ceiling moved by a factor of {:e}", on / off);
 
-    // What refuses FIRST beyond it, named — the leaf replayed directly
-    // so the predicate is in the message rather than behind a `Bisect`.
-    let beyond = on * 2.0;
-    let doc = doc_at(beyond);
+    // What BOUNDS it: the over-band SET at the refusing end of the
+    // bracket (ceiling + δ), never one drive's first refusal at a
+    // multiple of the ceiling — past the ceiling several predicates
+    // are over the band at once and the first name is evaluation
+    // order (`work/m10/first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
+    let doc = doc_at(on_hi);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::of(&analyzed))),
-        profile_lift: ProfileLift::Guided,
-        ..EvalOptions::default()
-    };
-    let (ev, counts) = geom_core::sym::with_session(budget(), || {
-        let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
-            evaluate(&doc, None, &CancelToken::new(), &opts, tol);
-        ev
-    });
-    println!("   at x{beyond:e} the leaf replay decides {counts:?}");
-    for id in &ev.order {
-        if let Some(editor_core::NodeResult::Failed(e)) = ev.result(*id) {
-            println!(
-                "   FIRST REFUSAL beyond the ceiling: node {} — {}",
-                id.0, e.kind
-            );
-            break;
-        }
-    }
+    let (shapes, refusal, counts) = crate::m10_8_arc_family_interval::replay(
+        &doc,
+        &ParamBox::of(&analyzed),
+        geom_core::SymRules::shipped(),
+        tol,
+    );
+    println!(
+        "   at x{on_hi:e} (ceiling + δ) the leaf replay decides {counts:?}; the drive stops at {refusal:?}"
+    );
+    println!(
+        "   OVER THE BAND at ceiling + δ:\n{}",
+        crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(&shapes))
+    );
 }

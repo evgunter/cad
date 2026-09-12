@@ -18,11 +18,22 @@ use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::sym::with_session;
 use geom_core::{Interval, ParamSymbol, Real, Sym, SymBudget, Tol};
 
-fn budget() -> SymBudget {
+/// **The shipped budget, one home for the M10-10 rows of this crate**:
+/// `editor_core::drive::DEFAULT_SYM_MAX_TERMS` = 4096 and
+/// `DEFAULT_SYM_MAX_DEGREE` = 128 are the constants of record, which
+/// this crate's tests cannot import (`geom-core` sits below
+/// `editor-core`), so they are spelled ONCE here and every other M10-10
+/// row of this crate reads them from this function rather than
+/// re-typing the ladder.
+pub(crate) fn shipped_budget() -> SymBudget {
     SymBudget {
         max_terms: 4096,
         max_degree: 128,
     }
+}
+
+fn budget() -> SymBudget {
+    shipped_budget()
 }
 
 fn band() -> Band {

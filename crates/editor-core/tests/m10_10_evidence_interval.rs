@@ -72,9 +72,13 @@ fn atoms_of(rendered: &str) -> BTreeMap<&'static str, usize> {
     for (name, n) in [
         ("sin", count("sin(")),
         ("cos", count("cos(")),
-        // `tan(` is a suffix of `atan(`; `atan(` of `atan2(`.
+        // `tan(` is a suffix of `atan(`, so `atan(` matches are
+        // subtracted; `atan(` never matches inside `atan2(` (the `2`
+        // sits between), so nothing is subtracted there — the first
+        // cut subtracted it anyway and the column underflowed to
+        // 18446744073709548540 on the pad (R1 MIN-4, R2 m4).
         ("tan", count("tan(") - count("atan(")),
-        ("atan", count("atan(") - count("atan2(")),
+        ("atan", count("atan(")),
         ("atan2", count("atan2(")),
         ("sqrt", count("sqrt(")),
         ("abs", count("abs(")),
@@ -197,8 +201,31 @@ fn rules_named(name: &str) -> SymRules {
             pythagoras: true,
             ..SymRules::without_the_algebra()
         },
+        // Rules A/B over the TOP residual only (`discharge`'s site,
+        // consulted once the plain and early walks have declined),
+        // without the per-node walk: the second site the A/B dials
+        // switch on, disclosed as D17 and measured apart.
+        "top_only" => SymRules {
+            sqrt_square: true,
+            pythagoras: true,
+            ..SymRules::without_the_algebra()
+        },
+        // The shipped set WITHOUT the top-residual site's dials would
+        // be `early_ab` alone — but the two share the dials, so the
+        // top site's contribution is read as shipped minus `ab_only`
+        // plus the per-node walk: `d_ab_pernode_only` is rule D with
+        // per-node A/B and the top site OFF is not expressible; what
+        // IS measurable is `top_only` (the top site alone) and
+        // `d_top_only` (rule D with the top site, no per-node walk).
+        "d_top_only" => SymRules {
+            trig_of_atan: true,
+            sqrt_square: true,
+            pythagoras: true,
+            ..SymRules::without_the_algebra()
+        },
         other => panic!(
-            "unknown rule set {other:?}: shipped | none | all | shut | off | d_only | ab_only"
+            "unknown rule set {other:?}: shipped | none | all | shut | off | d_only | ab_only \
+             | top_only | d_top_only"
         ),
     }
 }

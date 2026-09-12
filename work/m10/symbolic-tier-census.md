@@ -372,11 +372,20 @@ set at ceiling + δ; `m10_10_pins_interval`):
 
 | document | M10-9 | M10-10 | bounded by |
 | --- | --- | --- | --- |
-| two-hole plate | `7.81e2 · ε` | 0.2368 / 0.2631 / 0.2631 of its REAL study (ε = 1e-6 / 1e-9 / 1e-12) | `assert_bound` — the study's web assertion, a REAL margin (no identity residual bounds the plate any more) |
-| R1 annulus | `7.81e2 · ε` | 0.6963 / 0.8416 / 0.8415 of its real study | `dihedral_wedge` at `1e-6`, `arc_diameter_clearance` at the finer rows — real margins |
-| R2 link | `4.93e2 · ε` | unmoved | `carrier_matches_mapped_source` (the carrier frame's 1,020-term form past the per-node cap) |
-| R2 filleted bracket | `3.87e2 · ε` | unmoved | `carrier_matches_mapped_source` |
-| R2 rounded pad | `2.08e3 · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` (identity-shaped, below) |
+| two-hole plate | `7.81e2 · ε` | 0.2368 / 0.2631 / 0.2631 of its REAL study (ε = 1e-6 / 1e-9 / 1e-12) | `assert_bound`'s ENCLOSURE — dependency widening of the study's own web margin (`work/m10/real-margin-dependency-widening`): the margin is affine, `1e-4 ± 1.6e-4·s`, positive over the whole box below `s = 0.625`, its enclosure at the ceiling `[−2.09e-9, 2.00e-4]` widened ~6e-5 each side. No identity residual bounds the plate any more; the LEAVES certify up to the real flip at 0.625 |
+| R1 annulus | `7.81e2 · ε` | 0.6963 / 0.8416 / 0.8415 of its real study | `dihedral_wedge` at `1e-6`, `arc_diameter_clearance` at the finer rows — the same widening class (`arc_diameter_clearance` cannot be zero for any `r > 0`: the widening finding's second site), not flips |
+| R2 link | `4.93e2 · ε` | unmoved | `carrier_matches_mapped_source` — the term/coefficient BUDGET freezes the carrier frame's two squared components (`sqrt(Σ)` over frozen squares) at any affordable width; the per-node cap is a cost wall, not a reach (512 → 4096 leaves ceiling + δ byte-identical; 32,768 terms / degree 256 leaves the bracket unchanged at 16× the cost) |
+| R2 filleted bracket | `3.87e2 · ε` | unmoved | `carrier_matches_mapped_source` — both components freeze before squaring; as the link |
+| R2 rounded pad | `2.08e3 · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` (identity-shaped, below): a `Min` over frozen 60-term, degree-16 products |
+
+**The reach is the unit bulge.** Every document above authors its
+arcs through `LoopProgram::Circle`/`CircleSplit` (kernel bulge `1`).
+A LITERAL bulge other than 1 leaves residue (R1's circular-segment
+boss at bulge 2: `carrier_matches_mapped_source` 6 of 54 and
+`carrier_on_surface_2` 27 of 90 still numeric, ceiling unmoved), and
+a PARAMETER bulge is entirely outside the mechanism (R2's D-tab:
+`3.52e2 · ε` with the algebra on and off alike) —
+`work/m10/rule-d-reaches-the-unit-bulge-only`, the next ceiling class.
 
 `line_span` and `contact_at_shared_vertex` were measured under the
 new rules too: unmoved (`line_span` 0/0/0/8 on the plate at the

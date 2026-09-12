@@ -234,16 +234,10 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                     ),
                     Err(e) => println!("   stackup: REFUSED {e}"),
                 }
-                let a = editor_core::drive::assertion_at(
-                    &doc,
-                    assertion,
-                    v.root(),
-                    dials(rules),
-                    tol,
-                );
+                let a =
+                    editor_core::drive::assertion_at(&doc, assertion, v.root(), dials(rules), tol);
                 println!("   assertion at the root box: {a:?}");
-                let (shapes, refusal, _) =
-                    replay(&doc, &ParamBox::of(&analyzed), rules, tol);
+                let (shapes, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
                 println!("   whole-study replay stops at {refusal:?}");
                 println!(
                     "{}",
@@ -276,8 +270,7 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
         if lo.is_finite() {
             let doc = at(lo);
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-            let (shapes, refusal, counts) =
-                replay(&doc, &ParamBox::of(&analyzed), rules, tol);
+            let (shapes, refusal, counts) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
             let over = shapes
                 .iter()
                 .filter(|s| {
@@ -344,8 +337,14 @@ fn halve(b: &ParamBox) -> Option<(ParamBox, ParamBox)> {
     let mid = 0.5 * (lo + hi);
     let mut left = b.axes().clone();
     let mut right = b.axes().clone();
-    left.insert(name.clone(), editor_core::analysis::BoxAxis::Varying { lo, hi: mid });
-    right.insert(name, editor_core::analysis::BoxAxis::Varying { lo: mid, hi });
+    left.insert(
+        name.clone(),
+        editor_core::analysis::BoxAxis::Varying { lo, hi: mid },
+    );
+    right.insert(
+        name,
+        editor_core::analysis::BoxAxis::Varying { lo: mid, hi },
+    );
     Some((ParamBox::from_axes(left), ParamBox::from_axes(right)))
 }
 
@@ -397,7 +396,9 @@ fn r1_what_the_plates_budget_refusals_are_bounded_by() {
     );
     let mut classes: std::collections::BTreeMap<String, usize> = Default::default();
     for l in v.refused() {
-        *classes.entry(format!("{:?}", l.reason.class())).or_default() += 1;
+        *classes
+            .entry(format!("{:?}", l.reason.class()))
+            .or_default() += 1;
     }
     println!("   refusals by class: {classes:?}");
 
@@ -410,10 +411,17 @@ fn r1_what_the_plates_budget_refusals_are_bounded_by() {
             .varying()
             .map(|(n, lo, hi)| format!("{n:?} [{lo:.3e},{hi:.3e}]"))
             .collect();
-        println!("\n-- refused leaf {i}: {:?}\n   {}", leaf.reason, spans.join(" "));
+        println!(
+            "\n-- refused leaf {i}: {:?}\n   {}",
+            leaf.reason,
+            spans.join(" ")
+        );
         let (shapes, refusal, _) = replay(&doc, &leaf.box_, rules, tol);
         println!("   at the leaf: refusal {refusal:?}");
-        println!("{}", render_over_band(&crate::m10_8_harness::over_band_set(&shapes)));
+        println!(
+            "{}",
+            render_over_band(&crate::m10_8_harness::over_band_set(&shapes))
+        );
         // Refine: follow the half that still has something over the band.
         let mut b = leaf.box_.clone();
         for d in 1..=DEPTH {

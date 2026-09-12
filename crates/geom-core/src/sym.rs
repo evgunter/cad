@@ -74,14 +74,20 @@
 //! reciprocal's reach, and it is a NORMAL FORM rather than a rewrite
 //! rule: nothing is factored, and no simplification is attempted.
 //!
-//! What remains outside the DEFAULT tier: no factoring, and no
-//! functional identity of any opaque atom. `sin² + cos² − 1` does not
-//! decide symbolically, `sqrt(x)·sqrt(x) − x` does not, and `|x| − x` on
-//! a nonnegative `x` does not. Each atom is an indeterminate keyed by
+//! What remains outside the PLAIN form: no factoring, and no functional
+//! identity of any opaque atom — each atom is an indeterminate keyed by
 //! its argument's form, so two occurrences of ONE atom cancel and
-//! nothing else about it is known. These are limits of the tier and not
-//! bugs in it — over-refusal is the safe direction, and every such
-//! margin falls to the numeric channel exactly as before.
+//! nothing else about it is known there. The SHIPPED tier layers the
+//! atom algebra on top (the M10-8, M10-9 and M10-10 sections below):
+//! `sqrt(x)·sqrt(x) − x` and `sin² + cos² − 1` DO decide as theorems
+//! under [`SymRules::shipped`] (rules A and B, over the top residual
+//! and per node), and `sin`/`cos` of `q · atan X` fold to closed forms
+//! (rule D). What still stands with the shipped set is what needs a
+//! SIGN: `|x| − x` on a nonnegative `x` is rule C's, and rule C is
+//! dial-off. These are limits of the tier and not bugs in it —
+//! over-refusal is the safe direction, and every such margin falls to
+//! the numeric channel exactly as before. (Through M10-9 this
+//! paragraph listed all three as undecided; R1 of M10-10 ran them.)
 //!
 //! # The arc family, and what reaches it (M10-8)
 //!
@@ -281,26 +287,50 @@
 //! | R2 filleted bracket | `3.87e2 · ε` | unmoved | `carrier_matches_mapped_source` |
 //! | R2 rounded pad | `2.08e3 · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` (identity-shaped) |
 //!
-//! The plate's and the annulus's ceilings STOPPED scaling with ε: each
-//! is a fraction of the document's real study, bounded by a real
-//! margin — on the plate the study's own web assertion, whose
-//! enclosure's lower end is past zero at `1e-9` and `1e-12` (a genuine
-//! flip) and at the band's floor at `1e-6`; the plate's rows are the
-//! staged walk's own end (0.2368, 0.2630, 0.2631 with every identity
-//! residual passed) to the bisection step, and passing further
-//! residuals moves nothing. Driven whole at 1024 leaves the plate's
-//! real study returns certified leaves and refusals by real flips
-//! (`m10_10_the_plates_real_study_driven_whole`, the tour's stop 1).
+//! The plate's and the annulus's whole-certifying CEILINGS stopped
+//! scaling with ε — each is a fraction of the document's real study —
+//! and what bounds each is DEPENDENCY WIDENING of a real margin, not a
+//! flip (`work/m10/real-margin-dependency-widening`, the class E12
+//! hands the ceiling to). On the plate the bound is the study's own web
+//! assertion, whose margin `web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b`
+//! is AFFINE: its true range at scale `s` of the study is `1e-4 ±
+//! 1.6e-4·s`, so the flip first enters the box at `s = 0.625`, while
+//! at the pinned ceiling `s ≈ 0.263` the true margin is `[5.79e-5,
+//! 1.42e-4] > 0` everywhere and the enclosure is `[−2.09e-9, 2.00e-4]`
+//! — widened by ~6e-5 on each side (pinned:
+//! `m10_10_pins_interval::m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`);
+//! at `1e-6` the same widened enclosure sits in the band. The annulus
+//! is the same class: `arc_diameter_clearance` cannot be zero for any
+//! `r > 0` — the widening finding's second site. The plate's rows are
+//! the staged walk's own end (0.2368, 0.2630, 0.2631 with every
+//! identity residual passed) to the bisection step, and passing
+//! further residuals moves nothing. The LEAVES certify up to the real
+//! flip: driven whole at 1024 leaves the plate's real study is 431
+//! certified / 593 refused, every refusal the leaf budget, and a
+//! refused leaf refined further is bounded by `{assert_bound}` alone
+//! at every depth (`m10_10_the_plates_real_study_driven_whole`; both
+//! reviews' refinements, adopted as `m10_10_r1_probes_interval` and
+//! `m10_10_r2_probes_interval`; the tour's stop 1). So "not by ε" is
+//! the ceiling's statement and "up to a genuine flip" the leaves'.
 //! The other three still scale with ε — each is bounded by an
 //! identity residual. On the link and the bracket the scaffold
-//! residual stands because their arcs' carrier FRAMES do not fit:
-//! explained at the link's ceiling, the pushforward's component is a
-//! 3-term form and the carrier's a 1,020-term form over a 66-term
-//! denominator (its `radial · ρ` alone 150 terms of degree 15), past
-//! the per-node cap, so nothing reduces it and the squared components
-//! freeze at the term budget — the trig meets, the frame does not; on
-//! the pad the fillet's identity-shaped `line_span`
-//! (`work/m10/symbolic-tier-census`).
+//! residual stands because the term/coefficient BUDGET freezes their
+//! carrier frames' squared components — the link's residual is
+//! `sqrt(Σ)` over two frozen squared components, the bracket's both
+//! components freeze before squaring — at any affordable width: the
+//! per-node size cap is a cost wall and not a reach (raising
+//! [`EARLY_AB_TERMS`] 512 → 4096 leaves the link at ceiling + δ
+//! byte-identical, and with the budget raised to 32,768 terms /
+//! degree 256 the bracket's bracket is unchanged at 16× the leaf cost;
+//! both reviews, by execution). What they wait on is the scaffold
+//! residual's retirement for arc carriers (PCURVE/D3). On the pad the
+//! fillet's identity-shaped `line_span` is a `Min` over frozen
+//! 60-term, degree-16 products (`work/m10/symbolic-tier-census`).
+//! And the reach is the UNIT bulge: a parameter bulge is outside the
+//! mechanism (R2's D-tab: `3.52e2 · ε` on and off alike) and a literal
+//! bulge other than 1 leaves residue (R1's boss at bulge 2: 6 of 54
+//! and 27 of 90 still numeric, ceiling unmoved) —
+//! `work/m10/rule-d-reaches-the-unit-bulge-only`.
 //!
 //! **What it costs** (release, one whole-box leaf, algebra off → on):
 //! plate at `1e2 · ε` 0.15 → 0.21 s; plate at its REAL study 0.02 →
@@ -308,11 +338,14 @@
 //! worked to the end, so the leaf costs what the whole walk costs);
 //! bracket 0.51 → 0.81 s; annulus 0.09 → 0.17 s; pad 2.2 → 10.1 s;
 //! link 0.42 → 5.0 s. The ring stays
-//! at [`COEFF_BITS`] = 256: the three residuals discharge there once
-//! the zero normalization is in, and 512 and 1024 add no discharge
-//! (measured before it: 512 moved nothing, 1024 reached two of the
+//! at [`COEFF_BITS`] = 256: the plate's four residuals discharge there
+//! once the zero normalization and A1's folds are in (the first three
+//! needed the normalization, the fourth A1 — neither needed a wider
+//! ring), and 512 and 1024 add no discharge (measured before the
+//! normalization: 512 moved nothing, 1024 reached two of the first
 //! three at 12 s per nominal replay — the coefficient growth was the
-//! artefact, not the reach).
+//! artefact, not the reach; A1's folds are width-independent and are
+//! pinned at all three widths).
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -1469,16 +1502,22 @@ impl SymCounts {
     }
 }
 
-/// **The atom-algebra dials** — the three rewrite rules the normal form
-/// applies to its opaque atoms, each switchable so that its effect on
-/// a document is a measurement rather than an assumption, and so that
-/// all three off is the plain quotient form bit for bit.
+/// **The tier's dials** — every mechanism the normal form layers on
+/// the plain quotient form, each switchable so that its effect on a
+/// document is a measurement rather than an assumption, and so that
+/// every dial off ([`Self::none`]) is the plain quotient form bit for
+/// bit: the atom-algebra rules A, B and C; the constant fold A0
+/// (`const_fold`) and the early walk it runs in (`early`); rules A/B
+/// applied PER NODE inside that walk (`early_ab`); rule D, trig of
+/// `atan` in closed form with amendment A1's `atan2` and half-π folds
+/// (`trig_of_atan`); and the registered-identity door (`registered`).
 ///
 /// Every rule is an equality of reals under clause 1 of the theorem
 /// ([`Decide::sign_within`]'s docs), so a zero reached through any of
 /// them is still a zero of the real margin; what a rule can cost is
-/// only a cancellation it fails to find. The rules are named A, B and C
-/// where the tier's module docs discuss them.
+/// only a cancellation it fails to find. The rules are named A, B, C
+/// and D where the tier's module docs discuss them; the door is an
+/// axiom rather than a rule and is counted apart (`registered`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SymRules {
     /// **A — `sqrt(X)² = X`.** An even power of a `sqrt` atom reduces
@@ -1605,7 +1644,8 @@ impl SymRules {
     /// | A0 alongside (`const_fold` + `early`) | bracket 10.4×, annulus 39×, the shaft's ±0.1 study certifies whole; loses nothing | plate 0.35 → 0.65 s, bracket 1.47 → 2.7 s | **yes** |
     /// | A0 replacing (`const_fold` alone) | the same ceilings | plate 0.37 s, bracket 1.46 s | no: loses theorems to bound freezes |
     /// | the door (`registered`) | none alone; the `i = 0` sample of the scaffold residual and both endpoint pinnings | ~0 | **yes** |
-    /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`), with A1's `atan2` and half-π folds under D's dial | the plate's four identity residuals all go: the plate certifies 0.24–0.26 and the annulus 0.70–0.84 of their REAL studies, bounded by real margins; pad 1.20× | plate 0.20 s at its real study, pad 2.2 → 10.1 s, link 0.42 → 5.0 s | **yes** |
+    /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`), with A1's `atan2` and half-π folds under D's dial | the plate's four identity residuals all go: the plate certifies 0.24–0.26 and the annulus 0.70–0.84 of their REAL studies, their ceilings bounded by dependency widening of real margins; pad 1.20× | plate 0.15 s at its real study, pad 2.1 → 10.5 s, link 0.43 → 4.1 s (with rule D's `sin`/`cos` pair built once) | **yes** |
+    /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
@@ -1760,6 +1800,13 @@ struct Session {
     /// per leaf replay, like everything else here; consulted by the
     /// EARLY walk only, and only under [`SymRules::registered`].
     registry: IdMap<SymId>,
+    /// **Rule D's closed forms, by argument form** (`trig::Closed`):
+    /// `sin` and `cos` of one argument are two nodes, and the recurrence
+    /// that builds `(cos kψ, sin kψ)` over the shared denominator yields
+    /// both at once — so a `sin_cos` pair minted from one node folded
+    /// TWICE before this memo (R2's Q7). Keyed by the argument form's
+    /// digest, per session like every other memo here.
+    trig_closed: IndetMap<Option<Rc<trig::Closed>>>,
     counts: SymCounts,
 }
 
@@ -1895,6 +1942,7 @@ pub fn with_session_rules<R>(
             params: IndetMap::default(),
             atoms: IndetMap::default(),
             registry: IdMap::default(),
+            trig_closed: IndetMap::default(),
             counts: SymCounts::default(),
         });
     });
@@ -2366,11 +2414,13 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             // nothing, so only the both-zero fold is taken. copysign
             // carries `a`'s MAGNITUDE, so a zero first argument is zero
             // whatever the sign argument does (±0 is one real).
-            // atan2(0, x) is 0 or π depending on the sign of x — not a
-            // fold the form can take without reading a value.
-            // atan2(0, N) with N non-negative BY SYNTAX is 0 — rule D's
-            // second fold, early walk only (`trig::manifestly_nonneg`
-            // carries the argument); any other atan2 stays an atom.
+            // atan2(0, x) is 0 or π depending on the sign of x, so the
+            // fold below is taken ONLY where the sign is a fact of the
+            // form: atan2(0, N) with N non-negative BY SYNTAX is 0 —
+            // rule D's second fold (amendment A1), early walk only
+            // (`trig::manifestly_nonneg` carries the argument); a plain
+            // parameter, a non-zero first argument, or a value-only
+            // zero never folds, and every other atan2 stays an atom.
             let folds = match node.op {
                 SymOp::Min | SymOp::Max => a.is_zero() && b.is_zero(),
                 SymOp::Copysign => a.is_zero(),
@@ -2527,16 +2577,19 @@ fn form_in(
                     }
                     algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS)
                         .filter(|g| within(budget, g))
-                        // The reduction rebuilds the quotient out of
-                        // polynomial pieces, so the gate is carried
-                        // across by hand: a reduced form is gated if
-                        // what it reduced was. Dropping it would report
-                        // a weaker claim as a stronger one, which is
-                        // the one direction the receipt may never move
-                        // in.
-                        .map(|g| Form {
-                            gated: g.gated || f.gated,
-                            ..g
+                        // The gate has ONE home: `algebra::apply`
+                        // carries the input form's gate through every
+                        // substitution step, so a reduced form is gated
+                        // if what it reduced was, and nothing here
+                        // carries it a second time (R1 MIN-7). Checked
+                        // rather than re-done: dropping a gate would
+                        // report a weaker claim as a stronger one, the
+                        // one direction the receipt may never move in.
+                        .inspect(|g| {
+                            debug_assert!(
+                                g.gated || !f.gated,
+                                "algebra::apply carries the gate through every step"
+                            );
                         })
                         .unwrap_or(f)
                 })

@@ -171,17 +171,30 @@ The plate's ceiling, shipped tier, nothing passed: 0.2368 (ε = 1e-6),
 0.2631 (1e-9), 0.2631 (1e-12) of its REAL study — `[2.3680e5,
 2.3687e5] · ε`, `[2.6306e8, 2.6316e8] · ε`, `[2.6305e11, 2.6318e11] ·
 ε` — bounded by `assert_bound` `[9.99e-6, 1.90e-4]`, `[−2.09e-9,
-2.00e-4]`, `[−9.12e-9, 2.00e-4]`: the study's own web assertion, a
-real margin, at the two finer rows a genuine flip. That is the staged
-walk's own end (0.2368, 0.2630, 0.2631 with everything passed) to the
-bisection step; from the shipped tier the walk is zero residuals long
-and passing any moves nothing. The cliff this table predicted is real
-and it is where the table said.
+2.00e-4]`, `[−9.12e-9, 2.00e-4]`: the ENCLOSURE of the study's own web
+assertion, which is dependency widening of a real margin and not a
+flip (R2's fix-pass finding, by execution): the margin `web − floor =
+1e-4 + 2·Δhs − Δr_a − Δr_b` is affine, its true range over the box at
+scale `s` is `1e-4 ± 1.6e-4·s`, so at the ceiling (`s ≈ 0.263`) it is
+`[5.79e-5, 1.42e-4] > 0` everywhere and the enclosure is widened ~6e-5
+each side; the flip first enters the box at `s = 0.625`
+(`work/m10/real-margin-dependency-widening`, pinned in
+`m10_10_pins_interval::m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`).
+The "real margin" this table's last row predicted is therefore the
+margin's WIDENED enclosure — the ceiling is widening-bound; the leaves
+certify up to the real flip (the whole drive's refusals refine to
+`{assert_bound}` alone at every depth). That is the staged walk's own
+end (0.2368, 0.2630, 0.2631 with everything passed) to the bisection
+step; from the shipped tier the walk is zero residuals long and
+passing any moves nothing. The cliff this table predicted is real and
+it is where the table said; what is behind it is the widening class,
+as §4 of the unit's spec said to name.
 
 The other four documents, same instrument: R1's annulus moves with
 the plate to 0.6963 / 0.8416 / 0.8415 of its real study, bounded by
-its own real margins (`dihedral_wedge` at `1e-6`,
-`arc_diameter_clearance` at the finer rows); R2's pad
+the enclosures of its own margins (`dihedral_wedge` at `1e-6`,
+`arc_diameter_clearance` at the finer rows — the latter cannot be
+zero for any `r > 0`, the widening finding's second site); R2's pad
 moves 1.20× (`[2.4990e3, 2.5010e3] · ε`) and is bounded by the
 identity-shaped `line_span`; R2's link (`[4.930e2, 4.934e2] · ε`) and
 R2's bracket (`[3.870e2, 3.874e2] · ε`) do not move and stay bounded by
@@ -189,9 +202,14 @@ R2's bracket (`[3.870e2, 3.874e2] · ε`) do not move and stay bounded by
 (`m10_10_evidence_interval::m10_10_what_stands_rendered`): the
 pushforward's component is a 3-term form and the carrier's is a
 1,020-term form over a 66-term denominator — its frame's `radial · ρ`
-alone is 150 terms of degree 15 — past the per-node reduction's size
-cap, so nothing reduces it, and the squared components freeze at the
-term budget. The trig meets; the frame does not fit. The second
+alone is 150 terms of degree 15 — and its SQUARED components freeze at
+the term/coefficient budget; the residual is `sqrt(Σ)` over two frozen
+squares (the bracket's both components freeze before squaring). The
+per-node size cap is a cost wall and not the reach: both reviews
+raised it (512 → 4096: the link at ceiling + δ byte-identical; with
+the budget at 32,768 terms / degree 256: the bracket unchanged at 16×
+the leaf cost). The trig meets; the frame does not fit the budget at
+any affordable width. The second
 option above — retiring the scaffold residual for
 arc carriers — is still PCURVE/D3's, and after M10-10 it is what the
 link and the bracket wait on.

@@ -38,9 +38,14 @@ and the rim identity the door states closes the rest, so the count is
 passed: 0.2368 (ε = 1e-6), 0.2631 (1e-9), 0.2631 (1e-12) of its REAL
 study, bounded by `assert_bound` `[9.99e-6, 1.90e-4]`, `[−2.09e-9,
 2.00e-4]`, `[−9.12e-9, 2.00e-4]` — exactly the staged walk's end this
-row predicted, to the bisection step. R1's annulus: 0.6963 / 0.8416 /
-0.8415 of its real study, bounded by `dihedral_wedge` and
-`arc_diameter_clearance`, real margins both. The other two routes
+row predicted, to the bisection step — bounded, precisely, by the
+web margin's widened ENCLOSURE (dependency widening, not a flip: the
+true margin is `[5.79e-5, 1.42e-4] > 0` at the ceiling and the flip
+enters the box at 0.625 of the study;
+`work/m10/real-margin-dependency-widening`). R1's annulus: 0.6963 /
+0.8416 / 0.8415 of its real study, bounded by the enclosures of
+`dihedral_wedge` and `arc_diameter_clearance`, the same class. The
+other two routes
 (a sign read; a structural phase in PCURVE's derivation) are not
 needed for this residual and are not taken. The finding below is
 kept as the record of what stood and why.

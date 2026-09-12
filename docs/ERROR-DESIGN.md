@@ -664,15 +664,30 @@ number.
   clause 1's), with the rim identity closing the rest through the door.
   No sign was read. The plate's whole-certifying box is 0.2368, 0.2631
   and 0.2631 of its REAL study at ε = 1e-6, 1e-9, 1e-12 — the staged
-  walk's own end, and the ceiling stopped scaling with ε — bounded by
-  `assert_bound`, the study's web assertion (a genuine flip at the two
-  finer rows); driven whole at 1024 leaves the real study returns
-  certified leaves and refusals by real flips (the tour's stop 1). R1's
-  annulus likewise certifies 0.70–0.84 of its real study, bounded by
-  its own dihedral and arc-diameter margins. The link, the bracket and
-  the pad are still ε-scale, bounded by identity residuals whose
-  operands the per-node cap does not reach
-  (`work/m10/symbolic-tier-census`).
+  walk's own end, and the ceiling stopped scaling with ε. What bounds
+  that CEILING is the class this bullet's second sentence hands the
+  ceiling to — dependency widening of a real margin
+  (`work/m10/real-margin-dependency-widening`), not a flip: the web
+  assertion's margin is affine, `1e-4 + 2·Δhs − Δr_a − Δr_b`, its true
+  range at the ceiling `[5.79e-5, 1.42e-4] > 0`, its enclosure
+  `[−2.09e-9, 2.00e-4]`, and the flip first enters the box at 0.625 of
+  the study. The LEAVES certify up to that flip: driven whole at 1024
+  leaves the real study is 431 certified / 593 refused at the budget
+  and nothing else, a refused leaf refined further is bounded by
+  `{assert_bound}` alone at every depth, and the requirement reads
+  `Violated` on a certified part of the mass (the tour's stop 1 says
+  the number). R1's annulus likewise certifies 0.70–0.84 of its real
+  study, bounded by the enclosures of its own dihedral and
+  arc-diameter margins (the latter cannot be zero for any `r > 0` —
+  the widening finding's second site). The link, the bracket and the
+  pad are still ε-scale, bounded by identity residuals whose squared
+  components the term/coefficient budget freezes at any affordable
+  width (the per-node cap is a cost wall, not a reach; what they wait
+  on is the scaffold residual's retirement, PCURVE/D3). And the reach
+  is the UNIT bulge: a parameter bulge is outside the mechanism and a
+  literal bulge other than 1 leaves residue
+  (`work/m10/rule-d-reaches-the-unit-bulge-only`;
+  `work/m10/symbolic-tier-census`).
 
 Rationale: the driver's job is to certify over the STUDY's box; a
 certifier that can only certify boxes narrower than its own ε is
