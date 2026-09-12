@@ -1085,3 +1085,79 @@ ratified convention against an earlier ratified naming (2409's
 is a design choice. Ev: *"that kind of thing is necessarily a judgement
 call"*, and the call this program made was right. It is not reducible to
 a rule and none is written.
+
+## `frame-f64-placement` landed green; PP6's citation lands with it (2026-09-12)
+
+**PR 2435**, CI run `34684190899` green on the full matrix (twelve
+`test (…)`, five `k-lint (gate, …)`). The carry is
+`NodeValue::placement_f64`, minted post-op by `frame_placement_f64` from
+`eval_node`'s **existing** nominal slot list through the same
+`frame_from_slots` door the frame's own op uses — it evaluates no
+expression. `profile_plane_f64` becomes a pure read; `FrameKind` and
+`frame_kind` are deleted and the DM1c fork moves to the mint.
+
+**The correctness arm came back negative on keys and positive on
+values, which is the right shape**: `content_key`'s arguments are
+untouched, the placement is value-side and was never hashed, and the
+profile's dependence on the frame still rides in `upstream_keys`. What
+moved is the **verdict log** — two `datum_unit_norm` decisions per frame
+are now made once instead of per profile, so `N−1` are removed and none
+added.
+
+**Two baselines re-blessed, and the re-baselining lesson is the durable
+part.** `kstats_bracket_rows.rs` (PRE_PASS 75→73, FRAME_LOG 2→4) and
+`golden/m10_6_certifying_keys.txt`. The golden reds **only on the
+interval lane**, so the lane's default-feature local run was green over
+a baseline that had genuinely moved and **CI caught it**. That is a
+hazard worth carrying: *a local green is not evidence about a lane you
+did not build*, and it is the second time this program has seen a claim
+survive a local run and die on the matrix.
+
+**The ratified-clause question, decided under #2432's corrected rule.**
+The lane found `crates/editor-core/README.md` **PP6** cites a mechanism
+that moved — *"(`profile_plane_f64`, read from the document's own
+slots)"* — and **declined to amend it**, because its brief predated the
+rule change and said to stop and report. Right call on the brief it had.
+
+Adjudicated: **it lands with this PR.** PP6's *decision* is unchanged —
+an authored frame's plane still stays f64 under every lift, and the fork
+by frame kind is preserved exactly — and what is stale is a symbol that
+moved. That is exactly #2432's *"not a second decision, and lands with
+the change that caused it."* No roster row reds either; the PP1–PP6
+companion row names `prepare_profile`, `lane_profile` and `section_of`,
+not `profile_plane_f64`.
+
+The lane's reading that this change is an **instance of PP1** rather
+than an extension or a tension is accepted: PP1's "structure f64-once as
+the witness" is about the profile *program*, and the frame's placement
+is an *input to* that pass — the one input still re-derived from the
+document rather than handed in.
+
+**The item was stale and the lane checked rather than inherited.** It
+claimed `slots.rs`'s header "cannot say 'once per node per environment'
+while this holds"; the header says no such thing and already documented
+the duplicate accurately. What the change buys is that it can now say
+the stronger thing, and does.
+
+**Residue filed**:
+`section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made`
+— the same shape one level up and far more expensive (an entire program
+resolve-replay-validate per section, against nine slots per profile),
+and it reaches **PP1/PP2's structure record**, so it is its own unit and
+should not assume this one's answer. Two neighbours the same sweep found
+are dispositioned on that row so the next sweep does not re-derive them.
+
+Full review dispatched.
+
+## Disk, second time today
+
+The box hit 100% again (189 MB free) while the lane worked; the lane
+reclaimed its own target and reported the rest rather than touching
+them, which is correct — a lane cannot judge whether a sibling is live.
+Orchestrator swept the finished lift-pair and review lanes:
+**12 GB used, 26 GB free.** `pgrep cargo` empty before deleting.
+
+The standing rule from `memories/agent-lane-operations.md` is that this
+is done **when a review returns**, and both times today it was done when
+a lane ran out of space instead. Worth doing at each seam rather than at
+each crisis.
