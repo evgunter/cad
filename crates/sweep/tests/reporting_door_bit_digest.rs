@@ -52,13 +52,13 @@
 //! the comparison.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{arc_section, quad, stacked};
-use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use crate::common::{
+    arc_section, bulged_extrusion, quad, quintic_prism, stacked, tilted_cut_upper,
+};
+use geom_core::Tol;
+use profile::{Profile, SketchPlane};
 use sweep::loft_body;
 use topo::Body;
-use topo::splitting::{SplitPart, SplitPlane, split};
 
 /// One roster row's digest line: the body's name, then either the four
 /// `MassProperties` fields as hex bit patterns or the door's typed
@@ -92,73 +92,6 @@ fn square_prism() -> Body<f64> {
     .body
 }
 
-/// The quintic prism: six identical square sections at v-degree 5,
-/// which is outside the exact per-span rule window (> 4 per
-/// direction), so its walls take the patch engine's COMPOSITE rounds
-/// and the round they stop at is an ε question.
-fn quintic_prism() -> Body<f64> {
-    // The scale is chosen so the committed rows DIFFER across the
-    // matrix, which is the whole point of this member: the composite's
-    // starting width lands between the 1e-12 target and the 1e-9 one,
-    // so this body refuses on budget at the tight ε and certifies at
-    // the other two. A metre-scale twin certifies at round 0 at every
-    // ε and would pin the lane's answer without pinning its schedule;
-    // a kilometre-scale one refuses at two ε and takes 225 s of debug
-    // quadrature at the third.
-    let s = 0.1;
-    // The sections must DIFFER, or the walls are flat: a flat patch's
-    // second derivatives are zero, the composite's remainder vanishes
-    // and round 0 certifies at ring-rounding width whatever ε is.
-    let sq = |k: f64| {
-        quad([
-            (-k * s, -k * s),
-            (k * s, -k * s),
-            (k * s, k * s),
-            (-k * s, k * s),
-        ])
-    };
-    loft_body::<f64>(
-        &[sq(1.0), sq(1.05), sq(1.15), sq(1.3), sq(1.5), sq(1.75)],
-        &stacked(&[0.0, 0.4, 0.8, 1.2, 1.6, 2.0], s),
-        5,
-        Tol::witness(),
-    )
-    .expect("the quintic prism lofts")
-    .body
-}
-
-/// The tilted cylinder cut, upper part: a cylinder split by a plane at
-/// `φ = 0.3`, whose wall pieces are bounded by exact `Ellipse`
-/// carriers — the CYLINDER chart's Green form, which no loft or sweep
-/// verb can produce (their walls carry iso boundaries and take the
-/// closed forms).
-fn tilted_cut_upper() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-0.5, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(0.5, 0.0), 1.0),
-    ]);
-    let disc = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("the disc profile validates");
-    let cylinder = sweep::extrude::<f64>(&disc, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("the cylinder extrudes")
-        .body;
-    let phi = 0.3f64;
-    let result = split(
-        &cylinder,
-        &SplitPlane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-        },
-        Tol::witness(),
-    )
-    .expect("the tilted cut splits");
-    let SplitPart::Body(above) = result.above else {
-        panic!("both sides of the tilted cut carry material");
-    };
-    above
-}
-
 /// The arc prism: three identical bulged sections, so every wall is a
 /// RATIONAL patch and the quotient composite answers.
 fn arc_prism() -> Body<f64> {
@@ -184,17 +117,6 @@ fn arc_taper() -> Body<f64> {
     )
     .expect("the tapered arc loft lofts")
     .body
-}
-
-/// The bulged extrusion: an analytic cylinder wall with a CURVED trim
-/// loop — the cylinder chart's Green form.
-fn bulged_extrusion() -> Body<f64> {
-    let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
-        .validate(Tol::witness())
-        .expect("the profile validates");
-    sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
-        .expect("extrude")
-        .body
 }
 
 /// The box: every face closed-form, both pads exactly zero.

@@ -40,6 +40,30 @@ developer-seat lane over the debug/CI profile, and a static lane
 re-verifying `plan.md` §1.3 against today's tree and the tracker's
 already-filed perf findings. Each finding becomes one item file here.
 
+## PERF-8: a composing door on the K-funnel (2026-09-12)
+
+**Announcing a `geom-core` edit in PROPS' territory** (`work/README.md`:
+the owner is told where the change lands, and this is that telling).
+`crates/geom-core/src/k_stats.rs` gains two doors and the type between
+them — `detached`, `splice`, `Detached` — and nothing else in that file
+changes behaviour. `Bracket`'s semantics, nesting included, are
+untouched; `detached` is built out of `Bracket` rather than beside it.
+
+Why it had to be there: the funnel's recording is thread-local
+(`FRAMES`, and `SINK` under `probe`), so a face decided on a rayon
+worker records into that worker's frame and sink. `detached` runs a
+closure on the current thread under a frame and sink of its own and
+hands back what it recorded; `splice` appends such a recording to the
+current thread's open frame and sink. A walk that maps faces onto
+workers and splices in arena order therefore produces the serial walk's
+verdict log, escalation log and sample population, element for element,
+at any thread count.
+
+`crates/topo/src/props.rs` is the first consumer (`mass_properties` and
+`sign_certified`); `topo` gains the workspace `rayon`. The same door is
+what the other four rayon maps in the tree need —
+`work/perf/rayon-maps-outside-props-lose-the-funnels-recordings.md` and
+`work/wire/parallel-node-map-loses-the-funnel-and-the-symbolic-session.md`.
 ## PERF-9 lands on GUI/VIEW ground (2026-09-12)
 
 Unit `PERF-9` (branch `perf/9-per-face-bvh`) changes `editor-core`'s

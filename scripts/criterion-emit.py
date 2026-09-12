@@ -62,7 +62,9 @@ DEFAULT_ROSTER = (
     "tessellate/torus/1e-3",
     "tessellate/torus/1e-4",
     "kernel/validate/tier23_washer",
+    "kernel/validate/tier23_washer/t4",
     "kernel/mass_props/washer",
+    "kernel/mass_props/washer/t4",
     "kernel/build/extrude",
     "kernel/boolean/two_bricks",
 )
