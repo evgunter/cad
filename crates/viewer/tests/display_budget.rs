@@ -21,10 +21,13 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use editor_core::{DocEdit, ProfileDoc};
 use pncad::geom_core::Tol;
 use viewer::readout;
 use viewer::scene::{self, DisplayTolerance, TRIANGLE_BUDGET};
 use viewer::session::DocSession;
+
+use crate::corpus;
 
 /// The δ the application starts on (`app::INITIAL_DELTA`, which is
 /// `cfg`-gated behind the `app` feature and so is restated here; the
@@ -42,6 +45,14 @@ const OVER_BUDGET_DELTA: f64 = 1.0e-5;
 
 /// The tour's gallery ring, as the committed fixture.
 fn gallery_ring(tol: Tol) -> DocSession {
+    let mut session = DocSession::inline(gallery_ring_doc(tol), tol);
+    session.pump();
+    session
+}
+
+/// The same fixture as a document, for the rows that open every
+/// document the same way.
+fn gallery_ring_doc(tol: Tol) -> ProfileDoc {
     let text = include_str!("gallery_ring.pncad");
     // The fixture is stamped at the ε it was born at; `doc_io.rs` owns
     // the re-stamp and the proof that ε is its only ε-dependent byte.
@@ -69,9 +80,7 @@ fn gallery_ring(tol: Tol) -> DocSession {
             pncad::document::load(&restamped, tol).expect("the re-stamped fixture loads")
         }
     };
-    let mut session = DocSession::inline(loaded.snapshot, tol);
-    session.pump();
-    session
+    loaded.snapshot
 }
 
 fn delta(value: f64) -> DisplayTolerance {
@@ -310,4 +319,477 @@ fn a_budget_delta_renders_as_four_significant_figures() {
         "and no field this crate has is that wide"
     );
     assert_eq!(d.render_mm(), "0.0003746", "four of them");
+}
+
+/// Every document the budget is asked about, in one place: every
+/// parametric corpus document (the ones the application's own latency
+/// rows drive) and the tour's gallery ring. `die_composed_tour` is the
+/// other gallery document and is already in the corpus.
+fn budgeted_documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
+    let mut out: Vec<(&'static str, ProfileDoc)> = corpus::documents()
+        .into_iter()
+        .filter(|c| matches!(c.bump, DocEdit::SetParam { .. }))
+        .map(|c| (c.name, c.doc))
+        .collect();
+    out.push(("gallery_ring", gallery_ring_doc(tol)));
+    out
+}
+
+/// What the budget answered, for one document at one request.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Answer {
+    document: &'static str,
+    requested: f64,
+    delta: f64,
+    predicted: usize,
+    requested_cost: Option<usize>,
+}
+
+/// **The budget's answer is a value, and this is the whole of it** —
+/// every parametric corpus document and both gallery documents, at the
+/// δ the application starts on and at the decade finer where the
+/// budget binds on the curved ones.
+///
+/// The rows are what `scene::fit_delta` committed before the probe
+/// ladder replaced its single probe: twenty-eight documents, two
+/// requests each, and seven rows the budget binds. A change to the
+/// WORK of finding a δ may not move the δ, and the forty-nine rows it
+/// does not bind are held here to exactly that — same δ, same
+/// predicted cost, read off the same mesh. The seven it binds carry
+/// what each one moved to, and the PR that moved it says why.
+const ANSWERS: &[Answer] = &[
+    Answer {
+        document: "die",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 2784,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 2784,
+        requested_cost: None,
+    },
+    Answer {
+        document: "corner_table",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 608,
+        requested_cost: None,
+    },
+    Answer {
+        document: "corner_table",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 608,
+        requested_cost: None,
+    },
+    Answer {
+        document: "heat_sink",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 1216,
+        requested_cost: None,
+    },
+    Answer {
+        document: "heat_sink",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 1216,
+        requested_cost: None,
+    },
+    Answer {
+        document: "crossing_slots",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 480,
+        requested_cost: None,
+    },
+    Answer {
+        document: "crossing_slots",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 480,
+        requested_cost: None,
+    },
+    Answer {
+        document: "nested_islands_105",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 480,
+        requested_cost: None,
+    },
+    Answer {
+        document: "nested_islands_105",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 480,
+        requested_cost: None,
+    },
+    Answer {
+        document: "nested_islands_106_depth1",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 256,
+        requested_cost: None,
+    },
+    Answer {
+        document: "nested_islands_106_depth1",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 256,
+        requested_cost: None,
+    },
+    Answer {
+        document: "nested_islands_106_depth2",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 352,
+        requested_cost: None,
+    },
+    Answer {
+        document: "nested_islands_106_depth2",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 352,
+        requested_cost: None,
+    },
+    Answer {
+        document: "declared_tangency",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 1600,
+        requested_cost: None,
+    },
+    Answer {
+        document: "declared_tangency",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 4352,
+        requested_cost: None,
+    },
+    Answer {
+        document: "kitchen_sink",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 3392,
+        requested_cost: None,
+    },
+    Answer {
+        document: "kitchen_sink",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 8032,
+        requested_cost: None,
+    },
+    Answer {
+        document: "cut_cylinder",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 36352,
+        requested_cost: None,
+    },
+    Answer {
+        document: "cut_cylinder",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 327488,
+        requested_cost: None,
+    },
+    Answer {
+        document: "measured_web",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 96,
+        requested_cost: None,
+    },
+    Answer {
+        document: "measured_web",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 96,
+        requested_cost: None,
+    },
+    Answer {
+        document: "boss_union",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 2208,
+        requested_cost: None,
+    },
+    Answer {
+        document: "boss_union",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 6816,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_fillet",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 16608,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_fillet",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 160224,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_chamfer",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 352,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_chamfer",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 352,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_pips",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 4240,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_pips",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 39408,
+        requested_cost: None,
+    },
+    Answer {
+        document: "heat_sink_fins",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 480,
+        requested_cost: None,
+    },
+    Answer {
+        document: "heat_sink_fins",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 480,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_tool",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 24960,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_tool",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 235967,
+        requested_cost: None,
+    },
+    Answer {
+        document: "face_sketch",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 96,
+        requested_cost: None,
+    },
+    Answer {
+        document: "face_sketch",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 96,
+        requested_cost: None,
+    },
+    Answer {
+        document: "part_select",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 256,
+        requested_cost: None,
+    },
+    Answer {
+        document: "part_select",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 256,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_composed",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 20272,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_composed",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 177280,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_composed_tour",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 208464,
+        requested_cost: None,
+    },
+    Answer {
+        document: "die_composed_tour",
+        requested: 1e-5,
+        delta: 1.876128e-5,
+        predicted: 1000000,
+        requested_cost: Some(1876128),
+    },
+    Answer {
+        document: "plate_param",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 3936,
+        requested_cost: None,
+    },
+    Answer {
+        document: "plate_param",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 11616,
+        requested_cost: None,
+    },
+    Answer {
+        document: "kiss_carry",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 384,
+        requested_cost: None,
+    },
+    Answer {
+        document: "kiss_carry",
+        requested: 1e-5,
+        delta: 1e-5,
+        predicted: 384,
+        requested_cost: None,
+    },
+    Answer {
+        document: "tube_ring",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 641056,
+        requested_cost: None,
+    },
+    Answer {
+        document: "tube_ring",
+        requested: 1e-5,
+        delta: 6.41088e-5,
+        predicted: 1000000,
+        requested_cost: Some(6410880),
+    },
+    Answer {
+        document: "tube_arc",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 105023,
+        requested_cost: None,
+    },
+    Answer {
+        document: "tube_arc",
+        requested: 1e-5,
+        delta: 1.031136e-5,
+        predicted: 1000000,
+        requested_cost: Some(1031136),
+    },
+    Answer {
+        document: "hollow_tube_elbow",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 284192,
+        requested_cost: None,
+    },
+    Answer {
+        document: "hollow_tube_elbow",
+        requested: 1e-5,
+        delta: 2.795648e-5,
+        predicted: 1000000,
+        requested_cost: Some(2795648),
+    },
+    Answer {
+        document: "hollow_tube_ring",
+        requested: 0.0001,
+        delta: 0.00011645440000000001,
+        predicted: 1000000,
+        requested_cost: Some(1164544),
+    },
+    Answer {
+        document: "hollow_tube_ring",
+        requested: 1e-5,
+        delta: 0.00011623680000000002,
+        predicted: 1000000,
+        requested_cost: Some(11623680),
+    },
+    Answer {
+        document: "gallery_ring",
+        requested: 0.0001,
+        delta: 0.0001,
+        predicted: 165920,
+        requested_cost: None,
+    },
+    Answer {
+        document: "gallery_ring",
+        requested: 1e-5,
+        delta: 1.643776e-5,
+        predicted: 1000000,
+        requested_cost: Some(1643776),
+    },
+];
+
+#[test]
+fn the_budget_commits_the_delta_it_always_has() {
+    let tol = Tol::witness();
+    let mut answers: Vec<Answer> = Vec::new();
+    for (document, doc) in budgeted_documents(tol) {
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let body = session
+            .landed_body()
+            .unwrap_or_else(|| panic!("{document} gathers"));
+        for requested in [INITIAL_DELTA, OVER_BUDGET_DELTA] {
+            let fitted = scene::fit_delta(body, delta(requested), tol)
+                .unwrap_or_else(|error| panic!("{document} fits at {requested}: {error}"));
+            answers.push(Answer {
+                document,
+                requested,
+                delta: fitted.delta.get(),
+                predicted: fitted.predicted,
+                requested_cost: fitted.requested_cost,
+            });
+        }
+    }
+    let committed: Vec<Answer> = ANSWERS.to_vec();
+    if answers != committed {
+        let rows: Vec<String> = answers
+            .iter()
+            .map(|a| {
+                format!(
+                    "    Answer {{ document: {:?}, requested: {:?}, delta: {:?}, \
+                     predicted: {}, requested_cost: {:?} }},",
+                    a.document, a.requested, a.delta, a.predicted, a.requested_cost
+                )
+            })
+            .collect();
+        panic!(
+            "the budget answers differently than it did. What it answers now, \
+             as this table's own source:\n{}",
+            rows.join("\n")
+        );
+    }
 }
