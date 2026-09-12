@@ -22,7 +22,8 @@ use crate::session::{DatumSpec, SessionOp};
 use crate::sketch::{self, PreviewError};
 use crate::tools::ToolKind;
 use crate::widgets::{
-    angle_picker, fresh_step, length_picker, path_step_fields, unit_field, unit_vec3_row, vec3_row,
+    angle_picker, fresh_step, length_picker, number_field, path_step_fields, unit_field,
+    unit_vec3_row, vec3_row,
 };
 
 /// **The smallest pattern count the form offers.**
@@ -1004,8 +1005,7 @@ impl ViewerBehavior<'_> {
             // and a non-positive one refuses at evaluation, so the
             // form does not offer to author a node that cannot build.
             ui.add(
-                egui::DragValue::new(&mut self.drafts.pattern_count)
-                    .speed(COUNT_DRAG_SPEED)
+                number_field(&mut self.drafts.pattern_count, COUNT_DRAG_SPEED)
                     .range(MIN_PATTERN_COUNT..=i64::MAX),
             );
         });
