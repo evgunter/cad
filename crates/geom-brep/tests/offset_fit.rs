@@ -491,33 +491,58 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
     }
 }
 
-/// **A stall on the last round is a stall.** On the bumpy patch at
-/// `d = 1e-6` the bound falls to 2.5e-9 on round 4, RISES to 1.5e-8 on
-/// round 5 (the guard falls back to marking both directions) and
-/// rises again to 6.9e-7 on round 6, the budget's last. The strongest
-/// step gained nothing, which is the stall guard's own admission set,
-/// and it must be `RefinementStalled` there as on any earlier round:
-/// a refusal that says "still converging, raise the round budget" on
-/// a bound that went up twice sends the caller to the wrong knob.
+/// **The budget's last round, and which face it wears.** The stall
+/// guard's refusal wants TWO non-improving rounds running, the second
+/// past a both-directions marking; a single non-improving round is
+/// not it, and the loop must reach the round budget's own face there
+/// rather than the stall's — a refusal saying "the strongest step
+/// gained nothing" on a loop that was given one weaker step sends the
+/// caller to the wrong knob.
+///
+/// The bumpy patch at `d = 1e-4` is that shape at an unreachable
+/// `1e-15`: it exhausts the budget carrying `1.071e-8`, a finite
+/// bound above the tolerance. `RefinementStalled` is reached by no
+/// fixture in this suite's corpus (module docs, "Reachability"), and
+/// `budget_faces`'s census is the standing count of which faces the
+/// corpus does reach.
 #[test]
-fn a_stall_on_the_budgets_last_round_is_the_stall_not_the_budget() {
+fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     let base = bumpy_patch();
-    match fit_offset_at(&base, 1e-6, 1e-9, band()) {
-        Err(OffsetFitError::RefinementStalled {
-            rounds,
+    match fit_offset_at(&base, 1e-4, 1e-15, band()) {
+        Err(OffsetFitError::BudgetExhausted {
+            budget,
             grid,
             achieved,
-            ..
+            tolerance,
         }) => {
-            assert_eq!(
-                rounds as usize, OFFSET_FIT_BUDGET,
-                "the stall is on the last round"
+            assert_eq!(budget, OFFSET_FIT_BUDGET);
+            assert!(achieved.is_finite() && achieved > tolerance);
+            assert!(
+                (achieved - 1.0714e-8).abs() < achieved * 1e-3,
+                "the budget face carries {achieved:e}"
             );
-            assert!(achieved.is_finite());
-            eprintln!("last-round stall: rounds={rounds} grid={grid:?} achieved={achieved:.3e}");
+            eprintln!("budget face: grid={grid:?} achieved={achieved:.4e}");
         }
-        other => panic!("a last-round stall was not refused as a stall: {other:?}"),
+        other => panic!("the budget's last round did not wear the budget's face: {other:?}"),
     }
+}
+
+/// **What the floor on `‖E‖` reaches on a non-analytic base.** The
+/// bumpy patch at `d = 1e-6` certifies at `7.610e-10` on the third
+/// round's 609 cells — three orders below `|d|`, on a patch with no
+/// closed form to check against, which is why the row pins the
+/// digits rather than a ratio.
+#[test]
+fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
+    let base = bumpy_patch();
+    let (_, cert) = fit_offset_at(&base, 1e-6, 1e-9, band())
+        .unwrap_or_else(|e| panic!("the bumpy patch refused a 1e-9 request: {e}"));
+    assert_eq!((cert.rounds, cert.cells), (3, 609));
+    assert!(
+        (cert.hull_sup - 7.6102e-10).abs() < cert.hull_sup * 1e-3,
+        "the bumpy patch certifies at {:e}",
+        cert.hull_sup
+    );
 }
 
 /// **The never-finite face, and where it starts.** At `d = 1e-8` and
