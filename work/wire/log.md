@@ -1658,3 +1658,66 @@ than by event, which is what 2444's run in fact did by accident.
 The general form stands and is worth keeping in front of the next
 orchestrator: **a mitigation that depends on one agent's own pacing is
 no mitigation on a tree where every program merges its own work.**
+
+## 2026-09-12 — the axis channel cut, and S195 dispatched as a measurement
+
+**S195 was not dispatched as written, because three of its four claims
+look stale.** Filed 2026-08-20, it says the arc-mode vocabulary has no
+census, no `ArcData::ALL` to anchor one, and — the sharp part — that a
+seventh mode's slot role would address nothing silently because
+*"nothing forces the corpus to grow when a mode is added."* Against
+today's tree: `ArcMode::ALL` exists (`arc_modes!`), a mode census exists
+(`switch_program_vocabulary.rs:404`, `:456`), and **the corpus is
+generated from `ArcMode::ALL`** (`:175`, `:188-199`, fused blocks
+included) — precisely the thing the row says does not happen. What still
+looks live is `spec_arg_access!`'s `_ => None` (`program.rs:593`) and
+two unanchored discrete pairs.
+
+So the lane's job is to **run the row's own thought experiment**: add a
+seventh mode and watch which guard fires.
+`every_enumerated_slot_addresses_a_distinct_expression` has two
+independent ones — a `slots.len() == expressions` count and a
+`panic!("is enumerated but addresses nothing")` — and which one trips
+depends on whether `spec_slots` is compiler-forced. Nobody has run it;
+the row is an argument about what a census would catch, and this program
+has learned that arguments of that shape are settled by instruments.
+**A PR that closes a row with proof and files the residue is the
+expected outcome and a complete unit** — the brief says so, so the lane
+does not manufacture a diff to justify itself.
+
+**The axis channel is cut, and the headline is that WIRE cannot start
+it.** Steps 1–3 are TOPO's and EXCH's; WIRE's own parts (the
+`crates/verbs/` clause, the vocabulary, the P3 rows) are downstream of
+all three. Row moved `open` → `parked`, `blocked_on` the TOPO row.
+
+The spine that made the cut fall out: **this channel is `ParamSource`'s
+three-part shape at `GeomSource`'s granularity**, and
+`crates/verbs/README.md`'s own file table (`:35-37`) already says which
+crate owns each part — P1 the lowered token, P2 attach/propagate/
+consume, P3 absence refuses. Given that table the ordering is forced,
+including the one ordering constraint that is not obvious: **the
+document-level declaration node lands LAST**, because a declaration is
+persisted document content and a shape change after shipping is a file
+migration rather than a refactor.
+
+Two things written into the cut so a taker cannot lose them:
+
+- **Round 3's correction, which reverses Round 2's pricing.** The axis
+  channel sits on `GeomSource`'s side of §3 P1's line, not
+  `ParamSource`'s, because P1's exclusion is scoped to *motion-invariant*
+  fields and an axis is not one. P1 stands untouched. An earlier reading
+  (this orchestrator's) had it backwards.
+- **The staleness table's row-three under-claim is deliberate.** It
+  refuses when two different chains compose to the same relative motion
+  though coaxiality survives. A taker who "fixes" that by comparing
+  composed motions numerically has replaced a token comparison with a
+  measurement and broken ruling 1.
+
+**Cross-references written onto steps 1 and 2** (`work/topo/…-four-origins`,
+`work/exch/step-import-discards…`) naming them as steps of a ratified
+sequence, with the reverse dependency recorded on step 1: whoever
+designs the origin representation should look at what `import_step` can
+supply, since step 2 has to write one of the four origins with real
+content. A ratified design whose first mover is another program is
+exactly what gets lost when the ratifying program exits; the
+cross-references are the cheap insurance.
