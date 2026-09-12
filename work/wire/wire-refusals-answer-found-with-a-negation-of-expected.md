@@ -5,6 +5,7 @@ title: Two eval/wire.rs refusals answer found: with the negation of expected: (c
 status: open
 opened: 2026-09-11
 refs: [2376]
+pr: 2480
 ---
 
 
