@@ -651,7 +651,7 @@ area `kernel`; prefix `fix/`; tag `(FIX orchestrator)`; ab_band `1700-1799`.
 | `prose-census-undecided-residue` | issue | open | the prose census leaves 28 renderings undecided: positional {:?} over untyped expressions, and the Real scalar |  |  |
 | `remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites` | issue | open | refactor.rs discards remap_name's Err(RecipeNodeId) at six sites, so a miss inside a name's PATH segment is reported as the whole name being stranded |  |  |
 | `transform-recertifies-through-the-narrow-lane` | issue | open | transform_rigid re-certifies through the plain certify door, which admits a strictly narrower class than tier 3 |  |  |
-| `underflow-gate-owed-at-five-more-doors` | issue | open | five more decide-then-normalize doors owe the underflow gate, and one of them renders an underflowed component as 0 |  |  |
+| `underflow-gate-owed-at-five-more-doors` | issue | open | five more decide-then-normalize doors owe the underflow gate, and one of them renders an underflowed component as 0 |  | #2401 |
 | `validation-arms-delegate-a-recourse-their-carriers-do-not-give` | issue | open | four ValidationError arms delegate their recourse to a carrier whose own messages give none — Class B of the census recourse sweep |  |  |
 | `error-census-keyed-on-bare-type-name` | issue | review | The error-type census is keyed on the bare type name, which is ambiguous at seven names |  | #2402 |
 | `num-relative-tolerance-collides-above-a-decimetre` | issue | review | num()'s relative tolerance exceeds eps above ~0.1 m, so two lengths the kernel can tell apart render as one number |  | #2399 |
