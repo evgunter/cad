@@ -4,6 +4,7 @@ kind: issue
 title: the tessellator visits faces one at a time although every lane is read-only per face
 status: open
 opened: 2026-09-12
+parent: PERF-7
 ---
 
 

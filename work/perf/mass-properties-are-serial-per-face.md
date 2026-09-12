@@ -4,6 +4,7 @@ kind: issue
 title: mass properties and the sign walk visit faces one at a time, and the K-funnel records per thread
 status: open
 opened: 2026-09-12
+parent: PERF-8
 ---
 
 
