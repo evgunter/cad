@@ -130,6 +130,46 @@ constraint-driven sketches have a consumer. The other three bullets are
 their own files on PROPS's and SHELL's slates — the split is recorded in
 `work/wire/S40.md`.
 
+### The second half, ordered by file rather than by class
+
+Everything the opening slate named has landed. What is left is the
+rows the review rounds filed, and they group by **file**, because that
+is what decides whether two units collide in a merge and whether one
+mints the duplication the other closes.
+
+**The operand door is one unit, not four.**
+`the-is-this-a-frame-door-was-deleted-and-its-classification-dispersed`,
+`frame-plane-lane-and-axis-frame-are-one-door`,
+`composed-expected-phrases-are-hand-copied-across-sites` and
+`wire-refusals-answer-found-with-a-negation-of-expected` are the same ten
+lines of `eval/wire.rs` seen from four angles, and each item's body says
+a taker of one must read the others. Three are rated **E** above; that
+column is a dispatch estimate of each row alone, and four **E** rows on
+one door is an **M** unit with a full review. `wire-rs-module-header-…`
+rides with it — a sentence in the same file, and a second PR against
+`wire.rs` buys only a merge conflict and a cancelled run.
+
+The `found:`/`expected:` row is in that unit rather than beside it for a
+structural reason worth keeping: a door that **computes `found:` from
+the value it was handed** closes that row as a consequence. Staffed
+apart it is a text edit that the door would then have to undo.
+
+**`frame-linear-generic-door-has-no-consumers` is a measurement before
+it is a decision.** Its real question — does `crates/geom/src/scalar_lift.rs`'s
+convention mint public doors ahead of consumers? — disposes of both its
+instances, and answering either alone leaves the other unprincipled. The
+`placement-prose` lane runs the class's exact instrument (drop `pub`,
+compile, read the dead-code warnings) over every type the convention
+names and returns a recommendation; the disposition is then made on
+measured ground, and it is the row most likely to need Ev.
+
+**WIRE's `paths` are corrected by enumeration, not by a glob.** Six
+`names/` files this program keeps landing in are fenced one PR body at a
+time. `crates/editor-core/src/names/*` is the wrong fix: it sweeps in
+`role.rs`, which is DOCM's, and one-file-one-item means the lane cannot
+write the matching `keep_out` on DOCM's side — so the glob would mint an
+unrecorded double claim in the act of fixing a fence.
+
 **Not takeable, and deliberately.** `axis-flavoured-declarations-have-no-channel`
 is the `[ev]`-shaped fork between a placement-level declaration
 (CURVED's shape) and frame-level identity (TOPO's); it opens as an
@@ -160,9 +200,10 @@ lane that finds the call wrong:
 | `profile-has-no-scalar-lift-door` + `profile-embed-lift-has-two-homes-anchor-and-loft` | a new public lift API across three crates, and `end_profile` re-`validate`s the lift at `T` today; getting the door wrong changes what a loft builds |
 | `product-gather-refuses-a-split-root-whose-tie-spans-both-halves` | a stated rule about the product's aggregate name table, and the rule decides whether a name survives |
 | `D364` | a census is a claim about a vocabulary's completeness; a census with a hole reports green |
+| **the operand-door unit** — `the-is-this-a-frame-door-was-deleted-…` + `frame-plane-lane-and-axis-frame-are-one-door` + `composed-expected-phrases-are-hand-copied-across-sites` + `wire-refusals-answer-found-with-a-negation-of-expected`, **raised to full at dispatch** against three **E** class estimates | four rows are the same ten lines of `eval/wire.rs` seen from four angles, and the unit gives "is this a frame" a home to replace the one PR 2435 deleted. It moves user-visible refusal text, it sweeps a shape that recurs over seven other kinds, and it is the sixth-instance ground of the standing trap where a unit closing a duplication mints a fresh instance of it |
 | ~~`S195`~~ **lowered to light at review time** | the row turned out to be three-quarters discharged by work that landed after it was filed, so the unit was dispatched as a MEASUREMENT and its diff is 58 lines of test on a failure path with the assertion untouched. The census it was going to build already exists; nothing here can report green over a hole. The measurement itself is the deliverable and the reviewer re-takes it, which a light review does |
 
-Everything else is a light style review: the three E units, and any
+Everything else is a light style review: the E units and any
 prose or tracker pass. A light review is still a review — the reviewer
 gets claims to falsify and
 `docs/prompts/reviewer-style-lane.md` by path — it is just not paired
