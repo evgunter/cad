@@ -109,8 +109,9 @@ home — the doc on `label` in the `macro_rules! vocabulary` body in
 reader who greps `forms.rs` for those words finds nothing. The rendered
 doc on `PathVerb::label` is named beside it because that is where a
 reader meets the sentence as it applies to this enum. Cited that way the
-citation survives both files being renumbered, which is the remedy
-`work/cite/S176.md` argues for.
+citation survives both files being renumbered, which is the rule
+`docs/prompts/implementer-discipline.md` §7 states: *cite by name;
+line numbers rot*.
 
 **The quotation rot is not a withdrawal.** The claim it supports is
 still true and is stronger: a half-labelled list now fails to *parse*
