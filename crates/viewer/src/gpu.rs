@@ -365,7 +365,7 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// should not — which is the reason to keep it minimal rather than to
 /// tune it.
 ///
-/// [`crate::pickindex::OCCLUSION_SLACK_REL`] plays the same
+/// `crate::pickindex`'s `OCCLUSION_SLACK_REL` plays the same
 /// coincident-edge-over-its-own-face role on the CPU pick lane, in a
 /// different numeric domain (f64 world-depth comparison there, f32
 /// clip z here) — a pointer each way, deliberately not one shared

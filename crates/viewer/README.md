@@ -1762,12 +1762,26 @@ unstated is not a negative result: a span naming one of those modules as
 a CONCEPT rather than as a namespace (`sketch.rs`'s *"The forms' own
 default is `app`'s, not this"*), which has no item to point at; and a
 possessive whose first span is a type, a trait or another crate, which
-is the same grammar over a different population. Some targets are
-PRIVATE — a field, a private method and a const in a private module are
-among them — and resolve anyway because both host passes run
+is the same grammar over a different population.
+
+**A PRIVATE target links, but only if it is nameable, and the two are
+not the same test.** A private FIELD and a private METHOD resolve
+(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_theme` are
+both linked and both private), because rustdoc resolves an associated
+item through its type and both host passes run
 `--document-private-items` with `rustdoc::private_intra_doc_links`
-allowed, the decision `scripts/doc-gate.sh`'s header argues and its own
-selftest pins.
+allowed — the decision `scripts/doc-gate.sh`'s header argues and its own
+selftest pins. **A module-scoped private `const` or `fn` does not**, and
+`--document-private-items` does not change that: the flag decides what
+rustdoc RENDERS, while a path is resolved by ordinary visibility, and
+`crate::gpu::EDGE_CLIP_Z_SHRINK` is not a path anyone outside `gpu` may
+write. Measured by planting it: the all-features pass errors
+*"no item named `EDGE_CLIP_Z_SHRINK` in module `gpu`"*. So
+`pickindex.rs`'s and `gpu.rs`'s deliberate pointer pair over their two
+slack constants stays NAMED at both ends — the one population this
+section's linking rule cannot reach, and the reason is visibility rather
+than a feature gate. Widen the target to `pub(crate)` first if a link is
+wanted, or leave it named; do not reach for `#[allow]`.
 
 **A browser pass, if one is ever run, allows that one lint.** None is
 run today, and the feature axis is better off here than this one:
