@@ -2,8 +2,9 @@
 id: m10-3-chamber-row-reads-ten-times-its-recorded-cost
 kind: issue
 title: DIAGNOSED: the M10-3 interval suite is 15x slower since M10-7's symbolic normal form (PR 1725) — a KERNEL regression its own gate hid
-status: open
+status: parked
 opened: 2026-09-11
+blocked_on: [symbolic-tier-costs-95-percent-of-the-m10-3-drive]
 ---
 
 
@@ -321,3 +322,20 @@ they assert, and the seconds belong to a kernel tier that the real
 program pays too. Either M10's row makes the tier cheaper and this one
 closes with it, or the M10-3 suite is deliberately placed at ~84 s
 hosted and the file's stale prose is corrected to say so.
+
+## Parked on M10's row (2026-09-12)
+
+Status moved `open` -> `parked`. The diagnosis is complete and the fix is
+a kernel change inside a tier M10 designed and owns, so **nothing on this
+side is dispatchable** — the row was sitting on the board as available
+work it is not, which is the board lying about its own state.
+
+Trigger: `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
+When that closes, this row re-reads the suite's cost and either records
+the new figure or closes.
+
+What stays this program's, and is why the row is parked rather than
+re-homed: the cost figure the gate hid is S-TCOST's instrument, and
+`fuzz-depth-not-existence-run-everything-at-effort-1` is ordered behind
+this — wiring the EFFORT policy before the regression is fixed puts a
+66-83 s row on every pull request.
