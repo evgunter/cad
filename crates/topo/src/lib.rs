@@ -367,7 +367,7 @@ pub use splitting::{
     SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
     plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
-pub use transform::{TransformError, transform_rigid};
+pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
     StaleDeclaration, ValidationError, contact_marks, contact_marks_certified,
