@@ -1635,6 +1635,20 @@ mod attribution {
                                inventory (plane, sphere, cylinder)",
                 }),
                 topo::CensusUnsupportedCause::FaceUnboundable,
+                // The point-in-face door's own refusal, carried. This
+                // cause is the one that used to arrive as
+                // `CensusEscalated` over a minted `Indeterminate`, so
+                // it is the one whose re-routing could have moved this
+                // classification — and the lone-FACE site below is
+                // where the census raises it. Both spellings answer
+                // `Unattributed`, which is why the re-routing moves no
+                // `AtRest`/`Uncertified` verdict; the row is here so
+                // that stays true rather than stays believed.
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::ArcLoopUnsupported {
+                    r#loop: Default::default(),
+                }),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::RayExhausted),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::Corrupt),
             ]
         };
         // Site 1 — the pair arm. `a`/`b` is `fixture`'s own minted
