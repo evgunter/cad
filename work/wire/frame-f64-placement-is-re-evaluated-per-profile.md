@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-08
 branch: wire/frame-f64-placement-once
 pr: 2435
+closed: 2026-09-12
 ---
 
 
