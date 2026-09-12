@@ -1653,7 +1653,8 @@ memory's fuzzing rules are untouched, and `r1-probe-seeds-are-not-on-the-
 fuzz-dial` stays open: it is the one place the reproducibility floor this
 ruling assumes is not actually met.
 
-Board: eight live rows.
+Board: eleven live rows (corrected 2026-09-12 — the count here was
+wrong; see the correction at the tail).
 
 ## Unit: the gate's mount arm (2026-09-11)
 
@@ -1691,8 +1692,10 @@ valid, so the red can only be this arm), and a mounted file with no
 marker must pass — the live tree's own state, and what a gate firing
 there would red `main` over.
 
-Both gate-defect rows are now closed. Board: six live rows — the four
-latency rows, the demotions row, and `r1-probe-seeds-are-not-on-the-fuzz-dial`.
+Both gate-defect rows are now closed. Board: ten live rows (corrected
+2026-09-12 — "six" here counted only the latency rows, the demotions row
+and `r1-probe-seeds-are-not-on-the-fuzz-dial`, and silently dropped four;
+see the correction at the tail).
 
 ## Seam: Ev's EFFORT proposal, and the measurement that prices it (2026-09-11)
 
@@ -1813,3 +1816,31 @@ written the same way would have made the row slower.
 Recorded there without an argument attached: **all nine rows pass with
 the tier off**, which is a coverage question for M10 and not a case for
 turning it off.
+
+
+## Correction: the board counts in the two entries above were wrong (2026-09-12)
+
+Read off `work.py status --program tcost` rather than counted by hand,
+which is how the error happened: both figures were derived from the
+enumeration a lane had in its head at the time, and both enumerations
+were short. **Ten rows are live**, and here they are in full so the next
+reader does not have to re-derive them either:
+
+| row | what it waits on |
+|---|---|
+| `fuzz-depth-not-existence-run-everything-at-effort-1` | **Ev** — the `[ev]` PR carrying the `memories/` clause; nothing wired |
+| `m10-3-chamber-row-reads-ten-times-its-recorded-cost` | M10's `symbolic-tier-costs-95-percent-of-the-m10-3-drive`; diagnosed, no work left on this side |
+| `nightly-demotions-c1-c3-were-bought-with-billed-minutes` | a hosted wall reading per job, C3's especially — never taken |
+| `nextest-shard-count-needs-remeasure` | its own measured PR (N=3/N=4 on the interval legs) |
+| `rust-cache-never-restores-across-branches` | a unit; the pole itself |
+| `tcost-area-pad-lever` | a spec, then a kernel unit |
+| `offset-composite-lazy-sign-gate` | a spec, then a kernel unit |
+| `r1-probe-seeds-are-not-on-the-fuzz-dial` | a unit; more load-bearing if the `[ev]` clause lands |
+| `proptest-modules-in-src-ungated` | closes WITH the `[ev]` clause, not before |
+| `ci-filter-cites-a-path-the-ledger-recipe-cannot-open` | two comment lines |
+
+The lesson is small and general enough to keep: **a board count belongs
+to `work.py status`, not to a log entry's prose.** A hand-written total
+in a narrative goes stale the moment the next row lands, and this program
+wrote two of them wrong in one day while auditing other people's stale
+figures.
