@@ -227,9 +227,9 @@ proxy for a different property:
 | `docs-only ok` success (mine, #2400) | the TIER — that job is green in both |
 
 The last is the orchestrator's own: I handed a lane a sweep over the two
-call names, and `pane/properties.rs:348-353` shows a typed ineligibility
+call names, and `pane/properties.rs:350-355` shows a typed ineligibility
 through `ui.weak(fault.to_string())` and calls neither —
-`pane/create.rs:445`'s `blocked: Option<&'static str>` is a second
+`pane/create.rs:446`'s `blocked: Option<&'static str>` is a second
 member, sharing a field name with the opposite typing. The lane found
 both and corrected me. **The check is to name the property first and the
 pattern second, then ask what a member could look like that the pattern
@@ -927,8 +927,8 @@ field*, which belongs at the FIELD. **Ev: "sounds good"**, 2026-09-07.
 **`bare-vocabularies-declare-their-words-a-second-time`** framed a
 dichotomy: either the labelled arm absorbs all four bare vocabularies
 and the README's two-shape rule is DELETED, or it does not. Tracing
-every reader gives neither. `PathVerb` (`pane/create.rs:727`) and
-`ArcMode` (`widgets.rs:300`) have a PRODUCTION loop that iterates `ALL`
+every reader gives neither. `PathVerb` (`pane/create.rs:728`) and
+`ArcMode` (`widgets.rs:367`) have a PRODUCTION loop that iterates `ALL`
 and asks each option for its word; `ToolKind` and `Seat` have no
 word-reading iteration anywhere — their `ALL` is read only by
 `crates/viewer/tests/combine_ops.rs`, which maps kinds to bools and

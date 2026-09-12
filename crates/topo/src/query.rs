@@ -197,8 +197,11 @@ impl CurveKindSet {
 /// The [`SurfaceKind`] bit position in a [`SurfaceKindSet`].
 ///
 /// EXHAUSTIVE with no wildcard arm: a new `SurfaceKind` variant fails
-/// to compile here (and `ALL_SURFACE_KINDS` below is pinned against
-/// this function by a unit test, so the pair cannot drift apart).
+/// to compile here, so the numbering cannot silently omit a kind. It
+/// does not pin `ALL_SURFACE_KINDS` below against the enum, and does
+/// not see a numbering that REPEATS a bit — the `census!` invocation
+/// and `kind_bits_are_distinct` in this file's test module are what
+/// hold those two.
 const fn surface_bit(kind: SurfaceKind) -> u8 {
     match kind {
         SurfaceKind::Plane => 0,
@@ -213,6 +216,10 @@ const fn surface_bit(kind: SurfaceKind) -> u8 {
 
 /// Every [`SurfaceKind`], in declaration order — the iteration order of
 /// a [`SurfaceKindSet`].
+///
+/// Held against the enum, seat by seat, by the `census!` invocation in
+/// this file's test module: adding a variant reds there until this
+/// list carries it.
 pub const ALL_SURFACE_KINDS: [SurfaceKind; 7] = [
     SurfaceKind::Plane,
     SurfaceKind::Cylinder,
@@ -1627,6 +1634,101 @@ mod tests {
                     "dv={dv}"
                 );
             }
+        }
+    }
+
+    // -----------------------------------------------------------
+    // The two mirrors' censuses, beside the lists they pin.
+    // -----------------------------------------------------------
+
+    /// **A hand-written list IS the enum, checked by the compiler.**
+    ///
+    /// Takes the enum, its list, and a roster of variants, and expands
+    /// to two halves that between them force the LIST to grow — not
+    /// merely a visit to this file:
+    ///
+    /// - `roster_covers_the_enum` is a match over the enum with one arm
+    ///   per ROSTER entry and no wildcard. A variant added to the enum
+    ///   has no arm, so `E0004` reds here and names it. The only way to
+    ///   silence it is to add that variant to the roster.
+    ///
+    /// - one `assert!` per roster entry, in a `const` block, saying the
+    ///   list holds that variant at that seat. Adding the roster entry
+    ///   the first half demanded therefore asserts `list[n]` for a seat
+    ///   the old list does not have — a const-eval error, out of bounds,
+    ///   until the list itself grows.
+    ///
+    /// So the two halves close on each other: the edit the compiler
+    /// forces is the same edit that reds against a list of the old
+    /// length. This is deliberately NOT the shared-total census idiom
+    /// used elsewhere in the tree (`all_is_the_whole_vocabulary` and
+    /// its two siblings), which reds when an entry is REMOVED but not
+    /// when a variant is ADDED: there, every arm names the same total,
+    /// only the scrutinee's arm is ever produced, and an author who
+    /// writes the honest new total in the one arm the compiler pointed
+    /// at leaves the other arms — and the assertion — reading the old
+    /// one. Measured, and filed on
+    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`
+    /// with this macro offered as the instrument that closes it.
+    ///
+    /// The remaining ways to defeat this are edits that state something
+    /// false rather than copy something stale: deleting an arm's
+    /// assertion, or reordering the roster and the list together.
+    macro_rules! census {
+        ($ty:ident, $list:expr, [$($variant:ident),+ $(,)?]) => {
+            const _: () = {
+                #[allow(dead_code)]
+                fn roster_covers_the_enum(kind: $ty) {
+                    match kind {
+                        $($ty::$variant => (),)+
+                    }
+                }
+                let mut seat = 0;
+                $(
+                    assert!(
+                        matches!($list[seat], $ty::$variant),
+                        "the list has drifted from the enum: this seat \
+                         does not hold the kind the roster puts here"
+                    );
+                    seat += 1;
+                )+
+                assert!(
+                    seat == $list.len(),
+                    "the list is longer than the enum's roster"
+                );
+            };
+        };
+    }
+
+    census!(
+        SurfaceKind,
+        ALL_SURFACE_KINDS,
+        [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx]
+    );
+
+    census!(CurveKind, CurveKind::ALL, [Line, Circle, Ellipse, Nurbs]);
+
+    /// **No two kinds share a bit position**, on either mirror: a
+    /// duplicated `surface_bit` / `CurveKind::bit` arm would make two
+    /// kinds indistinguishable inside a set, and the exhaustive match
+    /// that forces the arm to exist cannot see that its value collides.
+    /// A singleton set that iterates back to a DIFFERENT kind is what
+    /// that collision looks like from outside.
+    #[test]
+    fn kind_bits_are_distinct() {
+        for kind in ALL_SURFACE_KINDS {
+            assert_eq!(
+                SurfaceKindSet::just(kind).iter().next(),
+                Some(kind),
+                "{kind:?} shares a bit with an earlier surface kind"
+            );
+        }
+        for kind in CurveKind::ALL {
+            assert_eq!(
+                CurveKindSet::just(kind).iter().next(),
+                Some(kind),
+                "{kind:?} shares a bit with an earlier curve kind"
+            );
         }
     }
 }
