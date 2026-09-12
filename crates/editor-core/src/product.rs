@@ -93,7 +93,7 @@ use topo::{AtRestPolicy, Body, ContactRecords, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
-use crate::names::{EntityKey, EntityRef, Entry, NameTable, SplitHalf, StableName};
+use crate::names::{CarriedRows, EntityKey, NameTable, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 
@@ -119,10 +119,23 @@ pub enum ProductError {
         node: RecipeNodeId,
     },
     /// Two roots' name rows would alias in the product table — the
-    /// same name twice, or two names on one aggregate entity. An
-    /// emission-level bug surfaced, never resolved by picking one.
+    /// same STRICT name twice, or two names on one aggregate entity.
+    /// An emission-level bug surfaced, never resolved by picking one.
+    ///
+    /// A name that descends from an N2 TIE is not this: its candidates
+    /// are equally admissible and stay so in the product, so rows
+    /// arriving under one tied name MERGE into one `Entry::Tied`
+    /// (`carry_names`) rather than colliding — including the
+    /// candidates a split separated into two halves the gather then
+    /// carries as two sources. What that costs is stated where it
+    /// lands: the product genuinely holds two entities under the one
+    /// name, and a selection that matches both refuses
+    /// (`SelectRefusal::TiedDisagrees`) instead of the gather refusing
+    /// for it.
     Naming {
-        /// The root whose rows collided.
+        /// The root whose rows collided — or, for a collision the
+        /// tie merge below the roots surfaced, the node that minted
+        /// the name (`product_recorded`'s flush).
         node: RecipeNodeId,
         /// The colliding name.
         name: Box<StableName>,
@@ -691,6 +704,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     let mut solid_roots: Vec<SolidOrigin> = Vec::new();
     let mut carried: Vec<crate::assembly::CarriedDeclaration> = Vec::new();
     let mut carried_unminted: Vec<crate::assembly::CarriedRefusal> = Vec::new();
+    let mut tie_rows = CarriedRows::default();
     for (node, ix, body, table, records, rows) in &sources {
         // An empty source contributes nothing; the graft door refuses a
         // solidless body, so the skip is here rather than there.
@@ -708,8 +722,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
             output: *ix,
             solid,
         }));
-        carry_names(&mut names, table, *ix, &keys)
-            .map_err(|name| ProductError::Naming { node: *node, name })?;
+        carry_names(&mut names, &mut tie_rows, table, *node, *ix, &keys)?;
         carry_contacts(&mut contacts, records, &keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         carry_declarations(&mut carried, &rows.minted, &keys)
@@ -718,6 +731,22 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         // record — so it carries with nothing to re-key.
         carried_unminted.extend(rows.unminted.iter().cloned());
     }
+    // The name carry's second half, after the last source: every
+    // tie-descended row, narrowed ONCE over all of them (`carry_names`).
+    // A tie whose candidates the document separated into different
+    // SOURCES is one tie of the product — the product holds both faces
+    // — and this is where that is decided, because no single source
+    // can see it.
+    //
+    // A refusal here names the node that MINTED the colliding name
+    // rather than a root: the collision is between rows that arrived
+    // from different sources, so no one root is its author.
+    tie_rows
+        .finish(&mut names)
+        .map_err(|e| ProductError::Naming {
+            node: e.name.node,
+            name: e.name,
+        })?;
     T::gate_at_rest(&aggregate, tol).map_err(|errors| ProductError::ProductInvalid { errors })?;
     // Pass 4: MINTING (A3's "Declaration minting"). Every evaluated
     // product carries its own mates' declarations, so what a document
@@ -854,39 +883,29 @@ fn carry_declarations(
 /// Re-keys one grafted body's name rows onto the aggregate: the same
 /// stable names, pointing at the entities the graft minted. Body index
 /// on the product side is 0 — the product is ONE body.
+///
+/// The KEY MAP is this function's own — it is the graft's descendant
+/// map, plus the product's rule that a root body-row does not carry
+/// (see `product_named`: the product's own body is nobody's root
+/// body). WHICH ROWS go in strict and which are deferred is not: that
+/// is [`crate::names::CarriedRows`], the accumulate-then-narrow
+/// mechanism the emitters share, so the aggregate table narrows a tie
+/// by the one rule every other table narrows by.
 fn carry_names(
     into: &mut NameTable,
+    rows: &mut CarriedRows,
     from: &NameTable,
+    node: RecipeNodeId,
     ix: u32,
     keys: &topo::GraftKeys,
-) -> Result<(), Box<StableName>> {
-    let mapped = |key: EntityKey| -> Option<EntityKey> {
-        match key {
-            // See `product_named`: the product's own body is nobody's
-            // root body, so root body-rows do not carry.
-            EntityKey::Body => None,
-            EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
-            EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
-            EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
-        }
-    };
-    for (name, entry) in from.iter() {
-        let rows: Vec<EntityRef> = match entry {
-            Entry::Unique(e) => vec![*e],
-            Entry::Tied(es) => es.clone(),
-        };
-        let moved: Vec<EntityRef> = rows
-            .into_iter()
-            .filter(|e| e.body == ix)
-            .filter_map(|e| mapped(e.key).map(|key| EntityRef { body: 0, key }))
-            .collect();
-        match moved.len() {
-            0 => {}
-            1 => into.insert(name.clone(), moved[0]).map_err(|e| e.name)?,
-            _ => into.insert_tied(name.clone(), moved).map_err(|e| e.name)?,
-        }
-    }
-    Ok(())
+) -> Result<(), ProductError> {
+    rows.carry(into, from, ix, |key| match key {
+        EntityKey::Body => None,
+        EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
+        EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
+        EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+    })
+    .map_err(|e| ProductError::Naming { node, name: e.name })
 }
 
 #[cfg(test)]
