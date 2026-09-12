@@ -34,7 +34,13 @@ pub enum FaceContainment {
 }
 
 /// Typed refusal of [`contfp`].
-#[derive(Debug)]
+///
+/// `Clone`/`PartialEq` because a consumer CARRIES this refusal rather
+/// than restating it: the tier-3′ census holds it inside
+/// [`CensusUnsupportedCause::Containment`](crate::CensusUnsupportedCause::Containment),
+/// and [`ValidationError`](crate::ValidationError) is a cloneable,
+/// comparable value.
+#[derive(Debug, Clone, PartialEq)]
 pub enum ContainError {
     /// A margin landed in the sliver band — the pair is
     /// ill-conditioned at this ε.
@@ -64,6 +70,49 @@ impl From<PointInLoopError> for ContainError {
         }
     }
 }
+
+// Each arm names WHAT STOPPED and the repair that moves it, because a
+// consumer that carries this refusal renders it verbatim and adds no
+// sentence of its own. The three non-escalated arms want three
+// different repairs — re-model the loop, move the point or lower ε,
+// repair the body — so one shared tail would name the wrong one for
+// two of them.
+//
+// `Escalated` delegates to [`Indeterminate`]'s own `Display`, which
+// already composes the named predicate, the margin it metred and the
+// shared two-tolerance recourse; restating any of that here would
+// double it.
+impl core::fmt::Display for ContainError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Escalated(diag) => write!(f, "contfp: {diag}"),
+            Self::RayExhausted => write!(
+                f,
+                "contfp: every direction of the parity schedule grazed the face's \
+                 boundary, so no ray read a definite crossing count — the point sits \
+                 within ε of the boundary at this tolerance; move the point off the \
+                 boundary or lower the tolerance"
+            ),
+            Self::Corrupt => write!(
+                f,
+                "contfp: the face's topology is not a walkable cycle of resolvable \
+                 geometry — a loop, half-edge, vertex or point reference does not \
+                 resolve; repair the body's topology before asking it a containment \
+                 question"
+            ),
+            Self::ArcLoopUnsupported { r#loop } => write!(
+                f,
+                "contfp: loop {loop:?} bears arcs and has fewer than three vertices, so \
+                 the polygon through them has zero area and no available walk expresses \
+                 its region — refused rather than answered from a polygon that is not \
+                 the region; split an arc so the loop carries three vertices, or model \
+                 the region as a disc of one circle"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ContainError {}
 
 /// **`contfp`** — classifies point `q` (already on the plane of `face`,
 /// with unit plane normal `normal`) against the face. Sweep order is

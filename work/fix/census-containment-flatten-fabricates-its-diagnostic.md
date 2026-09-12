@@ -2,8 +2,9 @@
 id: census-containment-flatten-fabricates-its-diagnostic
 kind: issue
 title: the containment census flattens three ContainError arms onto CensusEscalated with a SYNTHESIZED indeterminate — the message names a margin nothing measured
-status: open
+status: review
 opened: 2026-09-11
+branch: fix/census-containment-cause
 ---
 
 
