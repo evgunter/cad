@@ -2,8 +2,10 @@
 id: viewer-grid-pitch-nonfinite-fallback
 kind: issue
 title: grid_pitch's non-finite early exit substitutes the worst value its caller could receive
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-12
+branch: door/grid-pitch-refusal
 refs: [1643]
 ---
 
@@ -120,3 +122,49 @@ one, and the body above are unchanged by the move.
 `work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
 and its closed rows went with it. `D64` is now cited by its closing PR
 1643.
+
+## Closed (2026-09-12) — refused, and the hang claim falsified
+
+`grid_pitch` answers `Option<f64>` and returns `None` for a
+`metres_per_pixel * TARGET_PITCH_PX` that is not a positive finite
+length. `grid` propagates with `?` and answers `Option<Vec<_>>`, so a
+plane draws nothing and a frame drops its arrows with the patch — the
+arrows are sized against the same view the grid is. Three test call
+sites take `.expect(…)`; two new rows in
+`crates/viewer/tests/datum_draw.rs` pin the refusal at the door and its
+effect on the drawing.
+
+**The row's severity claim does not hold, and this is worth keeping.**
+The consequence of `f64::MIN_POSITIVE` is not a hang. The sole caller's
+count is `((last - first) as usize).min(MAX_GRID_LINES)` and
+`MAX_GRID_LINES` is 96 — its own doc calls itself *"a backstop for the
+arithmetic going wrong at an extreme"*, and it is the backstop that
+fires. Rust's float-to-int cast saturates, so an `inf` difference
+becomes `usize::MAX` and clamps at 96. Executed twice: a standalone
+`rustc` program over the caller's arithmetic, and the drawing itself
+through `datums::draws` with the eye at `[f64::MAX; 3]`. What is
+actually drawn is **390 positions — 97 lines each way plus the normal
+tick — every coordinate `NaN`** (a basis vector's zero component times
+an infinite offset), instantly. So: right about the smell, wrong about
+the severity. A frame of `NaN` geometry handed to the renderer is still
+a substituted drawing the module did not compute, and refusing is still
+the right answer; but nothing was hanging, and the "~1e323 lines per
+direction" arithmetic in the Finding above is unclamped and also too
+large by about eighteen decades for any patch a view produces.
+
+**The row's ownership sentence was stale.** `crates/viewer/` is
+CHROME's and VIEW's ground now (`crates/viewer/tests/*` also
+S-TCOST's and S-TINT's); `work.py territory --base origin/main`
+reports all four. Announced in the PR body rather than a fence drawn
+fresh.
+
+**Its class at the cut (`M`) was right.** One public signature, one
+private one, one caller pair, three test call sites.
+
+**Residue**, given a file at the moment of disclosure
+(`work/README.md`): `work/chrome/metres-per-pixel-swallows-a-nan-depth.md`
+— `View::metres_per_pixel_at`'s `.max(f64::MIN_POSITIVE)` returns
+`f64::MIN_POSITIVE` for a NaN depth (`f64::max` prefers the non-NaN
+operand), so the refusal installed here never sees a NaN input. Measured:
+a plane still draws 126 positions over a `3.1e-305 m` patch. The fix is
+a second, wider unit and DOOR does not widen.
