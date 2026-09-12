@@ -259,3 +259,27 @@ instead of routed a third time into nothing.
 
 Once ratified: delete `work/cite/` and the walk, record the SHA in
 `docs/DOC-LEDGER.md`.
+
+## Closed (2026-09-12)
+
+Ev ratified `docs/CITE-EXIT-WALK.md` in PR #2405 (*"exit walk lgtm"*),
+merged as `50129f2`. The program is closed; this directory and the walk
+leave the tree in the commit after this one, and `docs/DOC-LEDGER.md`
+records the SHA they are recoverable at.
+
+Final state: twelve rows opened, **eight closed, four re-homed**
+(`S351` → TRIM, `d321-row-number-reissued` and
+`lane-scratchpad-is-shared-between-worktrees` → META,
+`no-local-script-builds-all-four-cargo-workspaces` → CIW). Two PRs
+merged, #2397 and #2405. No A/B ordinals spent; band 4000–4099 stays
+claimed and unused.
+
+What outlives the directory: `docs/prompts/implementer-discipline.md`
+§7, the three repaired rows on DOOR's, TOPO's and TINT's slates, and
+`local-scripts/with-build-slot.sh` no longer printing a holder's command
+line to whoever is waiting on the slot.
+
+The last thing worth saying, and the walk says it too: **this program's
+subject happened to this program six times**, and the name beside the
+number recovered it every time. A citations program that never produced
+a stale citation would have been weaker evidence for its own rule.

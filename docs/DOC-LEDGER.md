@@ -1939,8 +1939,9 @@ One consequence is named rather than left to be found: **`d321-row-number-reissu
 (CITE's) and `S176` (CITE's) both ask for edits inside `SMELL-T-LOG.md`,
 `SMELL-KPW-LOG.md` and `SMELL-G-LOG.md`**, which this sweep archived.
 `S176`'s live half is its convention and is unaffected; `d321` is
-overtaken on both halves, which the amendment below explains and
-`work/cite/plan.md` records.
+overtaken on both halves, which the amendment below explains. CITE's
+plan recorded it and left the tree at sweep 12; the row itself is
+`work/meta/d321-row-number-reissued.md`.
 
 
 ### Amendment (2026-09-11, same day): the two relocated documents were deleted too
@@ -1993,6 +1994,7 @@ rather than re-proposing the floors.
 `d321-row-number-reissued` (CITE's) is **overtaken on both halves** by
 this amendment: its retired-id rule has no number ledger to live in now
 that the blocks are retired, and its citation disambiguation was inside
-two `SMELL-*-LOG.md` files this sweep archived. `work/cite/plan.md`
-says so and names the one thing still worth doing — a `work.py` check
-that an id is never reissued — as META's, not the row's.
+two `SMELL-*-LOG.md` files this sweep archived. The row itself says so
+and names the one thing still worth doing — a `work.py` check that an id
+is never reissued — as META's; it was re-homed to
+`work/meta/d321-row-number-reissued.md` when CITE closed at sweep 12.
