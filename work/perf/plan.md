@@ -269,12 +269,22 @@ Euler-op sequences stay serial — each op mutates shared arenas, and
 they are cheap; full-DAG rebuild is solved by memoization, not by
 parallelizing surgery.
 
-**State: one target built, and it is switched off.** `rayon` is a
-dependency of `editor-core` alone and `eval/mod.rs:1083` is the only
-`par_iter` in the workspace. It is D9-clean as written (indexed map
-into per-node slots), but `EvalOptions::default()` sets
+**State: two targets built, and one of them is switched off.** `rayon`
+is a dependency of `editor-core` and of `mesh`, and those two crates
+carry the workspace's `par_iter`s.
+
+`editor-core`'s (`eval/mod.rs:1083`) is D9-clean as written (indexed
+map into per-node slots) but is **off**: `EvalOptions::default()` sets
 `parallel: false` (`:983`) and every shipping caller takes the
 default; `parallel: true` appears once, in a test.
+
+`mesh`'s (`tessellate.rs`, `tessellate_impl`'s per-face dispatch) is
+**on unconditionally** and has no switch — idiom 1 over the face arena
+into a pre-sized buffer, then the arena-order fold that places the
+patches. `crates/mesh/tests/d9_mesh_goldens.rs` digests the corpus
+under an explicit 1-thread and an explicit 4-thread pool and asserts
+both against the committed table, so the bit-identity claim is a
+standing row rather than an argument.
 
 Tempering expectation for whoever turns it on: the scheduler is
 level-synchronous and the expensive corpus documents are *chains*
@@ -283,15 +293,8 @@ which are depth-N and width-1. It will not move those rows. Turning
 it on is worth doing for the wide documents and for keeping the lane
 exercised — not as a fix for the corpus timings.
 
-**The four unbuilt targets**, in value order:
+**The three unbuilt targets**, in value order:
 
-- **Per-face tessellation** — the cheapest, and the blocker is small.
-  `mesh/src/tessellate.rs` threads a `&mut positions` running counter
-  through the face loop and each lane mints grid ids as
-  `positions.len()`. Everything else is already read-only per face.
-  Emitting *local* ids into a pre-sized buffer and assigning base
-  offsets in a sequential arena-order fold is exactly the
-  idiom-1-then-idiom-2 shape, and is bit-identical.
 - **The M10 subdivision driver** — "embarrassingly parallel" is
   literally idiom 1 over sub-boxes.
 - **Certification sampling** — per-edge, idiom 1.

@@ -201,6 +201,22 @@
 //! leak is cocircular tie-breaking, which is a function of insertion
 //! order and therefore fixed here).
 //!
+//! **And it holds at any thread count.** The per-face dispatch is D9's
+//! idiom 1 — an indexed parallel map over the face arena into a
+//! pre-sized buffer — combined by the sequential arena-order fold that
+//! places each patch (idiom 2). Combination is positional, so the
+//! schedule cannot reach the bytes; the fold is where the mesh arena,
+//! the patch memo's counters and the budget meter's rows are touched,
+//! and it visits faces in arena order whatever the map did.
+//! `tests/d9_mesh_goldens.rs` digests the corpus under an explicit
+//! 1-thread and an explicit 4-thread pool and asserts both against the
+//! committed table.
+//!
+//! The one thing the map changes for a caller is the cost of a
+//! REFUSAL: the serial loop stopped at the first refusing face, and
+//! the map computes every face before the fold reports that same
+//! first refusal in arena order.
+//!
 //! # Performance (documented characteristic)
 //!
 //! Wall-clock on the CDT insertion path is **quadratic for faces whose

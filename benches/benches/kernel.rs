@@ -35,6 +35,19 @@
 //! which is the same instruction `docs/perf-data/rebuild-latency/`
 //! carries and for the same reason.
 //!
+//! **THE FOUR `tessellate/*` ROWS ARE READINGS AT A THREAD COUNT, and
+//! the table above is a serial one.** `mesh::tessellate`'s per-face
+//! dispatch is D9 idiom 1 — an indexed parallel map over the face arena
+//! — so those rows now scale with the box, and a sample taken at one
+//! thread count does not compare with one taken at another. The count
+//! is not in the row ids (`scripts/criterion-emit.py`'s roster is a
+//! fixed list, and an id that moved with the runner's size would read
+//! as a renamed benchmark): it is in the environment block, as
+//! `rayon_num_threads` with `nproc` as its default, and
+//! [`tessellation`] prints it at the top of the run so a raw log says
+//! it too. The `kernel/*` rows are unaffected — nothing under them is
+//! parallel.
+//!
 //! # Why these scenarios
 //!
 //! Each row is a cost center PERF-PLAN §1.3 ranks, sited where the plan
@@ -159,6 +172,15 @@ fn torus() -> Body<f64> {
 /// iteration the washer's 1e-6 row is most of the lane's wall clock,
 /// and criterion warns rather than overrunning if the budget is short.
 fn tessellation(c: &mut Criterion) {
+    // The thread count these four rows were taken at, in the run's own
+    // log (the module docs say why it is not in the ids). `rayon`'s
+    // global pool is what `mesh::tessellate` runs its per-face map on,
+    // and asking it is the effective count — `RAYON_NUM_THREADS` is a
+    // request, and an unset variable is a number too.
+    println!(
+        "# tessellate/* rows taken at {} rayon threads",
+        rayon::current_num_threads()
+    );
     let body = washer();
     let mut group = c.benchmark_group("tessellate");
     group.sample_size(10).warm_up_time(Duration::from_secs(1));

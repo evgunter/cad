@@ -29,6 +29,17 @@ The two tessellation rows are one scenario measured twice on purpose: the
 finding is about the QUADRATIC, so the 1e-4 → 1e-6 ratio is the shape, and
 neither number alone is.
 
+**The `tessellate/*` rows became PARALLEL readings**, and a sample from
+before that is not comparable with one after it. `mesh::tessellate`'s
+per-face dispatch is D9 idiom 1 (an indexed parallel map over the face
+arena), so those four rows are wall clock at a thread count: read
+`rayon_num_threads` in the environment block, and `nproc` when it is
+empty — empty is rayon's default of one worker per logical core. The row
+ids carry no thread count on purpose; the roster in
+`scripts/criterion-emit.py` is a fixed list, and an id that moved with
+the runner's size would read as a renamed benchmark. The `kernel/*` rows
+are unaffected: nothing under them is parallel.
+
 ## Before quoting a sample
 
 * **Read the `environment` block first.** Runner, core count, memory,

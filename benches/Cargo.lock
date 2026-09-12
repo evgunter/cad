@@ -383,6 +383,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "rayon",
  "spade",
  "topo",
 ]
@@ -456,6 +457,7 @@ version = "0.0.0"
 dependencies = [
  "criterion",
  "pncad",
+ "rayon",
 ]
 
 [[package]]

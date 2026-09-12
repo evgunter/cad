@@ -73,6 +73,11 @@ pncad = { path = "../crates/pncad" }
 # is the committed JSON history, and gnuplot is not on the runner anyway.
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false }
+# Read-only here: `rayon::current_num_threads()` names the pool
+# `mesh::tessellate`'s per-face map runs on, so the `tessellate/*` rows
+# can print the thread count they were taken at. Same version the
+# workspace pins; it is already in this root's tree through `pncad`.
+rayon = "1.11"
 
 [[bench]]
 name = "kernel"

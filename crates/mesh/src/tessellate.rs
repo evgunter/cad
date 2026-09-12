@@ -70,11 +70,11 @@ impl PatchVertex {
 ///
 /// Nothing in this value depends on another face, which is what the
 /// per-face memo and the parallel map over faces both need
-/// (`work/perf/plan.md` §5). The lanes are not yet pure functions of
-/// their face: the trimmed lane also takes `bounds: &mut FaceBounds`,
-/// a `FaceKey`-keyed certificate memo whose contents are independent of
-/// the order faces fill it in, and that shared mutable borrow is what a
-/// `par_iter` over faces still has to answer for.
+/// (`work/perf/plan.md` §5). The lanes are pure functions of their
+/// face and the shared prefix: the trimmed lane's `bounds:
+/// &FaceBounds` is a `FaceKey`-keyed certificate memo the chord pass
+/// has finished writing before any lane runs, and each lane reads only
+/// its own face's entry (`nurbs_cert::FaceBounds`).
 pub(crate) struct Patch {
     /// The face's own grid points, in the order the lane minted them —
     /// which is the order they enter [`Mesh::positions`].

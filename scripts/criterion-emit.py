@@ -219,6 +219,16 @@ def environment() -> dict:
         "cpu_model": cpu_model,
         "cpu_flags": cpu_flags,
         "runner": os.environ.get("CRITERION_RUNNER", ""),
+        # THE TESSELLATE ROWS ARE PARALLEL (`mesh::tessellate`'s per-face
+        # dispatch is D9 idiom 1), so their wall clock is a reading at a
+        # thread count and two samples taken at different ones do not
+        # compare. Empty means the variable was unset, which is rayon's
+        # default: one worker per logical core, i.e. `nproc` above. The
+        # row IDS deliberately do not carry it — `DEFAULT_ROSTER` is a
+        # fixed list and a thread count in an id would make a renamed row
+        # out of a differently-sized runner — so this field is where a
+        # reader looks before comparing two entries' tessellate rows.
+        "rayon_num_threads": os.environ.get("RAYON_NUM_THREADS", ""),
         "rustup_toolchain": toolchain,
         "rustflags": os.environ.get("RUSTFLAGS", ""),
         "cargo_profile_overrides": overrides,
