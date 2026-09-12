@@ -58,3 +58,116 @@ class is a dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## Ev's objection, and the third option it produces (2026-09-12)
+
+Put to Ev as a two-way fork — a placement-level declaration (a) against
+a frame-level identity surviving placement (b). Ev's answer settles the
+reading of `cs_pair_frame`'s sentence and then rejects the fork's
+premise:
+
+> *"that does mean never inferred, but i don't like relying on the
+> numerical check to tell if it's been rotated."*
+
+**The reading is ratified**: "NEVER inferred from a measured
+axis-to-centre distance" means a declaration cannot be *obtained* by
+measuring. It does not forbid verifying one, and today declarations ARE
+verified — `verify_declared_contacts`
+(`crates/topo/src/boolean/mod.rs:2075`) runs `verify_rest_declaration` /
+`verify_tangent_declaration` at a band, where a definitely-different
+carrier contradicts.
+
+**The objection is right, and it is live rather than hypothetical.**
+`Node::Declare`'s pairs name entities by `StableName` and are re-resolved
+to `FaceKey`s at every evaluation, so after a rotation the declaration
+re-resolves to the same (now rotated) faces and is asserted again.
+Nothing about the edit invalidates it. What would catch it is the band
+check — and three things are wrong with that being the only thing:
+
+1. **It converts exact information into a tolerance question.** That one
+   operand was rotated is a *structural* fact, known exactly in the
+   recipe. Re-discovering it by measuring an axis-to-centre distance
+   throws that away and re-derives it approximately.
+2. **A decided predicate has an in-band arm.** A small rotation lands
+   inside the ambiguity band and the answer is *indeterminate* — neither
+   "still coaxial" nor "you broke it", on a question that has an exact
+   answer.
+3. It is the shape D2 exists to refuse: an extensional fallback standing
+   in for an intensional fact.
+
+### The third option: declared intent, structural invalidation
+
+(a) and (b) are not alternatives. Each supplies exactly what the other
+cannot:
+
+- **(a) supplies the intent.** Only a declaration can say two
+  independently-authored carriers are coaxial, and it is the only thing
+  that can ever serve imported or hand-built geometry.
+- **(b) supplies the invalidation.** Whether a rotation intervened is
+  decided by comparing *placement provenance*, not geometry.
+
+The load-bearing fact is that **coaxiality is invariant under a rigid
+motion applied to BOTH carriers and destroyed by one applied to one.**
+So the question "is this declaration still true?" reduces to "have these
+two carriers been placed by the same chain since it was made?" — a
+structural comparison, zero numerics.
+
+### The mechanism ships today
+
+`SourceExpr` (`crates/topo/src/source.rs:57`) is a cons-list:
+`Placed { node, instance, inner }` over a `Minted { index }` base, and
+its own doc states the rule this needs — *"Equal chains ⇒ equal maps
+applied to equal descriptions ⇒ equal bits (D9)."* `transform_rigid`
+clears `GeomSource` because it rewrites description bits, and the recipe
+layer re-stamps the composed source immediately after
+(`crates/topo/src/transform.rs:524-530`). So the chain is recorded and
+maintained already.
+
+Comparing the two carriers' placement *prefixes* gives all three cases:
+
+| since the declaration | chains | verdict |
+| --- | --- | --- |
+| neither placed | equal (both bare) | holds |
+| both placed by one node/instance | equal outer wrappers | holds — the relative pose is unchanged |
+| one placed, or both by different chains | differ | **stale**, refuses structurally and can NAME the placement node that broke it |
+
+The third row under-claims: two different chains composing to the same
+relative motion would refuse though coaxiality survives. That is the
+fail-loud direction and the row is re-declarable, so it is the right way
+to be wrong.
+
+### What this does NOT solve, stated plainly
+
+- **A datum has no identity channel at all.** `DatumValue`
+  (`crates/topo/src/query.rs:606`) is by its own doc *"geometry VALUES,
+  not kernel entities and not recipe references"*. `GeomSource` attaches
+  to surfaces, curves and points on a `Body` (`eval/wire.rs:493-511`);
+  datums are document-level and have none. So a variant of (b) that
+  hangs identity on the *axis datum* rather than on the carriers is
+  inventing a channel, not wiring one up. The carrier-chain comparison
+  above avoids that and is why it is the recommended shape.
+- **Imported and hand-built geometry have no `GeomSource`**, and
+  `crates/verbs/README.md` §3 P3 makes absence refuse permanently. There
+  is no structural information to compare, so a declaration over
+  imported carriers can only be trusted or verified numerically. **That
+  is the one place the band check is the honest instrument** — not
+  because measurement is good, but because there is nothing exact to use
+  and the alternative is trusting an unchecked assertion.
+- The re-stamp after `transform_rigid` becomes load-bearing: a placement
+  that failed to re-stamp reads as a broken chain and refuses. Fail-safe
+  direction, and worth a guard rather than a comment.
+
+### What the `[ev]` PR should put to Ev
+
+Not the original two-way fork, which this supersedes. The remaining
+questions:
+
+1. Is declared-intent-plus-structural-invalidation the shape? (The
+   recommendation.)
+2. What does a declaration attach to — the carrier pair, or something
+   axis-shaped? The carrier pair needs no new channel; anything
+   axis-shaped needs datum identity invented first.
+3. For carriers with no provenance, does a declaration refuse (P3's
+   precedent, consistent and strict) or fall back to band verification
+   (serves imported geometry, and is the case Ev's objection does not
+   reach)?
