@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-04
 refs: [1111, 1741]
 branch: fix/census-declaring-path-key
+pr: 2402
 ---
 
 
