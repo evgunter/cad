@@ -884,11 +884,11 @@ impl FittedDelta {
 /// finest coarser one predicted to fit [`TRIANGLE_BUDGET`].
 ///
 /// **A default, not a clamp.** The caller applies this once per
-/// document that arrives (`app`'s `fit_delta_on_scene`); from there δ
-/// is whatever the user types in the View pane, however fine, and
-/// nothing re-reads it. A budget that bound every rebuild would
-/// disable that field on exactly the documents someone would want it
-/// for.
+/// document that arrives
+/// ([`crate::app::ViewerApp::fit_delta_on_scene`]); from there δ is
+/// whatever the user types in the View pane, however fine, and nothing
+/// re-reads it. A budget that bound every rebuild would disable that
+/// field on exactly the documents someone would want it for.
 ///
 /// # The method: predict, do not ladder
 ///

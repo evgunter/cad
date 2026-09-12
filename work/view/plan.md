@@ -224,6 +224,7 @@ proxy for a different property:
 | `add_enabled` + `on_disabled_hover_text` (#2320) | a control's DISPOSITION |
 | a bracket-backtick grep (#2332) | an intra-doc link, which has two spellings |
 | pointer states (#2388) | INPUT — a keyboard and an AccessKit action are hands too |
+| `docs-only ok` success (mine, #2400) | the TIER — that job is green in both |
 
 The last is the orchestrator's own: I handed a lane a sweep over the two
 call names, and `pane/properties.rs:348-353` shows a typed ineligibility
@@ -280,6 +281,35 @@ refuses, which is `Open` and `NewDocument` (`op.rs:854`), added by
 #2358 four hours earlier. A row's premise ages against the tree exactly
 like a citation does, and the dispatch that says *re-derive the
 citations* has to say *re-derive the premise* too.
+
+**The thirteenth is mine and I had been repeating it in every report
+this session.** I read `docs-only ok` **success** as the docs-tier
+marker — *"21 jobs, `docs-only ok` success, the docs-only tier
+exactly"*. It concludes **success on the full code tier too**: #2390,
+#2392 and #2400 each carry a green `docs-only ok` inside a 38-job
+closure-tier run, alongside `gate ok`. So its presence is no evidence
+of a tier at all. The only evidence is the one already written down two
+rules above — **the COUNT, and `gate ok`** — which is exactly what this
+register says about an unsubstituted matrix placeholder, applied to a
+job name instead of a job name's contents. The reading was never
+falsified because on a docs-only run both facts are true at once, so
+the proxy agreed with itself every time.
+
+Verify a tier by: **21 jobs** (docs-only) or **38-39 with 12 `test (…)`
+and 5 `k-lint (gate, …)`** (full code), plus `gate ok` success. Never by
+which summarising job reports green.
+
+**A viewer test command needs `--no-fail-fast` or it silently does not
+run the suite.** `cargo test -p viewer --features app` — which this
+register and several dispatches specified — aborts at the `--lib`
+adapter red (`gpu::tests::every_pass_builds_on_a_real_device`, no Vulkan
+on the lane boxes), so the **524-row `--test all` suite never builds**.
+A lane following that command literally reports a green-looking `37/1`
+and never runs the suite its own diff is about. The command is
+`cargo test -p viewer --features app --no-fail-fast`, and the expected
+shape is `--test all` 524/0/1 plus `--lib` 37/1 with that one adapter
+row red. Found by #2400's lane, which ran it correctly and then said the
+brief was wrong.
 
 **Settle a CI-scope question by RUNNING the filter, not by reading a
 manifest.** The same review reported `prose_census` as possibly sited

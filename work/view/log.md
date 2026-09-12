@@ -9736,3 +9736,167 @@ and cost a full re-run. **Batch the cosmetic pass before the first
 push** — the first push is what starts the clock.
 
 **VIEW stands at 70 open / 82 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — `view/possessive-spans`: the picker exists and it is `length_picker`; five possessives become links
+
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`
+closed. Both halves answered in one PR, which is what the row asked for.
+
+**Half 1, `blend.rs`.** `unit_picker` has a referent and it is
+`crate::widgets::length_picker`, *"The creation forms' written-unit
+picker"*. `pane/create.rs` draws it in the same `ui.horizontal` as the
+field `BlendKindChoice::size_label` labels, immediately after
+`unit_field` — so the affordance the sentence asserts exists and this was
+a bad NAME, not a false claim about the chrome. Both halves of the name
+were wrong: module and item. `length_picker`'s own doc carries the same
+clause nearly verbatim (*"free to say metres beside a field written in
+millimetres"*), so the sentence was copied from it and mis-attributed.
+The alternative outcome the brief asked me to watch for — that the chrome
+has no such control and the sentence is asserting an affordance that does
+not exist — did not obtain.
+
+**Half 2, the fork: LINKED, all four.** Ev's 2026-09-11 ruling is what
+made a bare span optional rather than forced, and it settles the spelling
+too: at `origin/main` this crate already links into the `app`-gated half
+nineteen times from the renderer-free half (thirty-three spans crate-wide),
+so *"a possessive span is prose"* would have been a second answer to a
+question already ruled, and the row's own complaint is that one
+relationship is spelled two ways. `ViewerApp::fit_delta_on_scene` is a
+private FIELD and `ViewerApp::remember_theme` a private method; both
+resolve because both host doc passes run `--document-private-items` with
+`rustdoc::private_intra_doc_links` allowed, and `doc-gate.sh`'s selftest
+already pins *a public link to a private sibling*. **The disposition is
+stated once**, in `crates/viewer/README.md`'s *Rustdoc posture* section,
+beside the ruling it follows from and carrying the sweep rule that
+produces its population.
+
+**The wider sweep found a second `unit_picker`.** Dropping the
+module-name requirement — any `` `X` ``'s `` `Y` `` pair on one `///` or
+`//!` line — gives fifteen sites at base where the row's rule saw four
+(`prefs.rs`'s pair is split across two lines, so the two rules together
+see sixteen). Resolving every second span turned up
+`widgets.rs`'s test-module `crate::pane::properties`'s `slot_row_ui`,
+which exists nowhere; it is `slot_value_ui`, the one `properties.rs`
+function that calls `drag_gesture_ops` directly. Also moved: `gpu.rs`'s
+`` `crate::pickindex`'s `OCCLUSION_SLACK_REL` ``, the other end of
+`pickindex.rs`'s deliberate pointer pair — leaving one end a link and the
+other a possessive would re-mint the defect inside the pair.
+
+**Two notes onto `comment-symbol-names-outside-rustdocs-reach-have-no-gate`,
+which are notes and not a diff to the gate.** A gate built to that row's
+spec (`<own-mod>::<ident>` resolves) would still have missed
+`unit_picker`, because `unit_picker` carries no module qualifier at all —
+the qualifier was in a separate span, and was the wrong module. And the
+`slot_row_ui` site is that row's own axis in a shape it does not list: a
+`///` comment inside a `#[cfg(test)] mod` is read by no rustdoc pass this
+repo runs, so a bracket there would be punctuation for a reason
+unrelated to `//` versus `///`.
+
+**One citation in the closed row is left alone and disclosed.** Its
+blind-spot list cites `theme.rs:69-70` and quotes *"`app` maps a
+[`Theme`] onto the chrome"*. `69-70` is a genuine member of the class
+(*"`app` maps this onto the toolkit's own light and dark `Visuals`"*),
+but the quoted words are at `theme.rs:7-8`, where `app` is already
+written `` [`crate::app`] `` and is therefore not an example of a bare
+span. The number names its subject; the quotation is what is wrong, so
+nothing is repointed.
+
+**What the widened rule still cannot see**, stated because the row was
+held to this standard and so is its closure: a module or item named in
+prose with no backtick span at all — `sketch.rs`'s *"(`app`'s drafts say
+so)"* names the `drafts` module in bare words, and the possessive
+pattern matches the `app` half while the thing it is about is unspanned;
+and any name in a `//` comment, which is the open row's subject.
+
+## 2026-09-12 — #2400 merged; the thirteenth proxy is mine and I had been repeating it all session
+
+**#2400 merged** (`4c4a784c20`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips, no `render drift (…)` row posted at all.
+
+**`unit_picker` had a real referent and the sentence was true.**
+`crate::widgets::length_picker` (`crates/viewer/src/widgets.rs:578`),
+*"The creation forms' written-unit picker"* — and
+`pane/create.rs:1099-1108` draws `ui.label(size_label())`, then
+`unit_field`, then `length_picker` in one `ui.horizontal`: the picker
+literally beside the field. So the citation was wrong in **both** halves,
+module and item, and the affordance exists. The giveaway is that
+`length_picker`'s own doc carries the same clause nearly verbatim
+(*"free to say metres beside a field written in millimetres"*), so the
+sentence was copied from it and mis-attributed. The bigger finding I
+told the lane to watch for — a sentence asserting an affordance the
+chrome does not have — did not obtain.
+
+**My `forms.rs` hint was wrong about the file.** That crate's "picker"
+prose is `PathVerb`/`ArcMode` combo pickers, a different control. The
+method I gave (follow the word) was right and the destination was not;
+I had flagged it as a weak hint, so no cost.
+
+**The widened sweep found a SECOND dead name.** `widgets.rs:678` said
+`crate::pane::properties`'s `slot_row_ui`, which exists nowhere; it is
+`slot_value_ui` (`pane/properties.rs:519`), the one function there
+calling `drag_gesture_ops` directly. Both dead names are now fixed and
+`grep -rn slot_row_ui crates/` is empty. The widenings: dropping *"a
+second span must follow"* gives 8 sites; dropping the module-name
+requirement too gives 15; together 16, where the item's rule saw **5**.
+Stated blind spot of the wider rule: a name in prose with **no backtick
+span at all**, and any name in a `//` comment or inside a
+`#[cfg(test)] mod`.
+
+**"Either link them or leave them" was not available for all four.**
+`pickindex.rs:1582` points at `EDGE_CLIP_Z_SHRINK`, a module-scoped
+private `const`. Linking it made `scripts/doc-gate.sh --pr` **exit 1**:
+*no item named EDGE_CLIP_Z_SHRINK in module gpu*. A private **field**
+and a private **method** DO resolve — rustdoc reaches an associated item
+through its type — so the item's stated worry about "a spelling for a
+private field" was a non-issue, and `ViewerApp::fit_delta_on_scene` and
+`::remember_theme` linked fine. A module-scoped private `const` or `fn`
+is a different test: `--document-private-items` decides what rustdoc
+RENDERS, while a path is resolved by ordinary **visibility**, and
+`crate::gpu::EDGE_CLIP_Z_SHRINK` is not a path anyone outside `gpu` may
+write. The lane reproduced it on a three-file scratch crate, so it is a
+language fact and not a tree fact. That pair stays named at both ends,
+normalised to one spelling, with the exception and its measured error
+text in the README clause. The single statement of the disposition lives
+in `crates/viewer/README.md`'s *Rustdoc posture* section beside Ev's
+ruling, with the sweep rule that produces its population.
+
+### The thirteenth proxy instance is mine, and it is the one I was using to verify every merge
+
+**I read `docs-only ok` success as the docs-tier marker.** I wrote, this
+session, *"21 jobs, `docs-only ok` success — the docs-only tier
+exactly"*. That job concludes **success on the full code tier too**:
+#2390, #2392 and #2400 each carry a green `docs-only ok` inside a
+38-job closure-tier run, beside `gate ok`. So its presence is no
+evidence of a tier at all, and the 21-count was carrying the whole
+argument by itself every time. **The reading was never falsified
+because on a docs-only run both facts are true at once** — the proxy
+agreed with itself on every observation it could make, which is the
+class exactly. What makes this one worth the row is that it was the
+instrument, not the object: I was using it to certify the merges in
+which I was also tabulating the class.
+
+Recorded in the table and in the prose beside it, with the verification
+restated: a tier is **21 jobs**, or **38-39 with 12 `test (…)` and 5
+`k-lint (gate, …)`**, plus `gate ok` — never which summarising job
+reports green.
+
+### And a validation command that silently did not validate
+
+`cargo test -p viewer --features app`, which this register and several
+of my dispatches specified, **aborts at the `--lib` adapter red** (no
+Vulkan on the lane boxes), so the **524-row `--test all` suite never
+builds**. A lane following the brief literally reports a green-looking
+`37/1` and never runs the suite its own diff is about. It needs
+`--no-fail-fast`; #2400's lane ran it that way and then told me the
+brief was wrong. Both the command and its expected shape are now in
+`plan.md`.
+
+**Citation left alone and disclosed**, the house rule working: the
+closed row cites `theme.rs:69-70` and quotes *"`app` maps a [`Theme`]
+onto the chrome"*. `69-70` **is** a genuine class member; the quoted
+words are at `theme.rs:7-8`, where `app` is already `` [`crate::app`] ``
+and so is not an example of a bare span. The number names its subject —
+the **quotation** is what is wrong, so nothing was repointed.
+
+**VIEW stands at 69 open / 83 closed, nothing waiting on Ev.**
