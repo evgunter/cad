@@ -1867,3 +1867,35 @@ sits above the 442-482 s in `work/ciw/f3-recosting-on-a-public-repo` §M2,
 which measured a different window and a different endpoint pair. The
 conclusion is a ratio and holds on either denominator; whoever restores
 the jobs takes the before/after from their own PR.
+
+## rust-cache closed on its after-reading; the budget half split out (2026-09-12)
+
+`rust-cache-never-restores-across-branches` is closed. Its premise —
+*"restored nothing on five of seven build jobs"* — is false on today's
+tree, and the fix is the one the row itself proposed: **TCOST-B3's
+`push: main` primer landed and works.** Over the 32 most recent completed
+PR runs, every `build + archive` job that executed restored — **0 of 16
+miss-shaped per lane**, restore step 13 s median — and the jobs sit at
+**251 / 279 s** against the row's own 820 / 840 s cold figure. Grounded
+rather than inferred: one job's log read directly prints
+`Cache up-to-date.` The row had sat open for nine days describing a tree
+that had moved.
+
+**Half of it did not close.** The primer works by REFRESHING a shared key
+on every main push, so eviction costs one push's staleness; that says
+nothing about an entry written ONCE under a hash key — which is what
+TCOST-C4 measured churning out of the 10 GB budget inside the hour, and
+what `work/ciw/cache-rendered-cells-on-input-hash` is parked on. Filed as
+`actions-cache-budget-under-a-hash-key` and the CIW row re-parked onto
+it in the same commit, because a closing row may not un-park another
+program's item by leaving its blocker dangling — lint caught exactly that
+and the rule says fix the stale row rather than soften the check.
+
+**The pattern is now worth naming.** Five rows this session were figures
+describing a tree that had moved: TCOST-6's 6.7 cpu-s, this file's own
+1.46 s in-file timing, `PCURVE-P2-SPEC`'s "THROWS IT AWAY", C3's reading
+that was never taken at all, and this row's five-of-seven. Each was
+written accurately and none was re-read at the change that falsified it.
+The gate cannot catch this class — a stale NUMBER in prose reds nothing —
+so the only thing that does is a lane re-deriving a figure before acting
+on it, which is what found all five.
