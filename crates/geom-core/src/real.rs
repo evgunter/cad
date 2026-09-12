@@ -1021,6 +1021,22 @@ pub mod bounds_allowlist {
     //! dual impl instantiates none of it, and the `quad_lane::*` signatures
     //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
     //!
+    //! **Re-counted when the certified half grew a LEVEL** (tier 3's +V
+    //! check certifying a sign rather than a precision). Nothing about the
+    //! seam's scope moved: the certified quadrature is entered over a round
+    //! WINDOW now, so where one function took the compound bound there are
+    //! a hook, a windowed walk and the certificate type that walk hands
+    //! back — every one of them the same lane, the same bound and the same
+    //! argument, and the `Decide` half is still what the `props_quad_*`
+    //! funnel needs while the bracket half is still what the C9 ring reads.
+    //! The weakest bound that works is unchanged and so is the evidence
+    //! that the next tighter one fails: drop the bracket term and the
+    //! windowed walk cannot form `RingInterval::from_certified`; drop
+    //! `Decide` and no round can be accepted. The certificate type is
+    //! PUBLIC and carries the bound for the same reason its walk does —
+    //! it resumes that walk, so what it may read and what it may decide
+    //! are the walk's, scalar for scalar.
+    //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
     //! precedent; retroactive Ev review per the self-merge convention) — the
     //! edge-blend battery**, `sweep::blend::{battery, surgery, build}`: it
