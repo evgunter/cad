@@ -345,7 +345,21 @@ class Helper:
         self.accepts: dict[str, bool] = {}
 
 
-def helper_answers(root: Path) -> Helper:
+# HOW LONG THE TABLE PRINT GETS, and why the selftest is allowed a
+# shorter one. A healthy `--print-lane-table` answers in under a tenth of
+# a second — it is answered before the checkout, the `gh` checks and any
+# network use — so 60 s is a ceiling on a HANG and not a budget anything
+# approaches. The selftest proves that ceiling fires by planting a
+# `sleep 120` in the helper, and with one ceiling it had to wait the
+# whole 60 s out in real time, on every run of a job that carries no
+# `if:` and so runs on every tier. It passes its own instead: the arm
+# under test is the same one, and what changes is only how long a hang
+# is given before it is called one.
+HELPER_TIMEOUT_S = 60.0
+SELFTEST_HELPER_TIMEOUT_S = 5.0
+
+
+def helper_answers(root: Path, timeout_s: float = HELPER_TIMEOUT_S) -> Helper:
     script = root / HELPER
     try:
         proc = subprocess.run(
@@ -353,11 +367,12 @@ def helper_answers(root: Path) -> Helper:
             capture_output=True,
             text=True,
             cwd=root,
-            timeout=60,
+            timeout=timeout_s,
         )
     except subprocess.TimeoutExpired:
         raise Bail(
-            f"{HELPER} --print-lane-table did not answer within 60s. It is "
+            f"{HELPER} --print-lane-table did not answer within "
+            f"{timeout_s:g}s. It is "
             "answered before the checkout, the `gh` checks and any network "
             "use, so a hang here is a defect in the table print itself."
         ) from None
@@ -399,10 +414,10 @@ def helper_answers(root: Path) -> Helper:
 # ------------------------------------------------------------- the claims
 
 
-def check(root: Path) -> None:
+def check(root: Path, helper_timeout_s: float = HELPER_TIMEOUT_S) -> None:
     text = (root / WORKFLOW).read_text()
     declared = workflow_lanes(text)
-    helper = helper_answers(root)
+    helper = helper_answers(root, helper_timeout_s)
     table = helper.table
 
     # claim 1: the lane sets are equal.
@@ -779,7 +794,7 @@ def selftest(root: Path) -> int:
                 # The check's own success line belongs to the tree it ran on,
                 # not to this report.
                 with contextlib.redirect_stdout(io.StringIO()):
-                    check(tree)
+                    check(tree, SELFTEST_HELPER_TIMEOUT_S)
                 verdict, message = "GREEN", ""
             except (Bail, Fail) as exc:
                 verdict, message = "RED", str(exc)
