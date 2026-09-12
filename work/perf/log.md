@@ -944,3 +944,29 @@ pass: the invariant restated per probe with a flat-count stop and a
 re-scoped; a refusal at the scale probe must not leave a document
 un-budgeted; `Vec3::norm` for the hand-rolled diagonal; named stop
 reasons; the doc mass trimmed.
+
+## 2026-09-12 — PERF-8 adjudicated: two MAJORs on one arm; fix pass dispatched
+
+Frozen `4357cfd71`: REQUEST-CHANGES (2 / 5 / 1) and APPROVE-WITH-FIXES
+(0 / 7 / 3). Both arms confirmed the composed verdict logs and the
+probe population byte for byte against main's serial walk at four
+widths, and both constructed nesting and panic cases the door
+survived. The MAJORs are one arm's and distinct: the criterion bench
+rows were renamed without updating `criterion-emit.py`'s roster
+(nightly would fail and the history columns end — the one-thread rows
+keep their original ids, the four-thread rows join the roster); and
+under the serial dispatch arm (a symbolic session installed) the walk
+decides every face eagerly while the session's receipt and the shape
+report are written in place on the caller's thread, so a refusing
+body under a session inflates them relative to main's short-circuit —
+the serial arm now short-circuits and is pinned by a session row.
+MINORs across both arms: every added `Send + Sync` bound was redundant
+(`Real` already gives it); the end-to-end pin compared t1 to t4 of the
+same code with vacuous escalation halves (goldens cut on the merge
+base become the oracle); the pin roster narrower than the spec's;
+the 1-thread cost on the refusing arc loft is the disclosed failure-
+path work, not a rayon wait; the serial-arm reason cited the wrong
+thread-local; both filed out-of-fence items overstated (editor-core's
+maps bracket per node, so they lose the probe sink and the symbolic
+session, not the verdict logs). Unilateral MAJOR: the opus arm; the
+pair is clean.
