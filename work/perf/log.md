@@ -626,3 +626,19 @@ filed as `fnv-digest-and-memo-machinery-copies`. State-sync rode the PR
 (`PERF-5` and `index-rebuilds-every-root-on-every-edit` closed); merged
 at `768faf5fa` (PR 2315). Plan §1.3 and §5 updated; the lane's clone,
 target and scratch reclaimed.
+
+## 2026-09-12 — Ev: the demo reports the bracket
+
+Ev asked whether the reporting quadrature's precision scales with ε
+correctly. Answer given (from `quad.rs`'s own envelope docs): the
+target `1024·ε` scales with ε, the fixed 12-round schedule's floor does
+not — it is a part-size property (the spout's floor is 2.53e-8 m at
+every ε; the 1e-12 target sits 25× under it). Options put: let the
+round cap grow with ε (about 3× the quadrature per decade of ε; an
+`[ev]` change to the reporting contract), or stop asking the reporting
+door for what the demo does not need. **Ev chose the second**: the
+tour continues tier 3's sign certificate and, on a budget refusal of
+a valid body, prints the enclosure and checks the mesh volume against
+the bracket. Recorded on `gate-then-measure-pays-two-quadratures`,
+which is the unit that lands it (a side unit, single review) after
+PERF-6 merges; PR 2306 follows it.
