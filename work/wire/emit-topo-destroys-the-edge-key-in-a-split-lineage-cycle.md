@@ -5,6 +5,7 @@ title: names/emit_topo.rs:127 discards SplitLineageCycle's EdgeKey, keeping the 
 status: open
 opened: 2026-09-11
 refs: [2378]
+pr: 2474
 ---
 
 
