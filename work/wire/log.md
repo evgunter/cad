@@ -1426,3 +1426,452 @@ fixture, the ε matrix, and a fixture's own asserted precondition
 hiding the thing under test. That is the guidance for the rest of the
 program — ask what instrument answers the claim, not whether the claim
 is argued well.
+
+## 2026-09-12 — PR 2442 full review (product gather, tie across halves)
+
+**The review closed a gap the implementer had declared rather than
+papered over**, and the answer is operationally useful: the lane's 403
+on the hosted log blobs was **lane-local**, not a property of the
+proxy. `mcp__github__get_job_logs` reaches a run's job logs directly,
+and both new rows are named by name in run `34694794356` on `d924863`
+(`two_roots_aliasing_a_strict_name_still_refuse` at line 951 of `test
+(eps = default, 1/2)`; `a_split_separating_a_tie_gathers…` at line 947
+of shard 2/2 and line 847 of the interval default shard), with shard
+totals passing. The implementer's `every_suite_file_is_aggregated`
+chain was sound, but it is no longer the evidence of record. **Reach
+for `get_job_logs` before concluding a lane cannot see its own rows
+run.**
+
+**All four of the implementer's mutants reproduced exactly** when
+re-taken privately (M4's truncated "≥ 16" resolves to 29), and four
+more were added. The one that matters, M1 — the bug re-minted inside
+the new door, narrowing by surviving count instead of the source tie
+bit — reddens **exactly one row of 1219**, the one the PR added. That
+is the shape a guard should have.
+
+**Two claims came back stronger than posed.** Tied candidate ORDER is
+moot, not merely unchanged: `insert_tied_ref` sorts and dedups before
+storing (`table.rs:287-289`), so `Entry::Tied` is canonical in
+`EntityRef` order whatever the accumulation order was — measured by
+reversing the accumulated order (0 red). And the name key is
+untouched: `NameTable::iter` is literally
+`iter_refs().map(|(n, e)| (&**n, e))` (`table.rs:377-379`), so the
+population and order are the same iterator; minting a fresh `NameRef`
+as the old door did reddens nothing (0 red of 1219).
+
+**The unreachability argument had a missing link, and the review
+supplied and measured it.** The doc said two sources agreeing on a name
+"share that node's strict pass-through rows too" without saying why one
+must exist. The reason: two roots can only share a name if both reach
+it verbatim, and only `Transform` and split-intact pass-through leave a
+name unwrapped (`emit_topo.rs:1380-1384`, `:385`) — every other emitter
+wraps — and **a plane never subdivides a vertex**, so every vertex of
+the common ancestor passes verbatim into both tables with its strict
+name. Probed: `transform(subtract)` + `split(subtract, y = 1.25)` gives
+`both_unique=59, mixed=2` and the gather refuses on a strict collision
+first; an oblique plane gives `both_unique=53 {Edge: 26, Face: 3,
+Vertex: 24}, mixed=1`. The `Unique`/`Tied` disagreement the arm needs
+**does exist** — it is simply always beaten to the refusal.
+
+**One blocker, and it is the recurring kind**: the field's doc-comment
+was updated to disclose `node`'s new dual meaning and the sentence that
+RENDERS it was not (`product.rs:237-243`), so the flush path prints
+"root 6's face name (minted by node 6)" — a non-root called a root and
+named twice. A disclosure written where no reader of the output will
+see it.
+
+**The rule as implemented is wider than the rule as approved** (S9):
+nothing restricts the merge to one root's output bodies, so two roots
+carrying the same tied name would merge. Adjudicated as the SAME rule
+at its right generality rather than a new one — `TieRows`'s own doc
+already says equally-admissible candidates stay equally admissible
+downstream, and the split case is a special case of that — and the
+difference is unreachable for exactly the reason above. Not Ev's to
+rule, but the PR must say it rather than leave the code implementing a
+rule wider than its prose. Raised with Ev in chat as a generalisation
+he may want to narrow.
+
+**The class-not-instance rule bit the filed row.** The PR filed
+`name-placed-union-spells-the-narrowing-rule-itself` — accurate, and
+one instance. The 1-vs-many decision is written six more times in
+`emit_topo.rs` in a form the PR's `insert_tied` sweep structurally
+could not match (`if X.len() == 1 { put } else { tie.push }` at `:601`,
+`:726-733`, `:952`, `:1009`, `:1236`, `:1400`), which is precisely the
+blind spot the PR disclosed. `rg 'if .*\.len\(\) == 1'` finds them in
+seconds — **the sweep pattern is the finding**, and the row is being
+widened into the class with it recorded.
+
+**Filed**: `product-gate-says-verbatim-then-states-the-difference` —
+the review's S11 sharpened. `product.rs:664-668` calls the per-source
+gate "the import loop's rule, verbatim" and the next sentence explains
+how it differs; the import loop counts INSTANCES
+(`step-import/src/lib.rs:700`), the product counts SOLIDS. A
+self-declared copy is a claim no test can read.
+
+**Held rather than changed**: the seam (`names::defer` now knows the
+gather's body model) — the door is NAMED the gather's carry, so knowing
+its shape is coherent, and the alternative puts the filter back in
+`product.rs` where the third copy lived; and `TieRows`/`CarriedRows`
+coexisting with divergent ownership, which is meaningful (`flush` runs
+at every stage boundary, `finish` once). Both get a sentence saying so,
+so the next reader does not re-open them.
+
+## 2026-09-12 — 2442 merged (`9a208a3`), and a fifth face of the silent-coverage class
+
+The fix pass took all six items. The blocker's fix is the shape worth
+copying: `ProductError`'s `Display` is now two arms guarded on
+`*node != name.node`, and the guard is sound in BOTH directions — on the
+flush path `node` IS `name.node`, so the per-root sentence is
+unreachable there, and the tie-merge sentence claims only what is true
+wherever it is reached. The new row
+`the_naming_refusal_claims_rootedness_only_on_the_per_root_path`
+reddens on the exact defect: with the guard removed it fails printing
+the reviewer's own quoted sentence. A refusal-text row that reproduces
+the reviewer's quote is the strongest form of that guard.
+
+`product.rs:38` was adjudicated by the lane as standing in meaning and
+sharpened in wording — the claim sits in a provenance paragraph and
+means the gather writes no table of the EVALUATION's, which was true
+before and after since `carry_names` always built a separate aggregate.
+Right call; the ambiguity was real and the fix was to remove the second
+reading, not the sentence.
+
+**The render-drift neutrals were not this PR's, and chasing them found
+a new hole.** `gate ok` is green over three `render drift (…)` neutral
+CHECK RUNS which it cannot cover by construction (`ci.yml:5199-5204`:
+it reads the jobs API, so check runs are *"outside the one name
+entirely"*). Their cause: main's run for the teapot merge `f2a4adf`
+(13:08:21) was **cancelled** 51 s in by the next merge, `593ed19`
+(13:08:57) — `ci.yml:133-135` has `cancel-in-progress: true` on a group
+keyed only on workflow+ref, which on `main` every push shares. The
+teapot's re-baseline never ran; #2441 was docs-tier so its render lanes
+skipped; the drift surfaced on the NEXT PR's checks as if it were that
+PR's. It self-healed only because 2442 happened to be code-tier.
+
+**The window is merge spacing, and this orchestrator opened it** — two
+merges 36 seconds apart. Filed as
+`work/issues/a-merge-cancels-the-previous-merges-main-run-and-its-main-only-work.md`
+with the timing table and three candidate fixes. The general form is
+the part to carry: **`cancel-in-progress` is a claim that the older
+run's work is worthless, and that claim is false for any branch whose
+runs write back.**
+
+Operational consequence adopted now, ahead of any fix: **space merges
+to main past the previous merge's run, or check that the previous
+merge's main run was not cancelled.** A `cancelled` main run is not a
+neutral event.
+
+## 2026-09-12 — PR 2445 full review (D364, the target tag and census)
+
+**The round's keeper, from the lane rather than the reviewer**:
+`cargo clippy --workspace --all-targets` **compiled**
+`every_profile_layer_root_export_is_carried_or_listed` and said
+nothing; the facade guard only spoke when hosted CI ran it. A build is
+not a test. That is the same silent-coverage family as the rest — a
+step green having EXECUTED nothing — arriving through the local
+pre-push check every lane runs.
+
+**The shape argument was confirmed by instrument, not accepted.** The
+lane argued a macro over a hand-written trio because a hand-written
+`ALL` is forced by nothing, so a census over a short `ALL` reports
+green over the hole it exists to find. The reviewer hand-shortened
+`TargetKind::ALL` to 2 of 3 inside the macro body: **all five switch
+rows green**; with the matching pin dropped too, **6 of 6 green**. The
+macro is not consistency with `arc_modes!` — it is the only thing
+holding the census up.
+
+**The lane's own caveat was retracted in its favour.** It reported M1's
+red as compile-time and flagged that this says nothing about which
+other rows stay green. The reviewer discharged the compile error in
+place (`TargetKind::CurvePose => ProgramTarget::Start`, well-typed and
+what a lazy implementer writes) and got a **runtime** red — *"the
+document target for CurvePose resolved to Start"* — plus a second in
+the lib test on the content-key tag. Compile-time is the first of three
+failure modes. It is a census, not a type check, and the other four
+rows are correctly blind.
+
+**The old census's hole was reproduced independently**: main's tree +
+`CurvePose`, every break discharged the lazy way (8 arms in `profile`,
+3 in `editor-core`'s lib, 4 in tests) — **6 of 6 green**, with a kernel
+target form no document program can express, silently lifted to
+`ProgramTarget::Start`.
+
+**A framing both the lane and this orchestrator had wrong.** The corpus
+clause's `Step`-match widening is a **loosening**, not a strengthening:
+the assertion is `missing.is_empty()` over `ALL`, so adding sources to
+`seen` can only shrink `missing`. Narrowing it back leaves the census
+green — no form became "seen" because of it. The widening buys
+ACCURACY; the exhaustiveness is the tightening. Worth carrying: "the
+match got bigger" and "the test got stronger" are independent, and the
+direction is decided by which side of the assertion the change lands
+on.
+
+**The sweep contained its own third instance.** The lane's pattern
+returned 55 hits; **nine were `crates/viewer`** and the disposition
+named none of them. `viewer::sketch::PathTarget` is a third short
+spelling of the target vocabulary, lowered by an exhaustive match over
+its own enum, so the GUI cannot author the declared tangent arrival
+either. **This orchestrator then filed the pncad-py instance alone** —
+the same half-fix, made while holding the class-not-instance rule.
+Replaced by `work/lib/both-authoring-surfaces-are-short-of-the-target-vocabulary.md`,
+which carries all six spellings and marks the three that are short and
+forced by nothing. The lesson is not "sweep harder": it is that a
+disposition listing five of 55 hits is where the dropped instance
+hides, and the count of hits against the count of dispositions is the
+check.
+
+**Filed**: the class above;
+`res-target-slot-roles-are-unguarded-and-duplicate-spec-slots` (the
+reviewer dropped the `Target2*` twins and **all 1324 editor-core tests
+passed** — the roles are unguarded and `spec_slots` is a second
+untested spelling of the same assignment); and
+`the-third-tag-vocabulary-macro-owes-a-unification-trigger` (a named
+trigger with no schedule, where the third instance is arguably already
+in the file).
+
+## 2026-09-12 — D364 merged (`b3eaef1`), and the cancelled-run hole fired again
+
+The body-only fix pass took both corrections; head unchanged at
+`d58fec78`, run `34698904483` still the only run on it and still
+green — twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`, nothing
+in flight. **A body edit triggers no run**, which is why this round
+cost nothing and why the lane's target was reclaimed before it started.
+
+**The cancelled-main-run hole fired a second time, 66 minutes after the
+first, and the second instance breaks the mitigation this log adopted
+for it.** 2442's own main run (`34698293875`) was cancelled 89 s in by
+**VIEW's** #2444 merge — a different program. The first instance was
+self-inflicted and suggested "space your own merges"; that cannot work
+when the cancelling merge comes from outside, and on this repo the
+merge stream is the union of every program's seams. Two instances in 66
+minutes by two authors is the rate, not a race.
+
+It also corrects an attribution made here an hour ago: `c13aa67`'s
+re-baseline was recorded as landing off 2442's main run. **2442's run
+was cancelled**; `c13aa67` came from 2444's, which happened to be
+code-tier and swept up the drift. The "self-healing" was luck twice
+over — the next merge being code-tier, and that merge's own run
+surviving. Recorded on the row, with a fourth fix option that survives
+a cancellation from outside: make the write-back owed by STATE rather
+than by event, which is what 2444's run in fact did by accident.
+
+The general form stands and is worth keeping in front of the next
+orchestrator: **a mitigation that depends on one agent's own pacing is
+no mitigation on a tree where every program merges its own work.**
+
+## 2026-09-12 — the axis channel cut, and S195 dispatched as a measurement
+
+**S195 was not dispatched as written, because three of its four claims
+look stale.** Filed 2026-08-20, it says the arc-mode vocabulary has no
+census, no `ArcData::ALL` to anchor one, and — the sharp part — that a
+seventh mode's slot role would address nothing silently because
+*"nothing forces the corpus to grow when a mode is added."* Against
+today's tree: `ArcMode::ALL` exists (`arc_modes!`), a mode census exists
+(`switch_program_vocabulary.rs:404`, `:456`), and **the corpus is
+generated from `ArcMode::ALL`** (`:175`, `:188-199`, fused blocks
+included) — precisely the thing the row says does not happen. What still
+looks live is `spec_arg_access!`'s `_ => None` (`program.rs:593`) and
+two unanchored discrete pairs.
+
+So the lane's job is to **run the row's own thought experiment**: add a
+seventh mode and watch which guard fires.
+`every_enumerated_slot_addresses_a_distinct_expression` has two
+independent ones — a `slots.len() == expressions` count and a
+`panic!("is enumerated but addresses nothing")` — and which one trips
+depends on whether `spec_slots` is compiler-forced. Nobody has run it;
+the row is an argument about what a census would catch, and this program
+has learned that arguments of that shape are settled by instruments.
+**A PR that closes a row with proof and files the residue is the
+expected outcome and a complete unit** — the brief says so, so the lane
+does not manufacture a diff to justify itself.
+
+**The axis channel is cut, and the headline is that WIRE cannot start
+it.** Steps 1–3 are TOPO's and EXCH's; WIRE's own parts (the
+`crates/verbs/` clause, the vocabulary, the P3 rows) are downstream of
+all three. Row moved `open` → `parked`, `blocked_on` the TOPO row.
+
+The spine that made the cut fall out: **this channel is `ParamSource`'s
+three-part shape at `GeomSource`'s granularity**, and
+`crates/verbs/README.md`'s own file table (`:35-37`) already says which
+crate owns each part — P1 the lowered token, P2 attach/propagate/
+consume, P3 absence refuses. Given that table the ordering is forced,
+including the one ordering constraint that is not obvious: **the
+document-level declaration node lands LAST**, because a declaration is
+persisted document content and a shape change after shipping is a file
+migration rather than a refactor.
+
+Two things written into the cut so a taker cannot lose them:
+
+- **Round 3's correction, which reverses Round 2's pricing.** The axis
+  channel sits on `GeomSource`'s side of §3 P1's line, not
+  `ParamSource`'s, because P1's exclusion is scoped to *motion-invariant*
+  fields and an axis is not one. P1 stands untouched. An earlier reading
+  (this orchestrator's) had it backwards.
+- **The staleness table's row-three under-claim is deliberate.** It
+  refuses when two different chains compose to the same relative motion
+  though coaxiality survives. A taker who "fixes" that by comparing
+  composed motions numerically has replaced a token comparison with a
+  measurement and broken ruling 1.
+
+**Cross-references written onto steps 1 and 2** (`work/topo/…-four-origins`,
+`work/exch/step-import-discards…`) naming them as steps of a ratified
+sequence, with the reverse dependency recorded on step 1: whoever
+designs the origin representation should look at what `import_step` can
+supply, since step 2 has to write one of the four origins with real
+content. A ratified design whose first mover is another program is
+exactly what gets lost when the ratifying program exits; the
+cross-references are the cheap insurance.
+
+## 2026-09-12 — S195 measured: the row was three-quarters discharged, and the fourth claim was wrong
+
+The lane ran the row's own thought experiment and the answer is clean.
+**21 sites compiler-forced by a seventh arc mode, one not** —
+`spec_arg_access!`, still `_ => None` — all found as build failures
+rather than by grep, which is the right instrument for "what does the
+compiler make you touch".
+
+Which guard fires is a **laziness gradient, not a coverage gap**:
+
+- the row's exact scenario (every forced site discharged, access arms
+  omitted) trips the **`panic!`**, naming role and step — `Profile
+  { loop_: 0, step: 17, arg: HeightVal } is enumerated but addresses
+  nothing` — and it was the ONLY red in a 1224-test binary;
+- one notch lazier (a `spec_slots` arm enumerating nothing) trips the
+  **count** clause instead, which said only *"the program has 133
+  expressions and enumerates 118 slots"* — naming neither mode nor
+  step. That is the gap, and the diff is 58 test lines closing it on
+  the failure path.
+
+Verdict on the row: three claims **stale** (`ArcMode::ALL` exists, four
+censuses exist, the corpus generates from `ALL`), and the fourth —
+"addresses nothing **silently**" — **wrong**, caught by name.
+
+**The sharper finding, which the row and this orchestrator's brief both
+missed**: `mode_witness` is a **compile error, not an assertion**. The
+mode census's teeth are in rustc, and the only assertion-level catch is
+the bijection clause. Both the row and the brief talk about the census
+as a runtime thing; it is mostly a type check with one runtime clause
+behind it. Under review as the unit's real result.
+
+**The brief was corrected on its own premise**, which is worth
+recording against the orchestrator rather than the lane: it asked which
+guard fires "depending on whether `spec_slots` is forced". `spec_slots`
+IS forced (exhaustive `match (spec, second)`), so that was never the
+variable — the variable is how an implementer fills the arm rustc
+demands.
+
+**`ArcSide`/`ArcSweep` need nothing, measured rather than assumed.**
+Both directions are compiler-forced (`from_side`/`into_side`,
+`from_sweep`/`into_sweep`), and both enums are binary **by geometry** —
+a half-plane bit and a travel sense — so there is no third variant to
+add. Nothing filed; the row now says so.
+
+**A fifth mode-keyed roster nobody in this row's lineage mentions**:
+`crates/pncad-py/src/surface_census.rs`. Noted for the class row.
+
+**Filed**: `wire-roundtrip-census-localises-nothing` — the wire
+round-trip clause fires correctly on a laundered vocabulary member and
+then prints two whole-corpus `Debug` dumps. Same shape as the count
+clause, different failure, correctly scoped out rather than swept in.
+
+**The classification cost, recorded as process.** The **H** class was
+set at the 2026-09-11 cut by reading the row's prose, when three of its
+four claims were already discharged — one of them by PR 2445 the day
+before dispatch. A five-minute read of `switch_program_vocabulary.rs`
+against the row would have re-dispatched it as a measurement a day
+earlier. **Second row today overtaken by adjacent work** (D364's census
+already existed too), which makes it a pattern rather than an accident:
+**read the row against the tree before dispatching it, not against its
+own prose.** Review posture lowered from full to light in `plan.md`
+with the reason recorded — the census it was going to build already
+exists, so nothing here can report green over a hole.
+
+## 2026-09-12 — three wrong datings, one root cause: the orchestrator's clone is shallow
+
+S195's classification finding was corrected three times, each time by
+someone other than its author, and the last correction found the cause
+of all three.
+
+1. The lane's row cited PR 2445 as discharging one of three stale
+   claims, indicting the 2026-09-11 cut.
+2. The review caught that 2445 merged **2026-09-12**, the day AFTER the
+   cut, so it cannot be evidence against it — and this orchestrator had
+   repeated that error to Ev and in this log.
+3. The lane, re-checking commits rather than restating, found 2445
+   discharged **none** of the three: two commits on **2026-09-01**
+   (`70aaee60d`, `592685539`) discharged all three, ten days before the
+   cut. 2445 closed the `ProgramTarget`/`WireTarget` pair, a different
+   part of the row.
+
+Verified here against full history: both SHAs resolve with those exact
+dates and subjects, and D364's target census landed `7de944e91`,
+**2026-09-02**, nine days before the cut — not 2026-09-10 as this log
+previously recorded.
+
+**The cause of every one of the orchestrator's dating errors: this
+session's checkout is a SHALLOW clone whose history begins
+2026-09-09.** `git log -S … --reverse` in it bottoms out at the
+truncation and names the root commit — `7902971`, a
+`render(uv): re-baseline` with no parent and 3520 files — as where a
+change "first appears". That produced the false 2026-09-10 date, and it
+is why the lane's two real SHAs came back `Not a valid object name`
+when checked here, which read as the lane having invented them.
+
+**A lane's dating is more trustworthy than the orchestrator's**, and
+that is the reverse of the usual direction. `new-lane.sh` does a plain
+`git clone` and gets full history; the session checkout does not.
+
+Fixed for this session with `git fetch --unshallow origin main`.
+`git rev-parse --is-shallow-repository` answers the question in one
+call. **Any "X landed on date D" claim made from a session checkout
+without one of those two is unsound**, and this program made three.
+
+The corrected reading makes the case against the cut **stronger**: all
+three claims stale ten days before, not two. Recorded on
+`work/meta/the-2026-09-11-cuts-class-estimates-are-untested-and-both-tested-ones-were-wrong.md`
+with the root cause, because the next orchestrator to check a class
+against the tree will be reading from the same shallow clone.
+
+## 2026-09-12 — S195 closed (`1b1146f`), and the cancellation hazard measured properly
+
+The fix pass took both corrections and found a third I had not: my own
+correction of the lane's dating was itself wrong. See the entry above;
+the root cause was this session's shallow clone.
+
+New title, which is what the board now shows: *"What the arc-mode
+vocabulary's four guards catch, and the one site a seventh mode reaches
+unforced."* The old one asserted "it has no census at all", which the
+body calls stale by a factor of four — a row going to review under a
+headline it refutes is the one line most people read.
+
+**The lane owned the report error squarely**, and its diagnosis is
+worth keeping: it collapsed the mode census to its compile-time limb
+"because that is the limb my mutant exercised — a seventh MODE trips
+existence, so laundering never came up in what I ran, and I generalised
+from one mutant to the whole clause." **One mutant answers one
+question**; a claim about a clause needs a mutant aimed at each limb.
+
+### The cancellation hazard, measured rather than inferred
+
+Holding 2447 to avoid cancelling PERF's in-flight main run produced the
+dataset the two earlier instances only suggested. In thirteen minutes,
+**five merges by four programs; three of the five runs cancelled**, one
+after twenty-six seconds. The run I deferred to **succeeded** — it was
+short enough not to need protecting — while three others died during
+the wait, to other programs' merges.
+
+So: there is no clear window to wait for, the forbearance protected
+nothing, and voluntary spacing is a **unilateral tax** rather than a
+mitigation — it only works if every program does it, and no program can
+see another's merge coming. That kills the interim behaviour the first
+two fix options were ranked cheap *because of*. The fourth option —
+make the write-back owed by STATE, so the next main run re-baselines
+whatever differs whoever caused it — is now the recommendation, because
+it is the only one correct under a cancellation from any cause, and at
+a 60% cancellation rate "any cause" is the common case.
+
+Recorded on the row by the orchestrator whose own merge was the one
+held back, so the incentive runs against the conclusion. **This is the
+strongest form of evidence this program produced today**: not a
+finding read off a diff, but a mitigation tried, measured, and reported
+failed by the party it cost.

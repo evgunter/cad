@@ -66,7 +66,7 @@ EVAL-1 and FILLET's fillet door did).
 | `frame-linear-generic-door-has-no-consumers` | **E** | Zero call sites workspace-wide; the decision is delete / keep-as-API / demote, and it is a public surface call | `crates/editor-core/src/placement.rs:230-232` |
 | `placement-rs-states-its-exactness-rule-in-nine-paragraphs` | **M** | One rule, nine homes, plus a `#[must_use]` inconsistency and a 60% prose ratio | `crates/editor-core/src/placement.rs` |
 | `emit-topo-destroys-the-edge-key-in-a-split-lineage-cycle` | **E** | One site, the kind stays honest and the locator dies; same class, weaker instance | `crates/editor-core/src/names/emit_topo.rs:127` |
-| `S195` | **H** | Four mirrored vocabularies across Track V and DOCM paths; one-census-or-four is a design call. | `crates/profile/src/path/{verbs.rs,program.rs}`, `crates/editor-core/src/program.rs` (`res_spec`), `crates/editor-core/src/persist/wire.rs`, new `ALL`+corpus census |
+| `S195` | ~~**H**~~ → **E**, corrected by measurement (PR 2447) | The **H** was wrong. Three of the row's four claims were already discharged when the lane measured them: `ArcMode::ALL` exists, four `ALL`-anchored censuses exist, and the corpus generates from `ALL`. What remained was one unforced site and a message that did not localise. See the ordering note below. | `crates/editor-core/tests/switch_program_vocabulary.rs` |
 | `axis-flavoured-declarations-have-no-channel` | **H** | Needs a new placement-level identity channel; item itself calls it an `[ev]`-shaped design question | `crates/verbs/` (`ParamSource`, README §3 P1/P2), `crates/topo/src/boolean/join.rs` (`cs_pair_frame`, `CoaxialEvidence`), `crates/topo/src/source.rs`, germ/`pair_section_frame` dispatch |
 | `two-verb-seats-do-not-compose` | **H** | Items (2)/(3) are an unratified design round on kernel identity; waits for a replay consumer | `crates/verbs/` (README §5, verb decls), `crates/topo/src/source.rs` birth records, `crates/editor-core/src/eval/` |
 
@@ -98,11 +98,30 @@ vocabulary, at the same `res_spec`/`res_target` hop in
 census twice, which is `plan.md`'s ordering rule 5 again, one vocabulary
 family over. So: **`D364` runs first as the prototype** — its shape is
 known from PR 1475, it is the smallest of the four, and it produces a
-working `ALL`-anchored census — and **`S195` then generalises it** over
-the remaining three pairs plus `ArcData`, answering one-census-or-four
-with a built thing rather than an argument. If `D364`'s lane finds the
-census does not generalise, that is a finding and this paragraph is
-wrong; say so in the PR.
+working `ALL`-anchored census.
+
+**The second half of that plan was wrong, and this paragraph invited the
+correction it got** (*"If `D364`'s lane finds the census does not
+generalise, that is a finding and this paragraph is wrong; say so in the
+PR"*). It said `S195` would **generalise** `D364` over the remaining
+three pairs plus `ArcData`, answering one-census-or-four with a built
+thing. It did not, because there was nothing left to build:
+
+- `ArcData` already had `ArcMode::ALL` and four `ALL`-anchored censuses
+  before either unit was dispatched;
+- `ArcSide`/`WireSide` and `ArcSweep`/`WireWinding` **need no anchor at
+  all**, measured rather than argued (PR 2447): all four conversions are
+  exhaustive with no `_` arm, so both directions are compiler-forced,
+  and both enums are binary **by geometry** — a half-plane bit and a
+  travel sense — so there is no third variant to add;
+- **one-census-or-four is therefore still untouched**, and the prior
+  question (what counts as the third instance that triggers unifying the
+  tag macros) is `work/wire/the-third-tag-vocabulary-macro-owes-a-unification-trigger.md`,
+  not this pair of units.
+
+What `S195` became instead was a **measurement**: add a seventh arc mode
+and record what the compiler and the censuses do. That is the entry to
+read before dispatching anything else in this family.
 
 `S40` is no longer the H tail. It was four residues on three programs'
 ground; it is now one, `deferred` against `docs/DESIGN.md`'s roadmap
@@ -140,7 +159,8 @@ lane that finds the call wrong:
 | `names-flush-and-select-discard-a-refusal-with-map-err-underscore` *(raised at review time)* | two public enum variants gain a field, the argument rests on subnormal-float reachability, and user-visible Python refusal text moves |
 | `profile-has-no-scalar-lift-door` + `profile-embed-lift-has-two-homes-anchor-and-loft` | a new public lift API across three crates, and `end_profile` re-`validate`s the lift at `T` today; getting the door wrong changes what a loft builds |
 | `product-gather-refuses-a-split-root-whose-tie-spans-both-halves` | a stated rule about the product's aggregate name table, and the rule decides whether a name survives |
-| `D364`, then `S195` | a census is a claim about a vocabulary's completeness; a census with a hole reports green |
+| `D364` | a census is a claim about a vocabulary's completeness; a census with a hole reports green |
+| ~~`S195`~~ **lowered to light at review time** | the row turned out to be three-quarters discharged by work that landed after it was filed, so the unit was dispatched as a MEASUREMENT and its diff is 58 lines of test on a failure path with the assertion untouched. The census it was going to build already exists; nothing here can report green over a hole. The measurement itself is the deliverable and the reviewer re-takes it, which a light review does |
 
 Everything else is a light style review: the three E units, and any
 prose or tracker pass. A light review is still a review — the reviewer
