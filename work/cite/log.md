@@ -175,3 +175,32 @@ never-repointed shape.
 
 `work.py lint`: ok, 0 problems, **21** warnings — down from 23, since
 code-quality's territory overlaps left with its directory.
+
+## Slate cleared: two re-homes, three closures (2026-09-12)
+
+Ev, on the unstarted rows: *"can you ensure those unstarted items that
+aren't actually part of work/cite are moved elsewhere or deleted."*
+Neither was CITE's:
+
+- **`d321-row-number-reissued` → `work/meta/`.** Sweep 11 took both of
+  its targets. What survives is a `work.py` check that an id is never
+  reissued, and `scripts/work.py` is META's territory. Moved rather than
+  closed-and-refiled — the id and the argument are worth keeping, and the
+  hole it names is a property of minting ids at all, not of the block
+  table that left with the directory.
+- **`no-local-script-builds-all-four-cargo-workspaces` → `work/ciw/`.**
+  The fix is in `local-scripts/*`, which is CIW's `paths`, and this
+  program's own `keep_out` already said the two local-script rows would
+  be announced there for CIW to take. CITE never started it.
+
+Closed the same day, because their CITE-side work is finished and what
+remains belongs to the owning program:
+`code-quality-item-quotes-…` (DOOR), `d107-…` (TOPO),
+`loud-skip-marker-…` (TINT). Each repaired row carries a marked section
+on its owner's slate; a row kept open until another program reads a
+section waits on nothing it can act on, and `work/` tracks work still to
+be done.
+
+**CITE now holds no unstarted work.** `S351` is a standing watch and is
+unfired; `lane-scratchpad-…` is deferred; everything else is closed or
+re-homed. The exit walk is the next thing whenever Ev wants it.

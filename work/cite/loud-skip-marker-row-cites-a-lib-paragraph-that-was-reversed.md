@@ -2,8 +2,9 @@
 id: loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed
 kind: issue
 title: work/tcost/loud-skip-marker-is-a-hand-kept-idiom cites three stale rows and one paragraph VIEW reversed, and this is the second time it has been reported with nothing filed
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-12
 refs: [2089, 1848]
 ---
 
@@ -180,3 +181,23 @@ there are six. A code comment; this repair changed no code.
 The `## The actual finding` half of this row — that §6 produced no
 durable artifact twice — is untouched and stands: this file is that
 artifact, and the repair is what it was filed to get.
+
+
+## Closed 2026-09-12 — repaired; the residue is TINT's
+
+All eight entries in `work/tint/loud-skip-marker-is-a-hand-kept-idiom`
+are re-derived and the table is converted to `fn` names. Seven of the
+eight names resolve; the eighth does not, and is left unrepointed with
+the current text quoted beneath, because its subject is gone and
+repointing would invent one.
+
+Left to TINT in a marked section: whether the row has lost a **member**
+or only a citation, the two copies of the idiom the table has never
+listed (ten in the tree, not eight), and the `## Finding`'s *"every copy
+admits in its own rustdoc"*, which holds for three of eight.
+
+**The defect this row was actually filed for is the one that is fixed.**
+It recorded that §6 reported this same rot twice with no durable
+artifact either time. There is a durable artifact now, in the file that
+carries the finding, which is where the third lane to notice will
+look.

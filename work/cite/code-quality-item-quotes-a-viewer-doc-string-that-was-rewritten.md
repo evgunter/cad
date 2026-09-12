@@ -2,8 +2,9 @@
 id: code-quality-item-quotes-a-viewer-doc-string-that-was-rewritten
 kind: issue
 title: work/code-quality's PathVerb item quotes a viewer doc comment verbatim that PR 2143 rewrote, so the quoted string is no longer in the tree
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-12
 ---
 
 Reported under `docs/prompts/implementer-discipline.md` §6 by the style
@@ -166,3 +167,21 @@ This row stays open until DOOR reads the marked section, because what it
 asks for — a decision on whether the quotation should have been dropped
 rather than re-quoted — was CODE-QUALITY's call to make and is now
 DOOR's.
+
+
+## Closed 2026-09-12 — repaired; the residue is DOOR's
+
+The quotation and the `app.rs` citations in
+`work/door/viewer-pathverb-all-hand-written-seventeen.md` are repaired
+and re-derived twice (the second time after a review found the first
+pass's own `forms.rs` number off by one). What that repair put in
+question — the transition table's twenty verbs, the macro-derived `ALL`
+length, the arc-mode counter-example whose subject is gone — is written
+into DOOR's row in a marked section and is **DOOR's to rule on, not
+work this row is waiting for**. DOOR's orchestrator has since answered
+two of the three in its own section of the same file.
+
+Closed rather than left open: the finding was that a citation was stale,
+and it is not stale any more. A row kept open until another program
+reads a section is a row waiting on nothing it can act on, and
+`work/` tracks work still to be done.

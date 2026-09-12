@@ -237,6 +237,36 @@ Infra-and-prose, the META posture: one style review per unit, no A/B
 row. No unit here changes a kernel behaviour; the one thing a reviewer
 must check is that a "repair" is a re-derivation against the tree and
 not a re-transcription of the same stale number.
+## Slate state (2026-09-12)
+
+The twelve rows the cut opened with are down to two live ones, and
+neither is work today.
+
+| row | state |
+| --- | --- |
+| `C-namespace` | **closed** — Ev ruled: leave the ambiguity, no prefix. Sweep 11 then retired the other side of it outright |
+| `S176` | **closed** on the convention below |
+| `doc-line-citations-rot-silently` | **closed** on the convention; the sweep is declined |
+| `tracker-file-line-citations-measured` | **closed**, folded into the convention |
+| `build-slot-banner-leaks-the-holders-command-line` | **closed** — script fixed and verified, no `memories/` change (Ev) |
+| `code-quality-item-quotes-…` | **closed** — citations repaired in DOOR's row; the claims it raised are DOOR's |
+| `d107-release-profile-job-lives-in-nightly` | **closed** — repointed in TOPO's row; the disposition is TOPO's |
+| `loud-skip-marker-…` | **closed** — eight entries re-derived in TINT's row; membership is TINT's |
+| `lane-scratchpad-is-shared-between-worktrees` | **deferred** — the rule is not project-specific (Ev) |
+| `S351` | **open, standing watch, unfired** — checked 2026-09-12, both pointers resolve and both already cite by name |
+| `d321-row-number-reissued` | **re-homed to META** — sweep 11 took both targets; the surviving `work.py` id-reissue check is META's |
+| `no-local-script-builds-all-four-cargo-workspaces` | **re-homed to CIW** — the fix is in `local-scripts/*`, which is CIW's, and CITE never started it |
+
+**So this program has no unstarted work of its own left.** `S351` fires
+only if the rule it guards moves; everything else is closed, deferred or
+re-homed. What CITE leaves behind is the convention below, three repaired
+rows on other programs' slates, and one script that no longer leaks a
+command line between blinded lanes. The exit walk is the next thing,
+when Ev wants it.
+
+Both re-homes are `git mv` plus a `## Re-homed` record on the row, per
+`work/README.md` — ids kept, bodies unedited.
+
 ## How the class column is read
 
 `E` / `M` / `H` is a **dispatch estimate**, made on 2026-09-11 by reading

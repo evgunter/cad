@@ -2,8 +2,9 @@
 id: d107-release-profile-job-lives-in-nightly
 kind: issue
 title: D107's --nocapture question is now a nightly.yml question, not a ci.yml one
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-12
 ---
 
 
@@ -110,3 +111,18 @@ Still true at this base: the job's `cargo test --release -p topo --lib`
 step passes no `--nocapture`, and the only `--nocapture` in
 `nightly.yml` is the `editor-core` latency row
 (`grep -n "nocapture" .github/workflows/nightly.yml`).
+
+
+## Closed 2026-09-12 — repaired; the residue is TOPO's
+
+`work/topo/D107.md`'s *"That is a `ci.yml` question"* sentence now names
+`nightly.yml`, cited by the job's `name:` and by the tombstone's opening
+words rather than by line numbers (both of the line numbers this row
+carried, `nightly.yml:492` and `ci.yml:2443`, had already drifted).
+
+The two things that are **not** this row's and are left to TOPO in a
+marked section: whether D107's `kemr: 0` exposure is worth a board at
+all, and the cost argument behind it, which weakened twice over (the job
+runs nightly now, and the repository went public on 2026-09-03). No
+workflow file was touched; the one-line `--nocapture` remains CIW's to
+land on request.
