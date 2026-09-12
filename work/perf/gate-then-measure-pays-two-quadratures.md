@@ -2,8 +2,10 @@
 id: gate-then-measure-pays-two-quadratures
 kind: issue
 title: callers that validate_geometric then mass_properties pay the certified quadrature twice although the certificate door exists
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-09-12
+pr: 2440
 ---
 
 ## The finding
