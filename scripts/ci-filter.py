@@ -159,24 +159,33 @@ TIER=all one**, against medians of 22 and 31.
 WALL CLOCK IS NOT FREE AND THE FIRST VERSION OF THIS NOTE SAID IT WAS. The eps
 legs do start together behind an archive that was already being built, but a
 run's wall follows their MAXIMUM, and the maximum of six legs is larger than
-the maximum of two: measured, ~+20 s of critical path on a run that would have
-drawn `interval` anyway, on top of the ~+172 s the interval archive adds to one
-that would have drawn `default` — about +96 s in expectation on a TIER=all run.
+the maximum of two. THE SIZE OF THAT WAS FIRST WRITTEN AS ~+20 s OF CRITICAL
+PATH on a run that would have drawn `interval` anyway, and the 2026-09-12
+shard measurement falsifies it: the eps rows' cost on that lane is the
+ε = 1e-12 leg, which runs several times the ε = default leg beside it, so the
+term is hundreds of seconds and not tens. The "+96 s in expectation on a
+TIER=all run" that was composed from it — with the ~+172 s the interval
+archive adds to a run that would have drawn `default`, which nothing here
+re-took — goes with it. Neither figure is re-derived here: the readings that
+replace the first term are on
+`work/tcost/one-test-is-the-whole-ci-critical-path`.
+
 THE LAST JOB ON THAT PATH IS THE eps = 1e-12 INTERVAL LEG, AND IT USED TO BE
 NAMED AS `test (interval, eps = default, 1/2)` HERE (corrected 2026-09-12).
 That naming was right when every interval leg cost about the same; it is not
 now. The ε = 1e-12 row carries `editor-core::all
 r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`,
-which runs 346-660 s by itself at that ε and under 20 s at the other two, so
+which is most of its leg at that ε and a rounding error at the other two, so
 the leg holding it finishes last on EVERY code-tier run measured — 30 of them,
-18 at the live count of 2 and 12 more across counts 2, 3, 4 and 6
-(`work/tcost/nextest-shard-count-needs-remeasure`, and
-`work/tcost/one-test-is-the-whole-ci-critical-path` for the row itself). WHICH
-shard of that row
-holds it is not fixed: the count partition reads no timings, so it moves with
-the test list. Separately, and unchanged, the two editor-core steps ride on
-shard 1 of the FIRST eps row — that is where they are wired, not where the
-wall is.
+18 at the live count of 2 and 12 more across counts 2, 3, 4 and 6. THE
+DURATIONS ARE NOT RESTATED HERE, because this note would be their fifth home
+and three of the four disagreed on the day they were written: they live once,
+on `work/tcost/one-test-is-the-whole-ci-critical-path`, with the per-run
+readings behind them on `work/tcost/nextest-shard-count-needs-remeasure`.
+WHICH shard of that row holds the test is not fixed: the count partition reads
+no timings, so it moves with the test list. Separately, and unchanged, the two
+editor-core steps ride on shard 1 of the FIRST eps row — that is where they
+are wired, not where the wall is.
 
 THE JOB-MINUTE FIGURES ARE FLOORS, NOT FORECASTS: three un-sampled runs came in
 at 54.0 / 44.4 / 49.7 job-minutes against a 30.6-minute TIER=all median. The

@@ -150,6 +150,35 @@ measurement lands, and the thing that decides it is the one finding the
 re-opening explicitly declined to re-open: **"no single test binds any N
 up to 4" stopped being true.**
 
+### What decides it, and it is not the twelve runs
+
+The verdict rests on three things that are deterministic or read once,
+not on a population:
+
+1. **A count partition cannot go below its longest single test.**
+   `--partition count:i/N` assigns whole tests by list position and
+   reads no timings, so no N splits a test. This is a property of the
+   partitioner, not a measurement.
+2. **One test is most of the leg that finishes last.**
+   `editor-core::all r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`
+   is **85-96 %** of the ε = 1e-12 interval leg, and that leg is the
+   last job to finish on all thirty runs read, at every count from 2 to
+   6. The per-run readings behind that share, and its home, are
+   `work/tcost/one-test-is-the-whole-ci-critical-path`.
+3. **It is ε = 1e-12-specific by construction.** The row builds its
+   guide at `guide(2.0 - 1.0e-11)` — a bound 1e-11 from the round
+   number — so at ε = 1e-12 the drive has to resolve a gap finer than
+   the bound's own offset, and at the compiled default (1e-9) or at
+   1e-6 it does not. That is readable in the source; it needs no run.
+
+(1) and (2) together say the shard count cannot move what a contributor
+waits for, whatever the count is, and (3) says why it is this row that
+holds the floor. **The twelve runs below corroborate that and are not
+its basis.** What they add is the other half of the picture, which no
+reading of one test could give: that five of the six matrix rows WOULD
+cut, and cut cleanly, so the refusal is specific to this row rather
+than a claim that sharding stopped working.
+
 ### Method
 
 Four shard counts — the live N=2 as a control, plus N=3, N=4 and N=6 —
@@ -177,19 +206,47 @@ Not a count check — a SET check. Every test the run executed is named in
 its leg's log, so the per-shard name sets can be compared directly. At
 N=2, 3, 4 and 6, on both matrices:
 
-| row | union of the shards | sum of per-shard `tests run` | listed (`run` + `skipped`) |
+| row | union of the shards | sum of per-shard `tests run` | EACH shard's listed (`run` + `skipped`) |
 |---|--:|--:|--:|
 | f64, ε = default | **6 948, identical set at every N** | 6 948 | 6 984 |
 | interval, ε = default | **7 669, identical set at every N** | 7 669 | 7 753 |
 
-`missing 0, extra 0` against the N=2 set at every other N; the run-sum
-and the listed total are identical at every N on all six rows. The two
-name collisions between interval shards are the deliberate re-execution
-of `m4_pr8_corpus_interval::every_document_evaluates_green_at_interval`
-and `m4_pr6_roundtrip_interval::interval_replay_identity_across_save_load`
-by the `band 4 corpus (interval)` and `persistence save/load/replay-
-identity (interval)` steps, which ride on shard 1 of the first eps row
-at every count. Nothing is dropped by re-sharding.
+`missing 0, extra 0` against the N=2 set at every other N, and **the
+union and the run-sum are identical at every N on all six rows** — no
+test is run by two shards and none falls between them.
+
+**The third column is a different quantity, and the gap it opens is
+accounted for.** `listed` is PER SHARD: every shard lists the whole row
+and skips what its partition does not take, so `run + skipped` in a
+leg's summary is the row's whole test list (3 482 run + 3 502 skipped on
+shard 1 of the f64 row at N=2; 3 466 + 3 518 on shard 2 — the same
+6 984). The 36 tests the f64 row lists and NO shard runs, and the 84 on
+the interval row, are the `#[ignore]`d rows: nextest's default filter
+drops them before any partition sees them. The runs' own uploaded test
+lists say so exactly — `test-count` 6 984 with 36 testcases at
+`filter-match: {status: mismatch, reason: ignored}` and no other
+mismatch reason, 7 753 with 84 on the interval archive (run
+34681503322, artifacts `test-list-default-…` / `test-list-interval-…`).
+They are the measurement harnesses and evidence probes that assert
+nothing — `m4_pr8_latency::rebuild_latency_table`,
+`onb_wall_normal_census::…`, the `*_timing` and `*_meter` rows — plus
+the rows parked red against a known gap. The gated-suite filter was
+empty on every probe leg (`gated-suite filter: none` in each log), so
+nothing else subtracted anything, and the same 36 and 84 are unrun at
+the live N=2 by the same attribute. **Nothing is dropped by
+re-sharding.**
+
+**Two tests do run twice per run, and it is not a collision between
+shards.**
+`m4_pr8_corpus_interval::every_document_evaluates_green_at_interval` and
+`m4_pr6_roundtrip_interval::interval_replay_identity_across_save_load`
+are each executed a second time by the `band 4 corpus (interval)` and
+`persistence save/load/replay-identity (interval)` STEPS, which ride on
+shard 1 of the first eps row at every count — extra steps inside a leg,
+not extra shards. Each prints its own summary (`1 test run, 1 515
+skipped`), outside the per-shard `tests run` totals above; a shard-to-
+shard collision would instead put the run-sum 2 above the union, and it
+is not above it at any N.
 
 ### Step 1 of the old plan: the per-leg fixed cost has NOT moved
 
@@ -214,31 +271,24 @@ clean, monotone cut down to N=4, flattening at N=6 where the fixed cost
 is half a leg. **The sixth row does not respond to the count at all**,
 and it is the row that decides the run.
 
-### Why it does not: one test
+### Corroboration: the critical leg does not order by count
 
 The ε = 1e-12 interval leg is the last job to finish on all 30 runs
-read, at every count. Inside it,
-`editor-core::all r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`
-is, on its own:
-
-| N | the row's own duration, three runs | leg that carries it | its share |
-|--:|---|---|--:|
-| 2 | 458.5 / 659.6 / 470.5 s | 537 / 740 / 554 s | 85 / 89 / 85 % |
-| 3 | 582.9 / 441.4 / 441.5 s | 615 / 476 / 480 s | 95 / 93 / 92 % |
-| 4 | 458.6 / 576.6 / 634.9 s | 509 / 619 / 689 s | 90 / 93 / 92 % |
-| 6 | 434.5 / 346.2 / 632.9 s | 454 / 372 / 660 s | 96 / 93 / 96 % |
-
-A count partition cannot go below its longest single test, and that test
-is 85-96 % of the leg. What is left after it — 30 to 80 s — is all any
-shard count has to work with, and splitting it further changes the leg
-by less than the test's OWN run-to-run spread, which is **346 s to
-660 s, a factor of 1.9 on the same tree**. The twelve critical legs, in
-count order, are 537 / 740 / 554 · 615 / 476 / 480 · 509 / 619 / 689 ·
+read, at every count, and the run-to-run readings say what the argument
+above predicts. What is left of that leg after its one heavy test — 20
+to 84 s across the twelve runs — is all any shard count has to work
+with, and splitting it further changes the leg by less than the test's
+OWN run-to-run spread, which is **346 s to 660 s, a factor of 1.9 on
+the same tree** (the per-run durations, the legs that carry them and
+the share between them are on
+`work/tcost/one-test-is-the-whole-ci-critical-path`, which is their
+home; they are not restated here). The twelve critical legs, in count
+order, are 537 / 740 / 554 · 615 / 476 / 480 · 509 / 619 / 689 ·
 454 / 372 / 660; the N=2 population of the same morning (18 other runs)
 spans 409-645 s with a median of 534. **Every count's readings sit
 inside every other count's spread.** Run walls say the same and say it
-more weakly, because four simultaneous probe runs pushed job queue times
-from a 2 s median to as much as 108 s: 915 / 1279 / 1029 at N=2,
+more weakly, because four simultaneous probe runs pushed job queue
+times from a 2 s median to as much as 108 s: 915 / 1279 / 1029 at N=2,
 1251 / 1007 / 1139 at N=3, 916 / 1226 / 1332 at N=4, 1113 / 890 / 1209
 at N=6, against 825-1124 for the 18 unperturbed N=2 runs.
 
@@ -248,8 +298,8 @@ The re-opening's inversion does not survive contact with the runner —
 not because its billing argument was wrong (it was right; minutes are
 free and every cost figure in the 2026-09-03 verdict is now zero) but
 because its benefit argument was measured on a tree where no test bound
-the split. On today's tree one does, at the exact row that holds the
-critical path, and `20-45 % less wall` per added shard is available
+the split, and one now does — at the exact row that holds the critical
+path, so the `20-45 % less wall` per added shard is available
 everywhere it cannot be spent. A contributor waits for the maximum over
 the legs, not their sum; cutting a 78 s leg to 54 s beside a 554 s one
 is not a cut.
@@ -266,10 +316,13 @@ and unreachable for the same reason.
 nothing about a tree where the floor test is gone. It reads job and step
 timings from the Actions API and nextest's own per-test durations, so a
 cost inside the runner image (a slow artifact download, a cold page
-cache) is inside the "fixed cost" figure rather than attributed. And the
-three-runs-per-count design can separate a 2x effect from noise, not a
-10 % one — which is enough here only because the effect it had to see is
-zero.
+cache) is inside the "fixed cost" figure rather than attributed. And
+**three runs per count cannot separate a 10 % effect from this row's
+noise** — a real limit, and the reason the verdict does not rest on
+them. What bounds the cut a re-shard could buy is deterministic: no
+partition of the ε = 1e-12 leg can remove more than what sits beside
+its heaviest test, which is 20 to 84 s of a 372-740 s leg, and that
+bound holds however noisy the readings around it are.
 
 **Re-open when** `work/tcost/one-test-is-the-whole-ci-critical-path`
 closes — i.e. when the ε = 1e-12 interval leg is no longer floored by a

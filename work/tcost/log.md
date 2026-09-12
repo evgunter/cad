@@ -2103,10 +2103,10 @@ It does now.
 runs **346-660 s by itself** at ε = 1e-12 — 85-96 % of the leg that
 carries it — and that leg is the last job to finish on all 30 runs read,
 at every count. Five of the six matrix rows cut cleanly with more shards
-(f64 82 s → 54 s, interval ε = default 182 s → 115 s, N=2 → N=4); the
-sixth does not respond to the count at all, and it is the one that sets
-what a contributor waits for. Cutting a 78 s leg beside a 554 s one is
-not a cut.
+(N=2 → N=4: the three f64 rows 64-83 s → 40-59 s, interval ε = default
+148-191 s → 103-131 s); the sixth does not respond to the count at all,
+and it is the one that sets what a contributor waits for. Cutting a 78 s
+leg beside a 554 s one is not a cut.
 
 **Filed with it**: `one-test-is-the-whole-ci-critical-path`, parked on
 the M10-3 row. It is the same family as the symbolic-tier regression
@@ -2120,7 +2120,11 @@ looked at it per-ε before.
 **Three method notes worth keeping.** The conservation check was done at
 the level of test IDs, not counts: every test is named in its leg's log,
 so the shards' name SETS were compared directly and came back identical
-at every N (`missing 0, extra 0`; 6 948 f64 and 7 669 interval). The
+at every N (`missing 0, extra 0`; 6 948 f64 and 7 669 interval). The 36
+f64 and 84 interval tests a leg LISTS and no shard runs are the
+`#[ignore]`d rows, read off the runs' own uploaded test lists
+(`filter-match: {status: mismatch, reason: ignored}`, no other reason)
+— the `listed` column is per shard, not a third measure of the row. The
 per-leg fixed cost is **15.9 s median over 270 legs** and is flat in the
 count — 15 s in August, 15.6 s on 09-03, unmoved. And run WALL is the
 weakest of the three instruments here: running four probe runs at once
@@ -2128,8 +2132,20 @@ pushed job queue times from a 2 s median to 108 s, which is visible in
 the run walls and absent from the leg walls, because a leg's wall starts
 when its runner does.
 
-**Reported, not filed** (`ci.yml` carries several more billed-minute
-arguments outside this knob; the orchestrator places them): the block
-that decides THIS knob is rewritten on wall clock, per
-`work/ciw/plan.md` §The 2026-09-04 re-read, and none of the others was
-swept.
+**Reported, and now filed elsewhere.** The block that decides THIS knob
+is rewritten on wall clock, per `work/ciw/plan.md` §The 2026-09-04
+re-read; the rest of the class — `ci.yml`'s other billed-minute
+arguments, including the shard-MERGE block this unit did not re-decide
+— is `work/ciw/billed-minute-arguments-survive-across-ci-yml`, opened
+2026-09-12 by the orchestrator. None of those was swept here.
+
+**One measurement, one home.** The row's duration, the leg that carries
+it and the share between them live once, on
+`one-test-is-the-whole-ci-critical-path`; the two `ci.yml` blocks and
+`scripts/ci-filter.py` carry the conclusion and a pointer. They stood in
+five places in the first draft and three of the five disagreed with the
+table on the day they were written — the same defect the count was
+re-measured for, minted by the fix for it. The shard count is still
+prose at each of those sites, which is
+`work/ciw/eps-klint-and-shard-counts-are-prose`'s class, and the new
+prose says so.
