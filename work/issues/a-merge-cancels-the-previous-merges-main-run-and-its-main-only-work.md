@@ -147,3 +147,58 @@ instances. A fourth option is now worth pricing beside them: **leave
 the cancellation and make the write-back owed by state rather than by
 event** — the next main run re-baselines whatever differs, whoever
 caused it, which is what 2444's run in fact did.
+
+## Measured: 5 merges in 13 minutes, 3 of 5 runs cancelled, and waiting is a unilateral tax
+
+The two instances above were found by accident. This one was
+**measured deliberately**, by trying the obvious mitigation and
+watching it fail.
+
+At 20:05 UTC this orchestrator had PR 2447 green and ready. Main was
+mid-run (PERF's #2454), so — following the mitigation written above —
+it **waited** rather than merge into a live run. Seven minutes later:
+
+| run | PR | program | started | conclusion |
+| --- | --- | --- | --- | --- |
+| 7772 | #2449 | DOOR | 20:02:48 | **cancelled** (by #2454) |
+| 7776 | #2454 | PERF | 20:07:10 | success — 2m27s |
+| 7779 | #2455 | SCALAR | 20:11:02 | **cancelled** after **26 seconds** (by #2453) |
+| 7780 | #2453 | VIEW | 20:11:17 | **cancelled** (by #2450) |
+| 7784 | #2450 | DOOR | 20:15:02 | in progress |
+
+**Five merges in thirteen minutes, by four different programs. Three of
+the five runs cancelled.** One survived twenty-six seconds.
+
+Three things this settles that the earlier instances only suggested:
+
+1. **There is no clear window to wait for.** At this cadence main is
+   almost always mid-run, so "merge when nothing is in flight" does not
+   terminate. The wait was abandoned after 8 minutes with the queue
+   busier than when it started.
+2. **The forbearance protected nothing.** The run being deferred to
+   (#2454) *succeeded* — it was short enough not to need protecting —
+   while three other runs died during the wait to merges from other
+   programs. The polite party paid 8 minutes and prevented zero
+   cancellations.
+3. **Voluntary spacing is a unilateral tax**, not a mitigation. It only
+   works if every program does it, no program can see another's merge
+   coming, and nothing coordinates them. An orchestrator who follows it
+   simply merges later than one who does not.
+
+**This kills the first two fix options outright.** "Don't cancel on
+main" and "group per commit on main" both still stop the cancellation
+and are still worth their runner minutes — but they were ranked as
+cheap *because* voluntary spacing looked like a free stopgap while they
+waited. It is not a stopgap at all, so there is no interim behaviour to
+fall back on and the fix is the whole answer.
+
+**The fourth option is now the recommendation, not an alternative.**
+Make the write-back owed by STATE rather than by event: the next main
+run re-baselines whatever differs, whoever caused it. It is the only
+option that is correct under a cancellation from any cause — another
+program's merge, a runner loss, a timeout — and at a 60% cancellation
+rate in the observed window, "any cause" is the common case rather than
+the edge one.
+
+Recorded by the orchestrator whose merge was the one being held back,
+so the incentive runs against the conclusion.
