@@ -44,6 +44,7 @@ use editor_core::{
 };
 use geom_core::{Dual64, Tol};
 use topo::ShellError;
+use topo::readback::euler_counts;
 
 /// A name under the shell node wrapping one source name in a role.
 fn shelled(shell: RecipeNodeId, kind: EntityKind, seg: RoleSeg) -> StableName {
@@ -164,13 +165,9 @@ fn an_empty_open_list_is_the_sealed_hollow() {
         "an outer shell and a cavity shell"
     );
     assert_eq!(body.faces().count(), 12, "two complete boxes");
-    // Euler on the two boxes: genus 0 each, so V − E + F = 2 per shell.
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    assert_eq!(v - e + f, 4, "two genus-0 shells");
+    // Euler on the two boxes: genus 0 each, so V − E + F = 2 per shell
+    // and the census door's whole-body genus is 0 over s = 2.
+    assert_eq!(euler_counts(body).genus(), Ok(0), "two genus-0 shells");
     assert_exact(
         body,
         cup::sealed_forms(cup::L, cup::H, cup::T),
