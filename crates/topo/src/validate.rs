@@ -192,6 +192,50 @@
 //! that keep their lanes: [`validate_pseudomanifold`],
 //! [`contact_marks`], [`crate::mass_properties`].
 //!
+//! **What check 7 costs, and what it cannot refuse.** Deciding a sign
+//! is cheaper than measuring a volume, and the tier pays only the
+//! former: the certified quadrature is refined round by round until
+//! the body's volume ENCLOSURE excludes zero, and stops there. So a
+//! valid solid cannot fail check 7 on quadrature budget while its
+//! sign is definite — the refusal that used to arrive when a fitted
+//! rational wall could not reach the REPORTING target `1024·ε` is a
+//! refusal of the caller who asks for the number, not of the body.
+//! Check 7 still refuses `VolumeUncomputable` where the quadrature
+//! produces no enclosure at all (an unsupported chart, a poisoned
+//! bracket, a degenerate face, an escalated funnel decision) and where
+//! the sign is still indefinite when the schedule runs out. The
+//! number, when a caller wants it, is
+//! [`validate_geometric_certificate`]'s continuation.
+//!
+//! **What it costs is not "less", and here is the bound.** The check
+//! reads EVERY face at every round until the sign settles, because a
+//! sum needs every term; the measurement door reads faces in arena
+//! order and stops at the first one whose lane refuses. So on a body
+//! whose sign settles early the check pays a fraction of the
+//! measurement, and on a body with a refusing face it can pay MORE —
+//! measured at about twice the measurement's quadrature verdicts on a
+//! rational-walled body whose schedule runs out. The honest bound is
+//! the schedule's own: at worst every face's whole schedule, which is
+//! what the measurement pays for its own first face and no more than
+//! it pays for all of them.
+//!
+//! **Gating and then measuring costs more than measuring**, and that
+//! is worth knowing before a caller reaches for the continuation as a
+//! saving. The piece evaluations compose exactly — the gate's rounds
+//! plus the continuation's are the measurement's — but each entry into
+//! a face's lane re-derives that face's per-round-independent SETUP
+//! (the derivative grids, the block hulls, the last round's cut lists
+//! and the bound taken from them), so the pair runs 1.3–1.8× one
+//! measurement's wall time on the bodies measured. Reusing a face's
+//! setup across windows is `work/perf/`'s
+//! `quadrature-setup-is-re-derived-per-round-window`.
+//!
+//! **Tier 3′ is not this**, and the difference is visible from
+//! outside: [`validate_pseudomanifold`] and [`contact_marks`] run
+//! their check 7 through the scalar's own lane at the reporting
+//! target, so a body tier 3 admits on a definite sign can still be
+//! refused there on quadrature budget.
+//!
 //! # All failures, not the first
 //!
 //! [`validate`] collects **every** failure before returning: a validator
@@ -2631,21 +2675,34 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedB
 /// so a caller that also wants the enclosure runs the identical
 /// computation again. This door returns what the gate computed.
 ///
-/// **THE value, not a second one.** The returned properties are the
-/// object `plus_v_invariant` decided on — moved out of the check, never
-/// recomputed — so they are bit-identical in all four fields to
-/// [`crate::mass_properties`] on the same body at the same `tol`, and
-/// that is a fact about identity rather than about agreement: this
-/// door's certified quadrature and the measurement door's lane
-/// quadrature are the same computation for every scalar that can reach
-/// here (`crate::props`' lane impls each forward to
-/// `quad_lane::cut_face`), against the same `Band::linear(tol)`, over
-/// the same face-arena order.
+/// **A SIGN, and the number on request.** What comes back is a
+/// [`crate::SignCertificate`]: the enclosure `plus_v_invariant`
+/// decided on, refined exactly as far as THIS check's certification
+/// needed and no further. There is no volume to read off it, by
+/// construction — a quadrature stopped at the round its caller was
+/// finished has not computed one — and
+/// [`crate::SignCertificate::refine_to_target`] is where a caller who
+/// wants the number asks for it, paying only the rounds that were not
+/// already run.
+///
+/// **THE value, not a second one.** That continuation is bit-identical
+/// in all four fields to [`crate::mass_properties`] on the same body
+/// at the same `tol`, and that is a fact about identity rather than
+/// about agreement: this door's certified quadrature and the
+/// measurement door's lane quadrature are the same computation for
+/// every scalar that can reach here (`crate::props`' lane impls each
+/// forward to `quad_lane::cut_face`), against the same
+/// `Band::linear(tol)`, over the same face-arena order, over the same
+/// rounds — a face left open at round `k` resumes at `k + 1`, and the
+/// lanes' rounds are independent recomputations, so a window changes
+/// no arithmetic.
 ///
 /// **What is evidence for that, and at which scalar.** At `f64` the
-/// identity is measured on a real rational-walled body —
+/// identity is measured on real rational-walled bodies —
 /// `sweep`'s `tcost_k3_certificate` compares all four fields as raw
-/// bits. At the other certifying scalars it rests on the lane impls
+/// bits, and `sign_certified_plus_v` does it over a roster whose
+/// schedules run past round 0, where the gate and the continuation
+/// genuinely split the rounds between them. At the other certifying scalars it rests on the lane impls
 /// agreeing, which is a fact about four function bodies rather than a
 /// type-system guarantee, so it is pinned as one:
 /// `topo`'s `quad_lane_is_the_certified_lane` asserts that every
@@ -2656,8 +2713,8 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedB
 /// not re-prove what the quadrature computes, which is the `f64` row's
 /// job.
 ///
-/// **A refusing arm returns no properties**: a refusal carries no
-/// blessed number, so the `Err` is the verdict vector exactly as
+/// **A refusing arm returns no certificate**: a refusal carries no
+/// blessed enclosure, so the `Err` is the verdict vector exactly as
 /// [`validate_geometric`]'s is — same rejections, same typed verdicts,
 /// same order.
 ///
@@ -2669,7 +2726,7 @@ pub fn validate_geometric_certificate<
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
     validate_geometric_certificate_declared(body, &[], tol)
 }
 
@@ -2784,15 +2841,43 @@ fn structural_declared_via<T: crate::props::PropsQuadLane>(
 fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     // ONE certified quadrature, held and then handed on: the check
-    // decides on this object and the caller receives this object.
-    let certificate = crate::props::mass_properties_certified(body, band, tol);
-    let errors = plus_v_invariant(&certificate, band);
+    // decides on this object and the caller receives this object —
+    // refined to the round where THIS check's certification is
+    // complete, which is where the enclosure's sign stops being in
+    // doubt, and continuable from there by a caller who wants the
+    // number.
+    //
+    // ONE decision, too, and that is load-bearing rather than tidy:
+    // the walk stops on the verdict it returns, so no second reading
+    // of a different round's enclosure can disagree with the round it
+    // stopped at, and the check's predicates are metered once per
+    // round rather than twice.
+    let settled = crate::props::sign_certified(
+        body,
+        band,
+        tol,
+        |e| match plus_v_decide(e, band) {
+            PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
+            PlusVOutcome::Refuse => Some(PlusVVerdict::Refuse),
+            PlusVOutcome::Undecided => None,
+        },
+        |refusal| plus_v_at_target(PlusVOutcome::Undecided, refusal),
+    );
+    let (errors, certificate) = match settled {
+        Ok((verdict, certificate)) => (plus_v_errors(&verdict), Ok(certificate)),
+        Err(source) => (
+            vec![ValidationError::VolumeUncomputable {
+                source: source.clone(),
+            }],
+            Err(source),
+        ),
+    };
     if errors.is_empty() {
         Ok(certificate_of_a_clean_verdict(Some(certificate)))
     } else {
@@ -2817,9 +2902,9 @@ pub(crate) type Check7Certificate<T> =
 /// state is a bug in the composition above, not a reachable input —
 /// D9's bug-state half, announced rather than papered over with a
 /// fabricated value.
-fn certificate_of_a_clean_verdict<T: geom_core::Decide>(
-    certificate: Check7Certificate<T>,
-) -> crate::props::MassProperties<T> {
+fn certificate_of_a_clean_verdict<C>(
+    certificate: Option<Result<C, crate::props::MassPropsError>>,
+) -> C {
     match certificate {
         Some(Ok(props)) => props,
         Some(Err(_)) | None => unreachable!(
@@ -2876,12 +2961,13 @@ pub fn validate_geometric_declared<T: crate::props::PropsQuadLane + geom_core::C
 ///
 /// As [`validate_geometric_declared`].
 pub fn validate_geometric_certificate_declared<
+    'b,
     T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     // The structural half runs WITH check 2's plane x NURBS lane
     // injected, which is what keeps this composed door re-deriving the
     // M7-8 certificate class at rest; the public structural door,
@@ -2948,35 +3034,139 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
     )
 }
 
-/// **Check 7's verdict**, given the mass properties however they were
+/// **What check 7 has decided, and whether refining could change it.**
+///
+/// The +V invariant reads a volume ENCLOSURE and refuses only on a
+/// definite disagreement, so its verdict on a bracket `[lo, hi]` is
+/// settled as soon as that bracket excludes zero — and refinement only
+/// tightens a bracket, never moves the truth out of it:
+///
+/// - `hi` definitely negative ⇒ the body's volume is `≤ hi < 0`, and
+///   no finer round produces an upper end above the volume. REFUSE.
+/// - `lo` definitely positive ⇒ the body's volume is `≥ lo > 0`, so
+///   every finer round's upper end is above `lo` too and none of them
+///   can read definitely negative. PASS.
+/// - otherwise the bracket straddles zero (or its margin is in-band),
+///   and a finer round may still decide it.
+///
+/// The two ends are read under two names, because they are two
+/// questions: `positive_volume` is the refusal this check has always
+/// made, on the same quantity and the same lever it always made it on;
+/// `positive_volume_enclosure` is the question the coupling to the
+/// reporting target used to leave unasked — *is the sign already
+/// certain?* — and it is the one an orientation gate actually consumes.
+///
+/// The lever is the surface area (`V/A`, a length: the mean boundary
+/// displacement the volume defect corresponds to). Closed-form bodies
+/// have `pad = 0.0`, so `lo` and `hi` are the volume itself and the
+/// refusing margin is bit-identical to the pre-PR-11 one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PlusVOutcome {
+    /// The volume is definitely negative: orientation corruption.
+    Refuse,
+    /// The volume is definitely positive: the invariant holds, and no
+    /// finer round can change that.
+    Pass,
+    /// The enclosure does not decide. At the reporting target this is
+    /// a PASS — only a definite disagreement refuses — but before it,
+    /// it is a reason to refine.
+    Undecided,
+}
+
+/// **Check 7's whole verdict**, which is what a sign-level walk stops
+/// on — never [`PlusVOutcome`], which is a reading of ONE enclosure and
+/// has an arm that decides nothing.
+///
+/// The difference is the bug this shape exists to make unwritable. An
+/// undecided enclosure is a reason to refine, and at the reporting
+/// target it is a PASS — but only for a body the quadrature could
+/// actually have measured. A body whose sign never became definite AND
+/// whose schedule ran out has not been validated at all, and passing
+/// it is the false ACCEPTANCE that mirrors the false refusal this unit
+/// removed. So the walk's return type carries no undecided arm: the
+/// enclosure reading that yields one is turned into a verdict at the
+/// moment the schedule ends, with the outstanding refusal in hand.
+#[derive(Clone, Debug)]
+pub(crate) enum PlusVVerdict {
+    /// The invariant holds.
+    Pass,
+    /// The volume is definitely negative: orientation corruption.
+    Refuse,
+    /// Check 7 could not be made: the sign was still undecided when
+    /// the certified quadrature ran out of schedule, so the body's
+    /// volume is neither measurable nor sign-certifiable at this ε.
+    /// The payload is the refusal a target-level reading earns, which
+    /// is the refusal the reporting door makes on the same body.
+    Uncomputable(crate::props::MassPropsError),
+}
+
+fn plus_v_decide<T: geom_core::Decide>(
+    enclosure: crate::props::VolumeEnclosure<T>,
+    band: Band,
+) -> PlusVOutcome {
+    let lever = enclosure.surface_area;
+    if let Ok(Sign::Negative) = decide(
+        "positive_volume",
+        Margin::over_lever(enclosure.volume_hi, lever),
+        band,
+    ) {
+        return PlusVOutcome::Refuse;
+    }
+    if let Ok(Sign::Positive) = decide(
+        "positive_volume_enclosure",
+        Margin::over_lever(enclosure.volume_lo, lever),
+        band,
+    ) {
+        return PlusVOutcome::Pass;
+    }
+    PlusVOutcome::Undecided
+}
+
+/// **Check 7's verdict**, given the volume enclosure however it was
 /// derived — the +V global orientation invariant's whole decision, in
 /// one place, so the lane-dispatched and the certified derivations are
 /// two ways of getting the argument and not two copies of the check.
-///
-/// The margin consumes the CERTIFIED bound (M5 PR 11): for quadrature
-/// faces `volume` is an enclosure midpoint with half-width
-/// `volume_pad`, so the honest "definitely negative" statement is about
-/// the UPPER end `volume + pad` — a thin positive volume inside a wide
-/// bracket must never refuse. Closed-form bodies have `pad = 0.0` and
-/// the margin is bit-identical to the pre-PR-11 one.
 fn plus_v_invariant<T: geom_core::Decide>(
-    props: &Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
+    subject: &Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
     band: Band,
 ) -> Vec<ValidationError> {
-    match props {
-        Ok(props) => {
-            let v_hi = props.volume + T::from_f64(props.volume_pad);
-            if let Ok(Sign::Negative) = decide(
-                "positive_volume",
-                Margin::over_lever(v_hi, props.surface_area),
-                band,
-            ) {
-                vec![ValidationError::NegativeVolume]
-            } else {
-                Vec::new()
-            }
-        }
+    match subject {
+        Ok(subject) => plus_v_errors(&plus_v_at_target(
+            plus_v_decide(subject.enclosure(), band),
+            None,
+        )),
         Err(source) => vec![ValidationError::VolumeUncomputable {
+            source: source.clone(),
+        }],
+    }
+}
+
+/// **What an enclosure reading means once there is nothing left to
+/// refine** — the one place the undecided arm is resolved, shared by
+/// the lane-dispatched derivation (which reads only the target-level
+/// enclosure, so `refusal` is `None` and its walk already refused for
+/// it) and by the sign-level walk's `last_word`.
+fn plus_v_at_target(
+    outcome: PlusVOutcome,
+    refusal: Option<crate::props::MassPropsError>,
+) -> PlusVVerdict {
+    match (outcome, refusal) {
+        (PlusVOutcome::Refuse, _) => PlusVVerdict::Refuse,
+        // Undecided with the schedule run out is NOT a pass: the
+        // quadrature never produced an enclosure tight enough to
+        // decide, and the body is exactly as unvalidatable as the
+        // reporting door says it is.
+        (PlusVOutcome::Undecided, Some(source)) => PlusVVerdict::Uncomputable(source),
+        (PlusVOutcome::Pass | PlusVOutcome::Undecided, _) => PlusVVerdict::Pass,
+    }
+}
+
+/// Check 7's verdict as the tier's error vector.
+fn plus_v_errors(verdict: &PlusVVerdict) -> Vec<ValidationError> {
+    match verdict {
+        PlusVVerdict::Pass => Vec::new(),
+        PlusVVerdict::Refuse => vec![ValidationError::NegativeVolume],
+        PlusVVerdict::Uncomputable(source) => vec![ValidationError::VolumeUncomputable {
             source: source.clone(),
         }],
     }

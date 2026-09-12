@@ -196,7 +196,8 @@ wasm-bindgen-futures = { version = "0.4.76", optional = true }
 
 [dev-dependencies]
 # The workspace's shared fuzz harness (seed/effort dial,
-# memories/test-suite-cost.md) — used by the R2 review consumer suite.
+# memories/test-suite-cost.md) — the one place every randomized sweep
+# in this crate's tests draws its seed and its EFFORT from.
 test-utils = { path = "../test-utils" }
 
 # `tests/all.rs` mounts `editor-core`'s corpus test tree (the

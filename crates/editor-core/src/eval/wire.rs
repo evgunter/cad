@@ -95,9 +95,12 @@ pub(crate) struct LaneEnv<'a, T> {
     /// The document's own f64 parameter environment, under no box and
     /// no seed, built once per evaluation beside `params`. THE CENSUS
     /// of its readers — every f64-pinned decision the evaluation makes:
-    /// the profile plane read ([`profile_plane_f64`]), the pre-pass's
-    /// resolution of a profile node's program (`eval_node`), a loft or
-    /// sweep section's resolution of its program ([`section_of`]), and
+    /// the nominal slot list `eval_node` evaluates for every node,
+    /// which is what an authored frame's placement is minted from
+    /// ([`mint_frame_placement`]) and what every profile drawn on that
+    /// frame then READS ([`profile_plane_f64`]); the pre-pass's
+    /// resolution of a profile node's program (`eval_node`); a loft or
+    /// sweep section's resolution of its program ([`section_of`]); and
     /// the placement the pinned lift embeds. It is therefore what a
     /// content key owes ([`super::tag::slot`]). Nothing under
     /// evaluation builds a second one.
@@ -829,24 +832,78 @@ fn need_point2<T: Decide>(
     Ok(Point2::new(v.x, v.y))
 }
 
+/// **A direction refusal before it is spelled as a node error** — what
+/// the kernel's door said and which vector said it.
+///
+/// The two are separated because a refusal is not always raised where
+/// it is made: [`FramePlacement::Unreadable`] CARRIES one to the reader
+/// that needed it. Both roads spell it through [`DirectionRefusal::node_error`],
+/// which is the only place [`refusal`] is reached from either, so a
+/// carried refusal and an on-the-spot one are one fact in one
+/// vocabulary — by construction, not by two call sites agreeing.
+#[derive(Debug, Clone, Copy)]
+pub struct DirectionRefusal {
+    /// Which vector refused, in the words a user reads — "datum frame
+    /// x axis", "datum frame y axis". The whole user-facing content of
+    /// the refusal, and the half a wrong carry would corrupt silently.
+    pub role: &'static str,
+    /// What the kernel's direction door said. Four facts, not one:
+    /// [`UnitVec3Error`] enumerates them.
+    pub error: UnitVec3Error,
+}
+
+impl DirectionRefusal {
+    /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
+    /// because on this road the kernel type owns the value. **The one
+    /// spelling**: every road from a carried or raised refusal to a
+    /// [`NodeErrorKind`] comes through here.
+    pub(crate) fn node_error(self) -> NodeErrorKind {
+        refusal(self.error, self.role, DATUM_UNIT_NORM)
+    }
+}
+
 /// A slot's vector as a datum direction, through the kernel type's own
-/// constructor: the decision and its three refusals live there, this
-/// layer names the ROLE, and the refusal reaches the node error
-/// through the same [`refusal`] map the evaluation layer's own
-/// direction door uses — under [`DATUM_UNIT_NORM`], because on this
-/// road the kernel type owns the value.
+/// constructor: the decision and its three refusals live there, and
+/// this layer names the ROLE.
 fn datum_unit<T: Decide>(
     v: Vec3<T>,
     role: &'static str,
     band: Band,
-) -> Result<UnitVec3<T>, NodeErrorKind> {
-    UnitVec3::new(v, band).map_err(|e| refusal(e, role, DATUM_UNIT_NORM))
+) -> Result<UnitVec3<T>, DirectionRefusal> {
+    UnitVec3::new(v, band).map_err(|error| DirectionRefusal { role, error })
+}
+
+/// **What reading an authored frame's slots produced** — the frame, or
+/// the direction door's refusal of `u` or of `v`'s residual.
+///
+/// `NoDirection` is not only "these two are parallel". It is whichever
+/// of [`UnitVec3Error`]'s four facts the door reported: a decided-zero
+/// length (the parallel case), a length that overflowed the norm, one
+/// that underflowed out of the format — a vector with a perfectly good
+/// direction and no representable length — or an undecided margin
+/// inside the band, which `f64` reaches too, since `Decide for f64`
+/// answers `Indeterminate` there.
+///
+/// The refusal is an ANSWER here rather than an `Err` because a
+/// fallible read whose two callers dispose of the failure differently
+/// would otherwise be a `Result<Result<_, _>, _>`: the slot faults are
+/// the node's either way and stay in the `Err`, while this one is the
+/// READ's and both dispositions are legitimate — [`wire_datum`] raises
+/// it at once, the `f64` placement carries it
+/// ([`FramePlacement::Unreadable`]). Nesting is what is avoided, not a
+/// forced disposition; an `Err` would have forced nothing.
+enum FrameRead<T: geom_core::Real> {
+    /// The orthonormal frame.
+    Frame(AuthoredFrame<T>),
+    /// The direction door refused `u`, or `v`'s residual — see the
+    /// type's own docs for which four facts that covers.
+    NoDirection(DirectionRefusal),
 }
 
 /// **An authored frame from its evaluated slots** — the one spelling
 /// of the read, shared by the frame's own evaluation at the lane
-/// scalar ([`wire_datum`]) and by the profile placement at f64
-/// ([`profile_plane_f64`]), so the two cannot keep different axes or
+/// scalar ([`wire_datum`]) and by its f64 placement
+/// ([`mint_frame_placement`]), so the two cannot keep different axes or
 /// refuse in different orders. The origin is read first; then `u` and
 /// `v` are orthonormalized through [`frame_axes`] with `u` kept — the
 /// frame's sketch +x is what the author wrote, and `v` is the axis
@@ -856,19 +913,23 @@ fn datum_unit<T: Decide>(
 /// # Errors
 ///
 /// [`NodeErrorKind::MissingSlot`] for a slot the values do not carry
-/// (unreachable while `Node::slots` and the wire agree), then the two
-/// direction refusals of [`frame_axes`].
+/// (unreachable while `Node::slots` and the wire agree). A refused
+/// DIRECTION is [`FrameRead::NoDirection`], not an error — see there.
 fn frame_from_slots<T: Decide>(
     vals: &SlotValues<T>,
     band: Band,
-) -> Result<AuthoredFrame<T>, NodeErrorKind> {
+) -> Result<FrameRead<T>, NodeErrorKind> {
     let origin = need_point3(vals, SlotId::Origin)?;
-    let (u, v) = frame_axes(
-        need_vec3(vals, SlotId::U)?,
-        need_vec3(vals, SlotId::V)?,
-        band,
-    )?;
-    Ok(AuthoredFrame { origin, u, v })
+    Ok(
+        match frame_axes(
+            need_vec3(vals, SlotId::U)?,
+            need_vec3(vals, SlotId::V)?,
+            band,
+        ) {
+            Ok((u, v)) => FrameRead::Frame(AuthoredFrame { origin, u, v }),
+            Err(refusal) => FrameRead::NoDirection(refusal),
+        },
+    )
 }
 
 /// An authored frame's evaluated placement ([`frame_from_slots`]):
@@ -879,104 +940,165 @@ struct AuthoredFrame<T: geom_core::Real> {
     v: UnitVec3<T>,
 }
 
-/// **A profile's `f64` placement, where the document HOLDS one** — an
-/// authored frame's nine expressions, resolved and orthonormalized;
-/// `None` for a frame derived from a face, which the document does not
-/// elaborate at any scalar.
+/// **Where a frame's profiles take their placement from** — the DM1c
+/// fork, decided ONCE on the frame's own behalf and carried by name on
+/// its value ([`super::NodeValue::placement`]), so a profile drawn on
+/// the frame READS this instead of evaluating the frame's nine
+/// expressions again.
 ///
-/// # The two frame kinds (DM1c), and why the authored one is read here
+/// The three arms are the three answers, and no reader has to infer
+/// one from the absence of another.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub enum FramePlacement {
+    /// An AUTHORED frame ([`Datum::Frame`]): its nine expressions at
+    /// the document's nominal, resolved and orthonormalized. Its
+    /// profiles place with THIS.
+    Authored(profile::SketchPlane<f64>),
+    /// An AUTHORED frame whose nominal read REFUSED a direction — `u`,
+    /// or `v`'s residual, on whichever of [`UnitVec3Error`]'s four
+    /// facts the door reported THERE. Not only the parallel pair:
+    /// [`FrameRead::NoDirection`] enumerates them.
+    ///
+    /// The refusal is held WHOLE, so the reader that raises it spells
+    /// it through [`DirectionRefusal::node_error`] and cannot spell it
+    /// a second way.
+    ///
+    /// Carried rather than raised, because the frame's own evaluation
+    /// succeeded: it landed a value at the lane scalar, and every
+    /// reader that wanted only that value ([`frame_plane_lane`],
+    /// `Datum::AxisInPlane`, the mate solve, a measure, the viewer)
+    /// reads it correctly. The refusal belongs to the reader that
+    /// actually needed the nominal placement, which is where
+    /// [`profile_plane_f64`] raises it. The decision itself was made
+    /// in the frame's own verdict frame and is logged there.
+    Unreadable(DirectionRefusal),
+    /// A DERIVED frame ([`Datum::FaceFrame`], DM1c): no document
+    /// elaboration at any scalar, so there is nothing to mint. Its
+    /// profiles are placed at the lane under every lift
+    /// ([`frame_plane_lane`]) and their 2-D structure record is
+    /// assembled in the conventional `SketchPlane::xy()`
+    /// ([`prepare_profile`]), which no decision reads.
+    Derived,
+}
+
+/// **A frame node's placement, minted once** — [`FramePlacement`] for
+/// a frame node, `None` for every node that is not one.
 ///
-/// This is the site that reads the plane, and it forks ONCE on the
-/// frame node's kind, because the two kinds differ in where their
-/// numbers come from.
+/// # The fork is here, and it is exhaustive
 ///
-/// An AUTHORED frame ([`Datum::Frame`]) is document expressions, and
-/// they are read at `f64` rather than at the lane scalar for the C6
-/// reason: the placement feeds STRUCTURE selection, which must be
-/// lane-identical — the same document has to select the same structure
-/// at `f64` and at the interval scalar, or the lift's two passes are
-/// deciding different questions. That is the rule the profile's own
-/// program already follows (`eval_node` resolves it "at f64 because it
-/// feeds C6 structure selection"), and the frame's LANDED value is the
-/// right answer to a different question (what a reader sees, what a
-/// measure measures). So an authored frame is read twice, at two
-/// scalars, for two purposes — `Pinned` places with THIS read,
-/// `Guided` with [`frame_plane_lane`]'s.
+/// This is the site that MINTS the answer, and it forks on the RECIPE
+/// node's kind over a closed match: a new [`Datum`] variant is a
+/// compile error here rather than a node whose profiles silently place
+/// at the lane. `None` means "not a frame at all" and nothing else —
+/// [`profile_plane_f64`] turns it into the same loud
+/// [`NodeErrorKind::WrongOperand`] every other by-value reader of a
+/// frame raises.
 ///
-/// A DERIVED frame ([`Datum::FaceFrame`]) has no document elaboration
-/// at all: its placement is read off an upstream body's value, at
-/// whatever scalar that body was evaluated at, so there is nothing
-/// here to read and the answer is `None`. The profile's placement into
-/// 3-D then comes from the lane under every lift
-/// ([`frame_plane_lane`]), and its 2-D structure record is assembled
-/// in the conventional `SketchPlane::xy()` ([`prepare_profile`]),
-/// which no decision reads. `ProfilePre::placement_f64` carries the
-/// same `Option`, so a consumer that places with a derived frame's
-/// record has nothing to mistake for a placement.
+/// # Why an authored frame is read at `f64`
 ///
-/// `nominal` is [`LaneEnv::nominal`]; the frame's nine slots are read
-/// at it through [`slots::eval_slots`] and [`frame_from_slots`].
+/// An AUTHORED frame is document expressions, and they are read at
+/// `f64` rather than at the lane scalar for the C6 reason: the
+/// placement feeds STRUCTURE selection, which must be lane-identical —
+/// the same document has to select the same structure at `f64` and at
+/// the interval scalar, or the lift's two passes are deciding
+/// different questions. That is the rule the profile's own program
+/// already follows (`eval_node` resolves it "at f64 because it feeds
+/// C6 structure selection"), and the frame's LANDED value is the right
+/// answer to a different question (what a reader sees, what a measure
+/// measures). So an authored frame is read twice, at two scalars, for
+/// two purposes — `Pinned` places with THIS read, `Guided` with
+/// [`frame_plane_lane`]'s — and the two rides of one value sit side by
+/// side on one result.
+///
+/// `nominal` is the node's slots already evaluated at
+/// [`LaneEnv::nominal`] — `eval_node`'s nominal list, the one the
+/// content key is owed ([`super::tag::slot`]) — so this mints from the
+/// values that are already in hand and evaluates no expression.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingSlot`] for a slot the values do not carry,
+/// and the band's own refusal. Both are faults of the NODE rather than
+/// of one reader's question — a node that does not carry the slots it
+/// declares is unreadable at every environment — so they fail it,
+/// where a direction refusal is carried as
+/// [`FramePlacement::Unreadable`] instead.
+pub(crate) fn mint_frame_placement(
+    node: &Node<ProfileProgram>,
+    nominal: &SlotValues<f64>,
+    tol: Tol,
+) -> Result<Option<FramePlacement>, NodeErrorKind> {
+    let Node::Datum(datum) = node else {
+        return Ok(None);
+    };
+    match datum {
+        Datum::Frame { .. } => Ok(Some(match frame_from_slots(nominal, band(tol)?)? {
+            FrameRead::Frame(f) => FramePlacement::Authored(profile::SketchPlane::from_frame(
+                f.origin,
+                f.u.get(),
+                f.v.get(),
+            )),
+            FrameRead::NoDirection(refusal) => FramePlacement::Unreadable(refusal),
+        })),
+        Datum::FaceFrame { .. } => Ok(Some(FramePlacement::Derived)),
+        // Not a frame: no placement, and a profile that names one of
+        // these gets the kind refusal, not a silent lane placement.
+        Datum::Plane { .. }
+        | Datum::Axis { .. }
+        | Datum::Point { .. }
+        | Datum::AxisInPlane { .. } => Ok(None),
+    }
+}
+
+/// **A profile's `f64` placement — a READ of the frame's result**, not
+/// a second evaluation of the frame's slots: the answer
+/// [`mint_frame_placement`] minted on the frame node, which the frame's own
+/// content key already fixes (its nominal slots and the tolerance are
+/// exactly what the placement is a function of, so a memo hit carries
+/// a placement equal bit for bit to the one a recompute would mint).
+///
+/// This function's `None` is a DERIVED frame and only that. It is a
+/// different `None` from the field's, which means "not a frame" — a
+/// derived frame says so BY NAME on the value, and the other two
+/// answers there are a plane and a refusal.
+///
+/// This `None`, and the one [`ProfilePre::placement_f64`] carries on
+/// from it, are the two `Option`s that survive on this road, and they
+/// are both honest: by the time either is written the other two
+/// answers have been discharged — "not a frame" into a
+/// [`NodeErrorKind::WrongOperand`] and "unreadable" into its own
+/// refusal — so "no `f64` placement" has exactly one cause left, and
+/// a consumer that places with a derived frame's record still has
+/// nothing to mistake for a placement.
+///
+/// The frame is a DAG input of the profile node ([`Node::inputs`]), so
+/// it precedes every reader in the schedule and a failed frame poisons
+/// them; a section's frame is its profile's input and so precedes the
+/// loft or sweep that reads it.
 ///
 /// # Errors
 ///
 /// [`NodeErrorKind::WrongOperand`] when the reference does not name a
-/// frame — the door every operand's kind is checked at — and the
-/// frame's own two direction refusals through [`frame_axes`].
-pub(crate) fn profile_plane_f64(
-    doc: &crate::doc::Doc<ProfileProgram>,
+/// frame — the door every operand's kind is checked at, answering in
+/// the vocabulary [`frame_plane_lane`] uses — the nominal read's own
+/// direction refusal where the frame carried one
+/// ([`FramePlacement::Unreadable`], raised HERE because this is the
+/// reader that needed it), and [`NodeErrorKind::MissingInput`] for a
+/// reference with no value.
+pub(crate) fn profile_plane_f64<T: Decide>(
+    results: &Results<T>,
     plane: RecipeNodeId,
-    nominal: &crate::expr::ParamEnv<f64>,
-    tol: Tol,
 ) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
-    match frame_kind(doc, plane)? {
-        FrameKind::Authored => {}
-        FrameKind::Derived => return Ok(None),
-    }
-    let node = doc
-        .node(plane)
-        .ok_or(NodeErrorKind::MissingInput { input: plane })?;
-    let vals = slots::eval_slots(node, nominal)
-        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-    let f = frame_from_slots(&vals, band(tol)?)?;
-    Ok(Some(profile::SketchPlane::from_frame(
-        f.origin,
-        f.u.get(),
-        f.v.get(),
-    )))
-}
-
-/// Which kind of frame node a profile's `plane` names — the ONE fork
-/// DM1c adds, keyed by node kind and never by a number.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum FrameKind {
-    /// A [`Datum::Frame`]: nine document expressions, placed from the
-    /// document at `f64` under `Pinned`.
-    Authored,
-    /// A [`Datum::FaceFrame`]: placed from the frame's landed value at
-    /// the lane scalar under every lift.
-    Derived,
-}
-
-/// Classifies the frame node a profile's `plane` names — the variant
-/// read every by-value reader of a frame shares, so "is this a frame"
-/// is answered once with one refusal vocabulary.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::MissingInput`] for an absent node;
-/// [`NodeErrorKind::WrongOperand`] when the node is not a frame.
-pub(crate) fn frame_kind(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    plane: RecipeNodeId,
-) -> Result<FrameKind, NodeErrorKind> {
-    match doc.node(plane) {
-        None => Err(NodeErrorKind::MissingInput { input: plane }),
-        Some(Node::Datum(Datum::Frame { .. })) => Ok(FrameKind::Authored),
-        Some(Node::Datum(Datum::FaceFrame { .. })) => Ok(FrameKind::Derived),
-        Some(_) => Err(NodeErrorKind::WrongOperand {
+    let v = value_of(results, plane)?;
+    match v.placement {
+        Some(FramePlacement::Authored(placement)) => Ok(Some(placement)),
+        Some(FramePlacement::Derived) => Ok(None),
+        Some(FramePlacement::Unreadable(r)) => Err(r.node_error()),
+        None => Err(NodeErrorKind::WrongOperand {
             input: plane,
             expected: "datum frame",
-            found: "not a datum frame",
+            found: v.payload.kind_name(),
         }),
     }
 }
@@ -1043,21 +1165,26 @@ pub(crate) fn pinned_plane<T: super::SectionScalar>(
 /// it, and the one door its two refusals come out of.
 ///
 /// Two callers need this and they must agree: the datum's own
-/// evaluation, which produces the [`DatumValue::Frame`] a reader sees,
-/// and the profile's f64 read of the frame it is drawn on. A second
-/// spelling would be two frames for one node, free to disagree about
-/// where a sketch's +x points.
+/// evaluation at the lane scalar, which produces the
+/// [`DatumValue::Frame`] a reader sees, and the frame's own `f64`
+/// placement ([`mint_frame_placement`]), which every profile drawn on it
+/// then reads. A second spelling would be two frames for one node,
+/// free to disagree about where a sketch's +x points.
 ///
 /// `u` is normalized and KEPT; `v` yields its component along `u`.
 /// Gram-Schmidt states "these two span no plane" as a length, so a
 /// parallel pair refuses at the same decided door every other
 /// direction does, under the y axis's role, rather than under a
 /// predicate invented here.
+///
+/// The refusal comes out UNSPELLED ([`DirectionRefusal`]): one caller
+/// raises it on the spot, the other carries it to the reader that
+/// needed it, and both spell it through the one map.
 pub(crate) fn frame_axes<T: Decide>(
     u_raw: Vec3<T>,
     v_raw: Vec3<T>,
     band: Band,
-) -> Result<(UnitVec3<T>, UnitVec3<T>), NodeErrorKind> {
+) -> Result<(UnitVec3<T>, UnitVec3<T>), DirectionRefusal> {
     let u = datum_unit(u_raw, "datum frame x axis", band)?;
     let v_perp = v_raw - u.get() * v_raw.dot(u.get());
     Ok((u, datum_unit(v_perp, "datum frame y axis", band)?))
@@ -1112,7 +1239,8 @@ fn wire_datum<T: Decide>(
                 need_vec3(vals, SlotId::Normal)?,
                 "datum plane normal",
                 band(tol)?,
-            )?,
+            )
+            .map_err(DirectionRefusal::node_error)?,
         },
         Datum::Axis { .. } => DatumValue::Axis {
             origin: need_point3(vals, SlotId::Origin)?,
@@ -1120,7 +1248,8 @@ fn wire_datum<T: Decide>(
                 need_vec3(vals, SlotId::Direction)?,
                 DATUM_AXIS_ROLE,
                 band(tol)?,
-            )?,
+            )
+            .map_err(DirectionRefusal::node_error)?,
         },
         Datum::Point { .. } => DatumValue::Point {
             position: need_point3(vals, SlotId::Origin)?,
@@ -1134,10 +1263,10 @@ fn wire_datum<T: Decide>(
         // two are parallel, which is exactly when there is no plane.
         // Which axis is kept, and why, is stated at the one spelling of
         // the read, `frame_from_slots`.
-        Datum::Frame { .. } => {
-            let AuthoredFrame { origin, u, v } = frame_from_slots(vals, band(tol)?)?;
-            DatumValue::Frame { origin, u, v }
-        }
+        Datum::Frame { .. } => match frame_from_slots(vals, band(tol)?)? {
+            FrameRead::Frame(AuthoredFrame { origin, u, v }) => DatumValue::Frame { origin, u, v },
+            FrameRead::NoDirection(refusal) => return Err(refusal.node_error()),
+        },
         // **The one datum that reads another node.** Its four numbers
         // are coordinates IN a frame, so the frame is what they mean,
         // and the lift happens once here rather than at each reader.
@@ -1162,7 +1291,8 @@ fn wire_datum<T: Decide>(
                 // authored pair is, which is why the sketch direction
                 // above can go to the kernel unnormalized and still get
                 // the same refusal a 3-D axis would.
-                dir: datum_unit(lift(plane_dir), DATUM_AXIS_ROLE, band(tol)?)?,
+                dir: datum_unit(lift(plane_dir), DATUM_AXIS_ROLE, band(tol)?)
+                    .map_err(DirectionRefusal::node_error)?,
             }
         }
         // **The frame read off a face** (DM1). Its value is exactly an
@@ -1216,7 +1346,8 @@ fn wire_datum<T: Decide>(
             let (sin, cos) = need_scalar(vals, SlotId::Spin)?.sin_cos();
             let u_raw = u_ref * cos + n.cross(u_ref) * sin;
             let v_raw = n.cross(u_raw);
-            let (u, v) = frame_axes(u_raw, v_raw, band(tol)?)?;
+            let (u, v) =
+                frame_axes(u_raw, v_raw, band(tol)?).map_err(DirectionRefusal::node_error)?;
             DatumValue::Frame {
                 origin: pose.origin,
                 u,
@@ -4227,7 +4358,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // (`SectionScalar`, decided by the type); anywhere else the
     // section refuses typed, naming itself and the frame, rather than
     // placing on a fabricated point of the frame's bracket.
-    let plane = match profile_plane_f64(doc, program.plane, lane.nominal, tol)? {
+    let plane = match profile_plane_f64(results, program.plane)? {
         Some(authored) => authored,
         None => {
             let lane_plane = frame_plane_lane(results, program.plane)?;

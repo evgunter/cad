@@ -88,7 +88,15 @@ pyo3::create_exception!(
     "A body failed a topological or geometric validator. From the \
      validate doors it carries `door`, the gate that refused, and \
      `failure_count`, how many refusals it collected; from \
-     `mass_properties` it carries `reason` instead."
+     `mass_properties` it carries `reason` instead.\n\n\
+     `Body.validate_geometric_measured` raises through both halves: \
+     the gate's shape when tier 3 refuses, and the \
+     `mass_properties` shape when the gate passed and the \
+     measurement could not reach its target. That second refusal \
+     carries `volume_lo`, `volume_hi` and `surface_area` beside \
+     `reason` — the sign-level bracket the gate DID certify, which \
+     is the whole of what the quadrature is entitled to say about \
+     such a body. They are `None` on every other refusal."
 );
 pyo3::create_exception!(
     pncad,
