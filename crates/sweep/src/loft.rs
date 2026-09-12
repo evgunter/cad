@@ -214,21 +214,36 @@ impl From<EulerOpError> for LoftError {
     }
 }
 
-/// One end section as a profile at `T` — the section IS a profile
-/// now (LIB-U3), so this is the exact `f64 → T` embedding of its
-/// loops (positions, bulges, and declared-tangent joints — the
-/// declarations travel and are re-verified in the evaluation scalar)
-/// run through the profile crate's own validation door: a section
-/// that would not extrude does not loft either.
-fn end_profile<T: Decide>(
+/// One end section as a profile at `T`: **validated once, at `f64`,
+/// and the verdict lifted** ([`ValidatedProfile::lift_onto`]) — the
+/// same shape the rest of this assembly already has, where the walls
+/// are `f64` surfaces carried to `T` by `map_scalar`.
+///
+/// A section is `f64` data (`Section`) and [`loft_geometry`] has
+/// already run it through [`Profile::validate`] at `f64` to get the
+/// canonical loops the walls are skinned from. Validating the same
+/// section a second time at `T` would decide its canonical form —
+/// loop roles, traversal sense, the lex-min start vertex, each
+/// segment's classification, each declared joint's tangency — in a
+/// second arithmetic over an exact embedding of the data the first
+/// verdict was made on. At a certified scalar that can only agree or
+/// escalate, never disagree, so the only thing it can add is a refusal
+/// that reports the second arithmetic's conservatism; and where the
+/// two canonical forms could ever part, the caps would stop being the
+/// walls' own sections. Carrying the `f64` verdict makes that
+/// agreement structural rather than assumed.
+///
+/// A section that would not extrude still does not loft: the `f64`
+/// validation is the gate, and it refuses here.
+fn end_profile<T: Real>(
     section: &Section,
     place: &Affine3<f64>,
     tol: Tol,
 ) -> Result<ValidatedProfile<T>, LoftError> {
-    let loops = section.iter().map(|lp| lp.map(T::from_f64)).collect();
-    Profile::new(SketchPlane::new(place.map(T::from_f64)), loops)
+    Profile::new(SketchPlane::new(*place), section.clone())
         .validate(tol)
         .map_err(LoftError::Profile)
+        .map(|validated| validated.lift_onto(SketchPlane::new(place.map(T::from_f64))))
 }
 
 /// The world point of a sketch-plane point under a lifted placement.

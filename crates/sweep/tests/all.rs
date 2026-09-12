@@ -631,3 +631,6 @@ mod shell10_r2_cost;
 
 #[path = "shell10_r2_dump.rs"]
 mod shell10_r2_dump;
+
+#[path = "wire_loft_end_profile_lift.rs"]
+mod wire_loft_end_profile_lift;

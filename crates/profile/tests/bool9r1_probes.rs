@@ -18,7 +18,7 @@
 //!
 //! **Adopted into the unit's branch with one mechanical re-aim, kept
 //! otherwise verbatim (authorship the reviewer's).** The door these rows
-//! exercise is spelled `ProfileLoop::map` at the merged head, not
+//! exercise is spelled `ProfileLoop::map_scalar` at the merged head, not
 //! `embed`: R2-Q1 ruled that `embed` was a fourth private word for what
 //! `Point2`/`Vec2`/`Affine3`/`SketchPlane` all call `map`. Every
 //! `src.embed()` here is `src.map(<f64 as Real>::from_f64)` or
@@ -116,7 +116,7 @@ fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
         [1, 4, 4, 0],
         "reversal remapped the joints"
     );
-    let door: ProfileLoop<f64> = src.map(<f64 as Real>::from_f64);
+    let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
     let loft = loft_walk::<f64>(&src);
     let anchor = anchor_walk::<f64>(&src);
     for (i, ((d, l), a)) in door
@@ -176,7 +176,7 @@ fn r1_embed_is_total_on_a_poisoned_table() {
         ProfileVertex::new(p2(1.0, f64::NEG_INFINITY), -0.0),
     ])
     .with_tangent_joints(vec![usize::MAX]);
-    let door: ProfileLoop<f64> = src.map(<f64 as Real>::from_f64);
+    let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
     assert_eq!(table(&door), table(&loft_walk::<f64>(&src)));
     assert!(door.vertices()[0].bulge().is_nan());
     assert_eq!(door.tangent_joints(), [usize::MAX]);
@@ -190,7 +190,7 @@ fn r1_embed_is_total_on_a_poisoned_table() {
 fn r1_embed_is_both_former_walks_at_interval() {
     use geom_core::Interval;
     let src = awkward();
-    let door: ProfileLoop<Interval> = src.map(Interval::from_f64);
+    let door: ProfileLoop<Interval> = src.map_scalar(Interval::from_f64);
     let loft = loft_walk::<Interval>(&src);
     let anchor = anchor_walk::<Interval>(&src);
     assert_eq!(table(&door), table(&loft), "door vs loft.rs's walk");
