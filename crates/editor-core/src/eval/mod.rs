@@ -4097,9 +4097,9 @@ fn arc_mode_tag(mode: profile::ArcMode) -> u8 {
 
 /// The content-key tag of a step's target KIND — the payload-free
 /// projection of [`profile::Target`], the one place the choice is
-/// made so `target_tags_are_injective` can check it over the closed
-/// list of kinds (`Target` is `crates/profile`'s and carries no `ALL`,
-/// so the list is local and an exhaustive match forces it complete).
+/// made so `target_tags_are_injective` can check it over
+/// `profile::TargetKind::ALL`, the form list projected from the same
+/// declaration as the variants.
 fn target_tag(t: &profile::Target<f64>) -> u8 {
     use profile::Target;
     match t {
@@ -5238,46 +5238,42 @@ mod tag_vocabulary_tests {
         );
     }
 
-    /// A step's target KIND: three words, injective and pinned. The
-    /// list is local (`Target` carries a payload, so `closed_list!`
-    /// cannot build it); the `match` beside it is exhaustive with one
-    /// arm per list member, so a variant the enum gains fails to
-    /// compile here until it has an arm — what the match cannot force
-    /// is that the new arm's variant is also added to the list, which
-    /// the arm's comment says to do.
+    /// A step's target KIND: three words, injective and pinned, over
+    /// the form list `profile` projects from its own declaration.
+    ///
+    /// `closed_list!` cannot build the list here — `Target` carries a
+    /// payload, so its members are values rather than words — but
+    /// `TargetKind::ALL` is that list, and the witness below is a match
+    /// on the tag: a form the vocabulary gains has no arm, so it fails
+    /// to compile rather than quietly going untagged, and
+    /// [`injective_and_pinned`]'s pin-count clause then refuses it a
+    /// missing committed number.
     #[test]
     fn target_tags_are_injective() {
-        use profile::Target;
+        use profile::{Target, TargetKind};
         let origin = geom_core::Point2 { x: 0.0, y: 0.0 };
-        let all: [Target<f64>; 3] = [Target::Start, Target::StartArriving, Target::Point(origin)];
-        for t in &all {
-            // One arm per list member; a new arm means a new list member.
-            match t {
-                Target::Start | Target::StartArriving | Target::Point(_) => {}
-            }
-        }
-        let kind = |t: &Target<f64>| match t {
-            Target::Start => 0,
-            Target::StartArriving => 1,
-            Target::Point(_) => 2,
+        let witness = |kind: TargetKind| match kind {
+            TargetKind::Start => Target::Start,
+            TargetKind::StartArriving => Target::StartArriving,
+            TargetKind::Point => Target::Point(origin),
         };
-        let mut seen: Vec<(usize, u8)> = Vec::new();
-        for t in &all {
-            let tag = target_tag(t);
-            if let Some((other, _)) = seen.iter().find(|(_, u)| *u == tag) {
-                panic!(
-                    "target kind {} and {other} share content-key tag {tag}",
-                    kind(t)
-                );
-            }
-            seen.push((kind(t), tag));
-        }
-        assert_eq!(seen.len(), all.len());
-        assert_eq!(target_tag(&Target::Start), 4);
-        assert_eq!(target_tag(&Target::StartArriving), 44);
-        assert_eq!(target_tag(&Target::Point(origin)), 5);
+        injective_and_pinned(
+            "target",
+            TargetKind::ALL,
+            |kind| target_tag(&witness(kind)),
+            &[
+                (TargetKind::Start, 4),
+                (TargetKind::StartArriving, 44),
+                (TargetKind::Point, 5),
+            ],
+            |a, b| a == b,
+        );
         for retired in tag::target::RETIRED {
-            assert!(all.iter().all(|t| target_tag(t) != *retired));
+            assert!(
+                TargetKind::ALL
+                    .iter()
+                    .all(|kind| target_tag(&witness(*kind)) != *retired)
+            );
         }
     }
 

@@ -807,19 +807,36 @@ fn res<T: Decide>(
     eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
 }
 
-/// Resolves a target's expressions.
+/// Resolves a target's expressions, addressing its coordinates at the
+/// slot roles the caller names (a fused step's second spec carries the
+/// `Target2*` twins, exactly as [`spec_slots`] enumerates them).
+///
+/// This is the target vocabulary's ONE construct hop: every target a
+/// document program carries — a straight leg's, a continuation's, a
+/// tangent arc's, and the endpoint inside every endpoint-bearing arc
+/// mode — resolves here, so the form set is matched in exactly one
+/// place below the document type's own declaration. The direction the
+/// compiler cannot check is the one this function runs in: it MATCHES
+/// [`ProgramTarget`] and CONSTRUCTS a [`profile::Target`], so a form
+/// the kernel vocabulary gains is invisible here. The census keyed on
+/// `profile::TargetKind::ALL`
+/// (`tests/switch_program_vocabulary.rs`) is what sees it, and it
+/// checks the other half of the same arm too: that each form resolves
+/// to ITS OWN form rather than being laundered into a neighbour's.
 fn res_target<T: Decide>(
     t: &ProgramTarget,
     env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
+    ax: StepArg,
+    ay: StepArg,
 ) -> Result<profile::Target<T>, (SlotId, EvalError)> {
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
         ProgramTarget::StartArriving => profile::Target::StartArriving,
         ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
-            res(&p[0], env, loop_, step, StepArg::TargetX)?,
-            res(&p[1], env, loop_, step, StepArg::TargetY)?,
+            res(&p[0], env, loop_, step, ax)?,
+            res(&p[1], env, loop_, step, ay)?,
         )),
     })
 }
@@ -854,10 +871,16 @@ fn res_step<T: Decide>(
         ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
-        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
-        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i)?),
+        ProgramStep::LineTo(t) => {
+            Step::LineTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
+        ProgramStep::ContinueTo(t) => {
+            Step::ContinueTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
         ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
-        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
+        ProgramStep::TangentArcTo(t) => {
+            Step::TangentArcTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
         ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
@@ -911,15 +934,14 @@ fn res_spec<T: Decide>(
         ))
     };
     let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
-        Ok(match t {
-            ProgramTarget::Start => profile::Target::Start,
-            ProgramTarget::StartArriving => profile::Target::StartArriving,
-            ProgramTarget::Point(p) => profile::Target::Point(pt2(
-                p,
-                pick(A::TargetX, A::Target2X),
-                pick(A::TargetY, A::Target2Y),
-            )?),
-        })
+        res_target(
+            t,
+            env,
+            loop_,
+            i,
+            pick(A::TargetX, A::Target2X),
+            pick(A::TargetY, A::Target2Y),
+        )
     };
     Ok(match spec {
         ProgramArcData::Radius { r, side } => profile::ArcData::Radius {

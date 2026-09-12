@@ -6,7 +6,8 @@
 //! 13–15).
 //!
 //! Four things carry the design; the rest of the module is their
-//! vocabulary ([`Target`], [`ArcData`] with its [`ArcMode`] tag,
+//! vocabulary ([`Target`] with its [`TargetKind`] tag, [`ArcData`]
+//! with its [`ArcMode`] tag,
 //! [`TipState`], [`ReplayError`], [`DynTip`]) and the mode dispatchers
 //! the arms call.
 //!
@@ -105,19 +106,87 @@ use geom_core::Tol;
 // The step vocabulary
 // ------------------------------------------------------------------
 
-/// Where a target-taking verb ends: an authored absolute point, or the
-/// entry vertex ([`Start`]).
+/// **The target vocabulary — ONE declaration, THREE projections.**
 ///
-/// The distinction is STRUCTURAL — it is the verb's shape, never a
-/// value — so it stays literal in the step when the continuous
-/// arguments become expressions (PROFILES-V2 §V2). Targeting `Start` IS
-/// closing, here exactly as in the typed surface.
-#[derive(Clone, Copy, Debug)]
-pub enum Target<T: Real> {
+/// A target form is named exactly once here, and the macro expands
+/// the name into [`Target`]'s variant, the [`TargetKind`] tag, and
+/// that tag's membership in `TargetKind::ALL`. So the form SET has
+/// one home, and a census anchored on `ALL` cannot fall behind a form
+/// the vocabulary gains — the same construction `arc_modes!` gives
+/// the mode vocabulary one level up and `transition_table!` gives the
+/// verbs one level above that.
+///
+/// It is a SECOND small macro rather than a generalisation of
+/// `arc_modes!`: the two vocabularies differ in variant SHAPE (modes
+/// are struct variants carrying per-mode fields, forms are a tuple
+/// variant and two unit ones), so one grammar over both is more
+/// machinery than a second use buys. What they share is the property,
+/// not the expansion.
+macro_rules! target_forms {
+    (
+        $(
+            $(#[doc = $doc:literal])*
+            form $name:ident $(($payload:ty))?
+        )*
+    ) => {
+        /// Where a target-taking verb ends: an authored absolute point,
+        /// or the entry vertex ([`Start`]).
+        ///
+        /// The distinction is STRUCTURAL — it is the verb's shape, never
+        /// a value — so it stays literal in the step when the continuous
+        /// arguments become expressions (PROFILES-V2 §V2). Targeting
+        /// `Start` IS closing, here exactly as in the typed surface.
+        #[derive(Clone, Copy, Debug)]
+        pub enum Target<T: Real> {
+            $( $(#[doc = $doc])* $name $(($payload))? ),*
+        }
+
+        /// Which form a target names — [`Target`]'s tag, one value per
+        /// variant, projected from the same declaration.
+        ///
+        /// It is what a census over the target vocabulary is keyed on,
+        /// exactly as [`ArcMode`] is for the modes: a target travels
+        /// inside a verb AND inside an arc spec, so a form that fails to
+        /// reach a downstream spelling is invisible to both the
+        /// verb-keyed and the mode-keyed checks.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub enum TargetKind {
+            $( $(#[doc = $doc])* $name ),*
+        }
+
+        impl TargetKind {
+            /// Every target form the vocabulary declares, in declaration
+            /// order — enumerated from the same declaration as the
+            /// variants, so a census keyed on it grows with the
+            /// vocabulary rather than behind it.
+            #[doc(hidden)]
+            pub const ALL: &'static [TargetKind] = &[$( TargetKind::$name ),*];
+        }
+
+        impl<T: Real> Target<T> {
+            /// Which form this target names.
+            ///
+            /// A read-back door rather than a convenience, on
+            /// [`ArcData::mode`]'s model: a census over the target
+            /// vocabulary has to be able to ASK a resolved target what
+            /// form it is, and re-deriving that by matching the forms at
+            /// every such site is how a new form goes missing from one
+            /// of them.
+            #[must_use]
+            pub fn kind(&self) -> TargetKind {
+                match self {
+                    $( Target::$name { .. } => TargetKind::$name ),*
+                }
+            }
+        }
+    };
+}
+
+target_forms! {
     /// An authored absolute point in the profile frame.
-    Point(Point2<T>),
+    form Point(Point2<T>)
     /// The entry vertex: this step closes the loop.
-    Start,
+    form Start
     /// The entry vertex, with the seam's tangent joint DECLARED: the
     /// seam is the one junction whose arriving leg is the
     /// later-authored one, so the declaration that elsewhere rides the
@@ -132,7 +201,7 @@ pub enum Target<T: Real> {
     /// nothing — bound by every match, branched on by no reader. If a
     /// second declaration is ever ruled, the variant grows a payload
     /// then, additively, exactly as this one arrived.
-    StartArriving,
+    form StartArriving
 }
 
 impl<T: Real> ArcData<T> {
