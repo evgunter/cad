@@ -57,10 +57,26 @@
 //!   that do not exist.
 //!
 //! The first two are why [`Verdict::Undecided`] now also covers
-//! disagreement: a name with more than one definition in the tree
-//! answers Undecided unless every definition agrees, and an item this
-//! census cannot parse answers Undecided rather than "no fields, so
-//! prose".
+//! disagreement: a name this census cannot place answers Undecided
+//! unless every definition of it agrees, and an item this census
+//! cannot parse answers Undecided rather than "no fields, so prose".
+//!
+//! # What a type's identity is here
+//!
+//! **A written type resolves to the path it is DECLARED at**, through
+//! its module's `use` items and through re-exports ([`Types::lookup`]).
+//! One bare name can mean two distinct types — `BlendError`,
+//! `ComposeError`, `LiftRefusal`, `ReplayError` and `SplitError` each
+//! name two in this tree — and a key that cannot tell them apart is a
+//! key on which a `Display` found on either satisfies both. Reading the
+//! declaring path also follows a re-export that RENAMES, which the bare
+//! name cannot reach at all.
+//!
+//! **Failing to resolve falls back to the bare name**, which is the
+//! reading this census had before, so a name it cannot place is still
+//! judged over every rival at once and still answers Undecided when
+//! they disagree. The fallback costs precision; picking one rival would
+//! cost soundness, and that is the trade this module never makes.
 //!
 //! **[`UNDECIDED`] names every undecided site with its reason**, and
 //! the row over it fails in both directions: a new site the resolver
@@ -87,12 +103,34 @@
 //!   lexer does not expand. A type declared inside a macro parses to
 //!   an item with no fields, which is why an empty parse answers
 //!   Undecided and not prose.
-//! * **Type aliases and re-exports**, which resolve to the alias name
-//!   and therefore to no definition — Undecided.
-//! * **Name collisions across SCOPES, not merely across crates.** The
-//!   type table is keyed on the bare name and indexes every `struct`
-//!   and `enum` in the tree, including ones declared inside a function
-//!   body. Disagreeing definitions answer Undecided.
+//! * **Type aliases.** A re-export is followed to its declaration,
+//!   `as` renames included; `type X = Y;` is not an item this indexes,
+//!   so a field declared at one resolves to no definition — Undecided.
+//! * **A name reached only through a GLOB.** `use x::*` records no
+//!   binding, so a type it brings into scope resolves to no declaring
+//!   path and falls back to its bare name.
+//! * **Name collisions WITHIN one file.** Two items of one name in one
+//!   file — an inner `mod`, or one declared in a function body — share
+//!   a declaring path, stay rivals, and answer Undecided when they
+//!   disagree. Across files the declaring path separates them.
+//! * **Scopes finer than the file.** A module path is derived from the
+//!   file path, so an inline `mod` block's items are attributed to the
+//!   file, and so are `use` items written inside one or inside a
+//!   function body. Both can only widen what a name resolves to, and a
+//!   name that resolves to no declaration falls back to the bare one.
+//! * **A crate whose library name is not its directory name.** The
+//!   crate segment of a declaring path is the directory's, with `-` as
+//!   `_`; no crate in this tree overrides it, and one that did would
+//!   resolve to nothing rather than to something wrong.
+//! * **A generic argument's scope.** An argument is substituted
+//!   textually into the declaration's field types and then read in the
+//!   DECLARING module, not at the use site, so one spelled with a
+//!   use-site alias resolves to nothing there.
+//! * **A binding introduced by a pattern nested inside the one this
+//!   census reads** — `slot: SlotId::Profile { .. }`, `verb: Some(v)`,
+//!   `endpoints: (u, v)` — and a binding that is no match pattern at
+//!   all, a closure parameter or a catch-all arm. Those reach no
+//!   declared type, which is the largest reason [`UNDECIDED`] has.
 
 // Per the workspace convention recorded in the root Cargo.toml: test
 // code may allow the panic family, because panicking IS a test's
@@ -126,8 +164,14 @@ enum Verdict {
     Undecided,
 }
 
-/// One declaration of a type: its generic parameters and its shape.
+/// One declaration of a type: where it was declared, its generic
+/// parameters and its shape.
 struct Declaration {
+    /// The module path the item is declared in — `geom_brep::intersect`
+    /// for `crates/geom-brep/src/intersect.rs`. With the item's name
+    /// this is the DECLARING PATH, the key a written type resolves to,
+    /// and it is also the scope the item's own field types are read in.
+    module: String,
     /// The names of its generic parameters, so a use site's arguments
     /// can be substituted into its field types instead of resolving
     /// the parameter as if it were a type.
@@ -203,6 +247,114 @@ fn relative(root: &Path, path: &Path) -> String {
         .map(|c| c.as_os_str().to_string_lossy().into_owned())
         .collect::<Vec<_>>()
         .join("/")
+}
+
+/// The module path a file's items are declared in.
+///
+/// `crates/geom-brep/src/intersect.rs` is `geom_brep::intersect`,
+/// `crates/topo/src/boolean/mod.rs` is `topo::boolean`, and a crate
+/// root is the crate alone.
+///
+/// **The crate name is the directory's, with `-` as `_`.** No crate in
+/// this tree overrides its library name, and one that did would resolve
+/// to no declaring path and fall back to the bare name — the reading
+/// this census had before, never a wrong one.
+fn module_path(file: &str) -> String {
+    let parts: Vec<&str> = file.split('/').collect();
+    let Some(src) = parts.iter().position(|part| *part == "src") else {
+        return String::new();
+    };
+    let Some(krate) = src.checked_sub(1).and_then(|i| parts.get(i)) else {
+        return String::new();
+    };
+    let mut out = krate.replace('-', "_");
+    for part in &parts[src + 1..] {
+        let part = part.strip_suffix(".rs").unwrap_or(part);
+        if part.is_empty() || part == "mod" || part == "lib" || part == "main" {
+            continue;
+        }
+        out.push_str("::");
+        out.push_str(part);
+    }
+    out
+}
+
+/// The last segment of a written type path — the bare name.
+fn bare_name(written: &str) -> &str {
+    written.rsplit("::").next().unwrap_or(written)
+}
+
+/// One `use` tree flattened into the bindings it introduces.
+///
+/// **A glob introduces none.** `use x::*` names no binding this can
+/// record, so a type reached only through one resolves to no declaring
+/// path and is judged at its bare name.
+fn expand_use(text: &str, prefix: &str, out: &mut BTreeMap<String, String>) {
+    let text = text.trim();
+    let join = |head: &str| -> String {
+        match (prefix.is_empty(), head.is_empty()) {
+            (true, _) => head.to_owned(),
+            (_, true) => prefix.to_owned(),
+            _ => format!("{prefix}::{head}"),
+        }
+    };
+    if let Some(open) = text.find('{') {
+        let Some(close) = balanced_end(text, open) else {
+            return;
+        };
+        let head = text[..open].trim().trim_end_matches("::").trim();
+        let joined = join(head);
+        let inner = &text[open + 1..close];
+        for range in top_level_split(inner, ',') {
+            expand_use(&inner[range], &joined, out);
+        }
+        return;
+    }
+    if text.is_empty() || text.ends_with('*') {
+        return;
+    }
+    let (path, alias) = match text.split_once(" as ") {
+        Some((path, alias)) => (path.trim(), Some(alias.trim())),
+        None => (text, None),
+    };
+    if alias == Some("_") {
+        return;
+    }
+    // `a::b::{self, C}` binds `b`, which is the group's own prefix.
+    let full = if path == "self" { join("") } else { join(path) };
+    if full.is_empty() {
+        return;
+    }
+    let name = alias.unwrap_or_else(|| bare_name(&full));
+    if name.is_empty() || !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        return;
+    }
+    out.insert(name.to_owned(), full);
+}
+
+/// The names a file's `use` items bring into scope.
+///
+/// Read over the code view, and attributed to the FILE's module: a
+/// `use` inside an inline `mod` block or a function body is recorded
+/// against the file, which can only widen what a name resolves to, and
+/// a name that resolves to no declaration falls back to the bare one.
+fn use_bindings(code: &str) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for (at, _) in code.match_indices("use ") {
+        if at > 0
+            && code[..at]
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_alphanumeric() || c == '_')
+        {
+            continue;
+        }
+        let Some(end) = code[at..].find(';').map(|o| at + o) else {
+            continue;
+        };
+        expand_use(&code[at + "use ".len()..end], "", &mut out);
+    }
+    out
 }
 
 /// The identifier starting at `from`, and one past its end.
@@ -342,16 +494,189 @@ fn enum_variants(body: &str) -> BTreeMap<String, VariantShape> {
     out
 }
 
-/// Every `struct` and `enum` in the tree, keyed on its bare name.
+/// Every `struct` and `enum` in the tree, indexed by DECLARING PATH
+/// and by bare name, beside the `use` items of every module.
 ///
-/// A name with more than one declaration keeps all of them, and
-/// [`brace_shaped`] answers only when they agree — the keying is on
-/// the bare name, so the definitions it collects can come from
-/// different crates OR from different scopes of one file, a function
-/// body included.
-fn type_table(sources: &[Source]) -> BTreeMap<String, Vec<Declaration>> {
-    let mut table: BTreeMap<String, Vec<Declaration>> = BTreeMap::new();
-    for Source { code, .. } in sources {
+/// **The declaring path is the key; the bare name is the fallback.**
+/// One bare name can mean two distinct types — `BlendError`,
+/// `ComposeError`, `LiftRefusal`, `ReplayError` and `SplitError` each
+/// name two in this tree — and a census keyed on it alone cannot say
+/// which one a site wrote. [`Types::lookup`] resolves the written type
+/// through its module's `use` items and through re-exports to the
+/// module that declares it, and only when that fails does it fall back
+/// to judging every rival declaration at once.
+///
+/// The fallback is the census's older reading, so failing to resolve
+/// costs precision and never soundness: rivals that disagree still
+/// answer [`Verdict::Undecided`].
+struct Types {
+    /// Every declaration, in the order the walk found them.
+    all: Vec<Declaration>,
+    /// Bare name to indices into [`Types::all`].
+    by_name: BTreeMap<String, Vec<usize>>,
+    /// Declaring path (`module::Name`) to indices into [`Types::all`].
+    /// Two items of one name in one file — an inner `mod`, or one
+    /// declared in a function body — share a path and stay rivals.
+    by_path: BTreeMap<String, Vec<usize>>,
+    /// Module path to the names its `use` items bring into scope. Its
+    /// `pub use` entries are what a re-export is followed through.
+    imports: BTreeMap<String, BTreeMap<String, String>>,
+    /// Every module path the tree has a file for, so a written path's
+    /// leading segment can be told from a crate name.
+    modules: BTreeSet<String>,
+}
+
+impl Types {
+    /// The declarations at one declaring path.
+    fn at(&self, path: &str) -> Vec<&Declaration> {
+        self.by_path
+            .get(path)
+            .into_iter()
+            .flatten()
+            .filter_map(|i| self.all.get(*i))
+            .collect()
+    }
+
+    /// Every declaration of a bare name, rivals included.
+    fn named(&self, name: &str) -> Vec<&Declaration> {
+        self.by_name
+            .get(name)
+            .into_iter()
+            .flatten()
+            .filter_map(|i| self.all.get(*i))
+            .collect()
+    }
+
+    /// A written type path rewritten against the module it was written
+    /// in: `crate`, `self` and `super` expanded, and a leading segment
+    /// that names a `use` binding replaced by what it names.
+    fn normalize(&self, module: &str, written: &str) -> Option<String> {
+        let segments: Vec<&str> = written.split("::").filter(|s| !s.is_empty()).collect();
+        let (first, rest) = segments.split_first()?;
+        if rest.is_empty() {
+            let local = format!("{module}::{first}");
+            if self.by_path.contains_key(&local) {
+                return Some(local);
+            }
+            let imported = self.imports.get(module).and_then(|m| m.get(*first))?;
+            if imported == written {
+                return None;
+            }
+            return self.normalize(module, &imported.clone());
+        }
+        let mut rest = rest;
+        let base = match *first {
+            "crate" => module.split("::").next()?.to_owned(),
+            "self" => module.to_owned(),
+            "super" => {
+                let mut parts: Vec<&str> = module.split("::").collect();
+                parts.pop();
+                while rest.first() == Some(&"super") {
+                    parts.pop();
+                    rest = &rest[1..];
+                }
+                parts.join("::")
+            }
+            // A leading segment is a `use` binding, a CHILD MODULE of
+            // the writing one — the uniform-path spelling this tree
+            // uses, `pub use refuse::Refusal` inside `viewer::session`
+            // — or a crate, in that order. Reading a child module as a
+            // crate is what sends a re-export to no declaration at all.
+            other => {
+                let imported = self.imports.get(module).and_then(|m| m.get(other)).cloned();
+                let child = format!("{module}::{other}");
+                match imported {
+                    Some(path) => path,
+                    None if self.modules.contains(&child) => child,
+                    None => other.to_owned(),
+                }
+            }
+        };
+        if base.is_empty() || rest.is_empty() {
+            return None;
+        }
+        let mut path = base;
+        for segment in rest {
+            path.push_str("::");
+            path.push_str(segment);
+        }
+        Some(path)
+    }
+
+    /// The path a written type is DECLARED at, following re-exports.
+    ///
+    /// A path that names no declaration is looked up as a `use` item of
+    /// its own prefix — which is what a `pub use` re-export is — and
+    /// the walk repeats until it lands on a declaration. The bound is
+    /// there because a `use` cycle this census cannot see is cheaper to
+    /// give up on than to prove impossible.
+    fn declaring_path(&self, module: &str, written: &str) -> Option<String> {
+        let mut path = self.normalize(module, written)?;
+        for _ in 0..8 {
+            if self.by_path.contains_key(&path) {
+                return Some(path);
+            }
+            // The re-export's own module is the scope its target path
+            // was written in: `pub use inner::Braced` inside `payloads`
+            // names `payloads::inner::Braced`, and reading it anywhere
+            // else lands on nothing.
+            let (prefix, last) = path.rsplit_once("::")?;
+            let next = self.imports.get(prefix)?.get(last)?.clone();
+            let resolved = self.normalize(prefix, &next)?;
+            if resolved == path {
+                return None;
+            }
+            path = resolved;
+        }
+        None
+    }
+
+    /// The declarations a written type names, and the identity the
+    /// recursion records it under.
+    ///
+    /// The declaring path when it resolves, the bare name when it does
+    /// not — so an unresolvable name is judged exactly as this census
+    /// judged every name before: over all its rivals at once.
+    fn lookup(&self, module: &str, written: &str) -> (String, Vec<&Declaration>) {
+        match self.declaring_path(module, written) {
+            Some(path) => {
+                let declarations = self.at(&path);
+                (path, declarations)
+            }
+            None => {
+                let bare = bare_name(written);
+                (bare.to_owned(), self.named(bare))
+            }
+        }
+    }
+}
+
+/// Build the index over every source in the tree.
+fn type_table(sources: &[Source]) -> Types {
+    let mut types = Types {
+        all: Vec::new(),
+        by_name: BTreeMap::new(),
+        by_path: BTreeMap::new(),
+        imports: BTreeMap::new(),
+        modules: sources.iter().map(|s| module_path(&s.file)).collect(),
+    };
+    for Source { file, code, .. } in sources {
+        let module = module_path(file);
+        types
+            .imports
+            .entry(module.clone())
+            .or_default()
+            .extend(use_bindings(code));
+        let mut push = |name: String, declaration: Declaration| {
+            let at = types.all.len();
+            types
+                .by_path
+                .entry(format!("{}::{name}", declaration.module))
+                .or_default()
+                .push(at);
+            types.by_name.entry(name).or_default().push(at);
+            types.all.push(declaration);
+        };
         for (keyword, is_enum) in [("struct ", false), ("enum ", true)] {
             for (at, _) in code.match_indices(keyword) {
                 if at > 0
@@ -366,10 +691,14 @@ fn type_table(sources: &[Source]) -> BTreeMap<String, Vec<Declaration>> {
                     continue;
                 };
                 let Some((params, head)) = item_head(code, after) else {
-                    table.entry(name).or_default().push(Declaration {
-                        params: Vec::new(),
-                        shape: Shape::Unreadable,
-                    });
+                    push(
+                        name,
+                        Declaration {
+                            module: module.clone(),
+                            params: Vec::new(),
+                            shape: Shape::Unreadable,
+                        },
+                    );
                     continue;
                 };
                 let shape = match &code[head..=head] {
@@ -400,14 +729,18 @@ fn type_table(sources: &[Source]) -> BTreeMap<String, Vec<Declaration>> {
                         None => Shape::Unreadable,
                     },
                 };
-                table
-                    .entry(name)
-                    .or_default()
-                    .push(Declaration { params, shape });
+                push(
+                    name,
+                    Declaration {
+                        module: module.clone(),
+                        params,
+                        shape,
+                    },
+                );
             }
         }
     }
-    table
+    types
 }
 
 /// Types whose `Debug` is prose by definition, so the walk stops.
@@ -427,7 +760,11 @@ const TRANSPARENT: &[&str] = &[
 ];
 
 /// A type expression split into its head and its generic arguments,
-/// with references, lifetimes and module paths stripped.
+/// with references and lifetimes stripped.
+///
+/// **The head keeps the path it was written with.** `profile::Verb`
+/// comes back whole, because the path is what says WHICH `Verb`; the
+/// bare name is one [`bare_name`] away for the lookups that want it.
 fn head_args(ty: &str) -> (String, Vec<String>) {
     let mut ty = ty.trim();
     loop {
@@ -460,7 +797,7 @@ fn head_args(ty: &str) -> (String, Vec<String>) {
     }
     match ty.find('<') {
         Some(open) if ty.ends_with('>') => {
-            let head = ty[..open].rsplit("::").next().unwrap_or(&ty[..open]).trim();
+            let head = ty[..open].trim();
             let inner = &ty[open + 1..ty.len() - 1];
             let args = top_level_split(inner, ',')
                 .into_iter()
@@ -469,10 +806,7 @@ fn head_args(ty: &str) -> (String, Vec<String>) {
                 .collect();
             (head.to_owned(), args)
         }
-        _ => (
-            ty.rsplit("::").next().unwrap_or(ty).trim().to_owned(),
-            Vec::new(),
-        ),
+        _ => (ty.trim().to_owned(), Vec::new()),
     }
 }
 
@@ -502,53 +836,70 @@ fn substitute(ty: &str, params: &[String], args: &[String]) -> String {
     out
 }
 
-/// Whether the `Debug` rendering of `ty` can carry the field-brace
-/// fingerprint the prose gate rejects.
-fn brace_shaped(
-    table: &BTreeMap<String, Vec<Declaration>>,
-    ty: &str,
-    seen: &mut BTreeSet<String>,
-) -> Verdict {
+/// Whether the `Debug` rendering of `ty`, as written in `module`, can
+/// carry the field-brace fingerprint the prose gate rejects.
+///
+/// `module` is the scope the type expression was WRITTEN in — the file
+/// holding the `Display` impl for a site's own candidate, and the
+/// declaring module of the owner for a field walked into. It is what
+/// turns a bare `Verb` into the one the site means.
+fn brace_shaped(types: &Types, module: &str, ty: &str, seen: &mut BTreeSet<String>) -> Verdict {
     let (head, args) = head_args(ty);
-    if head.is_empty() || head == "()" || head == "!" {
+    let bare = bare_name(&head).to_owned();
+    if bare.is_empty() || bare == "()" || bare == "!" {
+        return Verdict::Prose;
+    }
+    if PRIMITIVE.contains(&bare.as_str()) {
         return Verdict::Prose;
     }
     // A cycle through a recursive type adds no NEW rendering: whatever
-    // the outer level renders has already been judged.
-    if !seen.insert(head.clone()) {
+    // the outer level renders has already been judged. The identity a
+    // cycle is measured at is the DECLARING PATH wherever the name
+    // resolved to one, so two same-named types are two cycles.
+    if bare == "(tuple)" || bare == "(slice)" || TRANSPARENT.contains(&bare.as_str()) {
+        if !seen.insert(bare.clone()) {
+            return Verdict::Prose;
+        }
+        let verdict = combine(args.iter().map(|a| brace_shaped(types, module, a, seen)));
+        seen.remove(&bare);
+        return verdict;
+    }
+    let (identity, declarations) = types.lookup(module, &head);
+    if !seen.insert(identity.clone()) {
         return Verdict::Prose;
     }
-    let verdict = if PRIMITIVE.contains(&head.as_str()) {
-        Verdict::Prose
-    } else if head == "(tuple)" || head == "(slice)" || TRANSPARENT.contains(&head.as_str()) {
-        combine(args.iter().map(|a| brace_shaped(table, a, seen)))
+    let verdict = if declarations.is_empty() {
+        // Not a type this tree declares: an out-of-tree type, a type
+        // alias, or a GENERIC PARAMETER — which in this workspace is
+        // usually the `Real` scalar, whose interval instantiation wraps
+        // a named-field struct.
+        Verdict::Undecided
     } else {
-        match table.get(&head) {
-            // Not a type this tree declares: an out-of-tree type, a
-            // type alias or re-export, or a GENERIC PARAMETER — which
-            // in this workspace is usually the `Real` scalar, whose
-            // interval instantiation wraps a named-field struct.
-            None => Verdict::Undecided,
-            Some(declarations) => agree(
-                declarations
-                    .iter()
-                    .map(|d| declaration_verdict(table, d, &args, seen)),
-            ),
-        }
+        agree(
+            declarations
+                .iter()
+                .map(|d| declaration_verdict(types, d, &args, seen)),
+        )
     };
-    seen.remove(&head);
+    seen.remove(&identity);
     verdict
 }
 
 /// The verdict of one declaration, with the use site's generic
 /// arguments substituted into its field types.
+///
+/// **The field types are read in the DECLARING module**, which is the
+/// scope they were written in. A generic argument substituted in came
+/// from the use site instead, so an argument spelled with a use-site
+/// alias resolves to nothing here and falls back to its bare name.
 fn declaration_verdict(
-    table: &BTreeMap<String, Vec<Declaration>>,
+    types: &Types,
     declaration: &Declaration,
     args: &[String],
     seen: &mut BTreeSet<String>,
 ) -> Verdict {
     let sub = |ty: &String| substitute(ty, &declaration.params, args);
+    let module = declaration.module.as_str();
     match &declaration.shape {
         Shape::Unreadable => Verdict::Undecided,
         Shape::UnitStruct => Verdict::Prose,
@@ -559,20 +910,26 @@ fn declaration_verdict(
                 Verdict::Braced
             }
         }
-        Shape::TupleStruct(elements) => {
-            combine(elements.iter().map(|e| brace_shaped(table, &sub(e), seen)))
-        }
-        Shape::Enum(variants) => combine(variants.values().map(|variant| match variant {
-            VariantShape::Unit => Verdict::Prose,
-            VariantShape::Named(fields) => {
-                if fields.is_empty() {
-                    Verdict::Prose
-                } else {
-                    Verdict::Braced
+        Shape::TupleStruct(elements) => combine(
+            elements
+                .iter()
+                .map(|e| brace_shaped(types, module, &sub(e), seen)),
+        ),
+        Shape::Enum(variants) => combine(variants.values().map(|variant| {
+            match variant {
+                VariantShape::Unit => Verdict::Prose,
+                VariantShape::Named(fields) => {
+                    if fields.is_empty() {
+                        Verdict::Prose
+                    } else {
+                        Verdict::Braced
+                    }
                 }
-            }
-            VariantShape::Tuple(elements) => {
-                combine(elements.iter().map(|e| brace_shaped(table, &sub(e), seen)))
+                VariantShape::Tuple(elements) => combine(
+                    elements
+                        .iter()
+                        .map(|e| brace_shaped(types, module, &sub(e), seen)),
+                ),
             }
         })),
     }
@@ -646,6 +1003,12 @@ struct Site {
 
 /// The binding name a positional `{:?}` is recorded under.
 const POSITIONAL: &str = "<positional>";
+
+/// A type expression AND the module it was written in, which is the
+/// scope its bare names resolve in. Carried together because a type
+/// read out of one crate's declaration and rendered in another's
+/// `Display` means whatever its OWN file's `use` items say it means.
+type Typed = (String, String);
 
 /// The macros whose first string argument is a format string, and how
 /// many arguments precede it.
@@ -766,9 +1129,9 @@ fn followed_by_alternative(code: &str, from: usize) -> bool {
 /// caller judges every one of them.
 fn pattern_bindings(
     pattern: &str,
-    variants: &BTreeMap<String, Vec<VariantShape>>,
-) -> BTreeMap<String, Vec<String>> {
-    let mut out: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    variants: &BTreeMap<String, Vec<(String, VariantShape)>>,
+) -> BTreeMap<String, Vec<Typed>> {
+    let mut out: BTreeMap<String, Vec<Typed>> = BTreeMap::new();
     for range in top_level_split(pattern, '|') {
         let alternative = pattern[range].trim();
         let Some(sep) = alternative.find("::") else {
@@ -778,7 +1141,7 @@ fn pattern_bindings(
             continue;
         };
         let rest = &alternative[after..];
-        for shape in variants.get(&variant).into_iter().flatten() {
+        for (module, shape) in variants.get(&variant).into_iter().flatten() {
             match shape {
                 VariantShape::Named(fields) => {
                     let inner = rest.trim_start().trim_start_matches('{');
@@ -795,7 +1158,9 @@ fn pattern_bindings(
                         let field = field.trim_start_matches("r#").to_owned();
                         let bound = bound.trim_start_matches("r#").to_owned();
                         if let Some((_, ty)) = fields.iter().find(|(name, _)| *name == field) {
-                            out.entry(bound).or_default().push(ty.clone());
+                            out.entry(bound)
+                                .or_default()
+                                .push((module.clone(), ty.clone()));
                         }
                     }
                 }
@@ -813,7 +1178,7 @@ fn pattern_bindings(
                             {
                                 out.entry(name.trim_start_matches("r#").to_owned())
                                     .or_default()
-                                    .push(ty.clone());
+                                    .push((module.clone(), ty.clone()));
                             }
                         }
                     }
@@ -912,23 +1277,26 @@ fn read_sources(root: &Path) -> Vec<Source> {
 /// undecided census for exactly that reason, and every error type with
 /// a `kind` field shares the hole.
 fn variants_in_scope(
-    table: &BTreeMap<String, Vec<Declaration>>,
+    types: &Types,
+    module: &str,
     display_type: &str,
-) -> BTreeMap<String, Vec<VariantShape>> {
-    let mut out: BTreeMap<String, Vec<VariantShape>> = BTreeMap::new();
-    let absorb = |name: &str, out: &mut BTreeMap<String, Vec<VariantShape>>| {
-        for declaration in table.get(name).into_iter().flatten() {
+) -> BTreeMap<String, Vec<(String, VariantShape)>> {
+    let mut out: BTreeMap<String, Vec<(String, VariantShape)>> = BTreeMap::new();
+    let absorb = |declarations: &[&Declaration],
+                  out: &mut BTreeMap<String, Vec<(String, VariantShape)>>| {
+        for declaration in declarations {
             if let Shape::Enum(variants) = &declaration.shape {
                 for (variant, shape) in variants {
                     out.entry(variant.clone())
                         .or_default()
-                        .push(clone_variant(shape));
+                        .push((declaration.module.clone(), clone_variant(shape)));
                 }
             }
         }
     };
-    absorb(display_type, &mut out);
-    for declaration in table.get(display_type).into_iter().flatten() {
+    let own = types.lookup(module, display_type).1;
+    absorb(&own, &mut out);
+    for declaration in &own {
         let fields: Vec<&(String, String)> = match &declaration.shape {
             Shape::NamedStruct(fields) => fields.iter().collect(),
             Shape::Enum(variants) => variants
@@ -942,8 +1310,9 @@ fn variants_in_scope(
         };
         for (_, ty) in fields {
             let (head, _) = head_args(ty);
-            if head != display_type {
-                absorb(&head, &mut out);
+            if bare_name(&head) != display_type {
+                let reached = types.lookup(&declaration.module, &head).1;
+                absorb(&reached, &mut out);
             }
         }
     }
@@ -962,10 +1331,11 @@ fn clone_variant(variant: &VariantShape) -> VariantShape {
 
 /// Every `Debug` rendering inside every `impl Display` in the tree.
 fn census(sources: &[Source]) -> Vec<Site> {
-    let table = type_table(sources);
+    let types = type_table(sources);
     let mut out = Vec::new();
     for source in sources {
         let (code, text) = (&source.code, &source.text);
+        let module = module_path(&source.file);
         for (found, _) in code.match_indices("Display for ") {
             let window = found.saturating_sub(200);
             if !code[window..found].contains("impl") {
@@ -981,33 +1351,36 @@ fn census(sources: &[Source]) -> Vec<Site> {
                 continue;
             };
             let body = open + 1..close;
-            let variants = variants_in_scope(&table, &display_type);
-            let mut fields: Vec<(String, String)> = Vec::new();
-            for declaration in table.get(&display_type).into_iter().flatten() {
+            let variants = variants_in_scope(&types, &module, &display_type);
+            let mut fields: Vec<(String, Typed)> = Vec::new();
+            for declaration in types.lookup(&module, &display_type).1 {
                 if let Shape::NamedStruct(declared) = &declaration.shape {
-                    fields.extend(declared.iter().cloned());
+                    fields.extend(declared.iter().map(|(name, ty)| {
+                        (name.clone(), (declaration.module.clone(), ty.clone()))
+                    }));
                 }
             }
             for call in formatting_calls(source, body.clone()) {
                 for placeholder in debug_placeholders(text, call.format.clone()) {
-                    let mut scope: BTreeMap<String, Vec<String>> = BTreeMap::new();
+                    let mut scope: BTreeMap<String, Vec<Typed>> = BTreeMap::new();
                     for pattern in arms_in_scope(code, body.clone(), placeholder.at) {
                         for (binding, types) in pattern_bindings(pattern, &variants) {
                             scope.entry(binding).or_default().extend(types);
                         }
                     }
-                    let mut candidates = resolve(&placeholder, &scope, &fields, &call, &table);
+                    let mut candidates = resolve(&placeholder, &scope, &fields, &call, &types);
                     candidates.sort();
                     candidates.dedup();
                     let verdict = if candidates.is_empty() {
                         Verdict::Undecided
                     } else {
-                        combine(
-                            candidates
-                                .iter()
-                                .map(|ty| brace_shaped(&table, ty, &mut BTreeSet::new())),
-                        )
+                        combine(candidates.iter().map(|(written_in, ty)| {
+                            brace_shaped(&types, written_in, ty, &mut BTreeSet::new())
+                        }))
                     };
+                    let mut shown: Vec<String> =
+                        candidates.iter().map(|(_, ty)| ty.clone()).collect();
+                    shown.dedup();
                     out.push(Site {
                         file: source.file.clone(),
                         line: text[..placeholder.at].matches('\n').count() + 1,
@@ -1018,7 +1391,7 @@ fn census(sources: &[Source]) -> Vec<Site> {
                             placeholder.name.clone()
                         },
                         verdict,
-                        candidates,
+                        candidates: shown,
                     });
                 }
             }
@@ -1114,18 +1487,18 @@ fn formatting_calls(source: &Source, body: std::ops::Range<usize>) -> Vec<Format
 /// census could not say.
 fn resolve(
     placeholder: &Placeholder,
-    scope: &BTreeMap<String, Vec<String>>,
-    fields: &[(String, String)],
+    scope: &BTreeMap<String, Vec<Typed>>,
+    fields: &[(String, Typed)],
     call: &FormattingCall,
-    table: &BTreeMap<String, Vec<Declaration>>,
-) -> Vec<String> {
-    let lookup = |name: &str| -> Vec<String> {
+    types: &Types,
+) -> Vec<Typed> {
+    let lookup = |name: &str| -> Vec<Typed> {
         let mut out = scope.get(name).cloned().unwrap_or_default();
         out.extend(
             fields
                 .iter()
                 .filter(|(field, _)| field == name)
-                .map(|(_, ty)| ty.clone()),
+                .map(|(_, typed)| typed.clone()),
         );
         out
     };
@@ -1140,14 +1513,14 @@ fn resolve(
         return call
             .named
             .get(&placeholder.name)
-            .map(|aliased| expression_type(aliased, &lookup, table))
+            .map(|aliased| expression_type(aliased, &lookup, types))
             .unwrap_or_default();
     }
     call.arguments
         .iter()
         .filter(|a| !a.contains('=') || a.starts_with("=="))
         .nth(placeholder.index)
-        .map(|argument| expression_type(argument, &lookup, table))
+        .map(|argument| expression_type(argument, &lookup, types))
         .unwrap_or_default()
 }
 
@@ -1156,9 +1529,9 @@ fn resolve(
 /// one. Anything else is undecided and says so.
 fn expression_type(
     expression: &str,
-    lookup: &impl Fn(&str) -> Vec<String>,
-    table: &BTreeMap<String, Vec<Declaration>>,
-) -> Vec<String> {
+    lookup: &impl Fn(&str) -> Vec<Typed>,
+    types: &Types,
+) -> Vec<Typed> {
     let expression = expression.trim().trim_start_matches(['&', '*', ' ']).trim();
     let expression = expression.trim_start_matches("r#");
     if !expression.is_empty() && expression.chars().all(|c| c.is_alphanumeric() || c == '_') {
@@ -1175,16 +1548,19 @@ fn expression_type(
     };
     lookup(base.trim_start_matches("r#"))
         .iter()
-        .flat_map(|base| {
+        .flat_map(|(written_in, base)| {
             let (head, args) = head_args(base);
-            table
-                .get(&head)
+            types
+                .lookup(written_in, &head)
+                .1
                 .into_iter()
-                .flatten()
                 .filter_map(|declaration| match &declaration.shape {
-                    Shape::TupleStruct(elements) => elements
-                        .get(index)
-                        .map(|e| substitute(e, &declaration.params, &args)),
+                    Shape::TupleStruct(elements) => elements.get(index).map(|e| {
+                        (
+                            declaration.module.clone(),
+                            substitute(e, &declaration.params, &args),
+                        )
+                    }),
                     _ => None,
                 })
                 .collect::<Vec<_>>()
@@ -1428,17 +1804,17 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ProgramFault",
         "arg",
         1,
-        "declared at a type this tree does not declare under that name — an\
-         alias, a re-export, or one out of tree",
+        "the binding is introduced by a pattern NESTED inside the field pattern\
+         this census reads — `slot: SlotId::Profile { .., arg }` — so no declared\
+         type reaches it",
     ),
     (
         "crates/editor-core/src/persist/check.rs",
         "ProgramFault",
         "verb",
         1,
-        "two `Verb` types are declared in this tree and the site's is not\
-         decidable from the declaration alone; a verdict taken from the collision\
-         is not a verdict about this payload",
+        "`profile::Verb` resolves to its declaration in a `macro_rules!` body,\
+         which the shared lexer does not expand, so its shape is unreadable",
     ),
     (
         "crates/geom-brep/src/nurbs_iso.rs",
@@ -1476,24 +1852,24 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplayError",
         "verb",
         1,
-        "declared at a type this tree does not declare under that name — an\
-         alias, a re-export, or one out of tree",
+        "the binding is introduced by a pattern NESTED inside the field pattern\
+         this census reads — `verb: Some(verb)` — so no declared type reaches it",
     ),
     (
         "crates/step-import/src/error.rs",
         "StepImportError",
         "e",
         1,
-        "declared at a type this tree does not declare under that name — an\
-         alias, a re-export, or one out of tree",
+        "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a\
+         match binding, and this census types patterns and fields",
     ),
     (
         "crates/sweep/src/blend/mod.rs",
         "BlendError",
         "other",
         1,
-        "declared at a type this tree does not declare under that name — an\
-         alias, a re-export, or one out of tree",
+        "a catch-all arm binds the name, and a pattern naming no variant path\
+         declares no field type to read it at",
     ),
     (
         "crates/topo/src/boolean/mod.rs",
@@ -1514,8 +1890,8 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "e",
         1,
-        "declared at a type this tree does not declare under that name — an\
-         alias, a re-export, or one out of tree",
+        "an inner arm — `match edge { Some(e) => .. }` — whose pattern names no\
+         variant path, so this census reads no field type from it",
     ),
     (
         "crates/topo/src/replace_face.rs",
@@ -1594,16 +1970,16 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "SplitReduceError",
         "u",
         1,
-        "declared at a type this tree does not declare under that name — an\
-         alias, a re-export, or one out of tree",
+        "the binding is introduced by a pattern NESTED inside the field pattern\
+         this census reads — `endpoints: (u, v)` — so no declared type reaches it",
     ),
     (
         "crates/topo/src/splitting/mod.rs",
         "SplitReduceError",
         "v",
         1,
-        "declared at a type this tree does not declare under that name — an\
-         alias, a re-export, or one out of tree",
+        "the binding is introduced by a pattern NESTED inside the field pattern\
+         this census reads — `endpoints: (u, v)` — so no declared type reaches it",
     ),
     (
         "crates/topo/src/validate.rs",
@@ -1652,14 +2028,26 @@ mod tests {
     use crate::errors::reads_as_prose;
     use std::collections::{BTreeMap, BTreeSet};
 
-    /// A one-file tree, so a planted case runs the real census rather
+    /// A planted tree, so a planted case runs the real census rather
     /// than a second implementation of it.
+    ///
+    /// More than one file, because the defects around a type's IDENTITY
+    /// only exist across files: two crates declaring one name, and a
+    /// re-export that renames one.
+    fn planted_tree(files: &[(&str, &str)]) -> Vec<Source> {
+        files
+            .iter()
+            .map(|(file, text)| Source {
+                file: (*file).to_owned(),
+                text: code_and_literals(text),
+                code: code_only(text),
+            })
+            .collect()
+    }
+
+    /// The one-file case.
     fn planted(text: &str) -> Vec<Source> {
-        vec![Source {
-            file: "crates/planted/src/lib.rs".to_owned(),
-            text: code_and_literals(text),
-            code: code_only(text),
-        }]
+        planted_tree(&[("crates/planted/src/lib.rs", text)])
     }
 
     /// Counts per `(file, display type, binding)`, the shape both tree
@@ -1953,8 +2341,7 @@ impl fmt::Display for PlantedError {
             sites.iter().all(|site| site.verdict == Verdict::Undecided),
             "`Other` is not declared here at all, so the honest answer is undecided"
         );
-        let table = type_table(&planted(COLLIDING_NAMES));
-        let verb = table.get("Verb").map(Vec::len).unwrap_or_default();
+        let verb = type_table(&planted(COLLIDING_NAMES)).named("Verb").len();
         assert_eq!(verb, 1, "one declaration of `Verb` in this fixture");
     }
 
@@ -1963,9 +2350,8 @@ impl fmt::Display for PlantedError {
         let table = type_table(&planted(
             "macro_rules! m { () => { pub enum Hidden { A } }; }",
         ));
-        let shapes = table
-            .get("Hidden")
-            .expect("the macro body's enum is indexed");
+        let shapes = table.named("Hidden");
+        assert!(!shapes.is_empty(), "the macro body's enum is indexed");
         assert!(
             shapes.iter().all(|Declaration { shape, .. }| matches!(
                 shape,
@@ -2043,6 +2429,107 @@ impl fmt::Display for PlantedError {
              which is the other route to the panic the census above guards. The \
              allowance is keyed on the SITE, not the file: a second `Debug` raise \
              in an allowed file inherits nothing."
+        );
+    }
+
+    /// One name, declared in two crates, with opposite shapes.
+    const RIVAL_BRACED: &str = "pub enum Verb { Fillet { edges: u32 } }\n";
+    const RIVAL_PROSE: &str = "pub enum Verb { Fillet }\n";
+
+    /// A site rendering a `Verb` payload, importing the one it means.
+    fn rival_site(import: &str) -> String {
+        let head = if import.is_empty() {
+            String::new()
+        } else {
+            format!("use {import};\n")
+        };
+        format!(
+            r#"
+{head}pub enum PlantedError {{ Bad {{ verb: Verb }} }}
+impl fmt::Display for PlantedError {{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {{
+        match self {{
+            Self::Bad {{ verb }} => write!(f, "at {{verb:?}}"),
+        }}
+    }}
+}}
+"#
+        )
+    }
+
+    fn rival_tree(site: &str) -> Vec<Source> {
+        planted_tree(&[
+            ("crates/braced/src/lib.rs", RIVAL_BRACED),
+            ("crates/prose/src/lib.rs", RIVAL_PROSE),
+            ("crates/site/src/lib.rs", site),
+        ])
+    }
+
+    #[test]
+    fn the_declaration_a_site_imports_decides_a_name_two_crates_declare() {
+        for (import, want) in [
+            ("braced::Verb", Verdict::Braced),
+            ("prose::Verb", Verdict::Prose),
+        ] {
+            let sites = census(&rival_tree(&rival_site(import)));
+            assert_eq!(sites.len(), 1, "one rendering in this tree: {sites:?}");
+            assert_eq!(
+                sites[0].verdict, want,
+                "the site imports `{import}`, so that is the declaration its \
+                 payload renders. Keyed on the BARE name the two rival `Verb`s \
+                 are one entry, and a census that cannot tell them apart is the \
+                 census whose `Display` found on either satisfied both: {sites:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_name_no_import_places_is_still_judged_over_every_rival() {
+        let sites = census(&rival_tree(&rival_site("")));
+        assert_eq!(sites.len(), 1, "one rendering in this tree: {sites:?}");
+        assert_eq!(
+            sites[0].verdict,
+            Verdict::Undecided,
+            "no `use` places this `Verb`, so resolution fails and the reading \
+             falls back to every rival at once — which disagree. Falling back \
+             costs precision; picking one of them would cost soundness: {sites:?}"
+        );
+    }
+
+    #[test]
+    fn a_payload_renamed_by_a_re_export_reaches_its_declaration() {
+        let sites = census(&planted_tree(&[
+            (
+                "crates/payloads/src/inner.rs",
+                "pub struct Braced { a: u32 }\n",
+            ),
+            (
+                "crates/payloads/src/lib.rs",
+                "pub mod inner;\npub use inner::Braced as Payload;\n",
+            ),
+            (
+                "crates/site/src/lib.rs",
+                r#"
+use payloads::Payload;
+pub enum PlantedError { Bad { p: Payload } }
+impl fmt::Display for PlantedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bad { p } => write!(f, "at {p:?}"),
+        }
+    }
+}
+"#,
+            ),
+        ]));
+        assert_eq!(sites.len(), 1, "one rendering in this tree: {sites:?}");
+        assert_eq!(
+            sites[0].verdict,
+            Verdict::Braced,
+            "`Payload` is a rename of a named-field struct. A census that reads \
+             the written name and stops declares a payload it cannot see, and \
+             answering undecided over a brace-shaped one leaves the panic in \
+             place: {sites:?}"
         );
     }
 
