@@ -150,6 +150,26 @@ impl Aabb {
         }
     }
 
+    /// Whether two boxes are the same bits, bound for bound — the
+    /// identity a cache asks for, not the geometric one: a poison box
+    /// (NaN bounds) equals itself here, where `PartialEq` says it does
+    /// not, and `-0.0` differs from `0.0`. A tree is a function of its
+    /// boxes' bits (the arena-order build compares them under
+    /// `total_cmp`), so same bits ⇒ same tree.
+    pub fn same_bits(&self, other: &Self) -> bool {
+        let bits = |b: &Self| {
+            [
+                b.min_x.to_bits(),
+                b.min_y.to_bits(),
+                b.min_z.to_bits(),
+                b.max_x.to_bits(),
+                b.max_y.to_bits(),
+                b.max_z.to_bits(),
+            ]
+        };
+        bits(self) == bits(other)
+    }
+
     /// Closed-box overlap, outward-safe: `true` unless the boxes are
     /// **definitely** disjoint on some axis. Every comparison is a
     /// strict `<` between finite-or-NaN `f64`s, so a NaN bound (poison)

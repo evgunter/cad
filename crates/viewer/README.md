@@ -1293,11 +1293,23 @@ rather than an exception:
   the fourth exists to be refused. Each says why in its own doc.
 
 A list that mirrors a vocabulary ANOTHER crate owns is not a third
-kind, and the boolean form is why: a mirror claiming completeness has
-an answer one crate over, where the owner publishes its own `ALL`
-beside the declaration and this crate maps over it, writing only the
-words a button needs at an exhaustive match. What stays here is the
-partial case above, which wants no such list.
+kind, and the boolean form is why: **a mirror claiming completeness is
+held by something the owner declares, never by hand.** What the owner
+publishes decides the shape, and two shapes are in the tree.
+`topo::BooleanOp` publishes its own `ALL` beside the declaration, so
+this crate maps over it and writes only the words an op needs at an
+exhaustive match. `egui::PointerButton` publishes a count and no list,
+so `pane/viewport.rs` sizes its array by `NUM_POINTER_BUTTONS`, holds
+the entries pairwise distinct, and converts through an exhaustive
+match — length, distinctness and totality together leaving exactly one
+permutation of the enum. Different declarations, the same guarantee.
+A mirror that can point at neither is what this refuses; what stays
+here is the partial case above, which wants no such list.
+
+The second shape is held by the compiler rather than by the gate below
+— a `fn` returning a sized array is no `const` item — so it earns no
+allowlist row. That is the guarantee being stronger than the gate's,
+not an exemption from it.
 
 **A gate holds this, and the table below is its allowlist.**
 `scripts/gates/viewer-vocab-declared-once.sh` scans `crates/viewer/src`

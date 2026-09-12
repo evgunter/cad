@@ -199,3 +199,40 @@ fn a_deep_tree_answers_the_brute_force_set_and_its_whole_permutation() {
     let everything = boxed([-1.0, -1.0, -1.0], [101.0, 61.0, 31.0]);
     assert_eq!(tree.overlapping(&everything).len(), boxes.len());
 }
+
+/// `is_over` answers for the build input in its order and for nothing
+/// else — a tree that compared its leaf permutation, or a hull per
+/// item, or ignored order, would fail one of these; and poison equals
+/// itself, where `PartialEq` would make a poisoned tree never its own.
+#[test]
+fn is_over_holds_for_the_input_bits_in_input_order_only() {
+    let input: Vec<Aabb> = (0..40)
+        .map(|i| {
+            let f = f64::from(40 - i);
+            boxed([f, -f, 0.5 * f], [f + 1.0, -f + 2.0, 0.5 * f + 3.0])
+        })
+        .collect();
+    let tree = Bvh::build(&input);
+    assert!(tree.is_over(&input));
+    let mut permuted = input.clone();
+    permuted.swap(3, 29);
+    assert!(!tree.is_over(&permuted));
+    assert!(!tree.is_over(&input[..39]));
+    let mut nudged = input.clone();
+    nudged[7].max_z = nudged[7].max_z.next_up();
+    assert!(!tree.is_over(&nudged));
+    let mut signed = input.clone();
+    signed[0].min_y = -0.0;
+    let mut zero = input.clone();
+    zero[0].min_y = 0.0;
+    assert!(
+        !Bvh::build(&signed).is_over(&zero),
+        "-0.0 and 0.0 are different bits"
+    );
+    let poisoned = vec![Aabb::poison(), input[1]];
+    assert!(
+        Bvh::build(&poisoned).is_over(&poisoned),
+        "poison is its own bits"
+    );
+    assert!(Bvh::build(&[]).is_over(&[]));
+}

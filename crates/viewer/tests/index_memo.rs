@@ -22,8 +22,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use bvh::{Aabb, Ray};
-use editor_core::{Dimension, DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
+use bvh::{Aabb, Bvh, Ray};
+use editor_core::{
+    Dimension, DocEdit, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId, StableName,
+    unparse,
+};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
 use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
@@ -215,6 +218,9 @@ struct MemoReading {
     node_misses: usize,
     face_hits: usize,
     face_misses: usize,
+    trees: usize,
+    tree_hits: usize,
+    tree_misses: usize,
 }
 
 fn reading(seam: &InlineIndexer) -> MemoReading {
@@ -226,6 +232,9 @@ fn reading(seam: &InlineIndexer) -> MemoReading {
         node_misses: memo.node_misses(),
         face_hits: memo.patches().hits(),
         face_misses: memo.patches().misses(),
+        trees: memo.tree_len(),
+        tree_hits: memo.tree_hits(),
+        tree_misses: memo.tree_misses(),
     }
 }
 
@@ -239,8 +248,16 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
     let parts = index.parts().len();
     println!(
         "# {name} after {step}: {parts} parts / {faces} faces; memo nodes {} (hits {} misses {}), \
-         faces {} (hits {} misses {})",
-        r.nodes, r.node_hits, r.node_misses, r.faces, r.face_hits, r.face_misses
+         faces {} (hits {} misses {}), trees {} (hits {} misses {})",
+        r.nodes,
+        r.node_hits,
+        r.node_misses,
+        r.faces,
+        r.face_hits,
+        r.face_misses,
+        r.trees,
+        r.tree_hits,
+        r.tree_misses
     );
     assert_eq!(
         r.nodes, parts,
@@ -261,6 +278,20 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
         r.faces
     );
     assert!(r.faces >= 1 || faces == 0);
+    // The per-patch pick trees are keyed like the patches and looked
+    // up exactly where the patches are, so they hit and miss where
+    // the patches do, and are evicted with them.
+    assert_eq!(
+        (r.tree_hits, r.tree_misses),
+        (r.face_hits, r.face_misses),
+        "{name} after {step}: the pick trees hit and miss where the patches do"
+    );
+    assert!(
+        r.trees <= faces,
+        "{name} after {step}: the memo holds {} pick trees for a picture of {faces}",
+        r.trees
+    );
+    assert!(r.trees >= 1 || faces == 0);
 }
 
 /// The plain door's answer for the same run: the definition of the
@@ -324,6 +355,263 @@ fn rays_for(index: &PickIndex) -> Vec<Ray> {
     rays
 }
 
+/// **The single-level reference.** One flat tree per part over EVERY
+/// triangle of its mesh, patch-major in the mesh's patch order, and
+/// the pick service's own loop over it verbatim: candidates in the
+/// tree's order (ascending conservative entry, then flat position),
+/// the early-out once the best hit is strictly below a candidate's
+/// entry, the exact test, nearest `t` with ties to the lower
+/// `(part, flat triangle)` position. Test-only. Whatever shape the
+/// production index takes — one tree per mesh, a tree per patch under
+/// a tree over the patches — its answer to every ray is this one's,
+/// hit for hit, and the early-out is part of the definition: the
+/// exact test can answer a `t` outside a grazed triangle's own box
+/// (a ray in the triangle's plane), and which of those the loop
+/// reaches before it breaks is decided by the candidate order.
+struct FlatPart {
+    tree: Bvh,
+    corners: Vec<[Point3<f64>; 3]>,
+    /// Flat triangle position → (patch position, triangle position).
+    owner: Vec<(usize, usize)>,
+}
+
+struct FlatReference {
+    parts: Vec<FlatPart>,
+}
+
+/// One reference hit: which part, patch and triangle, at what `t`.
+#[derive(Clone, Copy, Debug)]
+struct FlatHit {
+    part: usize,
+    /// Flat triangle position within the part.
+    item: usize,
+    patch: usize,
+    t: f64,
+}
+
+impl FlatReference {
+    fn of(index: &PickIndex) -> Self {
+        let parts = index
+            .parts()
+            .iter()
+            .map(|part| {
+                let mesh = part.mesh();
+                let mut corners = Vec::new();
+                let mut owner = Vec::new();
+                let mut boxes = Vec::new();
+                for (pi, patch) in mesh.patches.iter().enumerate() {
+                    for (ti, tri) in patch.triangles.iter().enumerate() {
+                        let c = tri.map(|i| mesh.positions[i as usize]);
+                        boxes.push(Aabb::from_points(c).expect("three points box"));
+                        corners.push(c);
+                        owner.push((pi, ti));
+                    }
+                }
+                FlatPart {
+                    tree: Bvh::build(&boxes),
+                    corners,
+                    owner,
+                }
+            })
+            .collect();
+        Self { parts }
+    }
+
+    /// The nearest hit and how many exact hits the loop saw at its
+    /// `t` — the second is what says a ray of the tie-break row
+    /// actually tied.
+    fn pick(&self, ray: &Ray) -> (Option<FlatHit>, usize) {
+        let mut best: Option<FlatHit> = None;
+        let mut tied = 0;
+        for (part, flat) in self.parts.iter().enumerate() {
+            for cand in flat.tree.ray(ray) {
+                if let Some(b) = &best
+                    && b.t < cand.t_enter
+                {
+                    break;
+                }
+                let Some(t) = ray_triangle(ray, &flat.corners[cand.item]) else {
+                    continue;
+                };
+                let (patch, _) = flat.owner[cand.item];
+                let hit = FlatHit {
+                    part,
+                    item: cand.item,
+                    patch,
+                    t,
+                };
+                match &best {
+                    Some(b) if t > b.t => {}
+                    Some(b) if t == b.t => {
+                        tied += 1;
+                        if (part, cand.item) < (b.part, b.item) {
+                            best = Some(hit);
+                        }
+                    }
+                    _ => {
+                        tied = 1;
+                        best = Some(hit);
+                    }
+                }
+            }
+        }
+        (best, tied)
+    }
+}
+
+/// The exact ray/triangle test the pick service runs (Möller–Trumbore,
+/// both-sided, closed boundaries, non-finite `t` refused), restated
+/// here so the reference is a whole pick and not a call into the
+/// service it checks. A change to the service's test — the guard
+/// `work/docm/pick-grazing-ray-answer-depends-on-candidate-order.md`
+/// asks for — must change both copies, or this pin reds on the rays
+/// whose answer the guard moves.
+fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
+    let e1: Vec3<f64> = tri[1] - tri[0];
+    let e2: Vec3<f64> = tri[2] - tri[0];
+    let p = ray.dir.cross(e2);
+    let det = e1.dot(p);
+    if det == 0.0 {
+        return None;
+    }
+    let inv = 1.0 / det;
+    let s = ray.origin - tri[0];
+    let u = s.dot(p) * inv;
+    if !(0.0..=1.0).contains(&u) {
+        return None;
+    }
+    let q = s.cross(e1);
+    let v = ray.dir.dot(q) * inv;
+    if !(v >= 0.0 && u + v <= 1.0) {
+        return None;
+    }
+    let t = e2.dot(q) * inv;
+    (t >= 0.0 && t.is_finite()).then_some(t)
+}
+
+/// **The tie-break row**: rays aimed exactly at the points two or more
+/// patches share — a boundary polyline's first point (a vertex or
+/// chord point every incident face's triangles have as a corner) and
+/// the midpoint of its first segment (a point on the shared edge) —
+/// along the six axis directions from outside the picture. A hit
+/// there is a hit for every incident triangle at one `t`, across
+/// patches and, where bodies touch, across parts: the case only the
+/// tie-break decides.
+fn tie_rays_for(index: &PickIndex) -> Vec<Ray> {
+    let mut ext = 0.0f64;
+    let mut targets = Vec::new();
+    for part in index.parts() {
+        let mesh = part.mesh();
+        for p in &mesh.positions {
+            ext = ext.max(p.x.abs()).max(p.y.abs()).max(p.z.abs());
+        }
+        // At most ~40 boundaries per part, spread over the polyline list.
+        let stride = mesh.boundaries.len().div_ceil(40).max(1);
+        for boundary in mesh.boundaries.iter().step_by(stride) {
+            let pts: Vec<Point3<f64>> = boundary
+                .points
+                .iter()
+                .map(|&i| mesh.positions[i as usize])
+                .collect();
+            if let Some(&first) = pts.first() {
+                targets.push(first);
+            }
+            if let [a, b, ..] = pts[..] {
+                targets.push(Point3::new(
+                    (a.x + b.x) * 0.5,
+                    (a.y + b.y) * 0.5,
+                    (a.z + b.z) * 0.5,
+                ));
+            }
+        }
+    }
+    let reach = 4.0 * ext.max(1e-3);
+    let mut rays = Vec::new();
+    for at in targets {
+        for dir in [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, -1.0),
+        ] {
+            rays.push(Ray {
+                origin: at - dir * reach,
+                dir,
+            });
+        }
+    }
+    rays
+}
+
+/// **Every pick answer is the single-level reference's, hit for hit**:
+/// the same triangle (through its patch's name), the same `t` bits,
+/// the same point bits, the same miss. Answers how many of `rays`
+/// tied at the reference's nearest `t`.
+fn assert_flat_reference(
+    name: &str,
+    step: &str,
+    index: &PickIndex,
+    reference: &FlatReference,
+    session: &DocSession,
+    rays: &[Ray],
+) -> usize {
+    let (_, eval) = session.landed_pair().expect("a landed pair");
+    let names: Vec<Vec<Result<StableName, HitTestError>>> = index
+        .parts()
+        .iter()
+        .map(|part: &NodePick| part.patch_names(eval))
+        .collect();
+    let mut ties = 0;
+    for (i, ray) in rays.iter().enumerate() {
+        let (expected, tied) = reference.pick(ray);
+        if tied >= 2 {
+            ties += 1;
+        }
+        let expected = match expected {
+            None => "miss".to_owned(),
+            Some(hit) => {
+                let part = &index.parts()[hit.part];
+                let point = ray.origin + ray.dir * hit.t;
+                match &names[hit.part][hit.patch] {
+                    Ok(name) => format!(
+                        "{:?}/{}/{}/{:016x}/{:016x}/{:016x}/{:016x}",
+                        part.node(),
+                        part.body(),
+                        name,
+                        hit.t.to_bits(),
+                        point.x.to_bits(),
+                        point.y.to_bits(),
+                        point.z.to_bits()
+                    ),
+                    Err(e) => format!("refused: {e}"),
+                }
+            }
+        };
+        let actual = match index.pick(eval, ray) {
+            Ok(Some(hit)) => format!(
+                "{:?}/{}/{}/{:016x}/{:016x}/{:016x}/{:016x}",
+                hit.node,
+                hit.body,
+                hit.name,
+                hit.t.to_bits(),
+                hit.point.x.to_bits(),
+                hit.point.y.to_bits(),
+                hit.point.z.to_bits()
+            ),
+            Ok(None) => "miss".to_owned(),
+            Err(e) => format!("refused: {e}"),
+        };
+        assert_eq!(
+            actual, expected,
+            "{name} after {step}: ray {i} ({tied} tied; {ray:?}) picks differently from the \
+             single-level reference"
+        );
+    }
+    ties
+}
+
 /// A pick's answer as comparable bits.
 fn hits(index: &PickIndex, session: &DocSession, rays: &[Ray]) -> Vec<String> {
     let (_, eval) = session.landed_pair().expect("a landed pair");
@@ -345,19 +633,34 @@ fn hits(index: &PickIndex, session: &DocSession, rays: &[Ray]) -> Vec<String> {
         .collect()
 }
 
+/// One landing's reading: the picture's face count, and how many rays
+/// of the pick rows tied at their nearest hit.
+#[derive(Clone, Debug)]
+struct Step {
+    name: String,
+    faces: usize,
+    ties: usize,
+}
+
 /// The seam's answer against the plain door's: the same refusal, or
-/// the same picture part by part. Answers the picture's face count.
+/// the same picture part by part — and both against the single-level
+/// reference, hit for hit. Answers the picture's face count and the
+/// tie count.
 fn assert_same_answer(
     name: &str,
     step: &str,
     seam: &Result<PickIndex, viewer::pickindex::PickIndexError>,
     fresh: &Result<PickIndex, viewer::pickindex::PickIndexError>,
     session: &DocSession,
-) -> usize {
+) -> Step {
     match (seam, fresh) {
         (Ok(seam), Ok(fresh)) => {
-            assert_same_picture(name, step, seam, fresh, session);
-            faces_of(seam)
+            let ties = assert_same_picture(name, step, seam, fresh, session);
+            Step {
+                name: step.to_owned(),
+                faces: faces_of(seam),
+                ties,
+            }
         }
         (Err(a), Err(b)) => {
             assert_eq!(
@@ -365,7 +668,11 @@ fn assert_same_answer(
                 format!("{b:?}"),
                 "{name} after {step}: the seam refuses differently from the plain door"
             );
-            0
+            Step {
+                name: step.to_owned(),
+                faces: 0,
+                ties: 0,
+            }
         }
         (Ok(_), Err(e)) => {
             panic!("{name} after {step}: the plain door refuses ({e:?}) and the seam does not")
@@ -376,14 +683,16 @@ fn assert_same_answer(
     }
 }
 
-/// The seam's picture against the plain door's, part by part.
+/// The seam's picture against the plain door's, part by part; then
+/// both indexes against the single-level reference over the fixed
+/// rays and the tie-break row. Answers the tie count.
 fn assert_same_picture(
     name: &str,
     step: &str,
     seam: &PickIndex,
     fresh: &PickIndex,
     session: &DocSession,
-) {
+) -> usize {
     assert_eq!(
         seam.parts().len(),
         fresh.parts().len(),
@@ -402,13 +711,37 @@ fn assert_same_picture(
             a.node(),
             a.body()
         );
+        // The index itself, tree for tree: the memoised build's
+        // per-patch trees (nodes, leaf permutation, boxes — the
+        // tree's whole `Debug` form), triangle tables and top-level
+        // tree are the fresh build's. Direct, where the hit-for-hit
+        // rows are only implied by it.
+        assert_eq!(
+            format!("{:?}", a.target().pick),
+            format!("{:?}", b.target().pick),
+            "{name} after {step}: node {:?} body {} — the seam's index is not the fresh one, tree for tree",
+            a.node(),
+            a.body()
+        );
     }
-    let rays = rays_for(fresh);
+    let mut rays = rays_for(fresh);
     assert_eq!(
         hits(seam, session, &rays),
         hits(fresh, session, &rays),
         "{name} after {step}: the seam's index answers different picks"
     );
+    // The seam's meshes are the fresh ones (asserted above), so one
+    // reference over the fresh meshes is the reference for both.
+    rays.extend(tie_rays_for(fresh));
+    let reference = FlatReference::of(fresh);
+    let fresh_ties = assert_flat_reference(name, step, fresh, &reference, session, &rays);
+    let ties = assert_flat_reference(name, step, seam, &reference, session, &rays);
+    assert_eq!(ties, fresh_ties);
+    println!(
+        "# {name} after {step}: {} rays against the single-level reference, {ties} tied",
+        rays.len()
+    );
+    ties
 }
 
 /// **A memo that never hits would pass the differential**, so the
@@ -441,6 +774,11 @@ fn assert_hit_floor(name: &str, step: &str, report: &MemoReport) {
                 report.node_hits,
                 report.face_hits
             );
+            assert!(
+                report.tree_hits >= faces,
+                "{name} after {step}: the memo answered {} pick trees; the floor is {faces}",
+                report.tree_hits
+            );
         }
     }
 }
@@ -448,7 +786,7 @@ fn assert_hit_floor(name: &str, step: &str, report: &MemoReport) {
 /// Open → index; then each edit → land → index, asserting the seam's
 /// picture is the plain door's after every landing. Answers the
 /// per-step face counts of the picture, for the memo rows to read.
-fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<(String, usize)> {
+fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<Step> {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     assert!(session.evaluation().is_some(), "{name}: the document lands");
@@ -460,7 +798,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<(
         index.is_ok(),
         "{name}: the document indexes as opened: {index:?}"
     );
-    let faces = assert_same_answer(name, "open", &index, &fresh, &session);
+    let opened = assert_same_answer(name, "open", &index, &fresh, &session);
     // Faces answered at open are hits WITHIN the picture: two roots
     // drawing one bit-identical face (the heat sink's fins) share an
     // entry. That count is the document's, not δ's, and the δ row
@@ -474,7 +812,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<(
             "{name}: nothing to reuse at open"
         );
     }
-    steps.push(("open".to_owned(), faces));
+    steps.push(opened);
     for (step, edit) in edits {
         let outcome = session.perform(edit.op());
         assert!(
@@ -485,26 +823,31 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<(
         session.pump();
         let index = seam_index(&mut seam, &session);
         let fresh = fresh_index(&session);
-        let faces = assert_same_answer(name, step, &index, &fresh, &session);
+        let landed = assert_same_answer(name, step, &index, &fresh, &session);
         if let Ok(index) = &index {
             assert_memo_is_one_picture(name, step, &seam, index);
         }
         assert_hit_floor(name, step, &MemoReport::of(seam.memo()));
-        steps.push(((*step).to_owned(), faces));
+        steps.push(landed);
     }
-    // A δ change misses everything, at both levels: the same run,
-    // indexed finer, reuses no part and no face.
+    // A δ change misses everything, at all three levels: the same
+    // run, indexed finer, reuses no part, no face and no tree. The
+    // `tol` half of the key has no in-process row: `Tol` is a witness
+    // of the one tolerance a process commits, so there is no second
+    // value to change to here — the (ε, k) axis is exercised as CI's
+    // per-process eps rows, each of which opens its memo cold.
     let finer = DisplayTolerance::new(delta().get() / 2.0).expect("a positive delta");
     let index = seam_index_at(&mut seam, &session, finer);
     if let Ok(index) = &index {
         let r = reading(&seam);
         assert_eq!(
-            (r.node_hits, r.face_hits),
-            (0, self_hits),
+            (r.node_hits, r.face_hits, r.tree_hits),
+            (0, self_hits, self_hits),
             "{name}: a δ change misses everything the previous picture held"
         );
         assert_eq!(r.node_misses, index.parts().len());
         assert_eq!(r.face_misses + self_hits, faces_of(index));
+        assert_eq!(r.tree_misses + self_hits, faces_of(index));
         assert_memo_is_one_picture(name, "the δ change", &seam, index);
     }
     steps
@@ -547,11 +890,25 @@ fn every_parametric_corpus_document_indexes_the_same_through_the_seam_across_edi
             .get(doc)
             .unwrap_or_else(|| panic!("{doc} is a corpus document"));
         assert!(
-            steps.iter().any(|(s, _)| s == step),
+            steps.iter().any(|s| s.name == step),
             "{doc} reaches {step}, so its floor was checked"
         );
     }
+    // The tie-break row is a row only if its rays tie: across the
+    // corpus, a floor on the landings whose nearest hit was shared by
+    // two or more triangles (the measured count, with slack).
+    let tied_landings: usize = seen.values().flatten().filter(|s| s.ties > 0).count();
+    let landings: usize = seen.values().map(Vec::len).sum();
+    println!("# tie-break row: {tied_landings} of {landings} landings had a tied nearest hit");
+    assert!(
+        tied_landings >= TIED_LANDINGS_FLOOR,
+        "the tie-break row tied on {tied_landings} landings; the floor is {TIED_LANDINGS_FLOOR}"
+    );
 }
+
+/// How many corpus landings the tie-break row must tie on (measured
+/// under `--nocapture`, with slack).
+const TIED_LANDINGS_FLOOR: usize = 80;
 
 /// **The production seam keeps its memo across pictures too.** The
 /// threaded worker owns a memo for its thread's life; this drives it
@@ -602,7 +959,8 @@ fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
                 &done.index,
                 &fresh,
                 &session,
-            );
+            )
+            .faces;
             if landing == 0 {
                 parts = done
                     .index
@@ -617,8 +975,8 @@ fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
                     (parts, 0),
                     "{name}: the revert after a skipped generation is the open picture, served whole"
                 );
-                assert_eq!(done.memo.face_misses, 0);
-                assert!(done.memo.faces <= faces);
+                assert_eq!((done.memo.face_misses, done.memo.tree_misses), (0, 0));
+                assert!(done.memo.faces <= faces && done.memo.trees <= faces);
             }
             if landing == 3 {
                 assert_eq!(done.memo.node_hits + done.memo.node_misses, parts);
