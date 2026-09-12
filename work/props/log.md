@@ -1027,3 +1027,19 @@ unit (`work/blend/ambiguity-k-below-the-cap-rim-crossover.md`, Ev on
 PR 2119 — no floor on K) adds ONE sentence to `Tolerance.k`'s doc in
 `crates/geom-core/src/tolerance.rs` saying no floor is ruled and why;
 no code, no other line in that file.
+
+**Second outage, resumption (2026-09-12 20:00 UTC).** The sign-hull and
+mignitude-floor lanes were cut by a usage limit at 2026-09-08 ~02:35
+UTC, minutes after the sphere-pole-side spec landed; both resumed in
+place today on a `main` that moved ~2300 commits, with orders to merge
+it and re-read `docs/prompts/implementer-discipline.md` and `CLAUDE.md`
+as rewritten (a lane now files a cross-program finding straight onto
+the owning slate; `docs/prompts/` changes wait for Ev; cite by name).
+Read at resumption: Ev's 2026-09-12 ruling takes S-TCOST off the A/B
+protocol — that program only; PROPS's band and v6 duals are
+unchanged. Eleven items were filed on this slate by other programs'
+sweeps in the interval (geom-core linalg/array doors, `Band` doors,
+NaN-sign D9 scope, `Rim` storing its direction twice, certificate
+types forgeable, quadrature-budget display); they are slotted at the
+next plan update, `rim-stores-its-traversal-direction-twice` into the
+sphere lane beside sphere-pole-side.
