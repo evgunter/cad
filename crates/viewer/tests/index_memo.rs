@@ -386,7 +386,6 @@ struct FlatHit {
     /// Flat triangle position within the part.
     item: usize,
     patch: usize,
-    tri: usize,
     t: f64,
 }
 
@@ -434,12 +433,11 @@ impl FlatReference {
                 let Some(t) = ray_triangle(ray, &flat.corners[cand.item]) else {
                     continue;
                 };
-                let (patch, tri) = flat.owner[cand.item];
+                let (patch, _) = flat.owner[cand.item];
                 let hit = FlatHit {
                     part,
                     item: cand.item,
                     patch,
-                    tri,
                     t,
                 };
                 match &best {
