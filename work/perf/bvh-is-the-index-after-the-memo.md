@@ -4,6 +4,7 @@ kind: issue
 title: after the patch memo, a recomputed root's whole-mesh BVH is the pick index's largest term
 status: open
 opened: 2026-09-11
+parent: PERF-9
 ---
 
 
