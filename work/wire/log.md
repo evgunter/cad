@@ -1306,3 +1306,79 @@ exhaustive match over `Datum` closes only one.
 re-shaped carry and moved refusal routing is more than a fix pass, and
 the earlier full pass covered everything that did not change. The brief
 says plainly that "nothing further" is a complete answer.
+
+## The delta round: MERGEABLE, and it answered the one question a fix pass cannot answer about itself (2026-09-12)
+
+**0 MAJOR, 2 MINOR, 6 NOTE.** Every load-bearing claim held under
+*independent test* rather than re-reading: a scratch `Datum` variant
+really does fail `E0004` at the mint; `v.placement` has exactly one
+reader outside tests, so the mate solve, `axis_frame`, `stackup`,
+`topo::query`, the viewer and `pncad-py` all still read the untouched
+payload; `refusal()` is a pure match with no decide on the carry road;
+`different-shape` is honest because `ParamBox` is
+`#[cfg(feature = "interval")]` and the wheel is default-feature; and the
+`#[non_exhaustive]` measurement reproduced exactly.
+
+**The narrow round earned itself on item 6.** The lane had caught itself
+minting a fresh instance mid-pass and disclosed it — which was the right
+thing and is not what this round found. The delta found **a second one
+the lane did not catch**: `wire.rs:1070` hand-writes
+`DirectionRefusal::node_error()`'s body, spelling `DATUM_UNIT_NORM` a
+second time 218 lines from the door — **and `node_error` was minted by
+that same diff to be the one spelling of that map.**
+
+The cause is structural and the style lane named it:
+`FramePlacement::Unreadable { role, error }` flattens a
+`DirectionRefusal` into two loose fields, so the carry road **cannot
+call the door it was given**. Seventh instance of the standing trap on
+this program, and the first found only because a third pass ran. Fix
+directed: hold the `DirectionRefusal`, which closes the MINOR and the
+style finding together.
+
+**MINOR 2 is the test finding, and it is the same shape as the last
+unit's.** A mutant hard-coding `role: "datum frame y axis"` survives
+**20/20 rows** — so a frame whose `u` is degenerate would tell the user
+its `y` axis is, undetected. `role` is the entire user-facing content of
+that refusal. The `error` half is pinned; the `role` half is pinned by
+nothing, because row 7's `DegenerateDirection { .. }` is a wildcard.
+The reviewer wrote row 8, which degenerates the Gram-Schmidt *residual*
+with `u` fine so the two rows disagree about `role` — adopted with
+authorship kept.
+
+**Six of nine units now have had their central test claim corrected by
+an instrument**, and the instruments have been: mutation (×3), a built
+fixture, the ε matrix, and a fixture's own asserted precondition. Not
+one came from reading a diff.
+
+**Two false sentences this diff wrote**, both going back: `NoPlane`'s and
+`Unreadable`'s *"span no plane"* is false for three of the carried
+error's four arms — `UnderflowedLength` is documented as *"a vector that
+has a perfectly good direction"* and `Escalated` is reachable at `f64`;
+and the defence *"An `Err` would have forced one of them"* is untrue,
+since `match` and `map_err(node_error)?` are both available and are what
+the two call sites already do. The unusual length of that defence was
+the tell, per the brief's stance bullet.
+
+**NOTE 4 is a real gap in the earlier measurement.** The
+`#[non_exhaustive]` question was asked of `NodeValue`, where **field**
+additions are the growth surface and the answer is correctly no — and
+never asked of the **new public enum**, where **arm** additions are, and
+where it costs nothing (applied, `cargo check` clean, precedent
+`topo::ContactClass`). Right answer to the wrong subject is its own
+failure mode.
+
+**NOTE 6 catches a claim that cannot go red where it sits.**
+`FRAME_LOG`'s new sentence carries the N=0 disclosure, and the only
+assertion is over a one-profile document — where a lookahead mint, the
+design the comment rejects by name, produces the same constant. Q6:
+a guard, a register, or a written "unguardable and why".
+
+**Filed**: `guided-lift-refuses-a-nominal-degeneracy-it-never-reads`
+(NOTE 3 — measured: under Guided the profile never reads the nominal
+yet a nominal degeneracy still refuses it, while a *derived* frame in
+that position builds; refusing may be right and nothing states which is
+intended). The door class is updated with the delta's sharper finding:
+the three `WrongOperand` sites have **stopped being one door** — two
+test the payload, one tests `placement` — which is worse than when that
+row opened, because a copy testing a *different thing* cannot be unified
+by a rename. NOTE 5's convention-not-type point is recorded there too.
