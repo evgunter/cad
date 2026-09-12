@@ -24,7 +24,10 @@ publish = false
 # crate, so nothing ships with the feature on.
 [dev-dependencies]
 geom-core = { path = "../../crates/geom-core", features = ["probe"] }
-profile = { path = "../../crates/profile", features = ["probe"] }
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
+profile = { path = "../../crates/profile", features = ["probe", "test-support"] }
 
 # `test-utils` for `source`, the lexer the roster pin reads
 # `crates/geom-brep/src/props/quad.rs` through (`tests/predicate_roster.rs`

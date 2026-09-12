@@ -14,7 +14,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 |---|---|
 | N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier` | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
-| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` |
+| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
 | N2 discriminators; tie propagation | `discriminate.rs`; `defer.rs` |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
@@ -59,7 +59,10 @@ cutting partners' outward-oriented carrier planes, or `Qualifier::OrderAlong {
 rank, of }`, the `name_frag_order_along` rank along the parent's oriented
 carrier. Both run through `k_stats`, so fragment identity changes only at a
 recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
-silent pick. Where nothing covariant discriminates (congruent candidates,
+silent pick, and an ambient tolerance that forms no classification band at all
+refuses (`NamingError::Band`) carrying the band constructor's own diagnostic —
+the overflow and the collapse want opposite repairs, so the refusal says which
+one it caught. Where nothing covariant discriminates (congruent candidates,
 overlapping extents, a section line crossing one operand face twice) the table
 records one `Entry::Tied` row: naming a tie succeeds, referencing it is
 `ResolveError::Ambiguous`, and the only repair is a recorded user choice. Ties
@@ -96,6 +99,43 @@ Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
 `tests/lib_g16_corpus_name_digests.rs`). The kernel never sees a `StableName`;
 hit-testing (`resolve/hit.rs`) reads the table backwards, so the GUI never sees
 an arena key.
+
+**The row is a shared handle.** A table keys on `NameRef` — one `Arc<StableName>`
+per row, held by both directions — and a role segment holds its argument name by
+the same type, so a downstream name EMBEDS its operand's row rather than copying
+the descent below it. Cloning a name costs its own path and nothing deeper. The
+public doors (`insert`, `insert_tied`, `lookup`, `name_of`, `iter`) take and
+return bare names and share on the way in; their `_ref` twins, which they
+delegate to, take the handle a caller already holds, and an emitter reading an
+operand uses those.
+
+**The seal is an order cache.** `NameRef` carries one word beside the name.
+`NameTable::seal_order` walks a finished table in its own key order and stamps
+each row with its POSITION under one fresh epoch; two names of one epoch compare
+by position in O(1), and any other pair — two epochs, or either name unstamped —
+compares structurally. The answer is identical either way, because the walk that
+minted the positions enumerated a structurally-ordered map: the stamp short-cuts
+a comparison whose result it reproduces, so no output depends on whether a name
+was stamped (D9). Epochs come from a process-wide counter that SATURATES rather
+than wrapping — an epoch is never reused, and a seal past that point simply
+leaves the table unstamped. A table is sealed the first time it is read as an
+operand, by `defer::upstream_name` for a table read one entity at a time and by
+`emit_union::member_view`, `emit::name_pattern`, `emit::name_placed_union` and
+`emit::name_in_part` for one read whole; a row inserted after a seal is
+unstamped and compares structurally, and a clone starts unsealed so what it
+gains is stamped on its next operand use.
+
+**The guard the lint exception rests on.** The stamp is interior mutability
+inside a map key, which `clippy::mutable_key_type` flags at every map keyed by a
+`StableName`; the root `clippy.toml` excepts `NameRef` and states why. What makes
+that a receipt rather than a promise is two-sided: `seal_order` asserts under
+`debug_assertions` that its walk really is the structural order, so a lying
+position cannot be minted silently, and `table.rs`'s unit tests compare the
+handle's order against the name's own on every pair of a sealed table, a
+post-seal insert, a bare-name probe through `Borrow`, two epochs, and a
+twenty-four-deep chain. The check is at the minting site and not in the compare
+because `[profile.release]` keeps debug assertions on, and a check inside the
+compare would restore the cost the cache exists to remove.
 
 ## Resolution
 

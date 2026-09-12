@@ -77,7 +77,12 @@ pub(super) fn build_partial<T: Decide>(
     // ---- Phase 1: start lamina (outer loop; extrude's shape). ----
     let outer = &loops[0];
     let qs = &points[0];
-    let mut body = Body::<T>::new();
+    // One surgery scope for the whole build (`topo::surgery`): tier 1
+    // is this door's postcondition and the tier-2 check below subsumes
+    // it. The guard owns the borrow, so a refusal on the way closes
+    // the scope by dropping it.
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qs[0])?;
     // Start cap plane: the mef face's loop runs the chain reversed;
     // first point kept, rest reversed (extrude's bottom-cap order).
@@ -177,9 +182,9 @@ pub(super) fn build_partial<T: Decide>(
     }
 
     // ---- Phase 4: the swept face survives as the end cap. ----
-    let raised = cap_points(&loops[0], &rpoints[0], place_end);
+    let far_loop = cap_points(&loops[0], &rpoints[0], place_end);
     let end_plane =
-        newell_plane(&raised, band).map_err(|source| RevolveError::CapPlane { source })?;
+        newell_plane(&far_loop, band).map_err(|source| RevolveError::CapPlane { source })?;
     let end_surface = body.set_face_surface(end_face, FaceSurface::New(end_plane))?;
 
     // ---- Phase 5: rim upgrades (both cap planes exist): loops in
@@ -199,6 +204,8 @@ pub(super) fn build_partial<T: Decide>(
         tol,
     )?;
 
+    body.close_already_checked();
+    let body = built;
     #[cfg(debug_assertions)]
     debug_assert_eq!(
         topo::validate_closed(&body),

@@ -31,6 +31,9 @@ test_utils::gated_to![
     "crates/geom-core/src/k_stats.rs",
     "crates/sweep/src/revolve/",
     "crates/topo/src/boolean/",
+    // The fixtures this suite builds its bodies from: a change there is a
+    // change to what every row here asserts on.
+    "crates/sweep/tests/common/",
 ];
 
 use crate::common::oracles::chamfered_cube_volume;

@@ -24,8 +24,8 @@ use pncad::select as s;
 use pncad::topo::PlaneRelation as KPlaneRelation;
 
 /// The verify door's relation verdict a finding's evidence carries.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `topo::PlaneRelation` variant of the same name"
@@ -37,8 +37,8 @@ pub(crate) enum PlaneRelation {
 }
 
 /// The contact class a finding would verify as.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::ContactClass` variant of the same name"
@@ -49,8 +49,8 @@ pub(crate) enum ContactClass {
 }
 
 /// Which rung of the verify ladder decided a finding.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::FlushRung` variant of the same name"

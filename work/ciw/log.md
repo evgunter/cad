@@ -1354,3 +1354,1518 @@ Closing three rows on one ruling tripped `work.py lint`'s fired-trigger
 error, exactly as designed — two rows parked on a trigger that had just
 closed. All three are this program's, so they close in the same PR,
 which is the case the rule's accepted cost (Ev, 2026-09-04) is about.
+
+## 2026-09-07 — unit 3 dispatched: a demotion verified at the demotion
+
+`nightly-demotions-have-never-run` and `opt-level-selftest-runs-nowhere`
+on `ciw/demotion-verified`. One class from two directions: a row that has
+never been shown to execute, and a guard that has never been shown to
+fire.
+
+**Pre-dispatch checks, because the slate was written a day ago.**
+
+- Both rows still open, and `scripts/gates/gate-roster.sh` still does not
+  reach `scripts/opt-level-calibrate.py`.
+- **PR 2077 (`gates/whole-file-skips`) is live on `gate-roster.sh`.**
+  That changes the unit's shape: the systemic fix — widening the roster's
+  scope so the "a guard that has never been shown to fire is not a
+  guard" rule reaches the file it is about — is GATES' file AND is under
+  an open PR, so it is not this unit's to take. The instance fix is
+  entirely CIW's ground: nothing anywhere invokes `--selftest`, and the
+  workflows are ours. The brief says take the instance, announce the
+  systemic half to GATES, and do not touch their file.
+- **Two more nightlies since the 2026-09-06 reading**, both `success`:
+  run 16 (2026-09-06) and run 17 (2026-09-07). Run 16 concluded in
+  **10 minutes** against run 17's 27, which is the shape of the `has main
+  moved` gate skipping the body — on a day `main` certainly moved. That
+  is not what this item was filed about and it may be nothing, but a
+  scheduled workflow that skips a night is the same family as a demoted
+  row nobody reads, so the brief asks for it to be read rather than
+  assumed.
+
+**Style review only.** Neither half moves logic; the deliverable is a
+convention plus one invocation, and the risk is in what a parity claim
+would over-reach into rather than in a subtle bug.
+
+## 2026-09-07 — unit 3 delivered (PR 2124)
+
+Both items to `review`. The unit is one class from two directions and it
+lands as three things.
+
+**One invocation.** `scripts/opt-level-calibrate.py --selftest` runs in
+`ci.yml`'s `discipline`, mirrored in `ci-local.sh`. Sited **per-PR, not in
+the nightly** — the item offered two nightly sites and neither survives the
+unit's own sentence, that a guard sited only in a scheduled workflow is
+exercised only on a schedule. Sited in `discipline` rather than `mirror`
+because the script's inputs are `scripts/*.py`, which is not a docs-tier
+class, so the change set that can break it is the change set that job runs
+on. The path's `MIRROR_EXEMPT` entry expired and is deleted.
+
+**One claim, and one refused.** The parity claim the item hoped for — a row
+no schedule has ever fired — asks about run HISTORY and would need the
+Actions API, so it is not built: a check that needs the network fails on a
+fork, offline and in the local half, and an honest sentence beats a claim
+that only works hosted. The tree question next to it IS built:
+`check-ci-mirror-parity.py` CLAIM 12 refuses a `--selftest` mode outside
+`scripts/gates/` that nothing invokes. Proven red by mutation on the real
+tree, four selftest cases. `gate-roster.sh` untouched; the widening of ITS
+scope is announced to GATES in the PR body with its citations.
+
+**One convention.** `implementer-discipline.md` §2: a demotion is verified at
+the demotion, and the same rule one level in for selftests. Announced to META
+— CIW's standing clause is about §2's run-facts and this is a convention.
+
+**The 10-minute nightly was not the gate skipping.** Read at the job list:
+runs 16 and 17 both have 13 jobs and both ran the body. The whole 17-minute
+delta is `opt-level calibration`'s weekly-or-on-drift cadence — on 09-06 the
+measured arms skipped (job: 23 s), on 09-07 they ran 25 minutes. All three
+demoted rows executed and passed at STEP level on 09-06 too. No item; the
+finding is recorded in `nightly-demotions-have-never-run`'s disposition so the
+next reader does not re-derive it.
+
+**Residue filed**: `criterion-selftest-nightly-only` —
+`scripts/criterion-emit.py --selftest` is invoked only from `nightly.yml`,
+the same class one step milder, and its comment cites the calibrator as the
+precedent for that siting.
+
+## 2026-09-08 — unit 3 fix pass
+
+Both reviews landed two MAJORs, both in the new claim and both reproduced on
+the real tree; the rest of the unit held.
+
+**The claim counted `local-scripts/` as a caller**, and every hosted job
+prunes that tree — so a selftest running in NO CI passed, and the battery
+pinned that shape as an `_ok_case`. **And it matched one physical line**, so a
+`for` loop or a continuation in one `run:` block red two scripts with a false
+message. Second unit running on this program to ship its own defect one level
+in and pin it with a selftest; the rule taken from it is that a case pinning
+the boundary a unit is about gets checked against the failure the unit exists
+to prevent, not against the behaviour just written.
+
+**Shape taken: folded into claim 4** rather than kept as claim 12 or dropped.
+Fixing MAJOR-1 removes the caller population that made it a separate claim —
+callers are workflow files, which claims 1 and 9 already read — so what is
+left is claim 4's population, claim 4's `SCRIPT_RE`, claim 4's closure, and one
+extra question. It is now claim 4's second arm, in claim 4's loop. That also
+ends the contradiction with claim 11, which had landed the day before arguing
+that a population must be git's index and not a filesystem walk: there is no
+walk any more.
+
+**Battery**: `.py`, `.sh` and `demos/` declarers (the first version could not
+see the file class of the live defect), a caller commented out in place, a
+local-only caller, a mode named in another script — and four accepted shapes,
+including the loop and the continuation and a `scripts/gates/` member whose
+uninvoked selftest is the roster's finding, not ours. Six mutations of the
+checker itself, all killed.
+
+`nightly.yml`'s criterion comment said this calibrator "sets the precedent
+that those are not PR-gate rows" — false after this unit. Rewritten in place
+to point at `criterion-selftest-nightly-only`.
+
+## 2026-09-08 — unit 3 merged and closed; a pattern named
+
+PR 2124 (`d5aba033`). The selftest that ran nowhere runs in `discipline`;
+the demotion convention is prose in `implementer-discipline.md` §2 with
+its own lack of enforcement stated at the paragraph; and the class got
+**claim 4's second arm** rather than a claim 12.
+
+**Both MAJORs were in the check built to prevent them, and that is the
+finding worth keeping.** The first version of the arm treated a
+`local-scripts/` line as a caller — and every hosted job deletes that
+tree at checkout, so a selftest running in **no CI at all** passed it.
+Worse, a selftest case pinned that as correct (`_ok_case`). The second:
+a `for` loop over two scripts in one `run:` block red both with a false
+message, on a matcher that required path and flag on one physical line,
+in a file that already carries `_join_continuations` for exactly that.
+
+**This is the second unit in a row on this program to ship its own
+defect one level in and pin it with a selftest.** Unit 2's
+`_selftest_facade_premise` REQUIRED `bvh` out of the python-suite seed
+set, and `bvh` was the counterexample both reviews found. Here
+`_ok_case(selftest_run_locally)` asserted the hole. The shape is the
+same both times: a case written by asking *"does the checker do what I
+just built"* rather than *"does this shape survive the failure the unit
+exists to prevent"* — the lane's own words on the fix pass. It is not a
+lane defect; two different lanes did it, so it is a property of how these
+units are written, and the reviews are what caught it both times. Worth
+saying plainly rather than filing: the correctness lane is earning its
+place on units that build gating machinery, and this program should keep
+assigning it on that trigger rather than on a guess about complexity.
+
+**Verified by the orchestrator rather than taken from the report**,
+because the MAJORs were serious: dropping the hosted row while keeping
+the local one now reds with a message that says why local does not
+count, and the `for`-loop refactor is silent. Both re-run by hand on the
+merged head.
+
+**The fold decided itself.** Fixing MAJOR-1 means a caller is a workflow
+and nothing else, which deletes the `os.walk` of `local-scripts/` — and
+with it the contradiction against claim 11's population rule, which had
+landed in the same file two days earlier and argues the population must
+be git's index. What was left was claim 4's loop with one more question
+in it, so that is where it is written. No file in this repo now walks
+`local-scripts/` outside git's index.
+
+Where the lane went further than the review asked, with the trade stated:
+matching is over the whole `run:` block rather than a joined line,
+because joining continuations alone does not fix the `for`-loop repro.
+Coarser, under-reports rather than false-reds, three blind spots
+disclosed at the function — the right direction on `reachable`'s own
+posture, since a check that reds a correct change gets routed around.
+
+Residue: `work/ciw/criterion-selftest-nightly-only` — `criterion-emit.py
+--selftest` is invoked only from `nightly.yml`, so a PR that breaks it
+merges green. Same class, one step milder, and the `nightly.yml` comment
+that cited this calibrator as its precedent for nightly siting is
+rewritten, because that precedent moved today.
+
+## 2026-09-09 — unit 3's close-out was a day late, and unit 4 dispatched
+
+**The close-out of unit 3 sat unopened for a day.** PR 2124 merged
+2026-09-08; the branch carrying its two rows' dispositions was pushed and
+no PR was ever opened for it, so both sat at `review` with a merged PR
+until 2026-09-09 (PR 2260). That is the same staleness this program was
+found in on 2026-09-06, recurred at the hands of the orchestrator that
+fixed it, and the lesson is narrower than "be careful": **pushing a
+branch is not landing it, and this program's own board is the only thing
+that says which**. A row at `review` whose PR has merged is the shape to
+grep for at every session start, not just when taking a program over.
+
+## Unit 4 dispatched: the roots a `--workspace` check cannot reach
+
+`gui-wasm-build-is-not-gated-at-all` and the surviving half of
+`detached-demo-workspaces-are-gated-only-by-a-sampled-row`, on
+`ciw/unreachable-roots`. One shape twice: a cargo root that the check a
+careful lane actually runs cannot see.
+
+**Premises re-verified on today's tree** rather than inherited from the
+2026-09-06 slate, because `main` moved ~1730 commits in a day:
+
+- `ci.yml:2030` still carries `--exclude viewer` on the wasm row (the
+  citation has moved twice now: `:1646` when filed, `:1936` on 09-06,
+  `:2030` today — the finding is stable, the line number is not).
+- `Cargo.toml:22` still excludes `demos` from the workspace, so
+  `cargo clippy --workspace --all-targets` still cannot reach
+  `demos/tour` or `demos/wild`.
+
+**The `[ev]` shape question is settled in advance** (Ev, 2026-09-09, in
+chat): take the seed-keyed treatment, not a flat row. Ev's
+viewer-CI-posture ruling refuses a permanent per-PR bill for the
+eframe/wgpu graph on every kernel change; `clippy-all-features`
+(`ci.yml`) already does the seed-keyed thing and is the precedent to
+follow. A flat row would need Ev and this one does not.
+
+**Style review, plus a correctness reviewer if the unit builds a gate.**
+That is the trigger this program is now using — named on 2026-09-08 after
+two units in a row shipped their own defect one level in and pinned it
+with a selftest. If the deliverable is workflow rows only, style is
+enough; if it grows a check with a derived population, the second lane is
+automatic rather than a judgement I make late.
+
+## Unit 4 delivered: one row built, one finding that resolves to a sentence
+
+PR 2263, on `ciw/unreachable-roots`. The two halves went different ways
+and that is the unit's result rather than a shortfall in it.
+
+**The wasm half is a row.** `ci.yml`'s `fmt` job grows
+`wasm32 check (viewer app feature - the browser entry point)`,
+seed-keyed on `run_viewer_toolkit` beside the three toolkit rows that
+already read that axis, with its verdict printed in both branches of the
+step that already prints one. Mirrored in `ci-local.sh` as
+`wasm32 check (viewer app)`, unconditional there per that file's
+standing asymmetry.
+
+Reproduce-then-catch, on hosted CI and in that order:
+
+- run `34373755002` on `ff658559` — PR 1741's `E0599` planted back into
+  `run_web`, no new row: **green**, all 37 jobs, twelve `test (…)` and
+  five `k-lint (gate, …)`. The viewer axis was TRUE on that run, so the
+  app-feature clippy row ran `-D warnings` over the same crate and
+  passed. The gate was not narrow; it was blind at that target.
+- run `34375557117` on `121890d9` — same plant, row added: **red at
+  exactly one step**, `E0599: JsValue doesn't implement Display`,
+  `crates/viewer/src/app.rs:1990`.
+- the plant is then removed and the branch is green again.
+
+Cost when the key fires: the step is 53-57 s across four runs. No job
+delta is quoted — the `fmt` job read 342 s without the row and 307 s
+with it, because `rustdoc (gate)` in the same job moved 106-126 s over
+the same four runs. Nothing at all on the runs the axis turns off.
+
+**The demos half builds nothing, deliberately.** `ci-local.sh` already
+runs `demos/tour` and `demos/wild` fmt+clippy (`demos_hygiene`), and the
+hosted `k-lint` steps have run on every code-tier run since 1850. So the
+tooling was right on both sides and the gap was a habit: a lane runs
+`cargo clippy --workspace --all-targets`, which reaches none of the five
+excluded cargo roots. The fix is one bullet in §2 of
+`docs/prompts/implementer-discipline.md` naming those roots and the
+two-line version of the check. A row would have been a third gate over
+work two gates already do.
+
+## Unit 4 fix pass: the row was right, four of its neighbours' claims were not
+
+No MAJOR. The reviewer independently re-took the strong form of the
+demonstration from the step records — `clippy (viewer app feature)` ran
+`-D warnings` over that crate and passed while the plant was live — so
+the sentence that justifies the row holds.
+
+What the pass actually cost was **four premises the row falsified**, none
+of which the lane found: `ci.yml`'s "WHAT IS NOW UNGUARDED" paragraph
+(`pncad` is now conditionally guarded; fixed here), the `fmt` job header
+(its shared property has not been "workspace-wide and filter-blind" for
+two changes; restated here), `crates/viewer/README.md`'s "not CI-guarded"
+sentence (CHROME's and VIEW's; reported), and — found while checking the
+first — the repo's belief that
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` is required at all. At
+getrandom 0.3.4 the FEATURE alone selects the backend; the flag stays for
+recipe-parity with `serve-wasm.sh`, whose own comment is corrected here,
+but two viewer documents still assert it is load-bearing and are the
+owners' to fix.
+
+**A lesson this program should keep**: a row that compiles something
+nothing compiled before is a claim-falsifier, and its diff should be read
+as one. Every wrong sentence above was a *true* sentence about the tree
+before the row landed.
+
+Two counting defects, same shape. The discipline bullet named "five"
+cargo roots against a derivation of seven, and asserted a coverage
+uniformity that does not hold (`benches` clippy is nightly-only with no
+local mirror; `interval-transcendentals`' is filter-gated). Chasing it
+found "six" in five more places inside this program's fence, all stale
+since `tools/tess-meter` landed. Every one is now a pointer to
+`scripts/doc-gate.sh --print-roots` rather than a number. Filing a count
+is filing a thing that goes stale silently — the same lesson unit 1 took
+on its blind-spot list, and META's log now carries it too.
+
+## The gate went red under the fix pass, and it is not the unit
+
+Two consecutive runs on `ciw/unreachable-roots` failed at
+`install a software Vulkan adapter (lavapipe)` and the two render lanes'
+apt steps. **Not this branch.** `lib/loops`, which carries none of unit
+4's diff and whose `fmt` job has no such step, fails identically in runs
+`34383262029` and `34385213731`. The cause is a hash-sum mismatch on the
+runner image's `google-chrome` apt list, which makes `apt-get update`
+exit non-zero even though every package these steps need was fetched.
+`main` is blocked by it, not one PR.
+
+Filed as `work/ciw/apt-update-fails-on-the-runner-image-google-chrome-repo.md`
+with the four sites, the cross-branch table, and the reason the render
+lanes' existing three-attempt retry does not help. **Not taken in unit
+4**: it is four steps in two workflows and wants a lane that can verify
+against a red run rather than a green one.
+
+It cleared on its own about 55 minutes in — run `34388201501` is fully
+green, 37 jobs, twelve `test (…)`, five `k-lint (gate, …)`, the new wasm
+row and the lavapipe step among them — and the item says so, because a
+file arguing from a red run owes the reader the moment it went green.
+The item stays open: an outage indistinguishable from a real red, for an
+hour, on every branch at once, is worth removing whether or not this
+instance ended.
+
+Unit 4's own row is green at STEP level in both of those red runs
+(54.36 s, 54.89 s) and in the green one.
+
+
+## 2026-09-09 — unit 4 merged and closed; the slate re-ordered around a live flake
+
+PR 2263 (`1d29a8ee`). The wasm row exists and is demonstrated in both
+directions on hosted CI; the demos half built nothing, which was the
+right answer and is recorded as such.
+
+**Two claims this program made and then had to withdraw, both caught
+inside the unit rather than after it.**
+
+The lane's own: `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` was
+asserted "required, not decoration" in the first PR body, and is not
+required at the pinned getrandom — the final wasm32 arm takes
+`cfg(feature = "wasm_js")` and the `compile_error!` claiming otherwise
+sits in that arm's ELSE. Verified green with the cfg dropped. The flag
+stays for a different and true reason (`serve-wasm.sh` sets it; the row
+must not drift off it), and three documents asserting the false reason
+were corrected or reported. **This orchestrator repeated the false claim
+to Ev before the check happened**, which is the cost of relaying a lane's
+mechanism sentence without asking what would falsify it.
+
+And a smaller one: the fix-pass brief called `tools/tess-meter` "a
+seventh root your five does not name". The lane's five said `tools/*`, so
+it was named. The count was wrong (seven, not five) and the fix stands,
+but the criticism was imprecise and the lane said so rather than
+absorbing it.
+
+**The reviewer's best finding belonged to a later unit and was not built
+here.** `check-ci-mirror-parity.py:1304` slices `toks[toks.index("cargo")
++ 1:]`, discarding every env prefix, so the parity pass this PR cites
+proves the `--features` value matches and nothing about the flag the row
+depends on. Recorded on `mirror-pairs-env-divergence-unchecked` as its
+measured instance, with the population counted (five in `ci-local.sh`
+alone, plus hosted prefixes and `env:` blocks as two spellings of one
+thing) — which also answers that item's own "count the population first"
+clause before its unit opens.
+
+**A live flake, found by the lane's own red runs and confirmed not to be
+its diff.** `apt-get update` on the runner image exits non-zero on a
+`google-chrome` list whose `Packages.gz` hash disagrees with its Release
+file, although every needed package is fetched. Four sites across two
+workflows; **the two in `ci.yml` carry no retry at all**. `lib/loops`,
+carrying none of this diff, died at the same steps in the same window
+(runs 34383262029, 34385213731). It cleared about 55 minutes later, which
+disproved the lane's first-draft claim that re-running does not help —
+corrected at the site rather than left standing.
+`work/ciw/apt-update-fails-on-the-runner-image-google-chrome-repo`.
+
+**It jumps the queue.** It reds other programs' PRs, it is
+indistinguishable from a real failure while it lasts, and two of its four
+sites have no retry — and `rerun-failed-jobs` answers 403 for a lane's
+token, so a lane cannot even re-run past it. Units 5-7 (mirror parity
+past argv, the PIPESTATUS sweep, the doc citations) are all cheaper to
+delay than an hour of everyone's red runs.
+
+## 2026-09-09 — the apt preamble dispatched, and a wake-up habit corrected
+
+`apt-update-fails-on-the-runner-image-google-chrome-repo` on
+`ciw/apt-preamble`, ahead of units 5-7 for the reason in the previous
+entry: it reds every branch at once and no diff can fix it.
+
+**An orchestrator process defect, recorded because it recurred.** Unit
+4's close-out PR (2270) went green and this orchestrator did not merge
+it, because the turn ended with *"I'll merge it when green"* and **no
+watcher armed**. Ev noticed. This is the same shape as the close-out that
+sat unopened for a day on 2026-09-08 — a PR whose next step depends on an
+event nobody is listening for — and `memories/agent-lane-operations.md`
+says the same thing about lanes: *"lost wake-on-completion events are
+endemic"*, and the discipline doc's *"a hosted CI wait is the same case,
+not an exception"*.
+
+The fix is mechanical, not resolve: **when a turn ends with a PR waiting
+on CI, arm the wake in that same turn** — `subscribe_pr_activity` on the
+PR, which delivers check-suite rollups into this session, or a foreground
+poll before the turn ends. Earlier in this program's run the poll was
+armed every time and it worked; the habit lapsed exactly when the PRs
+became routine.
+
+Both of this program's process defects so far have the same shape: a
+thing that was going to happen anyway, with nothing scheduled to make it
+happen. That is also what half of its ITEMS are about — a demoted row
+nobody reads, a selftest nothing invokes, a residue disclosed and not
+filed. Worth noticing that the orchestrator keeps producing the defect
+class its own program exists to close.
+
+**The apt preamble (PR 2277).** Five call sites, not four: the sweep
+found `nightly.yml`'s `install admesh` sharing the shape. All five now
+run `scripts/apt-install.sh`, which narrows `apt-get update` to Ubuntu's
+own archive for the duration of one transaction and puts the image's
+third-party lists back on exit — so the hazard the shape carries (a list
+a later step needs, silently dropped) is closed rather than declared.
+
+**The verification is the interesting part.** The mirror recovered before
+the lane started, so the red could not be waited for; it was
+CONSTRUCTED, twice. Once as a `--selftest` that builds a repository whose
+Release file disagrees with its own index and asserts the unnarrowed
+update dies on it — sited in the tier-blind `mirror` job, so it re-runs
+on every PR rather than being a claim in a merged PR body. Once end to
+end, planting that same condition as a `google-chrome.list` in a real
+`/etc/apt/sources.list.d/`: today's preamble exits 100, the script exits
+0. The program's own recurring defect class is "a thing that was going to
+happen anyway, with nothing scheduled to make it happen", and a one-off
+demonstration in a PR body is exactly that; a selftest is the version
+with something scheduled.
+
+One residue filed rather than left in the PR body: nothing keeps the
+sixth call site from being written inline
+(`work/ciw/apt-preamble-bypass-is-unguarded.md`). The parity checker
+reads workflows for INVOCATIONS, and a step that invokes no script is
+outside its claims by construction.
+
+**And a second residue from the same unit, which the discipline names and
+the token refuses.** `nightly.yml`'s admesh row changed with the other
+four, and `workflow_dispatch` on `nightly.yml` answers 403 for a lane's
+token — the same refusal this program already recorded for
+`rerun-failed-jobs`. So the rule that a nightly-only row is verified AT
+the change has no remedy available to the lane it binds
+(`work/ciw/nightly-rows-cannot-be-dispatched-by-a-lane.md`). Stated as a
+gap rather than argued away: the row is the same one-liner as four rows
+that did execute, and that is not the row running.
+
+**The fix pass, and what it says about how selftests get written here.** The
+review found one MAJOR (an unguarded `mktemp -d` whose empty result made the
+`mv` target `/$name` — the image's lists to the filesystem root, nothing
+restored, exit 0 over a log saying "restored on exit") and eleven mutations
+the first selftest battery did not catch. The lane's battery had five rows and
+every one of them observed a successful run, so the property the unit is
+ABOUT — restores on any exit — had nothing pinning it. The reviewer's note
+that this was the third unit in a row with that shape is the useful part: the
+repair is not a longer battery but a different order of writing, name the
+failure first and check the row reds when it is injected. The rewritten
+battery is 31 rows and a 14-mutant harness that all 14 die under.
+
+**A postscript worth more than the bug.** The `mktemp` guard was written
+into the production half and the identical unguarded call was left in the
+selftest harness forty lines below it, in the same diff — and the lane's own
+fix note claimed the guard caught the class, which was true of the half it
+had read. What that cost was not fixture litter: the harness writes a stub
+`apt-get` to `$t/bin/apt-get`, so an empty `$t` wrote it to `/bin/apt-get`
+and a review run on the shared box replaced the real binary. Restored from
+the archive's own `.deb`. The repair in the file is the invariant stated
+generally — no path built from a possibly-empty variable is ever a `mv`,
+`mkdir` or redirection target — rather than a second guard beside the first;
+the narrow spelling is exactly what let the second instance survive a fix
+pass whose subject was the first.
+
+## 2026-09-10 — the apt preamble merged and closed, and what its reviews cost to find
+
+PR 2277 (`7b554d30`). Five sites, one script, a constructed failure that
+re-runs on every PR. The unit is worth reading for what the review pair
+found rather than for the fix.
+
+**The first version of the fix was worse than the outage.** On a failed
+`mktemp -d` it re-rooted every third-party source list at `/`, exited 0,
+and logged "restored on exit". The outage it replaced at least turned a
+job red.
+
+**And the guard did not generalise, in the same diff.** `selftest_main`
+had the identical unguarded `mktemp -d` forty lines down. This
+orchestrator found it while verifying the MAJOR fix by hand — and the
+finding escalated on contact: the battery writes its stub `apt-get` to
+`$t/bin/apt-get`, so an empty `$t` made that `/bin/apt-get` and
+**replaced this box's real `apt-get` with a shell stub**. Restored from
+the `.deb`, verified ELF and functional. So the class was never "writes
+junk to `/`"; it was "destroys an unrelated executable", and neither
+review nor this orchestrator's own severity call had reasoned that far.
+
+The lesson is in the header now as an invariant rather than a note about
+one call site. It is the same failure the last three units made from the
+other side: **a guard written against the incident rather than the
+property**, exactly as their selftests were written against the
+behaviour rather than the claim. Fix and test, same defect, opposite
+ends.
+
+**This unit broke that streak on the test side**, and deliberately: 31
+rows against 5, every row written by naming the failure it must catch,
+14 mutations injected and 14 killed, with the mutant table in the PR body
+instead of an assertion that the rows are good. The row that had been
+missing is the one that pins the headline — a narrowed update over a
+broken OWN archive, which fails and must still restore. Every earlier
+row observed a `return 0`.
+
+**A finding the review could only get from a hosted log**: the runner's
+real foreign set is `google-chrome.sources` (deb822) and
+`microsoft-prod.list` — not the `.list` the fixture and the PR prose
+assumed. The production classifier handled deb822 correctly, so it was
+never a live defect, but the evidence had been built on a file shape the
+image does not ship, and a mutation restricting the scrub to `*.list`
+would have broken the runner while the battery stayed green.
+
+**Process, twice.** Both reviewers ended a turn with a background waiter
+armed and delivered nothing until nudged — and that one is this
+orchestrator's brief, which asked for `SIGINT`/`SIGTERM` probes behind
+120 s timeouts without saying how to run them. The rule now: **a probe
+that cannot finish inside one foreground call is shortened or dropped,
+and a dropped probe stated as dropped is a complete finding.** The
+reviewer controls the stub; the property under test was the trap, not
+the duration.
+
+Two of this orchestrator's own dispatch premises were also wrong and the
+lanes corrected both: "`set -e` mid-script" (the script has none, which
+is precisely why the MAJOR was silent) and the non-`actions/*` `uses:`
+inventory. A brief is a hypothesis; these were asserted as facts.
+
+## 2026-09-10 — unit 5 dispatched: mirror parity past argv
+
+`mirror-pairs-env-divergence-unchecked` on `ciw/mirror-env-parity`.
+
+**It starts from an instance rather than a hypothetical**, which is what
+the last unit bought it: `check-ci-mirror-parity.py:1304` slices
+`toks[toks.index("cargo") + 1:]`, so unit 4's mirrored wasm pair passed
+claim 10 with the checker reading none of its
+`RUSTFLAGS='--cfg getrandom_backend="wasm_js"'` prefix — the one flag
+that pair's own comment called load-bearing. Verified still true on
+today's `main`.
+
+**The item's own gate is already answered.** It said to count the
+population first and close if the answer is one. It is not one:
+`ci-local.sh` alone has env-prefixed cargo invocations at `:780`,
+`:783`, `:806`, `:929` and `:1150`, and the hosted half spells its
+equivalents both as prefixes and as `env:` blocks. So the unit is
+authorised by its own clause.
+
+**The difficulty is the two spellings, not the parsing.** A prefix and
+an `env:` block are the same fact written two ways, and a claim that
+reads one and not the other would pass exactly the divergence it was
+built to catch. That is the vocabulary problem the item names and the
+first thing the lane must settle.
+
+**Both lanes**, by the trigger: this widens a gating claim over a
+derived population, in a checker that is now ~2850 lines and has taken a
+new claim in each of the last three units. Accumulation is a live
+concern and the brief says so.
+
+
+## 2026-09-10 — unit 5 delivered: the environment a pair runs under, in claim 10
+
+PR 2295. The lane widened claim 10 rather than minting claim 13, and
+settled the two-spellings question the brief flagged: a prefix and an
+`env:` block are normalised into one map per half before anything is
+compared, because the tree contains a pair that writes the same fact in
+all three spellings at once (`oracle-certify`: job block, step block,
+one local prefix). A prefix-only reader would have red that correct pair
+— and the fix for a false red is an exemption, which is how the table
+becomes a place to put things.
+
+**The accumulation answer was one table, not a fifth.** `FLAG_EXEMPT`
+is now `PAIR_EXEMPT`, keyed `(pair, token)` over flags and variables
+alike, since the expiry arms are the same sentences for both. Its new
+`both` side fixes a latent bug: claim 10 already told the reader to
+"declare the pair in FLAG_EXEMPT with the reason it differs", and doing
+so produced the *expired* error.
+
+**The selftest lesson held, and was paid for once.** The lane published
+a mutant table — nine ways to break the arm, each mapped to the row that
+catches it — and the first pass showed *hosted inline prefixes not read*
+SURVIVING with the selftest green: no case had planted a prefix on the
+hosted half, which is precisely the shape the arm exists for. One row
+added, mutant killed.
+
+Residue filed in the same PR (`mirror-pairs-context-beyond-env`): three
+mirrored pairs carry a `working-directory:` against a local `cd`, and
+nothing compares them.
+
+
+## 2026-09-10 — unit 5 fix pass: an empty map is not a reading
+
+The review returned three MAJORs and they were one behaviour:
+`env_prefixes` read as EMPTY whatever it could not classify, against
+this file's own standing rule that an unreadable input is a refusal.
+Every instance followed from a walk anchored at token 0 — a one-line
+function's `{`, a loop's `do`, an `env NAME=v` wrapper. The fix moved
+the anchor to the command word and made everything still unattributable
+Bail; the three instances were then consequences rather than cases.
+
+**The lesson the program keeps paying for held again**: the lane's own
+selftest had nine rows and the review found seven mutants that survived
+them. The gap was always the same kind — a case planted on ONE half, a
+value with no inner quotes, a row whose argv sits in a function. The
+answer was a row per mutant and a table published with the PR; 25 of 25
+now die.
+
+**Also caught by both lanes, and worth remembering as a shape**: the
+advice in an error message is part of the contract. Claim 10 told the
+reader to declare a pair with side `both`, and the table refused it —
+the same invited-then-refused defect the PR body describes fixing, one
+token class over, in the same diff.
+
+## 2026-09-10 — unit 5 merged and closed; the pattern is now the program's own
+
+PR 2295 (`36bdeb94`). Claim 10 reads the environment now, and the three
+MAJORs its reviews found had one cause: `env_prefixes` read as an empty
+map whatever it could not classify, in a file whose own rule is *a
+refusal rather than a guess*. An empty map is what a half that sets
+nothing looks like — so the reader could not tell "sets nothing" from
+"I did not understand this line", which is the item's own defect
+one level in.
+
+**Verified by the orchestrator on the merged head rather than taken from
+the report**: a variable planted in `rebuild_latency`'s one-line function
+is caught, `env NAME=v cargo …` on one half does not false-red, and a
+name added to `ci.yml`'s workflow-level block reds every affected pair.
+
+**The thing worth carrying out of this week.** Five units, and the same
+mistake in four of them, from both ends:
+
+- units 2, 3 and the apt preamble shipped a selftest that asserted what
+  the author had just built rather than the property the unit claimed;
+- the apt preamble's fix guarded the `mktemp` that bit it, and the
+  identical shape survived forty lines away in the same diff and
+  destroyed a binary;
+- unit 5 built a reader against the spellings that happened to be in
+  front of it, and three live pairs used a fourth;
+- and unit 5's own error text invited a `PAIR_EXEMPT` entry that its
+  loader refused — **the invited-then-expired defect it was fixing,
+  re-created in the same diff**.
+
+Every one of those is one sentence: *the artifact was written against
+the instance rather than the property*. That is also what most of this
+program's ITEMS are about, which is the part worth noticing — a demoted
+row nobody reads, a selftest nothing invokes, a guard outside the reach
+of the rule that names it. The program keeps finding the defect it keeps
+committing.
+
+**What actually catches it is the mutant table**, not care. Every one of
+these was found by injecting the failure and watching the row stay green
+— never by reading. Unit 5 killed 25 of 25 in the end, and twice wrote a
+row only after a mutant survived a pass. That is the practice to keep:
+**write the row by naming the failure it must catch, inject it, and do
+not trust the row until it reds.**
+
+Also worth recording: `rerun-failed-jobs` answered 403 for the lane again
+on an unrelated pip read-timeout, so it merged `origin/main` (owed
+anyway) to get a fresh run. That is the third 403 of this class this
+week, and `nightly-rows-cannot-be-dispatched-by-a-lane` now carries all
+of them.
+
+## 2026-09-10 — unit 6 dispatched: the PIPESTATUS sweep
+
+`pipestatus-after-assignment-in-ci-yml` on `ciw/pipestatus-sweep`.
+
+**Pre-dispatch reading, and it reshapes the unit.** The one instance was
+fixed in PR 1725; a grep for the defect shape (`PIPESTATUS[0]` read after
+an assignment) finds hits **only inside the tombstone comment** at
+`ci.yml`'s k-lint driver step. The other live reads do not follow an
+assignment.
+
+So the sweep may well come back empty, and the discipline doc is explicit
+that this is a real outcome: *a pattern with no hits recorded is a claim;
+a hit list is a receipt*. The brief says to produce the receipt and not
+to manufacture work if there is nothing to fix.
+
+**Which makes the guard the deliverable, not the sweep.** A defect that
+disarms a gate silently, was fixed once, and can return by being retyped
+is exactly the shape this program has spent the week on. The brief asks
+for a mechanical guard so the shape cannot come back — and, if a guard is
+not worth its cost, for that argument in writing at the site rather than
+an unstated absence.
+
+**Style review**, unless the guard grows a derived population, in which
+case the correctness lane attaches by the standing trigger.
+
+## 2026-09-10 — unit 6 in review: the sweep is empty, the guard is built
+
+`pipestatus-after-assignment-in-ci-yml` -> PR 2298, `status: review`.
+Verified on hosted run 34500237390 (head `59031a6dd`), green at STEP
+level in `mirror`.
+
+**The sweep came back empty, as the dispatch expected, and the receipt
+is the instrument rather than a grep.** `scripts/check-status-capture.py`
+splits every shell body under `.github/workflows/` and every tracked
+`*.sh`/`*.bash` into the commands it runs — respecting quotes, comments,
+escapes, line continuations and heredoc bodies — and requires each
+`PIPESTATUS` read to sit on the command immediately after a pipeline. On
+this tree it reports **7 reads across 87 files, all correct**: `ci.yml`
+`:669`, `:3135`, `:3626`, `:3661`, `:3671`, `:4835` and `render.yml`
+`:1183` — re-derived on the head that merges unit 7, which moved every
+one of them. The tombstone comment at `ci.yml:4797-4820` is prose and is
+not counted, which is one of the guard's own mutant rows.
+
+**The guard is the property, not the incident.** It does not look for
+`status=$?`; it looks for *any* intervening command, so an `echo`, a
+`[[ … ]]`, a `let`, a `local`, a function call, a `then`, or nothing at
+all all red — and the index is not read, so `[1]` and `[@]` are covered.
+Twenty-two `--selftest` rows name the failure each must catch, and the
+historical defect re-injected into the real `ci.yml` reds at the right
+line.
+
+**It is a new script, not a claim in `check-ci-mirror-parity.py`.** The
+first draft argued that on subject — the shell inside a row being outside
+that checker — and that is FALSE: its claim 10 already reads argv out of
+`run:` bodies, and its header marks the boundary at exactly that point.
+The real reason is size and blast radius. The file is 4004 lines and has
+taken a claim in each of the last four units; every claim shares one
+tokenizer, so a change made for this property can move any other claim's
+answer. A separate script fails alone. It gains one `TIER_BLIND`
+membership entry and nothing else.
+
+**And it is not shellcheck's job — measured, not assumed.** shellcheck
+0.9.0 reports *nothing at all* on the five-line reproduction. It does
+carry SC2319/SC2320 for the sibling `$?` shapes, and nothing in this repo
+runs shellcheck at all; both facts are the residue
+`shellcheck-is-not-run`, filed in the same PR with the 496-finding
+measurement that says why turning it on is its own unit.
+
+## Unit 6, second fix pass — the carriers were OR'd, so no row could name a route
+
+The claim above that the guard's routes were each load-bearing was
+**false, and it was reported without being injected**. On a pristine tree
+at `7e49567b0`, `SHELL_SUFFIXES = (".zsh",)` — the mutant the PR body
+named as newly dead — left every row green and the selftest at exit 0.
+Two independent causes:
+
+- **The verdict was aggregate.** Each mutant was planted into ONE tree
+  holding every carrier at once, and `RED if failures else GREEN` over
+  that tree answers "did SOME route red". Replacing the whole shell arm
+  of `check_tree` with `for rel in []: pass` cost exactly two rows.
+- **The one `*.sh` fixture carried a shebang**, so it rode the shebang
+  branch of `shell_files` and the suffix branch had no fixture at all.
+  That branch is not decoration: `demos/hosted-render-guard.sh` and
+  `local-scripts/hosted-ci-guard.sh` open with `# shellcheck shell=bash`
+  and are in the population by suffix alone.
+
+Fixed by evaluating **each route on a tree of its own**, with the verdict
+and the violation's `path:line` asserted per route and the route named in
+the failure. The routes are now direct, workflow `run: |`, a tracked
+`*.sh` with no shebang, and a tracked shebang file with no suffix — the
+last folded in from what was a standalone population row, so both
+branches of `shell_files` have a fixture that fails when that branch
+alone is removed. A further row asserts the carrier set still covers one
+branch each, which reds if a fixture regains the convenience shebang that
+caused this.
+
+The row count in the closing line and the PR body is re-derived rather
+than carried: **43 mutants x 4 routes, plus 5 population and refusal
+rows**. (The earlier entry's "twenty-two rows" is superseded twice over.)
+
+Five mutants, each applied alone to a clean tree, all now die:
+`SHELL_SUFFIXES = (".zsh",)`, `SHELL_SUFFIXES = ()`, a never-matching
+`SHEBANG_RE`, the `check_tree` shell arm emptied, and a never-matching
+`BLOCK_SCALAR` (which kills the workflow route alone, so the same
+aggregation bug is not hiding on that side). Each names the route it
+broke and leaves the other three red.
+
+**The lesson is the one units 1-5 closed on, missed inside the unit that
+wrote it down**: write the row by naming the failure it must catch,
+inject that failure, and do not trust the row until you have watched it
+red. A carrier built for convenience — a shebang, so the fixture "looks
+like a script" — is a fixture written against the instance rather than
+the branch it exists to pin.
+
+### Third pass: the route COUNT was printed, not asserted
+
+The blind spot the second pass disclosed was narrower and sharper than
+disclosed. Deleting either `shell_files` carrier already red — the
+branch-coverage row catches both. Deleting the **workflow** carrier did
+not: it is not a `shell_files` branch, so that row cannot reach it, and
+the run went green at `43 mutants x 3 routes … all as specified` while
+specifying one route fewer than the header claims. The route that
+disappeared silently was the one `ci.yml` itself is.
+
+`ROUTE_NAMES` now pins the carrier set by NAME rather than by arithmetic,
+so a route dropped, renamed or duplicated reds saying which. Deleting
+`wf` reds `the carriers are ('shebang', 'suffix'), not ('shebang',
+'suffix', 'wf')`; so does a rename; a duplicate dies on the tree it would
+have shared, loudly but as a traceback rather than a named row.
+
+The shape is the unit's own: **a fact printed in a log is not a fact
+anything reds on.**
+
+## Unit 7 — citations that do not resolve (2026-09-10, `ciw/citations`)
+
+Both items closed; seven comments rewritten; nothing rewritten in
+`crates/**`, `scripts/ci-filter.py` or `docs/`.
+
+**Part A.** The item's twelve-across-nine holds on today's tree (26 raw
+`git grep -o "GUI-LOG.md"` hits less the item's own 10, `STATUS.md`'s 1
+and the ledger's 3). Six were CIW's and are fixed; the sweep was widened
+by one string to `GUI-PLAN.md`, which added a seventh
+(`ci.yml:2086`). Two sites route out — `scripts/ci-filter.py` ×2 to
+S-TCOST, the sweep-5 rename note and `MODEL-AB-LOG.md` to META — and
+both now have a file on the owning slate.
+
+**The third class the item left unswept turned out to be the whole
+sweep.** All five sweep-5 programs were renamed out of `docs/` before
+their directories were deleted, and four of the five under a spelling
+that is not the directory name (`S-BLEND`, `GAUTH`, `PCURVE`, `S-QA`).
+Ten spellings, 51 citations before this unit, 44 after. The ledger's
+Inbound-references paragraph says these "resolve here as before"; they
+do not, and that sentence is what tells a reader not to check.
+
+**Part B closed without a line of code.** Every site in it belongs to a
+sibling that already holds the class: seven are `private_intra_doc_links`
+that `scripts/doc-gate.sh:555` deliberately allows, and the eighth
+(`crate::report`) is a feature-gated link read at the wrong feature
+setting — the second such in one item, after `SweepStrategy::Idealized`,
+and both are already inside `doc-gate-two-unread-axes`'s counted
+`editor-core ×7`. Nothing re-filed there.
+
+The sibling's population was stale by ~3.4x — 82 on 2026-08-15, **278 on
+today's tree** (292 at `--all-features`, which is what the gate documents
+under). Corrected in place with the command and the date. Option 1 is
+unaffected and is stronger at 278 than at 82.
+
+Two method notes worth keeping, both costing an orchestrator a wrong
+number in this session alone: **a `-D warnings` rustdoc run reports a
+floor, not a population** — it aborts at the first crate that fails — and
+**a rustdoc reading is meaningless without its feature selection named**,
+because every "dead link" in this item was alive under the gate's.
+
+## Unit 6 third pass, and merged — the route set is pinned by name
+
+The second pass's own disclosure was that "deleting a whole carrier entry
+still leaves the selftest green with fewer routes; the closing line
+prints the routes it ran, so the drop is visible in the log rather than
+asserted". Measured, that turned out to be **narrower and worse than
+described**: deleting the `suffix` or `shebang` carrier already red — the
+branch-coverage row catches both — but deleting the **workflow** carrier
+went green at exit 0, printing
+
+```
+selftest: 43 mutants x 3 routes (direct; tracked `*.sh`, no shebang;
+tracked shebang file, no suffix), each asserted on its own tree, plus 5
+population and refusal rows — all as specified.
+```
+
+"all as specified", one route fewer than the header specifies, and the
+route dropped is the one `ci.yml` itself is. The branch-coverage row
+reaches only the two `shell_files` branches, and the workflow route is
+not one of them.
+
+Fixed by `ROUTE_NAMES`, asserted against the carrier set: a route
+dropped, renamed or duplicated reds **by name** rather than by
+arithmetic. Rows 5 → 6. One residue stated rather than fixed: a
+DUPLICATED carrier dies as a `FileExistsError` traceback from the tree it
+would have shared, not as a named row — loud, so it cannot pass
+silently, but not a clean message.
+
+**Three passes, and the same sentence each time.** Pass 1 asserted a
+tree's aggregate verdict; pass 2 asserted branch coverage but not the
+route set; both were reported as done without the failing case being
+injected. That is instances **seven and eight** of the program's
+signature defect, inside the unit whose subject is a gate that cannot
+fail — and pass 1's was reported to the orchestrator in the words "your
+`SHELL_SUFFIXES = (\".zsh\",)` mutant now dies", which it did not.
+
+**What actually caught all three was injection by the orchestrator, on a
+pristine worktree, of the exact mutant the report named.** Not review.
+The practice units 1-5 closed on is now load-bearing rather than
+advisory: *do not trust a row until you have watched it red*, and a lane
+report that a row reds is not that.
+
+Merged as `50ac576d3` on run **34510036107** (head `52ddfe1e0`,
+success). Unit 7 landed first, which moved every `PIPESTATUS` read this
+unit cites; the citations were re-derived on the merged head rather than
+carried — `ci.yml:669, :3135, :3626, :3661, :3671, :4835` and
+`render.yml:1183` — and each was re-checked by the orchestrator to land
+exactly on a read. The historical defect re-injected at `ci.yml:4835`
+reds with the site and the clobbering line named, exit 1.
+
+**The second slate is now complete**: units 1-7 all merged.
+
+## 2026-09-11 — the third slate opened, and what the re-read moved
+
+Twenty-one rows open at the start of it. The re-read was against `main`
+at `c04546d` rather than against the item files, which is the discipline
+the last two slates used and it earned its cost again in two places:
+
+- **Unit 1's trigger has already fired, and half its subject is gone.**
+  The `ci.yml` wasm-row comment says the row becomes `-D warnings` when
+  `viewer-items-unreferenced-at-wasm32` closes; that item is closed
+  (PR 2272) and PR 2278 then deleted `ViewerApp::deliver_status`
+  outright, so the comment's *"two dead-code warnings today"* names one
+  `cfg`-ed symbol and one that does not exist. `WINDOW_TITLE` survives
+  at `crates/viewer/src/app.rs:129`.
+- **Unit 4's population is five sites, not three pairs.**
+  `working-directory:` appears at `ci.yml:1743` (`benches`) and four
+  times under `interval-transcendentals`; the item counted the pairs
+  that carry one, which is the smaller number and the right one for the
+  claim, but a lane reading the item alone would have swept for three.
+
+**One row arrived from outside and is on the slate as unit 6.** The
+DEMOS lane wiring the GUI render lane found `render-hosted.sh` two lanes
+behind, filed it into `work/ciw/` from its unit branch, **reverted that
+in the same hour**, and re-filed it as its own PR (2319, merged here).
+That is implementer-discipline §6 working as written — a cross-program
+filing by diff withdrawn and routed through the owning program instead —
+and it is the first time this program has been on the receiving end of
+it as a correction rather than as a report.
+
+**Four rows were read and not taken**, each for a reason that is about
+what is missing rather than about priority: `shellcheck-is-not-run`
+wants a severity decision before a lane; `doc-gate-error-sites-…` wants
+GATES to agree to a population; `python-suite-axis-…` names an
+unmeasured number and says to take it first; and
+`inherited-red-is-not-attributed-to-its-merge` still forbids design
+before its three. All four are in the plan's not-dispatched list with
+those reasons, which is the difference between a decision and a backlog.
+
+**Review posture, restated at the dispatcher's request and unchanged in
+substance**: no A/B protocol on any unit, including the three that earn
+a correctness lane. Style review per unit; units 1, 4 and 5 also get a
+correctness reviewer, named in each PR with the reason. Unit 1 changes
+what a gating row executes on every branch; units 4 and 5 each widen a
+gating claim over a derived population in `check-ci-mirror-parity.py`,
+which returned three MAJORs on unit 5 of the last slate and has taken a
+claim in each of the last five units.
+
+**One fence moved.** `.claude/hooks/session-start.sh` restates three
+`ci.yml` pins as literals and installs from them, and the item left
+ownership to the orchestrator because the path is outside CIW's
+`paths`. CIW takes it (Ev's orchestrator, 2026-09-11); `paths` widens to
+`.claude/hooks/*` in unit 7, the PR that first edits it.
+
+## 2026-09-11 — unit 2 merged: the cut line's validator, anchored at both ends
+
+PR 2324 (`372f37e0`), run `34558529737` green at STEP level in both places
+that run the diff. Both items closed.
+
+**The anchor is `[^ ]*$`, and both obvious choices are wrong in opposite
+directions.** Verified by the orchestrator by injection rather than taken
+from the report, four candidate anchors against five real line shapes:
+
+| line | `[^ ]*$` | before | `$` | `[^[:space:]]*$` |
+|---|---|---|---|---|
+| `87edbba62 2026-09-10T20:56:22+00:00` (the committed baseline) | Y | Y | **N** | Y |
+| `1a2b3c4 2026-08-30 extra` (the defect) | N | **Y** | N | N |
+| `1a2b3c4 2026-08-30\textra` | Y | Y | N | **N** |
+
+Plain `$` refuses the repository's own cut line. `[^[:space:]]*$`
+refuses a line `split_cut` READS, which is the re-stamping direction —
+the already-stamped test misses and the file is re-stamped from a
+commit newer than its rows. `[^ ]*$` is `split_cut`'s letter
+transcribed (`rest.split(' ')`, exactly two fields, every byte after the
+calendar day admitted), so the two accepted sets are equal by
+construction rather than by agreement over the cases anyone listed.
+
+**The review found the unit committing its own sweep class, twice.**
+`want`'s expected substring was `"cut: "`, and every diagnostic the
+script writes begins `tess_budget_cut: ` — which CONTAINS it. So three
+rows this unit ADDED were satisfied by every message the script can
+emit, including both "no cut recorded" arms; and cases (1) and (7)
+wanted a string both skip arms print, so they were interchangeable.
+A partial match read as a whole verdict, inside the diff that fixes a
+partial match read as a whole verdict. Both mutants were green on the
+first push and red now.
+
+**And the sweep's four spellings could not match the spelling that hid
+a hit in its own file.** Each demanded an `-E`, a `VAR='^…'`, a `=~` or
+a Python `re.`; `grep -v '^# tess-budget-cut:'` at `:127` carries none.
+A blind-spot list that omits the spelling which hid a hit is not a
+blind-spot statement, it is the finding.
+
+**The mutant with no catcher was closed by the other language.**
+`EXECUTABLE_SPELLINGS` was `4` against a live count this unit took to
+`8`, so a `>=` floor was passing as four deletions of slack. Set to the
+live count, a deleted selftest case reds by name across the language
+boundary. Confirmed here on a pristine tree, deleting each new case
+alone:
+
+- case (5) deleted — **shell selftest rc=0, zero failures**; the pin
+  reds `the script executes the cut record 7 times, and 8 of those
+  spellings are what this pin is over — one has gone missing`.
+- case (6) deleted — shell green again; the pin reds `… 5 times, and
+  8 …`.
+
+That asymmetry is the entry worth keeping: **a selftest cannot notice
+its own row being deleted**, so the row that catches the deletion has to
+live somewhere the deletion is visible. It is the same remedy as unit
+6's `ROUTE_NAMES` one slate earlier, and the same sentence — *a fact
+printed in a log is not a fact anything reds on*.
+
+**Three fence corrections came out of this unit and two were the
+orchestrator's.** `tools/*` is INSTR's, not code-quality Track K's, and
+CIW's `keep_out` still said otherwise — the item filed for it is on the
+slate, retitled after its first draft asserted that `work/code-quality/`
+has no `program.md` (it does; `status: open`, `tag: (SMELL
+orchestrator)`). **`scripts/gates/*` is code-quality's again**: GATES
+closed 2026-09-08 (`docs/DOC-LEDGER.md` sweep 7, and `work/gates/` is
+gone), so that half of the clause was right all along. The orchestrator
+relayed the wrong version to another lane before checking it and had to
+retract it mid-unit. The lane's own account of how it got there is the
+useful part: `ls | head -20` stopped before `program.md` (uppercase ids
+sort first) and `grep "^paths:"` returned nothing because the file
+genuinely has no `paths:` key — **two commands, neither of which tests
+existence**, and absence was read off both.
+
+**Placed by the orchestrator, per implementer-discipline §6:**
+`work/instr/pin-table-has-no-whitespace-tail-row` — the pin's `TABLE`
+has no row whose date carries a non-space whitespace tail, so the
+`[^[:space:]]*$` mutant passes it and the property is one-row-deep and
+shell-only. INSTR's file, past the alarm's invitation.
+
+## 2026-09-11 — unit 6 merged: the render helper reads its lanes, and a guard holds it
+
+PR 2325 (`bc4cd8dd`), run `34559749871` green, 39 jobs. Item closed. Six
+claims where the dispatch asked for a lane map and two prose counts.
+
+**The unit was dispatched small and delivered large, and that is why it
+got a correctness lane it was not promised.** The brief asked it to teach
+`--lane` two missing lanes and replace three stale counts with a reading
+of what `render.yml` declares. What landed is one `LANE_TABLE` five
+derived lists read from, a new gating script, a per-PR row, a mirror and
+a `TIER_BLIND` entry. The posture says a correctness reviewer is a
+per-unit judgement, and the judgement here was made **after** delivery on
+the standing trigger (a gating claim over a derived population) rather
+than at dispatch. Worth repeating: a unit's shape at delivery is a fact
+about the unit, not about the brief.
+
+**The MAJOR is this program's signature defect, committed inside the unit
+built to prevent it.** `--print-lane-table` printed three of the five
+lists that derive from `LANE_TABLE`, and the two it missed were
+`lanes_of` — the function that decides what `--lane all` means — and the
+`--lane` validation loop. Re-hardcode `lanes_of` to the pre-PR four lanes
+and the guard exited **0**, printing `render lane parity: 6 lanes
+(freecad, gui, kernel, mc, uv, wild) … all as specified`. That is the
+unit's own headline defect — *`--lane all` took four of six lanes and
+said nothing* — coming back green under a success line naming six lanes.
+
+It is word for word the failure recorded two days earlier on the second
+slate's unit 6: *"all as specified", one route fewer than the header
+specifies*. **Neither review found it by reading**; it took injecting the
+mutant on a pristine tree. The remedy is the same one and it is now used
+twice: `CLAIMS` is a roster asserted against the mutant table AND against
+`check()`'s own source, and the success sentence is built from the roster
+rather than from `len(MUTANTS)`.
+
+**The lane refused one of the orchestrator's remedies, correctly.** The
+fix pass said to read `ci.yml`'s job names so claim 4's over-match arm
+would cover the default poll target. That cannot work: `ci.yml:4282` is
+`name: k-lint (gate, ${{ matrix.row }})`, a template with no static name,
+so the very job the injection used is unreadable from the file. The lane
+turned claim 4 into a **roster comparison** instead — the regex's
+alternatives must BE the jobs that upload lane artifacts, every one and
+nothing else — which needs no job population from either workflow and is
+strictly stronger. `workflow_job_names` was deleted, taking a separate
+finding (it returned `on:` trigger keys as job names) with it.
+
+**Verified by the orchestrator on a clean tree, each mutant applied alone
+with an assertion that the edit took** — a precaution that earned itself
+immediately, since two of the first attempts silently failed to apply and
+a no-op edit is indistinguishable from a surviving mutant:
+
+- `lanes_of all` re-hardcoded → `claim 5: --lane all expands to
+  ['kernel','freecad','uv','wild'] …, not to its own lane table`
+- the predicate stops accepting `all` → `claim 5: … does not accept
+  --lane all`
+- the predicate accepts anything → `claim 5: … accepts --lane
+  __no_such_lane__`
+- `gui` dropped from the table → `claim 1: render.yml declares lane(s)
+  ['gui'] that … the lane table does not carry`
+- `RENDER_JOBS_RE` widened to `k-lint (gate, dev-probe)` → `claim 4:
+  RENDER_JOBS_RE names [...], which upload no lane artifact`
+
+**The second defect was LATENT, not live, and the correction matters.**
+The poll regex named neither job that draws the `gui` lane — real, and
+`gui` genuinely is a third job. But on `main` `--lane gui` died at
+validation and `lanes_of all` never yielded it, so nothing could reach
+the mis-poll. **This PR is what would have made it live.** The first PR
+body and the guard's docstring both said "live"; both corrected. A defect
+a fix would activate is a better argument for the guard than a defect
+already running, and it is a different sentence.
+
+**Two orchestrator premises were wrong again.** `demos/*.sh` and
+`demos/*.py` ARE in CIW's `paths`, so those edits were never a fence
+crossing — only `demos/README.md` matches no program anywhere. And the
+stale-count population was six sites, not three, two of them outside the
+helper.
+
+**A finding about this program's own instruments**, from the style lane:
+`local-scripts/measured-claim-sweep.py:80-84` documents its blind spot as
+*"a usage heredoc is invisible … `render-hosted.sh` carried one that this
+instrument could not see"* — which is exactly where the stale lane list
+lived. The unit hand-rolled greps and neither ran the tool nor said why
+not. Run at the fix pass: the `.sh` heredoc hole has **two** instances in
+this tree, `render-hosted.sh:237` (now derived) and
+`setup-build-env.sh:89` (visible, its body is `#`-prefixed). That is the
+whole hole on this surface, which is worth knowing rather than guessing.
+
+Filed by the unit: `tier-blind-rationale-has-five-prose-spellings` and
+`eps-klint-and-shard-counts-are-prose` (noting that `ci-filter.py`'s
+`EPS_ROWS`/`KLINT_ROWS` already solve the roster half, so what is
+unguarded is exactly the prose counts), plus
+`verify-lane-set-is-a-property-nothing-declares` and
+`provenance-lane-dirs-is-not-the-lane-roster` from the first pass.
+
+## 2026-09-11 — unit 7 merged: the pins are read, and the hook stops guessing
+
+PR 2327 (`f8b92f53`), run `34560908533` green, 38 jobs. Five items closed
+(the three pin items, the debug-only step title riding along, and the
+`keep_out` row). Six residues filed.
+
+**The blocker was the unit's own subject, one layer in.** `ci_pin()`
+captured the reader with `2>&1`, so any stderr on a **successful** read —
+a deprecation warning, a pyenv shim banner, `PYTHONWARNINGS` — became the
+version. Verified here by running the old and new function side by side
+against four inputs:
+
+| input | old | new |
+|---|---|---|
+| stderr noise + a correct pin | rc=0, value `DeprecationWarning: noise\n0.9.140` | rc=0, `0.9.140` |
+| prints nothing, exit 0 | rc=1 refused | rc=1 refused |
+| `0.9.140 extra` | rc=0, value `0.9.140 extra` | rc=1 refused |
+| correct | rc=0 | rc=0 |
+
+That is **an unreadable input becoming a value instead of a refusal, in
+the file whose entire argument is that it must not** — the same sentence
+as claim 10's env arm two units ago, and the third time this slate a unit
+committed its own defect inside its own diff. Note the old value is
+genuinely multi-line, which is what made the escalation real rather than
+theoretical: `grep -qw "$multi_line"` is an OR across lines, and the lane
+executed it — the pre-fix hook reported `already installed:
+cargo-nextest-cli 0.9.140` on a pattern that is not the pin.
+
+**The second finding is the same defect with the digits removed.** The
+hook's cargo-fetch loop spelled five cargo roots; `scripts/doc-gate.sh
+--print-roots` derives **eight** (`benches`, `tools/tess-lint`,
+`tools/tess-meter` missing), and the comment above it claiming `tools/`
+needs its own fetch was false of two thirds of `tools/`. The unit's sweep
+instrument was digit-shaped and structurally could not see it — which is
+the lesson, not the three roots. `implementer-discipline.md` names this
+exact list as one not to carry in your head, and a root has landed before
+with every prose count in the repo left saying the old number.
+
+**Hosted CI covers none of it.** Every hosted job runs `rm -rf
+local-scripts .claude`, so not one of the four hook changes has hosted
+evidence; all of it is local injection, stated as such in the PR rather
+than reported as green. That gap is now `session-start-hook-is-exercised-
+by-nothing`, and it is the largest thing this unit found.
+
+**A disagreement between the two review lanes, adjudicated.** The style
+lane argued part C is the wrong repair — rewriting *"the pinned 0.9.140"*
+to *"cargo-nextest 0.9.140"* changes the digit's grammar rather than
+removing it, and a durable-looking record is less likely to be re-checked
+than a visibly-false one. The correctness lane checked all seven sites
+and found no record falsified. **Ruling: keep the edits** (the item's
+position is ratified and no record was harmed) **and file the objection**,
+because it names a real gap — `ci.yml:316` states the opposite convention
+outright, *"The version is named once, here, rather than restated in the
+sentence about it"*, while `:219`, `:322`, `:328` and `:334` each restate,
+inside one 40-line block. Both lanes found `:316` independently. The
+finding is the file arguing against itself, and it is
+`prose-digits-are-records-nothing-reconciles`.
+
+**The orchestrator's own error, recorded because it propagated.** Acting
+on unit 2's first draft, this orchestrator told this lane to name GATES
+for `scripts/gates/*` in CIW's `keep_out`. GATES closed 2026-09-08 and
+that half had reverted to code-quality; the instruction would have
+written a closed program into the header. Retracted before the lane acted
+on it. The lane also caught a fence the dispatch missed entirely:
+`scripts/ci-pin.py` is **META's**, so "widen `ci-pin.py` or write a second
+reader" was never the purely technical choice the brief framed it as.
+
+**And the machinery caught the lane in flight**, which is the best
+evidence for it this program has: the lane's first refusal message in
+`seal-oracle.sh` read `TOOLCHAIN=1.97.0 $0`, and
+`check-ci-mirror-parity.py`'s pin-literal claim red with *"names version
+1.97.0, and ci.yml pins no such version"* — the reconciler built by the
+first slate's unit 1 catching a live instance of the defect this unit
+exists to remove, inside the diff removing it. Reproduced at review.
+
+## 2026-09-11 — unit 4 merged: the working directory a mirrored pair runs in
+
+PR 2329 (`c89cc7f0`), run `34562766594` green. Item closed. Claim 10
+grows a third arm; four residues filed.
+
+**The dispatch's framing was wrong and the lane said so.** The brief
+posed the defect as `working-directory:` (hosted) against a local `cd`.
+It is symmetric: **both halves write both spellings, and hosted's inline
+`cd` carries six of the nine rows.** An arm built to the brief would have
+covered three pairs and missed two thirds of the live population. The
+brief also said to reuse the env arm's command-word anchor — necessary
+but not sufficient, because the live benches row is
+`run_row "rustfmt (benches)" bash -c 'cd benches && …'`, whose command
+word is the row *dispatcher*, so anchoring alone finds no `cd` on the one
+row that most needs reading.
+
+**Two MAJORs, both the named trap, both found only by injection.**
+
+1. **An unreadable shell string returned the empty set** — which is what
+   a half that stays put returns. The guard fired on token *identity*
+   (`cd`/`pushd`/`popd`) and `SHELL_C` on an exact shell name; everything
+   else fell through. Four spellings passed pairs whose halves ran in
+   **different cargo roots**: `bash -lc`, `/bin/bash -c`, `eval "cd …"`,
+   `env -C`. This also falsified a claim the PR body made — it said all
+   three of those "would `Bail` if they were not" absent. They did not.
+   The pre-existing comment was honest; the body had upgraded it.
+2. **The `)` boundary test mis-grouped silently.** It tested the RAW line
+   for a `)`, so a paren from `$(…)` or from inside quotes stood in for a
+   subshell boundary. `cd demos/tour && … && echo $(pwd) && cd demos/wild`
+   passed **reporting agreement**, while the row genuinely ran its second
+   half in `demos/tour/demos/wild`. The lane had called this "the least
+   principled thing in the diff" and said its failure direction was a
+   loud Bail; it was a silent wrong answer, and its own words at the fix
+   pass are the entry worth keeping: *"That was the least-examined thing
+   in the diff and it was the one that mattered."*
+
+Re-verified here on a clean clone, each mutation asserted to have
+applied: all four BLOCKING-1 spellings refuse, the `$(pwd)` case refuses,
+and the trailing-comment case — which was a **false red on the live
+benches row** — is green again.
+
+**What the review could not break, and it was the risk at dispatch.** The
+shared refactor (`_command_word` extracted from `env_prefixes`,
+`row_anchor` lifted from `marker_row`) is inert: a unit-level
+differential over 36 inputs covering every rung of the walk moved **zero**
+answers at base vs head, and a whole-checker differential with 14 of them
+planted on a live mirrored row moved zero. All eight refusals are
+reachable and name their site. The population was re-derived
+independently and matched exactly: 9 rows, 13 pairs.
+
+**A live hole in an existing gating claim, found while building another
+one.** Adding an allowlisted flag INSIDE a `bash -c` string leaves the
+checker at rc=0 — confirmed here on `main`, so it is live today and not
+an artifact of the branch. The review then widened it: the lane's item
+said an allowlisted *variable* in that position Bails loudly, which holds
+only when the assignment is the **first** token; `bash -c 'cd benches &&
+RUSTFLAGS=-Awarnings cargo fmt …'` is silent, and the live row begins
+`cd benches &&`. So **both arms are blind through `bash -c`**, and the
+item is renamed `mirror-readers-blind-through-bash-c`.
+
+**The accumulation is now a filed row with numbers rather than a
+recurring complaint.** `check-ci-mirror-parity.py`: 2983 lines at
+`eb4bae11` (2026-09-09) → 3593 → 4016 → **4908** here, +892 in this PR
+alone, with claim 10's block ~63% of a module docstring serving twelve
+claims. The item this unit came from named accumulation as the
+counter-argument to taking all three clauses at once, and nothing in the
+PR measured it until review did. `mirror-parity-checker-growth` carries
+those numbers and is a candidate for a unit of its own, not a line in
+someone else's.
+
+**One reviewer sub-point the lane refused, correctly.** `cd sub/..` and
+`cd ../x` are not the same unknown: the first normalises to the row's own
+root, which is knowable and correctly recorded as "no directory"; the
+second normalises outside the tree, which the reader cannot resolve
+because it does not know where the row started. The test runs on
+`normpath`'s result, not on the spelling.
+
+## 2026-09-11 — unit 1 merged: the wasm viewer row denies, spelled through clippy
+
+PR 2326 (`1d5d6ff7`), run `34562914978` green, step 41 s under its new
+name. Item closed; two rows filed.
+
+**The unit inverted its own item, by measurement.** The item asserted
+that `cargo clippy -p viewer … -- -D warnings` is *scoped to `viewer`*
+while the `RUSTFLAGS` spelling denies across the whole path-dep graph —
+and flagged, honestly, that it was asserting this *"from how cargo caps
+lints, not from having run it."* Both lanes ran it. A dead item planted
+in `crates/editor-core` (a path dep, not `viewer`) exits 101 under
+**both** spellings; so does a `&Vec` param. The two differ on one axis
+only — clippy's own lints — which makes clippy strictly wider at the same
+cost (65 s vs 66 s cold, 4 vCPU). The clippy-only axis is real and
+measured: a `needless_return` in a wasm-only arm reds clippy and exits
+**0** under `RUSTFLAGS='-Dwarnings' cargo check` on the same probe.
+
+That is the item's own hedge paying for itself, and the bullet has been
+corrected where it stands rather than only in a `## Taken` section — a
+file that contradicts itself in place is quotable as a falsehood.
+
+**The flip's own fix was one spelling deep.** Both review lanes and this
+orchestrator independently found that `-D` in `SEMANTIC_FLAGS` matched
+only `-D warnings`; `-Dwarnings` is one token, never matched the key, and
+is the spelling the repo itself prefers (`RUSTFLAGS='-Dwarnings'`).
+Measured before the fix: both halves attached and the local half dropping
+the deny entirely → **rc=0, silent**, in exactly the population the table
+exists for. `ATTACHED_D_RE` now sits beside `ATTACHED_J_RE`. Re-verified
+here across five cases: the silent drop reds, and neither attached/attached
+nor attached-vs-spaced produces a false red.
+
+**And the fix turned up the same defect one file over, pre-existing.**
+The selftest derives one case per allowlisted flag and writes every
+value-taking one **spaced** — so `ATTACHED_J_RE`, the precedent this fix
+was modelled on, **had no case at all**. A guard for a guard, unguarded.
+Three cases added, `-j` included.
+
+**The blast radius was measured, not argued, and the seed key contains
+it.** `VIEWER_TOOLKIT_SEEDS = {viewer, pncad, bvh}` keyed on members whose
+own files changed: `editor-core` → false, `geom` → false, `bvh` → true,
+`Cargo.lock`/`TIER=all` → true. So a lane touching only kernel crates
+**cannot** be red on this viewer-named row. The second-order case is real
+and disclosed at the site: such a lane can introduce a wasm-arm lint
+nothing reads, and the next `bvh` or `TIER=all` lane eats the red for
+someone else's change. **Ev's 2026-08-27 viewer-CI-posture ruling is about
+cost — which changes fire — and this PR changes the verdict, not the
+trigger; `run_viewer_toolkit` is untouched. Not an `[ev]` question.**
+
+**The comment block, measured by both lanes.** 109 lines on `main` → 149
+at first push → **128** after the fix pass, defending four YAML lines and
+one command. Four consecutive paragraphs all saying "do not quote a
+number from here" collapsed to one; three history sentences deleted per
+§4; a three-line self-contradiction resolved (the block said the step
+builds "from nothing" while its neighbour said `rust-cache` restores it —
+a 17 s reading against a 66 s cold build settles that); a dangling
+"the same four runs" removed with its antecedent; and the measurement now
+prints its command and says RE-TAKE, which is the instrument its own
+neighbour fifteen lines up already used.
+
+The lane declined to get it to parity, and was right to: the remaining
++19 is a pre-existing paragraph it folded content into rather than
+rewrote, and rewriting someone else's prose unasked is not this unit's
+call. The `fmt` job is 615 comment lines over ~90 non-comment and
+`ci.yml` is 77% comments — that is a program-level row, not a unit's.
+
+**Also corrected**: two live `2 vCPU` premises (`:2747`, `:2863`) that
+outlived the runner switch — the population was six sites, not the three
+the first push stated — and the `--all-targets` cause, which is two
+independent items (`ThreadEvaluator` and `viewer::prefs::file`), not one.
+
+Filed: `a-source-attribute-can-silence-a-ci-deny-unread` (measured: one
+`#![allow(dead_code)]` at `crates/viewer/src/lib.rs`'s root returns the
+row to exit 0 with zero diagnostics, and nothing in the tree reads for
+it), and `kernel-wasm-row-denies-no-warnings` extended with the
+`--exclude pncad` hole and the unquantified overlap between the two
+wasm32 rows.
+
+## 2026-09-11 — unit 3 merged: the criterion selftest runs on every PR
+
+PR 2330 (`c5b985b7`), run `34568271873` green, `discipline` STEP 21
+success. Item closed; five items filed.
+
+**The verification is the model for this program.** The lane did not
+report that the new row works — it **broke the emitter on purpose**
+(one token, `lower_bound` → `upper_bound` in the median CI), pushed it,
+and read run `34558969592`'s `discipline (evaluation-code)` **STEP 21 =
+completed/failure** with steps 1-20 green above it, then reverted. A row
+watched red on hosted CI, at the step and not the job name.
+
+**And then the review asked the better question.** The lane had already
+disclosed that ONE injection did not red — reading the mean into
+`median_ns`, because the fixture's `plant()` writes one number into both
+estimators. The style lane generalised it: **18 single-token mutations,
+14 pass green.** Two reproduced independently here before the fix pass:
+widening the glob from `**/new/estimates.json` to `**/estimates.json`
+(defeating the `base/` exclusion the module header argues for over seven
+lines) and `if missing or extra:` → `if missing and extra:` (after which
+a single-sided roster move does not fire the check the header calls
+**"THE ONE THING THIS SCRIPT FAILS ON"**).
+
+**So the finding was about a CLAIM, not a bug.** Nothing in the fourteen
+is a regression this unit introduced, and the row is strictly better
+than nightly-only — but the PR promoted it into the merge gate while
+describing it as *"the last thing between a broken emitter and a history
+that cannot be edited afterwards"*. Promoting a weak guard is fine;
+**promoting it while describing it as strong is this program's own
+defect one level up**, in the sentence rather than the code. The
+mandatory half of the fix pass was the prose; the mutation table now
+stands in the PR body and the item where the sentence was.
+
+Measured before and after: **5 killed / 15 survive → 9 killed / 11
+survive**, with one unplanned kill (a second-socket `model name` bug the
+synthetic-cpuinfo fixture caught). Both mutations verified here as
+surviving now die.
+
+**The lane corrected two claims this orchestrator relayed from the
+review, and both corrections are right.** `docs/perf-data/rebuild-latency`
+is NOT "appended by inline shell with no emitter script" — the shell at
+`nightly.yml:849-880` is only the commit step, its emitter is
+`crates/editor-core/tests/m4_pr8_latency.rs`'s `emit()`, and its guards
+are two **non-`#[ignore]`d** tests in that file (`:302` says so in its
+own words: *"The gating half of this file, and it is NOT `#[ignore]`d"*)
+which run per-PR as ordinary workspace tests. It is the **best**-guarded
+of the three, not the worst. And `sccache-trial` has no live writer at
+all — it is the closed trial's raw readings, so four directories are
+three writers. Checked both before accepting.
+
+**The residue that matters is the shape, not the instance.** The fixture
+plants ONE scalar into five collected fields and the selftest asserts
+two, so a per-field repair regenerates the blindness at the next field
+added; the item is renamed to say that. Beside it: the cpuinfo parser's
+parity obligation is broken on two of three hand-kept copies — the Rust
+one feeds a synthetic cpuinfo and can see a broken parse, both Python
+ones assert `set(flags) <= set(HOST_CPU_FLAGS)`, **which an empty list
+always satisfies**, and both are the copies now sitting in the merge
+gate.
+
+**A sweep note worth keeping.** The lane's first-pass table missed
+`check-render-lane-parity.py` — because that file did not exist at its
+merge base; it arrived with this slate's unit 6 while the lane was open.
+That is implementer-discipline §5's own sentence (*"a sweep is accurate
+as of your merge base, not your merge"*), and the lane re-ran the whole
+sweep over the merged tree rather than patching the row. A first pass
+that was right at its base is not a receipt.
+
+**Known warning, not CIW's to resolve**: `work.py` gained territory and
+duplicate-`github` warnings mid-slate, and one names a CIW row —
+`github: 1607` is claimed by `render-lanes-red-at-missing-merge-ref`
+(CIW, closed) and `work/issues/render-lanes-checkout-merge-ref-vanishes`
+(closed). Both are closed and nothing is parked on the number.
+`work/meta/parked-on-an-int-is-invisible-to-the-fired-trigger-rule` is
+META's item on exactly this class, so the rule question is theirs and
+the record is not reached across a fence to tidy.
+
+## 2026-09-11 — unit 5 merged: a wrapped idiom is spelled only through its wrapper
+
+PR 2345 (`35d39eea`), run `34570068912` green. Item closed; four filed.
+The largest unit this program has run: a 1770-line gating script.
+
+**The guard found the defect it was written to prevent, already in the
+tree, on its first run over `main`.** `.claude/hooks/session-start.sh`
+was spelling `DEBIAN_FRONTEND=noninteractive $sudo apt-get update -qq &&
+… install -y -qq admesh` inline. PR 2277 routed the *workflows*; nobody
+had looked at the hook, and no check in the tree could.
+
+**Four blockers, all executed, all in the reader.** Three were the
+program's standing shape — *a body that parses to nothing, reported as
+"no apt-get here"*:
+
+1. **Four valid block-scalar headers were never read.** `run: |2`,
+   `|2-`, `| # install`, `&r |` — each valid YAML whose value is exactly
+   `sudo apt-get install -y foo`, each **green**, because the header did
+   not match `^\s*\|[-+]?\s*$` and fell through to the inline-scalar arm.
+2. **An unterminated quote that a later quote pairs with swallowed the
+   commands between them**, turning RED into GREEN — and the census went
+   **up**, to 13393. A lone stray quote silently dropped 29 commands.
+3. **The header asserted `ssh host <<EOF` was read and it was not**;
+   `_feeds_a_shell` knew only the five shells, so `ssh`, `.` and
+   `source` were data.
+4. **The sibling was not swept.** The YAML-quoting hole this unit found
+   was live in `check-status-capture.py`, a **merged gate**. Measured
+   through `yaml_bodies` on `origin/main` at `7d674b8`: a real
+   `PIPESTATUS` defect in a single-quoted inline `run:` scalar gives
+   **0 violations**; unquoted and double-quoted give 1. Fixed here, and
+   both re-measured at the merge.
+
+Re-verified by the orchestrator on a clean clone, each injection asserted
+to have applied: `|2` RED, `| # install` RED, `&r |` BAIL, the paired
+quote BAIL, `ssh host <<EOF` RED — and both must-stay-green cases green,
+including `apt-get() { scripts/apt-install.sh "$@"; }` **and a call to
+it**.
+
+**Two things the lane did that are worth copying.** It **measured before
+choosing a blanket refusal**: the tree has 72 legitimate multi-line
+quoted strings across 19 files, and **zero name an idiom**, so the
+refusal is narrowed to exactly that rather than to every multi-line
+string — a false-red machine avoided by counting instead of guessing.
+And the false-RED repair needed a second round it disclosed: fixing the
+function *definition* left the **call** red, which defeats the point of
+defining a wrapper function at all.
+
+**A correction to the census that is itself the fix showing through.**
+13392 → 12306 commands, because `case` patterns and function-definition
+names are no longer counted as commands. The number fell because the
+false reds went away.
+
+**And the dispatch's central premise was wrong.** I told this lane that
+`check-status-capture.py` "respects quotes, comments, escapes, line
+continuations and heredoc bodies" and "may already do most of your
+parsing work". It **discards** heredoc bodies (*"Its text is data, never
+code"*) and keeps quoting as written — its own mutant table asserts that
+a defect inside single quotes stays green. Two of the ten mutants I
+required must be RED. The two readers answer **opposite** questions in
+exactly the two places this property lives, so "extend the existing one"
+was never available. Fourth premise of mine a lane corrected this slate,
+and the most consequential.
+
+## 2026-09-11 — the third slate is complete, and what it cost
+
+**All seven units merged**: 1 (#2326), 2 (#2324), 3 (#2330), 4 (#2329),
+5 (#2345), 6 (#2325), 7 (#2327). Twelve rows closed. **Thirty-one rows
+filed**, twenty-nine of them still open.
+
+**That ratio is the finding.** A slate that closes 12 and opens 31 is not
+converging, and the plan should not pretend otherwise. Two things make it
+less alarming than it reads, and one makes it worse:
+
+- Every one of the 31 carries a **measurement**, not a suspicion. That is
+  the difference between a backlog and a receipt, and it is the reason
+  the count went up: this slate measured things that were previously
+  asserted.
+- The 31 are not 31 subjects. **Seven of them are one file** —
+  `check-ci-mirror-parity.py`'s growth, its three-copy reader preamble,
+  its population layer duplicated into a second checker, three shell
+  splitters nothing compares, both arms blind through `bash -c`,
+  `SEMANTIC_ENV` fail-open where `PIN_FREE` is fail-closed, and the step
+  keys still discarded. Four more are **selftest fixtures that cannot see
+  the failure they exist for**. Four are the **provisioning surface no
+  gate reads**. Four are **one argument written in three to five prose
+  homes**. That is four subjects, not nineteen.
+- The worse reading: this program's units keep **finding their own
+  defect inside their own diff** — a partial match read as a whole
+  verdict inside the diff fixing partial matches (unit 2), an unreadable
+  input read as an empty set inside the arm whose rule is that it must
+  not be (unit 4), stderr becoming a version inside the unit that stops
+  restating versions (unit 7), a guard promoted as strong while 14 of 18
+  mutations survive it (unit 3). Four of seven. **The reviews caught all
+  four; no lane caught its own.**
+
+**What actually caught things, counted.** Every blocker this slate — and
+there were nine across five units — was found by **injecting the failure
+and watching the row stay green**. None was found by reading a diff. The
+orchestrator's own re-injections caught two further cases where a
+reported-dead mutant had never been applied at all, because a no-op edit
+is indistinguishable from a surviving mutant unless you assert the edit
+took. That practice is now the program's, not a lane's.
+
+**The orchestrator was wrong four times and it cost real work.** `tools/*`
+is INSTR's, not code-quality Track K's — and acting on a lane's first
+draft, I relayed a correction that would have written a **closed**
+program into CIW's own header, and had to retract it mid-unit.
+`scripts/ci-pin.py` is META's, so "widen it or write a second reader" was
+never the purely technical choice I framed. `check-status-capture.py`
+answers the opposite question to the one I said it answered. And I
+described `rebuild-latency` as the worst-guarded history when it is the
+best. A brief is a hypothesis; four of mine were asserted as facts.

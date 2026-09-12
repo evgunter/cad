@@ -106,8 +106,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, MM, Node,
-    PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, WrittenAngle, WrittenLength,
-    apply, evaluate,
+    PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, apply, evaluate,
 };
 // The prefix data lives with the unit TABLE, one hop away from the
 // prelude — the scene converts its own constants with the same factor
@@ -186,9 +185,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
 fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     // Written in millimetres: the value crosses in canonical metres,
     // and the literal keeps the notation it was authored in.
-    let mm = |v: f64| {
-        Expr::written_length(WrittenLength::in_unit(v, MM)).expect("a length in millimetres")
-    };
+    let mm = |v: f64| Expr::length_in(v, MM).expect("a length in millimetres");
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
         let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
@@ -240,7 +237,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
             // A full turn, written as one: the half-turn row is a
             // NOTATION carried as a unit, so the recipe says `2 pi rad`
             // where it would otherwise say `6.283185307179586 rad`.
-            angle: Expr::written_angle(WrittenAngle::in_unit(2.0, HALF_TURN)).expect("a full turn"),
+            angle: Expr::angle_in(2.0, HALF_TURN).expect("a full turn"),
         },
     );
     (doc, revolved)

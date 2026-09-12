@@ -10,7 +10,7 @@
 
 use std::fmt::Write as _;
 
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::euler_counts;
@@ -18,10 +18,6 @@ use topo::{Body, FaceKey, LoopBoundary};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 fn dump_dir() -> Option<std::path::PathBuf> {

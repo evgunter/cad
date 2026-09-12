@@ -7,7 +7,9 @@
 this file.
 
 Branch prefix (the #396 convention): **`blend/`** — unit branches
-`blend/<unit>-<slug>`, orchestrator branch `blend/orchestrator`.
+`blend/<unit>-<slug>`; the orchestrator branch is the session's designated
+branch (`work/blend/log.md`, the readiness read) — the remote
+`blend/orchestrator` is S-BLEND's and stays untouched.
 Away-channel tag `(BLEND orchestrator)`. A/B ordinal band
 **BLEND = 2900–2999**, claimed in `docs/MODEL-AB-LOG.md`'s banding
 entry in the opening commit, per that entry's rule.
@@ -63,25 +65,33 @@ H, in dependency order:
    `hostless-rim-on-a-ringed-host-refuses` — one unit: the
    outer-boundary circle arm takes the containment form, and the
    hostless annulus gets the same closed-form clearance; the two
-   fixtures in the items are the acceptance rows.
-7. `ladder-rim-phase-may-retire-a-new-split-key` — a fixture whose
+   fixtures in the items are the acceptance rows. Spec
+   `docs/BLEND-6-SPEC.md`; block BLEND-B1 slot 0.
+7. `closed-chain-junctions-pair-with-a-rotated-link` — the junction
+   list of a closed chain pairs each vertex with a link that does not
+   touch it; a pristine three-arc rim refuses `ChainNotG1`. Found by
+   unit 1's review; block BLEND-B1 slot 1, ahead of the ladder unit.
+   Spec `docs/BLEND-7-SPEC.md`.
+8. `ladder-rim-phase-may-retire-a-new-split-key` — a fixture whose
    meridian runs pole-to-rim first, then the `split_rim` guard shape
-   applied to the ladder path.
-8. `smooth-arm-siblings-disagree-on-the-in-band-case` — decide which
-   policy is the rule's (a behaviour change for revolve either way),
-   then one wrapper beside `tangent_second_order` (announced to
-   PROPS).
-9. `path-fillet-door-validator-tangency-disagree` — which side is
-   right across four decades of turn angle; the door's stored arc or
-   the validator's tangency test moves.
-10. `overrun-attribution-picks-the-first-candidate` — a stated rule
+   applied to the ladder path. Spec `docs/BLEND-8-SPEC.md`; block
+   BLEND-B2's first slot.
+9. `smooth-arm-siblings-disagree-on-the-in-band-case` — the in-band
+   policy is the predicate's documented contract (in-band escalates
+   typed; a behaviour change for revolve), one wrapper beside
+   `tangent_second_order` (announced to PROPS). Spec
+   `docs/BLEND-9-SPEC.md`; block BLEND-B1 slot 2.
+10. `path-fillet-door-validator-tangency-disagree` — which side is
+    right across four decades of turn angle; the door's stored arc or
+    the validator's tangency test moves.
+11. `overrun-attribution-picks-the-first-candidate` — a stated rule
     for which corner-side candidate is reported, the FILLET-ATTR
     shape one level down.
-11. `fillet-escalation-site-has-no-producer` — one of the three
+12. `fillet-escalation-site-has-no-producer` — one of the three
     dispositions in the item (a fillet arm on `PathError::Escalated`,
     route through `ProfileError` at the `Fillet` site, or retire the
-    six constants); a door change, so it follows 9 and 10.
-12. `S90-impl` — stays blocked in fact on the lane-trait split `H5`
+    six constants); a door change, so it follows 10 and 11.
+13. `S90-impl` — stays blocked in fact on the lane-trait split `H5`
     names (PROPS' ground); this program owes the per-read
     classification of the nineteen bracket reads so the day `H5`
     lands the tightening is one PR. Last.
@@ -99,5 +109,5 @@ both routes, and the statement lives at `HostSide`'s doc).
 
 ## Exit shape
 
-The eleven land, the ruling is answered, Track T is empty; the walk
+The twelve land, the ruling is answered, Track T is empty; the walk
 convention applies.

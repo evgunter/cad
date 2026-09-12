@@ -287,7 +287,7 @@ fn mesh5_cone_wedge_sweep() {
         });
         let mesh = mesh::tessellate(&body, delta, Tol::witness()).unwrap();
         let measures = budget::take();
-        let rows = face_rows(delta, &body, &mesh, &measures);
+        let rows = face_rows(delta, &body, &mesh, &measures, None);
         for r in &rows {
             csv.push(r.csv_row(&format!("cone_wedge_pi6_d{delta}")));
         }

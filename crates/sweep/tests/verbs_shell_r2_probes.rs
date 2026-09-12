@@ -6,7 +6,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, Tol, Vec2};
+use crate::common::approx::band;
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::euler_counts;
@@ -15,10 +16,6 @@ use topo::{Body, FaceKey, ShellError};
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
 /// The body's ring count, through the census door.
 fn rings_of(body: &Body<f64>) -> i64 {
     euler_counts(body).r

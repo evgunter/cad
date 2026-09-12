@@ -3,10 +3,11 @@
 //!
 //! # Why this is a door and not a copy
 //!
-//! The chamfer surgery IS the fillet surgery: `chamfer_edges` runs the
-//! same battery and the same `blend_surgery`, and `Chamfered<T>` is
-//! `Filleted<T>` — the same [`BlendNaming`] rows, written for the
-//! same reasons. RECIPE-DOORS D3 then rules that the ROLE vocabulary
+//! The chamfer surgery IS the fillet surgery — [`sweep::blend::naming`]'s
+//! module doc: both verbs write the same rows through the one shared
+//! surgery, a chamfer's carrying the flat twin of a fillet's mint —
+//! so `Chamfered<T>` is `Filleted<T>` and the [`BlendNaming`] rows
+//! are one shape. RECIPE-DOORS D3 then rules that the ROLE vocabulary
 //! is shared too: a chamfer strip off a source edge and a fillet blend
 //! off a source edge are the same shape in the same place, a
 //! `StableName` already carries the minting node, and growing the role

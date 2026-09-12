@@ -122,9 +122,7 @@ fn wrap(node: RecipeNodeId, inner: StableName) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::InPart {
-            of: Box::new(inner),
-        }],
+        path: vec![RoleSeg::InPart { of: inner.into() }],
     }
 }
 

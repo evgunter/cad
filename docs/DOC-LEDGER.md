@@ -19,7 +19,18 @@ plus the companion design docs its table lists.
 git show <sweep-sha>:docs/<NAME>            # print it
 git show <sweep-sha>:docs/<NAME> > /tmp/<NAME>   # restore a copy
 git log --diff-filter=D -- docs/<NAME>      # find the deleting commit
+git log --all --full-history -- docs/<NAME> # ...and if that is empty, this
 ```
+
+**Check the last one before concluding a document is gone.** A file
+this ledger does not name may have been MOVED rather than deleted (the
+tracker migration moved every plan and log out of `docs/`, sweep 4), and
+`--diff-filter=D` does not see a rename. `git log --follow --stat` from
+either path prints the move and whether the content changed with it.
+A citation to a path that no longer exists is evidence of nothing until
+that has been run: the first reader to follow `docs/PERF-PLAN.md` filed
+it as a document deleted without a record, and it had been `work/perf/plan.md`,
+byte for byte, since the day it left.
 
 Files listed under the `docs/archive/` group below need that prefix in
 the path: `git show <sweep-sha>:docs/archive/<NAME>`. The tracker
@@ -416,7 +427,15 @@ deleted. Recover either with `git show <this sweep's SHA>^:docs/<NAME>`.
   `work/code-quality/process-observations.md` verbatim. The census
   that reconciles all 94 finding headings against the tree is
   `work/code-quality/logs/migration-census-2026-09-03.md`; nothing
-  was dropped. One source defect is carried as a flagged
+  was dropped.
+  **Re-aimed at sweep 11 (2026-09-11), because that paragraph's three
+  live pointers all went that day**: the rows are on the eleven programs
+  of the 2026-09-11 cut and no longer in one directory
+  (`docs/WORK-TRACKS-2026-09.md` addendum 3); the rules, the process
+  observations and the migration census went to the archive with the
+  directory and are recoverable at sweep 11's SHA. **The register's
+  numbering scheme is retired, not relocated** — see sweep 11's
+  amendment. One source defect is carried as a flagged
   reconstruction: partition rule 4's opening sentence was already
   missing from the document (its text began mid-sentence), and the
   plan states it as "A style review runs on every unit against …".
@@ -429,11 +448,41 @@ deleted. Recover either with `git show <this sweep's SHA>^:docs/<NAME>`.
 ### Moved, not deleted
 
 Every `docs/<NAME>-PLAN.md` / `docs/<NAME>-LOG.md` pair is now
-`work/<program>/plan.md` / `log.md` (git rename history intact), and
-the nine `SMELL-*-LOG.md` track logs are under
-`work/code-quality/logs/`. `MODEL-AB-LOG.md` stays in `docs/` as the
+`work/<program>/plan.md` / `log.md` (git rename history intact). The
+nine `SMELL-*-LOG.md` track logs were under `work/code-quality/logs/`
+and **left the tree at sweep 11** (2026-09-11), recoverable at the SHA
+that sweep names; they are closed tracks' execution records, and the one
+standing rule they were cited for — *the fix mints a fresh instance of
+the defect it closes* — is now a bullet in
+`docs/prompts/reviewer-style-lane.md` §1, where every reviewer reads it.
+`MODEL-AB-LOG.md` stays in `docs/` as the
 experiment log it is. `scripts/work.py lint` refuses a plan or log
 reappearing in `docs/`.
+
+**The moves, by name**, because a class rule does not answer a
+by-name lookup and the one document this ledger exists to serve is a
+reader holding a stale citation. Every pair below moved in
+`4916f90cfc5cd45c0092b9464fd1fed604f93140` (2026-09-03, PR #1619) or
+its siblings in the same migration, each with **no content change** —
+`git log --follow -- <new path>` walks straight through the rename:
+
+| was | is now |
+| --- | --- |
+| `docs/PERF-PLAN.md` | `work/perf/plan.md` |
+| `docs/<NAME>-PLAN.md` (every other program) | `work/<program>/plan.md` |
+| `docs/<NAME>-LOG.md` (every program) | `work/<program>/log.md` |
+| `docs/SMELL-{C,E,F,G,H,I,KPW,T,UV}-LOG.md` | `work/code-quality/logs/` |
+
+`PERF-PLAN.md` is named in its own row because it is the one readers
+have followed and failed to find. Measured 2026-09-11: **32 tracked
+files mention it, and five cite it by the dead PATH** — the other 27
+name the DOCUMENT, which still carries that name as its own title at
+`work/perf/plan.md` and needs nothing done to it. Repointing the five,
+and deciding whether a document keeps a name its path no longer
+carries, is `work/meta/perf-plan-citations-name-a-path-that-moved.md`.
+Two further mentions in THIS file (Sweep 1's archive note, DOCM-5's
+per-merge record) are left as written: they record what those documents
+said at the time.
 
 ## Sweep 5 — 2026-09-03: the five closed programs leave the tracker
 
@@ -829,6 +878,7 @@ Retired at merge after the sweep, under the same rule (each recoverable
 at the parent of the commit that removed it):
 
 - `TCOST-K1-SPEC.md` — TCOST-K1 — the patch-flux lanes' exhausted-budget cost (removed in 9029480ee; PR 1652's body, `work/tcost/TCOST-K1.md` and the ordinal-1400 row are the record)
+- `FIX-ERRKINDS-SPEC.md` — FIX-ERRKINDS — one declaration for an error enum and its fieldless kind (removed in fb5825b33; the unit was **declined by Ev in-chat on 2026-09-12** rather than merged, so there is no unit PR — `work/fix/kind-mirrors-have-no-single-declaration.md`'s `## DECLINED` section carries the evidence and the reasoning, and `work/fix/a-new-kind-pair-arrives-unguarded-by-default.md` carries what survives. PR 2417 wrote the spec and is where the feasibility measurement lives.)
 - `TCOST-K2-SPEC.md` — TCOST-K2 — `offset_fit::fit_offset`'s per-station seconds: the Bernstein product weight, hoisted (last on `main` at 87d33648c; PR 1697's body, `work/tcost/TCOST-K2.md` and the ordinal-1401 row are the record)
 - `TCOST-K3-SPEC.md` — TCOST-K3 — the tier-3 gate's discarded certificate (last on `main` at 6381ebdd9; PR 1703's body, `work/tcost/TCOST-K3.md` and the ordinal-1402 row are the record)
 - `FILLET-H4-SPEC.md` — FILLET-H4 — the material-adding closed-rim band, incl. the Phase 1 re-scope (last on `main` at fc38f753b; PR 1752's body, `work/fillet/concave-closed-rim-has-no-band.md` and the ordinal-2000 row are the record)
@@ -883,6 +933,12 @@ at the parent of the commit that removed it):
 - `SEAT-4-SPEC.md` — SEAT-4 — the Verb substrate, carried by the blend pair (unit spec)
 - `SHELL-1-SPEC.md` — SHELL-1 — the `ShellNaming` birth channel: `shell`/`shell_open` return `Shelled<T>` (unit spec)
 - `SHELL-2-SPEC.md` — SHELL-2 — `transform_rigid` maps an `Approx` face through the scalar's re-certification lane (unit spec)
+- `SHELL-5-SPEC.md` — SHELL-5 — shell of a hollow body thickens every boundary: one thin solid per operand shell (unit spec)
+- `SHELL-6-SPEC.md` — SHELL-6 — the cone nappe has one home: `face_nappe` decides once, both offset doors and the displacement read it (unit spec)
+- `SHELL-7-SPEC.md` — SHELL-7 — the axial offset door takes a one-surface corner: the full-period torus shells (unit spec)
+- `SHELL-8-SPEC.md` — SHELL-8 — shell is per solid, on every solid: the doors scoped, void insertion N-ary, the lift per designated solid (unit spec)
+- `SHELL-9-SPEC.md` — SHELL-9 — shell runs the closing pcurve mint: the void door transfers rows, the producer re-derives them (unit spec)
+- `SHELL-10-SPEC.md` — SHELL-10 — the simultaneous doors walk only their scope: the partition and the pcurve pass narrowed; the closure check could not be (unit spec)
 - `TCOST-1-SPEC.md` — TCOST-1 — the per-file test gate (spec)
 - `VERBS-GERMARMS-SPEC.md` — VERBS-GERMARMS — the curved pierce ring lane + the cyl×cyl germ arm (two PRs)
 - `VERBS-SHELLFIX-SPEC.md` — VERBS-SHELLFIX — the two teapot-found shell defects (two PRs)
@@ -1296,6 +1352,52 @@ its A/B row is MODEL-AB-LOG SEAT9.
 
 - `SEAT-9-SPEC.md` — SEAT-9, the shell arm on `Verb` and ε travelling only as `Tol` down the offset-fit chain (#1995)
 
+## Sweep 7 — 2026-09-08: GATES leaves the tracker
+
+Sweep SHA: `5ce54b35bf355241de5fa5e3bb0cfeb264bf52af` — `main`'s tip immediately before the deletion,
+so every path below is recoverable at
+`git show 5ce54b35bf355241de5fa5e3bb0cfeb264bf52af:work/gates/<FILE>` and
+`git show 5ce54b35bf355241de5fa5e3bb0cfeb264bf52af:docs/GATES-EXIT-WALK.md`.
+
+GATES — the CI gate scripts, code-quality Track K's `scripts/gates/*`
+half — opened 2026-09-06 in the tracker-wide cut and closed 2026-09-08
+on Ev's ratification of `docs/GATES-EXIT-WALK.md` (PR #2185, "lgtm!").
+Per the sweep-5 rule the program's directory leaves whole:
+`program.md`, `plan.md`, `log.md`, and every closed item file
+(26 of them: `D102`, `D103`, `D109`, `D211`, `S13`, `S49`, `anchored-exact-text-skip-has-three-homes`, `bit-identity-debug-only-gate-ends-an-item-at-a-semicolon`, `bounds-allowlist-select-cuts-at-the-first-colon`, `bounds-tripwire-blind-to-named-alias`, `clippy-panic-gate-blind-in-macros`, `debug-only-assert-euler-postcondition-is-on-no-row`, `debug-only-bit-witness-callers-are-on-no-row`, `debug-only-counters-have-no-gate`, `debug-only-helpers-outside-the-subject-list`, `debug-only-reader-cannot-place-a-statement-attribute-over-a-braced-call`, `gate-mod-path-resolved-textually`, `home-anchored-file-skip-is-unescaped`, `record-file-column-read-by-first-colon-split`, `test-module-resolution-has-three-homes`, `trait-generic-sole-bracket`, `unanchored-definition-skip`, `viewer-module-kinds-six-unreached-guards`, `whole-file-skips-are-hand-spelled-not-anchored`, `whole-file-skips-do-not-check-their-subject`, `window-view-emits-a-record-for-a-comment-only-line`). Twenty-six
+rows landed over twenty-five PRs (2029–2069, 2077, 2156, 2157, 2170,
+2174), each under one style review with a planted breach and a fix
+pass; one `[ev]` ruling ratified (PR 2067, the gates stay greps); one
+`[ev]` ruling open at the sweep (PR 2171, below). Infra-only: no A/B
+rows; the band 3100–3199 was claimed for bookkeeping and stays
+allocated.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `gates` | GATES — the CI gate scripts | 2026-09-08 | this row and the exit-walk row below; design at `scripts/gates/README.md` (the directory's page, listed in `docs/DESIGN.md`'s companion table) and in `scripts/gates/lib.sh`'s own headers |
+
+### Residue re-homed before the deletion
+
+Moved by `git mv` with ids kept (ownership is the directory):
+
+| item | to |
+| --- | --- |
+| `D212` | `work/code-quality/` — rides `G4`, Track V's, which lives there |
+| `directory-prefix-skips-have-no-subject-check` | `work/code-quality/` — open on its `crates/*/src/bin/` half, `blocked_on` `[ev]` PR 2171; the two-directory half closed with PR 2170 |
+
+Filed on other slates during the program and already there:
+`work-set-accepts-a-scalar-for-a-list-field` (META),
+`doc-gate-error-sites-outside-the-gate-population` (CIW),
+`bound-list-readers-have-three-homes` (code-quality). Nothing went to
+`work/issues/`. Track K's `scripts/gates/*` fence returns to
+code-quality with the two rows.
+
+### The exit walk's row
+
+| walk | program closed | ratified on | done-state now |
+| --- | --- | --- | --- |
+| `GATES-EXIT-WALK.md` | 2026-09-08 | PR #2185, in a PR comment | this row; the residue table above; `scripts/gates/README.md` |
+
 ## Sweep 7 — 2026-09-06: FILLET leaves the tracker
 
 Sweep SHA: `efe21acb8f599dd146fbaadc0251dc3981ebbf9a` — `main`'s tip immediately before the deletion,
@@ -1472,3 +1574,552 @@ face-2 red-first row is the bumpy patch at 1e-15 — and its face 4 is
 landed as `BoundNotFinite` carrying `last_finite`, per the review. The
 rule above; the unit's record is its `## Closed` and the MERGED entry
 in `work/props/log.md` (an E rider: no A/B row).
+
+## Per-merge deletion — LIB-G17's spec (2026-09-08)
+
+Recoverable at `git show 4a093c5cb4b9bd0a901111cdd89c230e9445a075:docs/LIB-G17-SPEC.md`
+(the frozen review head; the fix pass moved one decision the spec made —
+the f64 witness fold now lives on the lane, `crates/editor-core/src/lane.rs`,
+per the dual review's convergent finding, and the unit's record says so).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`, its
+MERGED entry in `work/lib/log.md`, and `work/lib/LIB-G17.md`'s Delivered
+and Fix pass sections.
+
+- `LIB-G17-SPEC.md` — LIB-G17, `Node::Shell`, the shell recipe door (#2150)
+
+## Sweep 9 — 2026-09-08: EVAL leaves the tracker
+
+Sweep SHA: `9c515cb150e8f396c6f197c2354650e8e676e11d` — the ratification
+commit immediately before the deletion (on the closing PR's branch,
+reachable from `main` through that PR's merge commit), so every path
+below is recoverable at
+`git show 9c515cb150e8f396c6f197c2354650e8e676e11d:work/eval/<FILE>`,
+`git show 9c515cb150e8f396c6f197c2354650e8e676e11d:docs/EVAL-EXIT-WALK.md`
+and `git show 9c515cb150e8f396c6f197c2354650e8e676e11d:docs/EVAL-<N>-SPEC.md`
+for the seven specs listed below.
+
+EVAL — the evaluation seat (`crates/editor-core/src/eval/*`, the verb
+seat, the names emitters, `topo::query`/`flush`), the ground SEAT held
+and Track V never staffed — opened 2026-09-06 in the tracker-wide cut
+and closed 2026-09-08 on Ev's ratification of `docs/EVAL-EXIT-WALK.md`
+(PR #2201, "lgtm!", merged `8d34121c7`). Per the sweep-5 rule the
+program's directory leaves whole: `program.md`, `plan.md`, `log.md` and
+every item file, every one `status: closed` except the five re-homed
+below. Eleven E units under the CIW/CHROME posture (one style review
+each, a correctness arm on units 2, 6, 7, 8, 9), no A/B rows (band
+3000–3099 claimed and unused), two `[ev]` rulings (PRs 2137, 2138).
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `eval` | EVAL — the evaluation seat: wiring, the verb seat and the names emitters | 2026-09-08 | this row and the exit-walk row below; the units' PRs (2139, 2153, 2160, 2165, 2168, 2173, 2176, 2186, 2190, 2194, 2195); design at `docs/DESIGN.md` Band 1 (the content key's inputs, amended by PR 2201), `crates/profile/README.md` (V6, the validated lift), `crates/verbs/README.md` (the `Verb` convention) and the tag declarations at `eval/mod.rs`'s `mod tag` (format 7) |
+
+What the walk records: eleven units MET (three with recorded honesty),
+the two rulings answered (placers are shape-preserving over
+`Instances`; a node's log is every decision made on its behalf), the
+deferred row carried; ten honesty rows, among them the session
+rate-limit interruption, three red pushes from skipped pre-push
+checks, three spec premises the lanes refuted, and the ground
+reverting to no owner at close (Ev's ratification took the walk's
+recommendation).
+
+### Residue re-homed before the deletion
+
+Moved by `git mv` with ids kept (ownership is the directory):
+
+| item | to |
+| --- | --- |
+| `D360` | `work/topo/` — a standing sweep rule over `topo`'s refusal enums |
+| `map-affine-retires-into-affine3-try-map` (parked) | `work/props/` — beside the PROPS door it is parked on |
+| `two-verb-seats-do-not-compose` (deferred), `frame-f64-placement-is-re-evaluated-per-profile`, `wire-expected-phrases-spell-family-words-as-literals` | `work/issues/` — the evaluation seat has no live program after EVAL; with `profile-embed-lift-has-two-homes-anchor-and-loft` and `placement-lifts-its-affine-by-hand-beside-affine3-map` already there, the successor's opening slate |
+
+### The exit walk's row
+
+| walk | program closed | ratified on | done-state now |
+| --- | --- | --- | --- |
+| `EVAL-EXIT-WALK.md` | 2026-09-08 | PR #2201, "lgtm!" | this row; the residue table above; the amended DESIGN Band 1 sentence |
+
+### Per-unit specs, unit merged
+
+Seven specs were not deleted at their units' merges and leave at this
+sweep, recoverable at the sweep SHA; the other four left per-merge
+and are ledgered here at the head that last carried each:
+
+- `EVAL-1-SPEC.md` — EVAL-1, the affine lift's one home (#2139)
+- `EVAL-2-SPEC.md` — EVAL-2, the tag vocabularies declared once (#2153)
+- `EVAL-3-SPEC.md` — EVAL-3, `emit_blend` cites the kernel's arguments (#2160)
+- `EVAL-4-SPEC.md` — EVAL-4, `D367`'s accept funnel (#2165)
+- `EVAL-5-SPEC.md` — EVAL-5, the two `Verb` types' convention (#2168)
+- `EVAL-6-SPEC.md` — EVAL-6, the placers over `Instances` (#2173; the spec rode `[ev]` PR 2137)
+- `EVAL-7-SPEC.md` — EVAL-7, the node bracket (#2176; the spec rode `[ev]` PR 2138)
+- `EVAL-8-SPEC.md` — EVAL-8, validate once under the pinned lift (#2186); recoverable at `git show d285b8301cc13f31ea60193f72e7de5a07a8bcf3:docs/EVAL-8-SPEC.md`
+- `EVAL-9-SPEC.md` — EVAL-9, the slot nominal joins the content key, format 7 (#2190); recoverable at `git show 2011634817c3417feb72e0285ad4475856edbb24:docs/EVAL-9-SPEC.md`
+- `EVAL-10-SPEC.md` — EVAL-10, one nominal environment (#2194); recoverable at `git show cf1ad66e0570ffeef1db6f1aa747341a21f77b1f:docs/EVAL-10-SPEC.md`
+- `EVAL-11-SPEC.md` — EVAL-11, `node_value_kind` through the placer chain (#2195); recoverable at `git show 0e59a45d374dfa56300925e1ce8b9e08738829ca:docs/EVAL-11-SPEC.md`
+
+## Per-merge deletion — LIB-TEAPOT's spec (2026-09-08)
+
+Recoverable at `git show 21e6d1e284f61fd5ea303a56e41b9a19d8360364:docs/LIB-TEAPOT-SPEC.md`
+(the frozen review head). Three of its sentences did not survive the
+unit and the record says which: §4's SIX rim names are THREE (the lid's
+annular profile takes the emitter's lamina branch) and its ONE
+`Node::Fillet` is TWO (the one-request output cannot be named —
+`RoleSeg::BandSlit` keyed on the source edge alone, filed); §8's third
+clause is CONTRADICTED by a baseline re-cut the gate never asked for
+(the file moved with no geometry moved; disclosed, the reverse re-cut
+scheduled by a live probe); §9 admitted one reason for a moved render
+cell and the uv sheet's `teapotlid` cells moved for another (face
+order), recorded as the §9 finding it is. §5's admissible re-baseline
+never fired: the axis-angle placement lands the spout at the authored
+root to 0.0, measured off the placed body at the fix pass. The rule
+above; the unit's record is its row in `MODEL-AB-LOG.md`, its MERGED
+entry in `work/lib/log.md`, and `work/lib/LIB-TEAPOT.md`'s Delivered
+section.
+
+- `LIB-TEAPOT-SPEC.md` — LIB-TEAPOT, the tour's teapot through the document (#2206)
+
+## Sweep 10 — 2026-09-09: METER leaves the tracker
+
+Sweep SHA: `2723839067e80198bec2889d041e490000f02275` — the commit
+immediately before the deletion (on the closing PR's branch, reachable
+from `main` through that PR's merge commit; it is the state in which
+METER's directory is complete and every row in it closed), so every path
+below is recoverable at
+`git show 2723839067e80198bec2889d041e490000f02275:work/meter/<FILE>` and
+`git show 2723839067e80198bec2889d041e490000f02275:docs/METER-EXIT-WALK.md`.
+
+METER — the budget and K instruments, code-quality Track K's `tools/*`
+half (`tools/tess-lint`, `tools/tess-meter`, `tools/k-lint` and the two
+documents they feed, `docs/TESS-BUDGET.md` and `docs/K-REPORT.md`, with
+their committed data) — opened 2026-09-06 in the tracker-wide cut and
+closed 2026-09-08 on Ev's ratification of `docs/METER-EXIT-WALK.md`
+(PR #2212, ruled in three comments in that thread). Per the sweep-5 rule
+the program's directory leaves whole: `program.md`, `plan.md`, `log.md`
+and every item file, all seventeen `status: closed` at the sweep SHA
+(`D201`, `D203`, `D206`, `D213`, `D214`,
+`cert1-notes-pr-body-tracked-on-main`,
+`cut-prefix-three-unpinned-spellings`,
+`fold-the-two-baseline-census-files`, `k-lint-predicate-roster-unpinned`,
+`k-report-baseline-fold-cert1-roster`,
+`k-report-era-witnesses-have-no-guard`,
+`report-header-column-phrases-unqualified`,
+`sweep-deleting-work-meter-dangles-six-refs-on-instr-rows`,
+`tess-budget-doc-finding-block-stale`, `tess-lint-face-ordinal-join`,
+`tess-lint-twinned-csv-fixture`,
+`tools-readme-is-unratified-and-owes-a-design-row`); the other twenty-two
+rows the slate held were re-homed first, below. **Thirteen unit PRs**
+landed, numbered 0–12 (2111, 2114, 2115, 2125, 2132, 2140, 2151, 2158,
+2167, 2177, 2179, 2180, 2187) — not the twelve the plan and the log both
+claimed, which is criterion 1's recorded honesty. Two `[ev]` rulings
+ratified (2109, `D201`'s design fork, arm A; 2147, `tools/README.md`'s
+`CC1`–`CC5`), three orchestrator state-sync PRs (2110, 2128, 2164), and
+three closing PRs (2212 the walk, 2218 the discipline paragraph, 2220 the
+successor). Infra-only: no A/B rows were written; the band 3200–3299 was
+claimed for bookkeeping and stays allocated.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `meter` | METER — the budget and K instruments | 2026-09-08 | this row and the exit-walk row below; the thirteen units' PRs above; design at `tools/README.md` (`CC1`–`CC5`, the reading-boundary rule, ratified by Ev 2026-09-08 and listed in `docs/DESIGN.md`'s companion table) |
+
+What the walk records: criterion 1 MET with recorded honesty (thirteen
+units, not twelve, and `D201` built rather than deferred); criterion 2
+**CARRIED** — Track K's `tools/*` half is not empty and was never close,
+so the walk's central ruling opened `instr` for it; criterion 3 MET. Its
+census re-derived three published figures that were wrong (the slate at
+22 open and not 23, 40 files with 23 open and not 24, thirteen units and
+not eleven or twelve), and §2 carries one line per unit of what it left
+behind.
+
+### Residue re-homed before the deletion
+
+The moves happened in PR #2220, the successor PR, not in the deleting
+commit; the deleting commit finds the directory already emptied of live
+work.
+
+| item | to |
+| --- | --- |
+| twenty rows — `C15`, `baseline-census-partition-assert-cannot-fail`, `baseline-sizing-census-pointers-stale`, `baseline-sizing-census-second-copy`, `cut-line-commit-names-no-baseline-change`, `gate-findings-name-no-columns-and-recoverable-has-two-aggregations`, `k-lint-csv-header-unpinned-against-five-producers`, `k-lint-eps-coupled-criterion-unwritten`, `k-lint-gate-described-as-diffing-the-committed-baselines`, `k-lint-last-round-is-eps-coupled-but-unrostered`, `k-lint-roster-wants-a-kernel-side-vocabulary`, `k-lint-rule-1-prose-assumes-every-in-band-site-refuses`, `report-constraint-activity-line-names-no-columns`, `tess-budget-doc-identity-column-list`, `tess-budget-doc-note-finding-rule`, `tess-lint-growth-margin-unprotected-from-ceil-quantisation`, `tess-lint-recourse-quote-half-pinned`, `tess-lint-ungated-columns-fold-silently`, `tess-lint-zero-certificate-two-meanings`, `tess-meter-sampled-retune-figure-unreproducible` | `work/instr/` — INSTR, the successor Ev ruled open on 2026-09-08 (walk §4), which takes METER's `paths` unchanged and the band 3300–3399. Nineteen are instrument rows; `C15` is the twentieth, ruled here rather than to code-quality Track X (walk §5, reversing the walk's own first ruling on Ev's challenge) |
+| `reader-census-shared-disposition-survives-partial-reversion` | `work/tcost/` — S-TCOST's `paths` carries `crates/test-utils/*`, and the `Shared` ledger audit is a ruling on every row of that ledger |
+| `cert1-notes-pr-body-tracked-on-main` | nowhere — **closed by disposition**: Ev ruled *"delete"* (2026-09-08), `.cert1-notes/pr-body.md` was removed in PR #2220 and the row closed citing the ruling. It asked for a disposition, not for work |
+
+Filed on other slates during the program and already there:
+`cut-regex-unanchored-admits-a-line-the-lint-refuses` and
+`cut-script-header-claims-no-cross-language-gate-exists` (CIW). Nothing
+went to `work/issues/`.
+
+### The six `refs:` this sweep rewrote
+
+Deleting the directory would have broken `scripts/work.py`'s *references
+resolve* rule on six INSTR rows that cite five closed METER ids, so the
+deleting commit rewrites them first, in GATES' form (`3a8dd05fe`, sweep 7):
+the dying id is replaced in `refs:` by the number of the PR that closed
+it — ints are PR numbers and lint does not check them — and a
+`## Refs at METER's sweep (2026-09-09)` section at each citing row says
+which id is now cited by which PR.
+
+| dying id | now cited as | citing row(s) |
+| --- | --- | --- |
+| `D201` | 2167 | `C15` |
+| `cut-prefix-three-unpinned-spellings` | 2151 | `cut-line-commit-names-no-baseline-change` |
+| `k-lint-predicate-roster-unpinned` | 2115 | `k-lint-csv-header-unpinned-against-five-producers`, `k-lint-eps-coupled-criterion-unwritten` |
+| `k-report-baseline-fold-cert1-roster` | 2140 | `k-lint-gate-described-as-diffing-the-committed-baselines` (already carried 2140, so the id was dropped rather than duplicated) |
+| `tess-lint-twinned-csv-fixture` | 2179 | `tess-lint-recourse-quote-half-pinned` (already carried 2179, same) |
+
+The hazard was found and filed while step 3 executed
+(`sweep-deleting-work-meter-dangles-six-refs-on-instr-rows`, closed at the
+sweep SHA); prose citations of `work/meter/…` and of the walk survive
+across the tree unrewritten, which is what *A note on inbound references*
+above is for and what GATES' sweep did with its own.
+
+### §6's process findings — one paragraph carried, the rest ruled out
+
+The walk's §6 wrote out four process findings the log would otherwise take
+with it, and §6.4 ruled they should go into
+`docs/prompts/implementer-discipline.md` with Ev seeing the diff first.
+**He then ruled that only ONE paragraph goes in** (PR #2218, 2026-09-08):
+*"can you keep the 'write assertions a bug could break' paragraph and
+revert everything else? most of this is not relevant to most work in the
+repo, which deals with normal implementation rather than these greps"* —
+and, on the same PR, *"if you do what my prev comment stated then you can
+consider this approved"*. The merged diff is exactly those five lines, in
+§2 beside *a build is not a test*.
+
+**So §6's other findings are deliberately not carried forward**, and this
+sentence exists so a later reader does not read the omission as an
+oversight: §6.1's nine assertions that cannot fail with their per-instance
+record, §6.2's three fake greens with their mechanisms (the mutation
+script that failed before writing, the mutation on a doc comment, and
+`grep` exiting 0 on a match inside a `&&` chain), §6.3's
+shape-versus-reading finding with its six sub-rules, and the two
+operational lessons (one `git worktree` per concurrent lane; `main` in an
+ephemeral container is not `origin/main`) survive **only** at the sweep
+SHA above, in `docs/METER-EXIT-WALK.md` §6 and in `work/meter/log.md`.
+That is Ev's call and it was made on the diff itself.
+
+### The exit walk's row
+
+| walk | program closed | ratified on | done-state now |
+| --- | --- | --- | --- |
+| `METER-EXIT-WALK.md` | 2026-09-08 | PR #2212, in three PR comments (*"1. open / 2. giving them to the successor sounds good / 3. huh i thought track X had closed / 4. delete / 5. i would like to see the diff / 6. this doesn't look like a question?"*, then *"the new 3, instr, and your plan all sound good!"*) | this row; the residue table above; `tools/README.md` and the three instrument crates' own headers; `work/instr/` for the twenty rows it carried forward |
+
+
+## Sweep 12 — 2026-09-12: CITE leaves the tracker
+
+Sweep SHA: `116d96c01d4a03084d4701d7d58fb3b5dcf1703b` — the commit
+immediately before the deletion (on the closing PR's branch, reachable
+from `main` through that PR's merge commit; it is the state in which
+CITE's directory is complete, `program.md` reads `status: closed`, and
+every row in it is closed), so every path below is recoverable at
+`git show 116d96c01d4a03084d4701d7d58fb3b5dcf1703b:work/cite/<FILE>` and
+`git show 116d96c01d4a03084d4701d7d58fb3b5dcf1703b:docs/CITE-EXIT-WALK.md`.
+
+CITE — citations, numbering and the paperwork a lane runs on — opened
+2026-09-11 in the tracker cut of that day
+(`docs/WORK-TRACKS-2026-09.md` addendum 3) and closed 2026-09-12 on Ev's
+ratification of `docs/CITE-EXIT-WALK.md` (PR #2405). It claimed **no
+paths**, by charter: its repair ground was `work/<program>/*.md`, which
+is one-file-one-item ground. Per the sweep-5 rule the directory leaves
+whole — `program.md`, `plan.md`, `log.md` and eight item files, all
+`status: closed` at the sweep SHA (`C-namespace`, `S176`,
+`build-slot-banner-leaks-the-holders-command-line`,
+`code-quality-item-quotes-a-viewer-doc-string-that-was-rewritten`,
+`d107-release-profile-job-lives-in-nightly`,
+`doc-line-citations-rot-silently`,
+`loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed`,
+`tracker-file-line-citations-measured`); the other four rows the slate
+held were re-homed first, below. **Two PRs** merged, #2397 (the
+convention, the repairs and four rulings) and #2405 (the walk).
+Infra-and-prose: **no A/B rows were written and no ordinal was spent**;
+the band 4000–4099 stays claimed in `docs/MODEL-AB-LOG.md`.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `cite` | CITE — citations, numbering and the paperwork a lane runs on | 2026-09-12 | this row and the exit-walk row below; the two PRs above; the standing rule at `docs/prompts/implementer-discipline.md` §7 |
+
+### What survived, and where
+
+The program's output is deliberately not in its directory:
+
+- **The rule.** `docs/prompts/implementer-discipline.md` §7 — *"Cite by
+  name; line numbers rot. A number may ride along beside the name and is
+  allowed to go stale; a bare `file.rs:NNN` is not a citation."* Landed
+  2026-09-12 on Ev's wording, cut down by him twice from a three-
+  paragraph draft. `docs/prompts/*` is META's territory; landed on Ev's
+  word rather than taken.
+- **Three repaired rows**, each on its owning program's slate with a
+  marked section recording what the repair put in question and leaving
+  the ruling to the owner:
+  `work/door/viewer-pathverb-all-hand-written-seventeen.md`,
+  `work/topo/D107.md`,
+  `work/tint/loud-skip-marker-is-a-hand-kept-idiom.md`.
+- **One leak closed.** `local-scripts/with-build-slot.sh` no longer
+  records the caller's command line in the holder file, so the banner a
+  waiting caller prints cannot carry another lane's test filter or
+  scratch path between blinded review lanes.
+
+### The measurement, because nothing else now carries it
+
+`tracker-file-line-citations-measured` is deleted with the directory and
+its figures are load-bearing for §7, so they are restated here. Taken
+2026-09-09 at `0762714fd` over every `<path>:<line>` in every
+`status: open` row of `work/**/*.md`, bare basenames resolved through
+`git ls-files`:
+
+| | count |
+| --- | --- |
+| citations, in 317 open rows across 22 programs | **1,508** |
+| already anchored (a backticked identifier or quoted phrase within one line) | **1,446 (96%)** |
+| unanchored | 62 (4%) |
+| file missing or line past EOF | 31 (2.1%) |
+| basename ambiguous, not checkable that way | 204 |
+
+Per program the anchored figure runs 90–100%. **That 96% is why §7 is a
+ratification of existing practice rather than a proposal**, and why the
+walk declines both a sweep and a gate: a line-range check sees only the
+2.1%, while VIEW's three hand-sweeps found roughly three quarters of the
+citations they touched pointing at the wrong *subject*, nearly all of it
+inside the column such a check passes.
+
+### Residue re-homed before the deletion
+
+The moves happened in #2397 and #2405, not in the deleting commit; the
+deleting commit finds the directory already emptied of live work.
+
+| item | to |
+| --- | --- |
+| `S351` | `work/trim/` — the placement rule it watches is in `crates/geom-brep/src/nurbs_iso.rs`, TRIM's `paths`. Checked at the move and **not fired**: both pointers resolve and both cite `nurbs_iso`'s module docs by name |
+| `d321-row-number-reissued` | `work/meta/` — overtaken on both halves by sweep 11; the one surviving thing, a `work.py` check that an id is never reissued, is META's |
+| `lane-scratchpad-is-shared-between-worktrees` | `work/meta/` — `deferred` by Ev (the rule is not project-specific); with the `memories/` half ruled out, `docs/prompts/*` is the only document left in play and it is META's |
+| `no-local-script-builds-all-four-cargo-workspaces` | `work/ciw/` — the fix is in `local-scripts/*`, CIW's `paths`; CITE never started it |
+
+### The four inbound pointers this sweep rewrote
+
+All four named `work/cite/` paths and none was a header `refs:`, so no
+row's references broke. They were repointed at what survives, in the
+commit at the sweep SHA:
+
+- `work/door/viewer-pathverb-…` and `work/topo/D107.md` cited
+  `work/cite/S176.md` as the argument for cite-by-name → now cite §7,
+  which states the rule;
+- `work/topo/D107.md` cited `work/cite/d107-release-profile-job-lives-in-nightly`
+  for the two line numbers that had drifted → now names it as a record
+  recoverable through this ledger;
+- sweep 11's two entries above cited `work/cite/plan.md` for `d321`'s
+  disposition → now name `work/meta/d321-row-number-reissued.md`.
+
+### Honesty notes
+
+- **Four of the twelve rows were re-homed unstarted, not finished.** A
+  program that opens twelve and works eight did not finish twelve; the
+  four moved because they were somebody else's.
+- **`S176`'s `Verdict:` was blank for three weeks and CITE filled it**,
+  on the measurement rather than on a ruling from Ev. The row says so in
+  its own words, and the row is now recoverable only at the sweep SHA.
+- **The walk tables the plan's slate rather than quoting it.** The
+  plan's table has a `where the work lands` column that is about
+  dispatch and is not a criterion. The plan is recoverable at the sweep
+  SHA.
+- **The routing list the plan promised was never produced**, and the
+  walk argues it should not have been: Ev authorised repair-in-place at
+  the first ask, and the row that motivated the fence
+  (`loud-skip-marker-…`) exists precisely because §6 reported the same
+  rot twice and filed nothing both times. The distinction CITE leaves
+  behind is that **repairing what a row POINTS AT is not the same act as
+  ruling on what it CLAIMS**, and only the second needs the owner.
+
+## Sweep 11 — 2026-09-11: code-quality leaves the tracker
+
+Sweep SHA: `8851abb6daff4822f5a55c98e940c4c061223953` — the commit immediately before the deletion (the
+`main` tip this PR branched from; it is the state in which
+`work/code-quality/` is complete and every row in it closed, the 110
+live ones having left the same day in the cut below), so every path here
+is recoverable at
+`git show 8851abb6daff4822f5a55c98e940c4c061223953:work/code-quality/<FILE>`
+and `git show 8851abb6daff4822f5a55c98e940c4c061223953:work/issues/<FILE>`.
+
+**code-quality** — *"where a structural finding waits until a program
+claims it"* — opened 2026-08-18 as the tracker home of the 2026-08
+structural-findings register (`docs/SMELL-SCAN-2026-08.md`, sweep 4) and
+its Tracks K–X schedule, and closed 2026-09-11. It is the first program
+to close **empty by design rather than by finishing its board**: it was
+a holding ground, its charter said a row leaves the moment a program
+claims it, and on 2026-09-11 all 110 of its remaining live rows and
+`work/issues/`'s were claimed at once by eleven programs opened for them
+(`docs/WORK-TRACKS-2026-09.md` addendum 3, PR #2370). What was left the
+next day was 32 closed rows, two rule documents, a log, and ten closed
+tracks' execution records.
+
+**No exit walk was written, on Ev's direction (in-chat, 2026-09-11:
+*"can you delete all the closed items in issues, and the code-quality dir
+entirely"*).** The contract's exception — a program closes on a ratified
+`docs/<NAME>-EXIT-WALK.md` *or* on Ev's ruling that it needs none — is
+what this sweep runs on, and it is recorded here because the absence
+would otherwise read as an omission. The three criteria a walk would have
+tested are answered by the cut instead: its board is empty (criterion 1),
+its successors exist and are named below (criterion 2), and its rules
+survive relocation (criterion 3, the section that follows).
+
+### What survived, and where
+
+Two documents were **first moved to `docs/` and then, on Ev's
+correction the same day, deleted with everything else** — see the
+amendment at the end of this entry, which is the disposition of record.
+What survives of them is named there: one sentence in the reviewer
+brief, and the rules each of the eleven programs actually uses, inlined
+into that program's own `plan.md`.
+
+### What was deleted
+
+- **`work/code-quality/` whole** (46 tracked files at the sweep SHA, less
+  the two moved above): `program.md`, `log.md`, the **32 closed rows**
+  (`C13`, `C14`, `D106`, `D202`, `D204`, `D205`, `D207`, `D208`, `D209`,
+  `D224`, `D288`, `D289`, `D320`, `D321`, `D323`, `D324`, `D402`, `D64`,
+  `D68`, `S22-row-1`, `S26`, `S290`, `chart-region-lane-contract`,
+  `corner-config-tag-all-concave-trihedron`,
+  `demo-tour-dead-constant-breaks-compile`,
+  `demo-typed-refusal-exit-convention`,
+  `directory-prefix-skips-have-no-subject-check`,
+  `flat-pack-gap-rationale-invented-mechanism`,
+  `probe-cutaway-comment-claims-shipped-box`, `scaled-square`,
+  `smell-scan-2026-08-findings-register`,
+  `tour-suite-never-runs-wall-probes`), and **`logs/`** — the ten closed
+  tracks' execution records (`SMELL-C`, `SMELL-E`, `SMELL-F`, `SMELL-G`,
+  `SMELL-H`, `SMELL-I`, `SMELL-KPW`, `SMELL-T`, `SMELL-UV` and
+  `migration-census-2026-09-03.md`), about 11,000 lines.
+- **The seven closed items in `work/issues/`**
+  (`actions-budget-denies-job-starts`,
+  `bounds-census-roster-lists-anchor-span-twice-with-two-dispositions`,
+  `fillet-specs-require-a-narrowing-ci-config`,
+  `freecad-lane-reports-no-drift-on-a-cell-whose-geometry-changed`,
+  `m10-5-e2e-channel-slider-reds-at-eps-1e-6`,
+  `render-lanes-checkout-merge-ref-vanishes`,
+  `reviewer-pair-rebuilds-two-trees-two-rules`), on the same direction
+  and the same rule: `work/` tracks work still to be done.
+  `work/issues/README.md` stays and the directory keeps its purpose.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `code-quality` | Code quality — where a structural finding waits until a program claims it | 2026-09-11 | this row and the amendment below; `docs/WORK-TRACKS-2026-09.md` addendum 3 for where its 110 live rows went; the merged PRs of its closed tracks, named in the logs recoverable at the SHA above |
+
+### The eighteen `refs:` this sweep rewrote
+
+Deleting the closed rows would have broken `scripts/work.py`'s
+*references resolve* rule on sixteen live rows across ten programs. They
+were rewritten first, in GATES' and METER's form (sweeps 7 and 10): the
+dying id is replaced by the number of the PR that closed it — ints are PR
+numbers and lint does not check them — and a
+`## Refs at code-quality's sweep (2026-09-11)` section on each citing row
+says what changed and why.
+
+| dying id | now cited as | citing row(s) |
+| --- | --- | --- |
+| `D64` | 1643 | `work/comb/L4.md`, `work/door/viewer-grid-pitch-nonfinite-fallback.md` |
+| `D205` | 1642 | `work/tint/D386.md`, `work/topo/D261.md` |
+| `D204` | 1642 | `work/instr/k-lint-csv-header-unpinned-against-five-producers.md` |
+| `D320`, `D321` | 1782 (one entry, not two — both closed in it) | `work/wire/profile-has-no-scalar-lift-door.md`; `D320` alone in `work/scalar/sweep-test-rebuilds-validated-net-for-v-reversal.md` |
+| `D323`, `D324` | 1783 (one entry, same reason) | `work/comb/L5.md` |
+| `S26` | 1366 | `work/props/purchasable-area-tightness-valve.md` |
+| `C13` | `epsilon-has-no-type-of-its-own` — the live row whose §Closed IS the ruling that closed it | `work/scalar/D283.md` |
+
+**Five references were dropped rather than re-aimed**, and the reason is
+the one the METER sweep did not meet: the row closed with **no PR to be
+cited by**. Three closed on a ruling with no implementation (`C13` and
+`C14`, whose rulings are recorded in the two live `work/exch/` rows that
+cited them — so those rows were pointing at their own record;
+`fillet-specs-require-a-narrowing-ci-config`, closed BY
+`work/ciw/delete-config-trailer.md`, which cited it). Two recorded no
+closing PR at all (`D68`, cited by `work/guard/D212.md` and
+`work/guard/G4.md`; `D289`, cited by
+`work/tint/decoration-seam-header-names-no-pin-for-enclose.md` — the 1533
+in `D289`'s own `refs:` was CERT-M1, where it was *filed*, not where it
+landed). Each of those five citing rows carries the dropped id, its
+title, and the SHA it is recoverable at, in its
+`## Refs at code-quality's sweep` section; nothing was silently removed.
+
+`work.py lint` before the sweep: 0 problems, 23 warnings. After: 0
+problems, 22 warnings — the one that went was the duplicate `github: 1607`
+claim, whose second claimant was a closed `work/issues/` row.
+
+### A note on inbound references, again
+
+**102 files cite `work/code-quality/…` in prose, 217 times**, and they
+survive unrewritten, which is what *A note on inbound references* above is
+for and what GATES' and METER's sweeps did with their own. Two classes
+were fixed, because both are live contract text rather than a citation:
+
+- **The eleven programs of the 2026-09-11 cut** had their `plan.md`
+  charters re-aimed off `work/code-quality/plan.md`; see the amendment
+  below for where each rule they cited now lives.
+- **`work/README.md`** (META's file, edited here by announced seam
+  because this sweep is what makes it false, in the same commit): the
+  clause saying `work/code-quality/` is where a finding waits for a
+  claim, the `process-observations.md` row of the layout, the
+  "code-quality only" gloss on `track:` and on `blocks:`. **A finding
+  now goes straight onto the slate of the program whose ground it lands
+  on**, and `work/issues/` is the last resort it always was.
+- `docs/DESIGN.md`'s two citations of `work/code-quality/S14.md` and
+  `S65.md` were already stale from the cut and now name `work/pipe/` and
+  `work/pred/`.
+
+One consequence is named rather than left to be found: **`d321-row-number-reissued`
+(CITE's) and `S176` (CITE's) both ask for edits inside `SMELL-T-LOG.md`,
+`SMELL-KPW-LOG.md` and `SMELL-G-LOG.md`**, which this sweep archived.
+`S176`'s live half is its convention and is unaffected; `d321` is
+overtaken on both halves, which the amendment below explains. CITE's
+plan recorded it and left the tree at sweep 12; the row itself is
+`work/meta/d321-row-number-reissued.md`.
+
+
+### Amendment (2026-09-11, same day): the two relocated documents were deleted too
+
+This sweep first moved `plan.md` and `process-observations.md` into
+`docs/` on the argument that `plan.md` was cited 60 times and was
+therefore load-bearing. **Ev rejected that** (in-chat: *"where is it
+cited? we don't want to mint any new rows because we're using the in
+repo issue tracker now, not the one big doc that descends from"*), and
+the count did not survive being read:
+
+- **48 of the 60 are one of three provenance sentences** repeated
+  verbatim in `## Claimed by` sections — 17 rows in `work/tint/` and 14
+  in `work/topo/` — and each of those sentences says, in its own second
+  clause, that the content is **restated in the claiming program's own
+  plan**. They are history, not lookups.
+- 9 were this ledger, 3 `work/README.md`, 1 `docs/WORK-TRACKS-2026-09.md`.
+- **Ten were live**, all of them in the eleven new programs' `plan.md`
+  charters, and every one cited a single self-contained rule.
+
+**The block ledger was the other half of the argument and it is simply
+retired.** Ids in this tracker come from an item's name; the per-track
+`D<N>`/`S<N>` blocks were the numbering of the 2026-08 register that the
+tracker replaced, and keeping a document alive so that a future row
+could be minted from a block would have preserved the scheme this
+project stopped using. **No new row is minted from a block.** The rows
+that carry such an id keep it — ids are stable for life — and nothing
+allocates another.
+
+**So both documents are deleted**, recoverable at this entry's sweep
+SHA, and what was live in them went to where it is used:
+
+| what | where it went |
+| --- | --- |
+| *The fix mints a fresh instance of the defect it closes; naming the trap in your own PR body does not prevent it; only a reader who did not write the fix has ever caught it* | **`docs/prompts/reviewer-style-lane.md` §1**, as a bullet in the stance — the standing brief every reviewer reads, which is what the rule is for. It was the only sentence in either document with no surviving home |
+| The ordering, partition, seam and fence rules the eleven charters cited (ten citations) | **inlined into the citing `plan.md`**, one to three sentences each, so each program states the rule it runs on instead of pointing at a document about a program that no longer exists |
+| *Ask what a reported sweep's pattern could not match* (`C15`) | nowhere — it was **already** `docs/prompts/reviewer-style-lane.md` §Q1. `work/door/viewer-grid-pitch-nonfinite-fallback.md` now cites the brief instead of `§C` |
+| The `C2`/`H17` and `C21` labels on `work/comb/S37.md` and `work/door/run-on-whitespace-in-message-literals.md` | **folded into those rows** as the populations and dispositions they stood for; the labels themselves were a process-observation number and a track row id colliding, which is `C-namespace`'s point |
+| The W `test-utils` ceiling seam, and P's three sub-lanes | nowhere — already restated, the first in all 17 `work/tint/` rows that cite it and the second in `work/topo/plan.md`, both by the same sentence that cited the plan |
+| `C1`–`C27` otherwise | the archive. Of 27 process observations, **three were cited by a live row** and all three are handled above; the rest are a closed program's retrospective and are recoverable at the sweep SHA |
+
+One observation is worth naming here rather than leaving at a SHA,
+because it records a decision rather than a finding: **`C21` carries
+Ev's ruling of 2026-08-20** that the *skip-reading-as-a-pass* class
+stays un-rolled-up — a class rule was drafted around giving skips
+*floors*, which concedes the skip, and the prior question is whether the
+test should be skipping at all. A future scan re-opens that question
+rather than re-proposing the floors.
+
+`d321-row-number-reissued` (CITE's) is **overtaken on both halves** by
+this amendment: its retired-id rule has no number ledger to live in now
+that the blocks are retired, and its citation disambiguation was inside
+two `SMELL-*-LOG.md` files this sweep archived. The row itself says so
+and names the one thing still worth doing — a `work.py` check that an id
+is never reissued — as META's; it was re-homed to
+`work/meta/d321-row-number-reissued.md` when CITE closed at sweep 12.

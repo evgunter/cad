@@ -268,12 +268,17 @@ fn main() {
     let mut previews = 0;
     for step in 1..=5 {
         let outcome = session.perform(SessionOp::PreviewGesture {
+            node,
+            slot: slot.slot,
             value: base * (1.0 + 0.02 * f64::from(step)),
         });
         previews += outcome.previewed.len();
         assert!(outcome.committed.is_empty());
     }
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitGesture {
+        node,
+        slot: slot.slot,
+    });
     assert_eq!(outcome.committed.len(), 1);
     assert_eq!(session.history().len(), states_before + 1);
     println!("   {previews} previews, 1 commit, 1 undo step");
