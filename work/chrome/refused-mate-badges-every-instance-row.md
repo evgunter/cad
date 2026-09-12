@@ -128,6 +128,6 @@ test, and the weight half is outside every palette;
 because the question is whether a semantic distinction may be drawn in
 weight at all rather than one missing assertion.
 
-`crates/viewer/README.md`'s G4 and GQ2 clauses said what the tree no
+`crates/viewer/GUI-DESIGN.md`'s G4 and GQ2 clauses said what the tree no
 longer means; both are corrected under a narrow `paths` amendment
 recorded in `work/chrome/program.md`.
