@@ -59,23 +59,41 @@ The paragraph #2387 put in place of the retired kind claims generally:
 > owner publishes its own `ALL` beside the declaration and this crate
 > maps over it
 
-**That is false in a live case.**
-`work/door/viewport-pointer-buttons-mirror-a-toolkit-enum-by-hand`
-documents a complete mirror of `egui::PointerButton` inside
-`crates/viewer/src` whose declaring crate cannot publish an `ALL` — the
-gate misses it only because it is an inline array rather than a `const`.
-So the retired kind was vacated of *rostered* instances, not falsified,
-and the replacement paragraph overstates.
+**The orchestrator's counterexample was misclassified, and checking it
+on Ev's question reversed the recommendation.**
 
-Three answers, and the row does not presume one:
+The claimed counterexample was
+`work/door/viewport-pointer-buttons-mirror-a-toolkit-enum-by-hand`: a
+complete mirror of `egui::PointerButton` inside `crates/viewer/src`
+whose declaring crate cannot publish an `ALL`. Read properly, it is not
+an instance of the retired kind at all. `crates/viewer/src/input.rs` is
+toolkit-free by design — its module doc says *"Module kind:
+**vocabulary** — it names no driver type and no `app`-only crate"* — so
+the viewer's own enum is an anti-corruption boundary and
+`pane/viewport.rs` is its adapter. Completeness there is a PRODUCT
+decision about which buttons the viewport binds, which is nearer the
+surviving *"deliberately partial"* kind than the retired one.
 
-1. **Leave it.** The roster is what the gate reads and it is correct.
-2. **Amend the paragraph** to say the kind was vacated rather than
-   falsified, naming the toolkit case as the reason the reason survives.
-3. **Restore the kind** and roster the pointer-button list under it —
-   which needs the gate to see inline arrays, and is therefore the
-   largest of the three.
+(Checking it also turned up a real defect that has nothing to do with
+this ruling: `egui::PointerButton` has **five** variants and the adapter
+handles three, so side-button input is dropped silently. That is
+recorded on the row itself.)
 
-The orchestrator's read is **(2)**: cheapest, and it makes the sentence
-true without asking the gate to grow. But this is the call the rule now
-reserves for Ev.
+So **no live instance of the retired kind is known inside
+`crates/viewer/src`**, and the paragraph #2387 wrote may be sound as
+merged. Three answers stay live, with the weight moved:
+
+1. **Leave it as merged.** The kind had no rostered instances, the gate
+   forced the edit, and the counterexample against the replacement
+   paragraph has been withdrawn. *(Now the orchestrator's read.)*
+2. **Amend the paragraph** anyway, if its general claim — *"a mirror
+   claiming completeness has an answer one crate over"* — still reads
+   as broader than the tree can support. No counterexample supports
+   this today; it would rest on taste about how absolute the sentence
+   is.
+3. **Restore the kind.** Nothing now argues for it.
+
+The orchestrator's read is now **(1)**, reversed from (2) after Ev
+asked why the mirror existed and the answer falsified the premise. This
+is still the call the rule reserves for Ev — the row's value is that it
+now presents the question without a wrong argument attached.
