@@ -2,8 +2,9 @@
 id: fixed-precision-length-renders-can-read-as-a-value-they-cannot-be
 kind: issue
 title: a length the chrome renders at fixed precision can read as a value that length cannot be, outside the δ field
-status: open
+status: closed
 opened: 2026-09-12
+closed: 2026-09-12
 ---
 
 
@@ -82,3 +83,67 @@ figures, and a scientific spelling when no decimal one does.
 Not swept with the field because the field was the only member an edit
 could reach, and because a wording change to a badge, a status line and
 a camera readout is a different review from a control's arithmetic.
+
+## Closed
+
+All four members fixed, through one door rather than four patches, and
+the population above held on re-derivation against the merge base
+(`03e5154`): the same four sites, at the same lines, each verified by
+reading the line rather than by matching the grep again.
+
+**`## The members`' line numbers are as at `03e5154` and are left
+there**, because they name a tree in which the defect exists and this
+diff is what ends it — a repoint would make them name lines that no
+longer hold what the row describes. Where each subject lives now:
+`delta_badge` at `crates/viewer/src/frame.rs:1385`,
+`FittedDelta::wording` at `crates/viewer/src/scene.rs:918`,
+`Bounds::wording`'s `show` at `crates/viewer/src/bounds.rs:235-241`,
+and the camera readout at `crates/viewer/src/pane/view.rs:55`, with the
+angle beside it at `:49`.
+
+`crates/viewer/src/readout.rs` is the door — `number(value)`, the
+shortest decimal spelling that reads back as the value within the
+render's own accuracy, and a scientific one when no decimal spelling
+does. It is a module rather than a generalisation of `render_mm`
+because two of the four sites hold no `DisplayTolerance`, and a rule on
+that type would have been written twice: once as the method and once by
+hand wherever the type is absent.
+
+- `frame.rs`'s `delta_badge` and `scene.rs`'s `FittedDelta::wording`
+  call `DisplayTolerance::render_mm`, which is now the δ-facing door
+  onto `readout::number` and carries the millimetre conversion and
+  nothing else.
+- `bounds.rs`'s `Bounds::wording` calls `readout::number` directly, and
+  the module's care about not overclaiming is what decides it: `{:.4}`
+  overclaimed at BOTH ends, reading `valid from 0.0000 mm` for a floor
+  the search found above zero and `1024.0000` for a reach a doubling
+  established to one figure.
+- `pane/view.rs`'s camera readout takes the one decision the row asked
+  for — WHICH of its numbers are lengths. The three distances go through
+  the door; the two angles keep `{:.1}°`, because a yaw of zero is a yaw
+  a camera has and a distance of zero is not a distance the camera can
+  be at.
+
+**The δ door's second predicate is gone, and that is the argument
+rather than a tidy.** `render_mm` used to ask both that a spelling read
+back within tolerance AND that it read back as a δ `DisplayTolerance::
+new` accepts. For a strictly positive δ the first implies the second, so
+the second could not fail — a predicate no input falsifies is
+documentation. `no_delta_renders_as_a_number_a_delta_cannot_be` measures
+the implication over the whole type, which is where a claim like that
+belongs.
+
+**Two residues, both filed rather than disclosed:**
+
+- `the-scientific-arm-rounds-out-of-the-type` — the fallback `{:.3e}`
+  rounds past `f64::MAX`, so the module's own rule has one exception.
+  Pre-existing in `render_mm`, pinned by a row, and the trade (width
+  against truth) is written down where it can be re-taken.
+- `a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets` —
+  **the member this row's own sweep could not match.** A precision spec
+  in a format string is not the only way to write a fixed precision: an
+  `egui::DragValue` derives one from its DRAG SPEED, and a length field
+  at `FIELD_DRAG_SPEED` falls back to `{:.3}` over millimetres, which is
+  the same spec this family was filed against. The property is *a length
+  rendered at a precision fixed independently of the length*; the
+  pattern was *a format string that names one*.

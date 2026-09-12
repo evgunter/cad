@@ -9960,3 +9960,55 @@ match is a render with no precision spec, a precision passed as a
 variable and a rounding done by hand, all three checked in the item.
 
 **VIEW stands at 69 open / 84 closed, nothing waiting on Ev.**
+
+### 2026-09-12 — the four fixed-precision length renders, through one door
+
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`
+**closed**. The shape chosen was ONE door, not four decisions and not a
+generalisation of `render_mm` off `DisplayTolerance`: two of the four
+sites hold no such value, so a rule living on that type would have been
+spelled twice — once as the method and once by hand at the sites
+without it, which is this program's N-spellings-no-home shape arriving
+while a different defect was being fixed.
+`crates/viewer/src/readout.rs` is the home; `render_mm` is the δ-facing
+door onto it and keeps every caller and every existing row.
+
+The camera readout took the decision the row asked for rather than a
+patch per number: its two ANGLES keep `{:.1}°` and its three DISTANCES
+do not, because `0.0` is a yaw a camera has and is not a distance a
+camera can be at.
+
+**`display_budget.rs` turned out to assert less than the row feared.**
+`a_coarsened_picture_says_so_in_both_numbers` built its needles with
+`format!("{:.3}", …)`, so it held the sentence to a FORMAT rather than
+to the δ — a needle that would have kept passing by accident on one of
+the two numbers (the budget δ's render is a superstring of its own
+`{:.3}` rounding) and failed on the other. The needles are the renders
+now. Nothing anywhere asserted the badge's label text or the camera
+readout's, and `valid_range.rs` asserted only phrases and the unit
+symbol, never a digit.
+
+**What the re-derivation moved: nothing in the population, one thing
+outside it.** The four members held at their cited lines against the
+merge base, each read rather than re-grepped. But the row's own sweep
+pattern — a precision spec in a format string — has a fifth blind spot
+its three stated ones do not cover: a widget that picks the precision
+itself. `egui::DragValue` derives max decimals from its DRAG SPEED, and
+a length field at `forms::FIELD_DRAG_SPEED` shown in millimetres falls
+back to `{:.3}`, the exact spec the δ field was filed against. Filed as
+`a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets`, with
+the eleven-hit census and each non-member's own reason — one of which is
+a length field at speed `0.5` that is excluded only because it lives in
+a `#[cfg(test)]` harness.
+
+Second residue, found by the unit's own new test rather than by reading:
+`the-scientific-arm-rounds-out-of-the-type`. `{:.3e}` rounds, and within
+half a unit in the fourth figure of `f64::MAX` it rounds out of the
+type, so `number(f64::MAX)` reads back as infinity. Pre-existing (worse
+in `render_mm`, where the millimetre multiply overflowed first), kept as
+a stated exception rather than fixed, because the truthful spelling is
+twenty-two characters and `readout::MAX_CHARS` is what `FIELD_WIDTH` is
+measured against. A row pins the exception so it is met rather than
+rediscovered.
+
+**VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**

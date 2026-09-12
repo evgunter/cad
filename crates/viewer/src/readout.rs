@@ -95,6 +95,22 @@ pub const MAX_CHARS: usize = 10;
 /// exhausts and the scientific arm prints `NaN` or `inf`. Nothing in
 /// the chrome hands this one; the behaviour is stated because it is
 /// what the rule produces rather than a case it handles.
+///
+/// **The rule has one exception and it is at the top of the type.** The
+/// scientific arm is the last resort and is not itself held to reading
+/// back, and it ROUNDS: within half a unit in the fourth figure of
+/// `f64::MAX` it rounds out of the type, so `f64::MAX` renders as
+/// `1.798e308` and that text reads back as infinity. The alternative is
+/// the exact spelling, which is twenty-two characters, and [`MAX_CHARS`]
+/// is what a real field is sized against
+/// (`crate::pane::view`'s `FIELD_WIDTH`) — a render the box cannot show
+/// is clipped, and a clipped render misreads silently too. So the width
+/// is the guarantee and this is the carve-out, for a magnitude no
+/// length in this chrome can be;
+/// `the_top_of_the_type_is_the_one_value_that_does_not_read_back` pins
+/// it rather than letting it be discovered twice, and
+/// `work/view/the-scientific-arm-rounds-out-of-the-type.md` owns the
+/// repair if the trade is ever worth re-taking.
 pub fn number(value: f64) -> String {
     // Decimal counts past the character bound cannot fit whatever they
     // spell, so the bound is what ends the search; the range only has
@@ -122,6 +138,7 @@ fn reads_back_as(spelling: &str, value: f64) -> bool {
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
 
     use super::{MAX_CHARS, REL_TOLERANCE, number};
 
@@ -162,12 +179,37 @@ mod tests {
             value *= 1.01;
         }
         assert!(sampled > 2_000, "the sweep covered only {sampled} values");
-        // And the ends of the type, which a geometric grid does not
-        // reach.
-        for end in [5.0e-324, f64::MIN_POSITIVE, f64::MAX] {
+        // And the bottom of the type, which a geometric grid does not
+        // reach. The TOP is the rule's one exception and has its own
+        // row below; a sweep that quietly stopped short of it would be
+        // the same fact recorded as an absence.
+        for end in [5.0e-324, f64::MIN_POSITIVE] {
             reads_back(end);
             reads_back(-end);
         }
+    }
+
+    /// **The one value the rule does not hold for**, pinned rather than
+    /// left to be found again.
+    ///
+    /// The scientific arm rounds, and within half a unit in the fourth
+    /// figure of `f64::MAX` it rounds out of the type. Rendering it
+    /// truthfully costs twenty-two characters and [`MAX_CHARS`] is what
+    /// a real field is sized against, so the width is the guarantee and
+    /// this is the exception. No length this chrome shows is within
+    /// three hundred decades of it.
+    #[test]
+    fn the_top_of_the_type_is_the_one_value_that_does_not_read_back() {
+        let text = number(f64::MAX);
+        assert_eq!(text, "1.798e308");
+        assert!(
+            text.parse::<f64>().is_ok_and(f64::is_infinite),
+            "the exception is that this text reads as infinity; if it no \
+             longer does, the carve-out in `number`'s doc is stale"
+        );
+        // Just below the rounding band the rule holds, which is what
+        // makes this an exception rather than a region.
+        reads_back(1.0e308);
     }
 
     /// **Zero is the value the δ door's own predicate could not have

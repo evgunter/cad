@@ -53,7 +53,7 @@ gradient and a fix pass should not treat it as flat:
   test row at `crates/viewer/tests/prefs.rs` names its two readings
   positionally the same way the chooser row does.
 - `pickindex.rs:422`/`459` `address(node, body: u32, position: usize,
-  flat: usize)`, `bounds.rs:357` `midpoint(valid: f64, invalid: f64,
+  flat: usize)`, `bounds.rs:376` `midpoint(valid: f64, invalid: f64,
   …)`, `camera.rs:986` `clamp_distance(distance: f64,
   scene_radius: f64)`, `sketch.rs:1000` `arc_points(radius: f64,
   theta: f64, chord: f64)`.
@@ -76,7 +76,7 @@ Re-running the same parse with the gaps this item names, so that two of
 the four are negative results rather than open questions:
 
 - **Parameters separated by another argument.** One hit in
-  `crates/viewer/src` over `bool`: `bounds.rs:304`
+  `crates/viewer/src` over `bool`: `bounds.rs:323`
   `observe(&mut self, offset: f64, ok: bool, seed: f64, integral: bool)`
   — which also pairs `offset`/`seed` as `f64` at the same gap. A
   private method, and the two `bool`s are separated by an `f64`, so

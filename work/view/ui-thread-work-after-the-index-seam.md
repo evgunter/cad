@@ -19,7 +19,7 @@ is 6b's to fix: each is its own decision about a different seam, and
 ## The hits
 
 1. **The display budget's probe tessellation**, `crates/viewer/src/
-   scene.rs:917-919` (`fit_delta`), called from `crates/viewer/src/
+   scene.rs:994-1000` (`fit_delta`), called from `crates/viewer/src/
    app.rs:~634` inside `sync_scene`. It gathers the product and
    tessellates it at `PROBE_FACTOR` (8×) the requested δ, so it costs
    about **an eighth of a full tessellation** — on the `hollowring`
@@ -29,7 +29,7 @@ is 6b's to fix: each is its own decision about a different seam, and
    for it.
 2. **The drawable scene's vertex assembly**, `PickIndex::scene_focused`
    (`crates/viewer/src/pickindex.rs:894`) → `SceneMesh::build_parts_focused`
-   (`crates/viewer/src/scene.rs:410`), from `app.rs:~672`. It walks
+   (`crates/viewer/src/scene.rs:439`), from `app.rs:~672`. It walks
    every drawn triangle to build the GPU
    buffers, and it runs not only when an index lands but on every HIDE
    and every FOCUS change over an index that is already current — the
@@ -73,7 +73,7 @@ instead, which is the contract working.
 
 **`scene::fit_delta` no longer gathers.** This file's hit (2) reads
 *"`fit_delta`'s probe tessellation and gather"* and cites
-`scene.rs:917-919`. #1908 (merged `b20e13da`) made `fit_delta` take
+`scene.rs:994-1000`. #1908 (merged `b20e13da`) made `fit_delta` take
 the landing's body, so:
 
 - the **gather** half of that hit is gone — the landing pays it once
