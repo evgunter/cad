@@ -2,12 +2,13 @@
 id: coherence-findings-have-no-consumer
 kind: issue
 title: coherence findings have no consumer: wire examine_chart_coherence into editor-core's checks (CheckId::ChartCoherence) and step-import
-status: review
+status: closed
 opened: 2026-09-02
 github: 1587
 refs: [1585, 868, 723, 1571]
 branch: fix/chart-coherence-check
 pr: 2408
+closed: 2026-09-12
 ---
 
 ## From GitHub issue 1587
@@ -70,3 +71,53 @@ The two must reach the user distinguishably; say how in the PR.
 **EXCH's** (`work/fix/plan.md` says so). `crates/editor-core/src/checks.rs`
 is FIX's own glob, so the primary fence is ours; `crates/pncad-py/` is
 LIB's and `crates/topo/src/coherence.rs` is read-only here — name both.
+
+## Closed by PR 2408 — the `CheckId` half; the step-import half is EXCH's own row now
+
+`examine_chart_coherence` has a production consumer:
+`CheckId::ChartCoherence`, the registry's third resident,
+`CheckKind::Certified`, `Advisory`, default `Off`.
+
+**`skipped` and `unexamined` reach the user distinguishably**, which
+was the centre of this row. A check set to `Off` lands in
+`ChecksReport::skipped` with **no finding**; a loop out of the door's
+reach lands in `findings` as `ChartCoherenceUnexamined` carrying
+`topo::Unexamined` whole. Pinned by a row asserting the two reports
+share **not one word**, and cross-checked against the kernel door
+called directly so the resident's two finding classes are the door's
+two lists, one for one.
+
+**The orchestrator's "## Measured" disposition above is wrong and is
+left standing as the record.** Its count of four was right and every
+site it named was wrong: the grep it cites returns four arms in
+`ChecksConfig::severity` and `py::checks::check_id`, while `kind()`,
+`reads_subject()` and `Display` spell their arms `Self::…` (invisible
+to that pattern) and `ALL` is a `const` array, not a match. The real
+walk is **eight** non-test sites, and a new CHECK is not a new
+`CheckId` — its findings need `CheckEvidence` arms with four more
+exhaustive matches, the `.pyi` and two Python suites.
+
+**And the obstacle neither this row nor the disposition saw:**
+`examine_chart_coherence` takes `&Body<f64>` while `run_checks` is
+generic over the decision lane, so a `ChartCoherenceLane` capability
+trait and a bound on two public doors are forced. **This row's original
+"a consumer decision, not part of relocating a condition" was closer to
+right than the disposition that called it an overstatement** — the
+conclusion (dispatchable) survives, the cost is about three times the
+estimate.
+
+## Residue, both filed rather than disclosed
+
+- `work/exch/coherence-findings-have-no-step-import-consumer` — the
+  step-import half. It lived only as prose at `work/exch/plan.md:57-59`,
+  and one-file-one-item means this row could not carry EXCH's work
+  through its own close.
+- `work/fix/chart-coherence-ships-off-and-nothing-schedules-turning-it-on`
+  — the default `Off`, with the two measurements that decide whether it
+  turns on.
+
+Reported out of fence, not filed: the kernel coherence types
+(`CoherenceFinding`, `Unexamined`, `Unexaminable`, `StructureRead`)
+have no `Display`, so this consumer writes the condition phrases itself
+and `StructureRead` reaches a user as `{at:?}`. MESH's ground, and the
+second-vocabulary hazard their own module names.
