@@ -2004,3 +2004,21 @@ it. The two kernel units (`tcost-area-pad-lever`,
 rows that WILL take full reviews — both rest on bit-identical
 certificates and refusal classes that only a digest can check, which is
 the risk shape §Review names.
+
+## The two ci-filter GUI-LOG citations resolve now (2026-09-12)
+
+`scripts/ci-filter.py` carried the fullest paraphrase of Ev's
+viewer-CI-posture ruling in live code and cited `docs/GUI-LOG.md` for
+it — a path the ledger's own recovery recipe cannot open, because the
+file was renamed to `work/gui/log.md` before the `gui` directory was
+deleted. Every other CI site points HERE for the argument, so this was
+the one citation a reader checking whether the code still applies the
+ruling would dead-end on.
+
+Both sites now carry the house spelling that CIW unit 7 landed on the
+other six, copied from the landed text rather than re-invented. Comments
+only. That closes the CI-code class at 8 of 8. The four left are the
+provenance class the CIW item separated out and declined —
+`docs/MODEL-AB-LOG.md`'s banding entry and three tracker items, none of
+them ours — and they wait on the ledger's rename note rather than on a
+re-point.
