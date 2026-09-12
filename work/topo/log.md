@@ -606,3 +606,24 @@ while the session was idle (SHELL's diagnoses on `revert`,
 tier 3's shell roles and ring nesting; `D360`'s sweep rule;
 `geom-source-absence-conflates-four-origins`; the stale D107 citation)
 — read before the next unit is cut, not acted on here.
+
+## Census door merged forward; dual re-dispatched on `b5ead3c9f` (2026-09-12)
+
+The lane merged main (`0312083aa`) by merge commit, took main's side
+in the four conflicts with the door conversions on top (main had
+rewritten the teapot scene's `describe` and moved `band()` into the
+sweep tests' `common::approx`), re-derived the receipt at the new
+base — 49 converted, 1 listed with its owner, three sites new on main
+(`shell5_r1_probes`, the tour's `skinned` scene, editor-core's
+`lib_g17_shell_node`) — and filed per §6: the nine-copies row on
+`work/suite/` closed with every copy named, a new
+`work/tcost/census-tuple-rows-assert-chi-not-genus` for the rows whose
+`counts()` tuple carries no `s`. Citations rewritten by name. Full
+matrix green (run 34716391723). Nothing on main moved the door's
+premises. Correction to the entry above: the dead reviewers' scratch
+dirs were NOT empty — both had run differential tour builds and probes
+before the limit killed them; that material is archived privately and
+the dirs were cleared to the brief before re-dispatch, so the new
+reviews start cold. Briefs regenerated for the new head and re-hashed;
+ordinal 2702, byte 70 (R1 OPUS, R2 FABLE), concurrent on frozen
+`b5ead3c9f`.
