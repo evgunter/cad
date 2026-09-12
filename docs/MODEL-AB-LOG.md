@@ -5226,3 +5226,74 @@ identical and stored before either ran. Pre-draw difficulty
 ~222k tokens (harness), ~46 min wall; impl CI **34717389869** GREEN on
 the head (twelve `test` jobs, five `k-lint (gate, …)`, nothing
 narrowed). Sample number at merge, in main's merge order. Row at merge.
+
+Census-door row, recorded AT MERGE (2026-09-12, merge `1072c130a`, PR
+#2131; `work/topo/no-public-census-or-genus-query.md`, Ev's ruling (A)
+on [ev] PR 2010): `readback::euler_counts` returning five `i64` counts
+with `s` = shells, `EulerCounts::genus` refusing typed on odd parity
+before the halving, `EulerParityError` its own type; the hand-written
+identity converted at 53 sites across `topo`, `sweep`'s tests,
+`editor-core`'s tests and the demos, one listed with its owner (the
+per-component `ShellComponent::genus`); test-crate helpers defined once
+per cargo root. Difficulty **M** (pre-logged in `work/topo/log.md` at
+dispatch; the claim entry above wrote S/M — the pre-logged value is the
+record), task class STRUCTURAL (logged knowing the arm — block drawn
+2026-09-05; disclosed). Implementer arm **FABLE** (block TOPO-B1 slot
+2, byte 92). **DUAL: ordinal 2702; sample #173; byte 70 parity 0 ⇒ R1
+OPUS + R2 FABLE; CONCURRENT same-head on frozen `b5ead3c9f` — NOT the
+`11257506c` the claim entry names: the first dispatch on that head was
+killed by the account's usage limit within minutes of launch (no
+report from either arm; both scratch dirs archived and cleared), the
+session idled four days, and the lane merged main forward (four
+conflicts, three newly landed sites converted) before the dual re-ran
+on the merged head with regenerated briefs; briefs stored with sha256
+before each dispatch, identical modulo lane paths.** R1
+MERGEABLE-AFTER-FIXES, counts 2/6/8, rubric idiom 4 / tests 2 / docs
+3. R2 MERGEABLE-AFTER-FIXES, counts 2/3/6, rubric 4/2/3. **Both MAJORs
+CONVERGED and executed by both**: the row the PR named as the pin for
+`s` = shells stays green when `s` reads the solid arena (the row keeps
+the emptied solid alive, so solids = shells throughout; only S69's own
+instruments elsewhere go red), and the class receipt misses two
+`m9_3_zip` rows, one deriving `r` as loops − faces; R1 added
+`blend4_concave_fillet`'s twin row and `cube_by_hand`'s identity over
+constants. Converged MINORs: `r` not pinned as a sum; the ring-less
+conversions changed their rows' claims against the PR body's word;
+eleven same-named delegates with identical docs as a fresh instance of
+the closed duplication (both, via the style lane's new trap check).
+Both built the public-operator route to two shells in one solid
+(`mfkrh_plug` → `movefac`) and both probes red the mutant; both
+established an odd census unreachable from outside the crate and the
+demos' narration byte-identical (78 lines). Unilateral, taken: the
+raw-write row's doc re-asserting a sentence this slate already holds
+false (R1); the tcost residue row under-scoped (R2); `#759` closed so
+the PR's S79 sentence false (R1); three review-module headers
+forbidding the simplification, undisclosed (R1); three carriers of one
+characteristic (R1, filed). NO unilateral executed MAJOR: **no tally
+candidate**. Spec deviations: 5 reported; silent 3 (R1) / 2 (R2), the
+receipt's completeness and the ring-less claims common to both. Method
+relaxations: none; shared-box note applies to both arms; R2's target
+seeded colder (wall-clock asymmetry only). Fix pass by the implementer
+lane (inherited arm), nine items, union of both reviews; both probes
+adopted as the door's rows, the `s` and `r` mutants each red by exactly
+one row. Tokens: impl ≈265k, merge-forward ≈70k, fix ≈105k, state-sync
+≈20k, R1 ≈190k, R2 ≈250k. Wall: impl ≈1 h 45, merge-forward ≈35 min,
+fix ≈75 min, R1 ≈100 min, R2 ≈125 min; gaps ANNOTATED: the usage-limit
+cut at dispatch and the four idle days between it and the re-run. Tally
+after this entry: candidates +2 (S330 doc class, D265 code class),
+unchanged.
+
+Block TOPO-B1 — CONCLUDED record (published from the orchestrator's
+branch-side record `topo/b1-block` at the last slot's conclusion,
+2026-09-12). Protocol: three slots {opus, opus, fable}, fable position =
+byte mod 3. Draw 2026-09-05: `/dev/urandom` byte **92** (accepted,
+< 252) ⇒ 92 mod 3 = **2** ⇒ fable at slot 2. Slots: 0 = S330 (+S94
+rider; OPUS; pre-draw S/M / STRUCTURAL logged after the draw —
+disclosed; PR #1923, ordinal 2700, sample #138, one doc-class tally
+candidate; concluded 2026-09-05); 1 = D265 (OPUS; pre-draw M /
+STRUCTURAL logged after the draw — disclosed; PR #2013, ordinal 2701,
+sample #155, one code-class tally candidate; concluded 2026-09-07); 2 =
+census door `no-public-census-or-genus-query` (FABLE; pre-draw M /
+STRUCTURAL logged after the draw — disclosed; PR #2131, ordinal 2702,
+sample #173, no tally candidate; concluded 2026-09-12). No arm was
+exposed on main before its slot concluded. The next TOPO kernel-answer
+unit draws block TOPO-B2.
