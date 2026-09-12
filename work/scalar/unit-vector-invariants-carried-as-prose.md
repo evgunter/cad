@@ -134,3 +134,15 @@ thread:
 
 This row is now a unit to cut: one or two units after the door rows,
 with `D6`'s.
+
+**Refinement (Ev, same thread): the tube takes a FRAME, not two unit
+vectors.** Its inputs `center, axis, u_ref` are an origin and a
+right-handed orthonormal pair (the roll is `u_ref`; a plane would not
+fix it). The plan gains a second rung of the same shape: a frame
+witness in `geom-core` — origin plus a right-handed orthonormal triple
+— minted only by the decided Gram–Schmidt ladders (`eval/wire.rs`
+`frame_axes`, `geom-core` `path_start_frame` and `frame_from_unit_aim`),
+consumed by `Affine3::from_frame` and the tube door, whose three frame
+refusals (`NonUnitAxis`, `NonUnitURef`, `FrameNotOrthogonal`) all
+retire; the wire's private `AxisFrame` becomes that type. `Affine3`
+stays the general affine map; the witness converts into one.
