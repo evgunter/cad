@@ -2,9 +2,10 @@
 id: tier3-plus-v-needs-a-sign-and-pays-for-a-precision
 kind: issue
 title: tier 3's +V check needs a sign and pays for a precision target
-status: open
+status: closed
 opened: 2026-09-10
 parent: PERF-6
+closed: 2026-09-12
 ---
 
 
