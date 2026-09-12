@@ -64,7 +64,7 @@ section, written after the fact from `git log`.
    `tool-kind-all-and-ordinal-have-no-production-reader`, both open.
 
 2. `pick-priority-filter-vocabulary` — **deferred**, ratified by
-   `crates/viewer/README.md` GQ7. The status vocabulary that could not
+   `crates/viewer/GUI-DESIGN.md` GQ7. The status vocabulary that could not
    spell it is settled: Ev ruled `deferred` into `work/README.md` and
    made `lint` refuse a `parked` row whose blockers have all closed
    (#1857).
