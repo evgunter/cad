@@ -1367,13 +1367,22 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
 /// ([`crate::scene::FittedDelta`] absent) and a fit with nothing to
 /// say (`wording` absent, which is a fit that did not move δ). The
 /// second was a second condition at the call site.
+///
+/// **The δ is rendered, not formatted**
+/// ([`crate::scene::DisplayTolerance::render_mm`]). The badge's whole
+/// sentence is which δ the picture is at, and the δ it announces is the
+/// budget's own choice — `constant / TRIANGLE_BUDGET`, a quotient with
+/// no short spelling — so a fixed `{:.3}` read `δ 0.000 mm chosen` for
+/// every body whose cost constant is under a triangle·millimetre. A
+/// label wide enough for the render is the price, and a badge is a
+/// label rather than a fixed-width field.
 pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
     let fitted = fitted?;
     let wording = fitted.wording()?;
     Some(
         Badge::read(
             Subject::Display,
-            format!("δ {:.3} mm chosen", fitted.delta.get() * 1.0e3),
+            format!("δ {} mm chosen", fitted.delta.render_mm()),
             Tone::Advisory,
         )
         .detailed(wording),

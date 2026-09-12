@@ -13,7 +13,7 @@ Found by the style review of PR 2046 (`view/const-all`).
 
 - `crates/viewer/src/datums.rs:276` — `pub enum DatumKind { Plane,
   Frame, Axis, Point }`, re-exported at the crate root
-  (`crates/viewer/src/lib.rs:128`, `pub use datums::{DatumDraw,
+  (`crates/viewer/src/lib.rs:129`, `pub use datums::{DatumDraw,
   DatumKind}`), so it is `viewer::DatumKind`. It tags what a datum
   draw IS.
 - `crates/viewer/src/forms.rs:93` (`view/const-all`: `:74`) — `pub(crate) enum DatumKind {
