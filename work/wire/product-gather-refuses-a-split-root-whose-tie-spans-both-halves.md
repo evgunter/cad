@@ -2,10 +2,11 @@
 id: product-gather-refuses-a-split-root-whose-tie-spans-both-halves
 kind: issue
 title: The product gather refuses DuplicateName for a split root whose tied name has one candidate in each half
-status: review
+status: closed
 opened: 2026-09-06
 branch: wire/product-gather-tie-across-halves
 pr: 2442
+closed: 2026-09-12
 ---
 
 

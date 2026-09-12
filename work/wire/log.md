@@ -1515,3 +1515,48 @@ its shape is coherent, and the alternative puts the filter back in
 coexisting with divergent ownership, which is meaningful (`flush` runs
 at every stage boundary, `finish` once). Both get a sentence saying so,
 so the next reader does not re-open them.
+
+## 2026-09-12 — 2442 merged (`9a208a3`), and a fifth face of the silent-coverage class
+
+The fix pass took all six items. The blocker's fix is the shape worth
+copying: `ProductError`'s `Display` is now two arms guarded on
+`*node != name.node`, and the guard is sound in BOTH directions — on the
+flush path `node` IS `name.node`, so the per-root sentence is
+unreachable there, and the tie-merge sentence claims only what is true
+wherever it is reached. The new row
+`the_naming_refusal_claims_rootedness_only_on_the_per_root_path`
+reddens on the exact defect: with the guard removed it fails printing
+the reviewer's own quoted sentence. A refusal-text row that reproduces
+the reviewer's quote is the strongest form of that guard.
+
+`product.rs:38` was adjudicated by the lane as standing in meaning and
+sharpened in wording — the claim sits in a provenance paragraph and
+means the gather writes no table of the EVALUATION's, which was true
+before and after since `carry_names` always built a separate aggregate.
+Right call; the ambiguity was real and the fix was to remove the second
+reading, not the sentence.
+
+**The render-drift neutrals were not this PR's, and chasing them found
+a new hole.** `gate ok` is green over three `render drift (…)` neutral
+CHECK RUNS which it cannot cover by construction (`ci.yml:5199-5204`:
+it reads the jobs API, so check runs are *"outside the one name
+entirely"*). Their cause: main's run for the teapot merge `f2a4adf`
+(13:08:21) was **cancelled** 51 s in by the next merge, `593ed19`
+(13:08:57) — `ci.yml:133-135` has `cancel-in-progress: true` on a group
+keyed only on workflow+ref, which on `main` every push shares. The
+teapot's re-baseline never ran; #2441 was docs-tier so its render lanes
+skipped; the drift surfaced on the NEXT PR's checks as if it were that
+PR's. It self-healed only because 2442 happened to be code-tier.
+
+**The window is merge spacing, and this orchestrator opened it** — two
+merges 36 seconds apart. Filed as
+`work/issues/a-merge-cancels-the-previous-merges-main-run-and-its-main-only-work.md`
+with the timing table and three candidate fixes. The general form is
+the part to carry: **`cancel-in-progress` is a claim that the older
+run's work is worthless, and that claim is false for any branch whose
+runs write back.**
+
+Operational consequence adopted now, ahead of any fix: **space merges
+to main past the previous merge's run, or check that the previous
+merge's main run was not cancelled.** A `cancelled` main run is not a
+neutral event.
