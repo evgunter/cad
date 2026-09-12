@@ -197,8 +197,10 @@ impl CurveKindSet {
 /// The [`SurfaceKind`] bit position in a [`SurfaceKindSet`].
 ///
 /// EXHAUSTIVE with no wildcard arm: a new `SurfaceKind` variant fails
-/// to compile here (and `ALL_SURFACE_KINDS` below is pinned against
-/// this function by a unit test, so the pair cannot drift apart).
+/// to compile here, so the numbering cannot silently omit a kind. What
+/// forces `ALL_SURFACE_KINDS` below to grow with the enum is a
+/// separate row, `all_surface_kinds_is_the_whole_enum` — this match
+/// forces a VISIT to the file and nothing more.
 const fn surface_bit(kind: SurfaceKind) -> u8 {
     match kind {
         SurfaceKind::Plane => 0,
@@ -1629,6 +1631,100 @@ mod tests {
             }
         }
     }
+
+    // -----------------------------------------------------------
+    // The two mirrors' censuses, beside the lists they pin.
+    // -----------------------------------------------------------
+
+    /// **[`ALL_SURFACE_KINDS`] is the whole enum.** The match below is
+    /// EXHAUSTIVE over [`SurfaceKind`] with no wildcard arm, so a
+    /// variant added to the enum fails this file until it is visited
+    /// here, and every arm names the same total, so visiting it means
+    /// re-deciding that number — which then reds until the list has
+    /// grown. The no-repeats half is what makes the count a census
+    /// rather than a length: with every entry distinct, a `len` equal
+    /// to the total means the list holds each kind exactly once.
+    ///
+    /// **What is NOT forced, measured**: the total itself. An author
+    /// who copies the arm they are next to writes the old number, and
+    /// the row then passes with the new kind absent from the list. The
+    /// row forces the visit and the decision, not the edit. That hole
+    /// is the idiom's, not this site's, and is filed as
+    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`.
+    #[test]
+    fn all_surface_kinds_is_the_whole_enum() {
+        let kinds = match SurfaceKind::Plane {
+            SurfaceKind::Plane => 7,
+            SurfaceKind::Cylinder => 7,
+            SurfaceKind::Cone => 7,
+            SurfaceKind::Sphere => 7,
+            SurfaceKind::Torus => 7,
+            SurfaceKind::Nurbs => 7,
+            SurfaceKind::Approx => 7,
+        };
+        for (i, kind) in ALL_SURFACE_KINDS.iter().enumerate() {
+            assert!(
+                !ALL_SURFACE_KINDS[..i].contains(kind),
+                "{kind:?} appears twice in ALL_SURFACE_KINDS"
+            );
+        }
+        assert_eq!(
+            ALL_SURFACE_KINDS.len(),
+            kinds,
+            "ALL_SURFACE_KINDS has drifted from the enum — it holds {} kinds, the enum has {kinds}",
+            ALL_SURFACE_KINDS.len()
+        );
+    }
+
+    /// **[`CurveKind::ALL`] is the whole enum** — the edge-side twin of
+    /// `all_surface_kinds_is_the_whole_enum`, same construction and
+    /// same measured hole.
+    #[test]
+    fn curve_kind_all_is_the_whole_enum() {
+        let kinds = match CurveKind::Line {
+            CurveKind::Line => 4,
+            CurveKind::Circle => 4,
+            CurveKind::Ellipse => 4,
+            CurveKind::Nurbs => 4,
+        };
+        for (i, kind) in CurveKind::ALL.iter().enumerate() {
+            assert!(
+                !CurveKind::ALL[..i].contains(kind),
+                "{kind:?} appears twice in CurveKind::ALL"
+            );
+        }
+        assert_eq!(
+            CurveKind::ALL.len(),
+            kinds,
+            "CurveKind::ALL has drifted from the enum — it holds {} kinds, the enum has {kinds}",
+            CurveKind::ALL.len()
+        );
+    }
+
+    /// **No two kinds share a bit position**, on either mirror: a
+    /// duplicated `surface_bit` / `CurveKind::bit` arm would make two
+    /// kinds indistinguishable inside a set, and the exhaustive match
+    /// that forces the arm to exist cannot see that its value collides.
+    /// A singleton set that iterates back to a DIFFERENT kind is what
+    /// that collision looks like from outside.
+    #[test]
+    fn kind_bits_are_distinct() {
+        for kind in ALL_SURFACE_KINDS {
+            assert_eq!(
+                SurfaceKindSet::just(kind).iter().next(),
+                Some(kind),
+                "{kind:?} shares a bit with an earlier surface kind"
+            );
+        }
+        for kind in CurveKind::ALL {
+            assert_eq!(
+                CurveKindSet::just(kind).iter().next(),
+                Some(kind),
+                "{kind:?} shares a bit with an earlier curve kind"
+            );
+        }
+    }
+
 }
 
 // The interval-safety half of the constructor's contract, at the
