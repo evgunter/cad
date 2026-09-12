@@ -731,3 +731,105 @@ closes, and this lane is retiring hand-spelled lifts.
 
 **Posture: FULL review**, per `plan.md`'s table — it changes what a loft
 builds if the door is wrong.
+
+## The axis question is RATIFIED and merged; the lift pair is in full review (2026-09-12)
+
+**PR 2404 merged** (`4d40f670`). Ev ruled in two rounds: *"axis shaped
+sounds good / refuse on absence also sounds good"*, with the shape
+itself — declared intent, structural invalidation — ratified the round
+before. `docs/DESIGN.md`'s table carries it as **Ratified; unbuilt**.
+
+**A correction in the ratified option's favour, found by reading P1's
+actual text before acting on it.** Round 2 priced axis-shaped as costing
+a reopening of `crates/verbs/README.md` §3 P1. Wrong: P1's exclusion is
+scoped to **motion-invariant** fields (*"a stored scalar field is
+motion-invariant, so no kernel op composes or interprets one"*), and an
+axis is not one. An axis is placement data, so it falls on
+`GeomSource`'s side of the line P1 draws — where `Placed` composition
+already lives in the kernel. VS-Q4 says the same from the other end: it
+rejects a SourceExpr-style address *"with nothing to compose a
+motion-invariant field"*, and an axis gives it something to compose.
+P1 stands untouched; what is new is granularity, not scope.
+
+**The row's standing obligation is discharged by evidence**:
+`crates/verbs/README.md` §3 P2's SPHSPH sentence, which this row
+required to be corrected when answered, is **gone** — `SPHSPH`,
+`CoaxialEvidence` and `parallel` all return zero hits. It left in other
+work since 2026-09-04.
+
+**Three rows opened for the unbuilt design**, because ratified-and-unbuilt
+is work and not a row staying open: `axis-shaped-identity-channel`
+(this program — and cut as a SEQUENCE, not dispatched as one lane: it
+spans WIRE, TOPO's `source.rs`, S-BOOL's `join.rs` and editor-core),
+`work/topo/geom-source-absence-conflates-four-origins.md`, and
+`work/exch/step-import-discards-the-entity-ids-that-are-its-identity-channel.md`.
+
+## The lift pair landed green, and the trap fired a fourth time
+
+**PR 2409**, CI run 34666874179 green on the full code tier (twelve
+`test (…)`, five `k-lint (gate, …)`; the four skips are cache primers
+and two `interval-transcendentals` rows the change filter did not buy).
+Both items are one PR, as `plan.md`'s ordering rule required.
+
+**The items were wrong about the tree in four ways** and the lane
+corrected them: half the door already existed (`ProfileLoop::map`,
+BOOL-9, ratified in `crates/profile/README.md` V4); `Section` is
+`pub type Section = Vec<ProfileLoop<f64>>` in **sweep**, an f64-pinned
+alias that cannot carry a door, so the top rung is `Profile`;
+`end_profile` is at `:223`-`:232`, not `:225`-`:245`.
+
+**And the fourth: `ValidatedLoop::lift` hand-spelled the vertex rung** —
+so BOOL-9's fix for the loop rung **minted a fresh copy one level
+down**, which is the stance bullet's shape found live in the code this
+unit was sent to fix. Fourth instance on this program, and the first
+found by an implementer rather than a reviewer.
+
+**The substantive change is not the door.** `end_profile`'s re-`validate`
+at `T` is retired — validation happens at `f64` and lifts through
+`ValidatedProfile::lift_onto`, dropping `T: Decide` → `T: Real` — on the
+argument that `skin::validate_sections` has already validated each
+section at `f64`, so the end profiles were the one part re-deciding.
+Disclosed behaviour move: a section whose `f64` validation decides but
+whose `T` re-validation would escalate now lofts instead of refusing.
+Class estimate: **M was right for the pair and wrong as two Ms** — the
+door is a morning, the weight is this decision.
+
+**Review dispatched FULL**, with seven claims. The three the orchestrator
+weighted heaviest:
+
+- **The k-lint sentence is the weakest link.** The PR says the
+  end-profile predicates now fire at `f64` rather than the assembly's
+  `T`, *"so they leave a `Probe` lane's sample stream — k-lint came back
+  green, so nothing moved in practice."* Green over a CHANGED
+  distribution is a different claim from green over an unchanged one,
+  and if k-lint cannot see this family at all then its green is not
+  evidence about it. The reviewer reads the RUN's steps, not the
+  workflow source.
+- **`Profile::map_scalar` has no production consumer**, which is exactly
+  the shape this program filed three PRs ago as
+  `frame-linear-generic-door-has-no-consumers` — *"a public generic door
+  kept alive by its own test is exactly what the item was retiring at
+  the other end."* Minted fresh by a PR whose job was retiring
+  hand-spelling, or genuinely different because a scheduled consumer
+  exists? Argued either way, not skipped.
+- **The stated test gap**: no fixture separates the two paths by outcome
+  without knife-edge tuning. Stated rather than hidden, which is right —
+  and it is Q3 about the unit's own central claim, so the reviewer tries
+  to build one anyway.
+
+## Disk: reclaimed, and the orchestrator was late
+
+The lane reported `/` at **100%** mid-run and skipped its local
+`demos/tour`/`demos/wild` clippy because of it (grep-verified instead;
+CI's rows cover them, and the reviewer confirms from the run record).
+`agent-lane-operations` is explicit that reclaiming a finished lane is
+the **orchestrator's** job and is done *when a review returns* — six
+lanes had reported and none had been swept. 23 GB in eight `*-target`
+directories, of which the review lanes are the documented biggest
+consumers.
+
+Reclaimed the three merged E lanes' targets and all three review lanes
+(targets and clones): **1.5 GB free → 24 GB**. `wire-m1`'s target is
+kept, its PR being in review with a fix pass likely. Nothing was running
+— checked `pgrep cargo` and every target's mtime before deleting, per
+the memory's rule that a running build's target is never reclaimable.

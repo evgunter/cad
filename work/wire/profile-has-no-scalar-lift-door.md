@@ -2,10 +2,11 @@
 id: profile-has-no-scalar-lift-door
 kind: issue
 title: crates/profile/ carries no map_scalar, so loft's end_profile hand-spells the ProfileLoop lift three rungs deep
-status: dispatched
+status: review
 opened: 2026-09-04
 refs: [1782]
 branch: wire/profile-lift-door
+pr: 2409
 ---
 
 ## Finding
