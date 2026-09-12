@@ -10391,6 +10391,17 @@ tree: permitting a second `begin_free_move` (3 rows red), refusing
 `Select` mid-probe (3 rows, and this row is the only one about the
 recovery), inverting `commit_free_move`'s name check (13 rows).
 
+**Filed outside the fence** (§6): `work/door/gq5-recap-citation-
+points-at-the-readme-the-split-emptied`. DOOR's
+`dimension-all-has-readers-outside-the-viewer` cites
+`crates/viewer/README.md:1500` for the GQ5 recap; the README is 1444
+lines, the citation was correct at `625722e79e` against an 1849-line
+file, and **#2462 moved the subject to another file** —
+`crates/viewer/GUI-DESIGN.md:155`, located by its own words. Not a
+line shift, so no repoint inside the README could find it. The row
+says what it does not claim: the rest of #2462's casualty population,
+which a `wc -l` filter cannot see.
+
 **VIEW stands at 72 open / 87 closed** — re-derived from
 `work.py status --program view` on the MERGED tree, not carried
 forward. It moved twice while this lane ran: the previous entry's
