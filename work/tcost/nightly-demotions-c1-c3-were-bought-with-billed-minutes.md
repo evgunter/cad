@@ -107,3 +107,51 @@ not gated is a defect in the fuzzer). **TCOST-B3** (the cache primer) is
 latency by mechanism — a cold ~300-unit compile on the longest job of
 every first build. **TCOST-K1/K2/K3** and **B1** cut the build and the
 slowest rows themselves, and K1/K2 speed the shipped kernel besides.
+
+## MEASURED (2026-09-12): all three, and none is the pole
+
+Ask 1 above is discharged. C3's reading — *"never measured"*, and the one
+of the three that could plausibly have approached the critical path — is
+taken, so the three can be compared on one axis for the first time.
+
+**C3, the `python suite (wheel + guide + north-star)` job.** Hosted, over
+the 32 most recent completed pull-request runs of `ci.yml`, taking every
+run where the job actually executed (its seeds hit, so this is the job as
+it would run if restored to every PR):
+
+| figure | value |
+|---|---|
+| python suite job | **106 s median** (n = 15), range 88-127 s |
+| code-tier run wall, same window | **845 s median** (n = 21), first live job start to last live job end |
+| the job's share of the run | **13 %** |
+
+All fifteen: 88, 98, 102, 103, 103, 103, 104, 106, 108, 110, 113, 118,
+123, 125, 127.
+
+**The three, side by side:**
+
+| unit | what left the PR gate | its hosted cost | is it the pole? |
+|---|---|--:|---|
+| C1 | `corrupt input (release profile)` | 93 s (nightly.yml's own header) | no |
+| C2 | rustdoc excluded roots + pass 3 | 43 s of a 222 s `fmt` job | no |
+| C3 | the `pncad-py` suite | **106 s median, max 127 s** | no |
+
+The run's wall is the `build + archive` -> `test` chain and every one of
+these hangs off `filter` in parallel beside it. The largest of the three
+is under an eighth of the run and the whole of it finishes while the
+interval archive is still building.
+
+**So ask 2 stands for all three: restore them.** Nothing here costs a
+contributor a second, and each is currently paying for that with
+attribution — plus, for C1, the only lane in the tree that compiles
+`review_d18`'s two `cfg(not(debug_assertions))` rows, and for C2, a
+workspace-wide doc pass narrowed to the dependent closure.
+
+The window's 845 s wall median is higher than the 442-482 s
+`work/ciw/f3-recosting-on-a-public-repo` §M2 recorded, and this row does
+not reconcile them: M2 measured run-created to last-job-end over a
+different window, this one measures first-live-job-start to
+last-job-end, and queue time moves between them. **It changes nothing
+here** — the conclusion is a ratio, and 106 s is under an eighth of the
+run on either denominator. Whoever restores these takes the before/after
+from their own PR's runs rather than from this table.

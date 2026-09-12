@@ -1844,3 +1844,26 @@ to `work.py status`, not to a log entry's prose.** A hand-written total
 in a narrative goes stale the moment the next row lands, and this program
 wrote two of them wrong in one day while auditing other people's stale
 figures.
+
+## C3 measured; all three demotions are clear to restore (2026-09-12)
+
+The reading `nightly-demotions-c1-c3-were-bought-with-billed-minutes`
+asked for and nobody had ever taken. Hosted, over the 32 most recent
+completed pull-request runs, every run where the job actually executed:
+the **`python suite` job is 106 s median (n = 15), range 88-127 s**,
+against a code-tier run wall of 845 s median in the same window — **13 %
+of the run**. It was the one of the three that could plausibly have been
+the pole. It is not.
+
+With C1 at 93 s and C2 at 43 s off a 222 s `fmt` job, all three are now
+measured on one axis and none of them is on the critical path: the wall
+is the `build + archive` -> `test` chain and all three hang off `filter`
+beside it. The row's ask 2 therefore stands for all three — restore
+them; nothing here costs a contributor a second, and each pays for that
+in attribution.
+
+Noted on the row rather than reconciled: this window's 845 s wall median
+sits above the 442-482 s in `work/ciw/f3-recosting-on-a-public-repo` §M2,
+which measured a different window and a different endpoint pair. The
+conclusion is a ratio and holds on either denominator; whoever restores
+the jobs takes the before/after from their own PR.
