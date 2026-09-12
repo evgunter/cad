@@ -1,11 +1,12 @@
 ---
 id: coherence-findings-have-no-consumer
 kind: issue
-title: "coherence findings have no consumer: wire examine_chart_coherence into editor-core's checks (CheckId::ChartCoherence) and step-import"
-status: open
+title: coherence findings have no consumer: wire examine_chart_coherence into editor-core's checks (CheckId::ChartCoherence) and step-import
+status: review
 opened: 2026-09-02
 github: 1587
 refs: [1585, 868, 723, 1571]
+branch: fix/chart-coherence-check
 ---
 
 ## From GitHub issue 1587
