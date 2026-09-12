@@ -144,9 +144,30 @@ impl View {
         (depth * self.metres_per_pixel_at_one_metre).max(f64::MIN_POSITIVE)
     }
 
-    /// How much world the window spans at `point`'s depth.
-    fn window_metres_at(&self, point: Point3<f64>) -> f64 {
-        self.metres_per_pixel_at(point) * self.viewport_px.max(1.0)
+    /// **What a span of `px` PIXELS measures at `point`**, in world
+    /// metres, or `None` when this view lends `point` no such length.
+    ///
+    /// **Every mark this module draws is a pixel count read through
+    /// here**, so this is the module's one door for the refusal
+    /// [`grid_pitch`] makes at the other end of the same arithmetic —
+    /// and each mark asks for its own point. A plane's ruling is
+    /// scaled at the patch's centre and its normal tick at the
+    /// origin; a frame's arms at the origin; an axis's tick at each of
+    /// its two ends. Those are DIFFERENT depths, so they refuse
+    /// separately: a datum whose patch has no scale still says which
+    /// way it faces if its origin has one.
+    ///
+    /// The check is on the PRODUCT and not on the metres-per-pixel,
+    /// because a scale that is a length does not make every multiple
+    /// of it one.
+    fn screen_metres_at(&self, point: Point3<f64>, px: f64) -> Option<f64> {
+        let span = self.metres_per_pixel_at(point) * px;
+        (span.is_finite() && span > 0.0).then_some(span)
+    }
+
+    /// What HALF a patch of `cover` windows measures at `point`.
+    fn half_patch_at(&self, point: Point3<f64>, cover: f64) -> Option<f64> {
+        self.screen_metres_at(point, self.viewport_px.max(1.0) * cover * 0.5)
     }
 }
 
@@ -170,8 +191,14 @@ impl View {
 /// is the worst of them and was what this returned: the index bounds
 /// come out `-inf..=inf`, so the patch is ruled at the cap
 /// ([`MAX_GRID_LINES`]) with every coordinate `NaN`. Refusing hands
-/// the caller the one fact it can act on — this view has no scale —
-/// and it draws nothing.
+/// the caller the one fact it can act on — this view has no scale at
+/// that point — and it rules nothing.
+///
+/// **What this door does NOT see** is a scale already substituted
+/// upstream: [`View::metres_per_pixel_at`] floors its answer at
+/// `f64::MIN_POSITIVE`, which is a legitimate reading here, so a NaN
+/// or zero depth arrives as a rung request this refusal cannot
+/// distinguish from a very close plane.
 pub fn grid_pitch(metres_per_pixel: f64) -> Option<f64> {
     let wanted = metres_per_pixel * TARGET_PITCH_PX;
     if !wanted.is_finite() || wanted <= 0.0 {
@@ -405,10 +432,7 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
 /// plane rather than a rectangle somebody placed.
 fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
     let (u, v) = basis(normal);
-    // No segments is how this module says "nothing drawn", and it is
-    // the refusal itself rather than a substituted drawing: a plane
-    // the view cannot scale has no patch, no ruling and no tick.
-    grid(origin, u, v, normal, view).unwrap_or_default()
+    grid(origin, u, v, normal, view)
 }
 
 /// **A frame's grid, ruled along the frame's OWN axes**, plus an
@@ -432,13 +456,15 @@ fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, view: View) -> Vec<[f6
 /// the mark that cannot coincide with the ruling. The arms stay
 /// because an arrowhead floating at a distance reads as debris.
 fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
-    // The arrows are sized against the same view the grid is, so a
-    // view that cannot scale the grid cannot scale them either; they
-    // go with it rather than being drawn over an absent patch.
-    let Some(mut out) = grid(origin, u, v, cross(u, v), view) else {
-        return Vec::new();
+    let mut out = grid(origin, u, v, cross(u, v), view);
+    // **The arms refuse on their own scale, not on the patch's.** The
+    // ruling is read at the point the camera is aimed at and the arms
+    // at the frame's ORIGIN, which are two different depths — so a
+    // frame the view cannot rule still says which way it is turned,
+    // and the two marks are never traded for one another.
+    let Some(arm) = view.screen_metres_at(origin, FRAME_ARM_PX) else {
+        return out;
     };
-    let arm = view.metres_per_pixel_at(origin) * FRAME_ARM_PX;
     let o = [origin.x, origin.y, origin.z];
     // The two arrows differ in LENGTH as well as direction: a grid is
     // symmetric under a quarter turn, so equal arrows would name the
@@ -468,18 +494,18 @@ fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -
 /// The gridded patch the two plane-like datums share, ruled along
 /// `u`/`v` and ticked along `normal`.
 ///
-/// `None` when the view lends this plane no scale — see the refusal
-/// at [`grid_pitch`]. Every number below is that one scale spent
-/// twice, on the patch's extent and on the pitch, so a scale which is
-/// not a length leaves nothing here to draw and not merely a pitch to
-/// choose differently.
+/// **The two marks refuse separately**, because they are scaled at
+/// two different points: the ruling at the patch's centre, where both
+/// the extent and the pitch are read, and the tick at the origin.
+/// A view that scales neither draws nothing at all
+/// ([`View::screen_metres_at`], [`grid_pitch`]).
 fn grid(
     origin: Point3<f64>,
     u: Vec3<f64>,
     v: Vec3<f64>,
     normal: Vec3<f64>,
     view: View,
-) -> Option<Vec<[f64; 3]>> {
+) -> Vec<[f64; 3]> {
     // What the camera is looking at, dropped onto the plane, in the
     // plane's own coordinates.
     let to_target = Vec3::new(
@@ -500,8 +526,45 @@ fn grid(
     // further are drawn finer, which is the compromise one pitch over
     // a perspective view cannot avoid.
     let per_pixel = view.metres_per_pixel_at(centre);
-    let half = view.window_metres_at(centre) * PATCH_COVER * 0.5;
-    let pitch = grid_pitch(per_pixel)?;
+    let mut out = Vec::new();
+    // Both halves of the ruling are that one scale, and BOTH are
+    // asked for: an extent that is a length does not make the pitch
+    // one, and neither implies the other at the exponent range where
+    // either fails.
+    if let (Some(half), Some(pitch)) = (
+        view.half_patch_at(centre, PATCH_COVER),
+        grid_pitch(per_pixel),
+    ) {
+        rule_patch(&mut out, origin, u, v, (cu, cv), (half, pitch));
+    }
+    // Which way it faces, said once and quietly, AT THE ORIGIN — the
+    // one part of the drawing that is about the datum rather than
+    // about the window, and scaled at its own point for that reason.
+    if let Some(tick) = view.screen_metres_at(origin, NORMAL_TICK_PX) {
+        out.extend([
+            [origin.x, origin.y, origin.z],
+            [
+                origin.x + normal.x * tick,
+                origin.y + normal.y * tick,
+                origin.z + normal.z * tick,
+            ],
+        ]);
+    }
+    out
+}
+
+/// The ruled lines of one patch, appended to `out`.
+///
+/// Split out of [`grid`] so the refusal above it reads as one
+/// condition rather than as a wrapper around forty lines.
+fn rule_patch(
+    out: &mut Vec<[f64; 3]>,
+    origin: Point3<f64>,
+    u: Vec3<f64>,
+    v: Vec3<f64>,
+    (cu, cv): (f64, f64),
+    (half, pitch): (f64, f64),
+) {
     let at = |a: f64, b: f64| {
         [
             origin.x + u.x * a + v.x * b,
@@ -509,7 +572,6 @@ fn grid(
             origin.z + u.z * a + v.z * b,
         ]
     };
-    let mut out = Vec::new();
     // The ruled range in each direction, as index bounds on multiples
     // of the pitch from the origin. `ceil`/`floor` outward, so the
     // patch is covered rather than nearly covered.
@@ -530,19 +592,6 @@ fn grid(
     let (v_lo, v_hi) = (cv - half, cv + half);
     rule(true, u_lo, u_hi, v_lo, v_hi);
     rule(false, v_lo, v_hi, u_lo, u_hi);
-    // Which way it faces, said once and quietly, AT THE ORIGIN — the
-    // one part of the drawing that is about the datum rather than
-    // about the window.
-    let tick = view.metres_per_pixel_at(origin) * NORMAL_TICK_PX;
-    out.extend([
-        [origin.x, origin.y, origin.z],
-        [
-            origin.x + normal.x * tick,
-            origin.y + normal.y * tick,
-            origin.z + normal.z * tick,
-        ],
-    ]);
-    Some(out)
 }
 
 /// **One segment along the axis, reaching past the window**, with a
@@ -562,7 +611,11 @@ fn axis_segments(origin: Point3<f64>, dir: Vec3<f64>, view: View) -> Vec<[f64; 3
         origin.y + dir.y * along,
         origin.z + dir.z * along,
     );
-    let half = view.window_metres_at(centre) * AXIS_COVER * 0.5;
+    // The segment IS the drawing here — there is no second mark to
+    // fall back to — so a centre the view cannot scale draws nothing.
+    let Some(half) = view.half_patch_at(centre, AXIS_COVER) else {
+        return Vec::new();
+    };
     let (u, _) = basis(dir);
     let at = |t: f64| {
         [
@@ -577,7 +630,12 @@ fn axis_segments(origin: Point3<f64>, dir: Vec3<f64>, view: View) -> Vec<[f64; 3
     let mut out = vec![at(lo), at(hi)];
     for end in [lo, hi] {
         let p = at(end);
-        let tick = view.metres_per_pixel_at(Point3::new(p[0], p[1], p[2])) * AXIS_TICK_PX * 0.5;
+        // Each tick is scaled at its own end of the segment, so each
+        // refuses for itself the way a plane's tick does.
+        let Some(tick) = view.screen_metres_at(Point3::new(p[0], p[1], p[2]), AXIS_TICK_PX * 0.5)
+        else {
+            continue;
+        };
         out.extend([
             [p[0] - u.x * tick, p[1] - u.y * tick, p[2] - u.z * tick],
             [p[0] + u.x * tick, p[1] + u.y * tick, p[2] + u.z * tick],
@@ -590,7 +648,11 @@ fn axis_segments(origin: Point3<f64>, dir: Vec3<f64>, view: View) -> Vec<[f64; 3
 /// what is drawn is a mark AT it rather than a picture OF it, and the
 /// mark is the same size at every zoom.
 fn point_segments(position: Point3<f64>, view: View) -> Vec<[f64; 3]> {
-    let arm = view.metres_per_pixel_at(position) * POINT_ARM_PX * 0.5;
+    // A point's whole drawing is one screen-sized mark, so a position
+    // the view cannot scale draws no mark rather than an invented one.
+    let Some(arm) = view.screen_metres_at(position, POINT_ARM_PX * 0.5) else {
+        return Vec::new();
+    };
     let p = [position.x, position.y, position.z];
     let mut out = Vec::with_capacity(6);
     for axis in 0..3 {

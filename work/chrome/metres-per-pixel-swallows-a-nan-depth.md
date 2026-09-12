@@ -1,7 +1,7 @@
 ---
 id: metres-per-pixel-swallows-a-nan-depth
 kind: issue
-title: View::metres_per_pixel_at swallows a NaN depth into a plausible scale
+title: View::metres_per_pixel_at's floor substitutes a scale for two different non-scales
 status: open
 opened: 2026-09-12
 ---
@@ -14,44 +14,58 @@ opened: 2026-09-12
 (depth * self.metres_per_pixel_at_one_metre).max(f64::MIN_POSITIVE)
 ```
 
-`f64::max` returns the OTHER operand when one is NaN, so a NaN depth —
-a datum or an eye with a NaN coordinate — comes out of this function as
-`f64::MIN_POSITIVE`, a finite positive length, with nothing anywhere
-saying a scale was substituted. The doc at the site argues one case and
-one only: *"Floored at a hair above zero so a datum lying exactly at
-the eye — reachable by flying the camera into a plane — produces a
-degenerate drawing rather than a division by zero."* The NaN arm is not
-that case and is not argued.
+The floor makes this function total, and it is the reason the module's
+refusal — `grid_pitch` and `View::screen_metres_at`, both `Option`
+since the grid-pitch row closed — can only ever see `+inf`. Two
+distinct non-scales are converted to `f64::MIN_POSITIVE` upstream of
+it and never reach it:
 
-**It is the same class as `viewer-grid-pitch-nonfinite-fallback`, one
-call up**, and it is the reason that row's fix does not cover the NaN
-input. `grid_pitch` now refuses a scale that is not one, but it never
-sees the NaN: it is handed `f64::MIN_POSITIVE` and answers a rung,
-because `f64::MIN_POSITIVE` is a legitimate scale.
+1. **A NaN depth.** `f64::max` returns the other operand when one is
+   NaN, so a datum or an eye with a NaN coordinate leaves this
+   function as a finite positive length.
+2. **A zero depth** — the eye exactly on the datum. This is the arm
+   the doc at the site names, and names as REACHABLE: *"Floored at a
+   hair above zero so a datum lying exactly at the eye — reachable by
+   flying the camera into a plane — produces a degenerate drawing
+   rather than a division by zero."*
 
-**Measured, not reasoned** (throwaway row against the tree at
-`door/grid-pitch-refusal`, an eye at `[NaN, 0.0, 0.1]` and a plane at
-the origin): `grid_pitch(f64::NAN)` is `None`, and the plane
-nevertheless draws **126 positions** over a patch about `3.1e-305 m`
-across, the first at `[3.13e-305, -3.0e-305, 0.0]`. That is a complete,
-well-formed, entirely invented drawing at a scale nobody asked for —
-the exact shape the closed row objected to, surviving its fix.
+## What is and is not the defect
 
-`window_metres_at`, `axis_segments`, `point_segments` and
-`frame_segments` all read this same function, so the substitution
-reaches every datum kind, not just the two plane-like ones.
+**The two arms produce the identical drawing**, and saying so is the
+point of this row: a plane draws **126 positions** over a patch about
+`3.1e-305 m` across, first position `[3.13e-305, -3.0e-305, 0.0]`,
+under either input (measured with a throwaway row against the tree at
+`door/grid-pitch-refusal`). So the drawing does not distinguish them
+and no measurement can — **the distinction is argued versus unargued**,
+and that is the whole finding:
+
+- The **zero-depth** arm is argued at the site, and the argument is
+  good as far as it goes: a division by zero is worse than a
+  degenerate drawing. What the argument does not cover is that the
+  degenerate drawing is now *also* the shape the module refuses
+  everywhere else, so the site's answer and the module's answer to the
+  same question disagree. That is a decision to revisit, not a bug.
+- The **NaN** arm is not argued at all. It is not the case the doc
+  names, it arrives through a different route, and `f64::max`'s
+  NaN-preferring behaviour is the kind of thing a reader has to know
+  to see it.
+
+Both are the class the closed row
+(`viewer-grid-pitch-nonfinite-fallback`) objected to — a plausible
+reading substituted for a refusal — one call above the fix.
+
+`screen_metres_at`, and through it every mark of every datum kind,
+reads this function, so whatever is decided reaches the whole module.
 
 ## Why it was not fixed in the closing PR
 
-The honest fix is `metres_per_pixel_at -> Option<f64>` and the refusal
-propagated through `window_metres_at` and all four `*_segments`
-functions — a second, wider unit than the one the DOOR row named, and
-DOOR's charter is one PR per row with no widening. Filed here rather
-than carried.
-
-Note that `f64::MIN_POSITIVE` is a legitimate value on the OTHER arm
-(the eye exactly on the plane), so a refusal cannot be spelled by
-testing the output; the check belongs on `depth` before the `.max`.
+The fix is `metres_per_pixel_at -> Option<f64>` with the check on
+`depth` **before** the floor (it cannot be spelled on the output:
+`f64::MIN_POSITIVE` is a legitimate answer for an eye a hair off the
+plane), and the zero-depth arm needs the site's own argument revisited
+rather than deleted. That is a design call inside CHROME's house, not
+the mechanical propagation the DOOR row named, and DOOR does not
+widen.
 
 ## Fence
 

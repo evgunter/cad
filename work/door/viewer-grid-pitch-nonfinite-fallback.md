@@ -127,12 +127,22 @@ and its closed rows went with it. `D64` is now cited by its closing PR
 
 `grid_pitch` answers `Option<f64>` and returns `None` for a
 `metres_per_pixel * TARGET_PITCH_PX` that is not a positive finite
-length. `grid` propagates with `?` and answers `Option<Vec<_>>`, so a
-plane draws nothing and a frame drops its arrows with the patch — the
-arrows are sized against the same view the grid is. Three test call
-sites take `.expect(…)`; two new rows in
-`crates/viewer/tests/datum_draw.rs` pin the refusal at the door and its
-effect on the drawing.
+length.
+
+**The refusal is per MARK, not per datum**, which is the shape the
+first cut of this fix got wrong. `View::screen_metres_at` is the
+module's one door for it: every mark is a pixel count read into world
+metres through that function, and each mark asks at its OWN point —
+the ruling and the pitch at the patch's centre, a plane's normal tick
+and a frame's arms at the origin, an axis's ticks at each of its two
+ends, a point's cross at the position. Those are different depths, so
+they refuse separately. A frame the view cannot rule still says which
+way it is turned; a view that scales nothing draws nothing.
+
+Three test call sites take `.expect(…)`. Three rows in
+`crates/viewer/tests/datum_draw.rs`: the refusal at the door, the
+whole-module invariant over a **four-kind** fixture, and the frame's
+arms surviving a refused patch.
 
 **The row's severity claim does not hold, and this is worth keeping.**
 The consequence of `f64::MIN_POSITIVE` is not a hang. The sole caller's
@@ -155,16 +165,78 @@ large by about eighteen decades for any patch a view produces.
 **The row's ownership sentence was stale.** `crates/viewer/` is
 CHROME's and VIEW's ground now (`crates/viewer/tests/*` also
 S-TCOST's and S-TINT's); `work.py territory --base origin/main`
-reports all four. Announced in the PR body rather than a fence drawn
-fresh.
+reports all four. Announced in the closing PR rather than a fence
+drawn fresh.
 
 **Its class at the cut (`M`) was right.** One public signature, one
-private one, one caller pair, three test call sites.
+new private one, four drawing functions, three test call sites.
 
-**Residue**, given a file at the moment of disclosure
-(`work/README.md`): `work/chrome/metres-per-pixel-swallows-a-nan-depth.md`
-— `View::metres_per_pixel_at`'s `.max(f64::MIN_POSITIVE)` returns
-`f64::MIN_POSITIVE` for a NaN depth (`f64::max` prefers the non-NaN
-operand), so the refusal installed here never sees a NaN input. Measured:
-a plane still draws 126 positions over a `3.1e-305 m` patch. The fix is
-a second, wider unit and DOOR does not widen.
+### The sweep, and its receipts
+
+Swept `crates/viewer/src` for the three shapes this row's own Sweep
+context named as its blind spots, plus the two it named as unmatchable
+by any grep. Cited by name, because these move
+(`docs/prompts/implementer-discipline.md` §7).
+
+Patterns: `unwrap_or|unwrap_or_else|unwrap_or_default`;
+`\.(max|min|clamp)\(`; `(<=|<|==|!=|>) *0\.0`;
+`is_finite|is_nan|is_infinite`; `\.or_default\(|\.or_insert`;
+`fn (safe|fallback|default|clamped|floored)_` (zero hits — the
+named-helper hole this row predicted is empty here).
+
+| Hit | Disposition |
+| --- | --- |
+| `datums.rs` `grid_pitch`'s `f64::MIN_POSITIVE` | **Fixed** — this row. |
+| `datums.rs` `axis_segments`, `point_segments`, `frame_segments`' arms | **Fixed** — the same defect at three more marks, found by the reviewer 40 lines from the one this row named. Measured before the fix, same eye: axis 6 positions first `[NaN, -inf, NaN]`, point 6 first `[-inf, 0.0, 0.0]`. |
+| `datums.rs` `View::metres_per_pixel_at`'s `.max(f64::MIN_POSITIVE)` | **Real hit, filed** — `work/chrome/metres-per-pixel-swallows-a-nan-depth.md`. Two arms, NaN depth and zero depth, both leaving as `f64::MIN_POSITIVE`; the fix is a design call in CHROME's house. |
+| `datums.rs` `grid`'s `((last - first) as usize).min(MAX_GRID_LINES)` | **Not this class, and it was missed once** — a substituted COUNT, and the mechanism the whole hang-falsification above rests on. It is a documented backstop with its argument at the site (`MAX_GRID_LINES`' own doc), and it is the conservative direction. It is in this table because the first census dropped it through its own acknowledged integer-receiver filter, fifteen lines from the fix. |
+| `datums.rs` `unit`'s `else { Vec3::new(1.0, 0.0, 0.0) }` | Not this class — a substituted direction, argued at the site and proved unreachable from its one caller (`basis`: a unit normal crossed with the world axis it is least aligned with has length at least `1/√3`). A census owes the line anyway. |
+| `datums.rs` `viewport_px.max(1.0)`, `datum_view`'s `height_px.max(1.0)` | Not this class — a floor on a pixel COUNT, not on a measurement of the world. |
+| `gpu.rs` `index_count` and edge `vertices`' `u32::try_from(…).unwrap_or(u32::MAX)` | Same class, unreachable, **filed**: `work/chrome/gpu-index-counts-substitute-u32-max.md`. |
+| `scene.rs` degenerate triangle normal `else { [0.0, 0.0, 1.0] }` | Same class, milder, **filed**: `work/chrome/degenerate-triangle-normal-is-substituted.md`. |
+| `bounds.rs` `Probe::new`'s non-finite/zero seed → `1.0` | Not this class — argued at the site with the consumer named: *"a probe that refused would leave the panel with nothing to say about a field whose scale it could not guess."* |
+| `sketch.rs` `arc_points`' `chord <= 0.0 \|\| radius <= 0.0` → `MAX_ARC_POINTS` | Not this class — conservative direction (maximum subdivision) and a `usize` cap; a NaN falls through to `1` via the saturating cast. |
+| `sketch.rs` `tip_mark`'s `else { 0.0 }` | Not this class — argued, and zero is a refusal ("gets no marks"). |
+| `sketch.rs` `arc_points`' `ratio.clamp(-1.0, 1.0).acos()` | Not this class — an `acos` domain guard. |
+| `camera.rs` `fitted`, `projection_matrix`, `CameraOp::Dolly`, `sphere`, `ray`, `finite`/`op_finite`, `project` | Not this class — every one returns `Err(CameraError…)`. `camera.rs` is the fail-loud direction throughout and is the module this one should have looked like. |
+| `camera.rs` `near()`'s `.max(floor)`, `clamp_pitch`, `clamp_distance` | Not this class — documented range limits on camera STATE. |
+| `pickindex.rs` `segment_distance_px`, the ray-segment `t_segment`/`t_ray` `else { 0.0 }` | Not this class — the correct parameter for a degenerate segment or a parallel ray. |
+| `pickindex.rs` `partial_cmp(…).unwrap_or(Ordering::Equal)` | Not this class — a total-order adapter, with the comment above asserting the NaN cannot arise. |
+| `app.rs` `stack <= 0.0` → `return`, and the features-share `clamp` | Not this class — a refusal, and a share bounded into its legal range. |
+| `input.rs` `world_per_px`'s `height_px <= 0.0` → `None` | Not this class — **it is the shape this fix adopts**, already in the tree. |
+| `display.rs` `is_rigid`'s `!frame.is_finite()` → `false` | Not this class — a predicate refusing. |
+| `scene.rs` `Delta::new` | Not this class — `Err(SceneError::InvalidDisplayTolerance)`. |
+| `scene.rs` `Scene::nowhere`'s `unwrap_or_else(Aabb::poison)` | Not this class — poison, argued; this row's own census counts poison as fail-loud. |
+| `props.rs`, `pane/view.rs`, `pane/create.rs`, `pane/viewport.rs`, `marks.rs`, `pickindex.rs`' `in_target`, `scene.rs`' id lookups, `session.rs`, `session/select.rs`, `tree.rs`, `frame.rs`' serial, `pane/features.rs`' indent cap, `session/delete.rs`, `theme.rs`' sRGB transfer, `input.rs`' viewport and motion guards, `widgets.rs`, `bounds.rs`' offset sign | Not this class — empty strings and slices, "nothing selected", map/counter initialisation, provenance defaults, a piecewise transfer function, and early-outs on no motion. None substitutes a measurement. |
+
+**What this sweep could not match.** (a) The enumeration is
+line-oriented, so a wrapped `.unwrap_or_else(|| {` is found by its head
+only — mitigated by reading each hit's context, not by the pattern.
+(b) The `.max`/`.min` list was filtered of integer-looking receivers,
+which is how `grid`'s own `.min(MAX_GRID_LINES)` was missed on the
+first pass; the row above is the repair, but a third such site
+elsewhere in the crate would still be invisible to the pattern as
+written. (c) A `match` arm `_ => <constant>` is not a shape either grep
+matches. (d) `crates/viewer/tests/*` and every crate outside
+`crates/viewer/src` were not swept — the fence, and this row's first
+sweep already covered the tree for the `is_finite` spelling.
+(e) Accurate as of `origin/main` at `67db568`.
+
+### Filed
+
+- `work/chrome/metres-per-pixel-swallows-a-nan-depth.md`
+- `work/chrome/gpu-index-counts-substitute-u32-max.md`
+- `work/chrome/degenerate-triangle-normal-is-substituted.md`
+
+### Recorded, not scheduled
+
+- The viewer now carries several spellings of "this view has no usable
+  scale" — `camera.rs`' `Err`, `input.rs`' `world_per_px` `None`,
+  `datums.rs`' `screen_metres_at`/`grid_pitch` `None`, and the floor
+  and clamps this census clears as off-class. Consolidating them is a
+  CHROME/VIEW question about one crate's refusal vocabulary, not a
+  defect any one of them has.
+- `datum_draw.rs` pins `grid_pitch(f64::MIN_POSITIVE)` as a legitimate
+  reading, which it is at that door — and it is also the value the
+  floor one call up substitutes. The filed row above is where that is
+  answered; the pin is correct either way.

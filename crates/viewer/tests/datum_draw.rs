@@ -448,33 +448,106 @@ fn grid_pitch_refuses_a_scale_that_is_not_a_positive_length() {
     }
 }
 
-/// **A view that lends a plane no scale draws NOTHING**, rather than a
-/// lattice of infinities.
+/// **A view that lends a datum no scale draws NOTHING**, for EVERY
+/// kind, rather than a lattice of infinities.
 ///
-/// The pitch is a READING of the view, and a view can fail to be one:
-/// with the eye at the far corner of representable space the
-/// eye-to-plane distance overflows to infinity, so world-per-pixel is
-/// infinite and there is no on-screen span to put on the ladder. The
-/// only honest answer is no grid. A substituted pitch is a number the
-/// module did not compute, and the caller cannot tell it from a
-/// reading.
+/// Every mark this module draws is a pixel count read into world
+/// metres against the view, and a view can fail to lend one: with the
+/// eye at the far corner of representable space the eye-to-datum
+/// distance overflows to infinity, so world-per-pixel is infinite and
+/// there is no span to scale a mark by. The only honest answer is no
+/// mark. A substituted size is a number the module did not compute,
+/// and nothing downstream can tell it from one it did.
 ///
-/// **The value that makes this false** is a substituted
-/// `f64::MIN_POSITIVE`: the index bounds become `-inf..=inf`, their
-/// difference saturates to `usize::MAX` on the cast to `usize` and is
-/// capped at `MAX_GRID_LINES`, and the plane draws 390 positions — 97
-/// lines each way plus the normal tick — whose coordinates are `NaN`,
-/// because a basis vector's zero component times an infinite offset
-/// is not a number.
+/// **All four kinds, in one document, because the sibling kinds are
+/// where this was nearly missed.** The plane and the frame go through
+/// the pitch; the axis and the point never touch it and reach the
+/// same infinity through their own arithmetic. A row over a one-datum
+/// document would assert the invariant for a quarter of the module
+/// and read as if it covered all of it.
+///
+/// **The values that make this false** (measured on `main`, this same
+/// eye): a plane draws 390 positions of `NaN` — 97 ruled lines each
+/// way at a substituted `f64::MIN_POSITIVE` pitch, plus a normal tick
+/// — a frame draws those and its arms, an axis draws 6 positions the
+/// first of which is `[NaN, -inf, NaN]`, and a point draws 6 the
+/// first of which is `[-inf, 0.0, 0.0]`.
 #[test]
-fn a_view_with_no_finite_scale_draws_no_grid() {
-    let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
-    let segments = &draws(&doc, tol, [f64::MAX, f64::MAX, f64::MAX])[0].segments;
+fn a_view_with_no_finite_scale_draws_nothing() {
+    let (doc, tol) = evaluated(vec![
+        plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        axis([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        point([0.0, 0.0, 0.0]),
+    ]);
+    let drawn = draws(&doc, tol, [f64::MAX, f64::MAX, f64::MAX]);
+    assert_eq!(drawn.len(), 4, "the fixture is meant to cover every kind");
+    for d in &drawn {
+        assert!(
+            d.segments.is_empty(),
+            "an infinite world-per-pixel drew {} positions for a {}, the first at {:?}",
+            d.segments.len(),
+            d.kind.label(),
+            d.segments.first(),
+        );
+    }
+}
+
+/// **A frame the view cannot RULE still says which way it is turned.**
+///
+/// The two marks are scaled at two different points — the ruling at
+/// the patch's centre, which is what the camera is aimed at, and the
+/// arms at the frame's own origin — so they are two different depths
+/// and a refusal of one is not a refusal of the other. Looking at a
+/// point out at the end of the number line, from a camera a decimetre
+/// off the origin, is exactly that case: the centre's scale overflows
+/// and the origin's is an ordinary hundredth of a metre.
+///
+/// **The value that makes this false** is an empty drawing: a frame
+/// that dropped its arms with its patch would lose a mark it could
+/// have drawn, where a point and an axis at the same origin both draw
+/// normally.
+#[test]
+fn a_frame_keeps_its_arms_when_only_the_patch_has_no_scale() {
+    let (doc, tol) = evaluated(vec![frame(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+    )]);
+    let evaluation = evaluate(
+        &doc,
+        None,
+        &CancelToken::default(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let view = view_at([0.0, 0.0, 0.1], [f64::MAX, 0.0, 0.0]);
+    // The premise, asserted rather than assumed: the eye-to-centre
+    // distance overflows, so the patch's scale is refused, while the
+    // eye-to-origin distance is a tenth of a metre.
+    let to_centre = reach(&[[f64::MAX, 0.0, 0.0]], [0.0, 0.0, 0.1]);
     assert!(
-        segments.is_empty(),
-        "an infinite world-per-pixel drew {} positions, the first at {:?}",
-        segments.len(),
-        segments.first(),
+        grid_pitch(view.metres_per_pixel_at_one_metre * to_centre).is_none(),
+        "this row needs a looked-at point whose scale overflows, not {to_centre:e} m",
+    );
+    let segments = &datums::draws(&doc, &evaluation, view)[0].segments;
+    assert!(
+        !segments.is_empty(),
+        "the frame drew nothing, so it lost its arms with its patch",
+    );
+    for p in segments {
+        assert!(
+            p.iter().all(|c| c.is_finite()),
+            "the frame drew {p:?}, which is not a position",
+        );
+    }
+    // What is drawn is arm-sized, at the ORIGIN's scale — not a patch
+    // that slipped through. The +x arm is the longest of the marks.
+    let arm = view.metres_per_pixel_at_one_metre * 0.1 * 108.0;
+    let reached = reach(segments, [0.0, 0.0, 0.0]);
+    assert!(
+        (0.5 * arm..=1.5 * arm).contains(&reached),
+        "the frame reached {reached:e} m, nothing like the {arm:e} m arm",
     );
 }
 
