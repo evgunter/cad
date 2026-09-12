@@ -127,8 +127,16 @@ payload. Tag `wall_column_structure` through `pncad-py`.
 ### Class correction
 
 The row's dispatch class **E** stands. It is two sites in one file plus
-an enum arm; the ripple (a tag arm, a tag census row, a `.pyi` line) is
-compiler- and test-forced, not a design question.
+an enum arm; the ripple is compiler- and test-forced, not a design
+question.
+
+**A new `pncad-py` enum arm has FOUR rosters, not three**, and the
+fourth is not a Rust test: the tag arm (`src/tags.rs`), the tag census
+(`src/tests.rs`), the `.pyi` sentence — and
+`tests/test_binding_census.py`'s
+`test_every_member_of_a_matched_type_is_spelled_or_listed`, which only
+the hosted python suite runs. It reddened this branch's first CI run
+after three green local crates.
 
 ### Residue
 
