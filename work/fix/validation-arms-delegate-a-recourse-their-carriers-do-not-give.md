@@ -4,6 +4,8 @@ kind: issue
 title: four ValidationError arms delegate their recourse to a carrier whose own messages give none — Class B of the census recourse sweep
 status: open
 opened: 2026-09-11
+pr: 2403
+branch: fix/validation-recourse-arms
 ---
 
 
