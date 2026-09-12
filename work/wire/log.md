@@ -652,3 +652,777 @@ the door announced to S-BOOL and the ordering announced to S-TINT, whose
 `D385` converts the two test copies afterwards. `frame-f64-placement-…`
 and `product-gather-…` follow, the second still waiting on Ev's read of
 the carry-the-tie recommendation.
+
+## The `[ev]` question is out, and the lift pair is dispatched (2026-09-12)
+
+**`[ev]` PR 2404** — `docs/AXIS-DECLARATION-DESIGN.md`, `needs_ev: true`
+on `axis-flavoured-declarations-have-no-channel`, a `docs/DESIGN.md`
+companion-table row marked OPEN QUESTION, and a PR subscription so Ev's
+comments wake this session. Docs and tracker only; marked not-for-merge
+until answered.
+
+**The fork this program opened with dissolved under Ev's pushback**, and
+the doc records the resolution rather than the fork. Ev confirmed the
+reading of `cs_pair_frame`'s sentence — "never inferred" means a
+declaration cannot be OBTAINED by measuring — and then rejected the
+premise:
+
+> *"I don't like relying on the numerical check to tell if it's been
+> rotated."*
+
+Right, and live rather than hypothetical: `Node::Declare`'s pairs name
+entities by `StableName` and re-resolve at every evaluation, so a
+rotated operand re-asserts the declaration and only a band check would
+catch it. The recommendation is therefore **(a) and (b) composed** —
+declared intent, invalidated structurally by comparing the two carriers'
+placement chains, on the fact that coaxiality is invariant under a rigid
+motion applied to BOTH carriers and destroyed by one applied to one.
+`SourceExpr::Placed`'s cons-list already carries what that comparison
+needs, and its own doc states the rule (*"Equal chains ⇒ equal maps
+applied to equal descriptions ⇒ equal bits (D9)"*).
+
+**Two of this orchestrator's claims were wrong and the doc carries both
+retractions.**
+
+- A variant hanging identity on the **axis datum** is inventing a
+  channel, not wiring one up: `DatumValue` is by its own doc *"geometry
+  VALUES, not kernel entities and not recipe references"*. Comparing
+  CARRIERS avoids that, which is most of why it is the recommendation.
+- **It is not a kernel-anchors problem.** Ev asked whether recipe-shaped
+  identity is required; it is not. `topo/src/source.rs`'s module doc:
+  the fields are *"the lowered pure-data forms (`u64` node ids,
+  structural expression addresses)… this crate only ever compares them
+  for identity and flips orientation"*, and nothing maps a
+  `GeomSource.node` back to a `RecipeNodeId`. The link this program drew
+  to `two-verb-seats-do-not-compose` is **withdrawn**. What a new minter
+  owes instead is the retirement theorem plus **namespace
+  disjointness** — load-bearing, because `RecipeNodeId(pub u64)` is a
+  full `u64` with no free high half and a collision would have the
+  boolean's coincidence rung glue two unrelated surfaces.
+
+**Ev's adoption-step idea is recorded** and is cheaper than it looks:
+`import_step` already keys its maps by the file's entity ids and
+discards them at the door, a STEP entity id is real identity, and M8
+instancing is a pattern in all but name so `Placed`'s `instance` field
+serves it unchanged. Not a prerequisite. It would shrink question 3 to
+hand-built bodies alone.
+
+**Dispatched: the lift pair, as ONE unit** — `wire-m1`, branch
+`wire/profile-lift-door`, carrying both
+`profile-has-no-scalar-lift-door` and
+`profile-embed-lift-has-two-homes-anchor-and-loft`. Staffing them apart
+mints the door twice, which is `plan.md`'s ordering rule 5.
+
+Three fence crossings, all of which the PR body must disclose and which
+the review will check: `crates/profile/src/*` and
+`crates/sweep/src/loft.rs` are **S-BOOL's** (the door is minted there by
+announced seam, as EVAL-1's and FILLET's were), and
+`crates/editor-core/tests/*` is **S-TCOST's/S-TINT's** glob. And the
+ordering constraint the lane may not break: it mints the door and
+retires the PRODUCTION copy only — the two test copies are S-TINT's
+`D385`, afterwards, against a door that by then exists. The PR body is
+how S-TINT learns the door landed, since `D385`'s list today names one
+of those two copies.
+
+The brief carries this program's three standing lessons by name, because
+this unit is the one most likely to hit the first: a fix for a
+structural finding tends to mint a fresh instance of the defect it
+closes, and this lane is retiring hand-spelled lifts.
+
+**Posture: FULL review**, per `plan.md`'s table — it changes what a loft
+builds if the door is wrong.
+
+## The axis question is RATIFIED and merged; the lift pair is in full review (2026-09-12)
+
+**PR 2404 merged** (`4d40f670`). Ev ruled in two rounds: *"axis shaped
+sounds good / refuse on absence also sounds good"*, with the shape
+itself — declared intent, structural invalidation — ratified the round
+before. `docs/DESIGN.md`'s table carries it as **Ratified; unbuilt**.
+
+**A correction in the ratified option's favour, found by reading P1's
+actual text before acting on it.** Round 2 priced axis-shaped as costing
+a reopening of `crates/verbs/README.md` §3 P1. Wrong: P1's exclusion is
+scoped to **motion-invariant** fields (*"a stored scalar field is
+motion-invariant, so no kernel op composes or interprets one"*), and an
+axis is not one. An axis is placement data, so it falls on
+`GeomSource`'s side of the line P1 draws — where `Placed` composition
+already lives in the kernel. VS-Q4 says the same from the other end: it
+rejects a SourceExpr-style address *"with nothing to compose a
+motion-invariant field"*, and an axis gives it something to compose.
+P1 stands untouched; what is new is granularity, not scope.
+
+**The row's standing obligation is discharged by evidence**:
+`crates/verbs/README.md` §3 P2's SPHSPH sentence, which this row
+required to be corrected when answered, is **gone** — `SPHSPH`,
+`CoaxialEvidence` and `parallel` all return zero hits. It left in other
+work since 2026-09-04.
+
+**Three rows opened for the unbuilt design**, because ratified-and-unbuilt
+is work and not a row staying open: `axis-shaped-identity-channel`
+(this program — and cut as a SEQUENCE, not dispatched as one lane: it
+spans WIRE, TOPO's `source.rs`, S-BOOL's `join.rs` and editor-core),
+`work/topo/geom-source-absence-conflates-four-origins.md`, and
+`work/exch/step-import-discards-the-entity-ids-that-are-its-identity-channel.md`.
+
+## The lift pair landed green, and the trap fired a fourth time
+
+**PR 2409**, CI run 34666874179 green on the full code tier (twelve
+`test (…)`, five `k-lint (gate, …)`; the four skips are cache primers
+and two `interval-transcendentals` rows the change filter did not buy).
+Both items are one PR, as `plan.md`'s ordering rule required.
+
+**The items were wrong about the tree in four ways** and the lane
+corrected them: half the door already existed (`ProfileLoop::map`,
+BOOL-9, ratified in `crates/profile/README.md` V4); `Section` is
+`pub type Section = Vec<ProfileLoop<f64>>` in **sweep**, an f64-pinned
+alias that cannot carry a door, so the top rung is `Profile`;
+`end_profile` is at `:223`-`:232`, not `:225`-`:245`.
+
+**And the fourth: `ValidatedLoop::lift` hand-spelled the vertex rung** —
+so BOOL-9's fix for the loop rung **minted a fresh copy one level
+down**, which is the stance bullet's shape found live in the code this
+unit was sent to fix. Fourth instance on this program, and the first
+found by an implementer rather than a reviewer.
+
+**The substantive change is not the door.** `end_profile`'s re-`validate`
+at `T` is retired — validation happens at `f64` and lifts through
+`ValidatedProfile::lift_onto`, dropping `T: Decide` → `T: Real` — on the
+argument that `skin::validate_sections` has already validated each
+section at `f64`, so the end profiles were the one part re-deciding.
+Disclosed behaviour move: a section whose `f64` validation decides but
+whose `T` re-validation would escalate now lofts instead of refusing.
+Class estimate: **M was right for the pair and wrong as two Ms** — the
+door is a morning, the weight is this decision.
+
+**Review dispatched FULL**, with seven claims. The three the orchestrator
+weighted heaviest:
+
+- **The k-lint sentence is the weakest link.** The PR says the
+  end-profile predicates now fire at `f64` rather than the assembly's
+  `T`, *"so they leave a `Probe` lane's sample stream — k-lint came back
+  green, so nothing moved in practice."* Green over a CHANGED
+  distribution is a different claim from green over an unchanged one,
+  and if k-lint cannot see this family at all then its green is not
+  evidence about it. The reviewer reads the RUN's steps, not the
+  workflow source.
+- **`Profile::map_scalar` has no production consumer**, which is exactly
+  the shape this program filed three PRs ago as
+  `frame-linear-generic-door-has-no-consumers` — *"a public generic door
+  kept alive by its own test is exactly what the item was retiring at
+  the other end."* Minted fresh by a PR whose job was retiring
+  hand-spelling, or genuinely different because a scheduled consumer
+  exists? Argued either way, not skipped.
+- **The stated test gap**: no fixture separates the two paths by outcome
+  without knife-edge tuning. Stated rather than hidden, which is right —
+  and it is Q3 about the unit's own central claim, so the reviewer tries
+  to build one anyway.
+
+## Disk: reclaimed, and the orchestrator was late
+
+The lane reported `/` at **100%** mid-run and skipped its local
+`demos/tour`/`demos/wild` clippy because of it (grep-verified instead;
+CI's rows cover them, and the reviewer confirms from the run record).
+`agent-lane-operations` is explicit that reclaiming a finished lane is
+the **orchestrator's** job and is done *when a review returns* — six
+lanes had reported and none had been swept. 23 GB in eight `*-target`
+directories, of which the review lanes are the documented biggest
+consumers.
+
+Reclaimed the three merged E lanes' targets and all three review lanes
+(targets and clones): **1.5 GB free → 24 GB**. `wire-m1`'s target is
+kept, its PR being in review with a fix pass likely. Nothing was running
+— checked `pgrep cargo` and every target's mtime before deleting, per
+the memory's rule that a running build's target is never reclaimable.
+
+## PR 2409's full review: 2 MAJOR, and the reviewer built the fixture the lane said could not exist (2026-09-12)
+
+**APPROVE-WITH-FIXES, 2 MAJOR / 6 MINOR / 4 NOTE**, plus nine style
+findings and all eight style questions exercised. The lift is **exact**
+and claim 2 was verified term-for-term rather than accepted:
+`ValidatedSegment::lift` calls the same `pub(crate) seg::arc_carrier`
+that `build_seg` does, on scalars carried verbatim, with nothing
+rounding between.
+
+**MAJOR-1 — there is a SECOND behaviour move and the unit's new doc
+states its opposite.** `loft_body`/`sweep_body` call `loft_geometry` and
+then `assemble` with the same arguments, and `validate_sections` has
+already validated **every** section including first and last. So
+`end_profile`'s `Profile::validate` is a **provable no-op** and
+`LoftError::Profile` is **unreachable from both public doors** — with
+dead arms left in `eval/wire.rs:4319` and `pncad-py/tags.rs:1217`. The
+new doc's *"the `f64` validation is the gate, and it refuses here"* is
+false; the gate is `loft_geometry`'s.
+
+**And style finding S2 names the fix**: `LoftGeometry` **already** keeps
+`sections` under the comment *"no re-derivation, no drift"* and
+**throws away** `validate_sections`' `Vec<ValidatedProfile<f64>>` —
+exactly what `end_profile` recomputes. Adjudicated: carry the validated
+profiles on `LoftGeometry` and have `end_profile` READ one. That deletes
+the redundancy instead of documenting it, retires the dead variant
+honestly, and makes the PR's own *"structural rather than assumed"*
+sentence true — which, as the reviewer notes, it currently is not.
+Fallback if threading proves structural: retire the variant and correct
+the doc; shipping a knowingly-unreachable arm under a doc that says it
+fires is not on the table.
+
+**MAJOR-2 — the stated impossibility was not one.** The lane wrote that
+no fixture separates the two paths by outcome without knife-edge tuning,
+and stated it rather than hiding it, which was right. The reviewer built
+one with round parameters: two sections, vertices `(∓h,0)` at bulge `b`,
+`h=5, b=1e3` — `Ok` at `f64`, `Escalated` at `Interval` on main, `Ok` on
+the PR head. **Broad, not a knife edge**: six `(h,b)` pairs across four
+orders of magnitude separate at profile level. Adopted as a permanent
+row with the reviewer's authorship. The one disclosed behaviour move had
+nothing pinning it.
+
+That is the second unit in a row where **the answer to "can this test
+fail" came from building the thing, not from reading** — and here from
+building the thing the author had argued could not be built.
+
+**One correction owed to the lane, from the orchestrator.** The review
+dispatch quoted the PR body as saying *"k-lint came back green, so
+nothing moved in practice."* That sentence is in the lane's **report**,
+not in the PR body, whose actual text is properly hedged and leans on no
+green. NOTE-1, and the dispatch's error.
+
+**MINOR-5 is the finding that outlives the PR.** The reviewer
+instrumented the coverage change instead of arguing it: one minimal
+two-section loft at `Probe`, **main 455 samples / 33 predicate names,
+PR head 397 / 24**. Nine whole profile-validation families leave the
+loft path. And the gate **cannot see it** — k-lint flags margins per
+row, so a shrunken population yields weakly fewer flags, and
+`predicate_roster.rs` reads kernel source rather than the sweep. That is
+a **third face of the silent-coverage class**
+`memories/agent-lane-operations.md` collects: a green gate over a
+population that got smaller. Filed with three dispositions and no pick,
+because the cause is S-BOOL's and the instrument is INSTR's.
+
+**Five rows filed:**
+
+- `loft-path-loses-nine-predicate-families-from-the-probe-stream` (here)
+  — the schedule Q6 owes for a disclosed narrowing.
+- `frame-linear-generic-door-has-no-consumers` **promoted to a class**
+  with `profile`'s two `map_scalar` rungs as its second instance, proven
+  the same mechanical way (drop `pub`, read the dead-code warnings).
+  Adjudicated **not the same defect**: `Frame::linear<T>` LOST its
+  consumers, while `profile`'s rungs were minted to
+  `scalar_lift.rs`'s written convention, which a library owes an
+  external caller. The class's real question — does that convention mint
+  doors ahead of consumers, and if so is `Frame::linear<T>` a violation
+  that should therefore STAY — disposes of both rows and neither answers
+  alone.
+- `work/bool/arc-carrier-has-three-spellings-under-a-comment-saying-one.md`
+  — `seg.rs` calls itself *"the ONE spelling"* and the crate has three,
+  with different association and `abs` placement. PR 2409's bit-identity
+  claim is unaffected; the sentence was already false when written.
+- `work/bool/validate-rs-hosts-a-quarter-of-the-fillet-subsystem-it-never-runs.md`
+  — six `FILLET_*_RECOURSE` consts whose own docs say *"No caller reads
+  this sentence"*, in a file whose inventory says fillet rows never fire
+  in validation. From the Q8 whole-file read.
+- `work/tint/the-two-vertex-bulge-one-circle-fixture-has-eight-copies.md`
+  — the standing trap's **fifth** instance and its first at the test
+  layer, which matters because every instrument so far has pointed at
+  `src/`. Filed with the warning NOT to assume a shared helper: three of
+  the eight are reviewer-authored probe suites whose independence is
+  their value.
+
+**NOTE-3 cleared the disk-skip worry**: `demos tour fmt + clippy` and
+`demos wild fmt + clippy` both succeeded at STEP level on run
+34666874179, and the `Probe` sweep really did re-cut. The lane's grep
+substitute was sound.
+
+## The lift pair is merged (2026-09-12)
+
+**PR 2409 merged** (`17e96880`) after a conflict round. CI run
+`34672529546` green on the full code tier at the resolved head —
+verified at check-run level before merge: 34 success / 4 skipped, twelve
+`test (…)`, five `k-lint (gate, …)`.
+
+**The conflict was one file and the lane's verification of the fix is
+the part worth recording.** `crates/sweep/tests/all.rs`'s mod list,
+against another lane's `census_containment_cause`. Resolved as the
+union. What the lane then did, on the two cautions
+`memories/agent-lane-operations.md` supplies:
+
+- it did **not** read CI off the PR's checks list — it polled the
+  workflow RUNS list for a run whose `head_sha` matched the resolved
+  head, then polled `/jobs` until `total_count > 0` before waiting on a
+  conclusion. That is the answer to "a CONFLICTING PR gets no run, and a
+  run can queue with zero jobs behind a superseded one";
+- it checked the post-condition against the **merged tree**, deriving
+  the declaration set from the merged `all.rs` and diffing it against
+  the directory listing — 261 declared, nothing declared-but-missing,
+  nothing on-disk-but-undeclared, and both suites' rows executing. A
+  dropped `mod` in that file silently stops compiling a whole suite and
+  would never appear in a diff.
+
+**What this unit actually was.** Not the door — the door was a morning,
+and half of it already existed. The weight was at `end_profile`, and the
+review found it was **re-deciding data already decided**:
+`validate_sections` validates every section at the geometry door, so
+`Profile::validate` there was a provable no-op and `LoftError::Profile`
+was unreachable from both public doors, carrying dead arms in two
+crates. `LoftGeometry` already kept its section curves *"no
+re-derivation, no drift"* and threw away the verdicts; it keeps them
+now, `end_profile` reads one, and `assemble` lost the parameter that
+existed only to feed it.
+
+**The gate out-reasoned both the lane and the reviewer**, which is the
+result to remember from this unit. The lane said no fixture could
+separate the two paths without knife-edge tuning. The reviewer **built
+one** from round parameters and proved it. Then CI reddened three ε rows
+on it: a **pinned** `(h,b)` separates the arithmetics only at the
+default ε — at 1e-12 the `f64` side escalates too, at 1e-6 the
+`Interval` enclosure fits inside the wider band — and scaling with ε
+fixes one and not the other, because the enclosure width and the `f64`
+residual come from the same rounding and only ε moves between them. The
+row now searches the ladder at the run's own ε and **panics when nothing
+separates**, so it cannot pass vacuously. Neither party's reading
+produced that shape; the three-ε matrix did.
+
+**Four of this program's seven merged units have now had their central
+test claim corrected by something other than reading** — two by
+mutation, one by a built fixture, one by the ε matrix. That is the
+strongest pattern this program has produced, and it is worth carrying
+into how the remaining units are reviewed: *ask what instrument answers
+the claim, not whether the claim is argued well.*
+
+## Program state at this point
+
+Merged: the three E units, the `[ev]` ratification, the lift pair.
+`plan.md`'s remaining slate is `frame-f64-placement-is-re-evaluated-per-profile`,
+`product-gather-…` (mechanism settled — `defer::TieRows` and
+`narrow_into` already exist; Ev approved carry-the-tie), then `D364`
+before `S195`, plus the rows this program has filed on itself.
+
+Deferred and not dispatchable: `S40`, `two-verb-seats-do-not-compose`,
+`axis-shaped-identity-channel` (ratified, unbuilt, and a SEQUENCE to cut
+rather than a lane to dispatch).
+
+**Still owed to Ev, and not blocking**: whether amending
+`docs/prompts/implementer-discipline.md` §5 with a worked example on
+choosing a sweep's instrument is his call, since that file is read by
+every lane by path — recorded on
+`work/issues/every-band-construction-is-the-class-not-every-map-err.md`.
+
+## CLAUDE.md's ratified-text rule changed today, and PR 2409 is retroactively in scope (2026-09-12)
+
+`CLAUDE.md`'s git-workflow section gained two exception categories since
+this program opened. The one that bites: a PR that **changes an
+already-ratified decision** — `docs/DESIGN.md`, or a
+`crates/<crate>/README.md` design page its companion table lists —
+**waits for Ev's sign-off**, and explicitly
+
+> even when a code change forces it and even when the amendment is
+> mechanical — a gate that reds until a roster row goes is a reason the
+> change is *needed*, not a reason it is *approved*.
+
+**PR 2409 amended two pages in that table and was self-merged**, under
+the rule as it stood (which covered only design-question ratification
+and `memories/`):
+
+- `crates/profile/README.md` — Ratified V1–V8. V4's clause: *"the `map`
+  materialization door"* → *"the `map_scalar` materialization door"*.
+- `docs/PATHS-DESIGN.md` — Ratified #124. The CLOSED paragraph, and not
+  only the name: *"`sweep`'s loft is its production caller"* became
+  *"it has no production caller"*, which is a **substantive claim
+  change**, not a rename.
+
+And the new clause's own example — a gate that reds until a roster row
+goes — describes `raw_door_census`'s pinned public surface, which PR
+2409 also edited (`let pinned = ["map_scalar", …]`). Reported to Ev in
+chat with both diffs, for his call on whether the text stands as merged.
+
+**Standing change for this program**: every unit brief from here names
+the rule, and a lane that finds its change would amend ratified text
+**stops and reports rather than amending**. `crates/editor-core/README.md`
+is in the table three times, so the next unit is already exposed to it.
+
+## Dispatched: `frame-f64-placement-is-re-evaluated-per-profile` (2026-09-12)
+
+Lane `wire-m2`, branch `wire/frame-f64-placement-once`. **FULL review**
+per `plan.md`'s posture table.
+
+The brief carries three things beyond the item:
+
+- **The ratified-text rule above, with the specific exposure named.**
+  `crates/editor-core/README.md`'s #1151 entry is *"PROFILE-LIFT-DESIGN
+  PP1–PP6: guided replay — structure f64-once as the witness, geometry
+  at the lane scalar with every consumed decision re-verified at `T`"* —
+  which is very close to carrying a frame's f64 placement on a
+  `NodeResult`. The lane must read PP1–PP6 and say whether this change
+  is an instance of that clause, an extension, or in tension with it,
+  and STOP rather than amend if the latter.
+- **The correctness arm stated as evidence owed, not argument**: is the
+  carried placement bit-identical to what `profile_plane_f64` derives
+  today, and does any **content key** change. A key is a persisted
+  commitment, so "tests pass" is not an answer to the second.
+- **A citation warning with a specific hit.** Three items in a row have
+  been wrong about the tree. This one claims `slots.rs`'s header says
+  "once per node per environment"; that phrasing is not in the file. The
+  lane checks rather than inherits.
+
+### Resolved: the rule was wrong, not PR 2409 (2026-09-12)
+
+Ev, in chat, on the clause the entry above reports: *"it should not have
+an absolute rule like that. it should say that sign off is required if
+it is a design choice, which is the normal rule."* **PR 2432** merged
+(`9b395984`) with that fix — the category stays, scoped to the design
+choice, and a clause re-worded because an approved code change moved
+something it describes lands with that change.
+
+So **PR 2409 was in order**: both amendments tracked a rename and a
+caller that went away. The entry above stands as the record of the
+question; it is answered, and nothing is owed.
+
+The absolute version also contradicted the test directly above it in
+`CLAUDE.md` — *"text that binds future work rather than describing this
+change"* — which already said the right thing.
+
+**What stays a judgement call, by Ev's ruling**: whether applying a
+ratified convention against an earlier ratified naming (2409's
+`map` → `map_scalar`, `scalar_lift.rs`'s convention against BOOL-9's)
+is a design choice. Ev: *"that kind of thing is necessarily a judgement
+call"*, and the call this program made was right. It is not reducible to
+a rule and none is written.
+
+## `frame-f64-placement` landed green; PP6's citation lands with it (2026-09-12)
+
+**PR 2435**, CI run `34684190899` green on the full matrix (twelve
+`test (…)`, five `k-lint (gate, …)`). The carry is
+`NodeValue::placement_f64`, minted post-op by `frame_placement_f64` from
+`eval_node`'s **existing** nominal slot list through the same
+`frame_from_slots` door the frame's own op uses — it evaluates no
+expression. `profile_plane_f64` becomes a pure read; `FrameKind` and
+`frame_kind` are deleted and the DM1c fork moves to the mint.
+
+**The correctness arm came back negative on keys and positive on
+values, which is the right shape**: `content_key`'s arguments are
+untouched, the placement is value-side and was never hashed, and the
+profile's dependence on the frame still rides in `upstream_keys`. What
+moved is the **verdict log** — two `datum_unit_norm` decisions per frame
+are now made once instead of per profile, so `N−1` are removed and none
+added.
+
+**Two baselines re-blessed, and the re-baselining lesson is the durable
+part.** `kstats_bracket_rows.rs` (PRE_PASS 75→73, FRAME_LOG 2→4) and
+`golden/m10_6_certifying_keys.txt`. The golden reds **only on the
+interval lane**, so the lane's default-feature local run was green over
+a baseline that had genuinely moved and **CI caught it**. That is a
+hazard worth carrying: *a local green is not evidence about a lane you
+did not build*, and it is the second time this program has seen a claim
+survive a local run and die on the matrix.
+
+**The ratified-clause question, decided under #2432's corrected rule.**
+The lane found `crates/editor-core/README.md` **PP6** cites a mechanism
+that moved — *"(`profile_plane_f64`, read from the document's own
+slots)"* — and **declined to amend it**, because its brief predated the
+rule change and said to stop and report. Right call on the brief it had.
+
+Adjudicated: **it lands with this PR.** PP6's *decision* is unchanged —
+an authored frame's plane still stays f64 under every lift, and the fork
+by frame kind is preserved exactly — and what is stale is a symbol that
+moved. That is exactly #2432's *"not a second decision, and lands with
+the change that caused it."* No roster row reds either; the PP1–PP6
+companion row names `prepare_profile`, `lane_profile` and `section_of`,
+not `profile_plane_f64`.
+
+The lane's reading that this change is an **instance of PP1** rather
+than an extension or a tension is accepted: PP1's "structure f64-once as
+the witness" is about the profile *program*, and the frame's placement
+is an *input to* that pass — the one input still re-derived from the
+document rather than handed in.
+
+**The item was stale and the lane checked rather than inherited.** It
+claimed `slots.rs`'s header "cannot say 'once per node per environment'
+while this holds"; the header says no such thing and already documented
+the duplicate accurately. What the change buys is that it can now say
+the stronger thing, and does.
+
+**Residue filed**:
+`section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made`
+— the same shape one level up and far more expensive (an entire program
+resolve-replay-validate per section, against nine slots per profile),
+and it reaches **PP1/PP2's structure record**, so it is its own unit and
+should not assume this one's answer. Two neighbours the same sweep found
+are dispositioned on that row so the next sweep does not re-derive them.
+
+Full review dispatched.
+
+## Disk, second time today
+
+The box hit 100% again (189 MB free) while the lane worked; the lane
+reclaimed its own target and reported the rest rather than touching
+them, which is correct — a lane cannot judge whether a sibling is live.
+Orchestrator swept the finished lift-pair and review lanes:
+**12 GB used, 26 GB free.** `pgrep cargo` empty before deleting.
+
+The standing rule from `memories/agent-lane-operations.md` is that this
+is done **when a review returns**, and both times today it was done when
+a lane ran out of space instead. Worth doing at each seam rather than at
+each crisis.
+
+## PR 2435's review, and a process gap it exposed in the orchestrator (2026-09-12)
+
+**APPROVE-WITH-FIXES, 0 MAJOR / 2 MINOR / 3 NOTE**, ten style findings,
+all eight style questions exercised. **All three load-bearing claims
+survived**, and the reviewer went past argument on each: it established
+that `op_env.lane.nominal` is *literally the same `&ParamEnv<f64>`* for
+a frame and every profile drawn on it — not merely an equal one — and it
+mutated `eval_node` to serve a prior's placement, finding that **row 2
+is the only row in the whole target that catches it**. The memo guard
+the unit wrote is the only thing standing between this change and a
+silent stale placement.
+
+**The two MINORs are one seam, and the fix pass treats them as one.**
+The carry is `Option<SketchPlane<f64>>` where `None` means *derived* —
+an overloaded encoding that fails in both directions:
+
+- **S2**: the recipe-kind fork sits behind a catch-all `else`, so a
+  future `Datum` variant producing `DatumValue::Frame` would pass the
+  payload door, carry `None`, and **silently place profiles at the
+  lane** — where the deleted `frame_kind` refused loudly. A fail-loud
+  regression.
+- **MINOR 2**: because `None` is spoken for, a frame whose **nominal**
+  axes refuse has nowhere to go but failing the node, so `AxisInPlane`,
+  the mate solve, measures and the viewer all become
+  `Poisoned { through: frame }` though none wanted the nominal
+  placement. `likely`, reachable in the E6 subdivision, no fixture
+  built.
+
+Directed: determine reachability, and replace the `Option` with an
+explicit exhaustively-matched carry **regardless**, since S2 stands
+alone. If MINOR 2 is reachable, that type is also where a nominal
+refusal goes so it is raised at the profile that needed it.
+
+**MINOR 1 is a lesson about how a false absolute survives a check.**
+*"No decision is added anywhere"* is false for a frame no profile is
+drawn on: old `2 + 2N`, new `4`, so a **cost** at N = 0 (measured, 4
+against main's 2). It survived because the unit checked the one-profile
+case, where `2+75 = 4+73` — **exactly the case where a wrong absolute
+still balances.**
+
+**NOTE 3**: the PR called a breaking API change additive. `NodeValue`
+has no `#[non_exhaustive]`, and the proof is inside the PR itself —
+`m4_pr4_resolve.rs` had to change because a new public field breaks
+out-of-crate struct literals.
+
+**S4 is the sharpest test finding this program has had.** A mutant
+placing with the raw authored `v` instead of the Gram-Schmidt residual
+**survives the entire `editor-core` test target**, because
+`fixture::plane_of` *asserts* its fixture's `u`/`v` are unit and
+perpendicular — so orthonormalization is the identity on every row, and
+the unit's bit-equality row only proves nine literals were copied. The
+reviewer wrote and ran the closing row; it is being adopted with
+authorship kept.
+
+That is now **five of eight merged-or-merging units whose central test
+claim was corrected by an instrument rather than a reading** — mutation
+twice, a built fixture, the ε matrix, and now a fixture's own asserted
+precondition hiding the thing under test.
+
+**Filed**: `the-is-this-a-frame-door-was-deleted-and-its-classification-dispersed`
+— verified against `origin/main` before filing, because it is an
+accusation about a deletion, and `frame_kind`'s doc there says exactly
+what the reviewer quoted. A class with **seven more sites** over other
+kinds; S7 is recorded on it rather than given a row of its own.
+
+### The process gap: filed rows are invisible to lanes until the orchestrator branch merges
+
+The review flagged the `section_of` hit as **unscheduled**. It is not —
+`section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made`
+was filed before the review was dispatched. The reviewer could not see
+it because it lives on `wire/orchestrator`, which has not reached `main`
+since PR 2386.
+
+That is the orchestrator's gap, not the reviewer's, and it has a real
+cost: **a lane reporting a finding cannot tell whether the orchestrator
+already filed it**, which is the exact confusion
+`docs/prompts/implementer-discipline.md` §6 says the orchestrator exists
+to prevent — *"you cannot tell whether the item already exists… the
+orchestrator could."* That only holds if the orchestrator's filings are
+visible. **Merge the orchestrator branch at every seam from here**, not
+when it happens to be convenient.
+
+## PR 2435's fix pass turned a `likely` into a measurement (2026-09-12)
+
+CI run `34688987262` green, 39 jobs. Every review finding held up and
+the lane pushed back on exactly one thing, correctly.
+
+**MINOR 2 is reachable, and the reviewer's `likely` understated it.**
+The review reasoned it reachable "in the E6 subdivision" and did not
+build the fixture. The lane built it and found **no interval is needed
+at all**: `BoxAxis::Varying` need not contain zero, and the env binds
+`nominal + offset`, so nominal and lane are two different points **at
+`f64`** under a degenerate `ParamBox`. Fixture `u = (p,0,0)` with `p`
+nominal 0 under `p ∈ nominal + [1,1]`; row 7 reddens when the mint's
+refusal arm is made to fail the node. A finding rated `likely` on a
+reading came back `sure` on a fixture, and cheaper than predicted.
+
+**The carry shape is better than what was asked for.**
+`Option<FramePlacement>` — `Authored(SketchPlane<f64>)`,
+`Unreadable { role, error }`, `Derived` — with **`None` meaning "not a
+frame" and only that**, turned into the loud `WrongOperand` the deleted
+`frame_kind` door used to raise. The mint forks on an **exhaustive match
+over `Datum`**, so a new variant is a compile error rather than a silent
+lane placement. `Unreadable` is where a nominal refusal lives, raised
+**at the profile that needed it**: decision logged where made, refusal
+raised where needed.
+
+**The lane caught itself minting a fresh instance of the class,
+mid-pass.** Its first cut of the re-shape spelled the frame read a
+second time inside the mint (`need_point3` + `frame_axes` instead of
+`frame_from_slots`); `FrameRead` exists so one door serves both
+dispositions. Found by its own adversarial diff re-read, which is the
+standing lesson working rather than being quoted — the first time on
+this program that the trap was caught by the lane that would have sprung
+it.
+
+**NOTE 3 answered by measurement, and the answer is "no".** The lane
+applied `#[non_exhaustive]` and built: `m4_pr4_resolve.rs` fails
+`E0639`. An integration test is out-of-crate, so the attribute does not
+make field additions non-breaking there — **it makes the struct
+permanently unconstructible there**, and paying for that needs a public
+constructor whose only caller is a test. Accepted. The right change is a
+door for building a stub `Evaluation`, with its own argument, not a
+rider here.
+
+**Two things neither review named, and CI found both.** A new public
+type had to answer to two façade censuses: `pncad`'s
+`every_document_layer_root_export_is_carried_or_listed` and `pncad-py`'s
+`test_every_curated_name_is_bound_or_listed`. Both caught it before a
+human could. A new fence crossing was disclosed as a result
+(`crates/pncad-py/tests/test_binding_census.py`). Worth recording that
+the censuses are load-bearing for exactly the thing a review is worst
+at: noticing that a new public name exists at all.
+
+**The lane's one pushback, accepted.** The orchestrator's framing of S2
+("a future `Datum` variant producing `DatumValue::Frame`") understates
+it: the same hole was open for a future **non-datum** node producing a
+frame payload, and it is the `None`-is-loud rule that closes both — the
+exhaustive match over `Datum` closes only one.
+
+**Delta review dispatched**, deliberately narrow: a new public type, a
+re-shaped carry and moved refusal routing is more than a fix pass, and
+the earlier full pass covered everything that did not change. The brief
+says plainly that "nothing further" is a complete answer.
+
+## The delta round: MERGEABLE, and it answered the one question a fix pass cannot answer about itself (2026-09-12)
+
+**0 MAJOR, 2 MINOR, 6 NOTE.** Every load-bearing claim held under
+*independent test* rather than re-reading: a scratch `Datum` variant
+really does fail `E0004` at the mint; `v.placement` has exactly one
+reader outside tests, so the mate solve, `axis_frame`, `stackup`,
+`topo::query`, the viewer and `pncad-py` all still read the untouched
+payload; `refusal()` is a pure match with no decide on the carry road;
+`different-shape` is honest because `ParamBox` is
+`#[cfg(feature = "interval")]` and the wheel is default-feature; and the
+`#[non_exhaustive]` measurement reproduced exactly.
+
+**The narrow round earned itself on item 6.** The lane had caught itself
+minting a fresh instance mid-pass and disclosed it — which was the right
+thing and is not what this round found. The delta found **a second one
+the lane did not catch**: `wire.rs:1070` hand-writes
+`DirectionRefusal::node_error()`'s body, spelling `DATUM_UNIT_NORM` a
+second time 218 lines from the door — **and `node_error` was minted by
+that same diff to be the one spelling of that map.**
+
+The cause is structural and the style lane named it:
+`FramePlacement::Unreadable { role, error }` flattens a
+`DirectionRefusal` into two loose fields, so the carry road **cannot
+call the door it was given**. Seventh instance of the standing trap on
+this program, and the first found only because a third pass ran. Fix
+directed: hold the `DirectionRefusal`, which closes the MINOR and the
+style finding together.
+
+**MINOR 2 is the test finding, and it is the same shape as the last
+unit's.** A mutant hard-coding `role: "datum frame y axis"` survives
+**20/20 rows** — so a frame whose `u` is degenerate would tell the user
+its `y` axis is, undetected. `role` is the entire user-facing content of
+that refusal. The `error` half is pinned; the `role` half is pinned by
+nothing, because row 7's `DegenerateDirection { .. }` is a wildcard.
+The reviewer wrote row 8, which degenerates the Gram-Schmidt *residual*
+with `u` fine so the two rows disagree about `role` — adopted with
+authorship kept.
+
+**Six of nine units now have had their central test claim corrected by
+an instrument**, and the instruments have been: mutation (×3), a built
+fixture, the ε matrix, and a fixture's own asserted precondition. Not
+one came from reading a diff.
+
+**Two false sentences this diff wrote**, both going back: `NoPlane`'s and
+`Unreadable`'s *"span no plane"* is false for three of the carried
+error's four arms — `UnderflowedLength` is documented as *"a vector that
+has a perfectly good direction"* and `Escalated` is reachable at `f64`;
+and the defence *"An `Err` would have forced one of them"* is untrue,
+since `match` and `map_err(node_error)?` are both available and are what
+the two call sites already do. The unusual length of that defence was
+the tell, per the brief's stance bullet.
+
+**NOTE 4 is a real gap in the earlier measurement.** The
+`#[non_exhaustive]` question was asked of `NodeValue`, where **field**
+additions are the growth surface and the answer is correctly no — and
+never asked of the **new public enum**, where **arm** additions are, and
+where it costs nothing (applied, `cargo check` clean, precedent
+`topo::ContactClass`). Right answer to the wrong subject is its own
+failure mode.
+
+**NOTE 6 catches a claim that cannot go red where it sits.**
+`FRAME_LOG`'s new sentence carries the N=0 disclosure, and the only
+assertion is over a one-profile document — where a lookahead mint, the
+design the comment rejects by name, produces the same constant. Q6:
+a guard, a register, or a written "unguardable and why".
+
+**Filed**: `guided-lift-refuses-a-nominal-degeneracy-it-never-reads`
+(NOTE 3 — measured: under Guided the profile never reads the nominal
+yet a nominal degeneracy still refuses it, while a *derived* frame in
+that position builds; refusing may be right and nothing states which is
+intended). The door class is updated with the delta's sharper finding:
+the three `WrongOperand` sites have **stopped being one door** — two
+test the payload, one tests `placement` — which is worse than when that
+row opened, because a copy testing a *different thing* cannot be unified
+by a rename. NOTE 5's convention-not-type point is recorded there too.
+
+## 2026-09-12 — `frame-f64-placement-is-re-evaluated-per-profile` merged (PR 2435, `ceed1fc`)
+
+Verified at the check-run level before merging: twelve `test (…)` jobs
+({default, interval} × {default, 1e-6, 1e-12} × 2 shards), five
+`k-lint (gate, …)` unifications, `gate ok` — zero failures, zero
+in-flight. The skipped names are the usual optional lanes (interval
+oracle, corrupt input, step import (freecad), cache priming), which is
+what a code-tier run at this filter looks like; no green name sits over
+a skipped step in the gated set.
+
+**Two residues recorded rather than grown into the diff.**
+
+**NOTE 1 is filed** as
+`frame-direction-refusal-lands-on-the-profile-without-naming-the-frame`.
+The fix pass was right to scope it out: the arm is one line in
+`wire.rs`, but the variant behind it costs a `NodeErrorKind` arm, its
+`Display`, two exhaustive matches in `crates/pncad-py/src/tags.rs` and
+a roster string in that crate's census — another crate's error
+vocabulary, arriving after the delta verdict. The row carries the
+`DerivedFrameSection { profile, frame }` precedent and the open
+question of whether to add a new variant or an id field to all four
+direction variants.
+
+**The public-API side effect is adjudicated, not filed.** The lane
+flagged that fixing MINOR 1 made `DirectionRefusal` public
+(`wire.rs:845`, re-exported at `editor-core/src/lib.rs:118` and
+`pncad/src/document.rs:195`) as a side effect of a duplication fix, and
+asked for it to be seen as a surface decision rather than a code move.
+It is one, and it is the right one: `FramePlacement` is public by
+necessity — it rides on `NodeResult`, which `pncad` re-exports — and
+`Unreadable` has to carry something. Inlining `{ role, error }` into
+the arm would expose the same two fields with no type to hang the
+invariant on, and `node_error`'s "**the one spelling**" doc is written
+on the type. Same surface area, one more name, and the name is where
+the invariant lives. No ratified clause governs `editor-core`'s export
+list and no census gates it, so there was nothing for Ev here.
+
+**The instrument tally closed at six of nine**, and every one of the
+six was an instrument rather than a reading: mutation (×3), a built
+fixture, the ε matrix, and a fixture's own asserted precondition
+hiding the thing under test. That is the guidance for the rest of the
+program — ask what instrument answers the claim, not whether the claim
+is argued well.

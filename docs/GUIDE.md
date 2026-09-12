@@ -707,6 +707,28 @@ quadrature bracket and widens the pad. A nonzero pad is the kernel
 telling you how much it does not know, and a program that cares about
 a tolerance should read it rather than assume it.
 
+**Gating and then measuring pays for one quadrature, not two — if you
+ask for it that way.** Tier 3's orientation check *is* a certified
+quadrature over the same body at the same band, so
+`validate_geometric` followed by `mass_properties` runs the expensive
+part twice. `validate_geometric_certificate` hands back the
+certificate the gate decided on, and
+`SignCertificate::refine_to_target` continues that same quadrature to
+the reporting target, reusing every round already paid for; the
+result is `mass_properties`' own answer, bit for bit. Python spells
+the pair as one call, `body.validate_geometric_measured()`.
+
+The continuation can refuse where the gate passed, and that is the
+honest answer rather than a wrinkle. The reporting target is `1024·ε`,
+a length that shrinks with your tolerance, while the refinement
+schedule's floor is a property of the part — so a body whose volume's
+*sign* is definite, which is all tier 3 reads, can have no volume
+*number* at a tight enough ε. Such a body is valid and unmeasurable at
+that ε, and what it still offers is the sign-level bracket:
+`SignCertificate::enclosure` in Rust, and in Python the `volume_lo` /
+`volume_hi` / `surface_area` attributes on the refusal
+`validate_geometric_measured` raises.
+
 ### 2.5 Tessellate
 
 Tessellation is a separate, explicit step with its own budget. The

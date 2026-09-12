@@ -3166,7 +3166,9 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 /// arms no Python door can produce.
 ///
 /// `ValidationError` has seventy-one arms and Python reaches them
-/// through four `Body` methods, so most of the enum is unreachable
+/// through five `Body` methods — the four rungs of the ladder and
+/// `validate_geometric_measured`, whose gate half is the third rung —
+/// so most of the enum is unreachable
 /// from an authoring script: `census_unsupported` and
 /// `census_lane_unsupported` want a carrier outside the certifiable
 /// inventory or a scalar with no certified chart-overlap lane, and

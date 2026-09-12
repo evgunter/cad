@@ -1890,6 +1890,12 @@ NOT_BOUND = {
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
     "Dimension": SHAPE,
+    # `FramePlacement::Unreadable`'s payload: which axis the kernel's
+    # direction door refused and which of its four facts it reported.
+    # It crosses as its carrier does, and its carrier does not cross
+    # (the row below) — the same flattening the `UnitVec3Error` and
+    # `Arity`/`VerbKind` rows record, one level in.
+    "DirectionRefusal": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,
@@ -1911,6 +1917,16 @@ NOT_BOUND = {
     "EvalOutcome": SHAPE,
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
+    # Which placement a FRAME node's value carries for the profiles
+    # drawn on it — an authored frame's nine slots at the document's
+    # NOMINAL, a derived frame's "read it off the lane", or the
+    # refusal that says the authored pair spans no plane there. It is
+    # the input to C6 structure selection, and the question a Python
+    # caller asks of a frame — where does a sketch drawn on this land
+    # — is answered by the LANDED value, `Value.datum`, which is the
+    # same numbers on the build path. The two come apart only under an
+    # analysis box, which has no Python door to come apart behind.
+    "FramePlacement": SHAPE,
     "ImportOptions": SHAPE,
     # The element type of `ImportOptions::declared_contacts`, curated
     # at the prelude because filling a public field means spelling its
