@@ -3625,6 +3625,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "check_evidence_tag",
         values: &[
+            "chart_coherence",
+            "chart_coherence_unavailable",
+            "chart_coherence_unexamined",
             "connectedness",
             "escalated",
             "not_separated",
@@ -3641,6 +3644,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "product_unavailable",
             "root_without_value",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "coherence_condition_tag",
+        values: &[
+            "meridian_closure",
+            "meridian_continuation",
+            "rim_continuation",
         ],
         delegates: &[],
     },
@@ -4625,6 +4637,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wall_exceeds_radius",
             "wall_gap_collapsed",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "unexaminable_tag",
+        values: &["corrupt", "non_iso_carrier", "null_scaffold_edge"],
         delegates: &[],
     },
     TagEntry {
