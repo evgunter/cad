@@ -2,8 +2,10 @@
 id: num-relative-tolerance-collides-above-a-decimetre
 kind: issue
 title: num()'s relative tolerance exceeds eps above ~0.1 m, so two lengths the kernel can tell apart render as one number
-status: open
+status: review
 opened: 2026-09-11
+branch: fix/num-tolerance-cap
+pr: 2399
 ---
 
 

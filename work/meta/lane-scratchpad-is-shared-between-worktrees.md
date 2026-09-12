@@ -2,7 +2,7 @@
 id: lane-scratchpad-is-shared-between-worktrees
 kind: issue
 title: the per-session scratchpad is shared between concurrent lanes, and two lanes had files overwritten mid-task
-status: open
+status: deferred
 opened: 2026-09-11
 ---
 
@@ -11,6 +11,28 @@ subject is neither a workflow nor a script but how concurrent agent
 lanes are provisioned, and the documents that govern it
 (`docs/prompts/implementer-discipline.md`'s local-work bullets,
 `memories/agent-lane-operations.md`) belong to two different parties.
+
+## Deferred (Ev, 2026-09-11): shape 3, no rule
+
+**Ratified as not-now: the script/orchestrator side only, no sentence in
+`docs/prompts/` and none in `memories/`.** Ev, on the proposed rule:
+*"i lean against this kind of rule because it's not at all specific to
+this project."*
+
+That is the right cut, and the comparison he asked for is why. The
+`CARGO_TARGET_DIR` rule this row leans on is project-specific in
+everything load-bearing about it — cargo's target-dir semantics across
+git worktrees, this repo's `.gitignore` coverage of `/target` but not an
+arbitrary in-tree name, merge-only history making the 114-file incident
+unfixable except by abandoning the branch, and two named incidents with
+named consequences. The rule proposed here has none of that: *name your
+scratch files for your lane* reads identically in any repository, and
+both instances behind it ended with no work lost.
+
+So this row is **shape 3** of the three it lists, taken for the reason
+shape 3 gives: recorded so the third instance is not re-derived from
+scratch. It is deferred, not closed — a lane that loses work to this,
+rather than catching it, is a new fact and re-opens the question.
 
 ## What happened
 
@@ -77,3 +99,29 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+## Re-homed to META (2026-09-12, by the CITE orchestrator)
+
+Moved as residue at CITE's close. `work/README.md` says a closed
+program's residue is re-homed before the sweep and never left behind,
+and that a closed program may hold only closed items — this row is
+`deferred`, not closed, so it had to move or be decided.
+
+**META by subject.** The row's own opening says the owner is undecided
+because the documents that govern it belong to two parties. One of those
+two is now moot: Ev ruled out the `memories/` sentence (2026-09-11),
+which leaves `docs/prompts/implementer-discipline.md` as the only
+document in play, and that file is META's `paths`. The row's shape 1
+already pointed there.
+
+**It stays deferred, and the ratification is Ev's, quoted on the row
+above:** *"I lean against this kind of rule because it's not at all
+specific to this project."* No `blocked_on`, because it waits on no
+trigger — it was decided against for now.
+
+**What would re-open it**, stated so META does not have to re-derive it:
+a lane that LOSES work to a scratchpad collision. Both instances behind
+the row were caught — one by diffing against the live API before
+patching, one by noticing the overwrite — and "caught twice" is what the
+deferral rests on. A third instance that is caught changes nothing; one
+that is not is a new fact.

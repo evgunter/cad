@@ -2,8 +2,9 @@
 id: contact-class-has-two-content-tag-functions
 kind: issue
 title: ContactClass is tagged into content keys by two functions: contact_class_tag (u8, wildcard arm) and ContactClass::content_tag (u64, exhaustive)
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-11
 ---
 
 
@@ -35,3 +36,40 @@ The class is a dispatch estimate made by reading the row against the
 tree on 2026-09-11, not a verdict on the finding, and a lane that finds
 it wrong says so in its PR. The id, the `track:` letter where the row
 carries one, and the body above are unchanged by the move.
+
+## Closed (2026-09-11) — verified discharged, no unit
+
+Verified against `8851abb` by the WIRE orchestrator at the program's
+opening, which is what the cut's class estimate (**E**, "appears already
+discharged: verify and close") asked for. Three greps, and the finding's
+own three sites:
+
+- **`contact_class_tag` does not exist.** `rg 'contact_class_tag'` over
+  `crates/` returns nothing but one rustdoc sentence
+  (`crates/topo/src/contact.rs:64`) naming `ContactClass::content_tag`
+  as the tag. The `u8` with the `_ => 0` wildcard arm is gone from the
+  tree, and with it the collision hazard its own doc admitted.
+- **The content key has one tagging function.** `ContactClass::content_tag`
+  (`crates/topo/src/contact.rs:94`, `u64`, exhaustive) is what all three
+  `eval/mod.rs` key sites feed — `:3687`, `:3712` and `:3728`, the last
+  two being the `Node::Mate` and `Node::Declare` arms the finding named
+  fifteen lines apart. They now write the same call.
+- **The "interface-crossing feed" is not a second numbering.**
+  `crates/editor-core/src/persist/kernel_wire/contact_class.rs` is a
+  **string** vocabulary (`"rest"`, `"tangent"`) for the persisted form,
+  anchored on `ContactClass::ALL`, with an explicit refusal arm for a
+  class a newer kernel adds. Persisted spellings and content-key numbers
+  are different commitments with different change rates; one enum, two
+  exhaustive projections, both over `ALL`, is the shape this repo
+  chose deliberately and not the twin the finding reported.
+
+The sweep the finding asked for ("a sweep for any other `ContactClass`
+tagging") is the third bullet: every `ContactClass` use outside
+`contact.rs` was read, and the only conversions to a scalar are
+`content_tag` and the persist module's spelling. **What that sweep could
+not match**: a tagging written without the type's name in it — a call
+site that takes the class as a generic or through a trait object would
+not appear. None was found by reading the three key sites, but the grep
+alone is not evidence about that shape.
+
+No residue, so nothing is filed onward.

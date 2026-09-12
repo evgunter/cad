@@ -2,9 +2,12 @@
 id: possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule
 kind: issue
 title: a possessive two-span spelling names an app-gated item and no sweep in this crate has ever seen one — five sites, one naming a symbol that does not exist
-status: open
+status: closed
 opened: 2026-09-11
 refs: [comment-symbol-names-outside-rustdocs-reach-have-no-gate, named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites, 2332]
+closed: 2026-09-12
+branch: view/possessive-spans
+pr: 2400
 ---
 
 
@@ -102,3 +105,69 @@ every `<own-mod>::<ident>` appearing in any comment — would still miss
 `unit_picker`, because `unit_picker` is never written with a module
 qualifier at all. Whoever builds that gate should decide this case
 deliberately rather than inherit it.
+
+## Closed (2026-09-12, `view/possessive-spans`)
+
+**`unit_picker` has a real referent and it is in a different module.**
+`crate::widgets::length_picker` — *"The creation forms' written-unit
+picker"* — is the control `crates/viewer/src/pane/create.rs` draws
+immediately after the field `BlendKindChoice::size_label` labels, in the
+same `ui.horizontal`. The affordance the sentence asserts exists, so
+this was a bad name and not a false claim about the chrome; the name was
+wrong in BOTH halves, module and item. The giveaway is that
+`length_picker`'s own doc carries the same clause nearly verbatim
+(*"free to say metres beside a field written in millimetres"*), so the
+sentence was copied from it and mis-attributed on the way. There is no
+`unit_picker` and there never was one under that name.
+
+**All five became links**, which is Ev's 2026-09-11 ruling applied to
+the spelling as well as to the legality: at `origin/main` this crate
+already spells this relationship as a link **nineteen times from the
+renderer-free half** (thirty-three such spans crate-wide), including
+`input.rs`'s `` [`crate::widgets::drag_gesture_ops`] ``, so *"a
+possessive span is prose"* would have been a second answer to a question
+already ruled. Enumeration rule for both figures: `` [`crate::X`] ``
+spans under `crates/viewer/src` whose path begins with one of the six
+`app`-gated module names, counted per SPAN, with the nineteen restricted
+to spans in files outside those modules.
+`ViewerApp::fit_delta_on_scene` is a private FIELD and
+`ViewerApp::remember_theme` a private method; both resolve because both
+host doc passes run `--document-private-items` with
+`rustdoc::private_intra_doc_links` allowed, and `doc-gate.sh`'s selftest
+pins that case. Two sites beyond the five moved with them: `gpu.rs`'s
+`` `crate::pickindex`'s `OCCLUSION_SLACK_REL` `` is the other end of
+`pickindex.rs`'s pointer pair and a pair spelled two ways is this row's
+own complaint, and `widgets.rs`'s test-module `slot_row_ui` did not
+exist either (it is `slot_value_ui`) — the second `unit_picker`-class
+defect, and the wider sweep is what found it.
+
+**The disposition is stated in one place**, `crates/viewer/README.md`'s
+*Rustdoc posture* section, beside the ruling it follows from and with
+the sweep rule that produces its population.
+
+**The wider rule, and what it still cannot see.** Dropping *"a second
+backtick span must follow"* from this row's rule takes the population
+from five to eight under `crates/viewer/src`: the five, plus `app.rs`'s
+*"see `gpu`'s module docs"* (inside the gated half, so out of this row's
+scope but the same shape) and `sketch.rs`'s two possessives followed by
+a bare un-spanned word, which this row already listed. Dropping the
+module-name requirement as well — any `` `X` ``'s `` `Y` `` pair on one
+`///` or `//!` line — gives **fifteen** in this crate, of which this
+row's rule saw four (`prefs.rs`'s is split across two lines and the
+one-line pattern misses it, so the two rules together see sixteen).
+What NONE of them sees: a module or item named in prose with no backtick
+span at all — `sketch.rs`'s *"(`app`'s drafts say so)"* names the
+`drafts` module in bare words — and a name in a `//` comment or inside a
+`#[cfg(test)] mod`, which
+`comment-symbol-names-outside-rustdocs-reach-have-no-gate` now records
+as two axes rather than one.
+
+**One citation in this row is wrong about its subject and is left
+alone.** The blind-spot list cites `theme.rs:69-70` and quotes *"`app`
+maps a [`Theme`] onto the chrome"*. Line 69-70 is a genuine member of
+the class it illustrates (*"`app` maps this onto the toolkit's own light
+and dark `Visuals`"*), but the quoted words are at `theme.rs:7-8`, where
+`app` is written `` [`crate::app`] `` and is therefore not an example of
+a bare span at all. Repointing the number would move a citation that
+names its subject correctly; the quotation is what is wrong, and it is
+disclosed rather than repaired.
