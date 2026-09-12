@@ -34,12 +34,12 @@ for the value drag's two, and `DisplayState` compares a bare
 `RecipeNodeId` (`crates/viewer/src/display.rs:778-780`, `:806-812`), and nothing
 says these are the same kind of fact.
 
-`crates/viewer/src/widgets.rs:93-166` is where it shows: `drag_ops` is
+`crates/viewer/src/widgets.rs:164-237` is where it shows: `drag_ops` is
 generic over the gesture vocabulary precisely so one mapping serves
 both drags, and the `GestureVocabulary` it takes (`:46-57`) is four
 operations built by the caller with nothing holding their targets to
 each other. The caller does hold them to each other:
-`pane/properties.rs:561-581` builds the three that name a target from
+`pane/properties.rs:562-582` builds the three that name a target from
 one `node` and one `row.slot`, and the cancel names none. But that is a
 convention, not a type.
 

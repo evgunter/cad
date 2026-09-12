@@ -39,3 +39,16 @@ path, a kernel-seat lane over the demos and the Python binding, a
 developer-seat lane over the debug/CI profile, and a static lane
 re-verifying `plan.md` §1.3 against today's tree and the tracker's
 already-filed perf findings. Each finding becomes one item file here.
+
+## PERF-9 lands on GUI/VIEW ground (2026-09-12)
+
+Unit `PERF-9` (branch `perf/9-per-face-bvh`) changes `editor-core`'s
+index seam (`resolve/pick.rs`: the pick index is a tree per patch
+under a tree over the patches, the per-patch trees memoised beside
+the patch memo in `PickMemo`) and the viewer's seam report
+(`evalseam.rs`: `MemoReport` gains the tree level), and adds two
+read-only accessors to `crates/bvh` (`Bvh::boxes`, `Bvh::heap_bytes`;
+no query or build changes). The pin is `viewer`'s `index_memo`
+differential against a single-level reference, tie-break row
+included. A finding on `docm`'s ground went to its slate:
+`work/docm/pick-grazing-ray-answer-depends-on-candidate-order.md`.

@@ -40,7 +40,7 @@ and the reason is that there is nothing for one to assert.
 That unit fixed the reachable instance — the chrome had three boxes
 each spelling the whole triple, so the keyboard could be the second
 driver — by mapping the probe row ONCE
-(`crates/viewer/src/widgets.rs:168-211`). That makes this chrome have
+(`crates/viewer/src/widgets.rs:239-282`). That makes this chrome have
 exactly one driver per probe, so no route reaches the hole today. It
 does not close the hole: a second driver on one instance (a viewport
 gizmo, a second panel, a scripted batch) would walk straight into it,
