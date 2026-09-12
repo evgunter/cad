@@ -1028,36 +1028,62 @@ commits — into whichever gesture happens to be open, with the new
 field's number. The subject of a driving operation is the field the
 user has hold of, and naming it is what makes the mismatch refusable.
 
-**The probe's target is coarser than a field, and the chrome is what
-makes that enough.** `PreviewFreeMove` names an instance because an
-instance has exactly one probe — not one of the three millimetre boxes
-the panel draws for it. Mapped a triple per box those boxes are three
-gestures over one probe and the payload cannot separate them, both
-naming the same instance: the second box's begin is refused
-`FreeMoveInFlight`, its preview then overwrites the first's frame, and
-its commit lands it and CLOSES the probe the pointer is still holding —
-a refusal describing a state its own batch destroyed. The keyboard is
-what reaches that second box while the pointer holds the first, because
-a `DragValue` enters edit mode the frame it takes focus. So the row is
-mapped ONCE, as a row (`widgets::vec3_row_ops`), and a keystroke on a
-sibling box is another hand on the open gesture rather than a second
-gesture. What the payload still cannot refuse is a second DRIVER on one
-instance, of which this chrome has one;
-`work/view/probe-identity-stops-at-the-instance.md` owns that.
+**The probe's target is the instance, and that is the same rule rather
+than a coarser one.** `PreviewFreeMove` names an instance because an
+instance has exactly one probe, the way `PreviewGesture` names a slot
+because a slot has exactly one drag. Each names the SUBJECT whose
+gesture it drives, and how fine that subject is follows from what state
+exists, not from how finely a chrome cuts the subject up: the three
+millimetre boxes the panel draws are one chrome's decomposition of one
+frame, and the op takes any rigid `Frame`. Mapped a triple per box
+those boxes are three gestures over one probe and the payload cannot
+separate them, both naming the same instance: the second box's begin is
+refused `FreeMoveInFlight`, its preview then overwrites the first's
+frame, and its commit lands it and CLOSES the probe the pointer is
+still holding — a refusal describing a state its own batch destroyed.
+The keyboard is what reaches that second box while the pointer holds
+the first, because a `DragValue` enters edit mode the frame it takes
+focus. So the row is mapped ONCE, as a row (`widgets::vec3_row_ops`),
+and a keystroke on a sibling box is another hand on the open gesture
+rather than a second gesture.
 
 **The two cancels are the exception and name nothing**: their subject
 is the session's state, because the state they exist for is a drag
 whose field is no longer drawn (the cancel-door section below).
 
-**A target, not a token.** A gesture could be named by a handle its
-begin mints, and the difference shows on the one drag the chrome can
-reach here: the field of a stranded drag, dragged again. Its begin is
-refused — one drag at a time — and its preview and its release name the
-same slot, so they land the number the user dragged it to and end the
-drag. A token minted per begin would refuse them and strand the reader a
-second time. The identity that matters is *which field*, and nothing
-that moves the document is permitted mid-drag, so the second drag's base
-document is the first's.
+**A target, not a token — so a second DRIVER on one subject is not
+refused, in either drag.** A gesture could instead be named by a handle
+its begin mints, and the difference shows wherever a gesture outlives
+the field it is being driven from. The reader's recovery there is to
+drive that field again, which is a whole begin/preview/commit batch on
+a gesture that is already open: the begin is refused, and the preview
+and the commit are not, because they name the gesture that IS open. So
+they land the value the user drove it to and end it. A token minted per
+begin would refuse them and strand the reader a second time. Each drag
+has its row.
+
+For the value drag the undrawn field is a stranded drag's own
+(`the_open_drags_own_field_dragged_again_lands_its_number`). The
+identity that matters is *which field*, and nothing that moves the
+document is permitted mid-drag, so the second drag's base document is
+the first's.
+
+For the probe it is the SELECTION that takes the field away
+(`the_open_probes_own_instance_driven_again_lands_its_frame`), not an
+evaluation: `SessionOp::Select` is permitted mid-probe and
+`pane::properties`' `instance_ui` draws the probe row for
+`selection().node()` alone, so selecting another feature under an open
+probe leaves the drag live with nothing drawing it. The hand that
+reaches it is the one that reaches a sibling box — the feature tree's
+row is a `selectable_label(…).clicked()` (`pane/features.rs:60`), and
+egui answers `clicked()` for a focused widget's Space/Enter and for an
+AccessKit `Action::Click` with no pointer anywhere. Select the instance
+again and drag a box, and the batch lands the frame and ends the probe.
+
+**One gesture per subject, driven by whoever names it**, is therefore
+the rule the target spells, not a gap left in it. A door that refused a
+second driver would need driver identity, which is the token — and the
+token is what these two rows refuse.
 
 **The table says what it says.** `permitted_during_value_gesture` is a
 function of the operation alone, so it cannot answer a question about a
