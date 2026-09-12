@@ -8,11 +8,15 @@
 //! role from its volume's sign).
 //!
 //! This is the exact-geometry counterpart of the mesh oracle
-//! (`mesh::validate::signed_volume`): no tessellation, no sampling, no
-//! quadrature — every face's contribution is a closed form over the
-//! stored analytic data, scalar-generic over [`Decide`] so the same
-//! formulas instantiate at `f64` (a value) and at the certified
-//! interval scalar (an enclosure that **is** the certified bound, Q1).
+//! (`mesh::validate::signed_volume`): no tessellation and no sampling.
+//! A face with a closed form contributes that form over the stored
+//! analytic data, scalar-generic over [`Decide`] so the same formulas
+//! instantiate at `f64` (a value) and at the certified interval scalar
+//! (an enclosure that **is** the certified bound, Q1); a curved-CUT or
+//! described-spline face has no closed form and contributes
+//! `geom-brep`'s certified QUADRATURE enclosure instead (M5 PR 11),
+//! which is bounded and typed rather than sampled and is why the pads
+//! below exist.
 //! The coned-polyhedron fan over boundary vertices (Mäntylä's
 //! `svolume`) is deliberately absent: on curved faces its magnitude is
 //! wrong (it measures the cone over the boundary, not the face — the
@@ -22,8 +26,11 @@
 //! Layering: `geom-brep` owns the key-free per-face math; this module
 //! walks the body's arenas (face → loops → half-edge cycles), flattens
 //! each loop into [`geom_brep::LoopEdge`]s, and sums. The tier-3
-//! validator consumes [`mass_properties_with`] for the +V orientation
-//! invariant without any new inter-crate dependency.
+//! validator's two check-7 derivations consume that walk without any
+//! new inter-crate dependency: the lane-dispatched one through
+//! [`mass_properties_with`], and the certified one through
+//! [`sign_certified`], which is the same walk stopped at the round the
+//! validator's own certification is complete.
 
 use core::fmt;
 

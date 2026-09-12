@@ -102,6 +102,14 @@
 //! `0..=k` and then `k+1..=…` evaluates the pieces the uninterrupted
 //! run evaluates, once each, and ends in the same place.
 //!
+//! **One arm has no rounds to address and ignores the window's
+//! start**: [`nurbs_patch_face`]'s exact per-span rule, which answers
+//! a whole patch in one Newton–Cotes pass. It reports `Open` at round
+//! `0` carrying its own refusal when its enclosure misses the target,
+//! so a sign-deciding caller gets the tightest enclosure the lane has
+//! and a number-wanting one gets the refusal — and because that
+//! outcome leaves no round to resume at, no window ever re-enters it.
+//!
 //! # Honesty pads (both directions accounted)
 //!
 //! - **Map residual**: each pcurve tracks its carrier within its
@@ -209,16 +217,6 @@ pub enum RoundOutcome {
 }
 
 impl RoundOutcome {
-    /// The reporting level's reading of this outcome: bounds that met
-    /// the target, or the refusal the schedule ended in.
-    ///
-    /// INVARIANT: a [`RoundWindow::SCHEDULE`] window ends either
-    /// converged or with a refusal in hand — every lane's last round
-    /// falls through to its own [`PropsError::QuadratureBudget`] — so
-    /// the `None` arm is reachable only from a window a caller
-    /// deliberately cut short, which is a caller that wanted the
-    /// enclosure rather than the number.
-    ///
     /// The same outcome with its enclosures mapped — the traversal
     /// winding a caller carries into the flux, applied at whichever
     /// round the window ended rather than only at convergence.
@@ -238,6 +236,17 @@ impl RoundOutcome {
         }
     }
 
+    /// **The reporting level's reading of this outcome**: bounds that
+    /// met the target, or the refusal the schedule ended in.
+    ///
+    /// INVARIANT: a [`RoundWindow::SCHEDULE`] window ends either
+    /// converged or with a refusal in hand — every lane's last round
+    /// falls through to its own [`PropsError::QuadratureBudget`], and
+    /// the exact per-span arm hands its enclosure back beside one — so
+    /// the `None` arm is reachable only from a window a caller
+    /// deliberately cut short, which is a caller that wanted the
+    /// enclosure rather than the number.
+    ///
     /// # Errors
     ///
     /// The lane's own refusal, unchanged.

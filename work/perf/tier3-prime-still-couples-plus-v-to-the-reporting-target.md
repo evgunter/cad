@@ -27,9 +27,16 @@ purpose, at `crates/sweep/tests/tcost_k3_certificate.rs`'s planted row
 `validate_pseudomanifold` and `validate_pseudomanifold_certificate`
 refuse `VolumeUncomputable`. That is the exact false refusal
 `tier3-plus-v-needs-a-sign-and-pays-for-a-precision` recorded, still
-live one door over — and tier 3' is the door the STEP import path
-pays (`crates/step-import`), so a rational-walled import at a tight
-eps still meets it.
+live one door over.
+
+**Which door the STEP import path pays, precisely.** The per-solid
+gate is `topo::validate_geometric` (`crates/step-import/src/lib.rs`,
+the `gate` helper) and is ALREADY the sign door — a single-solid
+import is unaffected by this item, and dm1's three tier-gate cells
+moving is that door working. What still couples is the AGGREGATE gate
+(`gate3`, the tier-3' door over the assembled body), which every
+import pays over what it assembled, so a rational-walled assembly at a
+tight eps still meets it there.
 
 The cost half is live too: tier 3' still pays a full certified
 quadrature where a sign would do.

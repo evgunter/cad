@@ -88,13 +88,18 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // the obligation sweep and the dialect pin read the whole corpus —
     // but `wild_refusals_are_typed_and_name_their_class` skips it (see
     // that row's `continue`): importing dm1 costs ~30× the other three
-    // refusal fixtures together, and the same fragment is already
-    // asserted by `tier_gate.rs`'s `RATIONAL_FLUX_STALL` at three ε_in
-    // values per run, with the coarse band's `#389` cell beside it, and
-    // structurally by `r1_dm1_probe`.
+    // refusal fixtures together, and the disposition is asserted by
+    // `tier_gate.rs`'s three ε_in cells and structurally by
+    // `r1_dm1_probe`.
+    //
+    // The fragment is the D7 ladder's, not the quadrature's. It was
+    // the at-rest gate's rational-flux stall until check 7 began
+    // certifying a SIGN: dm1's volume enclosure excludes zero at round
+    // 0 at every band, so the gate admits the solid and the import
+    // goes on to the ladder gap at edge `#389` that the stall masked.
     (
         "stepcode/dm1-id-214.stp",
-        "the certified quadrature enclosure cannot reach the",
+        "no intensional description certifies",
     ),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
