@@ -74,6 +74,37 @@ impl core::fmt::Display for Dimension {
 }
 
 impl Dimension {
+    /// **Every dimension this enum names**, in declaration order — the
+    /// one enumeration, owned where the exhaustive matches live.
+    ///
+    /// A list cannot be derived from a match in safe Rust, so SOMEONE
+    /// writes it by hand; the only question is where. Written here, it
+    /// sits in the crate whose exhaustive matches over `Dimension`
+    /// (`Display` above, `Dimension::article` below, the checker's own
+    /// arms) fail to compile on a dimension added to the lattice — so
+    /// the author adding one is already on this page with the list in
+    /// front of them, and the `all_is_every_dimension` census
+    /// (`tests/m4_pr1_dims.rs`) puts a second visit right beside it.
+    /// **Neither forces the edit**: what they force is that the author
+    /// is here and has to decide, and the census's own doc measures how
+    /// far short of forcing it stops. A copy in a downstream crate gets
+    /// not even that. The enum is closed, so a consumer's own
+    /// exhaustive match does fence THAT consumer; but nothing ties an
+    /// array literal to a variant list, so a downstream list stays the
+    /// length it was written at, with no error anywhere and no author
+    /// standing over it.
+    ///
+    /// So this is the list downstream reads instead of writing its own
+    /// — the viewer's new-parameter radio row draws one button per
+    /// entry — and a consumer that RENDERS it renders declaration
+    /// order, which nothing here ranks: this is the lattice's own
+    /// order, not a recommendation.
+    ///
+    /// The words are not here and are not wanted here: a dimension
+    /// reaching a user is the `Display` above, which is this crate's
+    /// one home for that rule.
+    pub const ALL: [Self; 4] = [Self::Length, Self::Angle, Self::Count, Self::Scalar];
+
     /// The indefinite article agreeing with the `Display` noun, for
     /// the sentence positions that need one. **The value decides it**
     /// — a sentence that hard-codes "a" is wrong for every value whose

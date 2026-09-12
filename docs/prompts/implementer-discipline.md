@@ -260,3 +260,8 @@ body, filed nowhere, by a lane that read this section as an exemption from
 body is not a slate and the finding is gone. (Read as a conflict by the T-2
 style review, 2026-09-04; it is not one, and this paragraph exists because it
 reads like one.)
+
+## 7. Citations
+
+**Cite by name; line numbers rot.** A number may ride along beside the
+name and is allowed to go stale; a bare `file.rs:NNN` is not a citation.

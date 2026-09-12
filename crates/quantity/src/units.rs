@@ -107,7 +107,7 @@ pub enum UnitQuantity {
 ///
 /// #650's literal counterexample no longer builds:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0451
 /// let bogus = quantity::UnitDef {
 ///     symbol: "mm",
 ///     quantity: quantity::UnitQuantity::Angle,
@@ -117,7 +117,7 @@ pub enum UnitQuantity {
 ///
 /// Nor does the struct-update escape from a real row:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0451
 /// let mm = quantity::unit_by_symbol("mm").unwrap();
 /// let bogus = quantity::UnitDef { quantity: quantity::UnitQuantity::Angle, ..mm };
 /// ```
@@ -128,9 +128,12 @@ pub enum UnitQuantity {
 ///
 /// A `compile_fail` row proves only that the snippet does not build,
 /// not that it fails for the intended reason — a typo would pass it
-/// just as well. Each block above therefore has its legal twin here,
-/// differing from it in exactly one respect: the twin never names a
-/// field.
+/// just as well, and stable rustdoc checks only that the block fails,
+/// never that it fails with the `,E0451` named beside it. Each block
+/// above therefore has its legal twin here, differing from it in
+/// exactly one respect: the twin never names the field, so a typo
+/// shared by both reddens the twin. The codes were read off `rustc`
+/// directly on each snippet at the pinned toolchain (1.97.0).
 ///
 /// ```
 /// // The path `quantity::UnitDef` names this exported type, the row
@@ -343,32 +346,39 @@ const fn row_index(symbol: &str) -> u8 {
 ///
 /// The seal is a claim about what COMPILES, so it is pinned by rows
 /// that must fail to compile — and each pins a PRIVACY refusal, so that
-/// opening the field reddens it. A row that named a field this type
-/// does not have would fail forever, however open the seal became, and
-/// is worth nothing.
+/// opening the field reddens it: `E0423` (*cannot initialize a tuple
+/// struct which contains private fields*) for the mint, `E0616`
+/// (*field `0` of struct `LengthUnit` is private*) for the read and
+/// for the write. A row that named a field this type does not have
+/// would fail forever, however open the seal became, and is worth
+/// nothing.
 ///
 /// The index cannot be supplied:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0423
 /// let bogus = quantity::LengthUnit(0);
 /// ```
 ///
 /// Nor read off a real constant and re-used:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0616
 /// let stolen = quantity::MM.0;
 /// ```
 ///
 /// Nor written through:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0616
 /// let mut mm = quantity::MM;
 /// mm.0 = 4;
 /// ```
 ///
 /// The legal twin of all three: the type is exported, both readers
 /// exist, and the twin differs from each block above in exactly one
-/// respect — it never names the field.
+/// respect — it never names the field. The twin is what makes the
+/// codes honest: stable rustdoc checks only that a `compile_fail`
+/// block fails, never that it fails with the code named beside it.
+/// The three codes were read off `rustc` directly on each snippet at
+/// the pinned toolchain (1.97.0).
 ///
 /// ```
 /// let mm: quantity::LengthUnit = quantity::MM;
@@ -388,17 +398,19 @@ pub use view::LengthUnit;
 ///
 /// **SEALED for the reason and by the mechanism on [`LengthUnit`]**;
 /// obtain one from [`DEG`], [`RAD`], or [`UnitDef::as_angle`]. The same
-/// three privacy refusals pin it, so the two types stay symmetric.
+/// three privacy refusals pin it — `E0423`, `E0616`, `E0616` — so the
+/// two types stay symmetric, and the twin below carries the same
+/// caveat about the codes.
 ///
-/// ```compile_fail
+/// ```compile_fail,E0423
 /// let bogus = quantity::AngleUnit(4);
 /// ```
 ///
-/// ```compile_fail
+/// ```compile_fail,E0616
 /// let stolen = quantity::DEG.0;
 /// ```
 ///
-/// ```compile_fail
+/// ```compile_fail,E0616
 /// let mut deg = quantity::DEG;
 /// deg.0 = 5;
 /// ```

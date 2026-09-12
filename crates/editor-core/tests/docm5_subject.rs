@@ -75,7 +75,11 @@ fn a_document_with_no_body_denoting_root_is_the_no_body_roots_subject() {
     let direct = run_checks_on(&doc, &ev, Subject::NoBodyRoots, &cfg, tol).expect("so is it here");
     assert_eq!(wrapped, direct);
     assert_eq!(wrapped.findings, Vec::new(), "and it is clean");
-    assert!(wrapped.skipped.is_empty(), "with nothing skipped");
+    assert_eq!(
+        wrapped.skipped,
+        vec![CheckId::ChartCoherence],
+        "with the one default-Off resident named, and nothing else"
+    );
 }
 
 /// **A2 — a gather that refuses reaches the door as
@@ -103,8 +107,13 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
 
     // Through the wrapper, which gathers.
     match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses") {
-        ChecksError::Product { reason } => {
+        ChecksError::Product { kind, reason } => {
             assert_eq!(reason, refusal.to_string(), "the gather's own sentence");
+            assert_eq!(
+                kind,
+                Some(refusal.kind()),
+                "and the class of that same refusal"
+            );
         }
         other => panic!("expected the subject refusal, got {other}"),
     }
@@ -113,9 +122,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     // the same, and it is raised whether or not the connectedness
     // resident ran: what it is NOT raised by is a resident that reads
     // no subject.
-    let unavailable = || Subject::Unavailable {
-        reason: refusal.to_string(),
-    };
+    let unavailable = || Subject::refused(&refusal);
     for cfg in [
         ChecksConfig::default(),
         ChecksConfig {
@@ -124,7 +131,10 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
         },
     ] {
         match run_checks_on(&doc, &ev, unavailable(), &cfg, tol).expect_err("the door refuses") {
-            ChecksError::Product { reason } => assert_eq!(reason, refusal.to_string()),
+            ChecksError::Product { kind, reason } => {
+                assert_eq!(reason, refusal.to_string());
+                assert_eq!(kind, Some(refusal.kind()));
+            }
             other => panic!("expected the subject refusal, got {other}"),
         }
     }
@@ -169,7 +179,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     );
     assert_eq!(
         report.skipped,
-        vec![CheckId::Separation],
+        vec![CheckId::ChartCoherence, CheckId::Separation],
         "and the skip is visible"
     );
 
@@ -185,7 +195,10 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     let report = run_checks(&collide, &ev, &off, tol)
         .expect("with the subject-reading resident off there is nothing to gather for");
     assert_eq!(editor_core::gathers_on_this_thread() - before, 0);
-    assert_eq!(report.skipped, vec![CheckId::Separation]);
+    assert_eq!(
+        report.skipped,
+        vec![CheckId::ChartCoherence, CheckId::Separation]
+    );
 }
 
 /// **DI3 at the door.** (R2's two rows, adopted.)

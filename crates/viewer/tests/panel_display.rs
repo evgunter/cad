@@ -313,8 +313,15 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
         node: extrude,
         slot: SlotId::Distance,
     });
-    session.perform(SessionOp::PreviewGesture { value: 0.02 });
-    let outcome = session.perform(SessionOp::CommitGesture);
+    session.perform(SessionOp::PreviewGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: 0.02,
+    });
+    let outcome = session.perform(SessionOp::CommitGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+    });
     assert_eq!(outcome.committed.len(), 1, "one edit per gesture");
     let row = props::slot_rows(session.doc(), extrude)
         .into_iter()

@@ -2,8 +2,10 @@
 id: budget-faces-sweep-is-one-test-row
 kind: issue
 title: budget_faces.rs runs a 70-cell fit_offset_at sweep in one #[test] and is the whole geom-brep binary's wall
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-09-11
+pr: 2321
 ---
 
 ## The finding

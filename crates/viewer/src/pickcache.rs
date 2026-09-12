@@ -253,11 +253,12 @@ impl PickCache {
     /// most one attempt per (generation, δ).
     ///
     /// **δ is built at, verbatim.** [`crate::scene::TRIANGLE_BUDGET`] chooses
-    /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
-    /// that is the whole of the budget's authority: once a δ is in
-    /// force it is the value someone asked for, and a cache that
-    /// quietly built a different picture would make the View pane's δ
-    /// field a control that does nothing.
+    /// the δ a document OPENS at
+    /// ([`crate::app::ViewerApp::fit_delta_on_scene`]), and that is the
+    /// whole of the budget's authority: once a δ is in force it is the
+    /// value someone asked for, and a cache that quietly built a
+    /// different picture would make the View pane's δ field a control
+    /// that does nothing.
     ///
     /// The document is CLONED into the request and the evaluation is
     /// shared, so the worker owns everything it reads and the session

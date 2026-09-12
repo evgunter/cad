@@ -648,6 +648,21 @@ impl std::error::Error for OffsetFitError {}
 // `ApproxSurface` stores it and `Surface` stores that, so the type has
 // to sit below the surface enum. Its derivation is this module's, and
 // every limb below writes into it.
+//
+// The DERIVATION is `f64`-only — every door here is monomorphic at
+// `f64`, taking `NurbsSurface<f64>` or `ApproxSurface<f64>` and never a
+// `T: Real` — but the RECORD is not confined to that scalar.
+// It carries no scalar parameter of its own, and
+// `ApproxSurface::map_scalar` carries it verbatim onto a lifted
+// surface, so a certificate DOES reach consumers at scalars this
+// module never runs at. It arrives there as provenance and never as
+// authority: at `f64` the validator re-derives against the
+// description and never consults the stored copy, and at a scalar
+// with no re-derivation lane — `PropsQuadLane::recertify_approx` in
+// `topo::props` answering `None` — tier 3 REFUSES the face with
+// `ValidationError::ApproxLaneUnsupported` rather than accepting the
+// carried record. That refusal is about the derivation missing at
+// that scalar, never about a value that could not arrive.
 pub use geom::OffsetCertificate;
 
 /// **The offset fit door**: fit a NURBS approximation of `S + d·n`

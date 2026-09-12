@@ -936,21 +936,20 @@ impl ViewerApp {
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
             let outcome = self.session.perform(op);
-            // **Where a supersession reaches the user**: the free-move
-            // placements this operation's document transition
-            // discarded, onto the frame's notices like every other
+            // **Where a withdrawal reaches the user**: everything
+            // this operation's document transition took out of the
+            // display state, onto the frame's notices like every other
             // one (`frame::frame_status` carries the argument).
+            //
+            // ONE call, not one per kind. Three hand-written `extend`s
+            // stood here, and the list they fanned out was held to the
+            // report's by nothing — this code is `app`-gated, so no
+            // row can execute it and a kind dropped here is invisible
+            // until a user misses a sentence. `Withdrawal::all`
+            // destructures the report, so the list is the report's and
+            // a fourth kind reds there.
             notices.extend(
-                frame::Withdrawal::superseded(&outcome.superseded)
-                    .map(|withdrawal| withdrawal.notice()),
-            );
-            // And the hides the same transition dropped, ranked
-            // beside them — the same class of fact (display state an
-            // accepted edit withdrew) and a different sentence
-            // (`frame::Withdrawal::dropped_hide` carries the argument).
-            notices.extend(
-                frame::Withdrawal::dropped_hide(&outcome.dropped_hides)
-                    .map(|withdrawal| withdrawal.notice()),
+                frame::Withdrawal::all(&outcome.withdrawn).map(|withdrawal| withdrawal.notice()),
             );
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
@@ -1236,6 +1235,34 @@ impl eframe::App for ViewerApp {
                     .clicked()
                 {
                     ops.push(SessionOp::Redo);
+                }
+                ui.separator();
+                // **The cancel doors**, beside the history controls
+                // because that is where a reader whose every edit is
+                // being refused already is. They are HERE and not on
+                // the field that opened the gesture: the field is what
+                // can stop being drawn mid-drag, and a cancel sited on
+                // it would vanish with the exit it exists to replace
+                // (`session::CancelDoor`). This panel is drawn on every
+                // frame whatever the selection, the standing and the
+                // layout are.
+                //
+                // Enabled exactly while the door's own gesture is in
+                // flight, and out of flight it says the refusal the
+                // operation itself would give — the value that knows
+                // carries the words, so the two cannot disagree.
+                for door in self.session.cancel_doors() {
+                    let button =
+                        ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
+                    let clicked = match &door.blocked {
+                        Some(refusal) => {
+                            button.on_disabled_hover_text(refusal.to_string()).clicked()
+                        }
+                        None => button.clicked(),
+                    };
+                    if clicked {
+                        ops.push(door.op);
+                    }
                 }
                 ui.separator();
                 if ui

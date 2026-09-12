@@ -277,9 +277,17 @@ fi
 # — local-scripts/ is the tree that classifies TIER=docs and that every hosted
 # job but `mirror` deletes at checkout.
 # HOSTED MIRROR: mirror / status capture (PIPESTATUS is read before anything rewrites it)
+# The render-lane parity row is tier-blind for the same reason and one more of
+# its own: its inputs are render.yml and THIS TREE — the helper it checks is
+# local-scripts/render-hosted.sh, which no hosted job but `mirror` can even see.
+# HOSTED MIRROR: mirror / render lane parity (the helper knows the lanes render.yml declares)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
+# The install-wrapper row is tier-blind for the same reason as the two above,
+# and its population is the widest of the three: every workflow file, every
+# composite action and every tracked shell script, this file among them.
+# HOSTED MIRROR: mirror / install wrappers (a wrapped idiom is spelled only through its wrapper)
 # The work tracker's lint (work/README.md) reads work/ and docs/ — markdown,
 # the docs tier — so it sits here too. The territory row is advisory on both
 # halves: it prints paths another program owns and never fails.
@@ -298,10 +306,14 @@ tier_blind_rows() {
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/check-status-capture.py --selftest || rc=1
   python3 scripts/check-status-capture.py || rc=1
+  python3 scripts/check-render-lane-parity.py --selftest || rc=1
+  python3 scripts/check-render-lane-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
+  python3 scripts/check-install-wrappers.py --selftest || rc=1
+  python3 scripts/check-install-wrappers.py || rc=1
   python3 scripts/work.py --selftest || rc=1
   python3 scripts/work.py lint || rc=1
   python3 scripts/work.py territory --base "$BASE" || rc=1
@@ -462,6 +474,19 @@ discipline() {
   # under docs/perf-data/opt-level/ that cannot be edited afterwards.
   # HOSTED MIRROR: discipline / opt-level calibrator selftest (the guard over an append-only history)
   python3 scripts/opt-level-calibrate.py --selftest || rc=1
+  # The criterion benchmark lane's history writer. The LANE has no local half
+  # and is not supposed to: its entries are comparable only because one box
+  # class produced all of them, so a developer box's milliseconds committed as
+  # a trend point are exactly the failure memories/perf-measurement-lane.md
+  # exists to distrust. The HARNESS is not one-sided — `cd benches && cargo
+  # bench` is the right local act, and it writes nothing here on purpose. What
+  # belongs in both halves, by exactly the base-test-listing argument above, is
+  # the SELFTEST: it drives the criterion-directory reader, the roster pin and
+  # the environment block against fixtures, no hosted run produces those paths
+  # on demand, and the emit mode they guard writes what nightly.yml appends to
+  # a history under docs/perf-data/criterion/ that cannot be edited afterwards.
+  # HOSTED MIRROR: discipline / criterion history emitter selftest (the guard over an append-only history)
+  python3 scripts/criterion-emit.py --selftest || rc=1
   return $rc
 }
 
@@ -668,9 +693,11 @@ nextest_check() {
 # nobody asked.
 #
 # It also keeps the two halves saying the same thing about a red run. The
-# parity checker compares which CHECKS each half names, never the flags on the
-# commands, so hosted and local can drift on reporting semantics with nothing
-# noticing — filed as its own issue rather than left as a note here.
+# parity checker's claim 10 now reads the commands and not only the roster:
+# the allowlisted cargo FLAGS on a shared subcommand, the semantics-bearing
+# ENVIRONMENT either half sets, and the DIRECTORY either half runs in. What it
+# still does not read is every other flag, so a reporting-semantics knob
+# outside `SEMANTIC_FLAGS` can still drift with nothing noticing.
 #
 # `$TEST_FILTER` IS COMPOSED WITH `&`, NEVER PASSED AS A SECOND `-E`. nextest
 # ORs its `-E` expressions, so a row that already selects a set — the interval
@@ -1049,10 +1076,12 @@ klint_gate() {
   # what this half did NOT: it tested `= 1` alone, so a build failure
   # (101), a panic (101) or an unknown-option exit passed silently. The
   # two halves disagreed about every status but 1 and 2, and
-  # check-ci-mirror-parity.py cannot see it — that script compares the
-  # NAMES and gate modes of the rows, not the shell that implements
-  # them, so this class of drift is caught by reading, not by a gate.
-  # Said here rather than left to be rediscovered.
+  # check-ci-mirror-parity.py cannot see it. Its claim 10 reads this
+  # row's shell — the cargo flags, the environment and the directory the
+  # `cd` above names — but an exit STATUS is not written in the argv at
+  # all, so which non-zero codes each half treats as failure is caught by
+  # reading and not by a gate. Said here rather than left to be
+  # rediscovered.
   [ "$status" != 0 ] && return 1
   return 0
 }
@@ -1165,10 +1194,15 @@ wasm_check() {
 #
 # UNCONDITIONAL HERE, SEED-KEYED HOSTED — this file's standing asymmetry,
 # argued at the toolkit rows in the dispatch list below.
-wasm_check_viewer() {
+#
+# CLIPPY AND `-D warnings`, and NO `--all-targets`: the hosted half
+# argues both, and this row's name is wider than `viewer` because its
+# verdict is.
+wasm_clippy_viewer() {
   rustup target add wasm32-unknown-unknown \
     && RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
-         cargo check -p viewer --features app --target wasm32-unknown-unknown
+         cargo clippy -p viewer --features app --target wasm32-unknown-unknown \
+           -- -D warnings
 }
 
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
@@ -1336,8 +1370,8 @@ rustdoc_gate() {
 run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
-# HOSTED MIRROR: fmt / wasm32 check (viewer app feature - the browser entry point)
-run_row "wasm32 check (viewer app)"    wasm_check_viewer
+# HOSTED MIRROR: fmt / wasm32 clippy (viewer app feature + its workspace deps - the browser entry point)
+run_row "wasm32 clippy (viewer app + deps)" wasm_clippy_viewer
 # ε battery {default, 1e-6, 1e-12} (Ev's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Over the default archive;

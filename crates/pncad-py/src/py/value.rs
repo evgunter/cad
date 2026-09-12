@@ -1138,7 +1138,12 @@ impl Evaluation {
     /// candidates disagree (`"tied_disagrees"`), an unreadable
     /// candidate (`"unreadable"`), a non-datum reference
     /// (`"not_a_datum"`) all refuse rather than silently including or
-    /// dropping a candidate.
+    /// dropping a candidate. The band this query classifies against is
+    /// built before any candidate is read, so an ambient tolerance that
+    /// admits none refuses too, under the band constructor's OWN word —
+    /// `reason="empty"` or `"invalid_value"`, never a flat `"band"`,
+    /// because a collapsed band and an overflowed one want opposite
+    /// repairs.
     fn select_where(
         &self,
         py: Python<'_>,
@@ -1374,7 +1379,9 @@ impl Evaluation {
     /// ambiguity band (`reason="pair_in_band"` — neither reported nor
     /// silently dropped), a tied name whose candidates disagree
     /// (`"tied_disagrees"`), an unreadable name-table entry
-    /// (`"unreadable"`), a broken ambient tolerance (`"band"`).
+    /// (`"unreadable"`), and an ambient tolerance admitting no band at
+    /// all under the constructor's own word (`reason="empty"` when K·ε
+    /// collapsed back onto ε, `"invalid_value"` when it overflowed).
     fn find_flush_candidates(
         &self,
         py: Python<'_>,

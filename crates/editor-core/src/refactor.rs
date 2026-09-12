@@ -301,7 +301,9 @@ impl core::fmt::Display for SplitError {
                 };
                 write!(
                     f,
-                    "split: the cut severs mate {}'s {} reference from the node it is read at                      (node {} — node {cut} is cut, node {kept} is kept); widen the cut, or                      re-author the mate at a node on its own side",
+                    "split: the cut severs mate {}'s {} reference from the node it is read at \
+                     (node {} — node {cut} is cut, node {kept} is kept); widen the cut, or \
+                     re-author the mate at a node on its own side",
                     mate.0,
                     side.name(),
                     operand.0

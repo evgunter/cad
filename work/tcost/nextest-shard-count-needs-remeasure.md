@@ -1,13 +1,11 @@
 ---
 id: nextest-shard-count-needs-remeasure
 kind: issue
-title: Determine the right nextest shard count (blocked on the test-speedup work)
-status: closed
+title: Determine the right nextest shard count: the N=2 verdict was priced in billed minutes
+status: open
 opened: 2026-08-13
 github: 461
-blocked_on: [tcost]
 refs: [449]
-closed: 2026-09-03
 ---
 
 ## From GitHub issue 461
@@ -98,3 +96,46 @@ would need its own measured PR, and it is not worth one now. Re-open
 if the interval legs grow past the boundary by a margin a model does
 not need. `hash:` partitioning buys nothing over `count:`; a
 weight-aware split is more machinery than the saving.
+
+## RE-OPENED (2026-09-11): the verdict was decided by a currency that no longer exists
+
+The 2026-09-03 re-measure above closed this at N=2, and read in full its
+closing paragraph rests on one quantity: **billed minutes.** *"every
+added shard costs a full billed minute for a 20-45 % wall cut"* for the
+f64 rows; for the interval rows, *"the only case a re-shard could make
+is the interval rows' ~1 billed minute per row, modelled at a boundary
+where a model is wrong in either direction."* Both halves are a price
+in Actions minutes weighed against wall clock.
+
+`evgunter/cad` went public on **2026-09-03** — the same day that
+re-measure was taken, and the fact did not reach it. Standard-runner
+minutes are free (`scripts/ci-filter.py` §CONFIGURATION COVERAGE;
+`work/ciw/f3-recosting-on-a-public-repo`). Every figure on the cost side
+of that verdict is now zero, and the benefit side is untouched, so the
+verdict inverts on its own numbers:
+
+- **f64 rows**: 46-63 s legs, "a 20-45 % wall cut" per added shard,
+  against a cost that was a rounding artefact of per-job minute billing.
+- **interval rows**: 70-74 s legs; the re-measure's own model puts N=3
+  at ~52 s legs and N=4 at **~40 % less wall**, and N=4 was already
+  called *billed-neutral* before minutes went free.
+
+The interval legs sit on the run's critical path — `test (interval,
+eps = default, 1/2)` is named as the last job on it in
+`scripts/ci-filter.py` §WALL CLOCK IS NOT FREE — so this is a cut to
+what a contributor actually waits for, not to aggregate compute.
+
+**What this does NOT re-open.** The two structural findings are
+unchanged and still say what they said: the imbalance is no longer
+structural (ratio median ~1.15), and no single test binds any N up to 4
+now that the hard floor collapsed 296 s -> 30 s. Weight-aware
+partitioning is still more machinery than the saving; `hash:` still buys
+nothing over `count:`. The work is a measured N, not a new mechanism.
+
+**It still needs its own measured PR**, per the program's `keep_out`
+("CI build knobs (profile/cache/sharding) are out unless a unit's
+measurement makes the case in its own PR"). That keep-out is about
+evidence and is unaffected by the billing change; what changed is that
+the case can now be made, where before the arithmetic refused it.
+Every N modelled above is a MODEL — the re-measure says so — and the
+before/after must come from hosted runs on the 4-vCPU runner.

@@ -13,17 +13,14 @@
     clippy::float_cmp
 )]
 
-use geom_core::{Affine3, Band, Tol, Vec3};
+use geom_core::{Affine3, Tol, Vec3};
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
+use crate::common::approx::band;
 use crate::verbs_shell::{boxy, hollow_box, v, vessel};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::linear(tol()).expect("a band")
 }
 
 fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> {

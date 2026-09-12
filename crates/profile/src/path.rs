@@ -362,7 +362,10 @@ use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::tolerance::DEFAULT_EPS;
+use geom_core::{
+    Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2, is_finite_length,
+};
 
 use crate::path::program::{ClosedLoop, Step, Target};
 use crate::sugar::{
@@ -1131,6 +1134,34 @@ pub enum PathError<T: Real> {
         /// The refused y component.
         dy: T,
     },
+    /// A vector a direction is derived from has **no finite length**:
+    /// its components overflow the norm (past ~1e154), or one of them
+    /// is not a number. Two doors raise it — the components director
+    /// ([`PartialPath::toward`]) and the arc carrier's tangent, whose
+    /// vector is the anchor's displacement from the centre.
+    ///
+    /// Distinct from [`PathError::ZeroDirection`] on purpose: the
+    /// direction is **not** zero, and that arm's recourse — scale the
+    /// components UP — is exactly backwards here.
+    ///
+    /// **The recourse is the ratio, not the geometry, wherever the
+    /// caller holds the numbers.** Both doors read only the ratio of
+    /// the components, so dividing the pair through by a common
+    /// factor is free and always sufficient. At
+    /// [`PartialPath::toward`] the caller spells the components and
+    /// can do exactly that; at the arc carrier's tangent they are a
+    /// displacement the caller does not hold directly, and moving the
+    /// authored geometry into range is the way to reach the same
+    /// division. Naming only the second would send a `toward` caller
+    /// to move geometry that does not need moving — the
+    /// wrong-recourse twin of the wrong-cause defect in
+    /// `memories/refusal-text-is-not-cause.md`.
+    NonFiniteDirection {
+        /// The refused x component.
+        dx: T,
+        /// The refused y component.
+        dy: T,
+    },
     /// A `Via` mode's through-point is within ε_input of the CHORD LINE:
     /// the three points name no arc. On the chord the construction
     /// degenerates to the straight segment; off the far end it
@@ -1281,6 +1312,8 @@ pub enum PathErrorKind {
     ArcContinueOffCarrier,
     /// [`PathError::ZeroDirection`].
     ZeroDirection,
+    /// [`PathError::NonFiniteDirection`].
+    NonFiniteDirection,
     /// [`PathError::ArcViaCollinear`].
     ArcViaCollinear,
     /// [`PathError::DegenerateArcChord`].
@@ -1330,6 +1363,7 @@ impl<T: Real> PathError<T> {
             Self::ArcContinueNeedsArcCarrier => PathErrorKind::ArcContinueNeedsArcCarrier,
             Self::ArcContinueOffCarrier { .. } => PathErrorKind::ArcContinueOffCarrier,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
+            Self::NonFiniteDirection { .. } => PathErrorKind::NonFiniteDirection,
             Self::ArcViaCollinear { .. } => PathErrorKind::ArcViaCollinear,
             Self::DegenerateArcChord { .. } => PathErrorKind::DegenerateArcChord,
             Self::ArcCenterNotEquidistant { .. } => PathErrorKind::ArcCenterNotEquidistant,
@@ -1350,11 +1384,49 @@ impl<T: Real> PathError<T> {
 /// reach its scalars through `{:?}` — the shortest round-tripping form
 /// of an `f64`, which puts an 8 mm radius that arithmetic produced into
 /// a human sentence as `0.008000000000000002 m`. Where the `Debug` form
-/// parses back as an `f64` this renders the shortest decimal that still
-/// names the same number to a relative 1e-9; anything else (an interval,
-/// a dual) passes through untouched. A DISPLAY choice only — the payload
-/// keeps the exact scalar, and every claim a caller branches on reads
-/// the field, never this string.
+/// parses back as an `f64` this renders the shortest spelling that still
+/// names the same number **to the finer of a relative 1e-9 and an
+/// absolute ε/10**; anything else (an interval, a dual) passes through
+/// untouched. A DISPLAY choice only — the payload keeps the exact
+/// scalar, and every claim a caller branches on reads the field, never
+/// this string.
+///
+/// **The two arms are load-bearing at opposite ends of the range, and
+/// the tolerance is their `min` because each is the coarser one
+/// somewhere.** ε is a LENGTH ([`DEFAULT_EPS`], D4 ¶1), so a purely
+/// relative 1e-9 crosses it at one metre and is coarser above: at a
+/// kilometre it is a micron, and two lengths the kernel certifies as
+/// different then render as one number — a refusal reading *"margin
+/// 1234.5 m exceeds the 1234.5 m the anchor pins"*. The absolute arm
+/// caps the grid one decade below ε, so a difference the kernel can
+/// decide is always a difference the sentence spells. Below a decimetre
+/// the relative arm is the finer of the two and governs alone, and the
+/// shortening is there the same proposition at every magnitude: a
+/// picometre margin is rounded to nine significant figures of a
+/// picometre, never to the nearest nanometre and never to `0`. A FLOOR
+/// under the tolerance is the mirror defect and is precisely what a
+/// `min` cannot become — it would round every margin below the floor to
+/// the floor's own zero, erasing the sub-nanometre values these messages
+/// exist to report.
+///
+/// The cap is the compile-time [`DEFAULT_EPS`] and never the run's live
+/// `Tolerance::eps()`. A live ε would make every rendered refusal a
+/// function of process configuration, spelling one payload three ways
+/// across the ε rows CI gates; the grid is a display choice stated once
+/// against the ratified default.
+///
+/// `0.0` has no significant figures to round to and only its exact
+/// spelling round-trips, which is `0`; `-0.0`'s is `-0`, a sign this
+/// helper reports because the payload carries it, not because a
+/// magnitude was erased.
+///
+/// Notation follows the `Debug` form's own choice — fixed where `{:?}`
+/// is fixed, exponential where `{:?}` is exponential — so this helper
+/// only ever shortens the mantissa of the spelling Rust already picked,
+/// and never turns one into the other. A metre-scale number keeps its
+/// decimal point and a far-from-unity one keeps its exponent, which is
+/// what makes both of them readable: `1e-12` rather than eleven zeros,
+/// `1e300` rather than 301 digits.
 ///
 /// Every arm below renders its scalars through here. Non-scalar payloads
 /// — a side, a carrier, an index, a `&'static str` site — are not this
@@ -1364,13 +1436,25 @@ fn num<T: core::fmt::Debug>(v: &T) -> String {
     let Ok(x) = raw.parse::<f64>() else {
         return raw;
     };
-    let tol = 1e-9 * x.abs().max(1.0);
+    let tol = (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9);
+    let exponential = raw.contains('e');
     for prec in 0..=17 {
-        let short = format!("{x:.prec$}");
+        let short = if exponential {
+            format!("{x:.prec$e}")
+        } else {
+            format!("{x:.prec$}")
+        };
         if short
             .parse::<f64>()
             .is_ok_and(|back| (back - x).abs() <= tol)
         {
+            if exponential {
+                // The first precision that round-trips cannot carry a
+                // trailing zero in its mantissa: dropping one would
+                // name the same `f64`, so the shorter precision would
+                // have been accepted first.
+                return short;
+            }
             let trimmed = if short.contains('.') {
                 short.trim_end_matches('0').trim_end_matches('.')
             } else {
@@ -1379,6 +1463,8 @@ fn num<T: core::fmt::Debug>(v: &T) -> String {
             return trimmed.to_string();
         }
     }
+    // No 18-significant-figure spelling in the chosen notation names
+    // the value: a non-finite payload, whose comparisons are all false.
     raw
 }
 
@@ -1591,6 +1677,16 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "a director spelled as components must name a direction (got \
                  ({dx}, {dy}), whose norm is within tolerance of zero): only the ratio \
                  of the components is read, so scaling them up costs nothing",
+                dx = num(dx),
+                dy = num(dy)
+            ),
+            Self::NonFiniteDirection { dx, dy } => write!(
+                f,
+                "a direction derived from ({dx}, {dy}) has no finite length \u{2014} its \
+                 components overflow the norm, or one of them is not a number; only the \
+                 ratio of the components is read, so divide them through by a common \
+                 factor \u{2014} or, where they are derived from authored geometry rather \
+                 than spelled, scale that geometry into the session's range",
                 dx = num(dx),
                 dy = num(dy)
             ),
@@ -2840,6 +2936,18 @@ impl Open {
 /// a norm within ε_input of zero cannot be normalized without
 /// amplifying its own noise into the ray. Only the RATIO of the
 /// components carries meaning, so the recourse is free — scale them up.
+///
+/// **Finiteness before sign.** Components past [`Vec2::normalize`]'s
+/// ~1e154 overflow band make the norm ∞, which is maximally DEFINITE
+/// to the classifier: deciding the sign first answers `Positive` and
+/// the two divisions below hand back `(0, 0)`. `(1e200, 0)` returned
+/// `Ok(Dir { unit: (0, 0), ang: 0 })` before this question went first
+/// — a stored director naming no direction, out of a decided path.
+///
+/// **K consequence.** The refusal precedes the funnel, so a
+/// non-finite pair contributes no `path_director_norm` sample; the
+/// one it used to contribute was a `+∞` margin recorded as a definite
+/// `Positive`.
 fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, PathError<T>> {
     let band = linear_band(tol)?;
     // `powi(2)`, never `dx * dx`: a director's components straddle zero
@@ -2849,6 +2957,9 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
     // poisons this `sqrt`. Gated by ci.yml's "interval-square powi(2)
     // allowlist".
     let norm = (dx.powi(2) + dy.powi(2)).sqrt();
+    if !is_finite_length(norm) {
+        return Err(PathError::NonFiniteDirection { dx, dy });
+    }
     match decide("path_director_norm", Margin::of(norm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::ZeroDirection { dx, dy }),
@@ -4114,5 +4225,367 @@ mod tests {
             arc_fillet::carrier_tangent::<f64>(Point2::new(4.0, 2.0), centre, ArcSweep::Ccw, band)
                 .expect("a real tangent");
         assert_eq!((t.unit.x, t.unit.y), (0.0, 1.0), "the stored ray is unit");
+    }
+
+    /// **The overflow end of both 2-D director doors.** Components
+    /// past `Vec2::normalize`'s ~1e154 band make the norm ∞, which is
+    /// maximally DEFINITE to the classifier, and the division that
+    /// follows collapses the ray to zero. Measured at the merge base,
+    /// both doors reported SUCCESS:
+    ///
+    /// - `unit_from_components(1e200, 0.0, witness)` →
+    ///   `Ok(Dir { unit: (0, 0), ang: 0 })`;
+    /// - `carrier_tangent((1e200, 0), origin, Ccw, band)` →
+    ///   `Ok(Dir { unit: (-0, 0), ang: π })` — an angle asserted over
+    ///   a ray of nothing. This door had never been executed at the
+    ///   overflow end before this row.
+    ///
+    /// Both now refuse [`PathError::NonFiniteDirection`], whose
+    /// sentence is NOT [`PathError::ZeroDirection`]'s: the direction
+    /// is not zero, and "scale the components up" is the wrong way
+    /// round.
+    #[test]
+    fn both_director_doors_refuse_a_length_that_is_not_a_number() {
+        let tol = Tol::witness();
+        let band = linear_band::<f64>(tol).expect("the linear band");
+        for (dx, dy) in [(1e200, 0.0), (0.0, 1e200), (1e200, 1e200), (f64::NAN, 1.0)] {
+            assert!(
+                matches!(
+                    unit_from_components::<f64>(dx, dy, tol),
+                    Err(PathError::NonFiniteDirection { .. })
+                ),
+                "components ({dx}, {dy})"
+            );
+            let got = arc_fillet::carrier_tangent(
+                Point2::new(dx, dy),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            );
+            assert!(
+                matches!(got, Err(PathError::NonFiniteDirection { .. })),
+                "carrier anchor ({dx}, {dy}): {got:?}"
+            );
+        }
+        // A finite pair still climbs: the rows above cannot be passing
+        // because the doors refuse everything.
+        assert!(unit_from_components::<f64>(3.0, 4.0, tol).is_ok());
+        assert!(
+            arc_fillet::carrier_tangent(
+                Point2::new(3.0, 4.0),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            )
+            .is_ok()
+        );
+        // The sentence names the cause and a recourse that can work
+        // AT BOTH DOORS, and is not the zero-direction sentence.
+        let s = PathError::NonFiniteDirection {
+            dx: 1e200_f64,
+            dy: 0.0,
+        }
+        .to_string();
+        assert!(s.contains("no finite length"), "{s}");
+        // The arm is shared by a door whose components are SPELLED
+        // (`toward`) and one whose vector is DERIVED (the arc
+        // carrier's tangent). Only the ratio is read at either, so the
+        // free recourse — divide the pair through — must be named
+        // first; sending a `toward` caller to move geometry instead
+        // would be a refusal naming the wrong recourse.
+        assert!(
+            s.contains("only the ratio of the components is read"),
+            "{s}"
+        );
+        assert!(s.contains("divide them through by a common factor"), "{s}");
+        assert!(
+            s.contains("scale that geometry into the session's range"),
+            "{s}"
+        );
+        assert!(!s.contains("scaling them up costs nothing"), "{s}");
+        assert_eq!(
+            PathError::NonFiniteDirection {
+                dx: 1e200_f64,
+                dy: 0.0
+            }
+            .kind(),
+            PathErrorKind::NonFiniteDirection
+        );
+    }
+
+    /// **A refusal never renders a number it did not measure.**
+    ///
+    /// [`num`] shortens a scalar payload to the shortest spelling that
+    /// still names it to a relative 1e-9. The tolerance being RELATIVE
+    /// is the whole of that promise: with an absolute floor under it,
+    /// every payload below the floor rounds to the floor's own zero —
+    /// and the kernel's unit is the metre, so the picometre and
+    /// nanometre margins a junction refusal exists to report are
+    /// exactly the values erased.
+    ///
+    /// Each row names a magnitude a refusal can carry. A floor at `f`
+    /// makes every row with `|x| < f` read `0` (and every negative one
+    /// `-0`, which reports the sign of a magnitude it just erased), so
+    /// a 1e-9 floor breaks rows 3 onward and a 1e-30 floor still
+    /// breaks the last four.
+    #[test]
+    fn num_renders_a_sub_nanometre_payload_at_its_own_magnitude() {
+        let rows: [(f64, &str); 11] = [
+            (1e-8, "1e-8"),
+            (2e-9, "2e-9"),
+            (1e-9, "1e-9"),
+            (1e-10, "1e-10"),
+            (1e-12, "1e-12"),
+            (3.7e-12, "3.7e-12"),
+            (1e-30, "1e-30"),
+            (-1e-30, "-1e-30"),
+            (1e-180, "1e-180"),
+            (5e-324, "5e-324"),
+            (-5e-324, "-5e-324"),
+        ];
+        for (x, want) in rows {
+            let got = num(&x);
+            assert_eq!(got, want, "num({x:?})");
+            // The two spellings this row exists to forbid, stated
+            // apart from the equality above so that re-baselining a
+            // spelling cannot quietly re-admit them.
+            assert_ne!(got, "0", "num({x:?}) erased the magnitude");
+            assert_ne!(got, "-0", "num({x:?}) kept the sign of an erased magnitude");
+        }
+    }
+
+    /// **A difference the kernel can certify is a difference the
+    /// sentence spells.** ε is a LENGTH, so a purely relative 1e-9
+    /// crosses it at one metre and is coarser above — at a kilometre it
+    /// is a micron, a thousand ε. Two lengths the kernel decided were
+    /// different then reach the reader as one number, which is how a
+    /// refusal comes to read *"margin 1234.5 m exceeds the 1234.5 m the
+    /// anchor pins"*.
+    ///
+    /// Each row is a pair at a magnitude at or above the crossover,
+    /// separated by the multiple of ε named beside it, and the guard
+    /// above each comparison is what makes the row mean anything: a
+    /// pair closer than ε is one the kernel could not certify apart
+    /// either, so `num` would owe nothing. The first row is the
+    /// control — one metre is where a relative 1e-9 still equals ε, and
+    /// it is distinct under either grid. The three above it collide
+    /// under a purely relative tolerance.
+    #[test]
+    fn num_separates_two_lengths_the_kernel_can_certify_apart() {
+        let rows: [(f64, f64, &str); 4] = [
+            (1.0, 1.000_000_01, "1 m, 10 ε"),
+            (100.0, 100.000_000_01, "100 m, 10 ε"),
+            (1_234.5, 1_234.500_000_1, "1234.5 m, 100 ε"),
+            (10_000.0, 10_000.000_001, "10 km, 1000 ε"),
+        ];
+        for (base, other, label) in rows {
+            assert!(
+                (other - base).abs() >= DEFAULT_EPS,
+                "{label}: the pair is closer than ε, so the row proves nothing"
+            );
+            assert_ne!(num(&base), num(&other), "{label}: num rendered both alike");
+        }
+        assert_eq!(num(&100.000_000_01_f64), "100.00000001");
+    }
+
+    /// **The floor's absence is visible at the door, not only in the
+    /// helper.** [`PathError::JunctionTangent`]'s sentence is *"turn
+    /// margin {margin} m on a {arm} m arm"*, and a picometre margin
+    /// rendered `0 m` reads as a claim that the margin IS zero — the
+    /// one thing it is not, since a decided-zero margin takes a
+    /// different arm entirely.
+    ///
+    /// Breaks if `num` regains any absolute floor above 3.7e-12, or if
+    /// an arm stops routing its scalars through it.
+    #[test]
+    fn a_picometre_turn_margin_reaches_the_sentence_as_a_picometre() {
+        let s = PathError::JunctionTangent {
+            margin: 3.7e-12_f64,
+            arm: 2.5e-6_f64,
+        }
+        .to_string();
+        assert!(s.contains("turn margin 3.7e-12 m on a 2.5e-6 m arm"), "{s}");
+        assert!(!s.contains("margin 0 m"), "{s}");
+        let cusp = PathError::JunctionCusp {
+            margin: -4e-11_f64,
+            arm: 1.0_f64,
+        }
+        .to_string();
+        assert!(cusp.contains("turn margin -4e-11 m on a 1 m arm"), "{cusp}");
+        assert!(!cusp.contains("margin -0 m"), "{cusp}");
+    }
+
+    /// **The cap is visible at the door too.**
+    /// [`PathError::ArcCenterNotEquidistant`] fires precisely BECAUSE
+    /// the kernel decided two radii differ, and its sentence prints
+    /// both of them. Under a purely relative 1e-9 a 100 m arc whose
+    /// radii differ by 10 ε renders *"|tip - centre| = 100 m, |end -
+    /// centre| = 100 m"* — a refusal that contradicts itself in its own
+    /// sentence, telling the reader the centre is not equidistant while
+    /// printing one number twice.
+    #[test]
+    fn a_hundred_metre_refusal_does_not_print_its_two_radii_alike() {
+        let s = PathError::ArcCenterNotEquidistant {
+            tip_radius: 100.0_f64,
+            end_radius: 100.000_000_01_f64,
+        }
+        .to_string();
+        assert!(
+            s.contains("|tip - centre| = 100 m, |end - centre| = 100.00000001 m"),
+            "{s}"
+        );
+    }
+
+    /// **Zero renders as zero.** A relative tolerance at `0.0` is
+    /// `0.0`, so only a spelling that parses back to the payload is
+    /// accepted — which `0` is, at the first precision tried. The row
+    /// exists because the obvious failure of a relative tolerance is
+    /// the one value it cannot scale: were the loop to reject every
+    /// precision here it would fall through to the `{:?}` form and a
+    /// refusal would read `margin 0.0 m`.
+    ///
+    /// `-0.0` keeps its sign, and that is not the defect above: no
+    /// magnitude was erased, the payload IS negative zero, and `-0` is
+    /// the only spelling that names it.
+    #[test]
+    fn num_renders_zero_as_zero_and_negative_zero_as_negative_zero() {
+        assert_eq!(num(&0.0_f64), "0");
+        assert_eq!(num(&-0.0_f64), "-0");
+    }
+
+    /// **The `{:?}` fallback is reached by the non-finite payloads and
+    /// by nothing finite.** The loop tries 18 significant figures in
+    /// the notation `{:?}` itself chose, which names every finite
+    /// `f64` exactly; only `NaN` and the infinities fail every
+    /// comparison — each is false against a `NaN` or infinite
+    /// tolerance — and fall through.
+    ///
+    /// The finite rows below are asserted SHORTENED, which the fallback
+    /// cannot produce: a fall-through returns the full
+    /// 17-significant-figure `Debug` spelling.
+    ///
+    /// **The largest magnitude is not one of them, and cannot be.** The
+    /// display grid is absolute above a decimetre, and `f64`'s own
+    /// spacing near [`f64::MAX`] is some 10³⁰⁰ metres — coarser than the
+    /// grid by every order there is. The shortest spelling inside the
+    /// grid is therefore the exact one, which is what `{:?}` already
+    /// prints, so `num` and `{:?}` necessarily agree and no shortening
+    /// is available to observe. That equality is itself the assertion: a
+    /// tolerance that went relative again shortens the extreme to
+    /// `1.79769313486e308` and reds the row.
+    #[test]
+    fn num_falls_through_to_debug_for_the_non_finite_payloads_only() {
+        assert_eq!(num(&f64::NAN), "NaN");
+        assert_eq!(num(&f64::INFINITY), "inf");
+        assert_eq!(num(&f64::NEG_INFINITY), "-inf");
+        for x in [f64::MAX, -f64::MAX] {
+            assert_eq!(num(&x), format!("{x:?}"), "num({x:?}) dropped a digit");
+        }
+        for x in [
+            f64::MIN_POSITIVE,
+            -f64::MIN_POSITIVE,
+            1_234.567_890_123_456_7,
+            -1_234.567_890_123_456_7,
+        ] {
+            let got = num(&x);
+            assert_ne!(got, format!("{x:?}"), "num({x:?}) fell through");
+            assert!(
+                (got.parse::<f64>().unwrap() - x).abs() <= 1e-9 * x.abs(),
+                "num({x:?}) = {got} does not name the payload"
+            );
+        }
+        // A payload that is not a scalar at all — an enclosure, a dual
+        // — has no `f64` spelling to shorten and passes through whole.
+        assert_eq!(num(&(1.0_f64, 2.0_f64)), "(1.0, 2.0)");
+    }
+
+    /// **The reason [`num`] exists survives the fix.** `{:?}` on an
+    /// `f64` is the shortest round-tripping spelling, which at
+    /// ordinary scales is the arithmetic's own noise: an 8 mm setback
+    /// that a subtraction produced is `0.008000000000000002`. Every
+    /// row here is a value whose `Debug` form carries that noise, and
+    /// each regresses to it if the shortening search is dropped.
+    ///
+    /// The last two rows straddle the decimetre where the grid stops
+    /// being relative and becomes an absolute ε/10: `1/3` keeps ten
+    /// decimal places because a tenth of a nanometre is what the grid
+    /// is worth there, while `0.0035` keeps two significant figures
+    /// because below the crossover the relative arm is the finer one.
+    #[test]
+    fn num_still_shortens_arithmetic_noise_at_metre_scale() {
+        let rows: [(f64, &str); 6] = [
+            (0.1 + 0.2, "0.3"),
+            (0.008_000_000_000_000_002, "0.008"),
+            (0.003_499_999_999_999_999_6, "0.0035"),
+            (-0.008_000_000_000_000_002, "-0.008"),
+            (1.0 / 3.0, "0.3333333333"),
+            (2.5, "2.5"),
+        ];
+        for (x, want) in rows {
+            assert_eq!(num(&x), want, "num({x:?})");
+        }
+    }
+
+    /// **Notation is the `Debug` form's, never re-chosen.** A
+    /// metre-scale number keeps its decimal point and a far-from-unity
+    /// one keeps its exponent, so the shortening never turns a
+    /// readable `0.0035` into `3.5e-3`, nor a `1e300` into the 301
+    /// digits its fixed-point spelling needs.
+    ///
+    /// The length assertion is the one a re-chosen notation breaks:
+    /// with fixed-point forced, `num(&1e300)` is 301 characters of
+    /// refusal sentence.
+    #[test]
+    fn num_keeps_the_notation_the_debug_form_chose() {
+        assert_eq!(num(&1e300_f64), "1e300");
+        assert_eq!(num(&1e17_f64), "1e17");
+        for x in [0.0035_f64, 0.001, 0.0001, 123_456.789, 1.0, -1.0, 8e-3] {
+            let got = num(&x);
+            assert!(!got.contains('e'), "num({x:?}) = {got} left metre scale");
+        }
+    }
+
+    /// **The spelling names the payload to the finer of a relative 1e-9
+    /// and an absolute ε/10, at every magnitude.** This is the property
+    /// the per-value rows above sample; here it is asserted as the
+    /// invariant, over a ladder that spans the exponent range in both
+    /// signs.
+    ///
+    /// Each arm catches a different mistake. A returning absolute FLOOR
+    /// breaks the relative arm at the bottom of the ladder — the
+    /// rendered `0` has relative error 1, not 1e-9. A tolerance that
+    /// drops the CAP and goes purely relative breaks the absolute arm
+    /// at every rung above a decimetre, where a relative 1e-9 exceeds
+    /// ε and the search stops a digit early on a difference the kernel
+    /// can certify.
+    #[test]
+    fn num_names_its_payload_to_the_finer_of_a_relative_1e_9_and_an_absolute_grid() {
+        let mut x = 1.234_567_890_123_456_7e-300_f64;
+        let mut rungs = 0;
+        while x.is_finite() && x != 0.0 {
+            for signed in [x, -x] {
+                let got = num(&signed);
+                let back: f64 = got
+                    .parse()
+                    .unwrap_or_else(|e| panic!("num({signed:?}) = {got} does not parse: {e}"));
+                assert!(
+                    (back - signed).abs() <= 1e-9 * signed.abs(),
+                    "num({signed:?}) = {got} is not within a relative 1e-9"
+                );
+                assert!(
+                    (back - signed).abs() <= DEFAULT_EPS * 0.1,
+                    "num({signed:?}) = {got} is coarser than a tenth of ε"
+                );
+                assert!(
+                    got != "0" && got != "-0",
+                    "num({signed:?}) = {got} renders a non-zero payload as zero"
+                );
+            }
+            rungs += 1;
+            x *= 1e17;
+        }
+        // The ladder ran: a `while` whose first test failed would pass
+        // every assertion above vacuously.
+        assert!(rungs >= 30, "the magnitude ladder covered {rungs} rungs");
     }
 }

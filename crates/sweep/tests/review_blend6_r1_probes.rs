@@ -117,6 +117,30 @@ fn seeds() -> Vec<BlendError> {
                 predicate: Some("fillet3_radius_headroom"),
             },
         },
+        // The site is the payload one level below the variant, and
+        // two of its three arms carry a field: a roster that samples
+        // only the fieldless one reports green over whatever the other
+        // two render.
+        BlendError::Escalated {
+            site: BlendSite::Link {
+                edge: EdgeKey::default(),
+            },
+            source: Indeterminate {
+                margin: MarginDiag::Value(0.0),
+                band,
+                predicate: Some("fillet3_ring_clearance"),
+            },
+        },
+        BlendError::Escalated {
+            site: BlendSite::Joint {
+                vertex: VertexKey::default(),
+            },
+            source: Indeterminate {
+                margin: MarginDiag::Value(0.0),
+                band,
+                predicate: Some("fillet3_chain_g1"),
+            },
+        },
         BlendError::RepeatedEdge {
             edge: EdgeKey::default(),
         },

@@ -146,6 +146,35 @@ pub enum BooleanOp {
     Subtract,
 }
 
+impl BooleanOp {
+    /// **Every operation this enum names**, in declaration order — the
+    /// one enumeration, owned where the exhaustive matches live.
+    ///
+    /// A list cannot be derived from a match in safe Rust, so SOMEONE
+    /// writes it by hand; the only question is where. Written here, it
+    /// sits in the crate whose exhaustive matches over `BooleanOp`
+    /// (`finish::kept_side`, `tables::eq15_3_lump`) fail to compile on
+    /// a fourth operation — so the author adding one is already in this
+    /// module with the list in front of them, and the
+    /// `all_is_every_operation` census below puts a second visit right
+    /// beside it. **Neither forces the edit**: what they force is that
+    /// the author is here and has to decide, and the census's own doc
+    /// measures how far short of forcing it stops. A copy in a
+    /// downstream crate gets not even that. The enum is closed, so a
+    /// consumer's own exhaustive match does fence THAT consumer; but
+    /// nothing ties an array literal to a variant list, so a downstream
+    /// list of three stays three with no error anywhere and no author
+    /// standing over it.
+    ///
+    /// So this is the list downstream reads instead of writing its own
+    /// — `crates/editor-core`'s wire table and the viewer's operation
+    /// buttons both iterate it — and the ordering caveat on the type
+    /// holds for it too: it is declaration order, and a consumer that
+    /// renders it renders an arbitrary order, not a ranked one.
+    pub const ALL: &'static [BooleanOp] =
+        &[BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract];
+}
+
 /// Which operand a key belongs to (keys are body-lineage-scoped;
 /// cross-body records must say which arena they index — F9).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -711,6 +740,29 @@ pub enum BooleanError {
         /// The shared edge whose two faces coincide.
         edge: EdgeKey,
     },
+    /// A vertex sector's bounding chord has **no finite length**: its
+    /// components overflow the norm (past ~1e154), or one of them is
+    /// not a number. Distinct from [`BooleanError::Escalated`] on
+    /// purpose — nothing about this is a band question, and no
+    /// tolerance lever reaches it.
+    NonFiniteSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
+    /// A vertex sector's bounding chord has a length that **underflowed
+    /// out of the format**: its components are too small for the norm
+    /// to hold (below ~1e-162 at `f64`), so it measures exactly zero
+    /// while still naming a direction. Distinct from
+    /// [`BooleanError::Escalated`] on purpose — nothing about this is
+    /// a band question, and no tolerance lever reaches it.
+    UnderflowedSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
     /// A reduction/classification predicate escalated (in-band margin):
     /// the operand pair is ill-conditioned at this ε — a genuine
     /// sliver (F6). Never a snap, never a guess.
@@ -1213,6 +1265,10 @@ pub enum BooleanErrorKind {
     ScaffoldingOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
+    /// [`BooleanError::NonFiniteSectorChord`].
+    NonFiniteSectorChord,
+    /// [`BooleanError::UnderflowedSectorChord`].
+    UnderflowedSectorChord,
     /// [`BooleanError::Escalated`].
     Escalated,
     /// [`BooleanError::UndeclaredCoincidence`].
@@ -1302,6 +1358,8 @@ impl BooleanError {
             }
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
+            Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
+            Self::UnderflowedSectorChord { .. } => BooleanErrorKind::UnderflowedSectorChord,
             Self::Escalated { .. } => BooleanErrorKind::Escalated,
             Self::UndeclaredCoincidence { .. } => BooleanErrorKind::UndeclaredCoincidence,
             Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
@@ -1557,6 +1615,20 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean: the result's pcurve mint pass refused (curved results carry \
                  certified per-half-edge pcurves at rest): {source}"
+            ),
+            Self::NonFiniteSectorChord { vertex, face } => write!(
+                f,
+                "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
+                 finite length \u{2014} its components overflow the norm, or one of them \
+                 is not a number; scale the geometry into the session's range"
+            ),
+            Self::UnderflowedSectorChord { vertex, face } => write!(
+                f,
+                "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has a \
+                 length that underflowed out of the format \u{2014} its components are too \
+                 small for the norm to hold, so it measures exactly zero while still \
+                 naming a direction; no tolerance reaches this, scale the geometry into \
+                 the session's range"
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -2482,6 +2554,50 @@ fn validate_declarations<T: Decide>(
 mod tests {
     use super::*;
 
+    /// **[`BooleanOp::ALL`] holds each operation once, and an
+    /// operation added to the enum cannot reach a release without
+    /// someone reading this row** — the idiom `VerbKind::ALL`
+    /// (`crates/verbs/src/verb.rs`) and `SurfaceField::ALL`
+    /// (`crates/topo/src/param_source.rs`) are held to.
+    ///
+    /// **What is forced**: the match below is exhaustive with no
+    /// wildcard, so an operation added to the enum fails this file
+    /// until it is visited here. And the no-repeats half is what makes
+    /// the count a census rather than a length: with every entry
+    /// distinct, a `len` equal to `ops` means `ALL` holds each of them
+    /// exactly once.
+    ///
+    /// **What is NOT forced, measured**: `ops` itself. Every arm names
+    /// the same total so that visiting means re-deciding it — but
+    /// nothing checks that number against the enum, and the arm an
+    /// author adds is the arm they copied. A fourth variant with the
+    /// arm `Xor => 3` compiles and passes GREEN with `Xor` absent from
+    /// `ALL`. The row forces the visit, not the edit. That is the
+    /// idiom's hole and not this row's alone — it is inherited from the
+    /// two censuses cited above — so it is filed as
+    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`
+    /// rather than patched here in one of three places.
+    #[test]
+    fn all_is_every_operation() {
+        let ops = match BooleanOp::Union {
+            BooleanOp::Union => 3,
+            BooleanOp::Intersect => 3,
+            BooleanOp::Subtract => 3,
+        };
+        for (i, op) in BooleanOp::ALL.iter().enumerate() {
+            assert!(
+                !BooleanOp::ALL[..i].contains(op),
+                "{op:?} appears twice in BooleanOp::ALL"
+            );
+        }
+        assert_eq!(
+            BooleanOp::ALL.len(),
+            ops,
+            "BooleanOp::ALL has drifted from the declaration — it holds {} operations, the enum has {ops}",
+            BooleanOp::ALL.len()
+        );
+    }
+
     /// S6 (two-tolerance, D4 ¶1 addendum): the boolean coincidence
     /// pair — `UndeclaredCoincidence` (exactly-on OR in-band, per the
     /// plane-identity rung 4) and `Escalated` (in-band elsewhere) —
@@ -2533,6 +2649,45 @@ mod tests {
         assert!(!msg.contains("margin is invalid"), "{msg}");
     }
 
+    /// The non-finite chord arm names the lane, the vertex and the
+    /// face, gives the cause and a recourse that can WORK, and offers
+    /// the coincidence recourse ZERO times — no tolerance lever
+    /// reaches an overflowed chord, so naming one would be the
+    /// wrong-recourse defect `memories/refusal-text-is-not-cause.md`
+    /// is about.
+    ///
+    /// This and the `SplitReduceError` twin are the only direct pins
+    /// on the two wrapper arms: there is no end-to-end row that drives
+    /// a real `Body` into `sector_shape`'s rung 0, because that needs
+    /// an orbit chord past ~1e154 surviving body construction. The
+    /// translation itself (`SectorFault::NonFiniteChord` to this arm)
+    /// is held by the exhaustive `map_err` in `sectors.rs` and by
+    /// nothing else.
+    #[test]
+    fn non_finite_sector_chord_names_the_cause_and_no_tolerance_recourse() {
+        let msg = BooleanError::NonFiniteSectorChord {
+            vertex: VertexKey::default(),
+            face: FaceKey::default(),
+        }
+        .to_string();
+        assert!(msg.contains("boolean_reduce:"), "{msg}");
+        assert!(msg.contains("has no finite length"), "{msg}");
+        assert!(
+            msg.contains("scale the geometry into the session's range"),
+            "{msg}"
+        );
+        assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 0, "{msg}");
+        assert!(!msg.contains("zero length"), "{msg}");
+        assert_eq!(
+            BooleanError::NonFiniteSectorChord {
+                vertex: VertexKey::default(),
+                face: FaceKey::default(),
+            }
+            .kind(),
+            BooleanErrorKind::NonFiniteSectorChord
+        );
+    }
+
     /// The M5 S1 sub-frontier refusal follows the two-tolerance
     /// message shape: it names the lane and the precise sub-frontier
     /// and composes the shared recourse exactly once.
@@ -2575,6 +2730,10 @@ mod tests {
                 kind: geom_brep::SurfaceKind::Cone,
             },
             BooleanError::CurvedSectorSideUnsupported { band },
+            BooleanError::NonFiniteSectorChord {
+                vertex: VertexKey::default(),
+                face,
+            },
             BooleanError::CurvedPierceUnsupported {
                 operand: Operand::A,
                 face,
@@ -2728,6 +2887,8 @@ mod tests {
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
+                BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",
+                BooleanErrorKind::UnderflowedSectorChord => "UnderflowedSectorChord",
                 BooleanErrorKind::Escalated => "Escalated",
                 BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
                 BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",

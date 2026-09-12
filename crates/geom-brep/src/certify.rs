@@ -178,6 +178,67 @@ pub enum CertCheck {
     PlaneNurbsCertificate,
 }
 
+/// The check's own name — the noun a refusal about it writes (the
+/// three check-naming arms of [`CertifyError`]'s `Display`).
+///
+/// Written here, on the declaring row, rather than at the refusal: the
+/// taxonomy's words are the type's to say once, not each consumer's to
+/// re-derive from a variant identifier. The match is exhaustive with no
+/// wildcard, so a check the taxonomy gains has no word until someone
+/// writes one.
+///
+/// **Each word is the phrase a person would write, not the variant
+/// identifier**, and the sentence around it is what decides that. Every
+/// other arm of [`CertifyError`]'s `Display` is English prose about the
+/// geometry, and one of them names a member of this very taxonomy in
+/// prose — "the tangency's second-order margin (relative transverse
+/// normal curvature, tangent_second_order)", which is
+/// [`CertCheck::TangentSecondOrder`] — so a CamelCase identifier
+/// standing in the neighbouring sentence is the odd spelling, not the
+/// house one. These rows are also not doors anyone calls: a reader told
+/// `EndpointStart` has nothing to reach for with that word, which is
+/// what makes an identifier the right rendering where the vocabulary
+/// names doors (`verbs`' `VerbKind` and `Arity`) and the wrong one
+/// here. The typed field is what a programmatic consumer matches on;
+/// this is the sentence for the person reading it.
+///
+/// **The word carries the KIND of quantity the check meters**, because
+/// the sentence cannot. [`CertifyError::ResidualExceeded`] wrote the
+/// noun itself — "{check} residual at sample …" — for all fifteen
+/// checks that reach it, and five of them meter no residual:
+/// [`CertCheck::TangentHull`] and [`CertCheck::PlaneNurbsHull`] are sup
+/// bounds, [`CertCheck::TangentParallel`] a parallelism defect,
+/// [`CertCheck::SeamHalfplane`] a component and [`CertCheck::SeamSide`]
+/// an excess. A noun owned by the sentence is a noun the sentence
+/// cannot get right for every check that reaches it.
+impl core::fmt::Display for CertCheck {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::ParamSpan => "the stored interval's span",
+            Self::EndpointStart => "the start-endpoint residual",
+            Self::EndpointEnd => "the end-endpoint residual",
+            Self::Surface1Residual => "the residual against surface 1",
+            Self::Surface2Residual => "the residual against surface 2",
+            Self::WitnessSurface1 => "the witness point's residual against surface 1",
+            Self::WitnessSurface2 => "the witness point's residual against surface 2",
+            Self::WitnessMidpoint => "the witness-midpoint residual",
+            Self::Transversality => "the transversality margin",
+            Self::TangentParallel => "the normal-parallelism defect",
+            Self::TangentSecondOrder => "the second-order margin",
+            Self::TangentHull => "the between-samples sag bound",
+            Self::TangentTube => "the second-order tube bound",
+            Self::MappedSource => "the mapped-source residual",
+            Self::SeamHalfplane => "the out-of-halfplane component",
+            Self::SeamSide => "the wrong-side seam excess",
+            Self::ChartImage => "the chart-image mint",
+            Self::ChartResidual => "the unified conventional residual",
+            Self::PlaneNurbsOnLocus => "the plane × NURBS on-locus residual",
+            Self::PlaneNurbsHull => "the plane × NURBS sup-norm bound",
+            Self::PlaneNurbsCertificate => "the plane × NURBS lane's margins",
+        })
+    }
+}
+
 /// Typed certification failure (D4 ¶3): actionable, closed enum. The
 /// body-side attachment gates (`topo`'s operators and setters) wrap
 /// this; the tier-3 validator carries it inside its own error.
@@ -365,10 +426,15 @@ impl core::fmt::Display for CertifyError {
                  spans more than one full period — |t₁ − t₀| ≤ τ is required to close the \
                  sample-schedule winding alias (8kτ family)"
             ),
+            // The check says its own noun ([`CertCheck`]'s `Display`);
+            // this sentence decides only the grammar around it. Five of
+            // the fifteen checks that reach this arm meter no residual
+            // (two sup bounds, a parallelism defect, a component, an
+            // excess), so the noun is not the sentence's to write.
             Self::ResidualExceeded { check, sample } => write!(
                 f,
-                "certification: {check:?} residual at sample {sample} definitely exceeds \
-                 the tolerance band (the cache does not represent the description, D4 ¶2)"
+                "certification: {check} at sample {sample} definitely exceeds the tolerance \
+                 band (the cache does not represent the description, D4 ¶2)"
             ),
             Self::PlaneNurbs(refusal) => write!(
                 f,
@@ -409,7 +475,7 @@ impl core::fmt::Display for CertifyError {
                 cause,
             } if *sample == NOT_A_SAMPLE => write!(
                 f,
-                "certification: {check:?} (not a sampled check) escalated: {cause}"
+                "certification: {check} (not a sampled check) escalated: {cause}"
             ),
             Self::Escalated {
                 check,
@@ -417,7 +483,7 @@ impl core::fmt::Display for CertifyError {
                 cause,
             } => write!(
                 f,
-                "certification: {check:?} at sample {sample} escalated: {cause}"
+                "certification: {check} at sample {sample} escalated: {cause}"
             ),
             Self::Band(e) => write!(f, "certification: {e}"),
         }
@@ -2116,6 +2182,7 @@ fn plane_nurbs_pair<T: Real>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::MarginDiag;
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
     use geom_core::{Affine3, Point2, Vec3};
@@ -2130,6 +2197,177 @@ mod tests {
 
     fn eps() -> f64 {
         Tol::witness().get().eps
+    }
+
+    /// Every member of the residual taxonomy, for the two censuses
+    /// below. Held total against the enum by
+    /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
+    /// review.
+    const ALL_CHECKS: [CertCheck; 21] = [
+        CertCheck::ParamSpan,
+        CertCheck::EndpointStart,
+        CertCheck::EndpointEnd,
+        CertCheck::Surface1Residual,
+        CertCheck::Surface2Residual,
+        CertCheck::WitnessSurface1,
+        CertCheck::WitnessSurface2,
+        CertCheck::WitnessMidpoint,
+        CertCheck::Transversality,
+        CertCheck::TangentParallel,
+        CertCheck::TangentSecondOrder,
+        CertCheck::TangentHull,
+        CertCheck::TangentTube,
+        CertCheck::MappedSource,
+        CertCheck::SeamHalfplane,
+        CertCheck::SeamSide,
+        CertCheck::ChartImage,
+        CertCheck::ChartResidual,
+        CertCheck::PlaneNurbsOnLocus,
+        CertCheck::PlaneNurbsHull,
+        CertCheck::PlaneNurbsCertificate,
+    ];
+
+    /// **[`ALL_CHECKS`] is the WHOLE taxonomy**, pinned against a
+    /// compile-time visit rather than reviewed.
+    ///
+    /// The match below is exhaustive with no wildcard, so a check added
+    /// to [`CertCheck`] makes this file fail to compile until it is
+    /// visited here, and every arm names the same total, so visiting it
+    /// means writing the new count — which then reds until
+    /// [`ALL_CHECKS`] has grown too.
+    ///
+    /// The no-repeats half is what makes the count a census: with every
+    /// entry distinct, a `len` equal to the number of rows means the
+    /// list holds each of them exactly once.
+    #[test]
+    fn all_is_the_whole_taxonomy() {
+        let rows = match CertCheck::ParamSpan {
+            CertCheck::ParamSpan => 21,
+            CertCheck::EndpointStart => 21,
+            CertCheck::EndpointEnd => 21,
+            CertCheck::Surface1Residual => 21,
+            CertCheck::Surface2Residual => 21,
+            CertCheck::WitnessSurface1 => 21,
+            CertCheck::WitnessSurface2 => 21,
+            CertCheck::WitnessMidpoint => 21,
+            CertCheck::Transversality => 21,
+            CertCheck::TangentParallel => 21,
+            CertCheck::TangentSecondOrder => 21,
+            CertCheck::TangentHull => 21,
+            CertCheck::TangentTube => 21,
+            CertCheck::MappedSource => 21,
+            CertCheck::SeamHalfplane => 21,
+            CertCheck::SeamSide => 21,
+            CertCheck::ChartImage => 21,
+            CertCheck::ChartResidual => 21,
+            CertCheck::PlaneNurbsOnLocus => 21,
+            CertCheck::PlaneNurbsHull => 21,
+            CertCheck::PlaneNurbsCertificate => 21,
+        };
+        for (i, check) in ALL_CHECKS.iter().enumerate() {
+            assert!(
+                !ALL_CHECKS[..i].contains(check),
+                "{check:?} appears twice in ALL_CHECKS"
+            );
+        }
+        assert_eq!(
+            ALL_CHECKS.len(),
+            rows,
+            "ALL_CHECKS has drifted from the taxonomy — it holds {} rows, the taxonomy has \
+             {rows}",
+            ALL_CHECKS.len()
+        );
+    }
+
+    /// **Every check says itself by one phrase no other check says, and
+    /// no check's phrase is its variant identifier.**
+    ///
+    /// The `Display` arms are an exhaustive match, so the words cannot
+    /// fall BEHIND the taxonomy — a check without a word does not
+    /// compile. What twenty-one hand-written phrases CAN do is collide,
+    /// and several of these are one token apart by design (surface 1
+    /// against surface 2, the carrier's residual against the witness
+    /// point's), so a literal copied onto a neighbouring row is the
+    /// live failure mode, and a refusal naming a phrase two checks
+    /// share cannot say which check refused.
+    ///
+    /// The second half is what tells the word apart from `Debug` at run
+    /// time, and it is the row a bug breaks: the phrase is what a
+    /// person would write, never the taxonomy's coordinate for the
+    /// check, so a `Display` deleted, forwarded to `Debug`, or written
+    /// to spell the identifier reds on the first row.
+    #[test]
+    fn the_taxonomy_says_each_check_by_one_unshared_phrase() {
+        let mut said: Vec<(String, CertCheck)> = Vec::new();
+        for check in ALL_CHECKS {
+            let word = check.to_string();
+            let shared = said.iter().find(|(w, _)| *w == word).map(|(_, o)| *o);
+            assert!(
+                shared.is_none(),
+                "{check:?} shares its phrase \"{word}\" with {shared:?} — a refusal naming \
+                 that phrase cannot say which check refused"
+            );
+            assert_ne!(
+                word,
+                format!("{check:?}"),
+                "{check:?} says its own identifier; a check is named to the reader in the \
+                 words the surrounding sentence is written in, not by the taxonomy's \
+                 coordinate for it"
+            );
+            said.push((word, check));
+        }
+    }
+
+    /// The three refusal sentences that name a check say it in words.
+    ///
+    /// The definite arm is pinned whole: it is this module's own
+    /// sentence end to end. The two escalated arms are pinned by
+    /// PREFIX, up to and including the check's phrase — their tail is
+    /// [`Indeterminate`]'s `Display`, whose own docs say message pins
+    /// take it with `contains` and never whole.
+    #[test]
+    fn the_refusal_sentences_name_the_check_in_words() {
+        assert_eq!(
+            CertifyError::ResidualExceeded {
+                check: CertCheck::TangentHull,
+                sample: 4,
+            }
+            .to_string(),
+            "certification: the between-samples sag bound at sample 4 definitely exceeds the \
+             tolerance band (the cache does not represent the description, D4 ¶2)"
+        );
+
+        let cause = Indeterminate {
+            margin: MarginDiag::Value(0.0),
+            band: band(),
+            predicate: Some("a_probe"),
+        };
+        let not_sampled = CertifyError::Escalated {
+            check: CertCheck::ParamSpan,
+            sample: NOT_A_SAMPLE,
+            cause,
+        }
+        .to_string();
+        assert!(
+            not_sampled.starts_with(
+                "certification: the stored interval's span (not a sampled check) \
+                              escalated: "
+            ),
+            "the not-a-sample escalation reads {not_sampled:?}"
+        );
+        let sampled = CertifyError::Escalated {
+            check: CertCheck::Transversality,
+            sample: 3,
+            cause,
+        }
+        .to_string();
+        assert!(
+            sampled.starts_with(
+                "certification: the transversality margin at sample 3 \
+                                 escalated: "
+            ),
+            "the sampled escalation reads {sampled:?}"
+        );
     }
 
     /// A resolver over a tiny fixed table (keys minted through a local

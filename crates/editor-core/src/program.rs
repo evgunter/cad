@@ -1600,6 +1600,48 @@ impl LoopProgram {
 
     /// A literal circle loop.
     ///
+    /// # The struct literal is the parametric door
+    ///
+    /// There is no `circle_expr` twin of
+    /// [`LoopProgram::polygon_expr`], and that is the design rather
+    /// than an omission. `polygon` EXPANDS — one authoring call
+    /// becomes a chain of steps — so the expansion needs exactly one
+    /// home, and the literal door reaches it by delegating to the
+    /// expression door. `Circle` expands into nothing: it is a struct
+    /// variant whose two fields are the whole program, so an author
+    /// holding [`Expr`] arguments writes
+    /// `LoopProgram::Circle { centre, radius }` (and
+    /// `LoopProgram::CircleSplit { .. }`) directly. That literal IS
+    /// the parametric door. A constructor over it would be a third
+    /// spelling of the variant with nothing behind it to keep in
+    /// step.
+    ///
+    /// # The literal author keeps both of this door's guarantees
+    ///
+    /// This door is not the check its `Result` makes it look like, so
+    /// writing the variant out gives nothing up:
+    ///
+    /// - FINITENESS belongs to [`Expr::literal`], which is the only
+    ///   way to mint a literal expression at all and refuses a
+    ///   non-finite value there. That refusal is the sole error this
+    ///   constructor can return.
+    /// - DIMENSION belongs to the document. This door only PICKS
+    ///   `Length` for the centre and radius (and `Angle` for
+    ///   [`LoopProgram::circle_split`]'s phase), so the picks agree
+    ///   with the roles by construction. An author supplying
+    ///   expressions picks instead, and `apply` checks the pick: every
+    ///   slot of an entering node is walked, the role's required
+    ///   dimension ([`StepArg::dimension`], reached through
+    ///   [`SlotId::dimension`]) against the expression's, and a
+    ///   disagreement refuses as `EditError::SlotDimensionMismatch`
+    ///   before the program joins the document. The same walk runs on
+    ///   every slot write and on a parameter redeclaration, so there
+    ///   is no later window in which a document's role can hold the
+    ///   wrong dimension. It is the DOCUMENT's door, though: a program
+    ///   built and replayed without entering one — a viewer preview —
+    ///   never reaches it, and such a builder assigns the dimensions
+    ///   itself exactly as this constructor does.
+    ///
     /// # Errors
     ///
     /// A non-finite argument.
@@ -1611,6 +1653,10 @@ impl LoopProgram {
     }
 
     /// A literal declared-subdivision circle loop.
+    ///
+    /// Parametric authors write the `CircleSplit` variant out; see
+    /// [`LoopProgram::circle`] for why there is no expression door
+    /// here and where an expression's dimension is checked instead.
     ///
     /// # Errors
     ///

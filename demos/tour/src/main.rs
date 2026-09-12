@@ -28,6 +28,20 @@
 //! - Standing goal: every demo authorable through the Python
 //!   bindings; what a demo cannot do through the curated document
 //!   surface is a named gap, not a private exception.
+//!
+//! # The layer the scenes are composed at
+//!
+//! Every scene is generic over the run scalar `S` ([`scalar::Scalar`])
+//! and every number in it is an `f64` literal or an `f64` expression,
+//! so a scene is COMPOSED at `f64` — in the kernel's own `Point3<f64>`
+//! and `Vec3<f64>` — and LIFTED to `S` at the door it is handed to.
+//! The lift has two spellings and they divide on one line: where the
+//! components are written at the door it is
+//! [`pncad::authoring`]'s `p2`/`v2`/`p3`/`v3`, and where an
+//! already-composed `f64` value crosses — a frame a scene built, a
+//! turtle's point, a stored carrier — it is `map(S::from_f64)`, once,
+//! on the value. [`lily`] states the rule in full and is the worked
+//! example; it holds for every scene here.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

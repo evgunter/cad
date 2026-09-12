@@ -3101,7 +3101,8 @@ impl<T: Decide> Decide for Sym<T> {
                     discharge(self.node),
                     Some(Discharge::Theorem | Discharge::SignGated)
                 ),
-                "the numeric channel proved this margin nonzero and the form says it is                  identically zero: the two channels contradict each other"
+                "the numeric channel proved this margin nonzero and the form says it is \
+                 identically zero: the two channels contradict each other"
             );
             count_decision(None);
             report::record(&numeric, None, None, self.value.enclosure_probe());

@@ -624,7 +624,8 @@ fn r1_e2e_consumer_drive_at_dual64() {
                         "R1E2E {name}: direct validate_geometric_structural at Dual64 PASSED"
                     ),
                     Err(errs) => println!(
-                        "R1E2E {name}: direct validate_geometric_structural at Dual64 refused {} finding(s);                          first = {:?}",
+                        "R1E2E {name}: direct validate_geometric_structural at Dual64 refused {} finding(s); \
+                         first = {:?}",
                         errs.len(),
                         errs.first()
                     ),

@@ -545,8 +545,9 @@ Six ways a name escapes the old pattern, all live today:
    just named, and the reason they are also a separate way of
    escaping the pattern. Since SEAT-DN one function decides
    direction length for the whole workspace
-   (`topo::query::decide_unit_direction`: finiteness, then the sign
-   of the norm, then normalize or refuse) and it takes the funnel site
+   (`topo::query::decide_unit_direction`: finiteness, then underflow,
+   then the sign of the norm, then normalize or refuse) and it takes
+   the funnel site
    as a `&'static str` PARAMETER, because the layer that owns a value
    is the layer whose telemetry names its length decision. So
    `decide(` at that site names a variable: `datum_unit_norm` is
