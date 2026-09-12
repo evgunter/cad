@@ -2311,3 +2311,101 @@ attribute passthrough was **not** executed (the disk was full, so no
 proven, `#[serde(...)]` is not, and only the dropped pair needs it. The
 prototype was type-checked (`--emit=metadata`), not run, and the report
 says so rather than claiming more.
+
+### `census-containment-flatten-fabricates-its-diagnostic` (PR 2420) — delivered whole, and my brief's safety claim was false
+
+The three `ContainError` arms now reach the user as
+`CensusUnsupported { subject: Entity(Face(k)), cause: Containment(e) }`
+with `ContainError` carrying its own `Display` — it had none, which is
+half of why the census had nothing to forward.
+
+**The defect was worse than the item's wording, and the lane said how.**
+`invalid(band, "pm_census_containment")` builds
+`Indeterminate { margin: MarginDiag::Invalid, .. }`, and
+`MarginDiag::Invalid` means *"the question was never validly posed"* —
+poison. So the census was not reporting a wrong number; it was
+reporting that **a named predicate had been posed and come back
+poisoned, when no predicate of that name decides anything anywhere in
+the tree.**
+
+**The gate answered: the three arms are NOT one class, and that is the
+argument for carrying the cause rather than against it.** Read from the
+code: `ArcLoopUnsupported` is a modelling fact (an arc loop under three
+vertices has zero polygon area), `RayExhausted` is a verdict that the
+point sits within ε of the boundary, `Corrupt` is a kernel-invariant
+violation. Three meanings, three repairs. The one property true of all
+three and false of `Escalated` is the only one the site needed:
+**nothing metred a margin.** No cut; the item closed whole.
+
+### The brief's claim (2) was false, and the lane measured it
+
+I passed on the item's and PR 2354's warning that re-routing these
+three *"CAN MOVE THE ANSWER"* because
+`editor_core::assembly::attribute` dispatches on the variant. The lane
+read that function instead of taking it. I then verified the reading
+myself:
+
+- `CensusUnsupported { subject: FacePair(a, b), .. }` →
+  `named(by_pair(a, b), Relation::Declined)` (`assembly.rs:1311`) — this
+  **would** move the verdict;
+- `CensusUnsupported { subject: Entity(EntityId::Face(_)), .. }` →
+  `Attribution::Unattributed` (`:1320`);
+- `CensusEscalated { .. }` → `Unattributed` (`:1370`).
+
+So the routing chosen keeps the same attribution and **no
+`AtRest`/`Uncertified` answer moves.** The warning was true of a
+routing the lane did not take, and would have bitten had it chosen
+`FacePair` — which is not available at any of `contain()`'s five call
+sites anyway. **The subject choice is what makes this safe, and the
+lane pinned it** by extending
+`the_decline_relation_does_not_depend_on_which_lane_declined`.
+
+That is the fourth correction to the dispatching seat in three waves,
+and it is a different kind from the first three: the claim I relayed
+was true in general and false of this repair. **A general truth
+narrowed by a specific routing is still a claim about the tree**, and
+instruction 4 covers it.
+
+### Where the lane was weaker than it wanted, disclosed rather than implied
+
+**The RED half of red-first was deduced, not run.** Its first push would
+have been the red run and died at `cargo test --no-run` on a missing
+import in its own fixture, so the test stage never executed. The AFTER
+state is measured; the BEFORE state is a tight deduction (the fixture
+demonstrably reaches the arm; the old mapping was an unconditional
+four-line match) but not a measurement. **This is the first unit of
+three waves whose red-first half is argued**, and the reason is the
+disk, not the lane. Only one of three arms has an executed fixture at
+all: `RayExhausted` needs all sixteen schedule directions to graze, and
+`Corrupt` is argued unreachable through the public door.
+
+**And `RayExhausted` is the arguable arm** — `PointInLoopError`'s own
+`Display` calls it *"ill-conditioned at this tolerance"*, which is
+escalation-shaped. It did not go to `CensusEscalated` because there is
+no metred `Indeterminate` to give it and minting one is the defect;
+consistency with PR 2354's routing of the structurally identical
+`ChartRegionError::RayExhausted` is the tiebreak, and the lane called
+it a tiebreak rather than a proof.
+
+### Two findings placed in `work/issues/`, both verified first
+
+`crates/topo/src/boolean/contain.rs` is claimed by **both** `bool` and
+`curved`, so the owner is disputed rather than clear — which is the
+case `work/README.md` reserves `work/issues/` for. Either may claim
+them by moving the file.
+
+- **`contain-error-drops-the-loop-its-carrier-named`** —
+  `From<PointInLoopError>` discards the loop key that
+  `RayExhausted { r#loop }` and `CorruptLoop { r#loop }` each carry,
+  while the comment four lines below promises every arm *"names WHAT
+  STOPPED and the repair that moves it"*. `ArcLoopUnsupported` beside
+  them does name its loop. Survivable while nothing rendered it; PR
+  2420 made it render.
+- **`corrupt-operand-means-two-things-and-one-site-fabricates-a-vertex`**
+  — `reduce.rs:1970` and `ops.rs:1642` map one arm to two different
+  `BooleanError` variants. **And the sharper half is the orchestrator's
+  on verifying it:** `reduce.rs` supplies
+  `vertex: VertexKey::default()` for a refusal that has no vertex —
+  **the third instance of the class this very unit closed**, a
+  fabricated value in the field a reader would use to locate the
+  problem.
