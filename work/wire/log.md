@@ -1831,3 +1831,47 @@ three claims stale ten days before, not two. Recorded on
 `work/meta/the-2026-09-11-cuts-class-estimates-are-untested-and-both-tested-ones-were-wrong.md`
 with the root cause, because the next orchestrator to check a class
 against the tree will be reading from the same shallow clone.
+
+## 2026-09-12 — S195 closed (`1b1146f`), and the cancellation hazard measured properly
+
+The fix pass took both corrections and found a third I had not: my own
+correction of the lane's dating was itself wrong. See the entry above;
+the root cause was this session's shallow clone.
+
+New title, which is what the board now shows: *"What the arc-mode
+vocabulary's four guards catch, and the one site a seventh mode reaches
+unforced."* The old one asserted "it has no census at all", which the
+body calls stale by a factor of four — a row going to review under a
+headline it refutes is the one line most people read.
+
+**The lane owned the report error squarely**, and its diagnosis is
+worth keeping: it collapsed the mode census to its compile-time limb
+"because that is the limb my mutant exercised — a seventh MODE trips
+existence, so laundering never came up in what I ran, and I generalised
+from one mutant to the whole clause." **One mutant answers one
+question**; a claim about a clause needs a mutant aimed at each limb.
+
+### The cancellation hazard, measured rather than inferred
+
+Holding 2447 to avoid cancelling PERF's in-flight main run produced the
+dataset the two earlier instances only suggested. In thirteen minutes,
+**five merges by four programs; three of the five runs cancelled**, one
+after twenty-six seconds. The run I deferred to **succeeded** — it was
+short enough not to need protecting — while three others died during
+the wait, to other programs' merges.
+
+So: there is no clear window to wait for, the forbearance protected
+nothing, and voluntary spacing is a **unilateral tax** rather than a
+mitigation — it only works if every program does it, and no program can
+see another's merge coming. That kills the interim behaviour the first
+two fix options were ranked cheap *because of*. The fourth option —
+make the write-back owed by STATE, so the next main run re-baselines
+whatever differs whoever caused it — is now the recommendation, because
+it is the only one correct under a cancellation from any cause, and at
+a 60% cancellation rate "any cause" is the common case.
+
+Recorded on the row by the orchestrator whose own merge was the one
+held back, so the incentive runs against the conclusion. **This is the
+strongest form of evidence this program produced today**: not a
+finding read off a diff, but a mitigation tried, measured, and reported
+failed by the party it cost.
