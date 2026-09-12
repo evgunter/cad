@@ -137,7 +137,22 @@ being argued about here lives in the cheap half of the run.
   `consider-proptest-for-randomized-sweeps` is the evidence it is small:
   finds are rare and diagnosis has not been burdensome.
 
-## EFFORT and depth, and the population gap between them (Ev, 2026-09-11)
+## The clause is thirteen lines; everything below is the argument for it
+
+Trimmed 2026-09-11 against `memories/cad-working-style.md`'s own criteria
+for writing a memory — *"a rule is one imperative line, the incident that
+earned it is not part of the rule"*, *"no specific measurements"*, and
+*"git history exists"*. The clause went from 76 lines to 13 and says only
+what a lane must do. The word "depth" is gone from it: it needed a
+sentence to distinguish it from the dial, and a term that needs a
+clarification in a file read every session has not earned its place.
+
+**Everything the clause dropped is in this file**, which is where an
+argument belongs — the measurements, the carve-outs, the failure-mode
+reasoning, and the three questions Ev's follow-ups raised. Nothing was
+lost; it moved to the tracker, and git holds the rest.
+
+## EFFORT and the population it does not reach (Ev, 2026-09-11)
 
 Ev asked whether effort and depth are different things here. **As words,
 no** — `effort()` is the dial and depth is what it buys, which is the
