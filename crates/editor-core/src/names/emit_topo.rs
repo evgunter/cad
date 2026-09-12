@@ -117,16 +117,15 @@ fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
 ///
 /// # Errors
 ///
-/// A cycling lineage is a corrupt record, surfaced as an emission bug.
+/// A cycling lineage is a corrupt record, surfaced as an emission bug
+/// — [`NamingError::SplitLineage`], carrying the cycling edge, which
+/// is the only locator this failure has.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
     e: EdgeKey,
 ) -> Result<EdgeKey, NamingError> {
-    body.split_root(e, |k| table.name_of(&ent(0, EntityKey::Edge(k))).is_some())
-        .map_err(|_| NamingError::Emission {
-            what: "an edge's split lineage cycles",
-        })
+    Ok(body.split_root(e, |k| table.name_of(&ent(0, EntityKey::Edge(k))).is_some())?)
 }
 
 /// Names both sides of a split (spec D2's split vocabulary + N2).

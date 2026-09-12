@@ -435,14 +435,18 @@ pub(crate) fn output_body<T: Decide>(
             }
         }
         ValuePayload::Instances(v) => v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing),
-        ValuePayload::Datum(_) => none("datum"),
-        ValuePayload::Profile(_) => none("profile"),
-        ValuePayload::Declarations(_) => none("declarations"),
-        // A12: a mate denotes no body. Interrogating one for geometry
-        // is the same category error as interrogating a declaration —
-        // and so is interrogating a measurement or its verdict.
-        ValuePayload::Mate(_) => none("mate"),
-        ValuePayload::Measure { .. } | ValuePayload::MeasureUnavailable { .. } => none("measure"),
-        ValuePayload::Assertion(_) => none("assertion"),
+        // The families that denote no body at all. A12: a mate denotes
+        // none, and interrogating one for geometry is the same category
+        // error as interrogating a declaration — as is interrogating a
+        // measurement or its verdict. The word is the payload's own
+        // family word, so this arm cannot drift from the vocabulary
+        // `ValuePayload::kind_name` speaks.
+        ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => none(payload.kind_name()),
     }
 }

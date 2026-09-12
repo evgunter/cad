@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{BandError, Indeterminate};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SplitLineageCycle, VertexKey};
 
 use super::role::{EntityKind, StableName};
 use super::table::{DuplicateName, EntityKey, EntityRef, NameTable};
@@ -55,6 +55,11 @@ pub enum NamingError {
         /// What was inconsistent.
         what: &'static str,
     },
+    /// An edge's split lineage cycles, caught where an emitter chased
+    /// it to its root — the same category of kernel bug as
+    /// [`Self::Emission`], carrying the one thing the repair needs
+    /// that a sentence cannot supply: WHICH edge.
+    SplitLineage(SplitLineageCycle),
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -117,6 +122,13 @@ impl core::fmt::Display for NamingError {
                 f,
                 "a mint-time emission fact was inconsistent with the result body: {what}"
             ),
+            // The same framing sentence as `Emission`, because the
+            // category IS an emission inconsistency; what the caught
+            // record adds is the locator.
+            Self::SplitLineage(cycle) => write!(
+                f,
+                "a mint-time emission fact was inconsistent with the result body: {cycle}"
+            ),
             Self::Band(error) => write!(
                 f,
                 "the N2 classification band could not be built from the ambient tolerance, so \
@@ -136,6 +148,15 @@ impl core::fmt::Display for NamingError {
 impl From<BandError> for NamingError {
     fn from(e: BandError) -> Self {
         Self::Band(e)
+    }
+}
+
+// `body.split_root(..)?` rather than a closure at the chase site: a
+// `map_err` closure is one keystroke from `map_err(|_| ..)`, and the
+// `EdgeKey` this carries is the only locator a cycling lineage has.
+impl From<SplitLineageCycle> for NamingError {
+    fn from(e: SplitLineageCycle) -> Self {
+        Self::SplitLineage(e)
     }
 }
 

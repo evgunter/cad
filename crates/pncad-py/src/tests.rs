@@ -3972,6 +3972,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "escalated",
             "missing_upstream",
+            "split_lineage_cycle",
             "unnamed",
         ],
         delegates: &["band_error_tag"],
