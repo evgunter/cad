@@ -2022,3 +2022,93 @@ reachable from a delegating arm**, and a verb-match sweep cannot see
 past the first hop. `PropsError` was the hop this PR had to absorb;
 `PcurveMintError`'s `Certify`/`Escalated` and `OffsetFitError`'s four
 delegating arms are the next ones for whoever takes the cut rows.
+
+### `coherence-findings-have-no-consumer` (PR 2408) — and my "## Measured" disposition was wrong in a worse way than a stale count
+
+`CheckId::ChartCoherence` is wired as a third resident, `CheckKind::Certified`,
+reading `topo::examine_chart_coherence`, with three `CheckEvidence` arms and
+a `ChartCoherenceLane` capability trait.
+
+**The centre held.** `skipped` is CONFIGURATION and `unexamined` is DATA, and
+nothing from one reaches the other: `Off` goes to `ChecksReport::skipped` with
+**no finding**, while a loop out of the door's reach goes to `findings` as
+`ChartCoherenceUnexamined` carrying `topo::Unexamined` whole. Pinned by a row
+asserting the two reports **share not one word**, and cross-checked against the
+door called directly so the resident's two finding classes are the door's two
+lists, one for one. That is the not-examined-masquerading-as-examined shape
+this program has now found three times, closed rather than documented.
+
+### What I got wrong, precisely
+
+My disposition read:
+
+> **Four non-test match arms over it, in the whole tree**
+> (`grep -rn 'CheckId::[A-Za-z]* *=>' --include=*.rs crates/`, minus
+> tests) — the enum's own `kind()`, `reads_subject()`, `ALL`, and
+> `crates/pncad-py/src/py/checks.rs`.
+
+I re-ran that grep myself on this head. It returns four arms, in **two**
+functions — `ChecksConfig::severity` (`checks.rs:236-237`) and
+`py::checks::check_id` (`:121-122`). **Of the four sites I named, exactly one
+is in its output.** `kind()` (`:79`), `reads_subject()` (`:108`) and
+`Display` (`:117`) all spell their arms `Self::…` and are invisible to that
+pattern; `ALL` (`:98`) is a `const` array and not a match at all. I omitted
+`ChecksConfig::severity` — whose own doc calls itself *"the one match site the
+closed enum walks a new check to"* — and `Display` entirely.
+
+**So the number was right and the attribution was invented.** I ran a grep,
+took its count, and then wrote down four site names from a different and
+partial reading, presenting the two as if one produced the other. That is
+worse than the stale counts this log keeps recording, because a stale count
+announces itself the moment someone re-derives it, while a fabricated
+correspondence between a measurement and a list survives re-derivation of
+either half alone.
+
+The real walk is **eight non-test sites**, and a new CHECK is not a new
+`CheckId`: its findings need `CheckEvidence` arms with four more exhaustive
+matches, plus the `ChecksConfig` literal, the `.pyi` and two Python suites.
+
+**And the obstacle neither the row nor I saw:** `examine_chart_coherence`
+takes `&Body<f64>` (`coherence.rs:672`) while `run_checks` is generic over
+`T: Decide + AtRestPolicy + CertifiedBounds` (`checks.rs:731`). There is no
+arm without a lane capability. **The ROW's "a consumer decision, not part of
+relocating a condition" was closer to right than my disposition was** — I
+called that sentence an overstatement and it was an underestimate of a
+different thing. The conclusion (dispatchable) survives; the cost is about
+three times what I wrote, and a public trait bounding two public doors is the
+shape.
+
+### Two process facts from this lane, both disclosed rather than found
+
+**The lane reported green locally off a log that was still being written.**
+It read a `test result: ok` tail before the run had finished, missed three
+census guards, and CI caught them over two round trips. Nothing merged broken
+and the lane recorded it on its own PR. This is the failure mode
+`docs/prompts/implementer-discipline.md` §2 names — *a build is not a test*,
+one level in: **a log is not a result until it is closed.**
+
+**`work.py territory` gave a vacuous pass, for the second time in one wave.**
+The lane reported *"0 paths in another program's territory"* while its own
+prose correctly listed crossings into LIB, MESH and TCOST/TINT. I ran it
+against the branch myself: **11 paths**. The census lane hit the same trap two
+lanes earlier and caught it; this lane reported the vacuous result as a pass.
+The substance was unharmed — the prose fence list was right and complete — but
+the mechanical check did not run on this diff and was reported as though it
+had. **A lane must run `territory` on a COMMITTED diff and treat a `0 path(s)`
+answer on a cross-crate change as a result to disbelieve, not a pass.** Going
+into every brief from here.
+
+### The `keep_out` stops enumerating
+
+Three stale clauses in two days — `census.rs`'s list of two items, `eval/wire.rs`
+as unowned, and now BLEND's `revolve/*`, the `splitting/*` pair and LIB's
+`pncad-py/*`. The failure is structural: a clause that lists the crossings this
+program has MADE goes stale every time it crosses somewhere new, and a lane
+reading a missing entry as a fence violation is the cost.
+
+The clause now says so: the list records seams that needed a note, **not every
+crossing ever made**, a crossing absent from it is not thereby unannounced, and
+the instrument is `territory`, not the clause. The four standing crossings are
+named so a lane need not rediscover them. FIX's `paths` are three globs and it
+crosses by construction; pretending otherwise in a field lint reads at rest was
+never going to hold.
