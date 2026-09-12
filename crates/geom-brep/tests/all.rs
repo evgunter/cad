@@ -69,14 +69,14 @@ mod cert5_arm_and_cells;
 #[path = "cert5_r1_patch_probes.rs"]
 mod cert5_r1_patch_probes;
 
+#[path = "d290_r2_e2e.rs"]
+mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]
 mod interior_iso_column;
-#[path = "d290_r2_e2e.rs"]
-mod d290_r2_e2e;
 #[path = "interior_iso_review.rs"]
 mod interior_iso_review;
 #[path = "intersect_table.rs"]

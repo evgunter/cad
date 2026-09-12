@@ -87,7 +87,10 @@ fn reexpress_a_fitted_curve_on_a_carrier_interval() {
         (moved.eval(t0), fitted.eval(0.0)),
         (moved.eval(t1), fitted.eval(1.0)),
     ] {
-        assert_eq!((a.x.to_bits(), a.y.to_bits()), (b.x.to_bits(), b.y.to_bits()));
+        assert_eq!(
+            (a.x.to_bits(), a.y.to_bits()),
+            (b.x.to_bits(), b.y.to_bits())
+        );
     }
 
     // The interior contract, to the rounding of the knot map.
