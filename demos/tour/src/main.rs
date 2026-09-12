@@ -378,24 +378,56 @@ fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
     )
 }
 
-/// What the tour knows about a body's volume once its tier-3 gate has
-/// run — the two LEVELS a certified quadrature can stop at.
+/// What a tier-3 or tier-3′ gate leaves the tour holding about a
+/// body's volume — the LEVEL its certified quadrature stopped at.
 ///
-/// Tier 3's +V check IS a certified quadrature, and the certificate it
-/// decides the sign on continues to the reporting target without
-/// re-running the rounds it has already paid for, so the gate and the
-/// number are one quadrature rather than two. The continuation can
-/// still refuse where the gate passed: the reporting target is a
-/// length that scales with ε, while the schedule's floor is a property
-/// of the part, so a body whose sign is definite may have no number at
-/// this ε. Such a body is VALID, and what the tour reports for it is
-/// the bracket its sign was decided on.
+/// Both gates run a certified quadrature (tier 3's check 7 and 3′'s
+/// are the same check), so every body here is measured by the gate it
+/// was already going to pass through and by nothing else. The two
+/// gates stop at different levels and that is the whole of this type:
+/// 3′'s check runs to the reporting target and hands back a number,
+/// while tier 3's stops as soon as the volume's SIGN is decided and
+/// hands back a certificate its holder continues.
+///
+/// That continuation can refuse where the gate passed. The reporting
+/// target is a length that scales with ε while the schedule's floor is
+/// a property of the part, so a body whose sign is definite may have
+/// no number at this ε. Such a body is VALID, and what the tour
+/// reports for it is the bracket its sign was decided on.
 enum Measured {
     /// The reporting-level reading: volume, area, and their pads.
     Number(pncad::topo::MassProperties<f64>),
     /// The sign-level enclosure: two ends and the area lever, with no
     /// volume number in it by construction.
     Bracket(pncad::topo::VolumeEnclosure<f64>),
+}
+
+/// The mesh's own surface area: the sum over its triangles, written
+/// here rather than read off the kernel.
+///
+/// `mesh::validate`'s helpers are the tour's mesh-side oracle and it
+/// has no area door; more to the point, an area the CALLER sums over
+/// the triangles it was handed is a property of the mesh, which is
+/// exactly what a chordal slack has to be metered on.
+fn mesh_area(mesh: &pncad::mesh::Mesh) -> f64 {
+    let mut area = 0.0;
+    for patch in &mesh.patches {
+        for tri in &patch.triangles {
+            let a = mesh.positions[tri[0] as usize];
+            let b = mesh.positions[tri[1] as usize];
+            let c = mesh.positions[tri[2] as usize];
+            area += (b - a).cross(c - a).norm() * 0.5;
+        }
+    }
+    area
+}
+
+/// The reporting door, for the one arm that still has to ask it.
+fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured {
+    Measured::Number(
+        pncad::topo::mass_properties(body, tol)
+            .unwrap_or_else(|e| panic!("{label}: mass properties failed: {e:?}")),
+    )
 }
 
 fn run_body(
@@ -417,31 +449,42 @@ fn run_body(
     // op's declared contacts (3′); everything else through the plain
     // geometric gate (on contact-free bodies the two gates agree).
     //
-    // The tier-3 arm keeps the SIGN CERTIFICATE its +V check decided
-    // on and asks that same quadrature for the number, so a body gated
-    // here is measured once. The 3′ arms gate and then measure through
-    // the reporting door, which is a second quadrature over the same
-    // body: the pair reads naturally and costs twice, and both
-    // spellings stand here because that contrast is the finding
-    // (`work/perf/gate-then-measure-pays-two-quadratures.md`).
+    // Every arm takes the gate door that HANDS ITS MEASUREMENT BACK,
+    // so a body is measured by the gate it passes and not a second
+    // time after it
+    // (`work/perf/gate-then-measure-pays-two-quadratures.md`). The two
+    // doors stop at different levels: 3′'s certificate is the number,
+    // tier 3's is the sign and a continuation.
     let measured = match &sb.contacts {
         Some(contacts) if sb.at_rest => {
-            match pncad::topo::validate_pseudomanifold(&sb.body, contacts, tol) {
-                Ok(()) => println!("   [{label}] tier-3' at rest: every declaration certified"),
-                Err(e) => println!(
-                    "   [{label}] tier-3' at rest: {} finding(s), attributed at the assembly \
-                     door (the scene asserts the verdict)",
-                    e.len()
-                ),
+            match pncad::topo::validate_pseudomanifold_certificate_certified(
+                &sb.body, contacts, tol,
+            ) {
+                Ok(props) => {
+                    println!("   [{label}] tier-3' at rest: every declaration certified");
+                    Measured::Number(props)
+                }
+                // The at-rest arm TOLERATES its refusal — the scene
+                // asserts the verdict, so the tour narrates it and
+                // carries on — and a refused gate has no certificate
+                // to hand back, so this is the one body in the walk
+                // that still pays the reporting door separately.
+                Err(e) => {
+                    println!(
+                        "   [{label}] tier-3' at rest: {} finding(s), attributed at the assembly \
+                         door (the scene asserts the verdict)",
+                        e.len()
+                    );
+                    reported(label, &sb.body, tol)
+                }
             }
-            Measured::Number(pncad::topo::mass_properties(&sb.body, tol).expect("mass properties"))
         }
-        Some(contacts) => {
-            pncad::topo::validate_pseudomanifold(&sb.body, contacts, tol).unwrap_or_else(|e| {
-                panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
-            });
-            Measured::Number(pncad::topo::mass_properties(&sb.body, tol).expect("mass properties"))
-        }
+        Some(contacts) => Measured::Number(
+            pncad::topo::validate_pseudomanifold_certificate_certified(&sb.body, contacts, tol)
+                .unwrap_or_else(|e| {
+                    panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
+                }),
+        ),
         None => {
             let certificate = pncad::topo::validate_geometric_certificate(&sb.body, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}"));
@@ -459,6 +502,17 @@ fn run_body(
                 // so the ribbon says it rather than the tour dying on a
                 // body the gate just certified. Every OTHER refusal is
                 // a body with no volume at all, and stays fail-loud.
+                //
+                // GAP (`memories/demo-purpose.md`): a consumer should
+                // not have to reach two crates down and re-spell
+                // `geom_brep::PropsError`'s arm to ask "is this the
+                // refusal my certificate warned about". The
+                // certificate knows — `SignCertificate::target_refusal`
+                // says so before the continuation runs — but reading
+                // it there means asking before there is an answer, and
+                // the certificate is consumed by the call that
+                // produces one. Filed as `work/perf`'s
+                // `budget-refusal-drops-the-enclosure-the-caller-needs`.
                 Err(pncad::topo::MassPropsError::Face {
                     source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
                     ..
@@ -508,15 +562,32 @@ fn run_body(
                 rel * 100.0
             );
         }
-        // The bracket, which has no number in it. The mesh is
-        // INSCRIBED at chordal budget `delta`, so it sags inside the
-        // exact surface by at most `delta` over each patch and the
-        // volume that costs is at most `delta * A` — the same slack the
-        // row above prints as a percentage and tolerates without a
-        // bound. Here it is the widening that lets the bracket be
-        // CHECKED rather than only printed.
+        // The bracket, which has no number in it — so the row cannot
+        // print a percentage off exact, and what it does instead is
+        // ask whether the mesh's own volume falls inside the certified
+        // bracket at all.
+        //
+        // WHAT IT IS WORTH, said plainly: a containment test against
+        // an ENCLOSURE is monotone-wrong by nature — a wider bracket
+        // is easier to pass, so a quadrature that gave up early makes
+        // this row weaker rather than louder. It is the same
+        // end-to-end sanity ribbon the row above prints and not a pin
+        // on either side of it; the kernel's own certification is what
+        // pins the bracket.
+        //
+        // THE SLACK is the mesh's chordal budget, metered on the
+        // MESH's own area rather than the certificate's: `delta` is
+        // how far a triangle may stand from the exact surface, so the
+        // volume between the two is at most `delta` times the area
+        // over which they differ, and the mesh's area is an exact
+        // property of the mesh where the certificate's is the
+        // unconverged midpoint of an area enclosure. The widening is
+        // TWO-SIDED because the deviation is: a chord cuts inside the
+        // surface across a convex feature and stands outside it across
+        // a concave one, so a mesh volume may land on either side of
+        // the exact one.
         Measured::Bracket(enclosure) => {
-            let slack = delta * enclosure.surface_area;
+            let slack = delta * mesh_area(&mesh);
             assert!(
                 v_mesh > enclosure.volume_lo - slack && v_mesh < enclosure.volume_hi + slack,
                 "{label}: mesh signed volume {v_mesh} is outside the certified SIGN-level \
