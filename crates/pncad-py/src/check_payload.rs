@@ -43,7 +43,9 @@ use std::borrow::Cow;
 
 use pncad::document::{CheckEvidence, RecipeNodeId};
 
-use crate::tags::{boolean_error_tag, shell_classify_error_tag};
+use crate::tags::{
+    boolean_error_tag, coherence_condition_tag, shell_classify_error_tag, unexaminable_tag,
+};
 
 /// What one [`CheckEvidence`] arm carries, every field present.
 ///
@@ -51,7 +53,9 @@ use crate::tags::{boolean_error_tag, shell_classify_error_tag};
 /// separation arm's sentence is a `String` the kernel already owns,
 /// and the shell arms' is rendered here, so the two spellings of
 /// `reason` are the two halves of a [`Cow`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+// `PartialEq` without `Eq`: the record carries measured lengths, and
+// a float has no total equality to derive.
+#[derive(Debug, Clone, PartialEq)]
 pub struct CheckEvidencePayload<'a> {
     /// Components actually found.
     pub actual: Option<u32>,
@@ -78,6 +82,37 @@ pub struct CheckEvidencePayload<'a> {
     /// either would answer a caller that did not first branch on the
     /// arm, and answer it wrong.
     pub boolean_variant: Option<&'static str>,
+    /// **The chart-coherence arm's own inner discriminant** — which of
+    /// the three conditions was measured
+    /// ([`crate::tags::coherence_condition_tag`]), or why one loop was
+    /// out of reach ([`crate::tags::unexaminable_tag`]).
+    ///
+    /// Two alphabets under one attribute, which [`Self::boolean_variant`]
+    /// refuses one field over — and the difference is the reason that
+    /// field states. The objection there is that `band` and `escalated`
+    /// are words in BOTH alphabets, so a caller who did not first branch
+    /// on the arm gets an answer that is wrong rather than absent. These
+    /// two alphabets are DISJOINT, so the same caller gets an answer that
+    /// is right, and the arm remains readable off the word.
+    pub chart_variant: Option<&'static str>,
+    /// The chart-coherence measurement as a LENGTH, `gap * lever` — the
+    /// only unit the band is in, and the only one the finding is judged
+    /// in.
+    pub metres: Option<f64>,
+    /// That measurement's two factors: the disagreement in the chart's
+    /// own units (radians of u, or v's units by surface kind)...
+    pub gap: Option<f64>,
+    /// ...and the lever arm in metres per chart unit at the point the
+    /// gap is about. Zero on a chart axis, where an azimuth carries no
+    /// length at all.
+    pub lever: Option<f64>,
+    /// The band the measurement was judged against, per finding.
+    ///
+    /// It rides the finding rather than the report for the reason the
+    /// kernel states at [`pncad::topo::CoherenceFinding::eps`]: a
+    /// measurement read without the band it was judged at is a number
+    /// without a claim.
+    pub eps: Option<f64>,
 }
 
 impl CheckEvidencePayload<'_> {
@@ -87,7 +122,7 @@ impl CheckEvidencePayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`CheckEvidence`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 7] {
+    pub fn presence(&self) -> [(&'static str, bool); 12] {
         let Self {
             actual,
             expected,
@@ -96,6 +131,11 @@ impl CheckEvidencePayload<'_> {
             reason,
             inner_variant,
             boolean_variant,
+            chart_variant,
+            metres,
+            gap,
+            lever,
+            eps,
         } = self;
         [
             ("actual", actual.is_some()),
@@ -105,6 +145,11 @@ impl CheckEvidencePayload<'_> {
             ("reason", reason.is_some()),
             ("inner_variant", inner_variant.is_some()),
             ("boolean_variant", boolean_variant.is_some()),
+            ("chart_variant", chart_variant.is_some()),
+            ("metres", metres.is_some()),
+            ("gap", gap.is_some()),
+            ("lever", lever.is_some()),
+            ("eps", eps.is_some()),
         ]
     }
 
@@ -126,6 +171,11 @@ impl CheckEvidencePayload<'_> {
         reason: None,
         inner_variant: None,
         boolean_variant: None,
+        chart_variant: None,
+        metres: None,
+        gap: None,
+        lever: None,
+        eps: None,
     };
 }
 
@@ -171,6 +221,29 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
         // the class is the word a consumer MATCHES on, the kernel's
         // own sentence rides beside it, and neither half is a
         // substring hunt through the other.
+        // The measurement, whole: the length it is judged as, the two
+        // factors it is the product of, and the band it was judged
+        // against. Four numbers rather than one because the finding
+        // carries four — `metres` alone cannot be re-derived from, and
+        // `metres` without `eps` is a number without a claim.
+        CheckEvidence::ChartCoherence { finding } => CheckEvidencePayload {
+            chart_variant: Some(coherence_condition_tag(finding.condition)),
+            metres: Some(finding.metres),
+            gap: Some(finding.gap),
+            lever: Some(finding.lever),
+            eps: Some(finding.eps),
+            ..none
+        },
+        // The DATA put this loop out of reach; `ChecksReport.skipped`
+        // is the other thing, and carries no finding at all.
+        CheckEvidence::ChartCoherenceUnexamined { unexamined } => CheckEvidencePayload {
+            chart_variant: Some(unexaminable_tag(unexamined.why)),
+            ..none
+        },
+        // The lane has no examination. Nothing was measured, so no
+        // attribute is set — the TAG is the whole answer, and it is
+        // the answer a caller must not read as a clean body.
+        CheckEvidence::ChartCoherenceUnavailable => none,
         CheckEvidence::SeparationUnavailable { kind, reason } => CheckEvidencePayload {
             reason: Some(Cow::Borrowed(reason)),
             boolean_variant: Some(boolean_error_tag(*kind)),

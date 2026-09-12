@@ -1,7 +1,10 @@
 //! The advisory-check registry (DISCIPLINES-DESIGN DS6, grade 4) and
-//! its two residents: the connectedness check (LONGTERM-IDEAS I1(0b))
-//! and the product-separation check (the establishment of disjointness
-//! `topo::graft_disjoint_all_keyed` leaves to its callers).
+//! its three residents: the connectedness check (LONGTERM-IDEAS
+//! I1(0b)), the product-separation check (the establishment of
+//! disjointness `topo::graft_disjoint_all_keyed` leaves to its
+//! callers), and the chart-coherence examination
+//! (`topo::examine_chart_coherence`, read per rest body and default
+//! `Off`).
 //!
 //! A check is a **pure analysis over a finished evaluation** producing
 //! findings — no declaration vocabulary, no verify table, and by
@@ -22,6 +25,14 @@
 //!   CALLER chooses where (and whether) to gate.
 //! - **`Off` checks are VISIBLY skipped** ([`ChecksReport::skipped`]):
 //!   "checked and fine" and "not checked" are different answers.
+//! - **`skipped` is CONFIGURATION, and a check that could not look
+//!   says so as a FINDING.** The two are never folded. A resident
+//!   whose subject put something out of its reach — a shell whose
+//!   orientation would not read, a loop the chart-coherence door could
+//!   not walk — reports that with its own typed evidence, because
+//!   "the caller turned me off" and "the data would not let me look"
+//!   are two answers and only the first is reversible by changing the
+//!   configuration.
 //! - **Deterministic order** (D9): findings follow root-list order,
 //!   then output-index order within a root — a report that changes
 //!   only when the document or its evaluation does.
@@ -65,6 +76,20 @@ pub enum CheckId {
     /// so every caller owes an establishment of disjointness. This is
     /// the document layer's, run as a report.
     Separation,
+    /// The chart-coherence examination
+    /// ([`topo::examine_chart_coherence`]): a curved face's CARRIERS
+    /// and its VERTICES disagree, in metres, about a chart coordinate
+    /// they both state.
+    ///
+    /// A MEASUREMENT and never a verdict — the door decides nothing,
+    /// this resident refuses nothing, and a body can be tier-3 green
+    /// and report, or tier-3 refused and stay quiet.
+    ///
+    /// **Defined at the `f64` lane only** ([`ChartCoherenceLane`]).
+    /// A lane without an examination says so as a finding
+    /// ([`CheckEvidence::ChartCoherenceUnavailable`]) rather than
+    /// reporting a clean body it never read.
+    ChartCoherence,
 }
 
 impl CheckId {
@@ -85,6 +110,13 @@ impl CheckId {
             // the finding says — never "these two overlap", which the
             // boxes do not decide. See `topo::SolidsMeet`.
             Self::Separation => CheckKind::Certified,
+            // Certified: the gap, the lever arm and their product are
+            // closed forms over the body's own stated coordinates, and
+            // the band is an exact `<` against eps. What the finding
+            // asserts is that the two statements differ by this many
+            // metres, which is a theorem about the data — never that
+            // the body is wrong, which it does not say.
+            Self::ChartCoherence => CheckKind::Certified,
         }
     }
 }
@@ -95,7 +127,14 @@ impl CheckId {
     /// A new variant that is not here fails
     /// `dsc_checks::the_registry_order_is_every_check`, whose match is
     /// the compiler's own walk of the closed set.
-    pub const ALL: [Self; 2] = [Self::Connectedness, Self::Separation];
+    /// The evaluation-reading residents come FIRST, and that is the
+    /// order's one constraint rather than a convention: a resident
+    /// that reads no subject has answered before [`run_checks_on`]
+    /// can refuse [`ChecksError::Product`] on one that does, so a
+    /// subject-less resident placed after [`Self::Separation`] would
+    /// lose its findings on exactly the documents that have no
+    /// product.
+    pub const ALL: [Self; 3] = [Self::Connectedness, Self::ChartCoherence, Self::Separation];
 
     /// Whether this resident reads the registry's [`Subject`].
     ///
@@ -107,6 +146,10 @@ impl CheckId {
         match self {
             Self::Connectedness => false,
             Self::Separation => true,
+            // The examination is over one body at rest, read per root
+            // output exactly as connectedness is; no product, nothing
+            // to gather.
+            Self::ChartCoherence => false,
         }
     }
 }
@@ -116,6 +159,11 @@ impl fmt::Display for CheckId {
         match self {
             Self::Connectedness => f.write_str("connectedness"),
             Self::Separation => f.write_str("separation"),
+            // ONE token, like its two neighbours: `ChecksReport`'s
+            // skipped list is space-separated, so a two-word name
+            // would make the list unreadable at the boundary between
+            // two entries.
+            Self::ChartCoherence => f.write_str("chart-coherence"),
         }
     }
 }
@@ -179,6 +227,52 @@ impl Advisory {
     }
 }
 
+/// **Which decision lanes carry a chart-coherence examination.**
+///
+/// [`topo::examine_chart_coherence`] reads a body's stored POINTS and
+/// carriers as lengths in metres, and a [`topo::Body`]'s geometry
+/// arenas are parameterised by the lane's scalar. The door is written
+/// at `f64`, so the examination exists at `f64` and nowhere else; the
+/// registry is generic over the lane, so it needs this to ask.
+///
+/// **`None` is a fact about the LANE, not a quiet pass.** The
+/// resident turns it into
+/// [`CheckEvidence::ChartCoherenceUnavailable`], one finding per rest
+/// body, because a lane that cannot look and reports nothing renders
+/// identically to a body with nothing to report — the F6 posture the
+/// rest of this module already takes.
+pub trait ChartCoherenceLane: geom_core::Real {
+    /// This lane's chart-coherence examination of `body` at `tol`, or
+    /// `None` when the lane has none.
+    fn examine_chart_coherence(body: &topo::Body<Self>, tol: Tol) -> Option<topo::CoherenceReport>;
+}
+
+impl ChartCoherenceLane for f64 {
+    fn examine_chart_coherence(body: &topo::Body<Self>, tol: Tol) -> Option<topo::CoherenceReport> {
+        Some(topo::examine_chart_coherence(body, tol))
+    }
+}
+
+#[cfg(feature = "probe")]
+impl ChartCoherenceLane for geom_core::Probe {
+    fn examine_chart_coherence(
+        _body: &topo::Body<Self>,
+        _tol: Tol,
+    ) -> Option<topo::CoherenceReport> {
+        None
+    }
+}
+
+#[cfg(feature = "interval")]
+impl ChartCoherenceLane for geom_core::interval::Interval {
+    fn examine_chart_coherence(
+        _body: &topo::Body<Self>,
+        _tol: Tol,
+    ) -> Option<topo::CoherenceReport> {
+        None
+    }
+}
+
 /// Per-run check configuration (the [`crate::EvalOptions`] mold: a
 /// plain argument to the door, no ambient state, nothing persisted).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -216,6 +310,30 @@ pub struct ChecksConfig {
     /// owed (five findings that are all correct and none of which can
     /// be acknowledged short of turning the resident off).
     pub separation: Advisory,
+    /// [`CheckId::ChartCoherence`]'s severity — [`Advisory`], NOT
+    /// [`Severity`], on the same DS6 `iff`: this resident ships no
+    /// per-finding acknowledgment record with a staleness direction,
+    /// so `Error` is unrepresentable rather than asked-not-to-be-used.
+    ///
+    /// **Default `Off`, and that is the one default on this type that
+    /// is not `Warn`.** Two measured reasons, neither of them taste:
+    ///
+    /// - the examination has no shape door, so a chart-bearing face
+    ///   whose outer loop carries a conic or spline trim carrier puts
+    ///   every one of its loops in
+    ///   [`CheckEvidence::ChartCoherenceUnexamined`] — two per body on
+    ///   an ordinary trimmed cylinder
+    ///   (`mesh::mesh8_corpus_coherence`). That is a correct report of
+    ///   a lane boundary and it is not actionable, and a resident that
+    ///   fires on ordinary bodies by default is not a report;
+    /// - it reads every face of every rest body on every run, and this
+    ///   registry is an advisory pass whose per-resident cost is
+    ///   measured and pinned. Nothing has measured this one, so it
+    ///   does not join the default pass.
+    ///
+    /// Turning it on is one field, and `Off` is VISIBLY off
+    /// ([`ChecksReport::skipped`]).
+    pub chart_coherence: Advisory,
 }
 
 impl Default for ChecksConfig {
@@ -224,6 +342,7 @@ impl Default for ChecksConfig {
             connectedness: Severity::Warn,
             expected_components: BTreeMap::new(),
             separation: Advisory::Warn,
+            chart_coherence: Advisory::Off,
         }
     }
 }
@@ -235,6 +354,7 @@ impl ChecksConfig {
         match check {
             CheckId::Connectedness => self.connectedness,
             CheckId::Separation => self.separation.severity(),
+            CheckId::ChartCoherence => self.chart_coherence.severity(),
         }
     }
 
@@ -330,6 +450,48 @@ pub enum CheckEvidence {
         /// substring hunt through the other.
         reason: String,
     },
+    /// One chart-coherence measurement, carried whole
+    /// ([`topo::CoherenceFinding`]: the condition, the gap in chart
+    /// units, the lever arm, their product in metres, and the band it
+    /// was judged at).
+    ///
+    /// The kernel's own value rides here rather than being unpacked
+    /// into fields, on the [`CheckEvidence::Escalated`] precedent: it
+    /// is `Clone + PartialEq`, so it can, and a consumer that wants
+    /// the coordinate gets the kernel's own struct rather than this
+    /// layer's restatement of it.
+    ChartCoherence {
+        /// The measurement.
+        finding: topo::CoherenceFinding,
+    },
+    /// One loop of a chart-bearing face the examination COULD NOT
+    /// READ, carried whole ([`topo::Unexamined`]).
+    ///
+    /// **This is data, and [`ChecksReport::skipped`] is
+    /// configuration.** The two are not the same fact and are not
+    /// folded: `skipped` says a caller set this check's severity to
+    /// `Off` and nothing was looked at ON PURPOSE, reversible by
+    /// changing the configuration; this says the check RAN and the
+    /// body put a loop out of its reach, which no configuration
+    /// changes. The kernel door states the same distinction about its
+    /// own two lists at [`topo::CoherenceReport::unexamined`], and
+    /// this arm is how it survives the crossing: an unexamined loop
+    /// arrives as a FINDING (the F6 posture the `Escalated` and
+    /// `Unsupported` arms already take one resident over), never as a
+    /// skipped check and never as silence.
+    ChartCoherenceUnexamined {
+        /// The loop, the face owning it, and why.
+        unexamined: topo::Unexamined,
+    },
+    /// This evaluation's decision lane carries no chart-coherence
+    /// examination ([`ChartCoherenceLane`]), so this body's chart
+    /// coordinates were never read.
+    ///
+    /// One finding per rest body rather than a clean report (F6): a
+    /// lane that cannot look and says nothing is indistinguishable
+    /// from a body with nothing to report, which is the one thing this
+    /// resident may not be.
+    ChartCoherenceUnavailable,
 }
 
 impl CheckEvidence {
@@ -433,6 +595,51 @@ impl crate::finding::Finding for CheckFinding {
                 "no pair of this product's solids could be checked for separation: \
                  {reason}"
             ),
+            CheckEvidence::ChartCoherence { finding } => {
+                let what = match finding.condition {
+                    topo::CoherenceCondition::MeridianClosure { .. } => {
+                        "a meridian edge's carrier midpoint and one of its own endpoint \
+                         vertices state azimuths"
+                    }
+                    topo::CoherenceCondition::RimContinuation { .. } => {
+                        "two edges carrying one rim row state row coordinates"
+                    }
+                    topo::CoherenceCondition::MeridianContinuation { .. } => {
+                        "two edges carrying one meridian column state azimuths"
+                    }
+                };
+                write!(
+                    f,
+                    "{what} {:e} m apart (gap {:e} chart units x lever {:e} m, band {:e} m)",
+                    finding.metres, finding.gap, finding.lever, finding.eps
+                )
+            }
+            CheckEvidence::ChartCoherenceUnexamined { unexamined } => {
+                f.write_str("a loop of a chart-bearing face could not be examined: ")?;
+                match unexamined.why {
+                    // The read's name is the kernel's own word for it
+                    // and is what a consumer branches on; the typed
+                    // value rides in the evidence beside this sentence.
+                    topo::Unexaminable::Corrupt { at } => write!(
+                        f,
+                        "its structure did not resolve ({at:?}), which is a tier-1 defect \
+                         rather than a coherence one"
+                    ),
+                    topo::Unexaminable::NullScaffoldEdge { .. } => f.write_str(
+                        "an edge of it carries construction scaffolding rather than a \
+                         certified curve, so it states no coordinate to compare",
+                    ),
+                    topo::Unexaminable::NonIsoCarrier { .. } => f.write_str(
+                        "the face's outer loop carries a conic or spline trim carrier, so \
+                         its boundary is not a chart iso curve and none of the three \
+                         conditions is about it",
+                    ),
+                }
+            }
+            CheckEvidence::ChartCoherenceUnavailable => f.write_str(
+                "this evaluation's decision lane carries no chart-coherence examination, \
+                 so this body's chart coordinates were not read at all",
+            ),
         }
     }
 
@@ -454,6 +661,31 @@ impl crate::finding::Finding for CheckFinding {
                  delete it or feed it into the root downstream of it. Two roots meant \
                  to TOUCH want a mate, whose declaration the assembly door certifies; \
                  two meant to INTERPENETRATE want a boolean, not a gather"
+            }
+            CheckEvidence::ChartCoherence { .. } => {
+                "the body states one chart coordinate twice and the two statements differ \
+                 by this many metres. It is a MEASUREMENT and nothing refuses on it: read \
+                 the metres against the band and decide whether this source is stated \
+                 finely enough for what you are doing with it — an imported part usually \
+                 wants re-exporting at more digits, a minted one is a kernel finding"
+            }
+            CheckEvidence::ChartCoherenceUnexamined { unexamined } => match unexamined.why {
+                topo::Unexaminable::Corrupt { .. } => {
+                    "a structural read failed on this loop; topo::validate is the door that \
+                     names the defect in its own vocabulary, and this resident only reports \
+                     that it could not get past it"
+                }
+                // A scaffolding edge and a trimmed face are lane
+                // boundaries, not defects: the report names them so
+                // the quiet is accounted for, and there is nothing to
+                // act on.
+                topo::Unexaminable::NullScaffoldEdge { .. }
+                | topo::Unexaminable::NonIsoCarrier { .. } => "",
+            },
+            CheckEvidence::ChartCoherenceUnavailable => {
+                "the examination is defined at the f64 lane; evaluate the document at f64 \
+                 to measure it, or turn this check off rather than reading its silence as \
+                 a clean body"
             }
             CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
@@ -728,7 +960,7 @@ impl<T: Decide> Subject<'_, T> {
 /// whose roots do not gather into a product for a resident that reads
 /// one. These mean the checks could not run at all; a check that ran
 /// and disagreed is a FINDING, not an error.
-pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds>(
+pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -775,7 +1007,7 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds>(
 /// enabled resident reads the subject and finds
 /// [`Subject::Unavailable`] — after the residents that read no subject
 /// have answered, so their refusals still come first.
-pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds>(
+pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     subject: Subject<'_, T>,
@@ -801,6 +1033,11 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds>(
         report.skipped.push(CheckId::Connectedness);
     } else {
         connectedness(doc, ev, cfg, tol, &mut report)?;
+    }
+    if cfg.severity(CheckId::ChartCoherence) == Severity::Off {
+        report.skipped.push(CheckId::ChartCoherence);
+    } else {
+        chart_coherence(doc, ev, tol, &mut report)?;
     }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
@@ -897,6 +1134,72 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
             output_ix,
             evidence: CheckEvidence::StaleExpectation { expected },
         });
+    }
+    Ok(())
+}
+
+/// The chart-coherence resident's pass: [`topo::examine_chart_coherence`]
+/// over each rest body, with BOTH of that door's lists carried across
+/// — and carried across as two different facts.
+///
+/// # The two lists, and the one fold this door must not make
+///
+/// [`topo::CoherenceReport`] is `{ findings, unexamined }` and
+/// [`ChecksReport`] is `{ findings, skipped }`. The shapes rhyme and
+/// the meanings do not: `skipped` is CONFIGURATION (a check a caller
+/// set to `Off`), `unexamined` is DATA (a loop the body put out of the
+/// door's reach). Nothing in `unexamined` reaches `skipped` here. Each
+/// entry becomes its own finding
+/// ([`CheckEvidence::ChartCoherenceUnexamined`]), which is what the
+/// connectedness resident already does with its own could-not-look
+/// arms (`Escalated`, `Unsupported`) and is the F6 posture: a check
+/// that could not look says so, and never by staying quiet.
+///
+/// # Order (D9)
+///
+/// Roots in root-list order, each root's outputs in output-index
+/// order, and within one body the door's own total order — its
+/// findings, then its unexamined loops. A pure function of the
+/// evaluation and eps, as the door itself is.
+fn chart_coherence<P, T: Decide + ChartCoherenceLane>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    tol: Tol,
+    report: &mut ChecksReport,
+) -> Result<(), ChecksError> {
+    for &root in doc.roots() {
+        let Some(value) = ev.value(root) else {
+            return Err(ChecksError::Root { node: root });
+        };
+        let Some(sources) = product::sources_of(value) else {
+            continue;
+        };
+        for (output_ix, body, _contacts, _rows) in sources {
+            let at = |evidence| CheckFinding {
+                check: CheckId::ChartCoherence,
+                root,
+                output_ix,
+                evidence,
+            };
+            let Some(examined) = T::examine_chart_coherence(body.as_ref(), tol) else {
+                report
+                    .findings
+                    .push(at(CheckEvidence::ChartCoherenceUnavailable));
+                continue;
+            };
+            report.findings.extend(
+                examined
+                    .findings
+                    .into_iter()
+                    .map(|finding| at(CheckEvidence::ChartCoherence { finding })),
+            );
+            report.findings.extend(
+                examined
+                    .unexamined
+                    .into_iter()
+                    .map(|unexamined| at(CheckEvidence::ChartCoherenceUnexamined { unexamined })),
+            );
+        }
     }
     Ok(())
 }
