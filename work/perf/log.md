@@ -447,3 +447,44 @@ reach them, and every column refusing if it fitted all five tolerances
 — the one way the sweep could rot silently. S-TCOST territory, landed
 from PERF by announcement (their census predates the file). The lane
 measures the geom-brep binary's wall in its report; recorded there.
+
+## Burst after the box restart (2026-09-11/12)
+
+- **PERF-5** (PR 2315, `61d4ba406`, CI green): implemented — level 1
+  reuses a root's `NodePick` when the evaluation memo reused the node,
+  level 2 reuses a face's patch under a content digest of the lane's
+  inputs; `die_composed_tour` index 235 → 104 ms with tessellation 155
+  → 11 ms, and the BVH is now ~95–98 % of what remains (filed:
+  `bvh-is-the-index-after-the-memo`). R1 reported APPROVE-WITH-FIXES
+  2/6/5: the level-1 key omits the naming key the evaluation memo
+  itself requires for reuse (a content hit with a naming miss re-mints
+  the body, and the served mesh's face keys then rest on identical
+  arena allocation — stronger than the cited theorem); and the key's
+  chord positions cannot be falsified by any row (the uniform chord
+  schedule makes them a function of inputs already keyed; dropping
+  them reds nothing, dropping δ reds both suites). R2 died on the
+  Fable usage limit mid-review; re-dispatched on the same frozen head
+  after Ev reported the reset. The pair is recorded as interrupted
+  (v6 3(e)): full record, excluded from the tally.
+- **PERF-6** (PR 2339, `dd0500150`, CI green): implemented — a second
+  certification level as a second type, `SignCertificate` with no
+  volume field; the sign loop runs round 0 over every face in arena
+  order and advances only until the sign settles; the reporting door
+  is untouched and digest-pinned; the arc-loft body main refuses at
+  1e-12 with `rounds: 1` is admitted at every ε. Costs disclosed: no
+  saving on `loft_prism` (its walls take the exact per-span arm), an
+  arc loft 2379 → 768 ms at 1e9·ε, +11.5 % on a body whose sign never
+  settles. Filed by the lane: the tier 3′ (STEP import) gate still
+  couples (`tier3-prime-still-couples-plus-v-to-the-reporting-target`)
+  and an EXCH item; it extended two ratified `bounds_allowlist` ledger
+  entries in `geom-core/src/real.rs` as a judgement call — the dual is
+  asked to rule on whether that owes an `[ev]`. Dual dispatched
+  (ordinal 3405).
+- **Side units** (opus, no rows): `budget_faces` rows merged (PR 2321;
+  geom-brep's binary wall 341 → 208 s in CI's profile — and the item's
+  46 cpu-s figure was an optimized-profile reading, the row is 347
+  cpu-s in the profile CI runs); the gather-counter cfg (PR 2328,
+  green) merged after orchestrator review. S-TCOST findings in PR
+  2321's body: this file's ε axis buys nothing (the 70-cell face map
+  is identical at all three rows) and its tolerance axis is near-
+  degenerate — theirs to act on.
