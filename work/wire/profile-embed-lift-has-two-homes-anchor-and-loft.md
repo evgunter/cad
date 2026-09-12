@@ -2,9 +2,12 @@
 id: profile-embed-lift-has-two-homes-anchor-and-loft
 kind: issue
 title: Profile<f64> -> Profile<T> is written twice, editor-core's anchor::embed_profile and sweep's loft::end_profile, and the home is a lift on the profile types
-status: open
+status: closed
 opened: 2026-09-08
 refs: [2139, 2186, D385]
+branch: wire/profile-lift-door
+pr: 2409
+closed: 2026-09-12
 ---
 
 (EVAL orchestrator) From EVAL-1's style review (PR 2139, S1/S4/S8).
@@ -89,3 +92,46 @@ So the class splits cleanly along the fence and the ORDER is forced:
 
 Announce to both S-BOOL (the door's file) and S-TINT (the dependency) at
 dispatch, not at merge.
+
+## Closed (2026-09-12) — PR 2409, merged
+
+The second home is gone, and the unit turned out not to be about the
+lift at all.
+
+**`end_profile` was re-deciding data that was already decided.**
+`loft_body`/`sweep_body` call `loft_geometry` and then `assemble` with
+the same arguments, and `skin::validate_sections` has already validated
+**every** section — so `end_profile`'s `Profile::validate` was a
+**provable no-op** and `LoftError::Profile` was **unreachable from both
+public doors**, with dead arms in `editor-core` and `pncad-py`. The
+first shape of the PR replaced one redundancy with another and wrote a
+doc sentence claiming the variant fired.
+
+**What landed**: `LoftGeometry` — which already kept its section curves
+*"because the cap and rim geometry is exactly section 0's and section
+`k−1`'s"* and threw away `validate_sections`' verdicts — now keeps them
+as `canonical`, and `end_profile` READS one. Infallible, no `tol`, and
+`assemble` lost the `sections` parameter that existed only to feed it.
+`LoftError::Profile` retired with its two dead arms and its tag-census
+row. The caps are the walls' own sections **by construction** rather
+than by determinism, which is what `Section`'s doc means by "a
+walls-vs-caps disagreement is unrepresentable".
+
+**Behaviour that moved, and the row that pins it.** A section whose
+`f64` validation decides and whose `T` re-validation would escalate is
+no longer refused. The PR first claimed no fixture could separate the
+paths without knife-edge tuning; the review **built one** out of round
+parameters. Then the gate found that fixture's own defect: a **pinned**
+`(h,b)` separates the arithmetics only at the default ε — at 1e-12 the
+`f64` side escalates too, at 1e-6 the `Interval` enclosure fits the
+wider band — and scaling with ε fixes one and not the other, because
+the enclosure width and the `f64` residual come from the same rounding.
+
+So the row **searches** an `(h,b)` ladder at the run's own ε and
+**panics when nothing separates**, rather than passing vacuously. That
+is the better shape and it came from the gate, not from either party's
+reading.
+
+Residue: `loft-path-loses-nine-predicate-families-from-the-probe-stream`
+— measured at 455 samples/33 predicates → 397/24, and invisible to a
+gate that flags margins per row.
