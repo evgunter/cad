@@ -266,8 +266,12 @@ fn face_surface(body: &Body<Interval>, face: FaceKey) -> Surface<Interval> {
         .clone()
 }
 
-/// The consumer's plane re-chart (`clearance.rs` `in_plane_axis` /
-/// `chart_frame`), replicated.
+/// The plane re-chart `clearance.rs` carried while a wall's stored
+/// `u_ref` was sign-hulled at the interval scalar, replicated: the
+/// normal crossed with the widest world axis under `total_cmp`,
+/// normalized. It is kept as a SECOND chart to describe through, not
+/// as a workaround — the stored chart is the claim, and a difference
+/// between the two is what a regression would look like.
 fn rechart(s: &Surface<Interval>) -> Option<Surface<Interval>> {
     let Surface::Plane { origin, normal, .. } = s else {
         return None;
@@ -1213,8 +1217,12 @@ fn p18_a_sphere_face_touching_the_pole_refuses_at_the_singularity() {
 
 /// Counts the described faces and the `Envelope` edges among them, on
 /// both the stored chart and the consumer's re-chart.
-fn describe_census(body: &Body<Interval>, faces: &[FaceKey]) -> (usize, usize, usize, usize) {
+fn describe_census(
+    body: &Body<Interval>,
+    faces: &[FaceKey],
+) -> (usize, usize, usize, usize, usize) {
     let (mut described, mut envelopes, mut rechart_planes, mut vertical_planes) = (0, 0, 0, 0);
+    let mut stored_planes = 0;
     for &face in faces {
         let s = face_surface(body, face);
         if let Ok(b) = chart_boundary(body, face, &s, band()) {
@@ -1226,14 +1234,17 @@ fn describe_census(body: &Body<Interval>, faces: &[FaceKey]) -> (usize, usize, u
                 .filter(|e| matches!(e, ChartEdge::Envelope { .. }))
                 .count();
         }
-        // A VERTICAL plane: its normal is horizontal, which is exactly
-        // the family whose stored `u_ref` is sign-hulled at the
-        // interval scalar (the spec's refutation 2).
+        // A VERTICAL plane: its normal is horizontal — the family the
+        // consumer's re-chart existed for, back when the stored `u_ref`
+        // was sign-hulled there at the interval scalar.
         if let Surface::Plane { normal, .. } = &s
             && normal.z.hi().abs() < 1e-9
             && normal.z.lo().abs() < 1e-9
         {
             vertical_planes += 1;
+            if chart_boundary(body, face, &s, band()).is_ok() {
+                stored_planes += 1;
+            }
             if let Some(rc) = rechart(&s)
                 && chart_boundary(body, face, &rc, band()).is_ok()
             {
@@ -1241,7 +1252,13 @@ fn describe_census(body: &Body<Interval>, faces: &[FaceKey]) -> (usize, usize, u
             }
         }
     }
-    (described, envelopes, vertical_planes, rechart_planes)
+    (
+        described,
+        envelopes,
+        vertical_planes,
+        rechart_planes,
+        stored_planes,
+    )
 }
 
 /// **The envelope arm is reached on a real body.** `chart_edge`'s
@@ -1258,7 +1275,7 @@ fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
         let vp = profile_of(&loops);
         let t = extrude(&vp, Extrusion::Distance(iv(1.0)), Tol::witness()).unwrap();
         let faces: Vec<FaceKey> = t.body.faces().map(|(k, _)| k).collect();
-        let (described, envelopes, _, _) = describe_census(&t.body, &faces);
+        let (described, envelopes, _, _, _) = describe_census(&t.body, &faces);
         eprintln!("{name}: described={described} envelope edges={envelopes}");
         assert!(
             envelopes > 0,
@@ -1270,26 +1287,38 @@ fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
     }
 }
 
-/// **A vertical planar wall describes through the consumer's
-/// re-chart.** Review lane trim3-r2 measured `chart_boundary` refusing
-/// 3 of 6 planar side walls of an extruded L on their STORED chart —
-/// `Escalated{pcurve_loop_continuity}`, the sign-hulled `u_ref` the
-/// spec's refutation 2 names — and no row in the unit describing one
-/// through a re-chart, which is exactly what `clearance.rs`'s
-/// `window_of` will pass. The re-chart is replicated here from that
-/// function (`in_plane_axis` / `chart_frame`).
+/// **A vertical planar wall describes on its STORED chart.** Review
+/// lane trim3-r2 measured `chart_boundary` refusing 3 of 6 planar side
+/// walls of an extruded L on their stored chart —
+/// `Escalated{pcurve_loop_continuity}` — because the frame the carrier
+/// stored was sign-hulled at the interval scalar on the whole equator,
+/// and the row pinned the consumer's re-chart as the way through.
+/// `Vec3::orthonormal_basis` chooses its world axis by
+/// `|n.z| ≤ max(|n.x|, |n.y|)` now and transfers no sign, so a wall's
+/// stored `u_ref` is exact and the re-chart it needed is gone from
+/// `clearance.rs`. The row keeps the re-chart replicated beside the
+/// stored chart and requires BOTH to describe every wall: the stored
+/// one is the claim, and the replicated one is what would show a
+/// regression as a difference between them rather than as a silence.
 #[test]
-fn r2_a_vertical_planar_wall_describes_through_the_rechart() {
+fn r2_a_vertical_planar_wall_describes_on_its_stored_chart() {
     let loops = l_profile();
     let vp = profile_of(&loops);
     let t = extrude(&vp, Extrusion::Distance(iv(1.5)), Tol::witness()).unwrap();
     let faces: Vec<FaceKey> = t.body.faces().map(|(k, _)| k).collect();
-    let (_, _, vertical, via_rechart) = describe_census(&t.body, &faces);
-    eprintln!("L extrude: vertical planar walls={vertical} described via re-chart={via_rechart}");
+    let (_, _, vertical, via_rechart, via_stored) = describe_census(&t.body, &faces);
+    eprintln!(
+        "L extrude: vertical planar walls={vertical} described on the stored chart={via_stored} \
+         via the replicated re-chart={via_rechart}"
+    );
     assert!(vertical >= 6, "an extruded L has six vertical walls");
     assert_eq!(
+        vertical, via_stored,
+        "EVERY vertical planar wall must describe on its own stored chart"
+    );
+    assert_eq!(
         vertical, via_rechart,
-        "EVERY vertical planar wall must describe through the consumer's re-chart"
+        "EVERY vertical planar wall must describe through the replicated re-chart too"
     );
     // Sound on every face, stored chart and re-chart alike.
     assert_sound(&run_extrude("L-rechart", &loops, 1.5));
