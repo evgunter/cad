@@ -19,7 +19,7 @@ is 6b's to fix: each is its own decision about a different seam, and
 ## The hits
 
 1. **The display budget's probe tessellation**, `crates/viewer/src/
-   scene.rs:917-919` (`fit_delta`), called from `crates/viewer/src/
+   scene.rs:994-1000` (`fit_delta`), called from `crates/viewer/src/
    app.rs:~634` inside `sync_scene`. It gathers the product and
    tessellates it at `PROBE_FACTOR` (8×) the requested δ, so it costs
    about **an eighth of a full tessellation** — on the `hollowring`
@@ -29,13 +29,13 @@ is 6b's to fix: each is its own decision about a different seam, and
    for it.
 2. **The drawable scene's vertex assembly**, `PickIndex::scene_focused`
    (`crates/viewer/src/pickindex.rs:894`) → `SceneMesh::build_parts_focused`
-   (`crates/viewer/src/scene.rs:410`), from `app.rs:~672`. It walks
+   (`crates/viewer/src/scene.rs:439`), from `app.rs:~672`. It walks
    every drawn triangle to build the GPU
    buffers, and it runs not only when an index lands but on every HIDE
    and every FOCUS change over an index that is already current — the
    two paths that reach it with no new tessellation behind them.
 3. **The landing's gather, check registry and A5 certification**,
-   `DocSession::land` (`crates/viewer/src/session.rs:613-655`), run
+   `DocSession::land` (`crates/viewer/src/session.rs:966-1060`), run
    from `pump` at the top of `sync_scene`. The advisory registry and
    `assemble_gathered` are kernel computations over the whole product;
    they are outside the evaluation seam by construction, because they
@@ -73,7 +73,7 @@ instead, which is the contract working.
 
 **`scene::fit_delta` no longer gathers.** This file's hit (2) reads
 *"`fit_delta`'s probe tessellation and gather"* and cites
-`scene.rs:917-919`. #1908 (merged `b20e13da`) made `fit_delta` take
+`scene.rs:994-1000`. #1908 (merged `b20e13da`) made `fit_delta` take
 the landing's body, so:
 
 - the **gather** half of that hit is gone — the landing pays it once

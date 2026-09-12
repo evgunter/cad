@@ -131,6 +131,8 @@ mod tcost_k3_import_certificate;
 mod tier_gate;
 #[path = "verbs_chamfer_roundtrip.rs"]
 mod verbs_chamfer_roundtrip;
+#[path = "wall_column_structure.rs"]
+mod wall_column_structure;
 #[path = "wild.rs"]
 mod wild;
 

@@ -14,7 +14,12 @@
 //!   reason;
 //! - this module — section authoring, the profile vocabulary a suite
 //!   builds a body FROM;
-//! - [`orient`] — what a suite CHECKS of a body it built;
+//! - [`orient`] — what a suite CHECKS of a body it built, by reading
+//!   POSITIONS off the shipped charts;
+//! - [`cap_rims`] — what a suite checks of a body's CAP RIMS: the
+//!   boundary walk, the face across a rim, and the description each
+//!   rim carries. A reader, not an evaluator, which is why it is not
+//!   [`orient`];
 //! - [`approx`] — the `Surface::Approx` surgery vocabulary (body
 //!   authoring, so it routes to this module rather than to a suite);
 //! - [`cavity`] — the vented-cavity fixture vocabulary (body
@@ -65,6 +70,12 @@
 /// but the check several suites make of a body they built.
 pub mod orient;
 
+/// Reading a built body's cap rims — the boundary walk, the face
+/// across a rim, and the description each rim carries. What a suite
+/// CHECKS of a body it built, so it routes beside [`orient`] rather
+/// than into it: nothing here evaluates a surface.
+pub mod cap_rims;
+
 /// The `Surface::Approx` surgery vocabulary — the pulled-back base,
 /// the fixtures the OFF-C rows convert, and the surface + carrier +
 /// pcurve surgery itself. Body authoring, so it routes here.
@@ -80,6 +91,12 @@ pub mod cavity;
 /// fixture and the parameter-identity channel's, one authoring for
 /// the one door both read. Body authoring, so it routes here.
 pub mod germ_pair;
+
+/// The cone-nappe fixtures and the corner walk the SHELL-6 suites
+/// share — two mirrored frustums, the coned tube, and the reader that
+/// takes a face's own corner stations. Body authoring plus the one
+/// reader three suites check a cone face with, so it routes here.
+pub mod cone_nappe;
 
 /// The closed-form volumes those suites meter against. Not a fixture
 /// and not a check of a body, but a truth derived WITHOUT the kernel;
@@ -173,6 +190,62 @@ pub fn sup_dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
         .abs()
         .max((a.y - b.y).abs())
         .max((a.z - b.z).abs())
+}
+
+/// **The certified quadrature's rounds, counted rather than timed** —
+/// the number of `props_quad_*` classifications the kernel's one
+/// recording funnel made while `run` executed. One certificate over
+/// one body at one band contributes a fixed number of them; two
+/// contribute twice that, and a caller that stopped early contributes
+/// fewer.
+///
+/// Here rather than in a suite because three suites count the same
+/// thing (`tcost_k3_certificate`, `sign_certified_plus_v`, and
+/// `step-import`'s import-path row across the crate boundary), and a
+/// counter that drifts between them is two different instruments
+/// reporting one number. The routing rule above does not have a slot
+/// for an instrument; this is the slot.
+pub fn quad_verdicts(run: impl FnOnce()) -> usize {
+    let bracket = geom_core::k_stats::Bracket::open();
+    run();
+    bracket
+        .finish()
+        .verdicts
+        .iter()
+        .filter(|v| v.predicate.starts_with("props_quad"))
+        .count()
+}
+
+/// A thin curved STRIP section: a rectangle `[-s, s] × [0, delta]`
+/// whose two long sides are quarter-circle bulges in OPPOSITE
+/// directions, so the loft's two big rational walls contribute fluxes
+/// that nearly cancel and the body's volume is `≈ 2·s·delta` per unit
+/// height — arbitrarily small against the enclosure width the walls
+/// themselves carry.
+///
+/// That is what makes it the fixture for an UNDECIDED sign: at a small
+/// enough `delta/s` the round-0 enclosure straddles zero, and at a
+/// large enough `s` the schedule has already run out. `reversed`
+/// builds the same strip traversed the other way, which is the
+/// inside-out twin — the body an orientation check exists to catch.
+pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
+    // tan(π/8): a quarter-circle bulge-out, as `arc_section` uses.
+    let b = 0.414_213_562_373_095_1;
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
+    if reversed {
+        return vec![ProfileLoop::new(vec![
+            v(-s, 0.0, 0.0),
+            v(-s, delta, b),
+            v(s, delta, 0.0),
+            v(s, 0.0, -b),
+        ])];
+    }
+    vec![ProfileLoop::new(vec![
+        v(-s, 0.0, b),
+        v(s, 0.0, 0.0),
+        v(s, delta, -b),
+        v(-s, delta, 0.0),
+    ])]
 }
 
 /// Loft placements: the given heights, each scaled by `s`, as pure

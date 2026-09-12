@@ -17,7 +17,10 @@
 //! [`insert_void`] takes a valid destination solid, a **positively
 //! oriented** single-solid cavity body whose shells are certified
 //! strictly inside the destination's material, and the certification
-//! itself as [`VoidEvidence`]. It reverses the cavity body (outward
+//! itself as [`VoidEvidence`]. [`insert_voids`] is the same door for a
+//! cavity of N solids, one destination per cavity solid positionally,
+//! and `insert_void` is its `N = 1` case: one implementation, two
+//! doors, one evidence discipline. It reverses the cavity body (outward
 //! normals flip inward — [`crate::Body::revert`]) and transplants its
 //! shells into the destination solid as interior shells (the
 //! [`super::combine`] graft: fresh keys, provenance verbatim,
@@ -60,7 +63,7 @@
 use geom_core::{Decide, Sign, Tol};
 
 use super::BooleanError;
-use super::combine::{GraftMap, graft_solid};
+use super::combine::{Bridge, GraftMap, graft_solids_with};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::entity::{ShellKey, SolidKey};
@@ -110,7 +113,8 @@ impl VoidContainment {
 }
 
 /// The caller-supplied containment certification for one
-/// [`insert_void`] call: one certificate per cavity shell, keyed by
+/// [`insert_void`] / [`insert_voids`] call: one certificate per cavity
+/// shell, keyed by
 /// the cavity body's **own** shell keys (pre-insertion; the door
 /// reports the transplanted keys in [`VoidInserted`]).
 #[derive(Clone, Debug, Default)]
@@ -197,7 +201,8 @@ impl core::fmt::Display for VoidInsertError {
     }
 }
 
-/// The key bridge of one [`insert_void`] call: cavity-body keys →
+/// The key bridge of one [`insert_void`] / [`insert_voids`] call:
+/// cavity-body keys →
 /// destination-body keys (the graft's map, exposed read-only — the
 /// ONLY bridge between the two key spaces; consumers read it as data,
 /// never key equality across bodies).
@@ -242,7 +247,12 @@ impl VoidInserted {
 /// the material that is being removed, exactly as a subtraction's B
 /// operand — consumed by value; the door reverses it and transplants
 /// its shells. `evidence` must certify every shell of `cavity`
-/// strictly inside `dst_solid`'s material.
+/// strictly inside `dst_solid`'s material. The shell verb hands
+/// [`insert_voids`] the whole moved clone of its operand — several
+/// shells per solid — and then re-homes each transplanted void twin
+/// into a solid of its own ([`crate::shell`](mod@crate::shell)'s
+/// thin-solid step), so the grafted every-shell-under-its-own-solid
+/// state is that caller's transient, never its result.
 ///
 /// # Errors
 ///
@@ -251,6 +261,37 @@ impl VoidInserted {
 pub fn insert_void<T: Decide>(
     dst: &mut Body<T>,
     dst_solid: SolidKey,
+    cavity: Body<T>,
+    evidence: &VoidEvidence,
+    tol: Tol,
+) -> Result<VoidInserted, VoidInsertError> {
+    insert_voids(dst, &[dst_solid], cavity, evidence, tol)
+}
+
+/// [`insert_void`] for a cavity body holding N solids: `dst_solids`
+/// names one destination solid per cavity solid, **positionally in the
+/// cavity's solid order** ([`super::combine::graft_solids_with`]'s own
+/// contract), and the arity must match exactly.
+///
+/// The evidence discipline is [`insert_void`]'s, unchanged and
+/// whole-body: one strict-inside certificate per cavity shell,
+/// checked before any mutation. What the arity adds is only WHERE each
+/// cavity solid's shells land — every one of them under its own
+/// destination, none of them crossing between destinations.
+///
+/// [`insert_void`] is this door's `N = 1` case and shares its every
+/// step, so a single-destination call is entity-for-entity what it
+/// always was.
+///
+/// # Errors
+///
+/// [`VoidInsertError`] — the evidence refusals before any mutation; a
+/// destination count that does not match the cavity's solid count as
+/// [`VoidInsertError::Corrupt`], the graft's own arity refusal
+/// verbatim; revert and graft refusals verbatim.
+pub fn insert_voids<T: Decide>(
+    dst: &mut Body<T>,
+    dst_solids: &[SolidKey],
     cavity: Body<T>,
     evidence: &VoidEvidence,
     tol: Tol,
@@ -300,17 +341,19 @@ pub fn insert_void<T: Decide>(
         (dst.arena_counts(), transplant)
     };
     let reversed = cavity.revert().map_err(VoidInsertError::Revert)?;
-    let graft = graft_solid(dst, dst_solid, &reversed, tol).map_err(|e| match e {
-        BooleanError::JoinDesync { what } => VoidInsertError::Corrupt { what },
-        BooleanError::GraftRecertify(c) => VoidInsertError::Recertify(c),
-        // The graft's error surface is exactly the two arms above;
-        // anything else arriving here is a kernel bug, surfaced typed
-        // rather than panicked (D9: never a panic on an error path).
-        _ => VoidInsertError::Corrupt {
-            what: "graft refused outside its own error surface (kernel bug)",
+    let graft = graft_solids_with(dst, dst_solids, &reversed, Bridge::Recertify, tol).map_err(
+        |e| match e {
+            BooleanError::JoinDesync { what } => VoidInsertError::Corrupt { what },
+            BooleanError::GraftRecertify(c) => VoidInsertError::Recertify(c),
+            // The graft's error surface is exactly the two arms above;
+            // anything else arriving here is a kernel bug, surfaced typed
+            // rather than panicked (D9: never a panic on an error path).
+            _ => VoidInsertError::Corrupt {
+                what: "graft refused outside its own error surface (kernel bug)",
+            },
         },
-    })?;
+    )?;
     #[cfg(debug_assertions)]
-    dst.assert_euler_postcondition(before, transplant, "insert_void");
+    dst.assert_euler_postcondition(before, transplant, "insert_voids");
     Ok(VoidInserted { graft })
 }

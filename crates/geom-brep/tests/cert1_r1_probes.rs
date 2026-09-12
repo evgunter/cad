@@ -189,11 +189,17 @@ fn probe_interval_half_cap_certifies() {
 // The rim lever — separations spanning the band
 // ------------------------------------------------------------------
 
-/// The 893 staircase at rim separations spanning the band: chords of
+/// The 893 step at rim separations spanning the band: chords of
 /// `0.25·zero` and `0.5·zero` accept (one level by this ε);
 /// `10·escalate` and `1000·escalate` refuse by the named predicate;
 /// the seam between `zero` and `escalate` may go either way but must
-/// REFUSE typed (Escalated), never accept-and-measure the staircase.
+/// REFUSE typed (Escalated), never accept-and-measure the step. Each
+/// rung is stated the way the certified world can state it: above the
+/// band the step is a meridian edge (the staircase); at and below the
+/// escalation band that edge's span is one certification refuses or
+/// escalates as not forward (re-decided at the parse as
+/// `props_meridian_span_forward`), so the two rims meet at a junction
+/// instead and the rung asks `props_rim_level` alone.
 #[test]
 fn probe_near_polar_separation_ladder() {
     let b = band();
@@ -208,14 +214,24 @@ fn probe_near_polar_separation_ladder() {
     ];
     for (sep, want) in ladder {
         let dv = sep / RS;
-        let edges = vec![
-            rim(0.2, -1.0, 1.0, 0, 1),
-            great(1.0, 0.2, v2, 1, 2),
-            rim(v2, 1.0, 0.0, 2, 3),
-            great(0.0, v2, v2 - dv, 3, 4),
-            rim(v2 - dv, 0.0, -1.0, 4, 5),
-            great(-1.0, v2 - dv, 0.2, 5, 0),
-        ];
+        let edges = if want == "refuse-iso" {
+            vec![
+                rim(0.2, -1.0, 1.0, 0, 1),
+                great(1.0, 0.2, v2, 1, 2),
+                rim(v2, 1.0, 0.0, 2, 3),
+                great(0.0, v2, v2 - dv, 3, 4),
+                rim(v2 - dv, 0.0, -1.0, 4, 5),
+                great(-1.0, v2 - dv, 0.2, 5, 0),
+            ]
+        } else {
+            vec![
+                rim(0.2, -1.0, 1.0, 0, 1),
+                great(1.0, 0.2, v2, 1, 2),
+                rim(v2, 1.0, 0.0, 2, 3),
+                rim(v2 - dv, 0.0, -1.0, 3, 4),
+                great(-1.0, v2 - dv, 0.2, 4, 0),
+            ]
+        };
         let got = curved_face(&sphere(), &edges, 1.0, b);
         match want {
             "accept" => {

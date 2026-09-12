@@ -35,17 +35,14 @@
 
 use std::f64::consts::{PI, TAU};
 
+use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, Tol, Vec2, Vec3};
+use geom_core::{Bounds, Interval, Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, ChartBound, ChartEdge, ChartLoop, FaceKey, LoopBoundary, MetredRect, chart_boundary,
 };
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 fn iv(x: f64) -> Interval {
     Interval::from_f64(x)
 }
@@ -1265,7 +1262,8 @@ fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
         eprintln!("{name}: described={described} envelope edges={envelopes}");
         assert!(
             envelopes > 0,
-            "{name}: an arc-bounded cap must produce at least one Envelope edge,              or the whole chart_edge envelope path is unpinned"
+            "{name}: an arc-bounded cap must produce at least one Envelope edge, \
+             or the whole chart_edge envelope path is unpinned"
         );
         // And the oracle says every certified cell is honest.
         assert_sound(&run_extrude(name, &loops, 1.0));

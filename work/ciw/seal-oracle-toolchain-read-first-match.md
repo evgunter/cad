@@ -2,9 +2,12 @@
 id: seal-oracle-toolchain-read-first-match
 kind: issue
 title: seal-oracle.sh reads the toolchain with a first-match sed against Cargo.toml, not the toolchain file
-status: open
+status: closed
 opened: 2026-09-06
 refs: [ruff-pin-read-shares-the-first-match-shape, nightly-pin-reading-idiom-four-copies]
+branch: ciw/pin-residue
+pr: 2327
+closed: 2026-09-11
 ---
 
 `local-scripts/seal-oracle.sh:33`:

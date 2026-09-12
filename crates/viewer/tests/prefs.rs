@@ -170,17 +170,81 @@ fn an_unregistered_preset_name_falls_back_with_a_notice() {
     assert_eq!(notice, Some(Notice::UnknownPreset("vim".to_owned())));
 }
 
-/// A store with nothing behind it says so instead of pretending.
+/// A store with nothing behind it says so instead of pretending, and
+/// says it as a READ rather than only as the answer to a write.
 ///
-/// The `frame::chooser_backend` posture: a control backed by this is
-/// disabled with a reason, never offered and silently ineffective.
+/// The read is what the chrome shows (`frame::prefs_badge`); the
+/// refusal is what a caller that saves without asking gets. **Both
+/// come from one value**, which is the row below.
 #[test]
 fn an_absent_store_reports_rather_than_pretends() {
     let store = Absent;
-    assert!(!store.usable());
+    let unusable = store.unusable().expect("this store keeps nothing");
+    assert!(unusable.to_string().contains("nowhere to keep them"));
     assert_eq!(store.load(), Ok(None));
     let error = store.save("[appearance]\n").expect_err("cannot save");
     assert!(error.to_string().contains("nowhere to keep them"));
+}
+
+/// The native store in an environment that names no config directory
+/// is the SECOND member of that class, and the browser is not its
+/// subject.
+///
+/// `frame::prefs_path` answers `None` there, `FileStore::new` keeps it,
+/// and everything the chrome does about it keys on this read rather
+/// than on `target_family` — which is why one fix covers both. A
+/// `FileStore` reached only through `FileStore::at` cannot be built
+/// this way, which is why the suite had no row here.
+#[test]
+fn a_pathless_file_store_reports_rather_than_pretends() {
+    let store = FileStore::new(None);
+    let unusable = store
+        .unusable()
+        .expect("a store with no config directory keeps nothing");
+    assert!(
+        unusable.to_string().contains("no config directory"),
+        "{unusable}"
+    );
+    assert_eq!(store.load(), Ok(None), "never having saved is not a fault");
+    let error = store.save("[appearance]\n").expect_err("cannot save");
+    assert!(error.to_string().contains("no config directory"), "{error}");
+}
+
+/// **One value, two renderings** — the sentence a reader is shown and
+/// the sentence a caller that asks anyway receives are the same words,
+/// for both stores that can be unusable.
+///
+/// This is the row that would go red if either store re-worded its
+/// refusal at the `save` site instead of rendering the read, which is
+/// the state this crate was in when the refusals were dead: two
+/// written statements of one condition, free to drift.
+#[test]
+fn the_words_a_store_shows_and_the_words_it_refuses_with_are_one() {
+    let absent = Absent;
+    let pathless = FileStore::new(None);
+    for (which, unusable, error) in [
+        (
+            "absent",
+            absent.unusable().expect("keeps nothing"),
+            absent.save("").expect_err("cannot save"),
+        ),
+        (
+            "pathless file",
+            pathless.unusable().expect("keeps nothing"),
+            pathless.save("").expect_err("cannot save"),
+        ),
+    ] {
+        assert_eq!(
+            unusable.refusal(),
+            error,
+            "the {which} store's refusal is its standing fact rendered"
+        );
+        assert!(
+            error.to_string().contains(&unusable.because),
+            "the {which} store's two sentences share their words: \
+             {error} / {unusable}"
+        );
+    }
 }
 
 /// Never having saved is not a failure.
@@ -200,7 +264,7 @@ fn a_missing_file_loads_as_nothing() {
 fn the_file_store_round_trips_through_a_real_path() {
     let path = scratch("roundtrip");
     let store = FileStore::at(path.clone());
-    assert!(store.usable());
+    assert_eq!(store.unusable(), None, "a store with a path keeps things");
     let prefs = Prefs {
         theme: Some("colorblind-safe".to_owned()),
         keys: None,

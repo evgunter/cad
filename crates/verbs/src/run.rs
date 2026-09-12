@@ -218,13 +218,14 @@ impl<T: Real> fmt::Display for VerbError<T> {
             // Written in the doors' own names and nothing else — no
             // reading of what a row MEANS (a count, an operand shape, a
             // signature) enters the sentence, so a door added to the
-            // vocabulary does not move it. It moved in two consecutive
-            // units for exactly that reason before it was written this
-            // way; `tests/run_door.rs` pins it byte for byte.
+            // vocabulary does not move it. The names are the two types'
+            // own `Display`, which is where the vocabulary says what
+            // each of its members is called; this sentence decides only
+            // the grammar around them. `tests/run_door.rs` pins it byte
+            // for byte.
             Self::Arity { verb, given } => write!(
                 f,
-                "the {verb:?} verb was run through the {given:?} door; the door that answers it is \
-                 {:?}",
+                "the {verb} verb was run through the {given} door; the door that answers it is {}",
                 verb.arity()
             ),
         }

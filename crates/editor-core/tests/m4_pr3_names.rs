@@ -8,8 +8,8 @@ use crate::fixture;
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName,
-    evaluate,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName, band,
+    band_rim, evaluate, meridian_vertex,
 };
 use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom_core::Tol;
@@ -421,14 +421,8 @@ fn full_holed_revolve_names_the_cavity_loop() {
     assert_eq!(t.len(), 33);
     for l in 0..2 {
         for s in 0..4 {
-            assert!(
-                t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(l, s))))
-                    .is_some()
-            );
-            assert!(
-                t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::BandRim(pv(l, s))))
-                    .is_some()
-            );
+            assert!(t.lookup(&band(rev, l, s)).is_some());
+            assert!(t.lookup(&band_rim(rev, l, s)).is_some());
             assert!(
                 t.lookup(&name1(
                     EntityKind::Edge,
@@ -438,12 +432,8 @@ fn full_holed_revolve_names_the_cavity_loop() {
                 .is_some()
             );
             assert!(
-                t.lookup(&name1(
-                    EntityKind::Vertex,
-                    rev,
-                    RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(l, s))
-                ))
-                .is_some()
+                t.lookup(&meridian_vertex(MeridianEnd::Seam, rev, l, s))
+                    .is_some()
             );
         }
     }
@@ -622,7 +612,7 @@ fn split_names_sections_fragments_and_crossings() {
                     split,
                     RoleSeg::SplitFragment {
                         side,
-                        parent: Box::new(lateral.clone())
+                        parent: lateral.clone().into()
                     }
                 ))
                 .is_some(),
@@ -634,7 +624,7 @@ fn split_names_sections_fragments_and_crossings() {
                     split,
                     RoleSeg::SectionEdge {
                         side,
-                        face: Box::new(lateral)
+                        face: lateral.into()
                     }
                 ))
                 .is_some(),
@@ -647,7 +637,7 @@ fn split_names_sections_fragments_and_crossings() {
                     split,
                     RoleSeg::SplitFragment {
                         side,
-                        parent: Box::new(strut.clone())
+                        parent: strut.clone().into()
                     }
                 ))
                 .is_some(),
@@ -659,7 +649,7 @@ fn split_names_sections_fragments_and_crossings() {
                     split,
                     RoleSeg::CrossingVertex {
                         side,
-                        edge: Box::new(strut)
+                        edge: strut.into()
                     }
                 ))
                 .is_some(),
@@ -711,7 +701,7 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
             pat,
             RoleSeg::Instance {
                 i,
-                of: Box::new(master_end.clone()),
+                of: master_end.clone().into(),
             },
         );
         match tp.lookup(&wrapped) {

@@ -53,8 +53,8 @@ use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
-    ROD_FILLET, ball_poled_z, closed_plane_sphere_rim, cube, dome, lantern, rim_arcs_at,
-    rod_creases, rod_with_flat, sphere_zone, waisted,
+    ROD_FILLET, ball_poled_z, cube, dome, lantern, one_edge_rim_at, rim_arcs_at, rod_creases,
+    rod_with_flat, sphere_zone, waisted,
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
@@ -311,7 +311,7 @@ fn bitdump_convex_closed_rims() {
     text.push_str(&dump_rim(
         "dome equator",
         &body,
-        &[closed_plane_sphere_rim(&body, 1.0)],
+        &[one_edge_rim_at(&body, 1.0, 0.0)],
         r,
     ));
     let body = sphere_zone(0.5, Revolution::Full, tol);

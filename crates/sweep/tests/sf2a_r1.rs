@@ -7,7 +7,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use geom_core::{Band, MarginDiag, Point2, Point3, Tol, Vec3};
+use crate::common::approx::band;
+use geom_core::{MarginDiag, Point2, Point3, Tol, Vec3};
 use profile::{
     EscalationSite, Profile, ProfileError, ProfileLoop, ProfileVertex, RawLoop, SegmentRef,
     SketchPlane, ValidatedProfile,
@@ -17,10 +18,6 @@ use topo::Body;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 /// The validated profile of a polygon, or the door's typed refusal —
