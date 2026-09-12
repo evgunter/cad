@@ -127,9 +127,7 @@ in `work/perf/` or the program named.
 
 | Cost center | Where | Measured | Kind | Ref |
 |---|---|---|---|---|
-| Pick index re-tessellates every root on every edit | `viewer/src/pickcache.rs:266,285`, `pickindex.rs:742`, `editor-core/src/resolve/pick.rs:354` | 83–97 % of the edit wait on a large document | stop | `index-rebuilds-every-root-on-every-edit` |
 | Display budget's probe can exceed the picture it sizes | `viewer/src/scene.rs:952` | 0.2–4.1 s frozen on open | stop | `fit-delta-probe-can-exceed-the-picture-it-sizes` |
-| `StableName` is a boxed `BTreeMap` key | `editor-core/src/names/role.rs:396`, `table.rs:69,96-107`, `emit_topo.rs:518-524` | ~40 % of `die`'s rebuild, quadratic in chain depth | faster | `stablename-key-is-quadratic-on-a-boolean-chain` |
 | `assemble`'s aggregate tier-3′ census | `editor-core/src/product.rs:650` | n^1.96 in solids; 1.3 s at 161 | faster | `assemble-aggregate-census-is-quadratic-in-solids` |
 | Gate then measure pays two certified quadratures | `demos/tour/src/main.rs:402,423`; the Python pair | ~half of the tour's 2.2–2.7 s of mass props | stop | `gate-then-measure-pays-two-quadratures` |
 | Tier 3's +V check refines to the reporting target | `topo/src/validate.rs` (`validate_geometric_certified`), `geom-brep/src/props/quad.rs:113` | a false refusal at ε = 1e-12, not CPU | stop | `tier3-plus-v-needs-a-sign-and-pays-for-a-precision` |
@@ -562,13 +560,20 @@ demo-only and test-only units record no A/B row.
 - The display budget's probe never larger than the picture (viewer).
 - Gate-then-measure takes the certificate it already computed (tour,
   Python surface).
-- `budget_faces.rs` split into rows nextest can spread (test-only).
-- `gathers_on_this_thread` compiles without debug assertions
-  (test-only plus one `cfg`).
+- `budget_faces.rs` split into rows nextest can spread — landed (PR 2321).
+- `gathers_on_this_thread` compiles without debug assertions — landed
+  (PR 2328).
 
 **Block PERF-B2**, after B1 and Ev's D1 ruling:
 
-- The per-face patch memo across index builds (viewer + `mesh` door).
+- The per-face patch memo across index builds — landed (PR 2315):
+  node-level `PickMemo` keyed on the eval memo's own reuse condition
+  (content + naming key) and face-level `PatchMemo` behind
+  `mesh::tessellate_with`, generational eviction, bit-identical to a
+  fresh tessellation across edits. `die_composed_tour` index 456 → 174 ms
+  (tessellate 293 → 25); `kitchen_sink` 3.2 → 0.6 ms; the ring
+  documents miss everything on a bump (+2 %). The BVH is now ~85 % of a
+  memo'd index (`bvh-is-the-index-after-the-memo`).
 - Parallel per-face tessellation (idiom 1) and per-face mass-property
   fluxes (idiom 2).
 - Tier 3's +V check with a sign-sufficient door.

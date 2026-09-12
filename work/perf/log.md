@@ -611,3 +611,18 @@ same head) and is excluded from the tally.
   the count pin is the tests' `gate + refine == one`); the STEP
   per-solid gate is already `validate_geometric` — only the aggregate
   gate is tier 3′, so the filed item overstates.
+
+## 2026-09-12 — PERF-5 merged
+
+Fix pass landed everything in the adjudicated union with nothing
+disputed (head `a00a772c4`, CI green on run 34679512564): the node-level
+key is the eval memo's own reuse condition; seam flag and split lineage
+folded into the face key; asserted hit floors per corpus step; a
+`ThreadIndexer` row across landings and a skipped generation; the
+measurement table partitioned (index = tessellate + BVH + rest) and the
+BVH item corrected to ~85 %; memo footprint measured (24 MB on
+`tube_ring`, 7 MB on the tour die); the FNV/memo-machinery duplication
+filed as `fnv-digest-and-memo-machinery-copies`. State-sync rode the PR
+(`PERF-5` and `index-rebuilds-every-root-on-every-edit` closed); merged
+at `768faf5fa` (PR 2315). Plan §1.3 and §5 updated; the lane's clone,
+target and scratch reclaimed.
