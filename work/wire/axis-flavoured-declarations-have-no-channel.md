@@ -5,6 +5,7 @@ title: Axis-flavoured declarations (coaxial, structural-parallel) have no identi
 status: open
 opened: 2026-09-04
 refs: [1593, 1604, 1372]
+needs_ev: true
 ---
 
 
@@ -250,3 +251,47 @@ information.
 
 It is an adoption-side unit, not this row's, and it is not a
 prerequisite: the design stands without it and gets better with it.
+
+## Corrected: this is NOT a kernel-anchors problem (2026-09-12)
+
+Ev asked whether recipe-shaped identity is actually required. **It is
+not, and the earlier reading on this row was wrong.**
+`crates/topo/src/source.rs`'s module doc says it outright:
+
+> the fields here are the *lowered* pure-data forms (`u64` node ids,
+> structural expression addresses). `editor-core` constructs them from
+> its typed `RecipeNodeId`/`ExprPath`; **this crate only ever compares
+> them for identity and flips orientation.**
+
+Confirmed against the tree: nothing maps a `GeomSource.node` back to a
+`RecipeNodeId`. The only uses of the field in `source.rs` are
+carry-through in `revert` and `placed` (`:110`, `:123`) and the equality
+at `:132` (`self.node == other.node && self.expr == other.expr`).
+
+So the link this row drew to `two-verb-seats-do-not-compose` was
+overstated and is withdrawn. A new minter does not need a recipe node.
+It owes two things:
+
+1. **The retirement theorem** — same `GeomSource` ⇒ bit-identical
+   descriptions. A STEP entity id satisfies it: same entity ⇒ same
+   parsed parameters ⇒ same bits, with placement composed in by
+   `Placed` exactly as the recipe layer does.
+2. **Namespace disjointness, and this one is load-bearing.**
+   `RecipeNodeId(pub u64)` is a full `u64`, so there is no free high
+   half to take. An import id colliding with a recipe node id would make
+   two unrelated surfaces read as same-source, and the boolean's
+   coincidence rung would glue them — silent wrong geometry, not a
+   refusal. The partition has to be designed, not assumed, and it is
+   question 4 of the `[ev]` doc.
+
+## Asked (2026-09-12) — `docs/AXIS-DECLARATION-DESIGN.md`
+
+`needs_ev: true`. The doc states the problem, why the original two-way
+fork dissolved, the recommended shape (declared intent + structural
+invalidation by placement-chain comparison), what it does not solve, and
+four questions. `docs/DESIGN.md`'s companion table carries a row marked
+OPEN QUESTION.
+
+The obligation this row already recorded travels with it:
+`crates/verbs/README.md` §3 P2's SPHSPH sentence is wrong as landed and
+is corrected when the question is answered.
