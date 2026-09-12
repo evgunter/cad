@@ -1721,3 +1721,67 @@ supply, since step 2 has to write one of the four origins with real
 content. A ratified design whose first mover is another program is
 exactly what gets lost when the ratifying program exits; the
 cross-references are the cheap insurance.
+
+## 2026-09-12 — S195 measured: the row was three-quarters discharged, and the fourth claim was wrong
+
+The lane ran the row's own thought experiment and the answer is clean.
+**21 sites compiler-forced by a seventh arc mode, one not** —
+`spec_arg_access!`, still `_ => None` — all found as build failures
+rather than by grep, which is the right instrument for "what does the
+compiler make you touch".
+
+Which guard fires is a **laziness gradient, not a coverage gap**:
+
+- the row's exact scenario (every forced site discharged, access arms
+  omitted) trips the **`panic!`**, naming role and step — `Profile
+  { loop_: 0, step: 17, arg: HeightVal } is enumerated but addresses
+  nothing` — and it was the ONLY red in a 1224-test binary;
+- one notch lazier (a `spec_slots` arm enumerating nothing) trips the
+  **count** clause instead, which said only *"the program has 133
+  expressions and enumerates 118 slots"* — naming neither mode nor
+  step. That is the gap, and the diff is 58 test lines closing it on
+  the failure path.
+
+Verdict on the row: three claims **stale** (`ArcMode::ALL` exists, four
+censuses exist, the corpus generates from `ALL`), and the fourth —
+"addresses nothing **silently**" — **wrong**, caught by name.
+
+**The sharper finding, which the row and this orchestrator's brief both
+missed**: `mode_witness` is a **compile error, not an assertion**. The
+mode census's teeth are in rustc, and the only assertion-level catch is
+the bijection clause. Both the row and the brief talk about the census
+as a runtime thing; it is mostly a type check with one runtime clause
+behind it. Under review as the unit's real result.
+
+**The brief was corrected on its own premise**, which is worth
+recording against the orchestrator rather than the lane: it asked which
+guard fires "depending on whether `spec_slots` is forced". `spec_slots`
+IS forced (exhaustive `match (spec, second)`), so that was never the
+variable — the variable is how an implementer fills the arm rustc
+demands.
+
+**`ArcSide`/`ArcSweep` need nothing, measured rather than assumed.**
+Both directions are compiler-forced (`from_side`/`into_side`,
+`from_sweep`/`into_sweep`), and both enums are binary **by geometry** —
+a half-plane bit and a travel sense — so there is no third variant to
+add. Nothing filed; the row now says so.
+
+**A fifth mode-keyed roster nobody in this row's lineage mentions**:
+`crates/pncad-py/src/surface_census.rs`. Noted for the class row.
+
+**Filed**: `wire-roundtrip-census-localises-nothing` — the wire
+round-trip clause fires correctly on a laundered vocabulary member and
+then prints two whole-corpus `Debug` dumps. Same shape as the count
+clause, different failure, correctly scoped out rather than swept in.
+
+**The classification cost, recorded as process.** The **H** class was
+set at the 2026-09-11 cut by reading the row's prose, when three of its
+four claims were already discharged — one of them by PR 2445 the day
+before dispatch. A five-minute read of `switch_program_vocabulary.rs`
+against the row would have re-dispatched it as a measurement a day
+earlier. **Second row today overtaken by adjacent work** (D364's census
+already existed too), which makes it a pattern rather than an accident:
+**read the row against the tree before dispatching it, not against its
+own prose.** Review posture lowered from full to light in `plan.md`
+with the reason recorded — the census it was going to build already
+exists, so nothing here can report green over a hole.

@@ -140,7 +140,8 @@ lane that finds the call wrong:
 | `names-flush-and-select-discard-a-refusal-with-map-err-underscore` *(raised at review time)* | two public enum variants gain a field, the argument rests on subnormal-float reachability, and user-visible Python refusal text moves |
 | `profile-has-no-scalar-lift-door` + `profile-embed-lift-has-two-homes-anchor-and-loft` | a new public lift API across three crates, and `end_profile` re-`validate`s the lift at `T` today; getting the door wrong changes what a loft builds |
 | `product-gather-refuses-a-split-root-whose-tie-spans-both-halves` | a stated rule about the product's aggregate name table, and the rule decides whether a name survives |
-| `D364`, then `S195` | a census is a claim about a vocabulary's completeness; a census with a hole reports green |
+| `D364` | a census is a claim about a vocabulary's completeness; a census with a hole reports green |
+| ~~`S195`~~ **lowered to light at review time** | the row turned out to be three-quarters discharged by work that landed after it was filed, so the unit was dispatched as a MEASUREMENT and its diff is 58 lines of test on a failure path with the assertion untouched. The census it was going to build already exists; nothing here can report green over a hole. The measurement itself is the deliverable and the reviewer re-takes it, which a light review does |
 
 Everything else is a light style review: the three E units, and any
 prose or tracker pass. A light review is still a review — the reviewer
