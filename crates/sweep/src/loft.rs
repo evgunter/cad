@@ -64,7 +64,7 @@ use geom_core::spline::SplineError;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
-use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
+use profile::{ProfileLoop, SketchPlane, ValidatedProfile};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
     PcurveMintError, ShellKey, SolidKey,
@@ -122,10 +122,6 @@ pub enum LoftError {
     /// The §10.3/§10.4 geometry construction refused (compatibility,
     /// degree, interpolation — every [`SkinError`] reason).
     Skin(SkinError),
-    /// An end section failed profile validation — a section that would
-    /// not extrude does not loft either (the wire-layer door, run
-    /// here so the library API is gated identically).
-    Profile(ProfileError),
     /// An Euler operator or certified attach refused mid-assembly
     /// (D4 ¶2 reports surface inside
     /// [`EulerOpError::Certification`]).
@@ -174,7 +170,6 @@ impl fmt::Display for LoftError {
         match self {
             Self::Band(e) => write!(f, "loft: {e}"),
             Self::Skin(e) => write!(f, "loft geometry: {e}"),
-            Self::Profile(e) => write!(f, "loft section profile: {e}"),
             Self::Euler(e) => write!(f, "loft assembly: {e}"),
             Self::CapPlane(e) => write!(f, "loft cap plane: {e}"),
             Self::Pcurve(e) => write!(f, "loft pcurve mint: {e}"),
@@ -214,36 +209,33 @@ impl From<EulerOpError> for LoftError {
     }
 }
 
-/// One end section as a profile at `T`: **validated once, at `f64`,
-/// and the verdict lifted** ([`ValidatedProfile::lift_onto`]) — the
-/// same shape the rest of this assembly already has, where the walls
-/// are `f64` surfaces carried to `T` by `map_scalar`.
+/// One end section as a profile at `T`: **the canonical form
+/// [`loft_geometry`] decided, lifted** ([`ValidatedProfile::lift_onto`])
+/// — the same shape the rest of this assembly has, where the walls are
+/// `f64` surfaces carried to `T` by `map_scalar`.
 ///
-/// A section is `f64` data (`Section`) and [`loft_geometry`] has
-/// already run it through [`Profile::validate`] at `f64` to get the
-/// canonical loops the walls are skinned from. Validating the same
-/// section a second time at `T` would decide its canonical form —
-/// loop roles, traversal sense, the lex-min start vertex, each
-/// segment's classification, each declared joint's tangency — in a
-/// second arithmetic over an exact embedding of the data the first
-/// verdict was made on. At a certified scalar that can only agree or
-/// escalate, never disagree, so the only thing it can add is a refusal
-/// that reports the second arithmetic's conservatism; and where the
-/// two canonical forms could ever part, the caps would stop being the
-/// walls' own sections. Carrying the `f64` verdict makes that
-/// agreement structural rather than assumed.
+/// The section was validated once, at the geometry door, and that
+/// verdict is what the walls were skinned from
+/// ([`LoftGeometry::canonical`]). Deciding the canonical form again
+/// here — loop roles, traversal sense, the lex-min start vertex, each
+/// segment's classification, each declared joint's tangency — would
+/// make the caps a SECOND canonicalization of the same data, agreeing
+/// with the walls' by determinism rather than by construction; and at
+/// the evaluation scalar it would decide over an exact embedding of
+/// the data the first verdict was made on, which at a certified scalar
+/// can only agree or escalate, never disagree. Reading the decided
+/// form makes the caps the walls' own sections.
 ///
-/// A section that would not extrude still does not loft: the `f64`
-/// validation is the gate, and it refuses here.
+/// The gate a section that would not extrude meets is
+/// [`loft_geometry`]'s, which refuses it
+/// [`SkinError::SectionProfile`] before any of this runs.
 fn end_profile<T: Real>(
-    section: &Section,
+    canonical: &ValidatedProfile<f64>,
     place: &Affine3<f64>,
-    tol: Tol,
-) -> Result<ValidatedProfile<T>, LoftError> {
-    Profile::new(SketchPlane::new(*place), section.clone())
-        .validate(tol)
-        .map_err(LoftError::Profile)
-        .map(|validated| validated.lift_onto(SketchPlane::new(place.map(T::from_f64))))
+) -> ValidatedProfile<T> {
+    canonical
+        .clone()
+        .lift_onto(SketchPlane::new(place.map(T::from_f64)))
 }
 
 /// The world point of a sketch-plane point under a lifted placement.
@@ -259,22 +251,21 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 /// [`LoftError`] — every door named on the enum.
 #[allow(clippy::too_many_lines)] // one construction, kept whole like extrude's
 fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
-    sections: &[Section],
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let band = Band::linear(tol).map_err(LoftError::Band)?;
-    let (Some(sec_bottom), Some(sec_top), Some(place_bottom), Some(place_top)) = (
-        sections.first(),
-        sections.last(),
+    let (Some(can_bottom), Some(can_top), Some(place_bottom), Some(place_top)) = (
+        geometry.canonical.first(),
+        geometry.canonical.last(),
         places.first(),
         places.last(),
     ) else {
         return Err(LoftError::SectionStructure);
     };
-    let bottom_profile: ValidatedProfile<T> = end_profile(sec_bottom, place_bottom, tol)?;
-    let top_profile: ValidatedProfile<T> = end_profile(sec_top, place_top, tol)?;
+    let bottom_profile: ValidatedProfile<T> = end_profile(can_bottom, place_bottom);
+    let top_profile: ValidatedProfile<T> = end_profile(can_top, place_top);
     let bplace: Affine3<T> = place_bottom.map(T::from_f64);
     let tplace: Affine3<T> = place_top.map(T::from_f64);
     let n_bottom = bplace.linear.c2;
@@ -621,7 +612,7 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let geometry = loft_geometry(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
-    assemble(sections, places, &geometry, tol)
+    assemble(places, &geometry, tol)
 }
 
 /// **The path-swept body** (§10.4 as a solid): places rigid copies of
@@ -655,5 +646,5 @@ pub fn sweep_body<T: Decide + geom_brep::PcurveFittedLane>(
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
     let sections: Vec<Section> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
     let geometry = loft_geometry(&sections, &places, v_degree, tol).map_err(LoftError::Skin)?;
-    assemble(&sections, &places, &geometry, tol)
+    assemble(&places, &geometry, tol)
 }

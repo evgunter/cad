@@ -1222,7 +1222,6 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
     match err {
         LoftError::Band(_) => "band",
         LoftError::Skin(_) => "skin",
-        LoftError::Profile(_) => "profile",
         LoftError::Euler(_) => "euler",
         LoftError::CapPlane(_) => "cap_plane",
         LoftError::Pcurve(_) => "pcurve",

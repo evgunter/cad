@@ -20,10 +20,12 @@
 //! otherwise verbatim (authorship the reviewer's).** The door these rows
 //! exercise is spelled `ProfileLoop::map_scalar` at the merged head, not
 //! `embed`: R2-Q1 ruled that `embed` was a fourth private word for what
-//! `Point2`/`Vec2`/`Affine3`/`SketchPlane` all call `map`. Every
-//! `src.embed()` here is `src.map(<f64 as Real>::from_f64)` or
-//! `src.map(Interval::from_f64)`; nothing else about what these rows
-//! measure has changed.
+//! `Point2`/`Vec2`/`Affine3`/`SketchPlane` all call `map` — a leaf's
+//! name, which a loop's lift then took under the scalar-lift
+//! convention. Every `src.embed()` here is
+//! `src.map_scalar(<f64 as Real>::from_f64)` or
+//! `src.map_scalar(Interval::from_f64)`; nothing else about what these
+//! rows measure has changed.
 //!
 //! **Second adoption note (the `origin/main` merge).** `embed_profile`
 //! no longer exists: main's `ValidatedProfile::lift_onto` moved

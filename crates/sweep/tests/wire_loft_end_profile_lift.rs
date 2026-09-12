@@ -10,10 +10,18 @@
 //! end-profile lift that moved a bit, rotated a loop's canonical start
 //! or reversed its traversal fails here.
 //!
-//! The oracle is built through the public profile door
-//! (`Profile::validate` on the section at its own placement), not
-//! through the loft, so a row cannot pass by agreeing with the
-//! assembly about what the assembly does.
+//! The strut rows' expectation is built through `Profile::validate` on
+//! the section at its own placement. That IS the call `loft_geometry`
+//! makes at the door, so the row is not independent of the decision
+//! under test; what it still pins independently is everything the
+//! assembly does with that decision — which canonical vertex each
+//! strut is wired to, and that `lift_onto` carries the scalars onto
+//! the lane's placement without touching a bit.
+//!
+//! The last row is the separating one: a section whose `f64`
+//! validation decides and whose `Interval` re-validation escalates
+//! lofts at `Interval`, because the assembly reads the decided form
+//! instead of deciding again.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Real, Tol, Vec3};
@@ -35,6 +43,32 @@ fn circle(r: f64) -> ProfileLoop<f64> {
 fn cone_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
     (
         vec![vec![circle(1.0)], vec![circle(0.625)]],
+        vec![
+            Affine3::identity(),
+            Affine3::translation(Vec3::new(0.0, 0.0, 1.5)),
+        ],
+    )
+}
+
+/// **The separating fixture.** Two vertices at `(∓h, 0)`, both bulge
+/// `b` — a pair of arcs whose carrier is `b`-times longer than the
+/// chord, so `validate`'s segment-pair gates run on quantities of
+/// wildly different magnitude. At `f64` every one of them decides; at
+/// `Interval` the same gates over an exact embedding of the same
+/// numbers escalate, because the carrier arithmetic's outward rounding
+/// is wide next to the band. Round parameters, not a knife edge: the
+/// separation holds over `(h, b)` orders of magnitude apart.
+fn wide_arc(h: f64, b: f64) -> ProfileLoop<f64> {
+    ProfileLoop::new(vec![
+        ProfileVertex::new(Point2::new(-h, 0.0), b),
+        ProfileVertex::new(Point2::new(h, 0.0), b),
+    ])
+}
+
+/// `h = 5`, `b = 1e3`, the top section at `h · 0.625`.
+fn wide_arc_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
+    (
+        vec![vec![wide_arc(5.0, 1e3)], vec![wide_arc(5.0 * 0.625, 1e3)]],
         vec![
             Affine3::identity(),
             Affine3::translation(Vec3::new(0.0, 0.0, 1.5)),
@@ -104,13 +138,28 @@ fn each_seam_strut_joins_its_canonical_vertexs_two_world_points() {
     }
 }
 
+/// The `f64` half of the separating fixture: it validates and it
+/// lofts. The `Interval` half — the one that moved — is in the
+/// interval module below.
+#[test]
+fn the_wide_arc_section_decides_and_lofts_at_f64() {
+    let (sections, places) = wide_arc_sections();
+    for (s, p) in sections.iter().zip(&places) {
+        Profile::new(SketchPlane::new(*p), s.clone())
+            .validate(Tol::witness())
+            .expect("the wide-arc section decides at f64");
+    }
+    loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("and it lofts at f64");
+}
+
 /// The interval twin: the same struts at `Interval` carry the same
 /// points as POINT enclosures. Nothing widens, because the end
 /// profiles are lifted rather than re-derived at the scalar.
 #[cfg(feature = "interval")]
 mod interval {
-    use super::{Bits, cone_sections, edge_points, expected_struts};
-    use geom_core::{Bounds, Interval, Point3, Tol};
+    use super::{Bits, cone_sections, edge_points, expected_struts, wide_arc_sections};
+    use geom_core::{Bounds, Interval, Point3, Real, Tol};
+    use profile::{Profile, SketchPlane};
     use sweep::loft_body;
 
     fn bits(p: Point3<Interval>) -> Bits {
@@ -123,6 +172,31 @@ mod interval {
             );
         }
         (p.x.lo().to_bits(), p.y.lo().to_bits(), p.z.lo().to_bits())
+    }
+
+    /// **The behaviour that moved, pinned.** The section's `Interval`
+    /// RE-validation escalates — that is what an assembly deciding the
+    /// canonical form at the evaluation scalar would have met, and it
+    /// is why this loft refused before the end profiles read the
+    /// decided form. The loft now builds.
+    #[test]
+    fn a_section_whose_interval_revalidation_escalates_still_lofts() {
+        let (sections, places) = wide_arc_sections();
+        for (s, p) in sections.iter().zip(&places) {
+            let raw = Profile::new(SketchPlane::new(*p), s.clone());
+            raw.validate(Tol::witness())
+                .expect("the section decides at f64");
+            let err = raw
+                .map_scalar(Interval::from_f64)
+                .validate(Tol::witness())
+                .expect_err("and its Interval re-validation escalates");
+            assert!(
+                matches!(err, profile::ProfileError::Escalated { .. }),
+                "the separation is an escalation, not a disagreement: {err:?}"
+            );
+        }
+        loft_body::<Interval>(&sections, &places, 1, Tol::witness())
+            .expect("the loft builds at Interval from the decided f64 form");
     }
 
     #[test]
