@@ -1694,3 +1694,105 @@ refusals, the many-to-one `check_residual` pairing). **The posture
 works on the condition that the disclosed-uncertainty half is
 actually honoured.** A lane that smooths over its doubts under this
 posture ships unreviewed and unexamined at once.
+
+## Wave 2, 2026-09-12
+
+### The two mate rows are re-homed, and the stale line was a trap rather than a leftover
+
+`levered-clash-margins-hide-their-arm` → **`work/msolve/`**;
+`mate-clocking-has-no-gui-path` → **`work/docm/`**. Files MOVED with
+their ids per `work/README.md`; FIX changed no code and took nothing.
+
+The first row said it *"needs S-MATE's assent or a re-home"*, and
+S-MATE left the tracker on 2026-09-04. Read quickly that is a blocker
+evaporating. It is the opposite: **the territory was inherited, not
+freed** — `work/msolve/program.md` and `work/docm/program.md` both
+carry `crates/editor-core/src/mate/*` in `paths`. The assent was still
+owed, to a live owner instead of a dead one, and a lane reading the
+line as "the owner is gone, take it" would have walked into two live
+fences. That is the `fired trigger is not a blocker` shape one level
+above what lint checks: the blocker closed and the closure did not
+free the row, it substituted two owners for one. Nothing mechanical
+catches it, because the blocker was prose.
+
+The split follows the charters as written. MSOLVE is *"assembly
+SEMANTICS rather than document custody: … one refusal that reports a
+false cause"* — a clash margin reaching the user with its arm
+invisible is exactly that. DOCM is *"the persisted recipe vocabulary,
+the `DocEdit` set …"* and already held half (2) of the clocking row at
+`work/docm/plan.md:94-96`; an `AddMate` door refusing at authoring
+time is the `DocEdit` set, so both halves go there rather than one
+finding living on two slates. DOCM's charter is to rule and **hand the
+build to FIX, CHROME or VIEW** — so if half (1) rules "refuse typed at
+the door", it comes back here and this program takes it.
+
+**And MSOLVE is not merely the owner of its row, it is working that
+subject now**: open PR **#2116, "MSOLVE-6: the mate's lever is the
+mated parts' own extent"**, against a row about three levered margins
+whose arm the refusal drops. Sequenced against #2116, not beside it.
+
+### A row arrived on this slate overnight, and it is FIX's own doing
+
+`num-relative-tolerance-collides-above-a-decimetre`, filed by the DOOR
+orchestrator — correctly onto this slate rather than carried on
+theirs, since `path::num` is FIX's file and FIX closed two rows on
+that helper on 2026-09-11.
+
+**It is the opposite end of the range from the one FIX just closed.**
+PR 2366 removed a `.max(1.0)` that pinned the tolerance ABSOLUTE at
+1e-9 below a metre, rendering every sub-nanometre margin as `0` — the
+exact margins those messages exist to report. The purely relative form
+that replaced it is right at the small end. It is wrong at the large
+end: verified at dispatch, `crates/profile/src/path.rs:1416` reads
+`let tol = 1e-9 * x.abs();` and `DEFAULT_EPS` is `1e-9`
+(`crates/geom-core/src/tolerance.rs:84`), so the tolerance crosses ε
+at `|x| = 1` m and is a thousand ε at a kilometre. **Two lengths the
+kernel can certify as different render as one number.**
+
+The unit is dispatched with the trap named: the reviewer brief's
+standing warning is that a lane closing a structural finding mints a
+fresh instance of the defect it closes, and a fix here that
+reintroduces a floor re-mints 2366's defect exactly. The cap form
+leaves the sub-ε regime untouched.
+
+### Wave 2 dispatched — five lanes
+
+| unit | branch | ground |
+|---|---|---|
+| `num-relative-tolerance-collides-above-a-decimetre` | `fix/num-tolerance-cap` | `profile/src/path.rs` |
+| `coherence-findings-have-no-consumer` (CheckId half) | `fix/chart-coherence-check` | `editor-core/src/checks.rs` |
+| `underflow-gate-owed-at-five-more-doors` | `fix/underflow-gate-doors` | `geom-core`, `sweep`, `topo/sector_shape.rs`, `profile/path/arc_fillet.rs` |
+| `validation-arms-delegate-a-recourse-their-carriers-do-not-give` | `fix/validation-recourse-arms` | four carriers, four owners |
+| `error-census-keyed-on-bare-type-name` | `fix/census-declaring-path-key` | `pncad-py/src/prose_census.rs` |
+
+**Two collisions designed out rather than discovered.** The num lane
+and the underflow lane both have business in `crates/profile/src/path*`
+— the underflow row's fifth site IS `path.rs:2907`, and the item
+already says that site's real defect is the rendering, which is the
+num lane's. So the underflow lane is told to take four arms, not five,
+and to touch no file the num lane owns. Separately, three open rows
+target `prose_census.rs`; only one is dispatched.
+
+**An overlap found in triage and handed to a lane rather than left in
+two rows.** `error-census-keyed-on-bare-type-name` and class 3 of
+`prose-census-undecided-residue` (*"names with rival declarations …
+resolving a bare name through its file's `use` items would decide most
+of them"*) are one defect seen from two sides, and one repair closes
+both. The lane takes class 3 in the same PR and shrinks the
+`UNDECIDED` roster by what it decides; classes 1 and 2 stay open.
+The lane is told to verify the overlap before building on it, because
+it is my claim and not either row's.
+
+### The brief gained two clauses this wave
+
+**Instruction 4, new:** *an orchestrator disposition asserting what
+code DOES is subject to instruction 1 too.* Written because the fifth
+characterisation error of the 2026-09-11 wave was mine, in the act of
+dispatching a brief about the first four. Two of this wave's briefs
+carry my measured claims; both lanes are told to re-derive them and
+report a correction as a finding in its own right.
+
+**A per-lane scratchpad**, after last wave's five lanes shared one
+directory and overwrote each other's `poll.py` and `pr.md` mid-task.
+Nothing was lost, but a lane that writes a PR body to a shared path
+and posts it a minute later posts a sibling's text.
