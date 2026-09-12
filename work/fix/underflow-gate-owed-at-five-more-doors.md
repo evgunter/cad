@@ -3,6 +3,7 @@ id: underflow-gate-owed-at-five-more-doors
 kind: issue
 title: five more decide-then-normalize doors owe the underflow gate, and one of them renders an underflowed component as 0
 status: open
+branch: fix/underflow-gate-doors
 opened: 2026-09-11
 ---
 
@@ -60,3 +61,33 @@ poison), and PR 2359 pinned that in two rows deliberately: an
 enclosure still contains the true length and nothing underflowed out
 of the format. Any new door gets the same posture, or argues against
 it at the site.
+
+## Taken: three of the four arms (branch `fix/underflow-gate-doors`)
+
+**Landed.** `frame.rs`'s `definitely_positive` (the witness plumbed
+through its signature, all four call sites), `revolve::axis::AxisFrame::build`,
+and `sector_shape` (per CHORD, before the `min`). Each got a new typed
+arm beside its existing non-finite one, its own rendering, and a
+red-first row that was executed against the gate-less tree rather than
+argued. The witness derivation moved into `Vec2::norm_witness` /
+`Vec3::norm_witness`, and `decide_unit_direction` was re-spelled onto
+it so the workspace has one derivation.
+
+**Not taken: `profile/src/path/arc_fillet.rs:915` `carrier_tangent`.**
+The arm it needs is `PathError::UnderflowedDirection { dx, dy }` with a
+`PathErrorKind` twin and a `Display` — and `PathError`,
+`PathErrorKind` and that `Display` all live in
+`crates/profile/src/path.rs:782`, `:1273`, `:1660`, which a concurrent
+lane held for the whole of this unit's life. The door itself is one
+`if` in `arc_fillet.rs`; the variant it refuses with is three edits in
+a file this branch could not touch. Everything else it needs is in
+place: the witness is `v.norm_witness()` on the `Vec2` it already
+binds, and the sibling overflow arm
+(`PathError::NonFiniteDirection { dx, dy }`) is the shape to copy.
+Nothing pins the current refusal (`DegenerateArcCenter { radius: 0.0 }`
+at an anchor ~1e-200 from the centre), so the red-first row is owed
+with it.
+
+`unit_from_components` remains the fifth door and remains declined:
+its sentence and its recourse are already right, and its rendering is
+`path-error-numbers-below-1e-9-render-as-zero`, not this item.

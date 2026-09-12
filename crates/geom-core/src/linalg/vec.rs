@@ -105,6 +105,26 @@ impl<T: Real> Vec2<T> {
         self.norm_squared().sqrt()
     }
 
+    /// The **witness** [`is_underflowed_length`](crate::is_underflowed_length)
+    /// asks its question against: the largest `|component|`.
+    ///
+    /// That predicate's contract is that `witness` is the largest
+    /// absolute component of the very vector whose norm it is handed,
+    /// and **nothing in its signature enforces the pairing** — so the
+    /// derivation is spelled here, once, rather than at each door. The
+    /// norm brackets this value, `max|cᵢ| ≤ |v| ≤ √2·max|cᵢ|`, whenever
+    /// the norm is computed rather than flushed to zero; that bracket is
+    /// what makes the predicate's two ratios a decision rather than a
+    /// threshold.
+    ///
+    /// **This is not a length.** It is the ∞-norm, offered only as that
+    /// question's witness; a door that wants a length wants
+    /// [`norm`](Self::norm). The two are written on adjacent lines at
+    /// every call site for that reason.
+    pub fn norm_witness(self) -> T {
+        self.x.abs().max(self.y.abs())
+    }
+
     /// The unit vector in this direction, exactly `self / self.norm()`
     /// (one division per component).
     ///
@@ -236,6 +256,26 @@ impl<T: Real> Vec3<T> {
     /// hypot (see `real.rs` on why fused conveniences are excluded).
     pub fn norm(self) -> T {
         self.norm_squared().sqrt()
+    }
+
+    /// The **witness** [`is_underflowed_length`](crate::is_underflowed_length)
+    /// asks its question against: the largest `|component|`.
+    ///
+    /// That predicate's contract is that `witness` is the largest
+    /// absolute component of the very vector whose norm it is handed,
+    /// and **nothing in its signature enforces the pairing** — so the
+    /// derivation is spelled here, once, rather than at each door. The
+    /// norm brackets this value, `max|cᵢ| ≤ |v| ≤ √3·max|cᵢ|`, whenever
+    /// the norm is computed rather than flushed to zero; that bracket is
+    /// what makes the predicate's two ratios a decision rather than a
+    /// threshold.
+    ///
+    /// **This is not a length.** It is the ∞-norm, offered only as that
+    /// question's witness; a door that wants a length wants
+    /// [`norm`](Self::norm). The two are written on adjacent lines at
+    /// every call site for that reason.
+    pub fn norm_witness(self) -> T {
+        self.x.abs().max(self.y.abs()).max(self.z.abs())
     }
 
     /// The unit vector in this direction, exactly `self / self.norm()`
