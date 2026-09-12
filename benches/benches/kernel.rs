@@ -231,6 +231,9 @@ fn kernel_ops(c: &mut Criterion) {
     // one-thread map IS the serial walk these rows have always
     // measured, so it continues that column; the four-thread row is a
     // NEW column and is rostered as one, in the same diff.
+    // The pool rule has one home for the kernel's own suites,
+    // `crates/sweep/tests/common::on_pool`; this root is a separate
+    // cargo root and cannot reach it, so the two lines are here.
     for threads in [1usize, 4] {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
