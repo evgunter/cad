@@ -125,3 +125,36 @@ still held by nothing. What is gone is the pair a reader could open,
 so a successor needs a fresh example. No repoint is offered: the
 numbers named text that no longer exists, and a number moved onto its
 neighbour would be worse than a stale one.
+
+## Note (`view/possessive-spans`, 2026-09-12): two populations this spec does not cover, one of them the reason a live defect survived
+
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`
+closed over a doc comment naming `unit_picker`, a symbol that exists
+nowhere in the workspace, written `` `app` ``'s `` `unit_picker` ``. Its
+real referent is `crate::widgets::length_picker` — the module was wrong
+as well as the name.
+
+**A gate built to the spec above would not have caught it.** The spec
+resolves names of the shape `<own-mod>::<ident>`, and this defect was
+never written with a module qualifier at all: the qualifier sat in a
+separate span, and was the wrong module. So what this gate is specced
+over is *qualified* names in comments, and it should say that where it
+says "any comment". Covering the possessive spelling means resolving a
+BARE identifier span, which is a far larger and noisier subject (every
+`` `foo` `` in every comment) than `<own-mod>::<ident>`. Whoever builds
+this should decide that deliberately rather than inherit it; the honest
+options are to declare the bare case out of scope in writing, or to
+narrow it to bare spans whose sentence names a module in a neighbouring
+span — which is exactly the possessive population that row swept, five
+sites in the renderer-free half and eight crate-wide.
+
+**And a second reach question, on this item's own axis rather than the
+parent's.** `crates/viewer/src/widgets.rs`'s test module carries `///`
+doc comments on its fixture types, and one of them named
+`crate::pane::properties`'s `slot_row_ui`, which does not exist either
+(corrected to `slot_value_ui` by the same unit). A `///` comment inside
+a `#[cfg(test)] mod` is read by no rustdoc pass this repo runs — the
+doc builds do not enable `cfg(test)` — so it is outside rustdoc's reach
+for a reason unrelated to `//` versus `///`, and a bracket there would
+be punctuation exactly as this item's opening paragraph describes.
+Neither of the two blind spots measured above names it.
