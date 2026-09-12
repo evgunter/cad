@@ -326,6 +326,10 @@ impl core::fmt::Display for Eps {
 /// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned`, which counts
 /// the named operations per file and reds when one lands. A list here
 /// could not, and one here was short by a read for two milestones.
+/// One place holds ε's bits without reading them: the patch memo's
+/// key (`crate::memo`) folds the ambient ε and k as bytes, so a
+/// tolerance change misses every memoised face. That is not a
+/// decision and not an [`Eps`]; the inventory row names it as such.
 /// **What KIND each read is, the type now carries**: every ε read in
 /// this crate is one of [`Eps`]'s four operations, so a fifth read
 /// picks a name or adds a method rather than spelling its own band

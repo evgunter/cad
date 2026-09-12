@@ -5,10 +5,11 @@ use std::collections::HashMap;
 
 use geom::Surface;
 use geom_core::{Band, Point3, Tol};
-use topo::Body;
+use topo::{Body, FaceKey};
 
 use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
+use crate::memo::{FaceInputs, PatchKeys, PatchMemo};
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
 use crate::sizing::{Eps, SizingTols, sizing_target};
@@ -146,9 +147,116 @@ impl Patch {
 /// not its own UV rectangle, empty loops, dangling keys, resolution
 /// overflow, certificate failure, CDT insertion failure.
 pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
+    tessellate_impl(body, chordal, tol, None).map(|(mesh, _)| mesh)
+}
+
+/// A mesh built through the memo, with the digest of each face's
+/// inputs so the caller can keep those faces alive across a picture
+/// it does not re-tessellate ([`PatchMemo::keep`]).
+#[derive(Clone, Debug)]
+pub struct Tessellation {
+    /// The mesh — byte-identical to [`tessellate`]'s for the same
+    /// `(body, chordal, tol)`.
+    pub mesh: Mesh,
+    /// One digest per face, in face-arena order.
+    pub keys: PatchKeys,
+}
+
+/// [`tessellate`], answering each face from `memo` where the memo
+/// holds a patch under the face's content key and running its lane
+/// otherwise — the incremental re-tessellation door the crate's
+/// memo-key contract exists for.
+///
+/// The chord pass runs as in [`tessellate`] (it is per edge and
+/// cheap); per face the lane is skipped on a memo hit and the stored
+/// patch is placed by the same fold. The mesh is byte-identical to
+/// [`tessellate`]'s: a hit is by the full key bytes, and the key is
+/// every input the lane reads (`crate::memo`'s module docs state it
+/// per lane). What a hit does NOT run is the lane's own per-patch
+/// census and, with the `budget` feature, its recording; the
+/// cross-face census at the end runs either way.
+///
+/// The memo's lifetime is the caller's: [`PatchMemo::end_picture`]
+/// after every picture is what keeps it one picture's size.
+///
+/// # Errors
+///
+/// As [`tessellate`].
+pub fn tessellate_with(
+    body: &Body<f64>,
+    chordal: f64,
+    tol: Tol,
+    memo: &mut PatchMemo,
+) -> Result<Tessellation, TessellateError> {
+    tessellate_impl(body, chordal, tol, Some(memo)).map(|(mesh, keys)| Tessellation { mesh, keys })
+}
+
+/// Which lane a face takes — the dispatch, named so the memo key can
+/// fold the same decision it is made by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Lane {
+    /// `planar::tessellate_planar`: CDT of the boundary in a chart
+    /// frame derived from the boundary itself.
+    Planar,
+    /// `curved::tessellate_curved`: the iso-rectangle walk plus UV
+    /// grid on a swept analytic chart.
+    Curved,
+    /// `trimmed::tessellate_trimmed`: the pcurve-driven lane, on a
+    /// cylinder chart with a trim carrier or on any NURBS chart.
+    Trimmed,
+}
+
+/// The dispatch.
+///
+/// Described NURBS faces route through the trimmed lane
+/// unconditionally (M7 — the flip of the historical first-arm
+/// refusal, whose record is on
+/// [`TessellateError::UnsupportedSurface`]): a NURBS face has no
+/// swept-rectangle chart, so the pcurve-driven walk is its only lane.
+/// The placeholder still refuses typed inside the lane;
+/// illegal-rational/C⁰ classes refuse
+/// [`TessellateError::UnsupportedNurbsFace`] there too. An
+/// approximating surface meshes through the SAME lane, on its fit: the
+/// fit is the geometry, so the triangles it produces are the face's
+/// own. The certificate's bound is deliberately NOT folded into the
+/// mesh tolerance — widening `tol` by the fit's ε so the mesh
+/// certifies against the DESCRIPTION is a separate statement, and this
+/// pass makes the plain one.
+///
+/// Structural routing (M5 PR 11): a conic/B-spline trim carrier means
+/// the face is not an iso-rectangle — the pcurve-driven trimmed lane
+/// takes it. The converse does NOT follow: this is a test on carrier
+/// KINDS, and iso carriers (`Line`, `Circle`) can bound a
+/// NON-rectangular domain — a keyway or milled flat on a cylinder is
+/// exactly that shape, and nothing on this path screens loop SHAPE. So
+/// an iso boundary reaching `tessellate_curved` is a routing decision,
+/// not a guarantee about the domain; the domain itself is checked
+/// there, twice over — its SHAPE through props' iso-rectangle door
+/// before the walk (`curved::require_iso_rectangle_face`, refusing
+/// [`TessellateError::UnsupportedCurvedShape`]) and the walk's
+/// consistency after it (`curved::require_swept_rectangle`, refusing
+/// [`TessellateError::UnsupportedCurvedDomain`]).
+fn lane_of(body: &Body<f64>, fk: FaceKey, surface: &Surface<f64>) -> Result<Lane, TessellateError> {
+    Ok(match *surface {
+        Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
+        Surface::Plane { .. } => Lane::Planar,
+        _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
+        _ => Lane::Curved,
+    })
+}
+
+/// The one implementation behind both doors: `memo` is `None` for
+/// [`tessellate`] and the path is then exactly the memo-free one.
+fn tessellate_impl(
+    body: &Body<f64>,
+    chordal: f64,
+    tol: Tol,
+    mut memo: Option<&mut PatchMemo>,
+) -> Result<(Mesh, PatchKeys), TessellateError> {
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }
+    let ambient = tol;
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
     // `Band::linear` prescribes; the curved lane's shape door is its
@@ -209,6 +317,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
 
     // Per-face dispatch, face-arena order.
     let mut patches = Vec::new();
+    let mut keys = PatchKeys::default();
     for (fk, face) in body.faces() {
         let surface = body
             .get_surface(face.surface)
@@ -221,74 +330,50 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             eps,
             band,
         };
-        let patch = match *surface {
-            // Described NURBS faces route through the trimmed lane
-            // unconditionally (M7 — the flip of the historical
-            // first-arm refusal, whose record is on
-            // [`TessellateError::UnsupportedSurface`]): a NURBS face
-            // has no swept-rectangle chart, so the pcurve-driven walk
-            // is its only lane. The placeholder still refuses typed
-            // inside the lane; illegal-rational/C⁰ classes refuse
-            // [`TessellateError::UnsupportedNurbsFace`] there too.
-            // An approximating surface meshes through the SAME lane,
-            // on its fit: the fit is the geometry, so the triangles it
-            // produces are the face's own. The certificate's bound is
-            // deliberately NOT folded into the mesh tolerance here —
-            // widening `tol` by the fit's ε so the mesh certifies
-            // against the DESCRIPTION is a separate statement, and
-            // this pass makes the plain one.
-            Surface::Nurbs(_) | Surface::Approx(_) => crate::trimmed::tessellate_trimmed(
+        let lane = lane_of(body, fk, surface)?;
+        // The lanes, each over `positions[..shared_below]` — the whole
+        // of what a face reads from outside itself (above).
+        //
+        // The planar lane derives its chart frame from the face's own
+        // boundary (planar.rs module docs, #284) — the stored plane
+        // axes are deliberately not passed: imported axes carry
+        // translator noise that projects valid boundaries below
+        // spade's coordinate domain.
+        let run = |bounds| match lane {
+            Lane::Trimmed => crate::trimmed::tessellate_trimmed(
                 body,
                 fk,
                 surface,
                 &chords,
                 &positions[..shared_below],
                 &tol,
-                &mut bounds,
-            )?,
-            // The planar lane derives its chart frame from the face's
-            // own boundary (planar.rs module docs, #284) — the stored
-            // plane axes are deliberately not passed: imported axes
-            // carry translator noise that projects valid boundaries
-            // below spade's coordinate domain.
-            Surface::Plane { .. } => {
-                tessellate_planar(body, fk, &chords.ids, &positions[..shared_below])?
-            }
-            // Structural routing (M5 PR 11): a conic/B-spline trim
-            // carrier means the face is not an iso-rectangle — the
-            // pcurve-driven trimmed lane takes it.
-            //
-            // The converse does NOT follow: this is a test on carrier
-            // KINDS, and iso
-            // carriers (`Line`, `Circle`) can bound a NON-rectangular
-            // domain — a keyway or milled flat on a cylinder is exactly
-            // that shape, and nothing on this path screens loop SHAPE.
-            // So an iso boundary reaching `tessellate_curved` is a
-            // routing decision, not a guarantee about the domain; the
-            // domain itself is checked there, twice over — its SHAPE
-            // through props' iso-rectangle door before the walk
-            // (`curved::require_iso_rectangle_face`, refusing
-            // [`TessellateError::UnsupportedCurvedShape`]) and the
-            // walk's consistency after it
-            // (`curved::require_swept_rectangle`, refusing
-            // [`TessellateError::UnsupportedCurvedDomain`]).
-            _ if crate::trimmed::has_trim_carrier(body, fk)? => crate::trimmed::tessellate_trimmed(
-                body,
-                fk,
-                surface,
-                &chords,
-                &positions[..shared_below],
-                &tol,
-                &mut bounds,
-            )?,
-            _ => tessellate_curved(
+                bounds,
+            ),
+            Lane::Planar => tessellate_planar(body, fk, &chords.ids, &positions[..shared_below]),
+            Lane::Curved => tessellate_curved(
                 body,
                 fk,
                 surface,
                 &chords.ids,
                 &positions[..shared_below],
                 &tol,
-            )?,
+            ),
+        };
+        let patch = match memo.as_deref_mut() {
+            None => run(&mut bounds)?,
+            Some(memo) => {
+                let inputs = FaceInputs::gather(
+                    body,
+                    fk,
+                    lane,
+                    surface,
+                    &chords,
+                    &positions[..shared_below],
+                    chordal,
+                    ambient,
+                )?;
+                memo.face(&inputs, &mut keys, || run(&mut bounds))?
+            }
         };
         // Each face's interior takes the arena as it stands at that
         // face's turn, in face-arena order (D9).
@@ -360,7 +445,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
         );
     }
 
-    Ok(mesh)
+    Ok((mesh, keys))
 }
 
 /// The chord segment that is NOT used by exactly two face triangles,

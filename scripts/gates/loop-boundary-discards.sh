@@ -133,7 +133,7 @@ WINDOW=16
 REGISTER=(
   "crates/editor-core/src/names/emit.rs|face_half_edges||1|unaudited"
   "crates/mesh/src/trimmed.rs|trim_polygon||1|unaudited"
-  "crates/mesh/src/walk.rs|loop_edges||1|unaudited"
+  "crates/mesh/src/walk.rs|loop_half_edges||1|unaudited"
   "crates/step-export/src/volume.rs|shell_signed_volume||1|unaudited"
   "crates/step-export/src/writer.rs|face_bound||1|unaudited"
   "crates/step-import/src/adopt.rs|rotate_loop_firsts||1|unaudited"
