@@ -52,8 +52,16 @@
 //!   cost; 1e-3 gives the 1/δ shape.
 //! * `validate/tier23_washer` — the commit lane's validation ladder on a
 //!   revolved body (findings 4, 5, 16).
-//! * `mass_props/washer` — per-face flux quadrature; §2.2's canonical
-//!   idiom-2 parallelism target, unbuilt.
+//! * `mass_props/washer/{t1,t4}` and `validate/tier23_washer/{t1,t4}` —
+//!   per-face flux quadrature, §2.2's canonical idiom-1-then-idiom-2
+//!   target, now built: `topo::props` decides faces in an indexed
+//!   parallel map and folds the slots in arena order. The washer's
+//!   faces are all closed forms, so the pair does not measure a
+//!   speed-up — it measures the PRICE of the shape on a body that
+//!   cannot use it: the per-face detached frame, the slot vector and
+//!   rayon's own dispatch, against a walk whose whole cost is
+//!   microseconds. That is the row a regression would show up in
+//!   first, which is why both thread counts are here rather than one.
 //! * `build/extrude` — Euler-op surgery through the sweep front door
 //!   (finding 9's kill-direction arena scans).
 //! * `boolean/two_bricks` — the boolean commit path: join (finding 13),
@@ -202,14 +210,33 @@ fn kernel_ops(c: &mut Criterion) {
 
     // Tier 2 + tier 3: `validate_geometric` runs the structural tiers
     // first (`validate_closed`), then the geometric ones.
-    group.bench_function("validate/tier23_washer", |b| {
-        b.iter(|| {
-            validate_geometric(black_box(&body), Tol::witness()).expect("the washer certifies")
+    //
+    // Both rows are taken at ONE and FOUR threads. The pool is explicit
+    // rather than `RAYON_NUM_THREADS`, which configures the global pool
+    // once per process and so cannot vary between two rows of one
+    // binary; `ThreadPool::install` runs the row on that pool, which is
+    // also the pool the walk's own map then uses.
+    for threads in [1usize, 4] {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .expect("the pool builds");
+        group.bench_function(format!("validate/tier23_washer/t{threads}"), |b| {
+            b.iter(|| {
+                pool.install(|| {
+                    validate_geometric(black_box(&body), Tol::witness())
+                        .expect("the washer certifies")
+                })
+            });
         });
-    });
-    group.bench_function("mass_props/washer", |b| {
-        b.iter(|| mass_properties(black_box(&body), Tol::witness()).expect("mass properties"));
-    });
+        group.bench_function(format!("mass_props/washer/t{threads}"), |b| {
+            b.iter(|| {
+                pool.install(|| {
+                    mass_properties(black_box(&body), Tol::witness()).expect("mass properties")
+                })
+            });
+        });
+    }
     // The BUILD, not a rebuild of a cached body: profile authoring plus
     // the extrusion's Euler-op sequence, which is what finding 9 is about.
     group.bench_function("build/extrude", |b| {

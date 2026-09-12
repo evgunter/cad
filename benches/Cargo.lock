@@ -456,6 +456,7 @@ version = "0.0.0"
 dependencies = [
  "criterion",
  "pncad",
+ "rayon",
 ]
 
 [[package]]
@@ -721,6 +722,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "rayon",
  "slotmap",
 ]
 
