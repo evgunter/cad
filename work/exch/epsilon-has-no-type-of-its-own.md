@@ -5,7 +5,7 @@ title: Epsilon has no type of its own, so StepOptions and step-import restate To
 status: closed
 opened: 2026-08-20
 github: 741
-refs: [732, 881, C13]
+refs: [732, 881]
 closed: 2026-09-04
 ---
 
@@ -111,3 +111,11 @@ named. `mesh::sizing::Eps` stays mesh-local per its own collapse-seam
 doc (nothing to collapse onto). `C13` (Track U) closes against this
 ruling. `D283` (Track Q, open, Ev's) receives this as an input but is
 not closed by it.
+
+## Refs at code-quality's sweep (2026-09-11)
+
+`work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
+and its closed rows went with it. `C13` closed on the ruling recorded in
+this row's own §Closed, with no implementation and so no closing PR. The
+reference is dropped rather than re-aimed: this file is what `C13`
+pointed at.

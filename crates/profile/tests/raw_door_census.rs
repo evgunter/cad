@@ -8,7 +8,7 @@
 //!
 //! 1. [`no_production_source_writes_a_vertex_table`] — the census of
 //!    the tree as it stands. Every writer the emission layer and
-//!    [`profile::ProfileLoop::map`] do not account for is inside a
+//!    [`profile::ProfileLoop::map_scalar`] do not account for is inside a
 //!    test region or a test target.
 //! 2. [`the_door_carries_its_gate`] — the door itself, so an edit that
 //!    widens the gate fails here rather than silently restoring the
@@ -388,7 +388,7 @@ fn no_production_source_writes_a_vertex_table() {
         hits.is_empty(),
         "production source writes a vertex table by hand — author \
          through the `path` lattice, or, for a table that already \
-         exists in another scalar, `ProfileLoop::map`:\n  {}",
+         exists in another scalar, `ProfileLoop::map_scalar`:\n  {}",
         hits.join("\n  ")
     );
 }
@@ -608,11 +608,11 @@ fn the_types_public_surface_mints_nothing() {
          blocks were re-spelled and this row is reading nothing"
     );
 
-    // READERS hand back what is already stored; `map` is the
+    // READERS hand back what is already stored; `map_scalar` is the
     // materialization door (a loop that already exists, at another
     // scalar); `reversed` derives from an existing loop. None of them
     // takes a vertex table.
-    let pinned = ["map", "reversed", "tangent_joints", "vertices"];
+    let pinned = ["map_scalar", "reversed", "tangent_joints", "vertices"];
     assert_eq!(
         found, pinned,
         "the public surface of `ProfileLoop` moved.\n  \

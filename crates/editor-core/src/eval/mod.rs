@@ -419,10 +419,10 @@ pub enum ValuePayload<T: Decide> {
 }
 
 /// **The family words** — the vocabulary a typed operand mismatch
-/// speaks ([`NodeErrorKind::WrongOperand`]'s `found`), written once.
-/// Three readers say them: [`ValuePayload::kind_name`] over a value,
-/// [`node_value_kind`] over a node, and the one-body door's refusal
-/// of an `Instances` operand.
+/// speaks ([`NodeErrorKind::WrongOperand`]'s `found` and `expected`),
+/// written once. [`ValuePayload::kind_name`] says them over a value,
+/// [`node_value_kind`] over a node, and `eval::wire`'s operand doors
+/// say them in the refusals they build.
 pub(crate) mod family {
     pub(crate) const DATUM: &str = "datum";
     pub(crate) const PROFILE: &str = "profile";
@@ -898,6 +898,19 @@ pub enum NodeErrorKind {
     /// recourse — the model is outside the range its own arithmetic
     /// can measure, and the fix is scale, not direction.
     NonFiniteDirection {
+        /// Which vector, by role.
+        role: &'static str,
+    },
+    /// A direction-valued vector whose LENGTH underflowed to zero:
+    /// components small enough (`≲1e-162` at `f64`) that their
+    /// squares are not representable, so the vector has a direction
+    /// and no measurable length. A separate fact from a zero length
+    /// and the same recourse as
+    /// [`NodeErrorKind::NonFiniteDirection`] — the model is outside
+    /// the range its own arithmetic can measure, and the fix is
+    /// scale, not direction. Which vectors those are is the ROLE
+    /// constants' to say, as for the two arms above.
+    UnderflowedDirection {
         /// Which vector, by role.
         role: &'static str,
     },
@@ -1547,6 +1560,13 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} has zero length")
             }
+            Self::UnderflowedDirection { role } => write!(
+                f,
+                "the {role} underflowed to zero length — its components \
+                 are too small for their squares to be represented, so it \
+                 has a direction but no measurable length; scale the \
+                 geometry into the session's range"
+            ),
             Self::NonFiniteDirection { role } => write!(
                 f,
                 "the {role} has no finite length — its components \

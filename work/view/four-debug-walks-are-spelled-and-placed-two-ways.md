@@ -1,7 +1,7 @@
 ---
 id: four-debug-walks-are-spelled-and-placed-two-ways
 kind: issue
-title: DocSession's Debug walk sits 1,780 lines below its declaration while the other three sit beside theirs
+title: DocSession's Debug walk sits 1,819 lines below its declaration while the other three sit beside theirs
 status: open
 opened: 2026-09-06
 refs: [2093]
@@ -17,29 +17,29 @@ in one diff.
 ## `std::fmt` in a crate that says `core::fmt`
 
 The two impls it adds to `session.rs` are `std::fmt`
-(`crates/viewer/src/session.rs:314-315`, `:429-430`); the sibling it
+(`crates/viewer/src/session.rs:347-348`, `:429-430`); the sibling it
 adds in the same PR is `core::fmt`
 (`crates/viewer/src/pickcache.rs:170-171`). Across
 `crates/viewer/src/`, `core::fmt::` appears 68 times and `std::fmt::`
 14 — and 6 of those 14 are the three walks in `session.rs`. Outside
 `session.rs` the only `std::fmt` sites are `prefs.rs:106`, `:140`,
-`:322` and `drafts.rs:390`; every other `fmt` impl in the crate,
+`:322` and `drafts.rs:393`; every other `fmt` impl in the crate,
 32 `Display`s included, is `core::fmt`.
 
 Nothing decides between them for a crate that is not `no_std`, so this
 is taste, not a defect. What makes it worth a row is that the PR chose
 both, in one change, for four impls it is presenting as one mechanism
 — and the one that took the crate's majority spelling is the sibling,
-not the two it wrote from scratch. `session.rs:1952` (`DocSession`,
+not the two it wrote from scratch. `session.rs:2013` (`DocSession`,
 `std::fmt`) is pre-existing and is what the two new ones matched.
 
 ## Three walks sit beside their declarations and the fourth does not
 
-`Derived`'s walk is at `session.rs:302-331`, three lines below
+`Derived`'s walk is at `session.rs:335-364`, three lines below
 `Derived::none` (which ends at `:299`); `LandedRun`'s is at
 `:419-460`, directly below its struct; `PickCache`'s is at
 `pickcache.rs:163-195`, directly below its struct. `DocSession`'s is
-at `session.rs:1953-2000` — the last thing in a 2,000-line file, 1,780
+at `session.rs:2080-2127` — the last thing in a 2,039-line file, 1,819
 lines below the declaration at `:173`, under three unrelated free
 functions (`assembly_shaped`, `badge`, `session_dir`). Each range runs
 from the walk's doc comment to its closing brace, and the distance is
@@ -65,7 +65,7 @@ pre-existing one, which is what they had matched. `session.rs` keeps
 `std::fmt` nowhere.
 
 **The placement is declined, deliberately.** `DocSession`'s walk still
-sits at the end of the file, 1,780 lines below its declaration, under
+sits at the end of the file, 1,819 lines below its declaration, under
 three unrelated free functions. Moving it is a pure move inside a PR
 whose warrant is a mechanism change, and this program spent 2026-09-06
 learning what mixing those costs. Nothing is broken — the compiler
@@ -73,3 +73,32 @@ enforces the visit for all four — so this is a readability row and it
 waits for a pass that is allowed to move code.
 
 That move is what this file is now about.
+
+## Note (`view/gesture-doors`, 2026-09-11): one citation is stale
+
+`session.rs:2013` is named here as `DocSession`'s `std::fmt` walk and
+is `assembly_shaped`'s body at the merge base. Disclosed rather than
+repointed; the other citations in this row were re-derived and moved
+by this diff's shift, each after checking the subject was at the old
+number.
+
+## Note (`view/delta-round-trip`, 2026-09-11): the shift, and the census
+
+`drafts.rs:390` named `impl std::fmt::Display for CommitFault` at that
+branch's merge base and names it at `:393` here — that file's `delta_mm`
+doc comment grew by three lines. Re-derived by subject, not by delta.
+
+The `std::fmt` enumeration two paragraphs above it is stale in the
+other direction and is left as written, because it is a reading of a
+tree this row has already moved past (*"`session.rs` keeps `std::fmt`
+nowhere"*, above). Against this tree, by `grep -rn 'std::fmt::'
+crates/viewer/src/`: **five** `Display` impls, not four — `prefs.rs:106`,
+`:140`, `:325` (which the sentence names as `:322`, a doc comment),
+`:375` (which it does not name at all) and `drafts.rs:393`. The row's
+live half is the placement, and the `1,819 lines` figure above is stale
+too: `pub struct DocSession` is `session.rs:203` and `impl
+core::fmt::Debug for DocSession` is `:2099`, so the gap is **1,896**
+lines in a 2,128-line file. Not repaired in the sentence, because the
+row's own framing paragraph is a reading of an older tree throughout
+and a figure fixed in one place there would contradict the ones beside
+it.

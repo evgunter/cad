@@ -9,8 +9,8 @@
 //! [`crate::marks`], which takes a built index as an argument, reads
 //! it through the public doors below only, and answers *what should
 //! be lit* for a different set of consumers (`gpu`, `blend`,
-//! `datums`, `app`, and `pane::viewport` alongside the cursor paths,
-//! which are `pane::viewport`'s alone).
+//! `datums`, `app`, and [`crate::pane::viewport`] alongside the cursor paths,
+//! which are [`crate::pane::viewport`]'s alone).
 //!
 //! # What is under the cursor
 //!
@@ -1625,7 +1625,7 @@ impl PickIndex {
 /// away; the failure being traded against is a mark drawn through
 /// solid material, which is the louder of the two.
 ///
-/// `gpu.rs`'s `EDGE_CLIP_Z_SHRINK` plays the same
+/// `crate::gpu`'s `EDGE_CLIP_Z_SHRINK` plays the same
 /// coincident-edge-over-its-own-face role on the GPU draw lane, in
 /// f32 clip z — a pointer each way, deliberately not one shared
 /// constant.
@@ -1834,7 +1834,8 @@ impl core::fmt::Display for EdgeNameFault {
                 drawn,
             } => write!(
                 f,
-                "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so                  this address was not one this index handed out",
+                "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so \
+                 this address was not one this index handed out",
                 node.0
             ),
             Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error}"),

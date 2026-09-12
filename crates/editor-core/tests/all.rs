@@ -356,6 +356,8 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "perf2_name_keying_differential.rs"]
+mod perf2_name_keying_differential;
 #[path = "pinned_lift_validates_once.rs"]
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
@@ -486,3 +488,5 @@ mod kstats_bracket_rows;
 
 #[path = "m10_9_r1_probes_interval.rs"]
 mod m10_9_r1_probes_interval;
+#[path = "wire_band_cause.rs"]
+mod wire_band_cause;

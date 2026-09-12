@@ -496,9 +496,9 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 ///
 /// [`MateFault::PlacerRefused`], carrying the evaluation layer's own
 /// typed refusal UNALTERED — a slot that does not evaluate
-/// ([`NodeErrorKind::Expr`]), a direction of zero or non-finite
-/// length (the direction door's own
-/// `DegenerateDirection`/`NonFiniteDirection`, whose `role` word
+/// ([`NodeErrorKind::Expr`]), a direction of zero, underflowed or
+/// non-finite length (the direction door's own `DegenerateDirection`/
+/// `UnderflowedDirection`/`NonFiniteDirection`, whose `role` word
 /// names the vector), an explicit-rule pattern, a circular rule whose
 /// `axis` operand is not an axis datum, a node the chain recorded and
 /// the document no longer holds. This door refuses rather than

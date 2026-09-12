@@ -159,15 +159,7 @@ pub fn checks_report(
         Err(d::ProductError::NoBodyRoots) => {
             d::run_checks_on(doc, evaluation, d::Subject::NoBodyRoots, cfg, tol)
         }
-        Err(source) => d::run_checks_on(
-            doc,
-            evaluation,
-            d::Subject::Unavailable {
-                reason: source.to_string(),
-            },
-            cfg,
-            tol,
-        ),
+        Err(ref source) => d::run_checks_on(doc, evaluation, d::Subject::refused(source), cfg, tol),
     }
 }
 

@@ -100,9 +100,9 @@ pub use assembly::{
     assemble_gathered,
 };
 pub use checks::{
-    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
-    ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks, run_checks_on,
-    subject_body,
+    Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
+    ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
+    run_checks_on, subject_body,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
@@ -147,7 +147,7 @@ pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameTable, NamingError, OpGroup,
+    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
     SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
     SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
@@ -170,7 +170,9 @@ pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::{AxisRefusal, Frame};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
-pub use product::{Product, ProductError, product, product_named, product_recorded};
+pub use product::{
+    Product, ProductError, ProductErrorKind, product, product_named, product_recorded,
+};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedProgramError, resolve_loops,

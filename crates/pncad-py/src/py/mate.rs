@@ -126,9 +126,12 @@ impl MateFrame {
     /// The rigid placement this frame denotes: local +Z is `axis`,
     /// the local origin is `origin`, roll fixed by `reference`.
     ///
-    /// Raises `FrameError` when the axis has no definite direction or
-    /// the reference has no definite perpendicular offset from it —
-    /// the same refusal the solve meets, reachable BEFORE authoring
+    /// Raises `FrameError` when the axis has no definite direction,
+    /// when the reference has no definite perpendicular offset from
+    /// it, or — asked before either sign — when the axis's length or
+    /// that perpendicular offset is not a finite number, whose
+    /// `variant` reads `non_finite_aim` or `non_finite_roll_reference`.
+    /// The same refusal the solve meets, reachable BEFORE authoring
     /// the mate that would carry it.
     fn placement(&self, py: Python<'_>) -> PyResult<Frame> {
         let tol = Tol::witness();

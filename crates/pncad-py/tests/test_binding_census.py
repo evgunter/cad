@@ -506,10 +506,12 @@ def audit_gap_ids():
 #:   every other typed refusal does, as tags on `EvaluationError.kind`
 #:   (Python builds datums through
 #:   `Node.datum_plane`/`Node.datum_axis`, never by naming the type).
-#:   Three tags carry them, and all three are Python-visible:
+#:   Four tags carry them, and all four are Python-visible:
 #:   `degenerate_direction` for a zero-length direction,
 #:   `non_finite_direction` for one whose length overflows the norm or
-#:   is not a number, and `escalated` — whose `predicate` payload reads
+#:   is not a number, `underflowed_direction` for one whose components
+#:   are too small for their squares to be represented — a direction
+#:   with no measurable length — and `escalated`, whose `predicate` payload reads
 #:   `datum_unit_norm` for a datum, the kernel constructor's funnel
 #:   name, where the same field reads `eval_direction_norm` for the
 #:   directions the evaluation layer owns.
@@ -536,6 +538,14 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
+    # The gather's refusal class, flattened to the tag its carrier
+    # already publishes — the `NodeErrorKind` row's shape exactly.
+    # `product_error_tag` mints one name per `ProductError` arm and
+    # `ProductError.variant` answers it, so the fieldless mirror asks
+    # the Python caller no new question; what it buys is a Rust
+    # consumer matching the class of a refusal that is neither `Clone`
+    # nor `PartialEq`.
+    "ProductErrorKind": "ProductError.variant",
     # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
     # internal wiring-bug refusal — and cross exactly as their carrier
     # does: flattened to the `verb_arity` tag `EvaluationError.kind`
@@ -735,7 +745,7 @@ BOUND_AS = {
     # was `different-shape` or `behind-a-door`, and both dispositions
     # were true when written: the arms differed only in PROSE, so
     # there was no Python shape to point at. There is one now, and it
-    # is a word per arm — twenty-one for `RevolveError`, forty-one for
+    # is a word per arm — twenty-two for `RevolveError`, forty-two for
     # `BooleanError`, twenty-two for `ShellError` — minted by an
     # exhaustive match, so a kernel arm added without a word stops the
     # bindings compiling. What still has no Python spelling is the
@@ -1399,7 +1409,8 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `PropsQuadLane`):
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `PropsQuadLane`,
+#: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`, `ProfileVertex`,
 #: `ValidatedLoop`, `ValidatedProfile`, `SegmentKind`,
@@ -1966,6 +1977,13 @@ NOT_BOUND = {
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.
     "NameOrigin": SHAPE,
+    # The handle a role segment holds its argument name by — sharing
+    # plus an order cache, both of them facts about how the kernel
+    # STORES a name rather than about what a name is. Same family as
+    # `RolePath`/`RoleSeg` and for their reason: it is the inside of a
+    # name, and a Python caller holds a name as opaque TEXT. Anything
+    # it appears in reaches Python as the name it wraps.
+    "NameRef": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     # The display-unit CODE a `DocParam` carries. A one-byte index into
@@ -2097,6 +2115,15 @@ NOT_BOUND = {
     "Relation": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
+    # The `PropsQuadLane` shape, one registry over: a trait naming
+    # WHICH decision lanes carry a chart-coherence examination, written
+    # as a bound on the two registry doors. Python's `run_checks` is
+    # monomorphic at the `f64` lane, so a Python caller never chooses
+    # one and never needs to name the trait; what it does see is the
+    # lane's ANSWER, as the `chart_coherence` / `chart_coherence_
+    # unexamined` / `chart_coherence_unavailable` words on
+    # `CheckEvidence.variant`.
+    "ChartCoherenceLane": INTERIOR,
     "ContactRecords": INTERIOR,
     # The contact vocabulary's fourth quarter, curated beside the
     # three that were already here. `INTERIOR` by the carrier rule,
@@ -2720,6 +2747,9 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
     "CheckEvidence::NotSeparated": "CheckEvidence.variant",
     "CheckEvidence::SeparationUnavailable": "CheckEvidence.variant",
+    "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
+    "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
+    "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "ChecksError::Root": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
@@ -2891,6 +2921,8 @@ MEMBERS_BOUND_AS = {
     "PathError::ArcContinueNeedsArcCarrier": "PathError.variant",
     "PathError::ArcContinueOffCarrier": "PathError.variant",
     "PathError::ZeroDirection": "PathError.variant",
+    "PathError::NonFiniteDirection": "PathError.variant",
+    "PathError::UnderflowedDirection": "PathError.variant",
     "PathError::ArcViaCollinear": "PathError.variant",
     "PathError::DegenerateArcChord": "PathError.variant",
     "PathError::ArcCenterNotEquidistant": "PathError.variant",
@@ -2978,6 +3010,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Assembly": "StepImportError.variant",
     "StepImportError::Adoption": "StepImportError.variant",
     "StepImportError::RimOffWallBoundary": "StepImportError.variant",
+    "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",

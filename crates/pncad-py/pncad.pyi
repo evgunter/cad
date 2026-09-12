@@ -522,7 +522,8 @@ class StepImportError(PncadError):
     `declaration_unresolved`, `vertex_without_point`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
-    `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
+    `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
+    `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 
@@ -826,13 +827,32 @@ class CheckRefusal(PncadError):
 
 class FrameError(PncadError):
     """A frame constructor refused its inputs — a direction that was
-    not DEFINITELY usable, or a tolerance yielding no usable band.
+    not DEFINITELY usable, a direction whose length is not a finite
+    number, or a tolerance yielding no usable band.
 
     `variant` is `degenerate_aim`, `degenerate_tangent`,
     `degenerate_roll_reference`, `degenerate_reference_ladder`,
-    `degenerate_mirror_normal`, or `band`. WHICH input was degenerate
-    is that word and nothing else: the tag is minted per input, so
-    there is no second attribute spelling the same fact.
+    `degenerate_mirror_normal`, `non_finite_aim`,
+    `non_finite_tangent`, `non_finite_roll_reference`,
+    `non_finite_mirror_normal`, or `band`. WHICH input was refused is
+    that word and nothing else: the tag is minted per input, so there
+    is no second attribute spelling the same fact.
+
+    **The two families are not the same length.** There are five
+    `degenerate_*` words and only four `non_finite_*` ones: the
+    reference LADDER is a pair of unit constants the kernel supplies,
+    not a vector you hand in, so it can be degenerate (neither rung is
+    off the tangent line) but never non-finite. No
+    `non_finite_reference_ladder` exists and none can be produced.
+
+    The `non_finite_*` words are a different situation from the
+    `degenerate_*` ones and are kept apart for that reason: the
+    direction is not zero and not in any band — its components
+    overflow the norm (past ~1e154) or one of them is not a number —
+    so lowering the tolerance cannot reach it and the recourse is to
+    scale the geometry into the session's range. Like an exactly-zero
+    degenerate refusal it carries no classifier payload: nothing was
+    classified.
 
     A degenerate refusal carries the classifier's payload when the
     margin landed in the ambiguity band, and carries none of it when
@@ -5416,10 +5436,14 @@ class CheckKind:
 class CheckId:
     """Which check fired — the registry's closed set. `Connectedness`
     counts a subject's components; `Separation` holds the product's
-    cross-root solid pairs to a disjointness certificate."""
+    cross-root solid pairs to a disjointness certificate;
+    `ChartCoherence` measures, in metres, how far a curved face's
+    carriers and its vertices disagree about a chart coordinate they
+    both state."""
 
     Connectedness: Final[CheckId]
     Separation: Final[CheckId]
+    ChartCoherence: Final[CheckId]
 
     @property
     def kind(self) -> CheckKind:
@@ -5460,19 +5484,29 @@ class ChecksConfig:
     `SplitOutcome.node_map` spelling); a subject stated twice is
     refused rather than silently resolved last-wins.
 
-    The two knobs are two TYPES, which is DS6's waiver rule made
-    static: `separation` cannot be set to `Severity.Error`."""
+    Two of the knobs are `Advisory` rather than `Severity`, which is
+    DS6's waiver rule made static: neither `separation` nor
+    `chart_coherence` can be set to `Severity.Error`.
+
+    `chart_coherence` is `Advisory.Off` by default — the one resident
+    not in the default pass. It reads every face of every rest body,
+    and it reports a trimmed face's loops as out of its reach, which
+    is true and is not actionable; ask for it rather than pay for it
+    on every run. `Off` is visible in `ChecksReport.skipped`."""
 
     def __init__(
         self,
         connectedness: Severity = ...,
         expected_components: Optional[list[tuple[NodeId, int, int]]] = None,
         separation: Advisory = ...,
+        chart_coherence: Advisory = ...,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
     @property
     def separation(self) -> Advisory: ...
+    @property
+    def chart_coherence(self) -> Advisory: ...
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""
@@ -5499,9 +5533,23 @@ class CheckEvidence:
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,
     which is a fact about the CERTIFICATE and never a claim that the
-    two overlap. `separation_unavailable` (`reason`) — the machinery
-    could not be built over the product, so there is no verdict for any
-    pair."""
+    two overlap. `separation_unavailable` (`reason`,
+    `boolean_variant`) — the machinery could not be built over the
+    product, so there is no verdict for any pair, and
+    `boolean_variant` is which kernel boolean refusal that was, in the
+    vocabulary `EvaluationError.inner_kind` publishes.
+
+    `chart_coherence` (`chart_variant`, `metres`, `gap`, `lever`,
+    `eps`) — a curved face's carriers and its vertices state one chart
+    coordinate `metres` apart, judged against the band `eps`. A
+    MEASUREMENT and never a verdict: nothing refuses on it.
+    `chart_coherence_unexamined` (`chart_variant`) — the examination
+    ran and one loop was out of its reach, which is a fact about the
+    DATA; a check a configuration turned off is `ChecksReport.skipped`
+    and carries no finding at all. `chart_coherence_unavailable` (no
+    payload) — this evaluation's decision lane has no chart-coherence
+    examination, so nothing was read; do not take the silence for a
+    clean body."""
 
     @property
     def variant(self) -> str: ...
@@ -5517,6 +5565,18 @@ class CheckEvidence:
     def reason(self) -> Optional[str]: ...
     @property
     def inner_variant(self) -> Optional[str]: ...
+    @property
+    def boolean_variant(self) -> Optional[str]: ...
+    @property
+    def chart_variant(self) -> Optional[str]: ...
+    @property
+    def metres(self) -> Optional[float]: ...
+    @property
+    def gap(self) -> Optional[float]: ...
+    @property
+    def lever(self) -> Optional[float]: ...
+    @property
+    def eps(self) -> Optional[float]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class CheckFinding:

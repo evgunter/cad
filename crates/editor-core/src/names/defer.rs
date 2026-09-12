@@ -25,7 +25,7 @@
 use std::collections::BTreeMap;
 
 use super::emit::NamingError;
-use super::role::StableName;
+use super::role::NameRef;
 use super::table::{Entry, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -40,7 +40,10 @@ use crate::node::RecipeNodeId;
 #[derive(Clone)]
 pub(super) struct Upstream {
     /// The operand-table name (identical for every tied candidate).
-    pub(super) name: StableName,
+    ///
+    /// The table's OWN handle, so a downstream segment that embeds it
+    /// shares the operand's name rather than copying its whole descent.
+    pub(super) name: NameRef,
     /// True iff that name's entry is `Entry::Tied`.
     pub(super) tied: bool,
 }
@@ -64,10 +67,14 @@ pub(super) fn upstream_name(
     node: RecipeNodeId,
     e: super::table::EntityRef,
 ) -> Result<Upstream, NamingError> {
+    // The operand table is finished by the time an emitter reads it,
+    // so this is where its key order is cached onto its names (the
+    // flag makes every call after the first free).
+    table.seal_order();
     let name = table
-        .name_of(&e)
+        .name_ref_of(&e)
         .ok_or(NamingError::MissingUpstream { node })?;
-    let tied = match table.lookup(name) {
+    let tied = match table.entry_of(name) {
         Some(Entry::Unique(_)) => false,
         Some(Entry::Tied(_)) => true,
         None => {
@@ -99,12 +106,12 @@ pub(super) fn upstream_name(
 /// ratified `graft_names` semantics, not laundering: the op genuinely
 /// separated the candidates, and the upstream table is untouched.
 #[derive(Default)]
-pub(super) struct TieRows(BTreeMap<StableName, Vec<super::table::EntityRef>>);
+pub(super) struct TieRows(BTreeMap<NameRef, Vec<super::table::EntityRef>>);
 
 impl TieRows {
     /// Defers one row.
-    pub(super) fn push(&mut self, name: StableName, e: super::table::EntityRef) {
-        self.0.entry(name).or_default().push(e);
+    pub(super) fn push(&mut self, name: impl Into<NameRef>, e: super::table::EntityRef) {
+        self.0.entry(name.into()).or_default().push(e);
     }
 
     /// Drains the deferred rows into the table. Called at each stage
@@ -140,12 +147,12 @@ impl TieRows {
 /// tie under two candidates.
 pub(super) fn narrow_into(
     t: &mut NameTable,
-    name: StableName,
+    name: NameRef,
     ents: Vec<super::table::EntityRef>,
 ) -> Result<(), super::table::DuplicateName> {
     match ents.as_slice() {
-        [one] => t.insert(name, *one),
-        _ => t.insert_tied(name, ents),
+        [one] => t.insert_ref(name, *one),
+        _ => t.insert_tied_ref(name, ents),
     }
 }
 
@@ -155,13 +162,14 @@ pub(super) fn put(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,
-    name: StableName,
+    name: impl Into<NameRef>,
     e: super::table::EntityRef,
 ) -> Result<(), NamingError> {
+    let name = name.into();
     if from_tie {
         tie.push(name, e);
         Ok(())
     } else {
-        Ok(t.insert(name, e)?)
+        Ok(t.insert_ref(name, e)?)
     }
 }

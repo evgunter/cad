@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use geom_core::Indeterminate;
+use geom_core::{BandError, Indeterminate};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::role::{EntityKind, StableName};
@@ -55,6 +55,19 @@ pub enum NamingError {
         /// What was inconsistent.
         what: &'static str,
     },
+    /// The N2 classification band could not be built from the ambient
+    /// tolerance, so no discriminator below it can be decided.
+    ///
+    /// The cause is NOT unique — a validated
+    /// [`Tolerance`](geom_core::tolerance::Tolerance) reaches
+    /// [`BandError::InvalidValue`] when K·ε overflows to infinity, and
+    /// [`BandError::Empty`] when K·ε rounds back down onto ε, which for
+    /// ε = n·2⁻¹⁰⁷⁴ happens exactly when K·n rounds back to n (every K
+    /// below 1.5 at the smallest ε; no admitted K above ε = 2⁻¹⁰²³).
+    /// So the constructor's own diagnostic rides along rather than being
+    /// relabelled as an emission inconsistency, which this is not:
+    /// nothing about the result body is wrong here.
+    Band(BandError),
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
     Escalated {
@@ -104,11 +117,25 @@ impl core::fmt::Display for NamingError {
                 f,
                 "a mint-time emission fact was inconsistent with the result body: {what}"
             ),
+            Self::Band(error) => write!(
+                f,
+                "the N2 classification band could not be built from the ambient tolerance, so \
+                 no discriminator below it can be decided: {error}"
+            ),
             Self::Escalated { predicate, source } => write!(
                 f,
                 "the discriminator {predicate} escalated (in-band indeterminacy): {source}"
             ),
         }
+    }
+}
+
+// `Band::linear(tol)?` rather than a closure at the band door: one
+// total conversion, so there is no site at which the caught
+// `BandError` could be dropped again.
+impl From<BandError> for NamingError {
+    fn from(e: BandError) -> Self {
+        Self::Band(e)
     }
 }
 
@@ -204,6 +231,10 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
     instances: &[Arc<Body<T>>],
 ) -> Result<Arc<NameTable>, NamingError> {
     let per = output_body(per)?;
+    // An operand table read WHOLE seals here, exactly as one read an
+    // entity at a time seals in `upstream_name`, and every row below
+    // embeds the master's own handle rather than a copy of it.
+    master.seal_order();
     let mut t = NameTable::new();
     for j in 0..n {
         let ju = output_body(usize::try_from(j).unwrap_or(usize::MAX))?;
@@ -211,13 +242,13 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
         let at = |e: &EntityRef| -> Result<EntityRef, NamingError> {
             Ok(ent(flat_body_index(ju, per, e.body)?, e.key))
         };
-        for (name, entry) in master.iter() {
+        for (name, entry) in master.iter_refs() {
             let wrapped = StableName {
                 kind: name.kind,
                 node,
                 path: vec![super::role::RoleSeg::Instance {
                     i: ju,
-                    of: Box::new(name.clone()),
+                    of: name.clone(),
                 }],
             };
             match entry {
@@ -258,6 +289,9 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
     bridges: &[topo::GraftKeys],
     fused: &Body<T>,
 ) -> Result<Arc<NameTable>, NamingError> {
+    // The prototype's table is read whole; sealing it here is what
+    // `upstream_name` does for a table read an entity at a time.
+    master.seal_order();
     let mut t = NameTable::new();
     t.insert(
         name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
@@ -273,13 +307,13 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                 EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
             }
         };
-        for (name, entry) in master.iter() {
+        for (name, entry) in master.iter_refs() {
             let wrapped = StableName {
                 kind: name.kind,
                 node,
                 path: vec![super::role::RoleSeg::Instance {
                     i: iu,
-                    of: Box::new(name.clone()),
+                    of: name.clone(),
                 }],
             };
             // The prototype is ONE body — a placed union fuses what
@@ -334,18 +368,19 @@ pub(crate) fn name_in_part<T: geom_core::Real>(
     part: &NameTable,
     placed: &Body<T>,
 ) -> Result<Arc<NameTable>, NamingError> {
+    // The part's table is read whole; sealing it here is what
+    // `upstream_name` does for a table read an entity at a time.
+    part.seal_order();
     let mut t = NameTable::new();
     t.insert(
         name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
     )?;
-    for (name, entry) in part.iter() {
+    for (name, entry) in part.iter_refs() {
         let wrapped = StableName {
             kind: name.kind,
             node,
-            path: vec![super::role::RoleSeg::InPart {
-                of: Box::new(name.clone()),
-            }],
+            path: vec![super::role::RoleSeg::InPart { of: name.clone() }],
         };
         // The part's table is the PRODUCT's: one body, index 0. A row
         // anywhere else is a gather bug, surfaced rather than dropped.
@@ -720,7 +755,7 @@ mod pattern_tests {
                     node,
                     path: vec![RoleSeg::Instance {
                         i: iu,
-                        of: Box::new(name.clone()),
+                        of: name.clone().into(),
                     }],
                 };
                 assert_eq!(t.lookup(&wrapped), Some(&Entry::Unique(ent(iu, e.key))));
@@ -813,7 +848,7 @@ mod pattern_tests {
                     node,
                     path: vec![RoleSeg::Instance {
                         i: ju,
-                        of: Box::new(name.clone()),
+                        of: name.clone().into(),
                     }],
                 };
                 let flat = ju * u32::try_from(per).unwrap() + e.body;

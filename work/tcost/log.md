@@ -1455,3 +1455,469 @@ flip to carves. A new suite `blend6_ring_clearance.rs` is added.
 ## Announced from LIB (2026-09-09): one row added to `profile/tests/sketch_plane.rs`
 
 LIB-MIRROR (PR #2271) adds `the_partial_eq_impl_is_bit_eq_and_answers_the_same_on_the_two_zeros` beside the existing `bit_eq` row, pinning that `SketchPlane<f64>`'s new `impl PartialEq` answers exactly what `bit_eq` answers; one test, no fixture and no runtime cost.
+
+## Seam: the whole slate re-sorted against the public repo (2026-09-11)
+
+Ev asked, in chat, for every entry on this program's board to be sorted
+three ways now that `evgunter/cad` is public and standard-runner minutes
+are free: still wanted because its subject hurts LATENCY; unwanted
+because it was only ever buying billed MINUTES; and unclear. All 65
+entries were read. The finding that decides most of them is structural
+and worth stating once.
+
+**Latency here is one chain, and it is not the tests.** `ci.yml` has
+exactly two dependency edges — `test` needs `build`, `test-interval`
+needs `build-interval` — and every other job hangs off `filter` in
+parallel. A run's wall is therefore the max over chains, and the max is
+`build + archive (interval)` at **388 s median** plus a test leg at
+**34–74 s**, against a whole-run median of **442 s** / **482 s** at tier
+`all` (`work/ciw/f3-recosting-on-a-public-repo` §M2, 4-vCPU runner;
+`nextest-shard-count-needs-remeasure`'s 2026-09-03 re-measure for the
+legs). So: the BUILD is the pole, the test legs are the short end of it,
+and anything that trims a parallel job returns nothing to the person
+waiting. That is the whole sort, applied per row.
+
+**Three of this program's landed units are minutes and nothing else.**
+TCOST-C1, C2 and C3 each moved a check off the PR gate and each priced
+itself in billed minutes: −2, −2, and 43 s off a 222 s parallel `fmt`
+job. None of the three was ever on the critical path; C1's own nightly
+header records the job at 93 s. What they cost is attribution, plus two
+rows (`review_d18`'s `cfg(not(debug_assertions))` pair) that now compile
+in no PR lane at all. `work/ciw/f3-recosting-on-a-public-repo`
+§*What is therefore open* item 2 named these three for re-costing on
+2026-09-04 and left them to this program; this program never looked.
+Filed as `nightly-demotions-c1-c3-were-bought-with-billed-minutes` — a
+re-cost with a hosted wall reading per row, not a revert on sight, since
+C3's job has never had one and is the one that could plausibly approach
+the pole.
+
+**One open row closed.** `skip-eps-battery-by-observing-oncelock`
+(parked since 2026-08-19 on Ev's *defer, not reject*) is now REJECTED.
+Its entire prize was ~90 cpu-s spread across ε legs that run in
+parallel, so it never shortened anything; and it would take 251 tests
+off two of three ε rows, which were put BACK on every run on 2026-09-04
+for exactly this reason (`scripts/ci-filter.py` §CONFIGURATION
+COVERAGE, `work/ciw/reinstate-full-configuration-runs`). The mechanism's
+design is kept in the file; the cost case is dead.
+
+**One closed row re-opened, and it is the only latency work the billing
+change unlocks.** `nextest-shard-count-needs-remeasure` closed at N=2 on
+2026-09-03 — the day the repo went public, and the fact did not reach
+the verdict. Read in full, that verdict is one quantity: *"every added
+shard costs a full billed minute for a 20–45 % wall cut"*, and for the
+interval rows *"≈1 billed minute per row"* against N=4 at ~40 % less
+wall. The cost side is now zero and the benefit side is untouched, on
+the legs that carry the last job of the critical path. It still needs
+its own measured PR under the program's `keep_out`; what changed is that
+the arithmetic no longer refuses it.
+
+**Everything else on the board survives untouched, and mostly because it
+was never a cost lever.** Of the ~28 open rows, the fourteen Track W
+units (C18, D70, D72, D113, D380–D386, H12, S216, S230) and most of the
+slugs arrived here in the tracker-wide re-home of 2026-09-04 by PATH
+GLOB, not by a cost argument — `malformed-ambient-eps-reds-review-m2-pr7-k`
+says so in its own body. They are test-integrity, dedup and citation
+rows; free minutes change nothing about them, and several (S216's
+compile-per-row gate, D381's missing pin) get slightly EASIER to justify
+now that the compute they would add is free. The four genuine latency
+rows on the board are `rust-cache-never-restores-across-branches` (which
+already re-stated its own case on latency grounds when the repo went
+public), `tcost-area-pad-lever`, `offset-composite-lazy-sign-gate` and
+the re-opened shard count; the first cuts the pole itself and the middle
+two are kernel constant factors that the shipped program pays too.
+
+**Two rows are genuinely unclear and neither is this lane's to settle.**
+`proptest-modules-in-src-ungated` asks Ev to close the gap between
+*"a fuzzer that is not gated is a defect in the fuzzer"* and that rule's
+stated rationale, which is per-run cost — free minutes WIDEN that gap
+rather than close it, so the question is more live, not less, and the
+row stays open unchanged. And the two gate-defect rows
+(`gated-marker-omits-sibling-helper-imports`, `gated-marker-path-mount`)
+are real bugs for exactly as long as the per-file gate stands; whether
+it stands is downstream of the same ruling.
+
+## Seam: the non-cost half of the board leaves for S-TINT (2026-09-11)
+
+Ev's direction in the same conversation as the re-sort above: the fourth
+bucket — the rows that are not cost levers in either currency — gets a
+track of its own rather than sitting on a cost program's slate. **Thirty
+of this program's 42 live rows moved** by `git mv` to `work/tint/`
+(S-TINT — test-suite integrity, band 3500–3599), ids, titles and bodies
+unchanged, each carrying a `## Moved to S-TINT (2026-09-11)` record.
+The fourteen Track W units (`C18`, `D70`, `D72`, `D113`, `D380`–`D386`,
+`H12`, `S216`, `S230`) and sixteen slugs this program's lanes filed while
+measuring. `work/tint/log.md`'s opening entry carries the full split and
+the list of what stayed.
+
+**Twelve rows stay, and they are the whole of this program's live
+board:** the four latency rows (`rust-cache-never-restores-across-branches`,
+the re-opened `nextest-shard-count-needs-remeasure`, `tcost-area-pad-lever`,
+`offset-composite-lazy-sign-gate`), the unmeasured kernel candidate
+(`edge-nurbs-computes-the-chart-image-and-discards-it`), the demotions
+row filed above, the two per-file-gate defects, the two fuzz-gating
+policy rows, the parked proptest question, and the `ci-filter.py`
+citation fix. This program is now what its charter says it is and
+nothing else.
+
+**The territories overlap deliberately.** S-TINT claims
+`crates/*/tests/*` and `crates/test-utils/*` as well, because the fence
+between the two programs is the QUESTION and not the path, and no glob
+expresses it. `work.py territory` will warn on branches of either;
+`work/tint/plan.md` §*The fence with S-TCOST* is the rule a lane reads
+instead of guessing, and it names the three things that stay this
+program's whatever they look like — the gate mechanism, the fuzz-gating
+policy, and everything under `scripts/`. A row on either slate that turns
+out to be on the wrong side moves back by `git mv`, not by a copy.
+
+## The unclear kernel row is measured, and it closes negative (2026-09-11)
+
+`edge-nurbs-computes-the-chart-image-and-discards-it` was the one row
+the re-sort could not place: a compute-and-discard candidate whose own
+body said the cost had never been measured. It is measured now, and
+both halves of the row fail.
+
+**The premise is false.** The image is not discarded —
+`edge_nurbs.rs:354-362` passes it into `certify_rung3` as
+`Some(&pcurve)`, and `ssi/certify.rs` refuses `UnsupportedCertificate`
+without it at `:810-815` and `:851-854`. Every `PlaneNurbsLimbs` field
+but `min_sin_theta` comes out of that certificate. What exists is a
+redundancy ACROSS PASSES (the mint derives its own), and collapsing that
+means the certifier trusting the stored cache, which
+`topo/src/validate.rs:3297-3299` ratifies against.
+
+**And the prize is small.** LOCAL, single-threaded medians on this
+container, an iteration tool and not a result of record: `chart_image`
+is **9.5 %** of an edge certification in release (0.461 of 4.86 ms) and
+**12.6 %** in dev, once per plane×NURBS edge per validation pass.
+
+Recorded because it is the general lesson of this re-sort, not just this
+row's: **the row was filed off a sentence in a spec, and the sentence
+had gone stale.** `docs/PCURVE-P2-SPEC.md:55-62` still says
+`edge_nurbs` *"THROWS IT AWAY"*, and the advice that sentence gives —
+prefer the existing producer to writing a third — had already been taken
+by the refactor that made `chart_image` shared. Eight days on this board
+and one instrumented lane to find that out. Filed to TRIM, whose
+territory both files are:
+`work/trim/pcurve-p2-spec-says-edge-nurbs-throws-the-image-away`.
+
+The board is eleven live rows: the four latency rows, the demotions row,
+the two gate defects, the two fuzz-policy rows, the parked proptest
+question, and the `ci-filter.py` citation fix.
+
+## Unit: the gate's converse check, and two rulings (2026-09-11)
+
+**`gated-marker-omits-sibling-helper-imports` is closed with the arm
+landed.** `--gated-check` now requires that every sibling helper module a
+gated `tests/` suite imports is covered by its marker's path set, by the
+same match `selected_by` makes. Two findings worth the log:
+
+- **The item's own fix sketch was wrong in the load-bearing place.** It
+  said to resolve `use crate::<h>` "the way `_all_rs_modules` already
+  does" — but that reader records `#[path]` PAIRS, and every helper tree
+  in this repo is mounted by a bare `mod common;`. Built on it the check
+  resolves nothing and passes every tree in green: this row's own defect,
+  one level up. Caught by looking at the output (zero suites resolved on
+  a tree the census said had ten), not by reading. `_tests_sibling_files`
+  is a second reader; `_all_rs_modules` is untouched and no term moved.
+- **It found three offenders on main, and they are not the ten.**
+  `review_chamfer_r1_probes`, `review_verbs_rim_lever_probes` and
+  `verbs_rim_r1_probes` in `crates/sweep`, all importing
+  `use crate::common;` and naming no part of
+  `crates/sweep/tests/common/`. All three markers were written
+  **2026-09-09** (`8ee8cf1c`), six days AFTER the census swept all 54 and
+  widened the ten it found. The class regrew at the predicted rate under
+  the review the row said would not catch it — which is the argument for
+  a mechanical check over another sweep. Fixed in the same commit.
+
+Planted both directions in `scripts/gates/gated-suite-paths.sh` (an
+announced cross-fence edit; that file is code-quality Track K's and calls
+`--gated-check` rather than deciding anything): the gate must red on an
+unnamed helper import, and must pass the near miss this directory's
+convention owes — the same import with the directory named.
+
+**`gated-marker-path-mount` is SIZED, not taken.** Its two candidate
+fixes are now priced against the code: "make the silence loud" is ~15
+lines on the reader just built; "resolve the mount" needs a module-tree
+walk of `crates/*/src` whose nested-mount case would reproduce this row's
+own failure if done by halves. The two buy different things and the
+choice is Ev's; the recommendation on the item is candidate 2 now,
+candidate 1 only when a row genuinely wants gating in a mounted file.
+
+**`consider-proptest-for-randomized-sweeps` is closed on Ev's ruling**
+(in chat, 2026-09-11): *"the fuzzers have found things only rarely and it
+seems like understanding the problem found by the fuzzer hasn't been too
+burdensome."* The whole case for migrating was shrinking — the issue says
+so itself — and shrinking is a tool for making diagnosis cheaper. The
+harness it was parked on already exists (`test_utils::fuzz`), the
+memory's fuzzing rules are untouched, and `r1-probe-seeds-are-not-on-the-
+fuzz-dial` stays open: it is the one place the reproducibility floor this
+ruling assumes is not actually met.
+
+Board: eleven live rows (corrected 2026-09-12 — the count here was
+wrong; see the correction at the tail).
+
+## Unit: the gate's mount arm (2026-09-11)
+
+`gated-marker-path-mount` closed on candidate 2, the cheap one, on Ev's
+direction. `--gated-check` refuses a marker on any `crates/*/src` file
+another `src` file `#[path]`-mounts, naming the mounting file and line.
+Candidate 1 (resolve the mount) is on the record as sized and declined:
+refusing is exact, resolving has to be RIGHT, and a one-level resolver
+would derive a wrong prefix on a nested mount — this defect one level
+deeper.
+
+**The census had grown, and re-deriving it is what caught a reader bug.**
+The row named three mounts on 2026-09-03; there are seven at `76d4bb0d`
+(the original three, plus three new `geom-core/src/sym/` ones, plus the
+`mesh` lib mount the row had set aside). None carries a marker, so the
+tree is green from the first run — the guard changed, not the tree.
+
+Two shapes the reader had to get right, both live:
+
+- **Intervening attributes.** `crates/mesh/src/lib.rs:288` writes
+  `#[cfg(test)]`, `#[path]`, `#[allow(...)]`, then `mod`. The first draft
+  required the two to be adjacent, missed it, and reported a clean tree.
+  The census — seven expected, six found — is what caught it. Same lesson
+  as the sibling row the same day: **on both arms the first draft was a
+  reader that silently saw nothing, and both were caught by counting the
+  output against a census rather than by reading the diff.**
+- **A mount target need not be under `src/`.** That mesh mount reaches
+  `crates/mesh/tests/common/witness_bodies.rs`, which is now refused too
+  — stricter than the row's own note, and it names the mounting line,
+  which is the fact an author needs.
+
+Planted both directions in `gated-suite-paths.sh`, announced cross-fence
+as before: a marker on a mounted file must red (its paths otherwise
+valid, so the red can only be this arm), and a mounted file with no
+marker must pass — the live tree's own state, and what a gate firing
+there would red `main` over.
+
+Both gate-defect rows are now closed. Board: ten live rows (corrected
+2026-09-12 — "six" here counted only the latency rows, the demotions row
+and `r1-probe-seeds-are-not-on-the-fuzz-dial`, and silently dropped four;
+see the correction at the tail).
+
+## Seam: Ev's EFFORT proposal, and the measurement that prices it (2026-09-11)
+
+Ev, in chat: run every fuzzer at EFFORT = 1 always, and let the marker
+select which ones run DEEPER — plus the observation that compilation time
+is a factor. Drafted as an `[ev]` PR
+(`fuzz-depth-not-existence-run-everything-at-effort-1`, `needs_ev`); the
+`memories/test-suite-cost.md` clause rides it and nothing is wired until
+Ev signs off.
+
+**Half of it already exists and the other half exists nowhere.**
+`fuzz::effort()` already defaults to 1 and the harness already calls the
+shipped counts a smoke level, so "run at EFFORT = 1" is what every kernel
+fuzz row already does when it runs at all. And NOTHING in the kernel ever
+runs above 1: the only `CAD_FUZZ_EFFORT` in CI is the
+`interval-transcendentals` oracle job's `"8"`, a different workspace. The
+nightly re-take runs the gated set at EFFORT = 1 too, so it buys breadth,
+not depth. The proposal is two edits, not a redesign.
+
+**The measurement was already being taken and nobody had read it.** The
+nightly's `gated suites (ungated re-take)` runs the whole gated set,
+ungated, at EFFORT = 1 — exactly the population and exactly the dial the
+proposal would add to every PR. Its own header says the reading was owed
+from its first firing and never taken. Two nights:
+
+| night | `Summary` wall | tests | slowest row | 2nd |
+|---|--:|--:|--:|--:|
+| 2026-09-11 | **83.599 s** | 419 | 83.310 s | 23.490 s |
+| 2026-09-08 | **66.359 s** | 419 | 65.896 s | 18.102 s |
+
+**The gated set's entire execution wall is ONE test** — 83.599 against
+83.310 — with the other 418 finishing in its shadow at ~0.007 s each.
+Cost concentrates savagely, measured. So the proposal's price is not a
+policy question but a single row, filed as
+`m10-3-chamber-row-reads-ten-times-its-recorded-cost`: that row reads
+66-83 s against TCOST-6's recorded 6.7 cpu-s, a factor of ten nobody has
+explained, and it is now the largest lever on this program's board.
+
+**Ev's follow-up found the carve-out**: the `interval-transcendentals`
+oracle fuzzer is NOT in the 419 and must not be swept into the rule. That
+root is outside the workspace, so a PR does not compile it anyway —
+~234 s of build to buy ~7 s of cases at EFFORT = 1. The rule's premise is
+that the binary is compiled regardless; where that is false the job-level
+gate stands. That lane is the proposal's precedent rather than its
+exception: it is the only thing in the repo already buying depth on the
+changes that reach it.
+
+Also: `work/tcost/program.md`'s `keep_out` now names S-TINT, making that
+territory overlap two-sided (22 warnings from 23; the rest pre-date this
+and mirror overlaps S-TCOST already had).
+
+## The M10-3 cost discrepancy is diagnosed: a 15x regression the gate hid (2026-09-11)
+
+Ev asked for the diagnosis; it is a regression, it is attributable, and
+the recorded figures were never wrong.
+
+**Measured**, one box, same profile and command, two trees: the suite
+goes **21.041 s at TCOST-6's merge (`a4439fbef`) to 319.373 s at
+`origin/main`** — 15.2x, with the three rows at 15.2x / 9.0x / 6.3x.
+TCOST-6's recorded 6.7 cpu-s is CORRECT for the tree it was taken on:
+21.0 s at opt-0 over the 3.8x local:hosted ratio measured on this same
+row is ~5.5 s. Nothing was mis-measured.
+
+**Bisected** over `a4439fbef..origin/main`, 2 512 revisions, 11 steps, on
+the cheapest discriminating row: **PR #1725 (`m10/m10-7-symbolic`)**, at
+the commit that names its own mechanism — *"driver: replay at
+`Sym<Interval>`, the dials and the receipt; re-cut the M10-3 limit
+rows"*. The leaf budgets did not move; the arithmetic under every box of
+the subdivision did. Nothing in `work/m10/` or in the test file records a
+runtime cost for that change, and the file still carries TCOST-6's
+measured prose ("1.46 s here against 0.98 s at 1024") beside constants it
+no longer describes.
+
+**The gate is why it sat eight days.** The suite is `gated_to!`
+editor-core's modules; #1725 changed `geom-core`, which is not in that
+set — so the gate SKIPPED the suite on the pull request that made it 15x
+more expensive, and on nearly every one since. A skipped test contributes
+no row to the `Slowest N tests` report, so the instrument that exists to
+catch this could not see it. The one lane that ran it is the nightly
+ungated re-take: eight nights at 66-83 s, flagged `SLOW`, green, unread.
+
+Two open arguments now have this as evidence rather than reasoning: that
+a gate deciding EXISTENCE hides what a dial deciding DEPTH would show,
+and that a detector nobody reads is not a control (Ev, 2026-09-07).
+Filed with both dispositions on
+`m10-3-chamber-row-reads-ten-times-its-recorded-cost`; whether
+`Sym<Interval>` is worth its seconds is M10's call and this program does
+not reopen it.
+
+## The M10-3 cost is 95 % symbolic tier; filed to M10 (2026-09-11)
+
+Ev asked for an issue on speeding up the symbolic form. Quantified first,
+one line changed (`SymbolicDials::default()`'s `enabled`), same box and
+command: **tier off 15.364 s, tier on 319.373 s** — the tier is 304 of
+319 seconds, **95.2 %, a 20.8x multiplier**. The rest of the kernel did
+not regress: with the tier off the suite is faster today than the whole
+suite was before E12 existed (21.041 s at `a4439fbef`). The entire delta
+is E12.
+
+Two corrections to yesterday's reasoning fall out of it. The degree-16
+result is **explained and the dial exonerated** — `drive.rs` predicts it
+in as many words (*"at 16 it freezes and the row does not move"*), so a
+frozen form sends work back to subdivision and 16 is slower than 128.
+And `CHAMBER_LEAVES` should NOT be re-cut: the budget was measured
+correctly, the rows assert what they assert, and the seconds belong to a
+kernel tier the real program pays too.
+
+Filed as `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive` —
+M10's slate, because M10 designed the tier (M10-7), owns `drive.rs` where
+both budget constants live, and owns the rows that pay. Named in it:
+`geom-core/src/sym*` is PROPS's by glob, so a fix inside the normal form
+is an announced cross-fence change. The row asks for a PROFILE first —
+which of degree growth, the `num-bigint` coefficient ring or per-term
+allocation dominates — because the one hypothesis taken from reading the
+code (the degree constant) was refuted by measurement, and a patch
+written the same way would have made the row slower.
+
+Recorded there without an argument attached: **all nine rows pass with
+the tier off**, which is a coverage question for M10 and not a case for
+turning it off.
+
+
+## Correction: the board counts in the two entries above were wrong (2026-09-12)
+
+Read off `work.py status --program tcost` rather than counted by hand,
+which is how the error happened: both figures were derived from the
+enumeration a lane had in its head at the time, and both enumerations
+were short. **Ten rows are live**, and here they are in full so the next
+reader does not have to re-derive them either:
+
+| row | what it waits on |
+|---|---|
+| `fuzz-depth-not-existence-run-everything-at-effort-1` | **Ev** — the `[ev]` PR carrying the `memories/` clause; nothing wired |
+| `m10-3-chamber-row-reads-ten-times-its-recorded-cost` | M10's `symbolic-tier-costs-95-percent-of-the-m10-3-drive`; diagnosed, no work left on this side |
+| `nightly-demotions-c1-c3-were-bought-with-billed-minutes` | a hosted wall reading per job, C3's especially — never taken |
+| `nextest-shard-count-needs-remeasure` | its own measured PR (N=3/N=4 on the interval legs) |
+| `rust-cache-never-restores-across-branches` | a unit; the pole itself |
+| `tcost-area-pad-lever` | a spec, then a kernel unit |
+| `offset-composite-lazy-sign-gate` | a spec, then a kernel unit |
+| `r1-probe-seeds-are-not-on-the-fuzz-dial` | a unit; more load-bearing if the `[ev]` clause lands |
+| `proptest-modules-in-src-ungated` | closes WITH the `[ev]` clause, not before |
+| `ci-filter-cites-a-path-the-ledger-recipe-cannot-open` | two comment lines |
+
+The lesson is small and general enough to keep: **a board count belongs
+to `work.py status`, not to a log entry's prose.** A hand-written total
+in a narrative goes stale the moment the next row lands, and this program
+wrote two of them wrong in one day while auditing other people's stale
+figures.
+
+## C3 measured; all three demotions are clear to restore (2026-09-12)
+
+The reading `nightly-demotions-c1-c3-were-bought-with-billed-minutes`
+asked for and nobody had ever taken. Hosted, over the 32 most recent
+completed pull-request runs, every run where the job actually executed:
+the **`python suite` job is 106 s median (n = 15), range 88-127 s**,
+against a code-tier run wall of 845 s median in the same window — **13 %
+of the run**. It was the one of the three that could plausibly have been
+the pole. It is not.
+
+With C1 at 93 s and C2 at 43 s off a 222 s `fmt` job, all three are now
+measured on one axis and none of them is on the critical path: the wall
+is the `build + archive` -> `test` chain and all three hang off `filter`
+beside it. The row's ask 2 therefore stands for all three — restore
+them; nothing here costs a contributor a second, and each pays for that
+in attribution.
+
+Noted on the row rather than reconciled: this window's 845 s wall median
+sits above the 442-482 s in `work/ciw/f3-recosting-on-a-public-repo` §M2,
+which measured a different window and a different endpoint pair. The
+conclusion is a ratio and holds on either denominator; whoever restores
+the jobs takes the before/after from their own PR.
+
+## rust-cache closed on its after-reading; the budget half split out (2026-09-12)
+
+`rust-cache-never-restores-across-branches` is closed. Its premise —
+*"restored nothing on five of seven build jobs"* — is false on today's
+tree, and the fix is the one the row itself proposed: **TCOST-B3's
+`push: main` primer landed and works.** Over the 32 most recent completed
+PR runs, every `build + archive` job that executed restored — **0 of 16
+miss-shaped per lane**, restore step 13 s median — and the jobs sit at
+**251 / 279 s** against the row's own 820 / 840 s cold figure. Grounded
+rather than inferred: one job's log read directly prints
+`Cache up-to-date.` The row had sat open for nine days describing a tree
+that had moved.
+
+**Half of it did not close.** The primer works by REFRESHING a shared key
+on every main push, so eviction costs one push's staleness; that says
+nothing about an entry written ONCE under a hash key — which is what
+TCOST-C4 measured churning out of the 10 GB budget inside the hour, and
+what `work/ciw/cache-rendered-cells-on-input-hash` is parked on. Filed as
+`actions-cache-budget-under-a-hash-key` and the CIW row re-parked onto
+it in the same commit, because a closing row may not un-park another
+program's item by leaving its blocker dangling — lint caught exactly that
+and the rule says fix the stale row rather than soften the check.
+
+**The pattern is now worth naming.** Five rows this session were figures
+describing a tree that had moved: TCOST-6's 6.7 cpu-s, this file's own
+1.46 s in-file timing, `PCURVE-P2-SPEC`'s "THROWS IT AWAY", C3's reading
+that was never taken at all, and this row's five-of-seven. Each was
+written accurately and none was re-read at the change that falsified it.
+The gate cannot catch this class — a stale NUMBER in prose reds nothing —
+so the only thing that does is a lane re-deriving a figure before acting
+on it, which is what found all five.
+
+## The EFFORT policy is ratified and unwired; the row says so now (2026-09-12)
+
+Ev signed the clause off and it merged at PR #2363. The row that carried
+it still read `needs_ev: true` and was titled around the measurement,
+so the board reported "1 on Ev" for a question Ev had already answered —
+the board lying about its own state, which is the class this program
+spent two days fixing elsewhere.
+
+Corrected: `needs_ev` dropped, retitled to name the live work
+(**`Wire the EFFORT policy: ci-filter.py selects a raised EFFORT instead
+of excluding suites`**), and the wiring section promoted from "if Ev
+signs off" to THE WORK. Five steps, unchanged in substance.
+
+**Nothing is wired.** `scripts/ci-filter.py` still emits an EXCLUSION and
+still decides existence; no lane in the kernel runs above EFFORT = 1.
+
+**Not blocked, but ordered.** The gated set's execution wall is one suite
+whose cost is a kernel regression now on M10's slate. Wiring before that
+is fixed puts a 66-83 s row on every pull request; after, the same step
+costs about a second of leg time. A lane may go first and owes the
+measurement of what it lands.

@@ -9,7 +9,7 @@ prefix: tcost/
 tag: (S-TCOST orchestrator)
 ab_band: 1400-1499
 paths: [crates/*/tests/*, crates/test-utils/*, scripts/ci-filter.py, scripts/slowest-tests.py, scripts/base-test-listing.sh]
-keep_out: [no test is deleted for being slow alone — every deletion names the row that owns the claim, no fixed seed and no ignore on a row that gates, reviewer suites that pull their weight keep their independence from shipped fixtures, nothing gates on a millisecond — cost is reported and not thresholded, CI build knobs (profile/cache/sharding) are out unless a unit's measurement makes the case in its own PR]
+keep_out: [S-TINT shares this program's crates/*/tests/* and crates/test-utils/* territory deliberately — the fence is the QUESTION and not the path (work/tint/plan.md), a row justified by a second is this program's and a row justified by a claim that cannot fail is S-TINT's, no test is deleted for being slow alone — every deletion names the row that owns the claim, no fixed seed and no ignore on a row that gates, reviewer suites that pull their weight keep their independence from shipped fixtures, nothing gates on a millisecond — cost is reported and not thresholded, CI build knobs (profile/cache/sharding) are out unless a unit's measurement makes the case in its own PR]
 ---
 
 Make the suite cheaper without losing its power to detect defects: the six

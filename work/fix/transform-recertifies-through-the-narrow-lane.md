@@ -2,8 +2,10 @@
 id: transform-recertifies-through-the-narrow-lane
 kind: issue
 title: transform_rigid re-certifies through the plain certify door, which admits a strictly narrower class than tier 3
-status: open
+status: review
 opened: 2026-09-04
+pr: 2418
+branch: fix/transform-nurbs-lane
 ---
 
 
@@ -67,3 +69,60 @@ out of scope for the unit that found it, so it is filed rather than taken.
 
 `boolean/combine.rs:433` is the same shape and wants the same look; whether
 its class is reachable was not established here.
+
+## Taken (PR 2418) — with three corrections to the above
+
+**The site table above is stale and was re-derived at the merge base.**
+Two rows are wrong, not merely off by a line number:
+
+| site | door, re-derived |
+|---|---|
+| `crates/topo/src/validate.rs` check 2 (tier 3 at rest) | **`recertify_via`** with an `Option<NurbsLane>` threaded from the caller — NOT `recertify_nurbs_lane`, which appears nowhere in `crates/topo/`. The lane-free door SKIPS an M7-8 edge (`needs_nurbs_lane` guards the call) rather than reporting it. |
+| `crates/topo/src/euler.rs` (`set_edge_curve_nurbs_lane`) | `certify_nurbs_lane` — unchanged |
+| `crates/topo/src/transform.rs` (`transform_rigid`) | plain `certify` — unchanged, and what this unit fixes |
+| `crates/topo/src/boolean/combine.rs` (`graft_solids_with`) | plain `certify` — unchanged; filed as `graft-recertifies-through-the-narrow-lane` |
+| `crates/topo/src/euler.rs` (`set_edge_curve`) | plain `certify` — unchanged |
+| `crates/topo/src/seqgen.rs` (`split_site`) | plain `recertify`, DELIBERATELY. The comment says what the row claims it says, and is confirmed verbatim. Not changed. |
+
+**The fix this item prescribed does not compile.** The item says
+`transform_rigid` "would take a `T: Decide + geom_core::CertifiedBounds`
+bound". It cannot: `transform_rigid` has a GENERIC caller —
+`boolean::ops::apply_recuts`, under `boolean_op_recut` and
+`boolean_op_with` — and `boolean_op_with` is run by `verbs::Verb`'s
+`impl<T: Decide + Bounds + geom_brep::PcurveFittedLane>` block, which
+the dual corpus instantiates at `Dual64`. No `Dual` implements
+`geom_core::CertifiedEnclosure`, so the bound raise propagates into a
+block that must keep admitting one. `crates/geom-core/src/real.rs`
+already records exactly this hazard for that same `verbs` block, and
+states the ratified discriminator it comes from: tighten a door's bound
+only when NOTHING GENERIC CALLS IT.
+
+**What landed instead** is the shape `validate.rs` already uses for the
+same split — the lane as an ARGUMENT, per `NurbsLane`'s own doctrine
+that "a caller that can derive the certificate hands one in":
+
+- `geom_brep::EdgeCurve::certify_via` — the mint-side twin of the
+  existing `recertify_via`. `certify` and `certify_nurbs_lane` are now
+  that one function with the argument filled in, as `recertify` and
+  `recertify_nurbs_lane` already were.
+- `topo::transform_rigid_via` — `transform_rigid` with the lane taken
+  as an argument. `transform_rigid`'s own signature and behaviour are
+  UNCHANGED, so no caller moves and no bound propagates.
+
+The item's load-bearing sentence — that this "adds no certification
+capability the at-rest validator does not already have" — holds and was
+checked rather than repeated: the injected lane is
+`geom_brep::plane_nurbs_limbs`, the same function `validate.rs` injects,
+and the checks and their order are `run_checks`' own either way.
+
+## Residue
+
+- `graft-recertifies-through-the-narrow-lane` — `combine.rs`, the same
+  shape at the graft door, reachability NOT established.
+- **No `transform_rigid_certified` convenience door was added.** One
+  would carry `Decide + PcurveFittedLane + CertifiedBounds`, a compound
+  bracket bound in a file `scripts/gates/bounds-allowlist.sh` does not
+  allowlist, so it needs a ratification in `crates/geom-core/src/real.rs`'s
+  `bounds_allowlist` module — text that binds future work, and Ev's
+  call rather than a lane's. Deliberately left for that conversation;
+  `transform_rigid_via` reaches the same behaviour today.

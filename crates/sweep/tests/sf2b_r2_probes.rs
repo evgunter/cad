@@ -5,18 +5,15 @@
 
 use core::f64::consts::PI;
 
+use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 const T: f64 = 1.0 / 128.0;
