@@ -840,3 +840,24 @@ under a symbolic session, disclosed — the reviewers are asked whether
 it is a twin. PERF-8's review dispatch waited ~40 min for disk behind
 PERF-9's reviewers (eight lanes on the box). One PERF-9 arm parked on
 a monitor once and was corrected to foreground polling.
+
+## 2026-09-12 — PERF-9 dual review adjudicated: a clean pair; fix pass dispatched
+
+APPROVE (0 / 2 / 2 + 7 style) and APPROVE-WITH-FIXES (0 / 1 / 5) on
+frozen `aa64fab67`: **no MAJOR on either arm.** Both held the pick-
+identity claim adversarially (one arm with ~450 rays incl. NaN, poison
+and empty patches plus a negative control showing the spec's literal
+"ascending patch order" reds; the other with 65 279 rays over the
+corpus and a moved-shared-vertex row) and both read the same-set
+argument and found it correct; both reproduced the tour die's memo'd
+index 131 → 33 ms and found no first-open regression. Union to the
+fix pass (11 MINORs, all small): the tree memo's memory is not
+marginal (the `Arc`s are the node level's) and the unread
+`tree_bytes` chain goes; the per-build triangle-table copy and box
+recompute — the real residual — filed, not fixed; the third instance
+of the generational-memo machinery added to the item that names the
+class; the key-coverage overclaim rewritten around `same_boxes`; the
+box comparison moved into `bvh`; the keys-short arm made
+`unreachable!` or typed; a `tol` row and a tree-for-tree row; one
+unreproduced measurement sentence softened. One arm parked on a
+monitor once and was corrected (a correction, not a relaxation).

@@ -258,9 +258,8 @@ entry's confidence interval is not the resolution of a comparison.
   enumerates cells by recursive bisection with a linear scan over
   tubes and says so ("Brute force, deliberately, for now"), which is
   this doc's trigger discipline working, not a missed delivery.
-  `crates/bvh/src/lib.rs`'s header still says "two of them wired so
-  far" over its four duties; it has not caught up with the picking
-  consumer.
+  `crates/bvh/src/lib.rs`'s header now says four of its duties are
+  wired (a PERF-9 reviewer's correction of this paragraph, 2026-09-12).
 
   The **conservative-superset contract** is the D9 obligation: a BVH
   may only prune pairs the exact predicate would reject, so the result
