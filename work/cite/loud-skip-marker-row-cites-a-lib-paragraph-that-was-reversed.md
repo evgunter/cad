@@ -2,8 +2,9 @@
 id: loud-skip-marker-row-cites-a-lib-paragraph-that-was-reversed
 kind: issue
 title: work/tcost/loud-skip-marker-is-a-hand-kept-idiom cites three stale rows and one paragraph VIEW reversed, and this is the second time it has been reported with nothing filed
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-12
 refs: [2089, 1848]
 ---
 
@@ -46,6 +47,18 @@ was repaired two days ago.
 **3. `crates/viewer/tests/error_display.rs:307`.** The cited row,
 `app_lane_skipped_startup_error_arms_not_checked_here`, is at `:322`.
 Line `:307` is `prose(&shown, "TargetFailed");`.
+
+> **Both of those numbers have since drifted, and the drift is the
+> point.** Re-derived at the CITE cut (2026-09-11): the `fn` is at
+> `error_display.rs:325`, and `:307` is now
+> `let shown = indeterminate_wording("face", &cause);`. Five days took
+> three lines. Entry 1's reading of `lib.rs:103` still holds. Nothing
+> about the finding changed — what changed is that the re-derivation
+> recorded here, written to repair stale numbers, went stale itself
+> before anyone took the row. **A taker re-derives at its own base and
+> does not trust this paragraph either**, and that is the case for
+> landing the row in cite-by-name form rather than with fresher
+> numbers.
 
 **Two of the eight entries do still resolve** and are recorded so a
 taker knows the row is not wholly rotten:
@@ -108,3 +121,83 @@ dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## Repaired 2026-09-11, in TINT's file, on Ev's authorisation
+
+Ev authorised CITE to repair this row's citations directly in
+`work/tint/loud-skip-marker-is-a-hand-kept-idiom.md` rather than route
+them, in one PR, with no routing issue filed and no `work/README.md`
+change. The authorisation covers this repair and the two beside it and
+nothing wider.
+
+**What was done.** All eight entries were resolved at the repair's own
+base with `grep -n "_lane_skipped_"` per file. The table now carries the
+`fn` name and the file and **no line numbers**, entry 1 is marked
+unresolved in place rather than repointed, and the reversed quotation is
+left as filed with the current `lib.rs` text quoted beneath it and the
+member/citation question handed to TINT.
+
+**Where the re-derivation recorded ABOVE was wrong, five days on.**
+The block quote in `## The row` says two of the eight *"do still
+resolve"*: `chrome_labels.rs:30` and `panel_display.rs:770`.
+`chrome_labels.rs:30` still does. **`panel_display.rs:770` does not** —
+the `fn` is at `:777` and `:770` is a bare `///` inside the doc block.
+`error_display.rs`'s `fn` is at `:325`, which the block quote had right.
+So of the eight numbers the original table carried, **three** were wrong
+at the repair's base — `lib.rs:103`, `error_display.rs:307` and
+`panel_display.rs:770` — and the last of those is one of the two this row
+had certified as fine, gone stale inside the five days between the
+certification and the repair. The paragraph warning a taker not to trust it was correct about
+itself.
+
+**The four nobody had re-derived all resolve.** `m5_s12:27`,
+`m5_s13:19`, `m6_surgery:20` and `m6_2_fitted_at_rest:188` each land on
+their `fn` exactly. Line numbers were dropped from them anyway: a number
+that happens to be right is not a citation that will stay right, which is
+the whole of `work/cite/S176.md`.
+
+**Two findings handed to TINT, not acted on** (recorded in TINT's file in
+a marked section):
+
+- **The idiom has ten copies, not eight.**
+  `crates/sweep/tests/review_fillet_e3_probes.rs` and
+  `crates/sweep/tests/blend_margin_payload_interval.rs` each carry the
+  same `#[cfg(not(feature = "interval"))] #[test] fn
+  interval_lane_skipped_no_certified_coverage_here`, and neither has ever
+  been in the table. Found by
+  `grep -rn "lane_skipped" --include=*.rs crates/ demos/ tools/ benches/`,
+  corroborated by `grep -rln "Loud skip" --include=*.rs .` returning
+  exactly those ten files. Membership is TINT's, so CITE recorded them
+  rather than adding them.
+- **"every copy admits in its own rustdoc that it goes stale silently"
+  holds for three of the eight.** Three viewer test copies carry the
+  admission, `lib.rs` carries #1848's reversal of it, and the four
+  `interval_lane_skipped_…` copies say only why the announcement exists.
+
+**Out of fence, reported not fixed:** `crates/test-utils/src/vacuity.rs`
+excludes *"The four whole-binary `interval_lane_skipped_…` rows"* and
+there are six. A code comment; this repair changed no code.
+
+The `## The actual finding` half of this row — that §6 produced no
+durable artifact twice — is untouched and stands: this file is that
+artifact, and the repair is what it was filed to get.
+
+
+## Closed 2026-09-12 — repaired; the residue is TINT's
+
+All eight entries in `work/tint/loud-skip-marker-is-a-hand-kept-idiom`
+are re-derived and the table is converted to `fn` names. Seven of the
+eight names resolve; the eighth does not, and is left unrepointed with
+the current text quoted beneath, because its subject is gone and
+repointing would invent one.
+
+Left to TINT in a marked section: whether the row has lost a **member**
+or only a citation, the two copies of the idiom the table has never
+listed (ten in the tree, not eight), and the `## Finding`'s *"every copy
+admits in its own rustdoc"*, which holds for three of eight.
+
+**The defect this row was actually filed for is the one that is fixed.**
+It recorded that §6 reported this same rot twice with no durable
+artifact either time. There is a durable artifact now, in the file that
+carries the finding, which is where the third lane to notice will
+look.

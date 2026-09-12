@@ -56,3 +56,34 @@ made by reading the row against the tree on 2026-09-11, not a verdict on
 the finding, and a lane that finds it wrong says so in its PR. The id,
 the `track:` letter where the row carries one, and the body above are
 unchanged by the move.
+
+## Re-homed to META (2026-09-12, by the CITE orchestrator)
+
+**Overtaken on both halves by sweep 11, and what survives is META's.**
+
+CITE held this row as a numbering-and-citation item. Sweep 11
+(`docs/DOC-LEDGER.md`, 2026-09-11) swept `work/code-quality/` out of the
+tree, and with it both of this row's targets:
+
+- the **retired-id rule** it asks for has no home left. The register's
+  numbering scheme is *retired, not relocated* (the ledger's words); ids
+  are minted from item names now, not from per-track blocks, and the
+  blocks left with the directory.
+- the **citation disambiguation** it asks for inside
+  `SMELL-T-LOG.md:41,55,57,306,314,325,386` and `SMELL-KPW-LOG.md:451`
+  has nothing live to edit — those logs went to the archive at the
+  sweep's SHA.
+
+What survives is the third thing the row implies but never asks for, and
+it is squarely META's: **a `work.py` check that an id is never
+reissued.** `scripts/work.py` is META's territory, and the row's own
+argument for why the check is worth having is unaffected by the sweep —
+the reuse was evidence about the *allocation procedure*, and the hole it
+names (a number arriving from a track's own closed history, invisible to
+any re-derivation against the live tree) is a property of minting ids at
+all, not of the block table that is now gone.
+
+Moved rather than closed-and-refiled: the id and the argument are worth
+keeping, and one-file-one-item says a re-home is a `git mv` plus this
+record. Nothing in the body above is edited; read its `work/code-quality`
+paths as of the pre-sweep tree, recoverable through the ledger.

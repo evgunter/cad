@@ -2,8 +2,9 @@
 id: tracker-file-line-citations-measured
 kind: issue
 title: the tracker's file:line citations, measured: 1,508 in open rows across 22 programs, and 96% already name their subject beside the number
-status: open
+status: closed
 opened: 2026-09-09
+closed: 2026-09-11
 ---
 
 Measurement offered to `work/code-quality/doc-line-citations-rot-silently`,
@@ -115,3 +116,33 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+
+## Closed 2026-09-11 — folded into the convention
+
+This row asked for no unit and offered a number to the row that owned
+the class. Both of those have now happened in one place: the class's row
+(`doc-line-citations-rot-silently`) and this measurement landed on the
+same slate in the 2026-09-11 cut, so the fold is in-fence and is done.
+
+**Every figure below is load-bearing in `work/cite/plan.md`'s
+convention**, and the measurement is what turned the program's two `H`
+rows into one paragraph:
+
+- **96% anchored (1,446 of 1,508)** — the convention is a ratification
+  of existing practice, not a proposal, and adopting it is mostly
+  deleting a redundant number;
+- **4% unanchored (62)** — the only citations where a decision is
+  needed;
+- **2.1% failing a line-range check, against VIEW's ~75% pointing at the
+  wrong subject** — the argument that a mechanical gate would be silent
+  on almost every real defect, which is why none is built.
+
+The three never-repointed shapes this row confirmed from the other end —
+a citation whose subject is gone, one into a file the change never
+touched, and a pasted transcript dated to a SHA — are carried into the
+convention verbatim.
+
+The counts are as of `0762714fd` and are not re-taken at close. Per the
+convention they do not need to be: they are cited by what they measure
+and by the method that reproduces them, both of which this row states.

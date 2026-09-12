@@ -362,6 +362,7 @@ use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::k_stats::decide;
+use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{
     Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2, is_finite_length,
 };
@@ -1384,18 +1385,40 @@ impl<T: Real> PathError<T> {
 /// of an `f64`, which puts an 8 mm radius that arithmetic produced into
 /// a human sentence as `0.008000000000000002 m`. Where the `Debug` form
 /// parses back as an `f64` this renders the shortest spelling that still
-/// names the same number **to a relative 1e-9**; anything else (an
-/// interval, a dual) passes through untouched. A DISPLAY choice only —
-/// the payload keeps the exact scalar, and every claim a caller branches
-/// on reads the field, never this string.
+/// names the same number **to the finer of a relative 1e-9 and an
+/// absolute ε/10**; anything else (an interval, a dual) passes through
+/// untouched. A DISPLAY choice only — the payload keeps the exact
+/// scalar, and every claim a caller branches on reads the field, never
+/// this string.
 ///
-/// The tolerance is relative with no floor, so the shortening is the
-/// same proposition at every magnitude: a picometre margin is rounded
-/// to nine significant figures of a picometre, never to the nearest
-/// nanometre and never to `0`. `0.0` has no significant figures to
-/// round to and only its exact spelling round-trips, which is `0`;
-/// `-0.0`'s is `-0`, a sign this helper reports because the payload
-/// carries it, not because a magnitude was erased.
+/// **The two arms are load-bearing at opposite ends of the range, and
+/// the tolerance is their `min` because each is the coarser one
+/// somewhere.** ε is a LENGTH ([`DEFAULT_EPS`], D4 ¶1), so a purely
+/// relative 1e-9 crosses it at one metre and is coarser above: at a
+/// kilometre it is a micron, and two lengths the kernel certifies as
+/// different then render as one number — a refusal reading *"margin
+/// 1234.5 m exceeds the 1234.5 m the anchor pins"*. The absolute arm
+/// caps the grid one decade below ε, so a difference the kernel can
+/// decide is always a difference the sentence spells. Below a decimetre
+/// the relative arm is the finer of the two and governs alone, and the
+/// shortening is there the same proposition at every magnitude: a
+/// picometre margin is rounded to nine significant figures of a
+/// picometre, never to the nearest nanometre and never to `0`. A FLOOR
+/// under the tolerance is the mirror defect and is precisely what a
+/// `min` cannot become — it would round every margin below the floor to
+/// the floor's own zero, erasing the sub-nanometre values these messages
+/// exist to report.
+///
+/// The cap is the compile-time [`DEFAULT_EPS`] and never the run's live
+/// `Tolerance::eps()`. A live ε would make every rendered refusal a
+/// function of process configuration, spelling one payload three ways
+/// across the ε rows CI gates; the grid is a display choice stated once
+/// against the ratified default.
+///
+/// `0.0` has no significant figures to round to and only its exact
+/// spelling round-trips, which is `0`; `-0.0`'s is `-0`, a sign this
+/// helper reports because the payload carries it, not because a
+/// magnitude was erased.
 ///
 /// Notation follows the `Debug` form's own choice — fixed where `{:?}`
 /// is fixed, exponential where `{:?}` is exponential — so this helper
@@ -1413,7 +1436,7 @@ fn num<T: core::fmt::Debug>(v: &T) -> String {
     let Ok(x) = raw.parse::<f64>() else {
         return raw;
     };
-    let tol = 1e-9 * x.abs();
+    let tol = (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9);
     let exponential = raw.contains('e');
     for prec in 0..=17 {
         let short = if exponential {
@@ -4331,6 +4354,40 @@ mod tests {
         }
     }
 
+    /// **A difference the kernel can certify is a difference the
+    /// sentence spells.** ε is a LENGTH, so a purely relative 1e-9
+    /// crosses it at one metre and is coarser above — at a kilometre it
+    /// is a micron, a thousand ε. Two lengths the kernel decided were
+    /// different then reach the reader as one number, which is how a
+    /// refusal comes to read *"margin 1234.5 m exceeds the 1234.5 m the
+    /// anchor pins"*.
+    ///
+    /// Each row is a pair at a magnitude at or above the crossover,
+    /// separated by the multiple of ε named beside it, and the guard
+    /// above each comparison is what makes the row mean anything: a
+    /// pair closer than ε is one the kernel could not certify apart
+    /// either, so `num` would owe nothing. The first row is the
+    /// control — one metre is where a relative 1e-9 still equals ε, and
+    /// it is distinct under either grid. The three above it collide
+    /// under a purely relative tolerance.
+    #[test]
+    fn num_separates_two_lengths_the_kernel_can_certify_apart() {
+        let rows: [(f64, f64, &str); 4] = [
+            (1.0, 1.000_000_01, "1 m, 10 ε"),
+            (100.0, 100.000_000_01, "100 m, 10 ε"),
+            (1_234.5, 1_234.500_000_1, "1234.5 m, 100 ε"),
+            (10_000.0, 10_000.000_001, "10 km, 1000 ε"),
+        ];
+        for (base, other, label) in rows {
+            assert!(
+                (other - base).abs() >= DEFAULT_EPS,
+                "{label}: the pair is closer than ε, so the row proves nothing"
+            );
+            assert_ne!(num(&base), num(&other), "{label}: num rendered both alike");
+        }
+        assert_eq!(num(&100.000_000_01_f64), "100.00000001");
+    }
+
     /// **The floor's absence is visible at the door, not only in the
     /// helper.** [`PathError::JunctionTangent`]'s sentence is *"turn
     /// margin {margin} m on a {arm} m arm"*, and a picometre margin
@@ -4358,6 +4415,27 @@ mod tests {
         assert!(!cusp.contains("margin -0 m"), "{cusp}");
     }
 
+    /// **The cap is visible at the door too.**
+    /// [`PathError::ArcCenterNotEquidistant`] fires precisely BECAUSE
+    /// the kernel decided two radii differ, and its sentence prints
+    /// both of them. Under a purely relative 1e-9 a 100 m arc whose
+    /// radii differ by 10 ε renders *"|tip - centre| = 100 m, |end -
+    /// centre| = 100 m"* — a refusal that contradicts itself in its own
+    /// sentence, telling the reader the centre is not equidistant while
+    /// printing one number twice.
+    #[test]
+    fn a_hundred_metre_refusal_does_not_print_its_two_radii_alike() {
+        let s = PathError::ArcCenterNotEquidistant {
+            tip_radius: 100.0_f64,
+            end_radius: 100.000_000_01_f64,
+        }
+        .to_string();
+        assert!(
+            s.contains("|tip - centre| = 100 m, |end - centre| = 100.00000001 m"),
+            "{s}"
+        );
+    }
+
     /// **Zero renders as zero.** A relative tolerance at `0.0` is
     /// `0.0`, so only a spelling that parses back to the payload is
     /// accepted — which `0` is, at the first precision tried. The row
@@ -4382,16 +4460,33 @@ mod tests {
     /// comparison — each is false against a `NaN` or infinite
     /// tolerance — and fall through.
     ///
-    /// The finite rows are the extremes, the largest magnitude and the
-    /// smallest normal, and each is asserted SHORTENED, which the
-    /// fallback cannot produce: a fall-through returns the full
+    /// The finite rows below are asserted SHORTENED, which the fallback
+    /// cannot produce: a fall-through returns the full
     /// 17-significant-figure `Debug` spelling.
+    ///
+    /// **The largest magnitude is not one of them, and cannot be.** The
+    /// display grid is absolute above a decimetre, and `f64`'s own
+    /// spacing near [`f64::MAX`] is some 10³⁰⁰ metres — coarser than the
+    /// grid by every order there is. The shortest spelling inside the
+    /// grid is therefore the exact one, which is what `{:?}` already
+    /// prints, so `num` and `{:?}` necessarily agree and no shortening
+    /// is available to observe. That equality is itself the assertion: a
+    /// tolerance that went relative again shortens the extreme to
+    /// `1.79769313486e308` and reds the row.
     #[test]
     fn num_falls_through_to_debug_for_the_non_finite_payloads_only() {
         assert_eq!(num(&f64::NAN), "NaN");
         assert_eq!(num(&f64::INFINITY), "inf");
         assert_eq!(num(&f64::NEG_INFINITY), "-inf");
-        for x in [f64::MAX, -f64::MAX, f64::MIN_POSITIVE, -f64::MIN_POSITIVE] {
+        for x in [f64::MAX, -f64::MAX] {
+            assert_eq!(num(&x), format!("{x:?}"), "num({x:?}) dropped a digit");
+        }
+        for x in [
+            f64::MIN_POSITIVE,
+            -f64::MIN_POSITIVE,
+            1_234.567_890_123_456_7,
+            -1_234.567_890_123_456_7,
+        ] {
             let got = num(&x);
             assert_ne!(got, format!("{x:?}"), "num({x:?}) fell through");
             assert!(
@@ -4409,8 +4504,13 @@ mod tests {
     /// ordinary scales is the arithmetic's own noise: an 8 mm setback
     /// that a subtraction produced is `0.008000000000000002`. Every
     /// row here is a value whose `Debug` form carries that noise, and
-    /// each regresses to it if the shortening search is dropped or its
-    /// tolerance tightened toward the exact spelling.
+    /// each regresses to it if the shortening search is dropped.
+    ///
+    /// The last two rows straddle the decimetre where the grid stops
+    /// being relative and becomes an absolute ε/10: `1/3` keeps ten
+    /// decimal places because a tenth of a nanometre is what the grid
+    /// is worth there, while `0.0035` keeps two significant figures
+    /// because below the crossover the relative arm is the finer one.
     #[test]
     fn num_still_shortens_arithmetic_noise_at_metre_scale() {
         let rows: [(f64, &str); 6] = [
@@ -4418,7 +4518,7 @@ mod tests {
             (0.008_000_000_000_000_002, "0.008"),
             (0.003_499_999_999_999_999_6, "0.0035"),
             (-0.008_000_000_000_000_002, "-0.008"),
-            (1.0 / 3.0, "0.333333333"),
+            (1.0 / 3.0, "0.3333333333"),
             (2.5, "2.5"),
         ];
         for (x, want) in rows {
@@ -4445,17 +4545,21 @@ mod tests {
         }
     }
 
-    /// **The spelling names the payload to a relative 1e-9, at every
-    /// magnitude.** This is the property the per-value rows above
-    /// sample; here it is asserted as the invariant, over a ladder
-    /// that spans the exponent range in both signs.
+    /// **The spelling names the payload to the finer of a relative 1e-9
+    /// and an absolute ε/10, at every magnitude.** This is the property
+    /// the per-value rows above sample; here it is asserted as the
+    /// invariant, over a ladder that spans the exponent range in both
+    /// signs.
     ///
-    /// A returning absolute floor breaks it at the bottom of the
-    /// ladder — the rendered `0` has relative error 1, not 1e-9 — and
-    /// a tolerance loosened past 1e-9 breaks it in the middle, where
-    /// the search stops one digit early.
+    /// Each arm catches a different mistake. A returning absolute FLOOR
+    /// breaks the relative arm at the bottom of the ladder — the
+    /// rendered `0` has relative error 1, not 1e-9. A tolerance that
+    /// drops the CAP and goes purely relative breaks the absolute arm
+    /// at every rung above a decimetre, where a relative 1e-9 exceeds
+    /// ε and the search stops a digit early on a difference the kernel
+    /// can certify.
     #[test]
-    fn num_names_its_payload_to_a_relative_1e_9_at_every_magnitude() {
+    fn num_names_its_payload_to_the_finer_of_a_relative_1e_9_and_an_absolute_grid() {
         let mut x = 1.234_567_890_123_456_7e-300_f64;
         let mut rungs = 0;
         while x.is_finite() && x != 0.0 {
@@ -4467,6 +4571,10 @@ mod tests {
                 assert!(
                     (back - signed).abs() <= 1e-9 * signed.abs(),
                     "num({signed:?}) = {got} is not within a relative 1e-9"
+                );
+                assert!(
+                    (back - signed).abs() <= DEFAULT_EPS * 0.1,
+                    "num({signed:?}) = {got} is coarser than a tenth of ε"
                 );
                 assert!(
                     got != "0" && got != "-0",
