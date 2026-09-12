@@ -303,13 +303,91 @@ which summarising job reports green.
 run the suite.** `cargo test -p viewer --features app` — which this
 register and several dispatches specified — aborts at the `--lib`
 adapter red (`gpu::tests::every_pass_builds_on_a_real_device`, no Vulkan
-on the lane boxes), so the **524-row `--test all` suite never builds**.
+on the lane boxes), so the **whole `--test all` suite never builds**.
 A lane following that command literally reports a green-looking `37/1`
 and never runs the suite its own diff is about. The command is
 `cargo test -p viewer --features app --no-fail-fast`, and the expected
-shape is `--test all` 524/0/1 plus `--lib` 37/1 with that one adapter
-row red. Found by #2400's lane, which ran it correctly and then said the
-brief was wrong.
+shape is **every `--test all` row passing** plus `--lib` one row red —
+that row and no other. **Do not put the row COUNT here as an
+expectation.** It was written as 524 and was 527 on `main` four merges
+later, so a lane checking against the number would read a six-row gain
+it had not made; the count moves whenever any program adds a viewer
+test, which is not an event this register hears about. Derive the
+baseline from your own merge base if you need a delta, and otherwise
+assert the SHAPE. (#2425's lane caught the stale 524.)
+
+**A fork option named in a dispatch is a claim, and it inherits the
+rest of the brief.** Offering the δ render a *unit-switching* shape
+(µm/nm below a threshold) looked like the legible option and is in fact
+**the one shape that makes the defect worse**: the box is labelled
+`mm display δ` and parses millimetres, and the same brief's other half
+says the render is the text an edit starts from — so a µm render is a
+**1000× wrong commit one keystroke away**. #2425's lane refused it on
+that ground. Check each fork option you name against the other halves of
+the same dispatch before naming it; an option offered without that check
+is not neutral, it is a suggestion with an unexamined cost.
+
+**`desired_width` is not a character budget, and quoting it as one
+understates a clip.** The δ field read *"56 points"*; `TextEdit`'s
+`Margin::symmetric(4, 2)` comes off that, leaving **48 points of text**
+at ~7.33 points per digit — about **six and a half characters**, so it
+could not display `0.001667` even before any render change. A fix to a
+render that leaves the width alone is delivered clipped, and a clipped
+render reads as a different value, which is the defect again. The field
+is now 88 points with `the_field_shows_the_longest_render` measuring
+both numbers through egui's own font metrics (the crate sets no text
+styles, so headless metrics are the app's) and going red at 56.
+
+**And the sibling population was three because I repeated it instead of
+re-deriving it.** The parent item listed three render-only siblings
+(`bounds.rs`, `frame.rs`, `scene.rs`); my dispatch repeated the three;
+there are **four**, and the fourth was in the file the lane was already
+editing — `pane/view.rs:43` renders `distance {:.1} mm (band
+{:.1}–{:.1})` and `Camera::min_distance` is `scene_radius * 0.05`
+(`camera.rs:531-533`, `MIN_DISTANCE_FACTOR` at `:60`), so any scene
+under about a millimetre of radius reads `band 0.0–…`, a distance the
+camera refuses. Verified here. This register's own census rule says a
+table is a population and placing it means re-deriving by subject — and
+a population **quoted from the item into the dispatch** is the same
+defect one step earlier. Filed with the other three as
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`.
+(`pane/view.rs:38`'s `{:.1}°` is NOT a member: `0.0°` is a yaw a camera
+really has.)
+
+**THE COMMANDS IN THIS RULE WERE WRONG FOR A WEEK, AND LANES RETURNED
+EXIT 0 FROM THEM.** This register and every dispatch built on it said
+`scripts/doc-gate.sh --pr` and
+`scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit`.
+**Neither flag exists.** `doc-gate.sh` parses `--print-roots` and
+`--skip-viewer-toolkit` itself and hands everything else to
+`gate_parse_args` (`scripts/gates/lib.sh:55-64`), whose `*)` arm prints
+`usage: scripts/doc-gate.sh [--selftest] [--root DIR]` and **exits 2**.
+Verified by running it. The real commands are the ones CI runs
+(`ci.yml:1804-1808`): `scripts/doc-gate.sh --selftest`, then
+`scripts/doc-gate.sh`, then `scripts/doc-gate.sh --skip-viewer-toolkit`.
+
+Several lanes reported **exit 0** for the non-existent invocation. A
+command that cannot run cannot return 0, so those receipts were not
+measurements — whatever each lane actually ran, what it wrote down was
+not what it ran. The rule's SUBSTANCE survives untouched (both passes
+are owed, and the skip pass is the only rustdoc on a skip-mode run
+while the full pass is the only one that judges links — that rests on
+`RUSTDOC_LINTS_INERT` in the source, not on any receipt). **What did
+not survive is the verification chain.**
+
+The orchestrator re-established the fact directly rather than trusting
+any of it: on `main` at `d8988ee461`, `scripts/doc-gate.sh` exits **0**
+and `scripts/doc-gate.sh --skip-viewer-toolkit` exits **0**, both run
+here. So no bad doc state reached `main` — but that is now known
+because it was measured, not because it was reported.
+
+**The general rule, which is the expensive half:** a receipt for a
+command nobody has run is indistinguishable from a receipt for a
+command that passed, and a dispatch is the place a wrong command
+propagates fastest — it is copied verbatim into every lane. **Before
+putting a command in a dispatch, run it once.** A flag that does not
+exist fails loudly and instantly; a flag that is never tested is
+believed for a week.
 
 **Settle a CI-scope question by RUNNING the filter, not by reading a
 manifest.** The same review reported `prose_census` as possibly sited
@@ -656,8 +734,7 @@ FIX's orchestrator found it from `crates/quantity` (#2335, #2340) and
 filed it rather than absorbing it. #2332 cleared it under Ev's ruling.
 
 **So: a VIEW diff that touches a doc comment in the renderer-free half
-owes `scripts/doc-gate.sh --pr --scope '-p viewer'
---skip-viewer-toolkit` LOCALLY**, and the green it gets from CI is not
+owes `scripts/doc-gate.sh --skip-viewer-toolkit` LOCALLY**, and the green it gets from CI is not
 that. The dispatch that found this said it about its own PR — *this
 PR's own CI cannot exercise the change it makes* — and the same
 sentence is true of every viewer diff, not only the one changing the
@@ -688,8 +765,7 @@ viewer pass stop judging link TARGETS, and the stated cost was that a
 genuinely broken link in the renderer-free half would no longer red
 there. #2358 collapsed `OpOutcome`'s three fields and left three
 intra-doc links to items it had just deleted:
-`doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit` **exited 0
-over them** while the full workspace pass exited 1. So the two passes
+`doc-gate.sh --skip-viewer-toolkit` **exited 0 over them** while the full workspace pass exited 1. So the two passes
 are not redundant in either direction — the skip pass is the only
 rustdoc on a skip-mode run, and the full pass is the only one that
 judges links — and a viewer lane owes BOTH, not whichever one its
