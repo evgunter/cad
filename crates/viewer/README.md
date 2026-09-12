@@ -8,6 +8,31 @@ The optional path is opened at startup through the same typed `Open`
 operation the dialog feeds — and it is the only way to open a document
 on a system with no file-chooser backend (below).
 
+## How to read this page
+
+This page is two kinds of text, and the difference is what may change
+without asking.
+
+- **The design plan** — everything from *The three layers (G1)* to the
+  end. Each section carries a clause id (`G1`–`G5`, `GQ1`–`GQ7`), it is
+  what `docs/DESIGN.md`'s companion table means by *Ratified*, and
+  **changing what one of those clauses decides waits for Ev**
+  (`CLAUDE.md`, *Git workflow*). Re-wording one because an approved
+  change renamed a symbol or moved a count is not a second decision and
+  lands with that change.
+- **The record** — *Module boundaries* and the operational sections
+  above it. This is how the details shook out: no clause ids, and **the
+  implementer changes it as the code changes**, in the PR that changes
+  the code. It is a description, not a decision, and it has no standing
+  to block a change it happens to contradict — a sentence here that the
+  code has made false is a defect in this page, fixed here.
+
+**A record section that starts binding future work is in the wrong
+half.** If prose here begins reading as a rule a later unit has to obey
+rather than a description of what is, that is the signal to put it to
+Ev as a clause with an id, not to keep it as record and treat it as
+settled.
+
 ## Mouse bindings
 
 | Gesture | Action |
@@ -225,6 +250,9 @@ are never overridden here.
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
 
 ## Module boundaries
+
+*Record — no clause ids; the implementer maintains this section as the
+code changes. See "How to read this page".*
 
 Two files in this crate hold most of it — the session's state machine
 and the toolkit adaptation — and both accreted one titled section per
@@ -1399,6 +1427,9 @@ one shape for that family is a separate question, and the move above
 neither answers nor forecloses it.
 
 ## The three layers (G1)
+
+*Design plan — from here to the end of the page every section carries a
+clause id, and changing what one decides waits for Ev.*
 
 The split is three layers, not GUI-versus-library. The recipe is data
 (D8) and so are changes to it.
