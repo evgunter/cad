@@ -2409,3 +2409,85 @@ them by moving the file.
   **the third instance of the class this very unit closed**, a
   fabricated value in the field a reader would use to locate the
   problem.
+
+### `transform-recertifies-through-the-narrow-lane` (PR 2418) — the item's prescribed fix DOES NOT COMPILE, and a ratified rule says why
+
+The unit landed as `topo::transform_rigid_via` plus
+`geom_brep::EdgeCurve::certify_via` (the mint-side twin of the existing
+`recertify_via`). **`transform_rigid`'s signature and behaviour do not
+move**, so nothing propagates and the bounds-allowlist gate is untouched.
+
+**The item said to raise `transform_rigid` to
+`T: Decide + geom_core::CertifiedBounds`. It cannot be raised**, and the
+lane established why by trying it. Verified independently before
+merging:
+
+- `transform_rigid` has a generic caller chain ending at
+  `editor_core::evaluate::<Dual64>`, through `boolean::ops::apply_recuts`
+  → `boolean_op_recut` → `boolean_op_with` → `verbs::Verb`'s
+  `impl<T: Decide + Bounds + PcurveFittedLane>`.
+- `CertifiedBounds` is blanket over `Bounds + CertifiedEnclosure`, and
+  `CertifiedEnclosure` is implemented for `Interval`, `RingInterval`,
+  `f64`, `Sym<T>` and `Probe`. **No `Dual`.**
+- `crates/geom-core/src/real.rs:1140` records the discriminator **Ev
+  ratified in conversation on 2026-08-29**: *"the discriminator is that
+  nothing generic calls this door"* — the rule that kept
+  `topo::separation` untightened and let `editor_core::checks` tighten.
+  `transform_rigid` fails it.
+
+**So the item prescribed a fix that would have broken the
+`Dual`-instantiated boolean chain and violated a ratified rule.** That
+is a new failure mode for this log: not a stale count, not a misread
+clause, but **a prescribed repair that cannot exist**. The brief told
+the lane to verify the item's load-bearing sentence because it was the
+one a reviewer would attack; what the lane found was adjacent and
+sharper — the sentence was defensible and the *mechanism* was
+unavailable.
+
+**The red-first half was executed the hard way and it counts.** Commit
+`34b8efd` is the row alone, deliberately red, and CI reports
+`2877 tests run: 2876 passed, 1 failed` at all three eps points. With no
+local build possible, **the red push IS the executed repro** — which is
+the right call under the circumstances and better than deducing it.
+
+**Two site-table rows were wrong**, and the reason matters: tier 3 uses
+**`recertify_via`**, and `recertify_nurbs_lane` appears nowhere in
+`crates/topo/`. My dispatch note flagged the missing hit and guessed the
+line had moved; the truth is **the design moved**. `combine.rs`'s site
+is `graft_solids_with` with the weaker `T: Decide`.
+
+### What I did NOT let close silently
+
+The capability defect is fixed — a caller can now move an M7-8 body.
+**`transform_rigid`, the plain door, still refuses it**, and PR 2418
+pins exactly that. The lane argues at the site that *"the lane-free
+door's refusal is a fact about that door's rights, never about the
+body"*, which is honest and matches `validate.rs` and `euler.rs`.
+
+It still leaves a caller who reaches for the obvious door with a
+refusal they escape only by knowing a second one exists. The lane named
+the fix — a `transform_rigid_certified` convenience door — and declined
+it correctly, because it **needs a compound-bound ratification in
+`real.rs`, which is Ev's call and not a lane's**.
+
+So the parent closes and
+`plain-transform-rigid-still-refuses-the-m7-8-class` carries the
+remainder, with three dispositions to choose between (the ratified
+door; a doc at `transform_rigid` naming `_via`; or deciding the
+asymmetry is correct and saying so once). **Establish which before
+writing anything** — that row could close with a sentence.
+
+Also filed by the lane: `graft-recertifies-through-the-narrow-lane`,
+`combine.rs`'s same-shape second instance, **with reachability
+explicitly not established** and the row saying so.
+
+### The disk, resolved mid-wave
+
+This lane reported 1.4 MB free and could not build or test locally for
+its whole window — it lost a CI round trip to a compile error
+`cargo check` would have caught instantly. Its report is a snapshot of
+the blocked window: the sweep described above freed 22 GiB at 03:26 and
+the box has held 23G free since. **Two lanes of this wave were degraded
+before it landed**, and one of them (`census-containment`) shipped the
+first argued-rather-than-executed red-first half in three waves because
+of it. That is the cost of not sweeping, measured.
