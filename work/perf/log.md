@@ -64,3 +64,15 @@ at any thread count.
 what the other four rayon maps in the tree need —
 `work/perf/rayon-maps-outside-props-lose-the-funnels-recordings.md` and
 `work/wire/parallel-node-map-loses-the-funnel-and-the-symbolic-session.md`.
+## PERF-9 lands on GUI/VIEW ground (2026-09-12)
+
+Unit `PERF-9` (branch `perf/9-per-face-bvh`) changes `editor-core`'s
+index seam (`resolve/pick.rs`: the pick index is a tree per patch
+under a tree over the patches, the per-patch trees memoised beside
+the patch memo in `PickMemo`) and the viewer's seam report
+(`evalseam.rs`: `MemoReport` gains the tree level), and adds two
+read-only accessors to `crates/bvh` (`Bvh::boxes`, `Bvh::heap_bytes`;
+no query or build changes). The pin is `viewer`'s `index_memo`
+differential against a single-level reference, tie-break row
+included. A finding on `docm`'s ground went to its slate:
+`work/docm/pick-grazing-ray-answer-depends-on-candidate-order.md`.

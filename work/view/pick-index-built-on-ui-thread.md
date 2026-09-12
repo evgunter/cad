@@ -91,7 +91,7 @@ This section is 6a: the ruling the plan owes before 6b or 6c can
 start. No code. It is stated here rather than in a spec because the
 spec that ratified the seam (`docs/GUI-3-SPEC.md`) was deleted at
 merge per `docs/DOC-LEDGER.md`, and the clause that survives it is
-`crates/viewer/README.md`'s **Toolkit and CI posture (GQ6)**.
+`crates/viewer/GUI-DESIGN.md`'s **Toolkit and CI posture (GQ6)**.
 
 ### What the ratification actually rests on
 

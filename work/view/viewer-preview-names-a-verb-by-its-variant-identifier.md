@@ -21,7 +21,7 @@ PreviewError`:
 
 `verb` is `profile::path::Verb`, a fieldless enum, so `{verb:?}` writes
 a bare variant identifier (`LineTo`) into a sentence a person reads.
-`crates/viewer/src/pane/create.rs:581-585` renders that string into the
+`crates/viewer/src/pane/create.rs:582-586` renders that string into the
 create pane with `ui.colored_label`, so it is on screen, not a log.
 
 The same `write!` names the tip's state through `tip_state_words`
