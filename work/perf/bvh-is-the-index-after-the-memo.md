@@ -2,8 +2,10 @@
 id: bvh-is-the-index-after-the-memo
 kind: issue
 title: after the patch memo, a recomputed root's whole-mesh BVH is the pick index's largest term
-status: open
+status: closed
 opened: 2026-09-11
+parent: PERF-9
+closed: 2026-09-12
 ---
 
 
