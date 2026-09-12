@@ -830,8 +830,12 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
         assert_hit_floor(name, step, &MemoReport::of(seam.memo()));
         steps.push(landed);
     }
-    // A δ change misses everything, at both levels: the same run,
-    // indexed finer, reuses no part and no face.
+    // A δ change misses everything, at all three levels: the same
+    // run, indexed finer, reuses no part, no face and no tree. The
+    // `tol` half of the key has no in-process row: `Tol` is a witness
+    // of the one tolerance a process commits, so there is no second
+    // value to change to here — the (ε, k) axis is exercised as CI's
+    // per-process eps rows, each of which opens its memo cold.
     let finer = DisplayTolerance::new(delta().get() / 2.0).expect("a positive delta");
     let index = seam_index_at(&mut seam, &session, finer);
     if let Ok(index) = &index {
