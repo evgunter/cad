@@ -264,6 +264,19 @@ pub enum SplitReduceError {
         /// The sector's face.
         face: FaceKey,
     },
+    /// A sector's bounding chord has a length that **underflowed out
+    /// of the format**: its components are too small for the norm to
+    /// hold (below ~1e-162 at `f64`), so it measures exactly zero while
+    /// still naming a direction. Distinct from
+    /// [`SplitReduceError::SliverSector`] on purpose — the chord is
+    /// not a sliver and no tolerance lever reaches it, because the
+    /// squared norm is zero at every eps.
+    UnderflowedSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
     /// Two cyclically-consecutive entries remained ON after rule (a) —
     /// the "no consecutive ONs" invariant failed. For a planar operand
     /// this means a coplanar sector escaped the gate (documented
@@ -366,6 +379,14 @@ impl core::fmt::Display for SplitReduceError {
                 "split_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
                  finite length \u{2014} its components overflow the norm, or one of them \
                  is not a number; scale the geometry into the session's range"
+            ),
+            Self::UnderflowedSectorChord { vertex, face } => write!(
+                f,
+                "split_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has a \
+                 length that underflowed out of the format \u{2014} its components are too \
+                 small for the norm to hold, so it measures exactly zero while still \
+                 naming a direction; no tolerance reaches this, scale the geometry into \
+                 the session's range"
             ),
             Self::ConsecutiveOnSectors { vertex } => write!(
                 f,

@@ -549,12 +549,10 @@ pub fn decide_unit_direction<T: Decide>(
     if !is_finite_length(len) {
         return Err(UnitVec3Error::NonFiniteLength);
     }
-    // The largest |component| is the nonzero WITNESS the underflow
-    // question is asked against, and it is the right one because the
-    // norm brackets it: `max|cᵢ| ≤ |v| ≤ √3·max|cᵢ|` whenever the
-    // norm is computed rather than flushed.
-    let witness = v.x.abs().max(v.y.abs()).max(v.z.abs());
-    if is_underflowed_length(len, witness) {
+    // `norm_witness` is the largest |component|, which is the nonzero
+    // WITNESS the underflow question is asked against; the derivation
+    // and why the norm brackets it live on that door.
+    if is_underflowed_length(len, v.norm_witness()) {
         return Err(UnitVec3Error::UnderflowedLength);
     }
     match decide(site, Margin::norm3(v), band) {

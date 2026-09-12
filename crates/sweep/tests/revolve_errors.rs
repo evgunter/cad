@@ -122,6 +122,47 @@ fn an_axis_direction_with_no_finite_length_is_typed() {
     }
 }
 
+/// **An axis direction below the ~1e-162 underflow band.** The
+/// components square to zero, so `norm2` is EXACTLY zero and the
+/// classifier answers `Zero` definitely: before the underflow question
+/// was asked, `AxisFrame::build` refused as `DegenerateAxis` — "no
+/// definite length (zero or sliver)" with the coincidence recourse.
+/// Both halves of that were false. The axis is not zero and it is not a
+/// sliver: `(0, 1e-200)` names +Y exactly, and no tolerance recovers a
+/// norm the format lost, because the squared norm is zero at every eps.
+#[test]
+fn an_axis_direction_whose_length_underflowed_is_typed() {
+    let vp = validated(vec![washer()]);
+    for dir in [
+        Vec2::new(0.0, 1e-200),
+        Vec2::new(1e-200, 0.0),
+        Vec2::new(1e-200, 1e-200),
+    ] {
+        // The premise: the norm flushed, and the direction survives in
+        // the witness the underflow question is asked against.
+        assert_eq!(dir.norm(), 0.0, "{dir:?}");
+        let axis = RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir,
+        };
+        let e = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap_err();
+        assert!(matches!(e, RevolveError::UnderflowedAxis), "{dir:?}: {e:?}");
+        // The sentence names the end of the format it is, and the one
+        // recourse that can work — not a coincidence band.
+        let msg = e.to_string();
+        assert!(msg.contains("underflowed out of the format"), "{msg}");
+        assert!(
+            msg.contains("scale the geometry into the session's range"),
+            "{msg}"
+        );
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            0,
+            "{msg}"
+        );
+    }
+}
+
 #[test]
 fn isolated_axis_vertex_in_full_revolve_is_non_manifold() {
     // Triangle touching the axis at exactly one vertex: revolving

@@ -166,6 +166,9 @@ pub(super) fn build_sectors<T: Decide>(
         } = sector_shape(dir_end, dir_start, normal, he == next_he, band).map_err(|fault| {
             match fault {
                 SectorFault::NonFiniteChord => BooleanError::NonFiniteSectorChord { vertex, face },
+                SectorFault::UnderflowedChord => {
+                    BooleanError::UnderflowedSectorChord { vertex, face }
+                }
                 SectorFault::Rung(diag) => BooleanError::Escalated { diag },
             }
         })?;
