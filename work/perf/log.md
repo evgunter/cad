@@ -744,3 +744,25 @@ no-change: the tour's bracket arm is unreached on main's corpus until
 PR 2306 merges (the next merge, exercised hosted at 1e-12 by k-lint);
 a containment check is monotone-wrong by nature and is stated as a
 sanity ribbon.
+
+## 2026-09-12 — the ribbon side unit merged; Ev's teapot PR in its lane
+
+Fix pass landed the union with nothing disputed (head `e21a4d6ec`,
+CI run 34692336069 green): the measurement re-stated as two regimes
+at every claim site (the tour's 61 polynomial-walled tier-3 stops
+1.99×; the round spout, whose sign settles early, nil — `refine_to_
+target`'s doc and the setup item say which is which); all three
+`run_body` arms hand their measurement back from the gate they ran,
+stdout byte-identical at three ε; the slack is the mesh's own area;
+the Python refusal row pays one quadrature (class 8.0 s); the demo's
+hand-spelled kernel error pattern recorded as `budget-refusal-drops-
+the-enclosure-the-caller-needs` (kernel territory: a continuation's
+budget refusal should carry the enclosure, or the certificate be
+continuable by reference). State-sync closed the item; merged at
+`f752e9c21` (PR 2440). Lane reclaimed.
+
+**Ev's PR 2306** now has its lane (brief stored): merge main into
+`demos/teapot-round-spout` by merge commit, regenerate the tess-budget
+baseline with `scripts/tess_budget_sweep.sh`, run the tour at three
+ε (the spout's SIGN-level line at 1e-12), un-draft, hosted run green
+including `k-lint (gate, release-default)`; I merge on its report.

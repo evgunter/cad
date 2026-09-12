@@ -559,8 +559,14 @@ demo-only and test-only units record no A/B row.
 
 - The display budget's probe never larger than the picture (viewer).
 - Gate-then-measure takes the certificate it already computed (tour,
-  Python surface) — dispatched 2026-09-12 with Ev's ruling: the ribbon
-  reports the bracket on a budget refusal of a valid body.
+  Python surface) — landed (PR 2440, Ev's ruling): every `run_body`
+  arm hands its measurement back from the gate it ran; the ribbon
+  reports the sign-level bracket on a budget refusal of a valid body;
+  `validate_geometric_measured` in Python. The tour's 61 polynomial-
+  walled tier-3 stops save 1.99×; a rational wall whose sign settles
+  early saves nothing (setup re-entry, its own item). The scene
+  modules' copies of the pair: `gate-then-measure-class-remains-in-
+  scene-modules`.
 - `budget_faces.rs` split into rows nextest can spread — landed (PR 2321).
 - `gathers_on_this_thread` compiles without debug assertions — landed
   (PR 2328).
