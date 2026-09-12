@@ -9431,6 +9431,102 @@ CENSUS's names the name field alone. Both were wrong before this diff;
 the +1 is real but repointing either band would move a number that was
 never about its subject.
 
+## 2026-09-11 — #2390 merged; Escape abandons, and the lane beat my argument for it
+
+**#2390 merged** (`6c758dab86`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips (two cache primes, the two interval-backend rows,
+`step import (freecad)`, `python suite`), no unsubstituted
+placeholders. The lane settled the CI-scope question by **running**
+`scripts/ci-filter.py`, which returned `SEEDS=viewer` →
+`RUN_VIEWER_TOOLKIT=true` → the non-skip path, confirming from the tool
+that this PR's own CI could not reach the skip-mode doc pass it ran by
+hand.
+
+**Escape now abandons a drag instead of landing it**, at the slot
+field, the parameter field and the free-move probe alike.
+
+**My dispatch argued the fork the weak way and the lane said so.** I
+wrote that the chrome already draws a *"Cancel free-move"* door, so
+Escape should cancel. That is beatable — a door existing does not
+oblige a second route to it. The argument that actually settles it:
+**`cancel_doors` cannot be reached during a live pointer drag at all.**
+They are toolbar controls; pressing one costs the pointer release, and
+the release ends the drag through the *commit* arm. So for the whole
+life of a held drag the doors are enabled and unoperable — they are the
+STRANDED drag's exit, which is what `crates/viewer/README.md` says they
+were built for. Until this change **a drag under the pointer had no
+abandon at all**, and the only non-release input that could end it was
+being reported as a release. Shape 2 would have had to argue that a
+user holding the button has no business abandoning.
+
+**The value gesture had the same defect and the larger stake**, and the
+lane established it by mutation rather than by reading: with the Escape
+branch replaced by an unconditional commit, both new rows go red
+reporting `["commit"]` where `["cancel"]` belongs. The asymmetry runs
+opposite to the guess — a free-move commit lands a display frame no
+history holds, while a **value-gesture commit reaches the document and
+costs an undo step**.
+
+**Three corrections to the item and to me.** (1) The item said the fix
+needs an `Option` for vocabularies with no cancel; there are none, and
+that is structural — `gesture_table.rs`'s
+`every_gesture_cancel_has_a_chrome_door` matches exhaustively over
+`SessionOp`, so a gesture joining the enum without a cancel reds there
+first. The parameter is a plain `SessionOp`. (2) I flagged
+`PreviewFreeMove`'s *"identity is one node rather than a target"* as
+possibly stale after #2361; it is not — **#2361 wrote that sentence**,
+in the same diff that named the value drags, and it is not what the
+fork turns on, because the cancel side is where the two gestures
+AGREE: both cancels name nothing. (3) The reliability worry was the
+wrong way round. Escape is readable; what is unreliable is the proxy
+the lane nearly used — *"`drag_stopped` with no pointer release"* also
+matches a long-touch context menu and means something else entirely.
+**Named the property, then picked the pattern** — the twelve-row table
+applied before the fact rather than after it.
+
+**Ratified crate prose was amended rather than weaselled, and that is
+worth flagging.** `crates/viewer/README.md` said *"There is no key for
+it: this crate binds no key to any operation at all"*, and
+`input::PRESETS` said *"no key denotes an operation anywhere"*. Shape 1
+makes both false, so the lane rewrote them. What survives is narrower
+and is the honest version: `egui` ends the drag on Escape whatever this
+crate does, so the branch decides **which of two things the toolkit
+already did is reported**, not which operation a key denotes —
+*reading is not binding*. I checked `docs/DESIGN.md` before merging:
+it carries no keyboard-binding claim (its "key" hits are map keys and
+escape hatches), so this is VIEW's own text and not an Ev gate.
+
+**The commit/cancel transposition is now unrepresentable.** The triple
+became a named `GestureVocabulary` struct — not for clippy's
+`too_many_arguments`, which does fire at eight, but because `commit`
+and `cancel` are both bare `SessionOp` and mean opposite things: sitting
+positionally adjacent they are one transposition away from a chrome
+that lands what the user abandoned.
+
+**The sibling residue is unaffected**, checked rather than assumed: the
+second probe in `a-keyboard-bump-lands-and-closes-the-pointers-own-probe`
+is opened by the *typed* arm, which Escape does not reach, because on an
+Escape frame `changed()` is false — egui declines to apply the typed
+edit. Its test row now shares a five-frame preamble helper instead of
+carrying its own copy; what it asserts is unchanged and it still passes.
+
+**Out of fence, reported and not edited** — and the lane's reading of
+them is the sharper half. `work/door/dimension-radio-row-…:14`,
+`work/door/plan.md:66` and `work/census/the-prose-word-…:36` all cite
+bands near a `(Dimension::Length, "Length")` array that this diff moved
+by three lines. **Neither is a true shift**: both were pointing at the
+name field rather than at the array, so they were wrong before this
+diff, and repointing them would be moving a number that was never about
+its subject. Three VIEW rows in the same state were likewise left alone
+rather than shifted (`comment-symbol-names-…`'s `op.rs:828`, whose site
+is deleted; `is-instance-collapses-…`'s `properties.rs:336`;
+`a-disabled-control-…`'s `properties.rs:350-355`) — and `plan.md` cites
+a *third* band for that last subject, which is the census-table rule
+earning itself again.
+
+**VIEW stands at 70 open / 81 closed, nothing waiting on Ev.**
+
 ## 2026-09-11 — `view/keyboard-bump`: the probe's three boxes become one gesture
 
 `a-keyboard-bump-lands-and-closes-the-pointers-own-probe` **closed,
@@ -9564,6 +9660,83 @@ in the population are records, not guards, and are untouched.
 **Nothing out of fence.** Every citation this diff moved is in
 `work/view/`.
 
+## 2026-09-11 — #2392 merged; the fix that closes a route and says so
+
+**#2392 merged** (`2040450f88`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips (two cache primes, the two interval-backend rows,
+`step import (freecad)`, `python suite`), no unsubstituted
+placeholders.
+
+**The lane took the chrome side of the fork on a structural argument,
+not a preference.** The operation side *cannot* supply an identity the
+chrome does not already hold: `widgets::drag_ops` is handed the whole
+vocabulary as VALUES before any of it is performed, and the typed arm
+literally builds `vec![Begin, Preview, Commit]` — so no payload in that
+batch can carry a token the begin returned. A client-minted id would
+work, but then the chrome is the thing deciding which drivers are one
+gesture, which is the chrome fix with an extra field on four
+operations. The component flavour is dead outright, because the op
+takes any rigid `Frame` and three translation boxes are one chrome's
+decomposition of it.
+
+So `vec3_row_ops` draws the row, unions the three responses with
+`egui::Response`'s `|` — egui's own summary of a row — and calls
+`drag_ops` **once**. Under the union `dragged()` means *the pointer is
+holding this gesture* rather than *this box*, which is the question the
+typed arm was already asking and getting a per-box answer to. The
+previewed value is composed after all three are drawn, so a component
+changed this frame is in the value this frame previews.
+
+**And the keyboard bump turns out not to be wrong.** The instance has
+one probe and all three components drive it, so the keystroke is
+another hand on the open gesture: one `PreviewFreeMove`, release still
+lands everything. The per-box mapping was turning a legitimate input
+into a refused begin and a commit that closed the drag under the
+pointer. `PreviewFreeMove`'s *"the identity is one node rather than a
+target"* is kept and argued rather than overturned — one node is the
+whole identity **because an instance has one probe**, and what makes
+that enough is that one chrome gesture drives it.
+
+**#2390's two claims about this item both held, one of them more
+strongly than reported.** Escape does not reach the typed arm *by
+construction*: `DragValue` marks itself changed only on
+`get(..) != old_value` and both write paths are guarded on
+`!key_pressed(Escape)`. The shared preamble moved one word and dropped
+one comment; no predicate changed.
+
+**The half the fix does NOT close is filed, not disclosed in prose.**
+`probe-identity-stops-at-the-instance`: closing the reachable route
+leaves `preview_free_move`/`commit_free_move` still unable to refuse a
+second DRIVER on one instance — today's chrome merely has none. That is
+precisely the shape `free-move-in-flight-refusal-has-no-reachable-
+producer` was filed on and wrong about twice, so **"no chrome can reach
+it" is recorded as a property of the chrome, not of the door.** The
+value drag has `gesture_table.rs`'s
+`a_drag_on_another_field_cannot_steer_the_open_one` for this property;
+the probe has no counterpart because there is nothing for one to
+assert.
+
+**A rule for the next dispatch that touches this module**, which the
+lane is right about and I had not seen: the test module **hand-copies**
+the production wiring, so a fix sited in `pane/properties.rs` would
+leave the row asserting a wiring it wrote for itself — green whatever
+`instance_ui` did. That forced the fix into `widgets.rs`, and it is the
+better home anyway. **A row in `widgets.rs`'s test module can only hold
+what `widgets.rs` owns.**
+
+**Mutation receipt**: with `vec3_row_ops` handing `drag_ops` the box
+that *changed* instead of the row, the new row reports
+`["preview", "begin", "preview", "commit"]` — the item's defect exactly
+— and reds; the other four rows stay green under it.
+
+**The lane's own cost, self-reported:** it pushed a one-paragraph
+rewrap of the log after CI had started, which cancelled a 37-job run
+and cost a full re-run. **Batch the cosmetic pass before the first
+push** — the first push is what starts the clock.
+
+**VIEW stands at 70 open / 82 closed, nothing waiting on Ev.**
+
 ## 2026-09-12 — `view/possessive-spans`: the picker exists and it is `length_picker`; five possessives become links
 
 `possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`
@@ -9634,3 +9807,156 @@ prose with no backtick span at all — `sketch.rs`'s *"(`app`'s drafts say
 so)"* names the `drafts` module in bare words, and the possessive
 pattern matches the `app` half while the thing it is about is unspanned;
 and any name in a `//` comment, which is the open row's subject.
+
+## 2026-09-12 — #2400 merged; the thirteenth proxy is mine and I had been repeating it all session
+
+**#2400 merged** (`4c4a784c20`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips, no `render drift (…)` row posted at all.
+
+**`unit_picker` had a real referent and the sentence was true.**
+`crate::widgets::length_picker` (`crates/viewer/src/widgets.rs:578`),
+*"The creation forms' written-unit picker"* — and
+`pane/create.rs:1099-1108` draws `ui.label(size_label())`, then
+`unit_field`, then `length_picker` in one `ui.horizontal`: the picker
+literally beside the field. So the citation was wrong in **both** halves,
+module and item, and the affordance exists. The giveaway is that
+`length_picker`'s own doc carries the same clause nearly verbatim
+(*"free to say metres beside a field written in millimetres"*), so the
+sentence was copied from it and mis-attributed. The bigger finding I
+told the lane to watch for — a sentence asserting an affordance the
+chrome does not have — did not obtain.
+
+**My `forms.rs` hint was wrong about the file.** That crate's "picker"
+prose is `PathVerb`/`ArcMode` combo pickers, a different control. The
+method I gave (follow the word) was right and the destination was not;
+I had flagged it as a weak hint, so no cost.
+
+**The widened sweep found a SECOND dead name.** `widgets.rs:678` said
+`crate::pane::properties`'s `slot_row_ui`, which exists nowhere; it is
+`slot_value_ui` (`pane/properties.rs:519`), the one function there
+calling `drag_gesture_ops` directly. Both dead names are now fixed and
+`grep -rn slot_row_ui crates/` is empty. The widenings: dropping *"a
+second span must follow"* gives 8 sites; dropping the module-name
+requirement too gives 15; together 16, where the item's rule saw **5**.
+Stated blind spot of the wider rule: a name in prose with **no backtick
+span at all**, and any name in a `//` comment or inside a
+`#[cfg(test)] mod`.
+
+**"Either link them or leave them" was not available for all four.**
+`pickindex.rs:1582` points at `EDGE_CLIP_Z_SHRINK`, a module-scoped
+private `const`. Linking it made `scripts/doc-gate.sh --pr` **exit 1**:
+*no item named EDGE_CLIP_Z_SHRINK in module gpu*. A private **field**
+and a private **method** DO resolve — rustdoc reaches an associated item
+through its type — so the item's stated worry about "a spelling for a
+private field" was a non-issue, and `ViewerApp::fit_delta_on_scene` and
+`::remember_theme` linked fine. A module-scoped private `const` or `fn`
+is a different test: `--document-private-items` decides what rustdoc
+RENDERS, while a path is resolved by ordinary **visibility**, and
+`crate::gpu::EDGE_CLIP_Z_SHRINK` is not a path anyone outside `gpu` may
+write. The lane reproduced it on a three-file scratch crate, so it is a
+language fact and not a tree fact. That pair stays named at both ends,
+normalised to one spelling, with the exception and its measured error
+text in the README clause. The single statement of the disposition lives
+in `crates/viewer/README.md`'s *Rustdoc posture* section beside Ev's
+ruling, with the sweep rule that produces its population.
+
+### The thirteenth proxy instance is mine, and it is the one I was using to verify every merge
+
+**I read `docs-only ok` success as the docs-tier marker.** I wrote, this
+session, *"21 jobs, `docs-only ok` success — the docs-only tier
+exactly"*. That job concludes **success on the full code tier too**:
+#2390, #2392 and #2400 each carry a green `docs-only ok` inside a
+38-job closure-tier run, beside `gate ok`. So its presence is no
+evidence of a tier at all, and the 21-count was carrying the whole
+argument by itself every time. **The reading was never falsified
+because on a docs-only run both facts are true at once** — the proxy
+agreed with itself on every observation it could make, which is the
+class exactly. What makes this one worth the row is that it was the
+instrument, not the object: I was using it to certify the merges in
+which I was also tabulating the class.
+
+Recorded in the table and in the prose beside it, with the verification
+restated: a tier is **21 jobs**, or **38-39 with 12 `test (…)` and 5
+`k-lint (gate, …)`**, plus `gate ok` — never which summarising job
+reports green.
+
+### And a validation command that silently did not validate
+
+`cargo test -p viewer --features app`, which this register and several
+of my dispatches specified, **aborts at the `--lib` adapter red** (no
+Vulkan on the lane boxes), so the **524-row `--test all` suite never
+builds**. A lane following the brief literally reports a green-looking
+`37/1` and never runs the suite its own diff is about. It needs
+`--no-fail-fast`; #2400's lane ran it that way and then told me the
+brief was wrong. Both the command and its expected shape are now in
+`plan.md`.
+
+**Citation left alone and disclosed**, the house rule working: the
+closed row cites `theme.rs:69-70` and quotes *"`app` maps a [`Theme`]
+onto the chrome"*. `69-70` **is** a genuine class member; the quoted
+words are at `theme.rs:7-8`, where `app` is already `` [`crate::app`] ``
+and so is not an example of a bare span. The number names its subject —
+the **quotation** is what is wrong, so nothing was repointed.
+
+**VIEW stands at 69 open / 83 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — the δ render, and the second path that committed it
+
+`delta-field-renders-a-sub-micrometre-delta-as-zero` is **closed**, both
+halves, by two changes with nothing between them.
+
+**The render is chosen by the property, not by a precision.**
+`DisplayTolerance::render_mm` returns the shortest decimal spelling of δ
+in millimetres that fits ten characters and reads back — through the
+`mm * 1.0e-3` the field's own commit path uses — as a δ
+`DisplayTolerance::new` accepts, within four significant figures of this
+one; `{:.3e}` carries the δ no decimal spelling can. So the fix has no
+threshold to go stale against a format string: the candidate is read
+back through the door that refuses zero, and the door is the only judge.
+0.4 µm reads `0.0004`, 1 pm reads `1.000e-9`, and a swept grid from
+`f64`'s smallest subnormal to a kilometre has no render the door would
+refuse.
+
+**The relative tolerance is derived, not chosen.** `{:.3e}` carries four
+significant figures, so it can misread the δ it renders by 5·10⁻⁴ of it.
+That is the number a decimal spelling is held to — a decimal form is
+preferred exactly while it is no less truthful than the form that would
+replace it — so the constant is the fallback's accuracy rather than a
+taste about how a field looks.
+
+**The field is 88 points, and the test says why.** A ten-character
+render needs 73.3 points of text area; 56 points offered 48, so anything
+past six characters was clipped, and a clipped render reads as a
+different δ — the defect the render's own bound exists to prevent.
+`the_field_shows_the_longest_render` measures both numbers through
+egui's font metrics at the widest character a render can use, so the
+width is pinned to the render's bound rather than to a sentence.
+
+**Half B needed no precision at all.** A draft that reads as the render
+commits nothing: the render is the text the box already held, so a field
+typed back to it carries no number the render does not, and since the
+render is a rounding of δ, committing it could only move δ to a coarser
+spelling of itself. The escape hatch is any other spelling of the same
+number, and a row holds it open.
+
+**Filed, not swept:**
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`.
+The badge and the budget sentence hold a `DisplayTolerance` and could
+call the new render today; what stops that being this unit is that both
+render δ inside a SENTENCE, so the change is a wording decision about a
+badge and a status line rather than a control's arithmetic, and
+`display_budget.rs`'s needles would move with it. `Bounds::wording`
+renders a probed length in the user's own unit and cannot use a δ method
+at all — it needs the same rule at its own precision. **And the sweep
+that wrote that row found a member the parent had not named**: the
+camera readout at `pane/view.rs:43`, `distance {:.1} mm (band …)`, where
+`min_distance` is `scene_radius * 0.05` so every part under about a
+millimetre reads `band 0.0–…`. It is in the same function as the δ
+field, and what keeps it out of this fix is the line above it — an
+ANGLE at the same precision, where `0.0°` is a yaw a camera really has.
+The pattern was a precision spec in a format string; what it cannot
+match is a render with no precision spec, a precision passed as a
+variable and a rounding done by hand, all three checked in the item.
+
+**VIEW stands at 69 open / 84 closed, nothing waiting on Ev.**

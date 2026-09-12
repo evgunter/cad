@@ -71,7 +71,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use pncad::document::{Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
-use pncad::select::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
+use pncad::select::{
+    HitTestError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray, pick_face,
+};
 
 use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
@@ -737,9 +739,53 @@ impl PickIndex {
         delta: DisplayTolerance,
         tol: Tol,
     ) -> Result<Self, PickIndexError> {
+        Self::assemble(doc, eval, generation, delta, |node| {
+            NodePick::build_all(eval, node, delta.get(), tol)
+        })
+    }
+
+    /// [`PickIndex::build`] over `memo`: a root whose node the
+    /// evaluation reused keeps its previous picture's `NodePick`, and a
+    /// root that was recomputed is tessellated through the per-face
+    /// patch memo — the same index, byte for byte, built from what did
+    /// not change ([`PickMemo`]).
+    ///
+    /// The picture is closed on the memo whether or not it was built:
+    /// a refused index (a root that failed or would not tessellate)
+    /// evicts what it did not reach, and the roots after the refusal
+    /// are rebuilt once the document is fixed. That keeps the memo one
+    /// picture's size through any sequence of answers.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::build`].
+    pub fn build_with(
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+        generation: Generation,
+        delta: DisplayTolerance,
+        tol: Tol,
+        memo: &mut PickMemo,
+    ) -> Result<Self, PickIndexError> {
+        let index = Self::assemble(doc, eval, generation, delta, |node| {
+            NodePick::build_all_with(eval, node, delta.get(), tol, memo)
+        });
+        memo.end_picture();
+        index
+    }
+
+    /// The walk both doors share: every root's bodies through `parts`,
+    /// then the id windows over them.
+    fn assemble(
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+        generation: Generation,
+        delta: DisplayTolerance,
+        mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
+    ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
         for &node in doc.roots() {
-            match NodePick::build_all(eval, node, delta.get(), tol) {
+            match build_parts(node) {
                 Ok(built) => parts.extend(built),
                 Err(NodePickError::NotABody { .. }) => {}
                 Err(error) => return Err(PickIndexError::Node { node, error }),

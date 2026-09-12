@@ -29,7 +29,7 @@ use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{DisplayFault, DisplayView};
-use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer};
+use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
 use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
@@ -1557,6 +1557,7 @@ fn an_answer_for_a_superseded_generation_is_discarded_not_installed() {
     let landing = cache.land(IndexDone {
         generation: stale.generation(),
         delta: delta(),
+        memo: MemoReport::default(),
         index: Ok(stale),
     });
     assert_eq!(landing, IndexLanding::Stale);
@@ -1590,6 +1591,7 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
     let landing = cache.land(IndexDone {
         generation,
         delta: delta(),
+        memo: MemoReport::default(),
         index: Ok(coarse),
     });
     assert_eq!(
