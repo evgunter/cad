@@ -75,6 +75,8 @@ mod decoration_plane_mint;
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]
 mod interior_iso_column;
+#[path = "d290_r2_e2e.rs"]
+mod d290_r2_e2e;
 #[path = "interior_iso_review.rs"]
 mod interior_iso_review;
 #[path = "intersect_table.rs"]

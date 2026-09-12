@@ -73,6 +73,8 @@ mod coeffs_bit_identity_ext;
 mod coeffs_bit_identity_interval;
 #[path = "coeffs_pair_identity.rs"]
 mod coeffs_pair_identity;
+#[path = "d290_r2_probes.rs"]
+mod d290_r2_probes;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
 #[path = "decoration_seam.rs"]
