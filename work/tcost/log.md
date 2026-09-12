@@ -2186,6 +2186,10 @@ cheap fix named: a selftest arm asserting `ci.yml`'s job keys equal
 
 ## The shard count is measured and the answer is no (2026-09-12)
 
+*Summary only — the unit's own entry below ("The shard count is
+measured, and it stays at 2") is the fuller record and was written by
+the lane that took the readings.*
+
 `nextest-shard-count-needs-remeasure` was re-opened on 2026-09-11 because
 its verdict had been priced in billed minutes. Twelve hosted code-tier
 runs over N ∈ {2,3,4,6}: **N stays at 2.**
@@ -2258,3 +2262,71 @@ Recorded rather than waved: the next nightly firing is the confirmation,
 and nobody has read it yet. Ref deletion is 403 too, so
 `tcost/probe-n{2,3,4,6}` — the shard measurement's scaffolding — are
 still on the remote and need Ev.
+
+## The shard count is measured, and it stays at 2 (2026-09-12)
+
+`nextest-shard-count-needs-remeasure` closed on twelve hosted code-tier
+runs — N = 2 (control), 3, 4 and 6, three full runs each, four probe
+branches off one commit differing only in the shard literal, all four
+counts running in the same wave so a wave's runner weather is shared.
+Every run id is on the row. The probe PRs (#2428-#2431) were measurement
+only and are closed; their `tcost/probe-n*` branches are still on the
+remote, because this lane's token is refused ref deletion — whoever can,
+should delete them. The landed diff is the row's verdict, two rewritten
+argument blocks in `ci.yml` and one corrected citation in
+`scripts/ci-filter.py`.
+
+**The re-opening was right about the currency and wrong about the
+answer**, and the thing that decided it is the one clause the re-opening
+explicitly declined to re-open: *"no single test binds any N up to 4."*
+It does now.
+`editor-core::all r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`
+runs **346-660 s by itself** at ε = 1e-12 — 85-96 % of the leg that
+carries it — and that leg is the last job to finish on all 30 runs read,
+at every count. Five of the six matrix rows cut cleanly with more shards
+(N=2 → N=4: the three f64 rows 64-83 s → 40-59 s, interval ε = default
+148-191 s → 103-131 s); the sixth does not respond to the count at all,
+and it is the one that sets what a contributor waits for. Cutting a 78 s
+leg beside a 554 s one is not a cut.
+
+**Filed with it**: `one-test-is-the-whole-ci-critical-path`, parked on
+the M10-3 row. It is the same family as the symbolic-tier regression
+already diagnosed there — the chamber replay and the band/uniform drives
+are the second and fourth heaviest rows in the same readings — but a
+different suite, four times larger, and newly shown to be **ε-gated**:
+the row builds its guide at `guide(2.0 - 1.0e-11)`, so it is the whole
+critical path at ε = 1e-12 and under 20 s at the other two. Nothing had
+looked at it per-ε before.
+
+**Three method notes worth keeping.** The conservation check was done at
+the level of test IDs, not counts: every test is named in its leg's log,
+so the shards' name SETS were compared directly and came back identical
+at every N (`missing 0, extra 0`; 6 948 f64 and 7 669 interval). The 36
+f64 and 84 interval tests a leg LISTS and no shard runs are the
+`#[ignore]`d rows, read off the runs' own uploaded test lists
+(`filter-match: {status: mismatch, reason: ignored}`, no other reason)
+— the `listed` column is per shard, not a third measure of the row. The
+per-leg fixed cost is **15.9 s median over 270 legs** and is flat in the
+count — 15 s in August, 15.6 s on 09-03, unmoved. And run WALL is the
+weakest of the three instruments here: running four probe runs at once
+pushed job queue times from a 2 s median to 108 s, which is visible in
+the run walls and absent from the leg walls, because a leg's wall starts
+when its runner does.
+
+**Reported, and now filed elsewhere.** The block that decides THIS knob
+is rewritten on wall clock, per `work/ciw/plan.md` §The 2026-09-04
+re-read; the rest of the class — `ci.yml`'s other billed-minute
+arguments, including the shard-MERGE block this unit did not re-decide
+— is `work/ciw/billed-minute-arguments-survive-across-ci-yml`, opened
+2026-09-12 by the orchestrator. None of those was swept here.
+
+**One measurement, one home.** The row's duration, the leg that carries
+it and the share between them live once, on
+`one-test-is-the-whole-ci-critical-path`; the two `ci.yml` blocks and
+`scripts/ci-filter.py` carry the conclusion and a pointer. They stood in
+five places in the first draft and three of the five disagreed with the
+table on the day they were written — the same defect the count was
+re-measured for, minted by the fix for it. The shard count is still
+prose at each of those sites, which is
+`work/ciw/eps-klint-and-shard-counts-are-prose`'s class, and the new
+prose says so.
