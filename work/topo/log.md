@@ -627,3 +627,39 @@ the dirs were cleared to the brief before re-dispatch, so the new
 reviews start cold. Briefs regenerated for the new head and re-hashed;
 ordinal 2702, byte 70 (R1 OPUS, R2 FABLE), concurrent on frozen
 `b5ead3c9f`.
+
+## Census door adjudicated (2026-09-12)
+
+Both blinded reviews on frozen `b5ead3c9f`, both MERGEABLE-AFTER-FIXES,
+both executed the same two mutants and converged on both MAJORs. The
+row the PR names as the pin for `s` = shells cannot fail for that
+reason: with the door's `s` read off the solid arena every one of the
+door's own rows and both doctests stay green, because the row keeps
+the emptied solid alive and solids = shells = 2 throughout; only S69's
+own instruments (`seqgen`'s property row, `review_m3_pr1`'s connected
+sum) go red. Both reviewers built the public-operator route the brief
+asked for — pillow + planted ring → `mfkrh_plug` → `movefac` — and
+both probes red the mutant. The class receipt is short: two
+`m9_3_zip` rows (one deriving `r` as loops − faces, a second spelling
+of the ring count no `rings.len()` pattern can see) converged; R1 adds
+`blend4_concave_fillet`'s vent-mouth row, the declared twin of a row
+the PR did convert, and `cube_by_hand`'s identity over constants.
+Converged MINORs: `r` not pinned as a sum (no door row has two rings on
+one face); the ring-less conversions changed their rows' claims and
+the PR body says otherwise; eleven same-named delegates with identical
+docs are a fresh instance of the closed duplication (the style lane's
+new trap check, raised by both); the `s` paragraph narrates S69;
+`contains("torn")` pins prose; `assembly.rs`'s doc says solids over
+the door's `s`. Unilateral, taken: the raw-write row's doc re-asserts
+the "reachable only by raw write" sentence this slate already holds
+false (R1); the tcost residue row names two of five instances (R2);
+`#759`'s item is closed so the PR body's S79 sentence is false and
+S79 waits on `#757` alone (R1); three review-module headers forbid
+the simplification the ruling ordered, undisclosed (R1 — disclose,
+headers untouched); `EulerCounts`, the validator's `ComponentCounts`
+and `ShellComponent` are three carriers of one characteristic (R1 —
+filed as a residue here). Both established that an odd census is
+unreachable from outside the crate (every arena writer `pub(crate)`)
+and that the demos print byte-identical narration across the change
+(78 topology lines, not the brief's 72). No unilateral executed
+MAJOR: no tally candidate. Nine-item fix pass to the same lane.
