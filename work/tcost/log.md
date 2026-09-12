@@ -2082,6 +2082,65 @@ in-file which it is, which is the condition `memories/test-suite-cost.md`
 puts on a fixed seed. Reported to the orchestrator rather than filed —
 it is a different defect from the one this item named, and nothing here
 measured it.
+
+## C1, C2 and C3 are back on the gate, and the nightly is two jobs lighter (2026-09-12)
+
+The three demotions were bought with **billed minutes** and nothing else,
+on the day the repository went public and standard-runner minutes became
+free. The re-cost that row asked for is taken: none of the three is
+anywhere near the pole — each hangs off `filter` in parallel while the
+`build` -> `test` chain sets the run's length — so the price they were
+paying, attribution, was being paid for nothing.
+
+All three are restored. **Two of the three nightly counterparts are
+deleted**, each read against the ci.yml job that now covers it: C1's
+copy covered only nights with no `topo`-closure merge, and C3's existed
+for two seeds the key missed, both of which the gate now runs.
+
+**C2's nightly job STAYS, and the first draft of this unit deleted it
+wrongly.** `rustdoc-roots` is not duplicate. `fmt`'s `rustdoc (gate)`
+step runs `doc-gate.sh --skip-viewer-toolkit` on any run whose seeds
+miss the toolkit axis ({`viewer`, `pncad`, `bvh`}, Ev's viewer-CI-posture
+ruling of 2026-08-27), and that arm documents `viewer` at DEFAULT
+features with the link lint inert (Ev's ruling of 2026-09-11,
+`work/ciw/view-made-the-skip-mode-viewer-doc-pass-lint-inert`). So one
+pass is left over and exactly one: **`viewer` at `--all-features` with
+the link lint live**. The job that looked like it re-took that —
+`viewer-toolkit`'s `rustdoc (viewer, all features)` step — is a bare
+`cargo doc -p viewer --all-features --no-deps`; `RUSTDOCFLAGS` appears
+zero times in either workflow file because `doc-gate.sh` sets it
+internally, and `broken_intra_doc_links` is warn-by-default, so that
+step exits 0 on a broken link. Its own comment says it: "the rustdoc row
+issues no lints". Net, had the deletion stood: a broken intra-doc link
+in `viewer` written by a change that seeds none of those three crates
+would have been caught by nothing, ever. Both rulings are binding, so
+making the PR-gate pass unconditional was not the alternative — the
+nightly is the only place this coverage can live.
+
+**The deletions reached further than the three jobs, and that is the
+part worth remembering.** A demotion leaves MECHANISM behind — a mode, a
+filter key, a mirror marker, a count in a comment, a suite header naming
+the workflow it lives in. `scripts/doc-gate.sh` had grown a `--pr` mode
+and a `--scope` parser whose every sentence described a nightly job;
+`local-scripts/ci-local.sh` carried three `HOSTED MIRROR` markers naming
+jobs about to stop existing; three `crates/topo` suite headers said
+"once a night". Restoring the job is the small half. Grepping for what
+the job's ABSENCE had been written into is the rest — and **nothing
+mechanical proved that half complete**. The marker check, the roster
+gate and the gate's own `--selftest` each read structure: mirror
+markers, wiring, and the gate's own behaviour. None of them reads prose,
+and both reviewers found prose citations outside all three — two
+`crates/topo` suite headers that claimed a local mirror the local gate
+does not provide, a `gate-roster.sh` fixture still planting a deleted
+flag spelling, and an unannotated roster in `docs/CI-MINUTES-2026-08.md`.
+The sweep over prose is a `git grep` for NAMES and its blind spot is
+prose that assumes a job without naming it; that is a reviewer's job and
+was, here.
+
+`--pr` was deleted; `RUN_PNCAD_PY` was kept as reporting, with its own
+file (`run-pncad-py-is-computed-and-gates-nothing`) carrying the argument
+for treating the two differently.
+
 ## The shard count is measured, and it stays at 2 (2026-09-12)
 
 `nextest-shard-count-needs-remeasure` closed on twelve hosted code-tier
