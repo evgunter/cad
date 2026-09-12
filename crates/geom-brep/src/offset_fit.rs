@@ -344,6 +344,11 @@ impl OffsetLimb {
 /// input that any face refuses is refused — the admission set of the
 /// door is unchanged by which face speaks — and the split exists so
 /// the caller learns which knob the refusal is about.
+///
+/// The admission set is a function of the bound, so a tighter bound
+/// moves requests OUT of these faces and never into them, and every
+/// request that crosses over is certified by the same decomposition
+/// that refused it: no addendum is owed for a face row that moves.
 #[derive(Clone, Debug, PartialEq)]
 pub enum OffsetFitError {
     /// A door meter refused: the patch's normal is not certifiably
