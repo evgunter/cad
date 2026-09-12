@@ -28,6 +28,7 @@ fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
                 value: value.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("a valid parameter sets")
         .doc;

@@ -47,6 +47,7 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("valid program")
         .doc
@@ -65,6 +66,7 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
             }),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the frame inserts")
     .doc
@@ -136,6 +138,7 @@ fn resolved_values_feed_the_key() {
                     value: DocParam::continuous(Dimension::Length, value),
                 },
                 Tol::witness(),
+                &editor_core::RefusingReach,
             )
             .unwrap()
             .doc;
@@ -154,6 +157,7 @@ fn resolved_values_feed_the_key() {
                     }),
                 },
                 Tol::witness(),
+                &editor_core::RefusingReach,
             )
             .unwrap()
             .doc
@@ -188,6 +192,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                 value: DocParam::continuous(Dimension::Length, 1.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -206,6 +211,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;

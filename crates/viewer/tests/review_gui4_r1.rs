@@ -43,7 +43,7 @@ use common::asm;
 use pncad::document::{
     AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, apply, assemble, class_admission,
-    parse_expr, solve_document,
+    parse_expr,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, face_frame};
@@ -155,7 +155,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-rotated-bench"), tol);
     let insert = |doc: &mut ProfileDoc, node: Node<ProfileProgram>| {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the insert applies");
         *doc = applied.doc;
         applied.record.minted.expect("an insert mints an id")
     };
@@ -167,6 +173,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
             frame: rotated,
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the placement applies");
     doc = applied.doc;
@@ -178,6 +185,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
             frame: Frame::translation(asm::SHELF_AT),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the placement applies");
     doc = applied.doc;
@@ -224,13 +232,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, tol, rest_choice())
+        .proposal(doc, eval, &session.eval_options(), tol, rest_choice())
         .expect("the tool proposes");
 
     // The independent derivation: the picked face's WORLD pose, read
     // through the same shipped door, pulled back with this file's own
     // arithmetic against the placement the solve reports.
-    let poses = solve_document(doc, tol);
+    let poses = common::solve(&session, doc, tol);
     for (side_name, pick_ref, minted) in [
         ("a", &post_a_top, proposal.alignment.a),
         ("b", &shelf_bottom, proposal.alignment.b),
@@ -926,7 +934,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     tool.pick(top);
     tool.pick(bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, tol, rest_choice()) {
+    match tool.proposal(doc, eval, &session.eval_options(), tol, rest_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
             assert_eq!(head, bench.post_b);
         }
@@ -970,6 +978,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
             node: Node::instantiate_part(bench.post),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the insert applies");
     doc = applied.doc;
@@ -991,6 +1000,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
             },
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the pattern applies");
     doc = applied.doc;

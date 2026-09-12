@@ -42,6 +42,7 @@ fn two_named_nodes(doc: &ProfileDoc) -> ProfileDoc {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("a datum point inserts")
         .doc;
@@ -67,7 +68,7 @@ fn name(node: u64) -> SitedRef {
 fn every_form() -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-measure-wire"), Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<editor_core::ProfileProgram>| {
-        apply(d, e, Tol::witness())
+        apply(d, e, Tol::witness(), &editor_core::RefusingReach)
             .expect("a valid edit applies")
             .doc
     };
@@ -154,7 +155,7 @@ const ASSERTION: RecipeNodeId = RecipeNodeId(3);
 fn angular() -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-angle"), Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<editor_core::ProfileProgram>| {
-        apply(d, e, Tol::witness())
+        apply(d, e, Tol::witness(), &editor_core::RefusingReach)
             .expect("a valid edit applies")
             .doc
     };
@@ -285,6 +286,7 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("a Length bound on an Angle measure is refused");
     assert!(
@@ -315,6 +317,7 @@ fn an_assertion_over_a_non_measure_refuses() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("an assertion constrains a measurement");
     assert!(

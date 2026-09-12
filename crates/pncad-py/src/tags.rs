@@ -375,6 +375,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // A mate's alignment is authored geometry, so the non-finite
         // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
+        EditError::MaintenanceRefused { .. } => "maintenance_refused",
+        EditError::MaintenanceUnrecorded { .. } => "maintenance_unrecorded",
     }
 }
 
@@ -864,6 +866,13 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         // says which of the three ways the D7 producer convention was
         // broken rather than which door broke it.
         EditError::MetaUnversioned { error, .. } => Some(meta_version_error_tag(error)),
+        // The maintenance's refusal carries the prior solve's own
+        // fault, when it recorded one: that fault's word is the arm.
+        EditError::MaintenanceRefused {
+            fault: Some(fault), ..
+        } => Some(mate_fault_tag(fault)),
+        EditError::MaintenanceRefused { fault: None, .. } => None,
+        EditError::MaintenanceUnrecorded { .. } => None,
         EditError::Roots(_) => None,
         EditError::UnknownNode { .. } => None,
         EditError::UnresolvedInput { .. } => None,
@@ -1347,20 +1356,23 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::PlacerRefused { .. } => "mate_placer_refused",
         MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
         MateFault::SelfMate { .. } => "mate_self",
-        MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",
+        MateFault::Unleverable { .. } => "mate_unleverable",
     }
 }
 
-/// The stable tag for a lever-arm refusal — the inner arm of
-/// [`mate_fault_tag`]'s `mate_datum_too_small_to_lever`, whose scale
-/// numbers ride beside it as `extent` and `floor`.
+/// The stable tag for a lever refusal — the inner arm of
+/// [`mate_fault_tag`]'s `mate_unleverable`: why one of the mated
+/// parts' reach was not in hand, so no lever could be formed.
 ///
-/// One word today, and the map is exhaustive rather than a constant
-/// so a second way to refuse a lever arm arrives here as a compile
-/// error.
+/// The map is exhaustive rather than a constant so a new way to
+/// refuse a lever arrives here as a compile error.
 pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
     match refusal {
-        LeverRefusal::DatumTooSmall { .. } => "datum_too_small",
+        LeverRefusal::PartUnresolved { .. } => "part_unresolved",
+        LeverRefusal::FaceUnbounded { .. } => "face_unbounded",
+        LeverRefusal::NoExtent { .. } => "no_extent",
+        LeverRefusal::NoFiniteBound { .. } => "no_finite_bound",
+        LeverRefusal::NotAnInstance { .. } => "not_an_instance",
     }
 }
 

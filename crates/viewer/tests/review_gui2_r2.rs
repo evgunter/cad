@@ -64,7 +64,13 @@ fn insert(
     doc: &Doc<ProfileProgram>,
     node: Node<ProfileProgram>,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol()).expect("the insert applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        tol(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the insert applies");
     let id = applied.record.minted.expect("an insert mints an id");
     (applied.doc, id)
 }

@@ -30,7 +30,13 @@ fn len(v: f64) -> Expr {
 }
 
 fn insert(doc: &TDoc, node: Node<FakeProfile>) -> (TDoc, RecipeNodeId) {
-    let applied = apply(doc, &TEdit::InsertNode { node }, Tol::witness()).unwrap();
+    let applied = apply(
+        doc,
+        &TEdit::InsertNode { node },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap();
     let id = applied.record.minted.unwrap();
     (applied.doc, id)
 }
@@ -79,9 +85,14 @@ fn every_step_of_the_order_is_accepted_by_the_delete_door() {
     let order = cascade_delete_order(&doc, profile);
     assert_eq!(order.len(), 4);
     for id in order {
-        doc = apply(&doc, &TEdit::DeleteNode { id }, Tol::witness())
-            .expect("the cone's order never dangles a reference")
-            .doc;
+        doc = apply(
+            &doc,
+            &TEdit::DeleteNode { id },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the cone's order never dangles a reference")
+        .doc;
     }
     assert!(doc.order().is_empty(), "the whole cone is gone");
 }
@@ -113,7 +124,13 @@ fn an_absent_node_has_an_empty_cascade() {
     let absent = RecipeNodeId(9_999);
     assert!(cascade_delete_order(&doc, absent).is_empty());
     assert_eq!(
-        apply(&doc, &TEdit::DeleteNode { id: absent }, Tol::witness()).unwrap_err(),
+        apply(
+            &doc,
+            &TEdit::DeleteNode { id: absent },
+            Tol::witness(),
+            &editor_core::RefusingReach
+        )
+        .unwrap_err(),
         EditError::UnknownNode { id: absent }
     );
 }
@@ -124,7 +141,13 @@ fn an_absent_node_has_an_empty_cascade() {
 #[test]
 fn the_dangle_refusal_states_the_remedy() {
     let (doc, [profile, body, ..]) = fork();
-    let refusal = apply(&doc, &TEdit::DeleteNode { id: profile }, Tol::witness()).unwrap_err();
+    let refusal = apply(
+        &doc,
+        &TEdit::DeleteNode { id: profile },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap_err();
     assert_eq!(
         refusal,
         EditError::DeleteWouldDangle {

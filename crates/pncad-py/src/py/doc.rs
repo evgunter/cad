@@ -662,6 +662,18 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
 }
 
 /// A recipe node's identity within a document.
+/// The options the document's edit door resolves parts through: the
+/// same seam `evaluate(doc, resolver=)` crosses, so an edit whose
+/// cluster-record maintenance mints a frame from a solve levers the
+/// mated parts' own extent — and with no resolver refuses typed rather
+/// than recording a frame nothing decided.
+fn eval_options(resolver: Option<&super::store::Workspace>) -> d::EvalOptions {
+    d::EvalOptions {
+        resolver: resolver.map(super::store::Workspace::resolver),
+        ..d::EvalOptions::default()
+    }
+}
+
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
@@ -749,12 +761,12 @@ impl Doc {
     fn insert_node(
         &mut self,
         node: d::Node<d::ProfileProgram>,
+        resolver: Option<&super::store::Workspace>,
     ) -> Result<Option<NodeId>, d::EditError> {
-        let applied = d::apply(
-            &self.inner,
-            &d::DocEdit::InsertNode { node },
-            Tol::witness(),
-        )?;
+        let tol = Tol::witness();
+        let opts = eval_options(resolver);
+        let reach = d::mate_reach::<f64>(&opts, tol);
+        let applied = d::apply(&self.inner, &d::DocEdit::InsertNode { node }, tol, &reach)?;
         if applied.record.minted.is_none() {
             return Ok(None);
         }
@@ -851,9 +863,18 @@ impl Doc {
     /// off `last_maintenance` instead of returned here: the common
     /// case is an empty list, and widening every caller's return type
     /// for it would be paying for mates in documents that have none.
-    fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
+    #[pyo3(signature = (edit, *, resolver=None))]
+    fn apply(
+        &mut self,
+        py: Python<'_>,
+        edit: &DocEdit,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
-        let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
+        let opts = eval_options(resolver);
+        let reach = d::mate_reach::<f64>(&opts, tol);
+        let applied =
+            d::apply(&self.inner, &edit.inner, tol, &reach).map_err(|err| edit_err(py, &err))?;
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
@@ -1003,8 +1024,14 @@ impl Doc {
 
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
-    fn insert(&mut self, py: Python<'_>, node: &Node) -> PyResult<NodeId> {
-        self.insert_node(node.inner.clone())
+    #[pyo3(signature = (node, *, resolver=None))]
+    fn insert(
+        &mut self,
+        py: Python<'_>,
+        node: &Node,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<NodeId> {
+        self.insert_node(node.inner.clone(), resolver)
             .map_err(|err| edit_err(py, &err))?
             .ok_or_else(|| {
                 boundary_edit_err(py, "no_minted_id", "an insert minted no node id".to_owned())
@@ -1034,7 +1061,7 @@ impl Doc {
         elevation: Option<super::expr::Expr>,
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
-        self.insert(py, &node)
+        self.insert(py, &node, None)
     }
 
     /// Declare ONE inspected finding: insert a `Declare` node with

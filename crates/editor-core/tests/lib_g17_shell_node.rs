@@ -276,6 +276,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
             expr: fixture::len(cup::T_BUMPED),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the wall bumps")
     .doc;
@@ -660,7 +661,7 @@ fn both_documents_round_trip_through_persistence() {
         let empty = ProfileDoc::empty_derived("lib-g17-roundtrip", Tol::witness());
         let mut expected = empty.clone();
         for edit in &d.edits {
-            expected = apply(&expected, edit, Tol::witness())
+            expected = editor_core::apply_logged(&expected, edit, Tol::witness())
                 .expect("a corpus edit applies")
                 .doc;
         }

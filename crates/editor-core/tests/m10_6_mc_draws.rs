@@ -66,6 +66,7 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
             },
         },
         tol,
+        &editor_core::RefusingReach,
     )
     .expect("the parameter declares");
     doc = applied.doc;
@@ -80,6 +81,7 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
             .expect("a measure over a value leaf takes no references"),
         },
         tol,
+        &editor_core::RefusingReach,
     )
     .expect("the measure inserts");
     doc = applied.doc;

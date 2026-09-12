@@ -69,13 +69,19 @@ fn len(metres: f64) -> Expr {
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
 
 fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
-    let applied = apply(doc, e, tol).expect("the edit applies");
+    let applied = apply(doc, e, tol, &pncad::document::RefusingReach).expect("the edit applies");
     *doc = applied.doc;
 }
 

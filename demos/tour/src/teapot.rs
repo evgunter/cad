@@ -310,7 +310,7 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use pncad::document::{
     BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr,
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
+    RecipeNodeId, RefusingReach, TubeWindow, ValuePayload, apply, evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
@@ -810,7 +810,8 @@ struct Recipe {
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied =
+        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
 }
@@ -1067,7 +1068,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     [r.handle_union, r.spout_union, r.pot]
         .into_iter()
         .fold(r.doc, |doc, id| {
-            apply(&doc, &DocEdit::DeleteNode { id }, tol)
+            apply(&doc, &DocEdit::DeleteNode { id }, tol, &RefusingReach)
                 .expect("each is a sink: deleting it drops a root and uncovers no body")
                 .doc
         })

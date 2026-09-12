@@ -95,6 +95,7 @@ fn set_appearance_validates_and_applies_purely() {
                 attr: red(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     // Non-structural, nothing minted; the input document untouched.
@@ -129,7 +130,8 @@ fn set_appearance_validates_and_applies_purely() {
                 name: edge.clone(),
                 attr: red(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::AppearanceWrongKind { name: edge }
@@ -147,7 +149,8 @@ fn set_appearance_validates_and_applies_purely() {
                 name: bogus.clone(),
                 attr: red(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::AppearanceNamesMissingNode { name: bogus }
@@ -172,7 +175,8 @@ fn multi_attribute_per_entity_and_clear_semantics() {
                 name: body.clone(),
                 kind: AttrKind::Color,
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::AppearanceNotSet {
@@ -279,7 +283,12 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             attr: red(),
         },
     ];
-    let replayed = ProfileDoc::replay(doc3.id(), &edits, Tol::witness()).unwrap();
+    let replayed = ProfileDoc::replay(
+        doc3.id(),
+        &editor_core::LoggedEdit::bare_all(&edits),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(replayed.bit_eq(&doc3));
 }
 

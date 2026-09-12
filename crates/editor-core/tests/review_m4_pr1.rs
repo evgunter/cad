@@ -42,7 +42,9 @@ fn apply_all(doc: Doc, edits: &[Edit]) -> (Doc, Vec<RecipeNodeId>) {
     let mut d = doc;
     let mut minted = Vec::new();
     for e in edits {
-        let a = d.apply(e, Tol::witness()).unwrap();
+        let a = d
+            .apply(e, Tol::witness(), &editor_core::RefusingReach)
+            .unwrap();
         minted.extend(a.record.minted);
         d = a.doc;
     }
@@ -74,13 +76,15 @@ fn r1_replay_bit_identity_adversarial() {
         value: DocParam::continuous(Dimension::Length, -0.0),
     }];
     let mut doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
-        .apply(&log[0], Tol::witness())
+        .apply(&log[0], Tol::witness(), &editor_core::RefusingReach)
         .unwrap()
         .doc;
     let mut minted = Vec::new();
     for &v in &adversarial {
         let e = point_edit(len(v));
-        let a = doc.apply(&e, Tol::witness()).unwrap();
+        let a = doc
+            .apply(&e, Tol::witness(), &editor_core::RefusingReach)
+            .unwrap();
         minted.push(a.record.minted.unwrap());
         doc = a.doc;
         log.push(e);
@@ -88,11 +92,16 @@ fn r1_replay_bit_identity_adversarial() {
     // Interleaved deletes (including the newest id) then more inserts.
     for &d in &[minted[3], minted[7], minted[9]] {
         let e = Edit::DeleteNode { id: d };
-        doc = doc.apply(&e, Tol::witness()).unwrap().doc;
+        doc = doc
+            .apply(&e, Tol::witness(), &editor_core::RefusingReach)
+            .unwrap()
+            .doc;
         log.push(e);
     }
     let e = point_edit(len(-0.0));
-    let a = doc.apply(&e, Tol::witness()).unwrap();
+    let a = doc
+        .apply(&e, Tol::witness(), &editor_core::RefusingReach)
+        .unwrap();
     // D3: ids strictly increase even after deleting the highest one.
     assert!(a.record.minted.unwrap() > *minted.iter().max().unwrap());
     doc = a.doc;
@@ -100,9 +109,17 @@ fn r1_replay_bit_identity_adversarial() {
     // Re-insert a last-ulp carrier after the churn — replay must
     // carry its exact bits through the re-minted id stream.
     let e = point_edit(len(-ulp1));
-    doc = doc.apply(&e, Tol::witness()).unwrap().doc;
+    doc = doc
+        .apply(&e, Tol::witness(), &editor_core::RefusingReach)
+        .unwrap()
+        .doc;
     log.push(e);
-    let replayed = Doc::replay(doc.id(), &log, Tol::witness()).unwrap();
+    let replayed = Doc::replay(
+        doc.id(),
+        &editor_core::LoggedEdit::bare_all(&log),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_bit_identical(&replayed, &doc);
     // The crate's own bit-semantic comparator agrees (fix pass).
     assert!(replayed.bit_eq(&doc), "Doc::bit_eq on replay");
@@ -256,10 +273,15 @@ fn r2_contradictory_param_dims_caught_downstream() {
                 value: DocParam::continuous(Dimension::Length, 2.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
-    let res = doc.apply(&point_edit(expr), Tol::witness());
+    let res = doc.apply(
+        &point_edit(expr),
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
     assert!(
         matches!(res, Err(EditError::DocParamDimensionMismatch { .. })),
         "got {res:?}"
@@ -316,7 +338,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
         }),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
-        .apply(&ins, Tol::witness())
+        .apply(&ins, Tol::witness(), &editor_core::RefusingReach)
         .unwrap();
     let id = a.record.minted.unwrap();
     let path = ExprPath {
@@ -339,6 +361,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
                 expr: Expr::add(len(5.0), len(7.0)).unwrap(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -358,6 +381,7 @@ fn r3_ancestor_replace_silently_repoints_exprpath() {
                 expr: len(9.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -378,7 +402,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
         }),
     };
     let a = Doc::empty_derived("review_m4_pr1", Tol::witness())
-        .apply(&ins, Tol::witness())
+        .apply(&ins, Tol::witness(), &editor_core::RefusingReach)
         .unwrap();
     let id = a.record.minted.unwrap();
     let referent = ExprPath {
@@ -406,6 +430,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
                 expr: Expr::mul(scl(3.0), len(8.0)).unwrap(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -419,6 +444,7 @@ fn r3_referent_survives_out_of_claim_edits_bitwise() {
                 expr: len(6.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -456,12 +482,20 @@ fn r4_stablename_node_refs_escape_ref_validation() {
             },
         )]),
     };
-    let a = doc.apply(&declare(target), Tol::witness()).unwrap();
+    let a = doc
+        .apply(
+            &declare(target),
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap();
     let declare_id = a.record.minted.unwrap();
     // (1) Delete the named node — ACCEPTED despite the live Declare.
-    let after = a
-        .doc
-        .apply(&Edit::DeleteNode { id: target }, Tol::witness());
+    let after = a.doc.apply(
+        &Edit::DeleteNode { id: target },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
     let after = after.expect("WITNESS: delete of name-referenced node accepted");
     assert!(after.doc.node(target).is_none());
     // The Declare survives, holding a stale id.
@@ -474,8 +508,11 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     // (2) Insert a Declare naming an id that never existed: REFUSED
     // (fix pass, ruled carve-out).
     let phantom = RecipeNodeId(9999);
-    let res = Doc::empty_derived("review_m4_pr1", Tol::witness())
-        .apply(&declare(phantom), Tol::witness());
+    let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
+        &declare(phantom),
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
     match res {
         Err(EditError::DeclareNamesMissingNode { name }) => {
             assert_eq!(name.node, phantom, "refusal names the typo'd id");
@@ -491,6 +528,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(matches!(res2, Err(EditError::UnresolvedInput { .. })));
 }
@@ -519,6 +557,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
                 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     let extrude = a.record.minted.unwrap();
@@ -536,6 +575,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(matches!(res, Err(EditError::UnresolvedInput { .. })));
     // And no edit arm can touch `Extrude.profile` afterwards: the
@@ -559,6 +599,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
                 value: DocParam::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -573,6 +614,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
             value: DocParam::continuous(Dimension::Angle, 0.5),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(flip, Err(EditError::DocParamDimensionMismatch { .. })),
@@ -585,6 +627,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
             value: DocParam::Count { value: 2 },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(matches!(
         kind_flip,
@@ -598,6 +641,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
                 value: DocParam::continuous(Dimension::Length, 0.75),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!ok.record.structural);
@@ -610,6 +654,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
                 value: DocParam::Count { value: 1 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(
@@ -634,7 +679,9 @@ fn r5_apply_pure_and_deterministic_bitwise() {
         slot: SlotId::Origin(editor_core::Axis3::Y),
         expr: len(f64::from_bits(0x3FF0000000000001)),
     };
-    let a1 = doc.apply(&e, Tol::witness()).unwrap();
+    let a1 = doc
+        .apply(&e, Tol::witness(), &editor_core::RefusingReach)
+        .unwrap();
     assert_bit_identical(&doc, &snapshot);
     // Failing apply: input untouched (delete of a referenced node —
     // build an extrude on a profile to get a refusal).
@@ -643,12 +690,15 @@ fn r5_apply_pure_and_deterministic_bitwise() {
             id: RecipeNodeId(424_242),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(bad.is_err());
     assert_bit_identical(&doc, &snapshot);
     // Determinism: same edit, same input → bit-identical outputs,
     // including the minted-id stream.
-    let a2 = doc.apply(&e, Tol::witness()).unwrap();
+    let a2 = doc
+        .apply(&e, Tol::witness(), &editor_core::RefusingReach)
+        .unwrap();
     assert_bit_identical(&a1.doc, &a2.doc);
     assert_eq!(a1.record, a2.record);
     // eval purity in (expr, params): repeated evals bit-identical.
@@ -714,6 +764,7 @@ fn r6_nonfinite_doors_closed() {
                 value: DocParam::continuous(Dimension::Length, poison),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         );
         assert_eq!(
             res.unwrap_err(),
@@ -792,6 +843,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
                 value: DocParam::Count { value: 4 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -811,6 +863,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .apply(
             &pattern(Expr::param(cnt_param.clone(), Dimension::Count)),
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(a.record.structural);
@@ -828,6 +881,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
             expr: smuggle,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(res, Err(EditError::SlotDimensionMismatch { .. })),
@@ -847,6 +901,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
                 value: DocParam::continuous(Dimension::Length, 9.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!a2.record.structural);
@@ -865,6 +920,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
                 node: Node::declare_rest(vec![]),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(a3.record.structural, "Declare insert flags structural");

@@ -471,6 +471,7 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
                 to: target.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("an appearance key is a rebind site");
     assert!(!applied.record.structural);
@@ -504,7 +505,8 @@ fn appearance_only_rebind_counts_as_a_site_not_no_references() {
                 from: cap,
                 to: target
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .is_ok()
     );
@@ -525,7 +527,8 @@ fn rebind_appearance_collision_is_refused_typed() {
                 from: cap.clone(),
                 to: target.clone(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
@@ -550,6 +553,7 @@ fn rebind_appearance_collision_is_refused_typed() {
                 to: target.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(&target).unwrap();

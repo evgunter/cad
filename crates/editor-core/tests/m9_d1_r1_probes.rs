@@ -104,8 +104,12 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
             }),
         ])],
     });
-    doc.apply(&DocEdit::InsertNode { node }, Tol::witness())
-        .expect("a declared collinear joint is a tangent joint, so this authors");
+    doc.apply(
+        &DocEdit::InsertNode { node },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a declared collinear joint is a tangent joint, so this authors");
 }
 
 /// The mixed dome: (0,0) →line→ (1,0) →quarter arc→ (0,1) →axis

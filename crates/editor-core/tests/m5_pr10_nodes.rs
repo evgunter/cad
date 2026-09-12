@@ -131,6 +131,7 @@ fn a_dangling_profile_ref_refuses_at_the_edit_door() {
                 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a dangling input must refuse");
     assert!(format!("{err:?}").contains("9999"), "{err:?}");
@@ -150,6 +151,7 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
                 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a Length in a Count slot must refuse");
     let text = format!("{err:?}");

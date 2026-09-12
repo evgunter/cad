@@ -38,7 +38,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate,
     inline, product_recorded, split,
 };
-use fixture::{insert, len, on_frame, relations, step};
+use fixture::{insert, len, on_frame, relations, solve, step, step_with};
 use geom_core::Tol;
 
 // ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----
@@ -479,7 +479,8 @@ fn row2_b_a_declaring_mate_mints_identically() {
         },
     );
     let second = second.expect("the third mate mints");
-    let poses = editor_core::solve_document(&doc, Tol::witness());
+    let o = opts(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.role(second),
         Some(editor_core::MateRole::Declaring),
@@ -491,7 +492,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
     // frontier — one declaration is genuinely contradicted, and the
     // gate refuses either way. What the row reads out of the refusal
     // is who was ATTRIBUTED, which is the set that got minted.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &o);
     let err =
         assemble(&doc, &ev, Tol::witness()).expect_err("the column's declarations do not all hold");
     let AssemblyError::AtRest { findings } = &err else {
@@ -536,8 +537,13 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
     // solved the pose — the placement survives as document data, so
     // the instances still touch and nothing declares it.
     let (doc, ids, mate, store) = stacked("asm-r2b-row3a", 1.0);
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
-    let ev = run(&doc, &opts(store));
+    // Deleting the mate splits the cluster and mints the orphan's
+    // frame from the solved pose: the store's reach, not the fixture's
+    // refusing one.
+    let o = opts(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = step_with(doc, DocEdit::DeleteNode { id: mate }, &reach);
+    let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
     assert!(
@@ -743,6 +749,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 #[test]
 fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let (doc, ids, _, store) = stacked("asm-r2b-row5", 1.0);
+    let o = opts(store);
 
     // One instance alone: the cut tears the cluster.
     let torn = split(
@@ -750,6 +757,7 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         &[ids[1]].into_iter().collect(),
         DocumentId::derive("asm-r2b-row5-torn"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect_err("a torn cluster refuses");
     assert!(
@@ -764,6 +772,7 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         &ids.iter().copied().collect(),
         DocumentId::derive("asm-r2b-row5-whole"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect("a whole-cluster cut splits");
     let Some(Node::InstantiatePart { interface, .. }) = out.remainder.node(out.instance) else {
@@ -775,7 +784,6 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
          crossed: {:?}",
         interface.crossings
     );
-    let _ = store;
 }
 
 /// INVARIANT (A4's "does it actually fit" + A13 clause 4): an
@@ -847,6 +855,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
             new_pin,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the pin moves")
     .doc;
@@ -898,7 +907,13 @@ fn row5_c_inline_dissolves_the_crossing_record() {
         ProfileDoc::empty(DocumentId::derive("asm-r2b-row5c"), Tol::witness()),
         Node::instantiate_part_with(doc_ref, record),
     );
-    let back = inline(&doc, instance, &store, Tol::witness()).expect("inline succeeds");
+    let back = inline(
+        &doc,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("inline succeeds");
     assert!(
         back.doc.node(instance).is_none(),
         "the instance is gone, and its record with it"
@@ -956,6 +971,7 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
         &[instance].into_iter().collect(),
         DocumentId::derive("asm-r2b-row5d-split"),
         Tol::witness(),
+        None,
     )
     .expect("a singleton-cluster cut splits");
     let Some(Node::InstantiatePart { interface, .. }) = out.remainder.node(out.instance) else {
@@ -1049,6 +1065,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
             new_pin,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the pin moves")
     .doc;
@@ -1059,6 +1076,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
             new_pin,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the pin moves")
     .doc;
@@ -1198,7 +1216,8 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
 
     // Door one: the solve admits it — no fault, and it took a role in
     // the pair. (A class the table DEFERS refuses here instead.)
-    let poses = editor_core::solve_document(&doc, Tol::witness());
+    let o = opts(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert!(
         poses.fault(tangent).is_none(),
         "the solve door admits Tangent: {:?}",
@@ -1210,7 +1229,7 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
     );
 
     // Door two: the mint refuses it, naming the class.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &o);
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::NoAtRestRecord {
             class,
@@ -1622,8 +1641,13 @@ fn a_flush_seat_certifies_at_the_gate() {
 #[test]
 fn the_same_flush_seat_undeclared_is_the_hard_error() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
-    let ev = run(&doc, &opts(store));
+    // Deleting the mate splits the cluster and mints the orphan's
+    // frame from the solved pose: the store's reach, not the fixture's
+    // refusing one.
+    let o = opts(store);
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = step_with(doc, DocEdit::DeleteNode { id: mate }, &reach);
+    let ev = run(&doc, &o);
     let errors = findings(&assemble(&doc, &ev, Tol::witness()));
     assert!(
         errors.iter().any(|e| e.contains("VertexOnEdge")),

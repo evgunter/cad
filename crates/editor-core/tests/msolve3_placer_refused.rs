@@ -29,10 +29,9 @@ use editor_core::{
     Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
     EvalOptions, Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult,
     PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotId, StableName,
-    solve_document,
 };
 use fixture::resolver::{PartStore, in_part};
-use fixture::{ang, in_copy, insert, len, on_frame, run, scl, step, xform};
+use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -103,7 +102,7 @@ impl Scene {
 
     /// The fault the solve records for the mate.
     fn fault(&self) -> MateFault {
-        solve_document(&self.doc, Tol::witness())
+        solve(&self.doc, &self.opts(), Tol::witness())
             .fault(self.mate)
             .cloned()
             .expect("the placer refuses")
@@ -606,6 +605,7 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("a pattern spells its count once");
     assert!(
@@ -650,8 +650,12 @@ fn a_stranded_operand_is_still_a_dangling_head() {
         4,
         1,
     );
-    let (doc, _) = step(scene.doc, DocEdit::DeleteNode { id: scene.placer });
-    let f = solve_document(&doc, Tol::witness())
+    let o = scene.opts();
+    // Deleting the placer strands the mate's operand and splits the
+    // cluster: the edit levers through the store's reach.
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = step_with(scene.doc, DocEdit::DeleteNode { id: scene.placer }, &reach);
+    let f = solve(&doc, &o, Tol::witness())
         .fault(scene.mate)
         .cloned()
         .expect("the stranded mate refuses");
@@ -684,6 +688,7 @@ fn the_placement_axis_refuses_in_its_own_voice() {
                 frame,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )?
         .doc)
     };

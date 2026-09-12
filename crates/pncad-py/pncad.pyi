@@ -3028,7 +3028,18 @@ class Doc:
         """This document's identity as 32 lowercase hex digits — the
         save file's `id:` header, and the workspace store's key.
         Identity survives every edit; it is not a content hash."""
-    def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
+    def apply(self, edit: DocEdit, *, resolver: Optional[Workspace] = None) -> Optional[NodeId]:
+        """Apply one edit, answering the minted node id if the edit
+        minted one.
+
+        `resolver` is the document seam an edit that moves a cluster's
+        gauge levers through: its cluster-record maintenance mints the
+        cluster's frame from a solve of the prior document, whose lever
+        is the mated parts' own extent. Every other edit never consults
+        it. Absent, such an edit raises `EditError` with variant
+        `maintenance_refused` rather than recording a frame nothing
+        decided; everything else is unaffected."""
+
     @property
     def last_maintenance(self) -> list[ClusterMaintenance]:
         """The cluster-record maintenance the LAST accepted edit
@@ -3095,7 +3106,7 @@ class Doc:
         A node this document does not hold raises EditError
         (`unknown_node`) rather than answering a word or `None`."""
 
-    def insert(self, node: Node) -> NodeId: ...
+    def insert(self, node: Node, *, resolver: Optional[Workspace] = None) -> NodeId: ...
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -4795,18 +4806,16 @@ class Alignment:
     @property
     def clocking(self) -> Optional[Angle]: ...
     @property
-    def lever_arm(self) -> Optional[Length]:
-        """The largest distance in this mate's own authored data over
-        which an angular error accumulates into a gap.
+    def lever_arm(self) -> Length:
+        """The datum's own contribution to the lever this mate's angular
+        decisions turn on: both mate frames' distances from their parts'
+        origins plus every length the primitive authors, summed.
 
-        `None` when the alignment names a scale but names one too small
-        to lever anything: a lever of `L` makes the smallest decidable
-        tilt `eps/L`, so a datum at a nanometre buys a threshold of a
-        whole radian, and a verdict there is vacuous rather than tight.
-        The solve records that case as the
-        `mate_datum_too_small_to_lever` fault. An alignment that names
-        NO scale at all is not this case — it borrows the session box's
-        scale and answers with a number."""
+        The lever itself adds the two mated parts' own extent (an upper
+        bound from each evaluated body), which only the solve has in
+        hand — so this is the part an alignment can answer alone, never
+        the whole. Zero for a datum authored at both origins with no
+        length, the ordinary spelling of an axis-to-axis mate."""
     def __eq__(self, other: object) -> bool: ...
 
 class ClassAdmission:
@@ -4953,7 +4962,9 @@ class MateFault:
         """The nested refusal's own word: the frame ladder's
         (`FrameError.variant`'s vocabulary), the band constructor's
         (`invalid_value`, `invalid_lever_arm`, `empty`), or the lever
-        refusal's (`datum_too_small`). `None` on an arm whose payload
+        refusal's (`part_unresolved`, `face_unbounded`, `no_extent`,
+        `no_finite_bound`, `not_an_instance`, with the instance it is
+        about as `instance`). `None` on an arm whose payload
         is a struct rather than an enum — an escalation has no inner
         word, and its shape is which margin attribute is set."""
 
@@ -5001,23 +5012,15 @@ class MateFault:
 
     @property
     def lever_arm(self) -> Optional[Length]:
-        """The lever's ARM — the solve's own scale surrogate, the
-        larger of the two frame origins' distances and the authored
-        lengths, floored at one metre. NOT a contact feature: it names
-        that scale and nothing in the model. `clash` is the PRODUCT of
-        the two halves, and an arm that measured its margin without a
-        lever carries neither."""
+        """Its ARM, in metres: an upper bound on the two mated parts'
+        extent together from the datum — each part's reach from its own
+        origin plus its frame's distance, plus the authored lengths.
+        NOT a contact feature: it names the parts' scale and nothing
+        else in the model. `clash` is the PRODUCT of the two halves,
+        and an arm that measured its margin without a lever carries
+        neither."""
 
-    @property
-    def extent(self) -> Optional[Length]:
-        """The length scale a datum named, when it named one too small
-        to lever a parallelism verdict over."""
 
-    @property
-    def floor(self) -> Optional[Length]:
-        """The floor that scale is under: below it the smallest tilt
-        the predicate could call non-parallel is about eps/extent
-        radians, so every tilt would read parallel."""
 
 class SolvedPoses:
     """The document's solved poses: each instance's pose relative to
@@ -5049,7 +5052,7 @@ class SolvedPoses:
         tag `mate_poses_of_another_document` before any frame is
         read. Raises MateError when the cluster did not solve."""
 
-def solve_document(doc: Doc) -> SolvedPoses:
+def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedPoses:
     """Solve the document's mates: the per-pair coset fold along a
     deterministic spanning tree.
 
@@ -5057,9 +5060,15 @@ def solve_document(doc: Doc) -> SolvedPoses:
     unrelated one, so refusals are read back through
     `SolvedPoses.fault`.
 
-    Nothing here inspects geometry. In particular it does NOT check
-    that a mate's frames match the faces its references name, which is
-    why a document can solve cleanly and still refuse at the gate."""
+    The solve reads no geometry except each mated part's own extent —
+    an upper bound taken from its evaluated body, entering only as the
+    lever a parallelism verdict is decided over — so `resolver` is the
+    same document seam `evaluate(doc, resolver=)` crosses. Without one
+    every mate on a part faults `mate_unleverable` in the resolver's
+    own voice rather than levering over nothing. In particular the
+    solve does NOT check that a mate's frames match the faces its
+    references name, which is why a document can solve cleanly and
+    still refuse at the gate."""
 
 def clusters(doc: Doc) -> list[list[NodeId]]:
     """The placement clusters: instances coupled by mates, members in
@@ -5346,7 +5355,9 @@ class SplitOutcome:
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Cut node -> its id in the part document."""
 
-def split(doc: Doc, cut: list[NodeId], part_id: str) -> SplitOutcome:
+def split(
+    doc: Doc, cut: list[NodeId], part_id: str, *, resolver: Optional[Workspace] = None
+) -> SplitOutcome:
     """Cut a closed node set out into a NEW document, leaving one
     instance of it behind.
 

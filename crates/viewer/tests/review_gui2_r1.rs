@@ -82,8 +82,13 @@ fn inserted(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = pncad::document::apply(doc, &pncad::document::DocEdit::InsertNode { node }, tol)
-        .expect("the fixture edit applies");
+    let applied = pncad::document::apply(
+        doc,
+        &pncad::document::DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the fixture edit applies");
     let id = *applied
         .doc
         .order()

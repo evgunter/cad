@@ -310,7 +310,7 @@ class TestBenchLayout(BenchWorkspace):
                         seat(POST_SEAT, SEAT_A),
                     )
                 )
-                solved = solve_document(doc)
+                solved = solve_document(doc, resolver=self.ws)
                 outcome[name] = solved.fault(mate)
                 if name == "pattern":
                     self.assertIsNone(solved.fault(mate))
@@ -493,7 +493,7 @@ class TestBenchStand(BenchWorkspace):
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
         self.assertEqual(doc.last_maintenance, [])
         # `apply`: deleting a mate splits the cluster it coupled.
-        doc.apply(DocEdit.delete_node(mate_2))
+        doc.apply(DocEdit.delete_node(mate_2), resolver=self.ws)
         self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
         # `declare` and `declare_all`, each from that split: a declared
         # flush contact moves no mate graph, so each door's own reading
@@ -502,7 +502,7 @@ class TestBenchStand(BenchWorkspace):
         self.assertEqual(len(findings), 1)
         doc.declare(findings[0])
         self.assertEqual(doc.last_maintenance, [])
-        doc.apply(DocEdit.delete_node(mate_1))
+        doc.apply(DocEdit.delete_node(mate_1), resolver=self.ws)
         self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
         doc.declare_all(findings)
         self.assertEqual(doc.last_maintenance, [])
@@ -524,8 +524,13 @@ class TestBenchStand(BenchWorkspace):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
         self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i, post_b]])
 
+        # Both halves of a whole-cluster cut move a gauge, so each
+        # side's maintenance solve levers through the workspace.
         outcome = pncad.split(
-            doc, [post_a, shelf_i, post_b, mate_1, mate_2], random_document_id()
+            doc,
+            [post_a, shelf_i, post_b, mate_1, mate_2],
+            random_document_id(),
+            resolver=self.ws,
         )
         # The part is built from empty by inserting the cut nodes, and
         # each mate welds two members as it lands: one join per mate.
@@ -576,7 +581,7 @@ class TestBenchStand(BenchWorkspace):
 
     def test_the_solve_places_every_instance_where_the_scene_puts_it(self):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        solved = solve_document(doc)
+        solved = solve_document(doc, resolver=self.ws)
         for node in (post_a, shelf_i, post_b, mate_1, mate_2):
             self.assertIsNone(solved.fault(node), f"{node} records no fault")
         for mate in (mate_1, mate_2):
@@ -655,7 +660,7 @@ class TestAssemblyRefusals(BenchWorkspace):
 
     def test_a_single_planar_rest_leaves_the_pair_free_and_refuses(self):
         doc, (post_a, shelf_i, _), (mate_1, _) = self.stand_planar()
-        fault = solve_document(doc).fault(mate_1)
+        fault = solve_document(doc, resolver=self.ws).fault(mate_1)
         # One planar rest between two parts fixes the seating plane and
         # nothing else — the pair may still slide and spin in it. The
         # solve refuses and names the RESIDUAL in class vocabulary
@@ -690,7 +695,7 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, lower),
             )
         )
-        poses = solve_document(doc)
+        poses = solve_document(doc, resolver=self.ws)
         fault = poses.fault(clash) or poses.fault(mate_1)
         self.assertEqual(fault.variant, "mate_contradictory")
         self.assertIn(pncad.CONTRADICTORY_RECOURSE, str(fault))
@@ -707,12 +712,62 @@ class TestAssemblyRefusals(BenchWorkspace):
         # is untouched, which is the whole reason the solve is total.
         self.assertIsNone(solve_document(other).fault(lone))
 
+    def test_the_lever_is_the_parts_extent(self):
+        """The lever a mate's angular decisions turn on is the mated
+        parts' own extent: a 10 mm part tilted by 1e-8 rad deviates a
+        few 1e-10 m across itself, under the default eps, so the rider
+        is redundant and the mate solves — where a metre lever priced
+        the same tilt at 1e-8 and refused it. A 10 m part tilted the
+        same way deviates 1e-7 m and is refused. Without a resolver
+        there is no extent and the mate faults in the resolver's voice."""
+        tilt = 1e-8 * pncad.rad
+
+        def clocked(size):
+            part = prism(f"pncad-lever-{size}", size, size, size)
+            self.ws.create(part)
+            ref = DocRef(part.id, content_pin(part))
+            doc = Doc(f"pncad-lever-doc-{size}")
+            a_i = doc.insert(Node.instantiate_part(ref))
+            b_i = doc.insert(Node.instantiate_part(ref))
+            a_top = self.instance_face(doc, a_i, CapEnd.End)
+            b_bottom = self.instance_face(doc, b_i, CapEnd.Start)
+            alignment = Alignment(
+                mate_frame((0.0, 0.0, size)),
+                mate_frame((0.0, 0.0, 0.0)),
+                MatePrimitive.frame_coincidence(),
+                AxisSense.Aligned,
+                clocking=tilt,
+            )
+            mate = doc.insert(
+                Node.mate(a_i, a_top, b_i, b_bottom, ContactClass.Rest, alignment)
+            )
+            return doc, mate
+
+        small, small_mate = clocked(0.01)
+        self.assertIsNone(solve_document(small, resolver=self.ws).fault(small_mate))
+        self.assertEqual(
+            solve_document(small, resolver=self.ws).role(small_mate),
+            MateRole.Determining,
+        )
+        # No resolver, no extent: the typed refusal, not a guess.
+        fault = solve_document(small).fault(small_mate)
+        self.assertEqual(fault.variant, "mate_unleverable")
+        self.assertIn("part resolver", str(fault))
+
+        large, large_mate = clocked(10.0)
+        fault = solve_document(large, resolver=self.ws).fault(large_mate)
+        self.assertEqual(fault.variant, "mate_contradictory")
+        self.assertEqual(fault.predicate, "mate_clocking_redundant")
+        # The clash is the tilt priced across the parts: 1e-8 rad over
+        # tens of metres, well past the document's eps.
+        self.assertGreater(fault.clash.meters, small.epsilon)
+
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         face = self.instance_face(doc, post_i, CapEnd.End)
         mate = doc.insert(Node.mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
-        fault = solve_document(doc).fault(mate)
+        fault = solve_document(doc, resolver=self.ws).fault(mate)
         # A pair is two instances; a self-mate constrains nothing and
         # is a recipe mistake, refused rather than folded into a
         # tautology.
@@ -756,7 +811,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         # The transform is invisible to NAMING (the reference resolves
         # through it to the minting instance) and visible to the SOLVE
         # (which walks from the operand and composes its map).
-        self.assertIsNone(solve_document(doc).fault(mate))
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
         self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i]])
         # Read at the instance instead and it is a different node: the
         # operand is part of what a mate says.
@@ -800,7 +855,7 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, SEAT_A),
             )
         )
-        fault = solve_document(doc).fault(mate)
+        fault = solve_document(doc, resolver=self.ws).fault(mate)
         self.assertEqual(fault.variant, "mate_placer_refused")
         self.assertEqual(fault.placer, lifted)
         self.assertEqual(fault.error, "non_finite_direction")
@@ -917,8 +972,8 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, SEAT_A),
             )
         )
-        self.assertIsNone(solve_document(doc).fault(mate))
-        self.assertEqual(solve_document(doc).role(mate), MateRole.Determining)
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
+        self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
         ev = evaluate(doc, resolver=self.ws)
         product(doc, ev)
         # The union is the root the shelf reaches the product through;
@@ -1052,17 +1107,18 @@ class TestMateFaultPayload(BenchWorkspace):
         mate = doc.insert(
             Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
         )
-        return solve_document(doc).fault(mate)
+        return solve_document(doc, resolver=self.ws).fault(mate)
 
     def test_a_levered_clash_carries_both_halves_of_its_lever(self):
         """`clash` IS the product of the two halves.
 
-        The lever is the solve's own SCALE SURROGATE — the larger of
-        the two frame origins' distances and the authored lengths,
-        floored at one metre — and not a contact feature: it names
-        that scale and nothing in the model. So the two halves cross
-        beside the deviation they multiply to, and a caller that wants
-        the tilt reads it rather than dividing prose."""
+        The lever is an upper bound on the mated parts' extent from
+        the datum — each part's reach from its own origin plus its
+        frame's distance, plus the authored lengths — and not a
+        contact feature: it names the parts' scale and nothing else
+        in the model. So the two halves cross beside the deviation
+        they multiply to, and a caller that wants the tilt reads it
+        rather than dividing prose."""
         fault = self.clocked(0.25 * rad)
         self.assertEqual(fault.variant, "mate_contradictory")
         self.assertEqual(fault.predicate, "mate_clocking_redundant")
@@ -1078,7 +1134,7 @@ class TestMateFaultPayload(BenchWorkspace):
         # The arm carries no nested refusal and no classification.
         for absent in (
             "inner_variant", "margin", "margin_low", "margin_high",
-            "zero", "escalate", "field", "value", "extent", "floor",
+            "zero", "escalate", "field", "value",
             "expected_document", "found_document",
         ):
             self.assertIsNone(getattr(fault, absent), absent)
@@ -1088,7 +1144,7 @@ class TestMateFaultPayload(BenchWorkspace):
         predicate measured its margin without a lever names no lever
         at all."""
         doc, _, (mate_1, _) = self.stand_planar()
-        fault = solve_document(doc).fault(mate_1)
+        fault = solve_document(doc, resolver=self.ws).fault(mate_1)
         self.assertEqual(fault.variant, "mate_under")
         self.assertIsNone(fault.lever_tilt)
         self.assertIsNone(fault.lever_arm)
@@ -1112,12 +1168,13 @@ class TestMateFaultPayload(BenchWorkspace):
         self.assertIsNone(fault.mate)
         self.assertIsNone(fault.side)
 
-    def test_a_datum_too_small_to_lever_names_its_scale_and_its_floor(self):
-        """A datum that names a length names the scale a parallelism
-        verdict is levered over. Named below the floor, the verdict
-        would be vacuous rather than tight — at an arm of L the
-        smallest tilt the predicate could call non-parallel is about
-        eps/L — so the solve refuses and reports both numbers."""
+    def test_a_mate_without_its_parts_in_hand_names_the_part_it_cannot_lever(self):
+        """The lever a parallelism verdict is decided over is the mated
+        parts' own extent, so a solve with no resolver has no lever:
+        it refuses `mate_unleverable`, naming the refusal's own word
+        and the instance whose part it could not reach. A datum at a
+        nanometre is no longer a case of its own — the parts on either
+        side carry the lever, at whatever scale the datum names."""
         doc, post_i, shelf_i = self.two_instances()
         a_top = self.instance_face(doc, post_i, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
@@ -1133,13 +1190,15 @@ class TestMateFaultPayload(BenchWorkspace):
             Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
         )
         fault = solve_document(doc).fault(mate)
-        self.assertEqual(fault.variant, "mate_datum_too_small_to_lever")
-        # The nested refusal's own word, beside the two numbers it
-        # qualifies.
-        self.assertEqual(fault.inner_variant, "datum_too_small")
-        self.assertEqual(fault.extent, 1e-9 * m)
-        self.assertLess(fault.extent, fault.floor)
+        self.assertEqual(fault.variant, "mate_unleverable")
+        # The nested refusal's own word, beside the instance it names:
+        # the gauge's part is asked first.
+        self.assertEqual(fault.inner_variant, "part_unresolved")
+        self.assertEqual(fault.instance, post_i)
         self.assertEqual(fault.mate, mate)
+        # Through the store the same mate solves: the nanometre datum
+        # is levered by the parts on either side of it.
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
         # A lever REFUSED is not a lever measured: the contradictory
         # arm's two halves are absent here.
         self.assertIsNone(fault.lever_tilt)
@@ -1171,7 +1230,7 @@ class TestMateFaultPayload(BenchWorkspace):
         mate = doc.insert(
             Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
         )
-        fault = solve_document(doc).fault(mate)
+        fault = solve_document(doc, resolver=self.ws).fault(mate)
         self.assertEqual(fault.variant, "mate_frame_degenerate")
         # One level in: the word `FrameError` itself crosses under.
         self.assertEqual(fault.inner_variant, "degenerate_aim")

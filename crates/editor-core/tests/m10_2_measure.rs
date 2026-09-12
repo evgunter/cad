@@ -44,7 +44,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness())
+    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -53,8 +53,13 @@ fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
 /// [`push`] shape for a node whose id the caller needs, which a frame
 /// datum's is: every profile drawn on it names it.
 fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, Tol::witness())
-        .unwrap_or_else(|e| panic!("edit refused: {e}"));
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap_or_else(|e| panic!("edit refused: {e}"));
     let id = applied.record.minted.expect("an insert mints an id");
     (applied.doc, id)
 }
@@ -1024,8 +1029,13 @@ fn deleting_a_referenced_node_is_refused() {
             .expect("indices in range"),
         },
     );
-    let err = apply(&doc, &DocEdit::DeleteNode { id: holes[0] }, Tol::witness())
-        .expect_err("the measure consumes that node");
+    let err = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: holes[0] },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect_err("the measure consumes that node");
     assert!(
         matches!(err, EditError::DeleteWouldDangle { .. }),
         "got {err:?}"

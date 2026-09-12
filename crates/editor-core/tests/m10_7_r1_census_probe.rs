@@ -80,6 +80,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
         &r.doc,
         &DocEdit::InsertNode { node: profile },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .map_err(|e| format!("{e:?}"))?;
     let profile = applied.record.minted.unwrap();

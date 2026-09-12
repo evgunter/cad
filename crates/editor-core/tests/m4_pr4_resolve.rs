@@ -748,6 +748,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
             },
             &ev,
             Tol::witness(),
+            &editor_core::RefusingReach
         )
         .is_ok()
     );
@@ -767,6 +768,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         },
         &ev,
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap_err();
     assert_eq!(
@@ -786,6 +788,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
             },
             &ev,
             Tol::witness(),
+            &editor_core::RefusingReach
         )
         .is_ok(),
         "forward references defer to evaluation-time resolution"
@@ -821,6 +824,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
             },
             &ev,
             Tol::witness(),
+            &editor_core::RefusingReach
         )
         .is_ok(),
         "a selection the tables carry passes"
@@ -843,6 +847,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         },
         &ev,
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap_err();
     assert_eq!(

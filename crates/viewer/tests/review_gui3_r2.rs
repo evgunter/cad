@@ -80,7 +80,13 @@ fn push(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the insert applies");
     let id = applied.record.minted.expect("an insert mints an id");
     (applied.doc, id)
 }
@@ -102,6 +108,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
             value: DocParam::continuous(Dimension::Length, 0.005),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the parameter declares")
     .doc;
@@ -415,7 +422,8 @@ fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
             expr: len(v),
         })
         .collect();
-    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
+    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
+        .expect("the log replays");
     assert_eq!(history.len(), 4);
     for expected in [0.008_f64, 0.007, 0.006] {
         history.undo().expect("a step back");

@@ -63,7 +63,8 @@
 // the key. Carrying the refusal is not carrying the value tree:
 // `MetaValue` and `MetaError` stay out, because the arm names neither.
 pub use editor_core::{
-    Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, MetaVersionError, ProgramRefusal, apply,
+    Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, LoggedEdit, MetaVersionError,
+    ProgramRefusal, apply, apply_logged,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -206,7 +207,7 @@ pub use editor_core::{
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    save,
+    load_with, save,
 };
 
 // Document identity and content pins.
@@ -285,8 +286,9 @@ pub use editor_core::{
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, ClusterMaintenance, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,
-    gauge_of, member_of, reading_edges, relative_freedom_components, solve_document,
+    MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal, RefusingReach,
+    SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach, member_of,
+    reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through

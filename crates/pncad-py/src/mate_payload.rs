@@ -148,17 +148,13 @@ pub struct MateFaultPayload {
     /// The lever's TILT, in radians, when a contradictory clash was
     /// levered rather than measured outright.
     pub lever_tilt: Option<f64>,
-    /// Its ARM, in metres. The arm is the solve's own scale surrogate
-    /// — the larger of the two frame origins' distances and the
-    /// authored lengths, floored at one metre — and NOT a contact
-    /// feature, so it names that scale and nothing in the model.
-    /// `lever_tilt * lever_arm` is the `clash` beside it.
+    /// Its ARM, in metres: an upper bound on the two mated parts'
+    /// extent together from the datum — each part's reach from its
+    /// own origin plus its frame's distance, plus the authored lengths
+    /// — and NOT a contact feature, so it names the parts' scale and
+    /// nothing else in the model. `lever_tilt * lever_arm` is the
+    /// `clash` beside it.
     pub lever_arm: Option<f64>,
-    /// The length scale a datum named, when it named one too small to
-    /// lever a verdict over.
-    pub extent: Option<f64>,
-    /// The floor that scale is under.
-    pub floor: Option<f64>,
 }
 
 impl MateFaultPayload {
@@ -168,7 +164,7 @@ impl MateFaultPayload {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 31] {
+    pub fn presence(&self) -> [(&'static str, bool); 29] {
         let Self {
             mate,
             side,
@@ -199,8 +195,6 @@ impl MateFaultPayload {
             value,
             lever_tilt,
             lever_arm,
-            extent,
-            floor,
         } = self;
         [
             ("mate", mate.is_some()),
@@ -232,8 +226,6 @@ impl MateFaultPayload {
             ("value", value.is_some()),
             ("lever_tilt", lever_tilt.is_some()),
             ("lever_arm", lever_arm.is_some()),
-            ("extent", extent.is_some()),
-            ("floor", floor.is_some()),
         ]
     }
 
@@ -277,8 +269,6 @@ impl MateFaultPayload {
         value: None,
         lever_tilt: None,
         lever_arm: None,
-        extent: None,
-        floor: None,
     };
 }
 
@@ -400,13 +390,22 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload {
             },
             diag,
         ),
+        // No lever could be formed: one mated part's reach is not in
+        // hand. The instance it is about rides beside the refusal's
+        // word; a face that cannot be bounded names its kind in `what`.
         MateFault::Unleverable { mate, refusal } => {
-            let LeverRefusal::DatumTooSmall { extent, floor } = refusal;
+            let (instance, what) = match refusal {
+                LeverRefusal::PartUnresolved { instance, .. }
+                | LeverRefusal::NoExtent { instance, .. }
+                | LeverRefusal::NoFiniteBound { instance, .. } => (*instance, None),
+                LeverRefusal::FaceUnbounded { instance, kind, .. } => (*instance, Some(*kind)),
+                LeverRefusal::NotAnInstance { node } => (*node, None),
+            };
             MateFaultPayload {
                 mate: Some(*mate),
                 inner_variant: Some(lever_refusal_tag(refusal)),
-                extent: Some(*extent),
-                floor: Some(*floor),
+                instance: Some(instance),
+                what,
                 ..none
             }
         }

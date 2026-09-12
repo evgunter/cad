@@ -44,6 +44,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
             node: Node::instantiate_part_with(doc_ref, record),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("an instance with a record inserts")
     .doc
@@ -83,6 +84,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
             node: Node::instantiate_part(doc_ref),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("an instance inserts")
     .doc;

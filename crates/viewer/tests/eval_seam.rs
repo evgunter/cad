@@ -295,6 +295,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
             expr: common::len(0.02),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the edit applies")
     .doc;

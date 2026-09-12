@@ -37,14 +37,19 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness())
+    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
 
 fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, Tol::witness())
-        .unwrap_or_else(|e| panic!("insert refused: {e}"));
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap_or_else(|e| panic!("insert refused: {e}"));
     (applied.doc, applied.record.minted.expect("insert mints"))
 }
 
@@ -1082,6 +1087,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
             node: Node::measure(expr, at_mint([bottom, top])).expect("indices in range"),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("an undeclared parameter refuses");
     assert!(

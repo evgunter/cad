@@ -106,7 +106,7 @@ use crate::ident::{DocRef, DocumentId};
 use crate::mate::ClusterMaintenance;
 use crate::names::{NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
-use crate::part::{PartResolver, ResolveFailure};
+use crate::part::{PartResolver, ResolveFailure, ResolveFault};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
@@ -629,8 +629,9 @@ impl Recording {
         &mut self,
         edit: DocEdit<ProfileProgram>,
         tol: Tol,
+        reach: &dyn crate::mate::MateReach,
     ) -> Result<Option<RecipeNodeId>, EditError> {
-        let applied = apply(&self.doc, &edit, tol)?;
+        let applied = apply(&self.doc, &edit, tol, reach)?;
         self.doc = applied.doc;
         self.maintenance.extend(applied.maintenance);
         self.edits.push(edit);
@@ -1096,6 +1097,7 @@ pub fn split(
     cut: &BTreeSet<RecipeNodeId>,
     part_id: DocumentId,
     tol: Tol,
+    resolver: Option<&std::sync::Arc<dyn PartResolver>>,
 ) -> Result<SplitOutcome, SplitError> {
     if cut.is_empty() {
         return Err(SplitError::EmptyCut);
@@ -1328,10 +1330,18 @@ pub fn split(
         .collect();
 
     // ---- The part document, as recorded edits from empty ----
+    // The part side's edits are inserts into a document being built —
+    // a Join at most, never a moved gauge — so they lever through the
+    // caller's own seam; the remainder side, below, needs more.
+    let part_opts = crate::eval::EvalOptions {
+        resolver: resolver.cloned(),
+        ..crate::eval::EvalOptions::default()
+    };
+    let part_reach = crate::eval::mate_reach::<f64>(&part_opts, tol);
     let mut part = Recording::start(Doc::empty(part_id, tol));
     let part_apply =
         |part: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), SplitError> {
-            part.apply(edit, tol)
+            part.apply(edit, tol, &part_reach)
                 .map(|_| ())
                 .map_err(|error| SplitError::PartEdit {
                     error: Box::new(error),
@@ -1514,11 +1524,30 @@ pub fn split(
 
     // ---- The remainder, as recorded edits from the input ----
     let mut remainder = Recording::start(doc.clone());
+    // **The remainder's reach knows the part this split is minting.**
+    // Rebinding a mate's heads onto the new instance one name at a time
+    // passes through documents where that mate stands on the new part,
+    // and the maintenance that re-keys the clusters those rebinds
+    // split solves through the mate's lever — the new part's own
+    // extent, which no store holds yet because this call is what
+    // creates it. The reach is therefore composed here: the part in
+    // hand answers its own reference, the caller's resolver answers
+    // every other, and an absent resolver refuses those typed.
+    let carving: std::sync::Arc<dyn PartResolver> = std::sync::Arc::new(WithPart {
+        doc_ref: DocRef { id: part_id, pin },
+        part: part.doc.clone(),
+        inner: resolver.cloned(),
+    });
+    let rem_opts = crate::eval::EvalOptions {
+        resolver: Some(carving),
+        ..crate::eval::EvalOptions::default()
+    };
+    let rem_reach = crate::eval::mate_reach::<f64>(&rem_opts, tol);
     let rem_apply = |remainder: &mut Recording,
                      edit: DocEdit<ProfileProgram>|
      -> Result<Option<RecipeNodeId>, SplitError> {
         remainder
-            .apply(edit, tol)
+            .apply(edit, tol, &rem_reach)
             .map_err(|error| SplitError::RemainderEdit {
                 error: Box::new(error),
             })
@@ -1639,9 +1668,17 @@ pub fn split(
 pub fn inline(
     doc: &ProfileDoc,
     instance: RecipeNodeId,
-    resolver: &dyn PartResolver,
+    resolver: &std::sync::Arc<dyn PartResolver>,
     tol: Tol,
 ) -> Result<InlineOutcome, InlineError> {
+    // Deleting the instance moves its cluster's gauge, and the
+    // maintenance that re-keys the cluster levers through the parts
+    // the same resolver holds.
+    let opts = crate::eval::EvalOptions {
+        resolver: Some(std::sync::Arc::clone(resolver)),
+        ..crate::eval::EvalOptions::default()
+    };
+    let reach = crate::eval::mate_reach::<f64>(&opts, tol);
     let Some(node) = doc.node(instance) else {
         return Err(InlineError::UnknownNode { id: instance });
     };
@@ -1660,6 +1697,7 @@ pub fn inline(
         }
     }
     let part = resolver
+        .as_ref()
         .resolve(doc_ref, tol)
         .map_err(|failure| InlineError::Unresolved { failure })?;
     if part.epsilon().to_bits() != doc.epsilon().to_bits() {
@@ -1729,7 +1767,7 @@ pub fn inline(
     let step =
         |current: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), InlineError> {
             current
-                .apply(edit, tol)
+                .apply(edit, tol, &reach)
                 .map(|_| ())
                 .map_err(|error| InlineError::Edit {
                     error: Box::new(error),
@@ -1879,4 +1917,43 @@ pub fn inline(
         maintenance: current.maintenance,
         node_map,
     })
+}
+
+/// **The split's own resolver**: the part being minted, answered from
+/// the document in hand, and every other reference answered by the
+/// caller's resolver — or refused typed when there is none.
+#[derive(Debug)]
+struct WithPart {
+    /// The new part's reference: its id and the pin of the document
+    /// this split built.
+    doc_ref: DocRef,
+    /// That document.
+    part: ProfileDoc,
+    /// The caller's seam, for every other part.
+    inner: Option<std::sync::Arc<dyn PartResolver>>,
+}
+
+impl PartResolver for WithPart {
+    fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
+        if doc_ref.id == self.doc_ref.id {
+            if doc_ref.pin != self.doc_ref.pin {
+                return Err(ResolveFailure {
+                    fault: ResolveFault::PinMismatch,
+                    message: "the reference names another version of the part this split is \
+                              minting"
+                        .to_string(),
+                });
+            }
+            return Ok(self.part.clone());
+        }
+        match &self.inner {
+            Some(inner) => inner.resolve(doc_ref, tol),
+            None => Err(ResolveFailure {
+                fault: ResolveFault::Unresolved,
+                message: "the split was given no resolver, and the reference is not the part it \
+                          is minting"
+                    .to_string(),
+            }),
+        }
+    }
 }

@@ -77,7 +77,9 @@ fn close(got: f64, want: f64, what: &str) {
 }
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness()).expect("edit applies").doc
+    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
+        .expect("edit applies")
+        .doc
 }
 
 /// A document holding one datum axis plus whatever `build` hangs off
@@ -788,7 +790,7 @@ fn both_kinds_round_trip_through_persistence() {
         let empty = ProfileDoc::empty_derived("lib-tube-roundtrip", Tol::witness());
         let mut expected = empty.clone();
         for edit in &d.edits {
-            expected = apply(&expected, edit, Tol::witness())
+            expected = editor_core::apply_logged(&expected, edit, Tol::witness())
                 .expect("a corpus edit applies")
                 .doc;
         }
@@ -896,7 +898,7 @@ fn bumping_the_wall_moves_the_stored_inner_radius() {
     let after = hollow_tube_elbow::inner(hollow_tube_elbow::WALL_BUMPED);
     assert_ne!(before.to_bits(), after.to_bits());
 
-    let bumped = apply(&d.doc, &d.bump, Tol::witness())
+    let bumped = apply(&d.doc, &d.bump, Tol::witness(), &editor_core::RefusingReach)
         .expect("the bump applies")
         .doc;
     let ev = eval::<f64>(&bumped);

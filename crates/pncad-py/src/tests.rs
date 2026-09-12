@@ -808,12 +808,12 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     carries(
         &F::Unleverable {
             mate: id(1),
-            refusal: LeverRefusal::DatumTooSmall {
-                extent: 1.0e-9,
-                floor: 1.0e-6,
+            refusal: LeverRefusal::PartUnresolved {
+                instance: id(0),
+                fault: pncad::document::PartFault::NoResolver,
             },
         },
-        &["mate", "inner_variant", "extent", "floor"],
+        &["mate", "instance", "inner_variant"],
     );
     // A levered clash carries both halves of the lever beside it;
     // one measured without a lever carries neither.
@@ -955,15 +955,14 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     let unleverable = F::Unleverable {
         mate: id(1),
-        refusal: LeverRefusal::DatumTooSmall {
-            extent: 1.0e-9,
-            floor: 1.0e-6,
+        refusal: LeverRefusal::PartUnresolved {
+            instance: id(0),
+            fault: pncad::document::PartFault::NoResolver,
         },
     };
     let payload = mate_payload(&unleverable);
-    assert_eq!(payload.inner_variant, Some("datum_too_small"));
-    assert_eq!(payload.extent, Some(1.0e-9));
-    assert_eq!(payload.floor, Some(1.0e-6));
+    assert_eq!(payload.inner_variant, Some("part_unresolved"));
+    assert_eq!(payload.instance, Some(id(0)));
 
     // The classifier's numbers are the ones the band and the margin
     // held, on the frame door's own names.
@@ -1119,7 +1118,13 @@ fn resolution_status_tags_are_stable() {
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
 
     let insert = |doc: &ProfileDoc, node: Node<ProfileProgram>| {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the node inserts");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the node inserts");
         let id = applied.record.minted.expect("an inserted id");
         (applied.doc, id)
     };
@@ -1173,9 +1178,14 @@ fn resolution_status_tags_are_stable() {
 
     // FAILED: the minting node is gone from the document, so the name
     // is stranded and the repair is an explicit rebind.
-    let pruned = apply(&doc, &DocEdit::DeleteNode { id: extrude }, tol)
-        .expect("the leaf deletes")
-        .doc;
+    let pruned = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: extrude },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the leaf deletes")
+    .doc;
     let after = run(&pruned, &live);
     let verdict = resolve(
         RunCtx {
@@ -1542,6 +1552,7 @@ fn expression_evaluation_tags_are_stable() {
                 value: param,
             },
             tol,
+            &pncad::document::RefusingReach,
         )
         .expect("a parameter declaration applies")
         .doc
@@ -1658,6 +1669,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the frame inserts");
     let plane = framed.record.minted.expect("a frame id");
@@ -1670,6 +1682,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the profile inserts");
     let text = save(&applied.doc, &[], tol).expect("the document saves");
@@ -3706,6 +3719,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
+            "maintenance_refused",
+            "maintenance_unrecorded",
             "measure_malformed",
             "meta_non_finite",
             "meta_not_set",
@@ -3752,6 +3767,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
+            "mate_fault_tag",
             "measure_node_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
@@ -3897,7 +3913,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "lever_refusal_tag",
-        values: &["datum_too_small"],
+        values: &[
+            "face_unbounded",
+            "no_extent",
+            "no_finite_bound",
+            "not_an_instance",
+            "part_unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -3923,7 +3945,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_class_not_admitted",
             "mate_contradictory",
             "mate_dangling_head",
-            "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
             "mate_part_selects_another_copy",
@@ -3932,6 +3953,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_self",
             "mate_table_lacks",
             "mate_under",
+            "mate_unleverable",
         ],
         delegates: &[],
     },
@@ -5645,8 +5667,13 @@ mod product_memo_rows {
         doc: d::ProfileDoc,
         node: d::Node<d::ProfileProgram>,
     ) -> (d::ProfileDoc, d::RecipeNodeId) {
-        let applied = d::apply(&doc, &d::DocEdit::InsertNode { node }, Tol::witness())
-            .expect("the edit is accepted");
+        let applied = d::apply(
+            &doc,
+            &d::DocEdit::InsertNode { node },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("the edit is accepted");
         let minted = applied.record.minted.expect("an insert mints an id");
         (applied.doc, minted)
     }

@@ -150,6 +150,7 @@ fn sweep_every_cut(doc: &ProfileDoc, label: &str) -> Sweep {
             &cut,
             DocumentId::derive(&format!("{label}-part-{mask}")),
             Tol::witness(),
+            None,
         ) else {
             seen.refused += 1;
             continue;

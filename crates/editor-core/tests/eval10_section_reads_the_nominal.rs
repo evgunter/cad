@@ -45,6 +45,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
                 value: DocParam::continuous(Dimension::Length, nominal),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;

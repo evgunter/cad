@@ -210,6 +210,14 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(*id),
             ..none
         },
+        // The gauge the cluster-record maintenance was solving for is
+        // the subject: the instance whose frame the edit could not
+        // mint (refused) or the log does not carry (unrecorded).
+        EditError::MaintenanceRefused { gauge, .. }
+        | EditError::MaintenanceUnrecorded { gauge } => EditPayload {
+            node: Some(*gauge),
+            ..none
+        },
         EditError::WouldCycle { at } | EditError::ReadSiteMissingNode { at } => EditPayload {
             node: Some(*at),
             ..none

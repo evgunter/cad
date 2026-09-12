@@ -139,6 +139,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
                 value: DocParam::continuous(Dimension::Length, lift),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -485,6 +486,7 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
                 value: DocParam::continuous(Dimension::Scalar, 0.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -569,6 +571,7 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
                 value: DocParam::continuous(Dimension::Scalar, 0.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;

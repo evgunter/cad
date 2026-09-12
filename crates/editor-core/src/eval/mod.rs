@@ -2272,6 +2272,88 @@ impl Default for EvalOptions {
     }
 }
 
+/// **The mate solve's reach over a part cache** — the one geometric
+/// read the solve makes (A11), answered from the parts this
+/// evaluation resolves.
+///
+/// The evaluation's own run reads the cache it has already built
+/// ([`CacheReach`]); every caller outside a run — the viewer's mate
+/// tool, the Python door, the demos, the test fixtures — builds one
+/// through [`mate_reach`] over the options it would evaluate with, so
+/// there is one implementation of "a part's extent" and it is the
+/// evaluation's.
+fn reach_over_cache<T: EvalScalar>(
+    parts: &parts::PartCache<'_, T>,
+    part: &crate::ident::DocRef,
+    tol: Tol,
+) -> Result<f64, crate::mate::ReachRefusal> {
+    let value = parts
+        .get(part, tol)
+        .map_err(|fault| crate::mate::ReachRefusal::PartUnresolved { fault })?;
+    // The reach is an UPPER BOUND by definition, and the bracket's `hi`
+    // is that bound at the run's scalar (`EvalScalar` gathers the
+    // ratified compound; on `f64` the bracket is the value). It scales
+    // a margin in the refusal-safe direction and decides no topology:
+    // the solve still decides through `Decide`. A bracket that reads
+    // back non-finite is poison, not a bound.
+    let hi = crate::mate::part_reach(&value.body)?.hi();
+    if !hi.is_finite() {
+        return Err(crate::mate::ReachRefusal::NoFiniteBound);
+    }
+    Ok(hi)
+}
+
+/// The running evaluation's reach: its own cache, borrowed.
+struct CacheReach<'r, 'a, T: EvalScalar> {
+    parts: &'r parts::PartCache<'a, T>,
+    tol: Tol,
+}
+
+impl<T: EvalScalar> crate::mate::MateReach for CacheReach<'_, '_, T> {
+    fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
+        reach_over_cache(self.parts, part, self.tol)
+    }
+}
+
+/// **A mate solve's reach, built outside an evaluation** — what
+/// [`mate_reach`] answers. Owns a part cache over `opts`' resolver,
+/// so a caller that solves a document and then evaluates it resolves
+/// each mated part once here and once there; the evaluation's own
+/// solve shares its run's cache instead. Bound to no document: the
+/// edit door threads one reach through a group of edits, each applied
+/// to its predecessor's output.
+pub struct PartReach<'a, T: EvalScalar> {
+    parts: parts::PartCache<'a, T>,
+    tol: Tol,
+}
+
+impl<T: EvalScalar> crate::mate::MateReach for PartReach<'_, T> {
+    fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
+        reach_over_cache(&self.parts, part, self.tol)
+    }
+}
+
+/// **The public door to the evaluation's reach** for
+/// [`crate::mate::solve_document`] and [`crate::edit::apply`]: each
+/// mated part's extent, resolved through `opts`' resolver the way an
+/// evaluation over `opts` would resolve it (same seam, same sweep
+/// strategy, same profile lift), at the top of the descent. A caller
+/// with no resolver gets a reach whose every answer is the typed
+/// no-resolver fault, so the solve refuses each mate in the
+/// resolver's own voice rather than levering over nothing.
+pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartReach<'a, T> {
+    PartReach {
+        parts: parts::PartCache::<T>::new(
+            opts.resolver.as_ref(),
+            &[],
+            opts.boolean_sweep,
+            opts.profile_lift,
+            tol,
+        ),
+        tol,
+    }
+}
+
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
 /// failure is a per-node typed result, never a top-level error or a
 /// panic.
@@ -2388,8 +2470,13 @@ where
     // (A11): one spanning tree per cluster, folded once, read by every
     // instance and every mate below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
-    // answer to "where does this cluster sit".
-    let poses = crate::mate::solve_document(doc, tol);
+    // answer to "where does this cluster sit". Its one geometric read
+    // — each mated part's extent, the lever — comes off THIS run's
+    // part cache, lazily: a mated part is evaluated here, once, under
+    // the cache's own shielding bracket, and its instantiate node
+    // then hits the cache.
+    let reach = CacheReach { parts: &parts, tol };
+    let poses = crate::mate::solve_document(doc, &reach, tol);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
