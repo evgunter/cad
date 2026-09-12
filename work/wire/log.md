@@ -1560,3 +1560,71 @@ Operational consequence adopted now, ahead of any fix: **space merges
 to main past the previous merge's run, or check that the previous
 merge's main run was not cancelled.** A `cancelled` main run is not a
 neutral event.
+
+## 2026-09-12 — PR 2445 full review (D364, the target tag and census)
+
+**The round's keeper, from the lane rather than the reviewer**:
+`cargo clippy --workspace --all-targets` **compiled**
+`every_profile_layer_root_export_is_carried_or_listed` and said
+nothing; the facade guard only spoke when hosted CI ran it. A build is
+not a test. That is the same silent-coverage family as the rest — a
+step green having EXECUTED nothing — arriving through the local
+pre-push check every lane runs.
+
+**The shape argument was confirmed by instrument, not accepted.** The
+lane argued a macro over a hand-written trio because a hand-written
+`ALL` is forced by nothing, so a census over a short `ALL` reports
+green over the hole it exists to find. The reviewer hand-shortened
+`TargetKind::ALL` to 2 of 3 inside the macro body: **all five switch
+rows green**; with the matching pin dropped too, **6 of 6 green**. The
+macro is not consistency with `arc_modes!` — it is the only thing
+holding the census up.
+
+**The lane's own caveat was retracted in its favour.** It reported M1's
+red as compile-time and flagged that this says nothing about which
+other rows stay green. The reviewer discharged the compile error in
+place (`TargetKind::CurvePose => ProgramTarget::Start`, well-typed and
+what a lazy implementer writes) and got a **runtime** red — *"the
+document target for CurvePose resolved to Start"* — plus a second in
+the lib test on the content-key tag. Compile-time is the first of three
+failure modes. It is a census, not a type check, and the other four
+rows are correctly blind.
+
+**The old census's hole was reproduced independently**: main's tree +
+`CurvePose`, every break discharged the lazy way (8 arms in `profile`,
+3 in `editor-core`'s lib, 4 in tests) — **6 of 6 green**, with a kernel
+target form no document program can express, silently lifted to
+`ProgramTarget::Start`.
+
+**A framing both the lane and this orchestrator had wrong.** The corpus
+clause's `Step`-match widening is a **loosening**, not a strengthening:
+the assertion is `missing.is_empty()` over `ALL`, so adding sources to
+`seen` can only shrink `missing`. Narrowing it back leaves the census
+green — no form became "seen" because of it. The widening buys
+ACCURACY; the exhaustiveness is the tightening. Worth carrying: "the
+match got bigger" and "the test got stronger" are independent, and the
+direction is decided by which side of the assertion the change lands
+on.
+
+**The sweep contained its own third instance.** The lane's pattern
+returned 55 hits; **nine were `crates/viewer`** and the disposition
+named none of them. `viewer::sketch::PathTarget` is a third short
+spelling of the target vocabulary, lowered by an exhaustive match over
+its own enum, so the GUI cannot author the declared tangent arrival
+either. **This orchestrator then filed the pncad-py instance alone** —
+the same half-fix, made while holding the class-not-instance rule.
+Replaced by `work/lib/both-authoring-surfaces-are-short-of-the-target-vocabulary.md`,
+which carries all six spellings and marks the three that are short and
+forced by nothing. The lesson is not "sweep harder": it is that a
+disposition listing five of 55 hits is where the dropped instance
+hides, and the count of hits against the count of dispositions is the
+check.
+
+**Filed**: the class above;
+`res-target-slot-roles-are-unguarded-and-duplicate-spec-slots` (the
+reviewer dropped the `Target2*` twins and **all 1324 editor-core tests
+passed** — the roles are unguarded and `spec_slots` is a second
+untested spelling of the same assignment); and
+`the-third-tag-vocabulary-macro-owes-a-unification-trigger` (a named
+trigger with no schedule, where the third instance is arguably already
+in the file).
