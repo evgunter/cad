@@ -511,7 +511,11 @@ mod over_boxes {
                 });
                 // The by-hand quotient form outgrows the budget past the
                 // schedule's set (`k ≤ 4`, `m ≤ 2`); printed there.
-                if k <= 4 && m <= 2 {
+                // Over a STRADDLING box the by-hand spelling's own
+                // numeric channel refuses (`1/sqrt(1 + x·x)` with a naive
+                // `x·x` reaching zero), so the straddling theorem is the
+                // addition row's below, where both sides fold.
+                if k <= 4 && m <= 2 && !(lo < 0.0 && hi > 0.0) {
                     assert_eq!(
                         plain,
                         "theorem",
