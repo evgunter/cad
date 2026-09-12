@@ -9941,14 +9941,22 @@ spelling of itself. The escape hatch is any other spelling of the same
 number, and a row holds it open.
 
 **Filed, not swept:**
-`three-length-renders-outside-the-field-can-read-as-zero` — the badge,
-the budget sentence and the probe bracket. Two of the three hold a
-`DisplayTolerance` and could call the new render today; what stops that
-being this unit is that both render δ inside a SENTENCE, so the change
-is a wording decision about a badge and a status line rather than a
-control's arithmetic, and `display_budget.rs`'s needles would move with
-it. The third, `Bounds::wording`, renders a probed length in the user's
-own unit and cannot use a δ method at all — it needs the same rule at
-its own precision.
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`.
+The badge and the budget sentence hold a `DisplayTolerance` and could
+call the new render today; what stops that being this unit is that both
+render δ inside a SENTENCE, so the change is a wording decision about a
+badge and a status line rather than a control's arithmetic, and
+`display_budget.rs`'s needles would move with it. `Bounds::wording`
+renders a probed length in the user's own unit and cannot use a δ method
+at all — it needs the same rule at its own precision. **And the sweep
+that wrote that row found a member the parent had not named**: the
+camera readout at `pane/view.rs:43`, `distance {:.1} mm (band …)`, where
+`min_distance` is `scene_radius * 0.05` so every part under about a
+millimetre reads `band 0.0–…`. It is in the same function as the δ
+field, and what keeps it out of this fix is the line above it — an
+ANGLE at the same precision, where `0.0°` is a yaw a camera really has.
+The pattern was a precision spec in a format string; what it cannot
+match is a render with no precision spec, a precision passed as a
+variable and a rounding done by hand, all three checked in the item.
 
 **VIEW stands at 69 open / 84 closed, nothing waiting on Ev.**

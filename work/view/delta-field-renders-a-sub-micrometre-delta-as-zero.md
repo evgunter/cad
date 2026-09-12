@@ -98,4 +98,4 @@ starting δ, whose render is a rounding, so the guard is what stops
 
 What was NOT done: the three render-only siblings still spell their
 own fixed precision, and have their own file,
-`three-length-renders-outside-the-field-can-read-as-zero`.
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`.
