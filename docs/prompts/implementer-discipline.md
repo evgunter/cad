@@ -224,42 +224,41 @@ conversions it had just added.
 
 ## 6. Filing what you find outside your fence
 
-A sweep that works turns up defects that are not yours. **They go in your
-report and your PR description — not into another program's tracker
-directory.**
+A sweep that works turns up defects that are not yours. **File them, on the
+slate of the program whose ground they land on, in the same PR that found
+them.** You do not need that program's permission and you do not route the
+finding through anyone.
 
-`work/<program>/` is that program's slate. Filing there from a unit branch is
-a cross-program handoff made by diff, and `work/README.md`'s one-file-one-item
-rule makes two programs editing one item a merge conflict *by design*. Your own
-program's slate is yours to file on; someone else's is the orchestrator's, on
-the away channel.
+`work/README.md` settles this: *"a finding goes straight onto the slate of the
+program whose ground it lands on"* (`:117`), and *"a lane does not need the
+owner's permission to put a finding where it belongs, and routing it through
+`issues/` only delays the owner seeing it"* (`:146`). `work/issues/` is the
+last resort it has always been — for a finding with no obvious owner, not a
+waiting room.
 
-There is a second reason, and it is the one that actually bites: **you cannot
-tell whether the item already exists.** Two lanes in one session filed the same
-inherited CI red into two different programs' directories, on the same day the
-issue was filed and routed by a third — each lane re-derived the provenance
-correctly and neither could see the others. The orchestrator could. Report it;
-let the party with the whole board place it.
+`python3 scripts/work.py territory --files -` tells you which program owns a
+path. Before writing the file, grep that program's directory for what you
+found; if a row already covers it, add your evidence to that row rather than
+opening a second one. That is ordinary diligence, not a reservation on filing
+— the one-file-one-item rule makes a duplicate someone's merge conflict, and
+you are the one holding the measurement.
 
-Reporting it is not a lesser outcome. A finding with a named file and line in a
-PR body warns every reader of that PR; a duplicate item on the wrong slate
-warns nobody and costs a merge.
+**Filing is not optional, and a PR body is not a slate.** `work/README.md`
+again: *"Disclosing a residue is therefore not scheduling it — give it its own
+file at the moment you disclose it."* That holds on every slate, yours and
+everyone else's. The failure mode this section exists to prevent is a finding
+disclosed in a PR body and filed nowhere — and when the owning program closes
+and its directory is deleted, a merged PR body keeps nothing.
 
-**This says where a finding goes, never whether it gets a file**, and the two
-questions read as one until they come apart. `work/README.md` is equally
-binding the other way: *"Disclosing a residue is therefore not scheduling it —
-give it its own file at the moment you disclose it."* Both hold at once,
-because they are about different slates. **Inside your own program's fence a
-disclosed residue owes a file in the same PR that discloses it**, and a
-sentence in a merged PR body is not one. **Outside it, reporting IS the
-filing act** — you hand it over and the orchestrator writes the file, in
-`work/issues/` when no program obviously owns it. What neither document
-permits is the third thing, which is what actually happens: disclosed in a PR
-body, filed nowhere, by a lane that read this section as an exemption from
-`work/README.md`'s. When a program's directory is deleted at close, the PR
-body is not a slate and the finding is gone. (Read as a conflict by the T-2
-style review, 2026-09-04; it is not one, and this paragraph exists because it
-reads like one.)
+Say in your report which rows you filed and where, so the orchestrator sees
+handoffs that a diff alone would not surface.
+
+(**Reversed 2026-09-12 by Ev, on PR #2421.** This section used to say the
+opposite: report it and let the orchestrator write the file, on the reasoning
+that only the orchestrator can see a duplicate — two lanes had once filed one
+finding into two directories on the same day. `work/README.md` said the
+contrary and is the one that stands; that reasoning survives only as the grep
+above.)
 
 ## 7. Citations
 
