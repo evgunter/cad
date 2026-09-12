@@ -99,11 +99,15 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// composition order (D9) built from the same expressions, down to
 /// normalizing the axis on this side because that node does.
 ///
-/// Each of the three is guarded. `affine_at_f64_carries_the_stored_bits`
-/// and `compose_is_the_affine_product_to_the_last_multiply_add` are in
-/// this module; the bit agreement needs a whole document, so its guard
-/// is `r1_the_placement_frame_matches_the_transform_node_bit_for_bit`
-/// in this crate's `asm2a_instantiate` suite.
+/// Every claim above is guarded. In this module:
+/// `affine_at_f64_carries_the_stored_bits` for the carried bits,
+/// `compose_is_the_affine_product_to_the_last_multiply_add` for the
+/// fixed association, and
+/// `compose_with_an_identity_returns_the_other_operand_verbatim` for
+/// the fast path. The bit agreement needs a whole document, so its
+/// guard is
+/// `r1_the_placement_frame_matches_the_transform_node_bit_for_bit`, in
+/// this crate's `asm2a_instantiate` suite.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Frame {
@@ -189,9 +193,9 @@ impl Frame {
     /// [`Frame::affine`], for the mate solve's poses coming back from
     /// the coset algebra (ASM-R2a D-5).
     ///
-    /// A bit-exact identity map returns [`Frame::IDENTITY`] verbatim
-    /// ([`Frame`]'s exactness rule), so an unmated instance's solved
-    /// relative pose lands on the identity's own bits.
+    /// A bit-exact identity map returns [`Frame::IDENTITY`], so an
+    /// unmated instance's solved relative pose lands on the identity's
+    /// own bits.
     #[must_use]
     pub fn from_affine(a: geom_core::Affine3<f64>) -> Self {
         let out = Self {

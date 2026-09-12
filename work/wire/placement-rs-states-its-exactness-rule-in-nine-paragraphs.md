@@ -70,9 +70,8 @@ costs the bit agreement* — and are now one paragraph at the site, where
 something would go wrong without it.
 
 The section also names **where each claim is guarded**, which no site
-did before: `affine_at_f64_carries_the_stored_bits` and
-`compose_is_the_affine_product_to_the_last_multiply_add` in this
-module's tests, and — because the bit agreement needs a whole document —
+did before: this module's three test rows, and — because the bit
+agreement needs a whole document —
 `r1_the_placement_frame_matches_the_transform_node_bit_for_bit` in this
 crate's `asm2a_instantiate` suite. That last one already existed and
 nothing in `placement.rs` pointed at it.
@@ -98,7 +97,7 @@ would leave the same inconsistency one level down. The one exception is
 `clippy::double_must_use`.
 
 **S9 — the ratio did NOT improve, and this row should not be read as
-closing it.** `placement.rs` went 430 -> 454 lines: doc lines 157 -> 170,
+closing it.** `placement.rs` went 430 -> 458 lines: doc lines 157 -> 174,
 code lines 242 -> 253 (the eleven `#[must_use]` attributes). The one home
 states in one place what nine sites stated in fragments, and adds the
 three guard citations, so it is longer than the sum of what it replaced.
