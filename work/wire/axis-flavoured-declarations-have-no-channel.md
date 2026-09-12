@@ -171,3 +171,82 @@ questions:
    precedent, consistent and strict) or fall back to band verification
    (serves imported geometry, and is the case Ev's objection does not
    reach)?
+
+## Imported geometry: no marker, no node — and the entity ids are right there (2026-09-12)
+
+Ev asked whether imported geometry is marked persistently as imported,
+and suggested that could be an adoption step. Checked at `93280ff`:
+
+**Correct, there is no marker — and it is stronger than that.**
+`import_step` (`crates/step-import/src/lib.rs:638`) is a **free function
+at the kernel seat** returning a `StepImport`. There is no
+`Node::Import`; an imported body never enters a recipe. So:
+
+- nothing stamps it. `stamp_minted` (`eval/wire.rs:472`) stamps every
+  **unsourced** description during NODE evaluation, and there is no node
+  — so an imported body's descriptions carry no `GeomSource` at all;
+- placed instances go through `transform_rigid`, which **clears**
+  `GeomSource` (`topo/src/transform.rs:524-530`) and relies on the
+  recipe layer to re-stamp — and on this path there is no recipe layer
+  to do it;
+- so "imported" is not recorded anywhere. It is simply a `Body` whose
+  descriptions have no source, indistinguishable from a hand-built one.
+
+### Why the adoption step is the right place, and cheaper than expected
+
+**The file's entity ids are already in hand at assembly.** `import_step`
+says so in its own comment: *"a `SolidSpec`'s maps are keyed by the
+file's entity ids"* — they are used to keep two copies of one component
+from colliding, and then discarded. The identity channel exists in the
+input and is thrown away at the door.
+
+And a STEP entity id is **real identity, not a fabrication**: two faces
+referencing one surface entity genuinely share that surface. That is the
+same claim `GeomSource` makes about a recipe expression, sourced from
+the file's own structure rather than invented by the reader.
+
+**The shape already fits, including the hard case.** M8 instancing
+builds N occurrences of one component as N independent bodies with fresh
+topology, each placed by its own frame — so two copies must NOT compare
+equal (N6: same source ⇒ bit-identical descriptions, and two differently
+placed copies differ in bits). `SourceExpr` already has exactly this:
+
+```
+Placed { node, instance, inner: Minted { index } }
+```
+
+whose `instance` field is documented as *"the pattern instance index (0
+for a plain Transform)"*. An imported instance is a pattern instance in
+everything but name, so the existing variant serves it unchanged: same
+underlying entity in `inner`, different `instance`, different token,
+correct answer.
+
+### The three obstacles, stated honestly
+
+1. **There is no node id to put in `GeomSource { node, .. }`** — it is a
+   lowered `RecipeNodeId`, and an import has none. This is the kernel
+   seat having no anchors, which is `two-verb-seats-do-not-compose`'s
+   whole subject. That row is **`deferred`, waiting on "a real replay
+   consumer"**; an import wanting recipe-shaped identity is adjacent to
+   that trigger without being identical to it, and whether it fires the
+   row is Ev's call, not this one's.
+2. **The adoption step must re-stamp after `transform_rigid`**, exactly
+   as the recipe layer does, or the placement clears what the reader
+   just attached.
+3. **The scope sentence would need widening.** `topo/src/source.rs`'s
+   module doc holds identity *per evaluation against the current
+   document*; an imported body is not evaluated from a document, so what
+   the claim means for one has to be written rather than inherited.
+
+### What it would buy this row
+
+Imported carriers would gain structural coaxiality on the same terms as
+recipe-built ones: two cylinders whose axis placements resolve to one
+STEP entity are coaxial **by the file's own structure**, decided by token
+equality with no measurement. That removes the one case where this row's
+recommended design had to fall back to a band check — leaving the fallback
+for hand-built bodies alone, where there genuinely is no exact
+information.
+
+It is an adoption-side unit, not this row's, and it is not a
+prerequisite: the design stands without it and gets better with it.
