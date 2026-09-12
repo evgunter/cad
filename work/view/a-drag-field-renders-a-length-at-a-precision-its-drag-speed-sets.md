@@ -2,9 +2,10 @@
 id: a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets
 kind: issue
 title: a drag field renders a length at a precision its drag speed sets, and can show a length as zero
-status: open
+status: closed
 opened: 2026-09-12
-refs: [fixed-precision-length-renders-can-read-as-a-value-they-cannot-be, parameter-row-field-has-no-text-door]
+refs: [fixed-precision-length-renders-can-read-as-a-value-they-cannot-be, parameter-row-field-has-no-text-door, nothing-holds-a-new-numeric-field-to-the-fields-door, a-fields-text-commits-within-the-renders-own-tolerance]
+closed: 2026-09-12
 ---
 
 
@@ -121,3 +122,127 @@ Three reasons, and the third is the one that decides it.
 Related but not this: `work/chrome/parameter-row-field-has-no-text-door`
 is about the same widget lacking a PARSER, which is the authoring half.
 This row is the display half and neither subsumes the other.
+
+## Closed, 2026-09-12
+
+**Fixed, and wider than the item framed it — because the item's third
+reason for holding it back turned out to be an argument FOR the wide
+shape once the question it names was answered from egui's source.**
+
+`crate::widgets::number_text` is the rule: *a field's text reads back as
+the value the field holds*. It keeps the widget's own spelling wherever
+`crate::readout::reads_back` accepts it, and hands the rest to
+`crate::readout::number`. `crate::widgets::number_field` is the door
+that attaches it, and **all eleven `DragValue::new` sites in this crate
+now go through that door** — the ten in production chrome and the one in
+`widgets.rs`'s own gesture harness.
+
+### The mechanism, re-derived rather than taken from this item
+
+The item's citations of egui are right, including
+`emath-0.36.1/src/lib.rs:231-247`: the loop opens at `:231`, the
+comment *"In any case: show the full value"* is at `:245`, and the
+give-up `format!("{value:.max_decimals$}")` is at `:247`. Four
+corrections to what the item says around them:
+
+1. **The default formatter is one hop further away.** The `None` arm
+   at `drag_value.rs:530-536` goes through
+   `ui.style().number_formatter`, which is
+   `emath::format_with_decimals_in_range` only because `style.rs:1434`
+   makes it so. That hop is also a third repair shape the item does not
+   name — `Style::number_formatter`, set once — and it is in the
+   residue row below.
+2. **The fallback is not the only place the spelling misreads the
+   value.** egui's acceptance test is `almost_equal` in **f32** at
+   `16 * f32::EPSILON` (`emath-0.36.1/src/lib.rs:235-237`), about
+   1.9·10⁻⁶ relative, with a degenerate clause that returns true for
+   ANY pair once both are under that epsilon. So the in-range spelling
+   is already a ~10⁻⁶ approximation, not a reading-back.
+3. **Reason 2 of *"Why it was not taken with the four"* is false, and
+   its falsity is the whole stake of the row.** The item says a field
+   reading `0.00` does not commit `0.00` because `drag_value.rs:520-527`
+   rounds only when `change != 0.0`. That is true of the DRAG and the
+   arrow keys and of nothing else. A `DragValue` seeds its keyboard
+   edit with the text it last showed (`:554-557`) and parses that text
+   back on losing focus (`:540-552` and `:577-591`), unconditionally on
+   whether the text changed. **Clicking into a field and clicking away
+   again commits what the field said.** Driven through the real widget
+   headlessly: a field holding 4·10⁻⁵ mm came back holding **0.0**, and
+   one holding 1.6·10⁻³ mm came back holding 2·10⁻³. This is not a
+   weaker defect than the badge's; it destroys the value.
+   `crate::pane::properties`'s `slot_value_ui` already knew the path is
+   there — its *"Text that says what the slot already says is not an
+   edit"* guard exists for exactly that click — and the guard assumed
+   the render round-trips.
+4. **`properties.rs:550` is not quite *"a `custom_parser` and no
+   `custom_formatter`"***: the same builder takes a `custom_formatter`
+   at `:567` whenever the slot is driven, errored, or under an
+   expression edit. The item's sentence is true of the case that
+   matters (a literal slot with a value) and not of the site.
+
+### The fork, answered from the widget rather than weighed
+
+The dispatch asked what a drag means when the text stops matching the
+tick. **It never does, and that is provable rather than arguable.** A
+drag commits `emath::round_to_decimals(value, auto_decimals)`
+(`drag_value.rs:654-659`) — `auto_decimals` being the BOTTOM of the
+same range the formatter is handed — so every value a drag produces is
+spelled exactly by the range's shortest member, both rules return that
+member, and the text a drag steps through is unchanged.
+`a_field_shows_what_the_widget_shows_wherever_that_reads_back` asserts
+that as sameness over the drag's own landing set (every tenth of a
+millimetre from -20,000 to 20,000), so the claim is falsifiable rather
+than stated.
+
+The item's reason 3 — *"a custom formatter is one decision about every
+numeric field, not five patches"* — is therefore right about the scope
+and wrong about the conclusion. It is one decision, and the decision is
+cheap once the gesture question is closed.
+
+### So the five members are the wrong population
+
+The property is *a field whose text is not the value it holds*, which
+has no dimension in it. A dimensionless field reading `0.00` over
+1.6·10⁻⁵ and an angle field reading `0.000` over a microradian make the
+same false claim, and each is one click from committing it — so
+`named_scalar` and every angle field are members too, and the item's
+angle exclusion imported a rule from the READOUT class (*is zero a
+value this thing can have*) into a class about whether the text names
+the number. **The count field is the one real non-member, and now
+provably rather than by classification**: `DragValue::new` gives an
+integral value `max_decimals(0)` (`drag_value.rs:61-65`), so its range
+is `0..=0`, its only spelling is `{:.0}`, and a whole number reads back
+as itself. Nothing in the door has to know which fields those are.
+
+### What did not change, and what it cost
+
+- **No value a drag can produce renders differently.** Asserted.
+- **Nothing at or above 1 in the display unit renders differently** on
+  a millimetre length field at one point per pixel: the widget's widest
+  spelling there is `{:.3}`, whose absolute error is at most 5·10⁻⁴, so
+  it clears `REL_TOLERANCE` for every `|value| >= 1`. Measured; the
+  largest failing magnitude on that field is 0.966.
+- **`readout::number`'s ten-character bound and scientific arm are
+  never reached for a large value**, which was the live risk in reusing
+  it here: they are reached only where the widget's own spelling
+  already misreads the value, and that band is bounded above.
+- The two residues are files:
+  `nothing-holds-a-new-numeric-field-to-the-fields-door` (no guard
+  holds a twelfth site to the door) and
+  `a-fields-text-commits-within-the-renders-own-tolerance` (the render
+  is accepted within 5·10⁻⁴, and committing it moves the value by that
+  much).
+
+### The sweep, and what it could not match
+
+`grep -rn 'DragValue::new' crates/viewer/src` — eleven hits, all eleven
+routed, which is the item's own census re-run at this merge base and
+agreeing with it. **Its blind spot is the item's and is now a row**: a
+`DragValue` built through a helper that wraps it, of which this crate
+still has none — except that after this unit it has exactly one, and it
+is the door. The tracker pass found no duplicate on any slate; the
+CHROME row it would have collided with,
+`parameter-row-field-has-no-text-door`, is the PARSER half and is
+narrowed rather than closed by this; its four pre-split `app.rs`
+citations are reported as
+`work/chrome/parameter-row-field-cites-a-pre-split-app-rs`.
