@@ -688,3 +688,13 @@ then measure with one quadrature, and the tour's ribbon reports the
 sign-level bracket when the continuation refuses budget on a valid
 body — Ev's ruling. Its pin is the tour at 1e-12 on the teapot scene
 from PR 2306 running to completion; PR 2306 follows it.
+
+## 2026-09-12 — block PERF-B2's A/B record folded
+
+`docs/MODEL-AB-LOG.md` gains the block's concluded record (branch
+`perf/ab-block-b2`, docs-only): the draw (byte 181), the three rows
+with samples #170–#172, and the tally — four clean pairs toward the
+twelve with no unilateral MAJOR among them; PERF-5 and PERF-6 recorded
+in full but excluded as interrupted pairs (the usage limit killed every
+running reviewer once or twice; each resumed on the same frozen head).
+The B2 draw and the row notes leave this branch with that fold.
