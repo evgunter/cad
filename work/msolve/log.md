@@ -439,3 +439,26 @@ clash margins with their arm invisible, with the radians-vs-pure-number
 decision the item names; MSOLVE-9 is the `FromFace` mate-frame arm
 under Ev's ruling (F) on PR 2256, last, on MSOLVE-6's reach road. The
 exit walk moves behind them.
+
+## MSOLVE-6 reviews adjudicated, fix pass dispatched (2026-09-12)
+
+Correctness arm PASS with MINORs: C1 the lever bounds the true reach
+on six fixture parts (exact on all-line bodies, 24 % loose on the
+cylinder by the documented rim bound); C2 by construction plus the
+113 pose-pinning rows (main not rebuilt — disk); C3 typed on every
+road; C4 the census; C5 replay store-free and the reach asked only
+when a gauge moves (4 asks on a 3-instance chain: two pairs, two
+parts). Findings: a recorded maintenance row's frame is trusted
+bytes at load (a reflection loads; `SetPlacement` of it refuses);
+`unsolved_because`'s document-wide fallback could attribute another
+cluster's fault and, for a decided kind, PROCEED — dead in practice,
+ruled fixed by dropping the fallback and refusing `fault: None` as
+the typed invariant-excluded report; no interval-lane row for the
+bracket read (P2b adopted). Style: no MAJOR of its own; the
+`Applied.maintenance` and README premises now false; nine spellings
+of "a reach from a resolver"; the lever sum formed twice; five replay
+loops; two knobs for three states in `apply_maintaining`; a
+`PartialEq<DocEdit>` in `src` for a test; the archaeology in
+`lever_arm`'s doc (ruled: discipline §4 over the spec's "keep the
+story"); `PosesOfAnotherDocument` filed as decided (ruled: refuse).
+Twenty-seven items to the lane.
