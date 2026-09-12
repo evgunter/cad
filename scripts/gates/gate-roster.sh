@@ -247,8 +247,8 @@ gate() {
     # ALL. The matcher used to demand a BARE invocation (path, then end of
     # line or a shell operator), which read "runs the gate" as "runs it
     # with no arguments". That was true of this repo by accident and
-    # stopped being true when the hosted rustdoc row started passing
-    # `--pr` and a `--scope`: a gate the hosted half genuinely runs would
+    # stopped being true the first time a hosted row passed the gate a
+    # flag: a gate the hosted half genuinely runs would
     # have reported as unwired, and the fix a reader reaches for at that
     # point is to add a bare call beside the real one, which is a second
     # invocation written to satisfy a checker. What the claim needs is
@@ -373,14 +373,14 @@ plant_outlier_hosted_selftest_deleted() {
 }
 
 # THE NEAR MISS FOR THE WIDENING ABOVE: the hosted half's real run
-# carries flags. That is what ci.yml does today (`--pr`, a `--scope`, and
-# `--skip-viewer-toolkit` on some runs), and a matcher that demanded a
+# carries flags. ci.yml's rustdoc row does that on the runs where
+# `--skip-viewer-toolkit` applies, and a matcher that demanded a
 # bare invocation would call it unwired. The `unwired_hosted` case above
 # is the other direction and is what keeps this from being a hole: delete
 # the real run and leave only `--selftest`, and the gate still fires.
 plant_outlier_hosted_run_has_flags() {
   local root=$1
-  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --pr --scope '-p a'#" \
+  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --skip-viewer-toolkit#" \
     "$root/.github/workflows/ci.yml"
 }
 
@@ -391,7 +391,7 @@ plant_outlier_hosted_run_has_flags() {
 # only drops the self-test finds this line and calls the gate wired.
 plant_outlier_hosted_run_is_print_roots() {
   local root=$1
-  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --print-roots --pr#" \
+  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --print-roots#" \
     "$root/.github/workflows/ci.yml"
 }
 
@@ -550,7 +550,7 @@ exec "$GATE_REAL_TOOL" "$@"'
   gate_selftest_case "runs ${OUTLIER_GATES[0]} without its --selftest" \
     plant_outlier_local_selftest_deleted
   gate_selftest_case "which is not an executable file" plant_outlier_missing
-  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture and a hosted run that carries flags (which is what the rustdoc row is today); refuses a hosted half whose only real call is `--print-roots`, a derivation that documents nothing; refuses to go green when a matcher dies mid-scan inside a process substitution (the marker path through gate_ok); fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that self-tests every gate and runs none of them against the tree, a local loop that went back to excluding lib.sh by mode, a local half that is not there at all (the shape a spreading prune makes), a gate directory holding nothing but lib.sh, a step running lib.sh, and — for a gate sited outside scripts/gates/ — either half dropping its real call or its --selftest, and a list entry naming a file that is not there\n' "$(gate_name)"
+  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture and a hosted run that carries flags; refuses a hosted half whose only real call is `--print-roots`, a derivation that documents nothing; refuses to go green when a matcher dies mid-scan inside a process substitution (the marker path through gate_ok); fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that self-tests every gate and runs none of them against the tree, a local loop that went back to excluding lib.sh by mode, a local half that is not there at all (the shape a spreading prune makes), a gate directory holding nothing but lib.sh, a step running lib.sh, and — for a gate sited outside scripts/gates/ — either half dropping its real call or its --selftest, and a list entry naming a file that is not there\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
