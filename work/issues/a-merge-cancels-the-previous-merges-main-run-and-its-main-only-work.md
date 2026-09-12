@@ -105,3 +105,45 @@ changes PR behaviour. Whichever is taken, the general form is worth
 writing down: **`cancel-in-progress` is a claim that the older run's
 work is worthless, and that claim is false for any branch whose runs
 write back.**
+
+## Second instance, 66 minutes later, and it breaks the obvious mitigation
+
+| time (UTC) | event |
+|---|---|
+| 14:06:12 | `9a208a3` (#2442, WIRE) merged; main run `34698293875` starts |
+| 14:07:22 | `d8988ee` (#2444, **VIEW**) merged; main run `34698352643` starts |
+| 14:07:41 | run `34698293875` concluded **`cancelled`** — 89 s in |
+
+**The cancelling merge came from a different program.** The first
+instance was self-inflicted (one orchestrator merging a unit and its
+tracker seam 36 s apart) and suggested an obvious mitigation: space
+your own merges past the previous run. **That mitigation does not
+work.** An orchestrator cannot see another program's merge coming, and
+cannot pace against it; on a repo where every program's agents merge
+their own PRs to main, the merge stream is the union of every program's
+seams. Two instances in 66 minutes, by two different authors, is the
+rate — this is not a rare race.
+
+It also corrects an attribution made when the first instance was
+written up. The re-baseline `c13aa67` was recorded as landing off
+2442's main run. It did not: **2442's run was cancelled**, and
+`c13aa67` came from 2444's run, which happened to be code-tier and
+swept up the accumulated drift. The self-healing observed in instance
+one was therefore luck twice over — the next merge being code-tier AND
+that merge's own run surviving.
+
+What the second instance does not change: the tree stayed verified,
+because 2444's run covers `d8988ee`, which contains 2442's commits. The
+loss is confined to what a run does that the NEXT run will not redo —
+today the render re-baseline, and anything main-only added later.
+
+The consequence for the fix list above is that the third option
+(idempotent, re-entrant write-back) is no longer merely the most
+expensive: it is the only one of the three that survives the cancelling
+merge coming from outside. The first two stop the cancellation; they do
+not help if a run is cancelled for any other reason, and they cost
+runner minutes on exactly the burst pattern that produced both
+instances. A fourth option is now worth pricing beside them: **leave
+the cancellation and make the write-back owed by state rather than by
+event** — the next main run re-baselines whatever differs, whoever
+caused it, which is what 2444's run in fact did.

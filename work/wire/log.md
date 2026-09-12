@@ -1628,3 +1628,33 @@ untested spelling of the same assignment); and
 `the-third-tag-vocabulary-macro-owes-a-unification-trigger` (a named
 trigger with no schedule, where the third instance is arguably already
 in the file).
+
+## 2026-09-12 — D364 merged (`b3eaef1`), and the cancelled-run hole fired again
+
+The body-only fix pass took both corrections; head unchanged at
+`d58fec78`, run `34698904483` still the only run on it and still
+green — twelve `test (…)`, five `k-lint (gate, …)`, `gate ok`, nothing
+in flight. **A body edit triggers no run**, which is why this round
+cost nothing and why the lane's target was reclaimed before it started.
+
+**The cancelled-main-run hole fired a second time, 66 minutes after the
+first, and the second instance breaks the mitigation this log adopted
+for it.** 2442's own main run (`34698293875`) was cancelled 89 s in by
+**VIEW's** #2444 merge — a different program. The first instance was
+self-inflicted and suggested "space your own merges"; that cannot work
+when the cancelling merge comes from outside, and on this repo the
+merge stream is the union of every program's seams. Two instances in 66
+minutes by two authors is the rate, not a race.
+
+It also corrects an attribution made here an hour ago: `c13aa67`'s
+re-baseline was recorded as landing off 2442's main run. **2442's run
+was cancelled**; `c13aa67` came from 2444's, which happened to be
+code-tier and swept up the drift. The "self-healing" was luck twice
+over — the next merge being code-tier, and that merge's own run
+surviving. Recorded on the row, with a fourth fix option that survives
+a cancellation from outside: make the write-back owed by STATE rather
+than by event, which is what 2444's run in fact did by accident.
+
+The general form stands and is worth keeping in front of the next
+orchestrator: **a mitigation that depends on one agent's own pacing is
+no mitigation on a tree where every program merges its own work.**
