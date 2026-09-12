@@ -817,3 +817,26 @@ coarse and solve, or move the probe onto the index worker — with
 every document's committed δ pinned equal to main's. VIEW territory
 (`crates/viewer/*`), announced here; `work/view`'s `ui-thread-work-
 after-the-index-seam` names the same cost.
+
+## 2026-09-12 — block B3: all three units under dual review
+
+PERF-9 (PR 2451, `aa64fab67`, ordinal 3406, R1 opus / R2 fable): the
+pick index as per-patch trees under a top-level tree, memoized beside
+the patches; the tour die's memo'd index build 131 → 34 ms; the
+implementer found and filed (docm) that a grazing-ray pick answer
+depends on candidate order and reproduced the single-tree sequence
+rather than paper over it. PERF-7 (PR 2448, `c26d3220f`, ordinal
+3407, R1 fable / R2 opus): the face loop as idiom 1; a third shared
+mutable the spec did not name (`mesh::budget`'s thread-local meter)
+found and composed through the fold; `tube_ring` 968 → 512 ms at four
+threads, the rings' first open 1565 → 1105 ms; a fixed price below a
+millisecond filed rather than hidden behind a serial arm. PERF-8 (PR
+2452, `4357cfd71`, ordinal 3408, R1 opus / R2 fable): `k_stats`
+gains `detached`/`splice`; both walks as idiom 1 with recordings
+spliced in arena order; `loft_prism` 154 → 46 ms, the tour 1.76×;
+found that editor-core's existing parallel maps lose the funnel and
+the symbolic session (filed under `work/wire`); a serial-dispatch arm
+under a symbolic session, disclosed — the reviewers are asked whether
+it is a twin. PERF-8's review dispatch waited ~40 min for disk behind
+PERF-9's reviewers (eight lanes on the box). One PERF-9 arm parked on
+a monitor once and was corrected to foreground polling.
