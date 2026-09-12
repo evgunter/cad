@@ -89,10 +89,11 @@ impl ViewerBehavior<'_> {
 /// [`crate::readout::MAX_CHARS`] characters, the bound the crate's
 /// render searches under — because a render the field cannot show is
 /// clipped, and a clipped render reads as a different δ, which is the
-/// defect the render's own bound exists to prevent. `the_field_shows_the_longest_render` measures it against
-/// egui's own font metrics rather than asserting it in prose. A pane
-/// narrower than this clips anyway; that is every field in the chrome
-/// and is not this number's to fix.
+/// defect the render's own bound exists to prevent.
+/// `the_field_shows_the_longest_render` measures it against egui's own
+/// font metrics rather than asserting it in prose. A pane narrower than
+/// this clips anyway; that is every field in the chrome and is not this
+/// number's to fix.
 const FIELD_WIDTH: f32 = 88.0;
 
 /// The δ field: the display tolerance as a number the user types, in
@@ -420,9 +421,9 @@ mod tests {
     /// **The field can show the longest render there is.** A render
     /// wider than the box is clipped, and a clipped render reads as a
     /// different δ — so the width is measured against egui's own font
-    /// metrics for the widest text `crate::readout::MAX_CHARS` characters can
-    /// spell out of the alphabet a render uses, rather than asserted in
-    /// prose.
+    /// metrics for the widest text `crate::readout::MAX_CHARS`
+    /// characters can spell out of the alphabet a render uses, rather
+    /// than asserted in prose.
     ///
     /// The chrome sets no text styles of its own, so the headless
     /// context's metrics are the application's.
