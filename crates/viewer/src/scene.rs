@@ -1146,7 +1146,7 @@ fn extent(mesh: &Mesh) -> f64 {
     let dx = box_.max_x - box_.min_x;
     let dy = box_.max_y - box_.min_y;
     let dz = box_.max_z - box_.min_z;
-    let diagonal = dz.mul_add(dz, dx.mul_add(dx, dy * dy)).sqrt();
+    let diagonal = (dx.powi(2) + dy.powi(2) + dz.powi(2)).sqrt();
     if diagonal.is_finite() { diagonal } else { 0.0 }
 }
 

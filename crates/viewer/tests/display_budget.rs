@@ -719,7 +719,7 @@ const ANSWERS: &[Answer] = &[
     Answer {
         document: "hollow_tube_elbow",
         requested: 1e-5,
-        delta: 2.8078062883669125e-5,
+        delta: 2.8078062883669132e-5,
         predicted: 1000000,
         requested_cost: Some(2807806),
     },
