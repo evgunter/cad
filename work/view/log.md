@@ -10391,7 +10391,10 @@ tree: permitting a second `begin_free_move` (3 rows red), refusing
 `Select` mid-probe (3 rows, and this row is the only one about the
 recovery), inverting `commit_free_move`'s name check (13 rows).
 
-**VIEW stands at 71 open / 87 closed** — re-derived from
-`work.py status --program view`, not carried forward: the previous
-entry's *71 open / 86 closed* was true of its own merge base and main
-has since gained an open row.
+**VIEW stands at 72 open / 87 closed** — re-derived from
+`work.py status --program view` on the MERGED tree, not carried
+forward. It moved twice while this lane ran: the previous entry's
+*71 open / 86 closed* was true of its own merge base, and main gained
+two more open rows (`two-partial-mirrors-in-the-viewer-have-no-growth-
+alarm` among them) between this branch's base and its merge-forward. A
+count taken before the merge would have been stale on landing.
