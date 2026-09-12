@@ -855,6 +855,36 @@ mod tests {
         pane.frame(vec![egui::Event::PointerMoved(AIM + egui::vec2(40.0, 0.0))])
     }
 
+    /// **[`egui_buttons`] is every toolkit button exactly once, and
+    /// that is a THEOREM rather than a reading of the list.**
+    ///
+    /// Three facts compose to it. The array's length is
+    /// `egui::NUM_POINTER_BUTTONS`, which the compiler checks against
+    /// the declaration. [`viewer_button`]'s exhaustive match means the
+    /// enum has exactly that many variants — an egui that adds one
+    /// without raising the constant reds there. And this row says the
+    /// entries are pairwise distinct. `n` distinct members of an
+    /// `n`-member set are all of them, so the array is a permutation
+    /// of the enum: nothing missing, nothing doubled.
+    ///
+    /// **Without this row the length is the only hold, and length
+    /// alone is not membership.** `[Primary; NUM_POINTER_BUTTONS]`
+    /// compiles, and the rows below derive their expectations from
+    /// [`egui_buttons`] itself, so a doubled entry asks one button
+    /// twice and another never — silently, for any pair the viewer
+    /// binds nothing to. A complete list held only by its length is
+    /// the class this fix was sent to close, and it would have been
+    /// re-minted here.
+    #[test]
+    fn the_toolkits_buttons_are_each_asked_exactly_once() {
+        let buttons = egui_buttons();
+        for (index, button) in buttons.iter().enumerate() {
+            for other in &buttons[index + 1..] {
+                assert_ne!(button, other, "{buttons:?} asks a button twice");
+            }
+        }
+    }
+
     /// **Every button the toolkit can report is read, and each is read
     /// as the adapter says it is.**
     ///

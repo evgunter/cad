@@ -160,6 +160,18 @@ match goes non-exhaustive (E0004) and the array's length stops
 matching the toolkit's own count (E0308). Demonstrated by compiling
 the shape with a sixth variant added; both errors fire.
 
+**And the list is a PERMUTATION of the enum, not merely the right
+length.** The first fix left `egui_buttons`'s *contents* held by
+nothing — `[Primary; NUM_POINTER_BUTTONS]` compiles — which is this
+program's own class, re-minted inside the fix that closes an instance
+of it (caught by the orchestrator, 2026-09-12). The row
+`the_toolkits_buttons_are_each_asked_exactly_once` asserts the entries
+are pairwise distinct; distinct, `NUM_POINTER_BUTTONS` long, and an
+enum of exactly that many variants (which `viewer_button`'s exhaustive
+match holds) compose to *every button exactly once*. Red-checked by
+doubling an entry: that row alone reds, and the three behavioural rows
+all pass — which is the proof that length was not membership.
+
 **`Extra1`/`Extra2` are NOT BOUND, and the reason is written at the
 site.** The alternative — two new `input::PointerButton` variants —
 was rejected on three counts, argued in the PR: nothing could bind
