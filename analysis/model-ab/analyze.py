@@ -540,3 +540,46 @@ def character_models(rows):
 
 if __name__ == "__main__":
     main()
+
+
+# ---------------------------------------------------------------- era models
+
+def is_post51(r):
+    return 1.0 if r.get("era") == "post_51" else 0.0
+
+
+def did_model(rows, yfun, key, title):
+    """Difference-in-differences across the fable-5.1 boundary.
+
+    The question is whether FABLE changed at 2026-09-01, but everything
+    else moved too -- the review instrument widened, the project matured,
+    reviewers went cross-model. Opus rows are the time control: the DiD
+    term asks whether the fable-vs-opus gap moved across the boundary,
+    which era-wide changes cannot produce.
+
+        log E[y] = b0 + b1*opus + b2*post + b3*(opus x post) + difficulty
+
+    b3 < 0 means the gap moved in opus's favour after the boundary (fable
+    got relatively worse); b3 > 0 means fable closed ground. The fable-5.1
+    effect on fable's own rate is -b3 (opus is the reference trend).
+    """
+    y, X, used = [], [], []
+    for r in rows:
+        v = yfun(r)
+        if v is None or r.get("era") not in ("pre_51", "post_51"):
+            continue
+        o, p = opus(r), is_post51(r)
+        y.append(v)
+        X.append([1.0, o, p, o * p, dS(r), dL(r)])
+        used.append(r["row_id"])
+    if len(y) < 8:
+        print("  %-28s too few rows (%d)" % (key, len(y)))
+        return
+    chains, npar = fit_count(y, X, prior_sd=[1.5, 0.8, 0.8, 1.0, 1.0, 1.0])
+    record(key, title, chains, npar,
+           ["intercept", "opus", "post51", "opus_x_post51", "diff_S", "diff_L"],
+           len(y),
+           {"did_opus_x_post": (3, math.exp),
+            "fable_shift_post": (2, math.exp),
+            "arm_gap_pre": (1, math.exp)},
+           rows_used=used)
