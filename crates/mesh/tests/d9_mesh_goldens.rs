@@ -58,6 +58,12 @@
 //!   δ does not reach the doors that refuse them, which is why their
 //!   two slots agree.
 //!
+//! **Thread count.** `the_corpus_digests_the_same_bytes_at_one_and_four_threads`
+//! runs the same corpus under an explicit 1-thread and an explicit
+//! 4-thread rayon pool: `tessellate`'s per-face dispatch is D9 idiom 1,
+//! and a digest that moved between the two widths would be the map
+//! leaking its schedule into the bytes.
+//!
 //! **ε.** ONE table, asserted at whatever ε the run committed. Every
 //! digest below was taken at 1e-6, 1e-9 and 1e-12 — the three rows the
 //! CI matrix gates — and all three agree, which is the claim
@@ -323,6 +329,92 @@ fn every_corpus_body_meshes_to_its_committed_digest() {
         "the mesh moved for {} of {} body/δ pairs at eps={eps}:\n  {}",
         moved.len(),
         2 * corpus.len(),
+        moved.join("\n  ")
+    );
+}
+
+/// Every corpus digest, in corpus order, labelled `body at delta=δ`.
+///
+/// One derivation for both rows above and below: the committed-table
+/// row and the thread-count row must digest the same bodies at the same
+/// δ in the same order, or the second proves nothing about the first.
+fn corpus_digests(corpus: &[(&'static str, Body<f64>, [f64; 2])]) -> Vec<(String, u64)> {
+    corpus
+        .iter()
+        .flat_map(|(name, body, deltas)| {
+            deltas
+                .iter()
+                .map(move |&delta| (format!("{name} at delta={delta}"), digest(body, delta)))
+        })
+        .collect()
+}
+
+/// The committed table flattened into [`corpus_digests`]' order.
+fn golden_digests() -> Vec<u64> {
+    GOLDEN.iter().flat_map(|(_, d)| *d).collect()
+}
+
+/// **The thread-count pin.** The corpus digests to the SAME bytes under
+/// an explicit 1-thread rayon pool, under an explicit 4-thread one, and
+/// against the committed table.
+///
+/// `tessellate`'s per-face dispatch is D9 idiom 1 — an indexed parallel
+/// map into a pre-sized buffer, combined by the sequential arena-order
+/// fold that places the patches (idiom 2). Both idioms are
+/// schedule-invariant by construction, so this row is not a search for
+/// a race: it is the standing evidence that the construction holds, at
+/// the two widths that distinguish "no parallelism ran" from "the map
+/// ran on several threads".
+///
+/// **Why an explicit pool rather than `RAYON_NUM_THREADS`.** The
+/// environment variable configures the GLOBAL pool, once, at its first
+/// use — so a second value in the same process is ignored and a row
+/// that set it would silently measure one width twice. A
+/// `ThreadPoolBuilder` pool is per-call and `install` binds it for the
+/// closure, which is what lets one test binary run both widths.
+///
+/// The row above digests the same corpus at whatever width the run's
+/// ambient pool has, so between them the corpus is pinned at three
+/// points, one of them the machine's.
+#[test]
+fn the_corpus_digests_the_same_bytes_at_one_and_four_threads() {
+    let corpus = corpus();
+    let at = |threads: usize| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .expect("a rayon pool of the requested width")
+            .install(|| corpus_digests(&corpus))
+    };
+    let one = at(1);
+    let four = at(4);
+    let want = golden_digests();
+    assert_eq!(
+        one.len(),
+        want.len(),
+        "the committed digest table and the corpus must name the same bodies"
+    );
+
+    let mut moved: Vec<String> = Vec::new();
+    for ((label, got1), (_, got4)) in one.iter().zip(&four) {
+        if got1 != got4 {
+            moved.push(format!(
+                "{label}: 1 thread {got1:016x}, 4 threads {got4:016x} — the map's \
+                 result depends on its schedule"
+            ));
+        }
+    }
+    for ((label, got1), want) in one.iter().zip(&want) {
+        if got1 != want {
+            moved.push(format!(
+                "{label}: 1 thread {got1:016x}, committed {want:016x}"
+            ));
+        }
+    }
+    assert!(
+        moved.is_empty(),
+        "the mesh is not a function of (body, delta) alone at eps={}:\n  {}",
+        common::eps(),
         moved.join("\n  ")
     );
 }
