@@ -50,8 +50,7 @@ fn d290_offset_fit_knot_digest() {
     let base = quarter_cylinder(1.25, 0.75);
     let ku = pinned_rescale(base.knots_u(), 0.3, 0.9);
     let kv = pinned_rescale(base.knots_v(), 0.2, 1.7);
-    let base =
-        NurbsSurface::new(ku, kv, base.control().to_vec(), base.weights().to_vec()).unwrap();
+    let base = NurbsSurface::new(ku, kv, base.control().to_vec(), base.weights().to_vec()).unwrap();
     let (fit, _) = fit_offset_at(&base, 0.3, 3e-4, band()).unwrap();
     println!(
         "D290-DIGEST u ({}) {}",
@@ -178,7 +177,12 @@ fn d290_e2e_refusals_from_a_callers_seat() {
         .map(|i| Point2::new(f64::from(i), f64::from(i * i)))
         .collect();
     let fit = NurbsCurve2::<f64>::interpolate(&pts, 2).unwrap();
-    for (lo, hi) in [(1.0, 1.0), (2.0, 1.0), (f64::NAN, 1.0), (0.0, f64::INFINITY)] {
+    for (lo, hi) in [
+        (1.0, 1.0),
+        (2.0, 1.0),
+        (f64::NAN, 1.0),
+        (0.0, f64::INFINITY),
+    ] {
         let e = fit.on_domain(lo, hi).unwrap_err();
         assert!(
             matches!(
