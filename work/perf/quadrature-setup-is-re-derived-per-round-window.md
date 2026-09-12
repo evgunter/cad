@@ -40,6 +40,27 @@ Against the two full quadratures a gate-then-measure caller used to
 pay, 1.3-1.8x is still a saving. It is not the saving the composition
 argument promises.
 
+**WHICH BODIES PAY IT — the regime, because one number reads as all
+of them.** The factor above is what a certificate that stopped
+PART-WAY costs. A certificate whose `settle` never accepted runs the
+schedule to its end, leaves no face open, and its continuation
+re-enters no lane at all: gate-then-continue is then 1.0x one
+measurement and the whole second quadrature is saved. Both regimes are
+in the tour (PR 2440's measurement, release, 4 vCPU, medians of 3, at
+eps = 1e-9):
+
+- polynomial walls, sign undecided to the end — 14 measurable bodies
+  of the tour's 61 tier-3 stops: gate 3.048 s, measure 3.034 s,
+  gate+continue 3.053 s. The door is 1.00x one measurement and the
+  pair's 1.99x is all saving.
+- rational walls, sign settled early — the round-spout teapot
+  (`demos/teapot-round-spout`): gate 11.49 s, measure 18.13 s,
+  gate+continue 29.78 s. The door is 1.64x one measurement, inside
+  this item's band, and the saving against the pair is NIL (0.99x).
+
+So the consumer-visible saving is a property of the body's schedule,
+and closing this item is what would make it unconditional.
+
 ## What a fix is
 
 A per-face prepared object the lane builds once and rounds read from —

@@ -51,7 +51,6 @@ evidence it is not.
 """
 
 import math
-import time
 import unittest
 
 import pncad
@@ -449,7 +448,9 @@ class TestTheRefusalsShape(unittest.TestCase):
         """WHAT PYTHON CANNOT PRODUCE, said rather than left implied.
 
         `ValidationError` has seventy-one arms and Python reaches them
-        through four `Body` methods. The structural and geometric arms
+        through five `Body` methods — the four rungs and
+        `validate_geometric_measured`, whose gate half is the third
+        rung. The structural and geometric arms
         want a corrupt arena or an uncertifiable surface, and the
         public API's every product is tier-1-valid, so no authoring
         script can mint one. `census_unsupported` and
@@ -596,13 +597,6 @@ def oversized_round_loft():
     )
 
 
-def _elapsed(call):
-    """Seconds one call takes."""
-    start = time.perf_counter()
-    call()
-    return time.perf_counter() - start
-
-
 class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
     """**`validate_geometric_measured`** — the rung that hands back the
     number its own +V check computed.
@@ -612,21 +606,41 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
     body and then starts another from round 0. This door continues the
     gate's own certificate to the reporting target instead.
 
-    The claims below are checked apart because they fail apart: that
-    the answer IS the pair's second call rather than an approximation
-    of it, that getting it did not cost a second quadrature, and that
-    the continuation's own refusal — which the pair does not have —
-    reaches a caller as the reporting door's refusal plus the bracket
-    the gate did certify.
+    WHAT IS NOT ASSERTED HERE, AND WHY
+    ----------------------------------
+    **That it pays once.** The claim is a COUNT — one certified
+    quadrature where the pair runs two — and this suite cannot see
+    one. The kernel counts piece evaluations through its telemetry
+    scalar, which the bindings do not evaluate at (they are `f64`
+    alone, `test_measures.py`'s header states the same limit for the
+    clearance engine), and a wall-clock stand-in would be a threshold
+    on a shared runner's schedule AND would be false on half the
+    bodies it could run on: the saving is a property of the body's
+    refinement schedule, not of the door. A body whose sign stays
+    undecided to the end leaves the continuation nothing to run and
+    saves the whole second quadrature; a body whose sign settles early
+    leaves rounds open, the lane re-derives each open face's setup,
+    and the saving is nil. Both are correct and the kernel's own
+    `refine_to_target` docs carry the regime. What this suite can
+    show — and does, below — is the OBSERVABLE consequence of one
+    quadrature: the door's answer is the reporting walk's own bits.
+
+    **The gate half refusing.** `validate_geometric` refuses on a
+    corrupt arena or an uncertifiable surface, and the public API
+    mints neither — `TestTheRefusalsShape` names that as this suite's
+    standing blind spot. So the door's gate-refusal path is
+    unreachable from an authoring script for the same reason the third
+    rung's own is; what IS pinned below is which rung the gate is.
     """
 
     def test_the_answer_is_the_reporting_door_s_own_bits(self):
         """All four fields, `==` and not `assertAlmostEqual`.
 
-        The claim is that the continuation and the reporting walk are
-        the SAME computation over the same rounds in the same arena
-        order; an almost-equality would pass just as well for two
-        different quadratures that happened to agree.
+        This is the observable form of "one quadrature": the claim is
+        that the continuation and the reporting walk are the SAME
+        computation over the same rounds in the same arena order, and
+        an almost-equality would pass just as well for two different
+        quadratures that happened to agree.
         """
         body = polygonal_loft()
         once = body.validate_geometric_measured()
@@ -636,38 +650,24 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         self.assertEqual(once.volume_pad, twice.volume_pad)
         self.assertEqual(once.area_pad, twice.area_pad)
 
-    def test_the_pair_pays_two_quadratures_and_the_door_pays_one(self):
-        """The saving, as wall clock, on a body whose walls are
-        quadrature faces.
+    def test_the_gate_is_the_third_rung_and_not_the_fourth(self):
+        """Which gate this door runs, pinned on the one body where the
+        two rungs disagree.
 
-        A CATEGORICAL reading rather than a threshold on a schedule:
-        on this body the +V check runs the whole refinement schedule,
-        so the continuation has no round left to run and the one-call
-        door costs what the gate alone costs — half the pair. Each
-        half is the best of three, which drops a scheduling spike
-        without being able to invent a saving that is not there, and
-        the bar is 0.7 rather than 0.5 so that only the two-quadrature
-        shape can trip it.
-
-        What this row cannot see, stated: a body whose +V check
-        settles EARLY leaves rounds for the continuation to pay for,
-        and there the same door saves less — down to nothing. Both are
-        correct. The saving is a property of the body's schedule, not
-        a promise of the door.
+        `two_slabs_resting` gathered by `product` is tier-3 clean and
+        tier-3′ refusing — that is what
+        `test_the_census_is_what_the_fourth_rung_adds` uses it for. So
+        a door wired to the fourth rung reds here and a door wired to
+        the third does not, which no assertion about a passing body
+        could separate.
         """
-        body = polygonal_loft()
-
-        def best(call):
-            return min(_elapsed(call) for _ in range(3))
-
-        pair = best(lambda: (body.validate_geometric(), body.mass_properties()))
-        once = best(body.validate_geometric_measured)
-        self.assertLess(
-            once,
-            0.7 * pair,
-            f"gate then measure took {pair:.3f}s and the one-call door "
-            f"{once:.3f}s: the door is paying for a second quadrature",
-        )
+        doc, lower, upper = two_slabs_resting()
+        doc.apply(DocEdit.set_roots([lower, upper]))
+        gathered = product(doc, evaluate(doc))
+        with self.assertRaises(ValidationError):
+            gathered.validate_pseudomanifold()
+        measured = gathered.validate_geometric_measured()
+        self.assertEqual(measured.volume, gathered.mass_properties().volume)
 
     def test_a_body_tier_3_admits_can_still_have_no_number(self):
         """The refusal the pair does not have, and the bracket that
@@ -678,29 +678,35 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         definite, which is all check 7 reads — and still have no
         volume number at this eps. The door refuses there with the
         reporting door's own class and `reason`, so a caller already
-        catching `mass_properties()` catches this unchanged. What is
+        catching `mass_properties()` catches this unchanged; what is
         new is the sign-level bracket the gate DID certify, which is
         the whole of what the certified quadrature is entitled to say
-        about such a body — and it rides on THIS door's refusal only,
-        because the reporting door refuses with no certificate in hand
-        and has no bracket to offer.
+        about such a body.
 
-        Both doors run on one body, once each: each call here is a
-        certified quadrature over rational walls and this is the
-        suite's most expensive row.
+        ONE certified quadrature is run here and that is deliberate:
+        this row is the suite's most expensive and the reporting
+        door's refusal on the same body would cost another, to assert
+        a `reason` string this row already asserts and an attribute's
+        ABSENCE. So `mass_properties()`' refusal shape is left to the
+        row that already owns it.
+
+        WHY NOT A SMALL BODY AT A TIGHT EPS. The crossing is also
+        reachable teapot-sized under `CAD_TOLERANCE_EPS=1e-12` in a
+        subprocess, which is how `test_ty.py` runs a child. It is not
+        cheaper: the refusal fires after round 0 either way, and round
+        0 on a rational patch — the lane's setup — is the whole cost.
+        A subprocess would buy a second interpreter and a second
+        module import for no saving, so the crossing is reached by
+        making the PART big instead of eps small.
         """
         body = oversized_round_loft()
-        with self.assertRaises(ValidationError) as reporting:
-            body.mass_properties()
         with self.assertRaises(ValidationError) as gated:
             body.validate_geometric_measured()
-        self.assertEqual(gated.exception.reason, reporting.exception.reason)
         self.assertEqual(gated.exception.reason, "mass_properties_failed")
         # A MEASUREMENT refusal and not a gate one: tier 3 admitted
         # this body, so the door got past its gate half, whose refusals
         # carry `door` / `failure_count` / `findings` instead.
         self.assertFalse(hasattr(gated.exception, "door"))
-        self.assertFalse(hasattr(reporting.exception, "volume_lo"))
         lo, hi = gated.exception.volume_lo, gated.exception.volume_hi
         self.assertLess(lo, hi)
         self.assertGreater(lo, 0.0, "the sign check 7 certified is in the bracket")

@@ -31,7 +31,7 @@
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyFloat, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
@@ -195,6 +195,53 @@ pub(crate) struct MassProperties {
     area_pad: f64,
 }
 
+impl From<topo::MassProperties<f64>> for MassProperties {
+    /// The kernel's four fields, unchanged and unrounded — one
+    /// crossing point, so the two measurement doors cannot answer
+    /// differently shaped values.
+    fn from(props: topo::MassProperties<f64>) -> Self {
+        Self {
+            volume: props.volume,
+            surface_area: props.surface_area,
+            volume_pad: props.volume_pad,
+            area_pad: props.area_pad,
+        }
+    }
+}
+
+/// The refusal a MEASUREMENT door raises: the kernel's own message
+/// under the `reason` a caller dispatches on, plus whatever the door
+/// itself has to add.
+///
+/// One construction site for the same reason
+/// [`Body::validator_err`] is one: two doors that refuse the same
+/// class must not drift on the word. `extra` is where they legitimately
+/// differ — the certificate door has a sign-level bracket to hand over
+/// and the reporting door has none.
+fn measurement_err(
+    py: Python<'_>,
+    err: &topo::MassPropsError,
+    extra: Vec<(&'static str, Py<PyAny>)>,
+) -> PyErr {
+    let mut fields = vec![(
+        "reason",
+        PyString::new(py, "mass_properties_failed")
+            .unbind()
+            .into_any(),
+    )];
+    fields.extend(extra);
+    typed_err(py, ErrorClass::Validation, err.to_string(), &fields)
+}
+
+/// A float payload attribute, `None` where the door has no value for
+/// it — the "every field on every arm" shape a caller branches on.
+fn pyfloat(py: Python<'_>, value: Option<f64>) -> Py<PyAny> {
+    match value {
+        Some(value) => PyFloat::new(py, value).unbind().into_any(),
+        None => py.None(),
+    }
+}
+
 #[pymethods]
 impl MassProperties {
     fn __repr__(&self) -> String {
@@ -271,25 +318,11 @@ impl Body {
     /// wants tier 3 run.
     fn mass_properties(&self, py: Python<'_>) -> PyResult<MassProperties> {
         let tol = Tol::witness();
-        let props = topo::mass_properties(&self.inner, tol).map_err(|err| {
-            typed_err(
-                py,
-                ErrorClass::Validation,
-                err.to_string(),
-                &[(
-                    "reason",
-                    PyString::new(py, "mass_properties_failed")
-                        .unbind()
-                        .into_any(),
-                )],
-            )
-        })?;
-        Ok(MassProperties {
-            volume: props.volume,
-            surface_area: props.surface_area,
-            volume_pad: props.volume_pad,
-            area_pad: props.area_pad,
-        })
+        topo::mass_properties(&self.inner, tol)
+            .map(MassProperties::from)
+            // No bracket: this door refuses with no certificate in
+            // hand, so it has none to offer and must not appear to.
+            .map_err(|err| measurement_err(py, &err, Vec::new()))
     }
 
     /// Full validation. Raises `ValidationError` listing the failures.
@@ -368,17 +401,30 @@ impl Body {
         let tol = Tol::witness();
         let certificate = match topo::validate_geometric_certificate(&self.inner, tol) {
             Ok(certificate) => certificate,
+            // The gate that spoke is `validate_geometric`, and that is
+            // the tag its refusal carries: a caller reading `door`
+            // learns which gate refused, not which door it called.
             Err(failures) => {
                 return Err(Self::validator_err(py, "validate_geometric", &failures)?);
             }
         };
-        // The bracket, read before the continuation consumes the
-        // certificate: on a budget refusal it is the only thing left
-        // to report.
+        // The bracket has to be read BEFORE the continuation consumes
+        // the certificate, on the chance it turns out to be wanted.
+        //
+        // GAP (`memories/demo-purpose.md`): that read, and the
+        // two-crates-deep match below, are both the same missing
+        // affordance — a budget refusal is exactly the case that HAS
+        // a certified bracket and it carries neither the bracket nor
+        // its own classification. `SignCertificate::target_refusal`
+        // answers the classification but is unreachable once
+        // `refine_to_target` has consumed the certificate. Filed as
+        // `work/perf`'s
+        // `budget-refusal-drops-the-enclosure-the-caller-needs`.
         let sign_level = certificate.enclosure();
-        let props = match certificate.refine_to_target() {
-            Ok(props) => props,
-            Err(err) => {
+        certificate
+            .refine_to_target()
+            .map(MassProperties::from)
+            .map_err(|err| {
                 let bracket = matches!(
                     &err,
                     topo::MassPropsError::Face {
@@ -387,33 +433,16 @@ impl Body {
                     }
                 )
                 .then_some(sign_level);
-                let end = |value: Option<f64>| -> PyResult<Py<PyAny>> {
-                    Ok(value.into_pyobject(py)?.unbind().into_any())
-                };
-                return Err(typed_err(
+                measurement_err(
                     py,
-                    ErrorClass::Validation,
-                    err.to_string(),
-                    &[
-                        (
-                            "reason",
-                            PyString::new(py, "mass_properties_failed")
-                                .unbind()
-                                .into_any(),
-                        ),
-                        ("volume_lo", end(bracket.map(|b| b.volume_lo))?),
-                        ("volume_hi", end(bracket.map(|b| b.volume_hi))?),
-                        ("surface_area", end(bracket.map(|b| b.surface_area))?),
+                    &err,
+                    vec![
+                        ("volume_lo", pyfloat(py, bracket.map(|b| b.volume_lo))),
+                        ("volume_hi", pyfloat(py, bracket.map(|b| b.volume_hi))),
+                        ("surface_area", pyfloat(py, bracket.map(|b| b.surface_area))),
                     ],
-                ));
-            }
-        };
-        Ok(MassProperties {
-            volume: props.volume,
-            surface_area: props.surface_area,
-            volume_pad: props.volume_pad,
-            area_pad: props.area_pad,
-        })
+                )
+            })
     }
 
     /// **Tier 3′** — the ladder's fourth rung: tier 3's whole local
