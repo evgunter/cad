@@ -528,3 +528,33 @@ measures the geom-brep binary's wall in its report; recorded there.
   not the fixture's arc loft — and to attack the sign decision's
   soundness in both directions (a valid body newly refused, an
   inside-out body newly admitted).
+
+## 2026-09-12 — PERF-5 dual review adjudicated; fix pass dispatched
+
+Both arms APPROVE-WITH-FIXES on frozen `61d4ba406` (PR 2315). The pair
+is recorded as **interrupted** (v6 3(e): one arm died twice on the
+session usage limit and was resumed from its transcript on the same
+head) and is excluded from the tally; its row is kept in full
+branch-side. Adjudicated union sent to the implementer:
+
+- **MAJOR (1, upheld from one arm):** the level-1 key is the content
+  key alone, while the eval memo's reuse condition — the theorem the
+  spec (§1) and `pick.rs` cite — is content key AND naming key; a
+  content-hit/naming-miss re-mints the body and the served id map is
+  right only if re-minting yields identical `FaceKey`s. Fix: key on the
+  eval memo's own condition.
+- **Downgraded to MINOR:** chord positions and parameters in the key
+  cannot be falsified at the body level (both arms: on the uniform
+  schedule they are functions of carrier + interval + count, already
+  keyed); the key stays a superset, the rows say what they prove.
+- **MINOR (7):** seam flag and `carrier_id` read by the curved lane
+  and not folded (one arm); no asserted positive hit (both arms);
+  `ThreadIndexer` lifetime untested; `patch_memo` digest weaker than
+  its comment; measurement columns that do not partition the index
+  figure (BVH 98 % vs a re-measured 77 %); `mesh/src/lib.rs` doc rot.
+- **NOTE (6):** the FNV digest now in ≥10 copies and `PickMemo`
+  re-spelling `PatchMemo`'s picture machinery — to be FILED, not
+  consolidated in the fix pass.
+
+Second arm's measurement on the loaded box reproduces the shape:
+`die_composed_tour` index 442 → 180 ms (tessellate 292 → 21; BVH 140).
