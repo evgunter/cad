@@ -439,22 +439,114 @@ pub enum ValuePayload<T: Decide> {
     Assertion(crate::measure::AssertionVerdict<T>),
 }
 
+/// **One family word, as a literal** — so [`concat!`] can compose a
+/// phrase out of it at compile time, which a `const` cannot be fed
+/// to. [`family`]'s consts are defined FROM this macro and
+/// [`phrase`]'s are composed from it, so each word is spelled once in
+/// the tree and a composed phrase cannot drift from the `found:` word
+/// that answers beside it.
+macro_rules! family_word {
+    (datum) => {
+        "datum"
+    };
+    (profile) => {
+        "profile"
+    };
+    (body) => {
+        "body"
+    };
+    (boolean) => {
+        "boolean"
+    };
+    (split) => {
+        "split"
+    };
+    (instances) => {
+        "instances"
+    };
+    (declarations) => {
+        "declarations"
+    };
+    (mate) => {
+        "mate"
+    };
+    (measure) => {
+        "measure"
+    };
+    (assertion) => {
+        "assertion"
+    };
+}
+
 /// **The family words** — the vocabulary a typed operand mismatch
 /// speaks ([`NodeErrorKind::WrongOperand`]'s `found` and `expected`),
 /// written once. [`ValuePayload::kind_name`] says them over a value,
-/// [`node_value_kind`] over a node, and `eval::wire`'s operand doors
-/// say them in the refusals they build.
+/// [`node_value_kind`] over a node, and `eval::wire`'s operand door
+/// says them in the refusals it builds.
 pub(crate) mod family {
-    pub(crate) const DATUM: &str = "datum";
-    pub(crate) const PROFILE: &str = "profile";
-    pub(crate) const BODY: &str = "body";
-    pub(crate) const BOOLEAN: &str = "boolean";
-    pub(crate) const SPLIT: &str = "split";
-    pub(crate) const INSTANCES: &str = "instances";
-    pub(crate) const DECLARATIONS: &str = "declarations";
-    pub(crate) const MATE: &str = "mate";
-    pub(crate) const MEASURE: &str = "measure";
-    pub(crate) const ASSERTION: &str = "assertion";
+    pub(crate) const DATUM: &str = family_word!(datum);
+    pub(crate) const PROFILE: &str = family_word!(profile);
+    pub(crate) const BODY: &str = family_word!(body);
+    pub(crate) const BOOLEAN: &str = family_word!(boolean);
+    pub(crate) const SPLIT: &str = family_word!(split);
+    pub(crate) const INSTANCES: &str = family_word!(instances);
+    pub(crate) const DECLARATIONS: &str = family_word!(declarations);
+    pub(crate) const MATE: &str = family_word!(mate);
+    pub(crate) const MEASURE: &str = family_word!(measure);
+    pub(crate) const ASSERTION: &str = family_word!(assertion);
+}
+
+/// **The composed phrases** — every `expected:` a refusal names that is
+/// not exactly one family word.
+///
+/// # The rule
+///
+/// An `expected:` names what to author, and it comes from a const:
+/// [`family`] when it is exactly a value family, this module when it is
+/// anything else. **No `expected:` is a literal written at a call
+/// site.** The reason is not that two copies of a two-word phrase are
+/// expensive to keep in step — they are not — it is that the phrases a
+/// document author has to learn are then enumerable in one screen,
+/// instead of being the set you get by grepping every refusal that
+/// speaks one.
+///
+/// `found:` never appears here. The door computes it from the value it
+/// was handed ([`ValuePayload::kind_name`]) or from the node
+/// ([`node_value_kind`]), so no site can answer it with the negation of
+/// its own `expected:` and leave a reader told twice what the input is
+/// not and never what it is.
+///
+/// # The three shapes, and how each is composed
+///
+/// - **Narrower than a family** ([`DATUM_FRAME`], [`DATUM_AXIS`],
+///   [`DATUM_PLANE`]): a variant WITHIN a family. The family word is
+///   still in the phrase — and is exactly the word `found:` answers
+///   beside it — so it is composed from `family_word!` rather than
+///   respelled.
+/// - **Wider than a family** ([`BODY_OR_INSTANCES`]): two families and
+///   the conjunction between them, and nothing else; both words are
+///   composed.
+/// - **A whole sentence** ([`AXIS_IN_SKETCH_FRAME`]): a seat no family
+///   word names, so there is nothing to compose and the const is the
+///   literal. It is here for the rule above — one home per phrase —
+///   rather than for a vocabulary it shares.
+pub(crate) mod phrase {
+    /// A frame datum: [`crate::node::Datum::Frame`] or
+    /// [`crate::node::Datum::FaceFrame`], the two nodes that carry a
+    /// [`super::DatumValue::Frame`].
+    pub(crate) const DATUM_FRAME: &str = concat!(family_word!(datum), " frame");
+    /// A 3-D axis datum ([`crate::node::Datum::Axis`]).
+    pub(crate) const DATUM_AXIS: &str = concat!(family_word!(datum), " axis");
+    /// A plane datum ([`crate::node::Datum::Plane`]).
+    pub(crate) const DATUM_PLANE: &str = concat!(family_word!(datum), " plane");
+    /// What a placer places: one body, or a list of placed ones.
+    pub(crate) const BODY_OR_INSTANCES: &str =
+        concat!(family_word!(body), " or ", family_word!(instances));
+    /// A revolve's axis seat. A 3-D [`crate::node::Datum::Axis`] lands
+    /// in this refusal, so the sentence has to say what to author
+    /// instead: the seat is not "an axis", it is an axis written in the
+    /// sketch the profile is drawn on.
+    pub(crate) const AXIS_IN_SKETCH_FRAME: &str = "an axis in a sketch frame (Datum::AxisInPlane)";
 }
 
 impl<T: Decide> ValuePayload<T> {

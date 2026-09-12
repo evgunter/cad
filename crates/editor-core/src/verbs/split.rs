@@ -154,7 +154,7 @@ fn plane_of<T: Decide>(datum: &DatumValue<T>) -> Option<SplitPlane<T>> {
 pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
     SplitVerb {
         tool: plane_of,
-        tool_expected: "datum plane",
+        tool_expected: crate::eval::phrase::DATUM_PLANE,
         build: build_split,
         emitter: names::name_split,
         record: split_record,

@@ -1,8 +1,27 @@
-//! Node-to-kernel wiring (spec D3: wire, don't invent): each F4 node
-//! maps to an EXISTING public kernel op; every editor-side geometric
-//! judgment (direction normalization, the revolve axis's in-plane
-//! projection, full-vs-partial classification) goes through the
-//! kernel's decided-predicate door, never a raw comparison.
+//! **Two jobs**: node-to-kernel wiring, and the declaration routing
+//! that has no kernel op to wire to.
+//!
+//! **The wiring** (spec D3: wire, don't invent). Each F4 node that
+//! names a geometric operation maps to an EXISTING public kernel op;
+//! every editor-side geometric judgment (direction normalization, the
+//! revolve axis's in-plane projection, full-vs-partial classification)
+//! goes through the kernel's decided-predicate door, never a raw
+//! comparison. Which value a node's operand is allowed to be, and what
+//! it is told when it is not, is one door ([`operand`]) speaking one
+//! vocabulary ([`super::family`], [`super::phrase`]).
+//!
+//! **The declaration routing.** A union's declared face pairs are
+//! authored against its MEMBERS and consumed by a fold of pairwise
+//! booleans, so something must decide which step of the fold each pair
+//! belongs to, and what a pair that reaches no step is told. That is
+//! [`DeclSite`], [`route_declarations`], [`look_through_merges`],
+//! [`step_diagnosis`] and the refusal menu beneath them, in a
+//! vocabulary of their own (arrivals, buckets, look-through). No
+//! kernel op is behind any of it: the kernel takes a
+//! [`BooleanDeclarations`] already resolved to operands and entity
+//! keys, and every decision about which authored pair resolves where
+//! is made here. Its consumers are the boolean and union ops wired
+//! above it, and its refusals are theirs.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -607,6 +626,97 @@ fn value_of<T: Decide>(
     }
 }
 
+/// **What kind is this operand, and refuse if it is not** — the one
+/// home for that question, and the one site that turns a value into a
+/// [`NodeErrorKind::WrongOperand`].
+///
+/// `read` is the only thing a caller decides: the projection that
+/// either finds on the value what this door's consumer needs, or says
+/// it is not there. `expected` is the phrase to author, and it comes
+/// from [`super::family`] or [`super::phrase`] — one home per phrase,
+/// never a literal here.
+///
+/// **`found:` is not a caller's to write.** It is the family the value
+/// actually carries, read off the payload HERE. A door that spelled it
+/// itself could answer with the negation of its own `expected:` —
+/// *"carries kind not a datum frame; the operand needs kind datum
+/// frame"* — which tells a reader what the input is not, twice, and
+/// what it is, never.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingInput`] for a reference with no value
+/// ([`value_of`]), and [`NodeErrorKind::WrongOperand`] when `read`
+/// finds the value is not the operand asked for.
+fn operand<'v, T: Decide, R>(
+    results: &'v Results<T>,
+    input: RecipeNodeId,
+    expected: &'static str,
+    read: impl FnOnce(&'v super::NodeValue<T>) -> Option<R>,
+) -> Result<R, NodeErrorKind> {
+    let v = value_of(results, input)?;
+    read(v).ok_or_else(|| wrong_operand(v, input, expected))
+}
+
+/// **The same question asked of a NODE** — the recipe-side door, for
+/// the roads that never hold a value: a reference read straight out of
+/// the document.
+///
+/// It is a second door rather than a second copy of [`operand`]
+/// because `found:` has a different SOURCE here, not a different
+/// spelling: there is no payload to read the family off, so it comes
+/// from [`super::node_value_kind`], which answers the same question
+/// over node kinds and in the same words. What the two doors share is
+/// the rule — the caller supplies the read and the phrase, never the
+/// word for what it found.
+///
+/// A reference to no live node is not a kind mismatch and is not
+/// spelled as one.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingInput`] for a reference that names no live
+/// node, or that [`super::node_value_kind`] cannot classify; otherwise
+/// [`NodeErrorKind::WrongOperand`] naming the family the node lands
+/// in.
+fn node_operand<'d, P, R>(
+    doc: &'d crate::doc::Doc<P>,
+    input: RecipeNodeId,
+    expected: &'static str,
+    read: impl FnOnce(&'d Node<P>) -> Option<R>,
+) -> Result<R, NodeErrorKind> {
+    let node = doc
+        .node(input)
+        .ok_or(NodeErrorKind::MissingInput { input })?;
+    match read(node) {
+        Some(r) => Ok(r),
+        None => Err(NodeErrorKind::WrongOperand {
+            input,
+            expected,
+            found: super::node_value_kind(doc, node)?,
+        }),
+    }
+}
+
+/// [`operand`]'s refusal alone, for the three doors that already hold
+/// the value and cannot go through the door itself: one with two
+/// admitted shapes and a narrower word for each
+/// ([`body_operand`] over [`placeable_operand`]), one whose read is a
+/// `fn` pointer its correspondence supplies ([`wire_split`]), and one
+/// that selects on the pairing of a selector with a payload
+/// ([`wire_part`]).
+fn wrong_operand<T: Decide>(
+    v: &super::NodeValue<T>,
+    input: RecipeNodeId,
+    expected: &'static str,
+) -> NodeErrorKind {
+    NodeErrorKind::WrongOperand {
+        input,
+        expected,
+        found: v.payload.kind_name(),
+    }
+}
+
 /// A single-body operand: a Body value, or a boolean's non-empty
 /// result — what every consumer that genuinely takes ONE body reads
 /// through (a datum's face frame, a blend, a shell, a split's target,
@@ -618,18 +728,15 @@ fn body_operand<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
 ) -> Result<Arc<Body<T>>, NodeErrorKind> {
-    match placeable_operand(value_of(results, input)?, input) {
+    let v = value_of(results, input)?;
+    match placeable_operand(v, input) {
         Ok(Placeable::Body(b)) => Ok(b),
-        Ok(Placeable::Instances(_)) => Err(NodeErrorKind::WrongOperand {
-            input,
-            expected: super::family::BODY,
-            found: super::family::INSTANCES,
-        }),
-        Err(NodeErrorKind::WrongOperand { input, found, .. }) => Err(NodeErrorKind::WrongOperand {
-            input,
-            expected: super::family::BODY,
-            found,
-        }),
+        // The instances the wider door admits, and everything it
+        // refused by kind, are one case here: both are a value this
+        // door cannot take, and both name the family it carries.
+        Ok(Placeable::Instances(_)) | Err(NodeErrorKind::WrongOperand { .. }) => {
+            Err(wrong_operand(v, input, super::family::BODY))
+        }
         Err(other) => Err(other),
     }
 }
@@ -692,11 +799,7 @@ fn placeable_operand<T: Decide>(
         }
         ValuePayload::Boolean(BooleanValue::Empty) => Err(NodeErrorKind::EmptyOperand { input }),
         ValuePayload::Instances(bodies) => Ok(Placeable::Instances(bodies.clone())),
-        other => Err(NodeErrorKind::WrongOperand {
-            input,
-            expected: "body or instances",
-            found: other.kind_name(),
-        }),
+        _ => Err(wrong_operand(v, input, super::phrase::BODY_OR_INSTANCES)),
     }
 }
 
@@ -1090,16 +1193,13 @@ pub(crate) fn profile_plane_f64<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,
 ) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
-    let v = value_of(results, plane)?;
-    match v.placement {
-        Some(FramePlacement::Authored(placement)) => Ok(Some(placement)),
-        Some(FramePlacement::Derived) => Ok(None),
-        Some(FramePlacement::Unreadable(r)) => Err(r.node_error()),
-        None => Err(NodeErrorKind::WrongOperand {
-            input: plane,
-            expected: "datum frame",
-            found: v.payload.kind_name(),
-        }),
+    // The carry's `None` IS the kind refusal — a node that is not a
+    // frame mints no placement — so the door reads the carry and the
+    // three answers a frame can give are what is left.
+    match operand(results, plane, super::phrase::DATUM_FRAME, |v| v.placement)? {
+        FramePlacement::Authored(placement) => Ok(Some(placement)),
+        FramePlacement::Derived => Ok(None),
+        FramePlacement::Unreadable(r) => Err(r.node_error()),
     }
 }
 
@@ -1134,17 +1234,14 @@ pub(crate) fn frame_plane_lane<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,
 ) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
-    let v = value_of(results, plane)?;
-    let ValuePayload::Datum(DatumValue::Frame { origin, u, v: y }) = &v.payload else {
-        return Err(NodeErrorKind::WrongOperand {
-            input: plane,
-            expected: "datum frame",
-            found: v.payload.kind_name(),
-        });
-    };
+    let f = frame_value(results, plane)?;
     // Unit and perpendicular by the datum's own construction, which is
     // `SketchPlane::from_frame`'s stated obligation on its caller.
-    Ok(profile::SketchPlane::from_frame(*origin, u.get(), y.get()))
+    Ok(profile::SketchPlane::from_frame(
+        f.origin,
+        f.u.get(),
+        f.v.get(),
+    ))
 }
 
 /// A lane-scalar placement carried across to `f64`, exactly, where the
@@ -1190,35 +1287,32 @@ pub(crate) fn frame_axes<T: Decide>(
     Ok((u, datum_unit(v_perp, "datum frame y axis", band)?))
 }
 
-/// Reads the frame an in-plane axis lives in, as the orthonormal pair
-/// its coordinates are written against.
+/// **A frame node's landed value, read as its orthonormal triple** —
+/// the one destructure of [`DatumValue::Frame`], for both readers that
+/// want it: [`frame_plane_lane`] as a sketch plane, and an in-plane
+/// axis as the pair its 2-D coordinates are written against.
 ///
-/// Same door as [`frame_plane_lane`]'s and same refusal: an axis whose
-/// `plane` does not name a frame is a kind mismatch at the input, not
-/// a geometry problem.
-fn axis_frame<T: Decide>(
+/// The refusal is the operand door's: a reference whose value is not a
+/// frame is a kind mismatch at the input, not a geometry problem.
+fn frame_value<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,
 ) -> Result<AxisFrame<T>, NodeErrorKind> {
-    let v = value_of(results, plane)?;
-    let ValuePayload::Datum(DatumValue::Frame { origin, u, v: y }) = &v.payload else {
-        return Err(NodeErrorKind::WrongOperand {
-            input: plane,
-            expected: "datum frame",
-            found: v.payload.kind_name(),
-        });
-    };
-    Ok(AxisFrame {
-        origin: *origin,
-        u: *u,
-        v: *y,
+    operand(results, plane, super::phrase::DATUM_FRAME, |v| {
+        let ValuePayload::Datum(DatumValue::Frame { origin, u, v: y }) = &v.payload else {
+            return None;
+        };
+        Some(AxisFrame {
+            origin: *origin,
+            u: *u,
+            v: *y,
+        })
     })
 }
 
-/// The frame an in-plane axis is written against, as the three vectors
-/// the lift needs — a name rather than a bare triple, because a caller
-/// that mixed up `u` and `v` would silently turn every such axis by a
-/// right angle.
+/// A frame's value as the three vectors its readers need — a name
+/// rather than a bare triple, because a caller that mixed up `u` and
+/// `v` would silently turn an in-plane axis by a right angle.
 struct AxisFrame<T: Decide> {
     origin: Point3<T>,
     u: UnitVec3<T>,
@@ -1277,7 +1371,7 @@ fn wire_datum<T: Decide>(
         // there is no residual to decide and no band to decide it
         // against.
         Datum::AxisInPlane { plane, .. } => {
-            let f = axis_frame(results, *plane)?;
+            let f = frame_value(results, *plane)?;
             let (frame_origin, u, v) = (f.origin, f.u, f.v);
             let plane_origin = need_point2(vals, SlotId::Origin)?;
             let plane_dir = need_vec2(vals, SlotId::Direction)?;
@@ -1596,14 +1690,12 @@ fn wire_swept<
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let v = value_of(results, profile)?;
-    let ValuePayload::Profile(vp) = &v.payload else {
-        return Err(NodeErrorKind::WrongOperand {
-            input: profile,
-            expected: super::family::PROFILE,
-            found: v.payload.kind_name(),
-        });
-    };
+    let vp = operand(results, profile, super::family::PROFILE, |v| {
+        match &v.payload {
+            ValuePayload::Profile(vp) => Some(vp),
+            _ => None,
+        }
+    })?;
     let built = (verb.build)(args);
     // The verb's own declaration of where its parameters land, read off
     // the value the correspondence just built (VERB-SEAT-DESIGN V1).
@@ -1704,37 +1796,28 @@ fn wire_revolve<
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let pv = value_of(results, profile)?;
     // `wire_swept` re-checks this and refuses identically, so the only
     // thing this pre-check decides is ORDER: a node whose profile input
     // is not a profile AND whose axis is not an in-plane axis must
     // refuse on the profile, because that is the operand the reader
     // named first and re-authoring a wrong axis for a document whose
     // profile was never one is a wasted edit.
-    if !matches!(pv.payload, ValuePayload::Profile(_)) {
-        return Err(NodeErrorKind::WrongOperand {
-            input: profile,
-            expected: super::family::PROFILE,
-            found: pv.payload.kind_name(),
-        });
-    }
-    let av = value_of(results, axis)?;
-    let ValuePayload::Datum(DatumValue::AxisInPlane {
-        plane_origin,
-        plane_dir,
-        ..
-    }) = &av.payload
-    else {
-        return Err(NodeErrorKind::WrongOperand {
-            input: axis,
-            // A 3-D `Datum::Axis` lands here, and the sentence has to
-            // say what to author instead: the seat is not "an axis",
-            // it is "an axis written in the sketch the profile is
-            // drawn on".
-            expected: "an axis in a sketch frame (Datum::AxisInPlane)",
-            found: av.payload.kind_name(),
-        });
-    };
+    operand(results, profile, super::family::PROFILE, |v| {
+        matches!(v.payload, ValuePayload::Profile(_)).then_some(())
+    })?;
+    let (plane_origin, plane_dir) = operand(
+        results,
+        axis,
+        super::phrase::AXIS_IN_SKETCH_FRAME,
+        |v| match &v.payload {
+            ValuePayload::Datum(DatumValue::AxisInPlane {
+                plane_origin,
+                plane_dir,
+                ..
+            }) => Some((plane_origin, plane_dir)),
+            _ => None,
+        },
+    )?;
     // **The kernel's `RevolveAxis` lives in SKETCH-PLANE coordinates,
     // and so does the axis now** — so the wiring is the identity, and
     // the only question left is whether the two nodes are written
@@ -1831,14 +1914,12 @@ fn tube_args<T: Decide>(
     results: &Results<T>,
     vals: &SlotValues<T>,
 ) -> Result<TubeArgs<T>, NodeErrorKind> {
-    let sv = value_of(results, spine)?;
-    let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &sv.payload else {
-        return Err(NodeErrorKind::WrongOperand {
-            input: spine,
-            expected: "datum axis",
-            found: sv.payload.kind_name(),
-        });
-    };
+    let (origin, dir) = operand(results, spine, super::phrase::DATUM_AXIS, |v| {
+        match &v.payload {
+            ValuePayload::Datum(DatumValue::Axis { origin, dir }) => Some((origin, dir)),
+            _ => None,
+        }
+    })?;
     // The datum is consumed WHOLE — origin as the spine centre, dir as
     // the spine axis — which is `Node::Revolve`'s precedent, and both
     // cross to the door verbatim: no re-origining, and nothing
@@ -2696,11 +2777,7 @@ fn wire_assertion<T: Decide>(
         ));
     }
     let ValuePayload::Measure { value, dim } = &mv.payload else {
-        return Err(NodeErrorKind::WrongOperand {
-            input: measure,
-            expected: super::family::MEASURE,
-            found: mv.payload.kind_name(),
-        });
+        return Err(wrong_operand(mv, measure, super::family::MEASURE));
     };
     // The bound's DECLARED dimension is what must agree — read off the
     // expression, never inferred from the evaluated number, which has
@@ -2769,11 +2846,7 @@ fn wire_split<
 ) -> OpResult<T> {
     let body = body_operand(results, target)?;
     let tv = value_of(results, tool)?;
-    let wrong_tool = || NodeErrorKind::WrongOperand {
-        input: tool,
-        expected: verb.tool_expected,
-        found: tv.payload.kind_name(),
-    };
+    let wrong_tool = || wrong_operand(tv, tool, verb.tool_expected);
     let ValuePayload::Datum(datum) = &tv.payload else {
         return Err(wrong_tool());
     };
@@ -2895,19 +2968,11 @@ fn wire_part<T: Decide>(
             )?;
             (Arc::clone(&instances[ix as usize]), ix)
         }
-        (PartSelect::SplitHalf(_), other) => {
-            return Err(NodeErrorKind::WrongOperand {
-                input: of,
-                expected: super::family::SPLIT,
-                found: other.kind_name(),
-            });
+        (PartSelect::SplitHalf(_), _) => {
+            return Err(wrong_operand(value, of, super::family::SPLIT));
         }
-        (PartSelect::Instance(_), other) => {
-            return Err(NodeErrorKind::WrongOperand {
-                input: of,
-                expected: super::family::INSTANCES,
-                found: other.kind_name(),
-            });
+        (PartSelect::Instance(_), _) => {
+            return Err(wrong_operand(value, of, super::family::INSTANCES));
         }
     };
     let table = value
@@ -3236,15 +3301,15 @@ fn declared_pairs<T: Decide>(
     results: &Results<T>,
     declare: RecipeNodeId,
 ) -> Result<&[DeclaredPair], NodeErrorKind> {
-    let value = value_of(results, declare)?;
-    let ValuePayload::Declarations(pairs) = &value.payload else {
-        return Err(NodeErrorKind::WrongOperand {
-            input: declare,
-            expected: super::family::DECLARATIONS,
-            found: value.payload.kind_name(),
-        });
-    };
-    Ok(pairs)
+    operand(
+        results,
+        declare,
+        super::family::DECLARATIONS,
+        |v| match &v.payload {
+            ValuePayload::Declarations(pairs) => Some(&pairs[..]),
+            _ => None,
+        },
+    )
 }
 
 /// **Where one declared name sits in a union's own name space.**
@@ -4088,14 +4153,12 @@ fn stepped_map<T: Decide>(
             spacing: need_scalar(vals, SlotId::Spacing)?,
         },
         PatternKind::Circular { axis, .. } => {
-            let av = value_of(results, *axis)?;
-            let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &av.payload else {
-                return Err(NodeErrorKind::WrongOperand {
-                    input: *axis,
-                    expected: "datum axis",
-                    found: av.payload.kind_name(),
-                });
-            };
+            let (origin, dir) = operand(results, *axis, super::phrase::DATUM_AXIS, |v| {
+                match &v.payload {
+                    ValuePayload::Datum(DatumValue::Axis { origin, dir }) => Some((origin, dir)),
+                    _ => None,
+                }
+            })?;
             SteppedOperands::Circular {
                 origin: *origin,
                 dir: dir.get(),
@@ -4316,13 +4379,10 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> Result<(sweep::Section, Affine3<f64>, ProfileNaming), NodeErrorKind> {
-    let Some(Node::Profile(program)) = doc.nodes.get(&id) else {
-        return Err(NodeErrorKind::WrongOperand {
-            input: id,
-            expected: "profile node",
-            found: "not a profile node",
-        });
-    };
+    let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
+        Node::Profile(program) => Some(program),
+        _ => None,
+    })?;
     // THE SEED STOPS HERE, TYPED. The section stays `f64` in every lane
     // (the C6/D9 argument below), so a seed on a parameter this program
     // reads has no channel to ride and would arrive at the skinned
