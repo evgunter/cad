@@ -218,7 +218,8 @@ fn detect_declare_boolean_round_trip() {
         findings.contains(&menu),
         "menu payload {menu:?} not among the detector's findings {findings:?}"
     );
-    let (doc, decl) = declare_all(&doc, &findings, Tol::witness()).unwrap();
+    let (applied, decl) = declare_all(&doc, &findings, Tol::witness()).unwrap();
+    let doc = applied.doc;
     let (doc, union) = insert(
         doc,
         Node::Boolean {
@@ -297,7 +298,8 @@ fn declare_inserts_the_pair() {
     let (doc, base, top) = stacked();
     let ev = eval(&doc);
     let findings = find_flush_candidates(&ev, base, top, Tol::witness()).unwrap();
-    let (doc, decl) = declare(&doc, &findings[0], Tol::witness()).unwrap();
+    let (applied, decl) = declare(&doc, &findings[0], Tol::witness()).unwrap();
+    let doc = applied.doc;
     match doc.node(decl) {
         Some(Node::Declare { pairs }) => {
             assert_eq!(pairs, &[(findings[0].pair.clone(), findings[0].class)])

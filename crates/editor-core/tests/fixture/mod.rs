@@ -68,10 +68,7 @@ pub fn in_copy(pattern: RecipeNodeId, i: u32, of: StableName) -> StableName {
     StableName {
         kind: of.kind,
         node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: Box::new(of),
-        }],
+        path: vec![RoleSeg::Instance { i, of: of.into() }],
     }
 }
 
@@ -514,7 +511,7 @@ pub fn die() -> Die {
             // Every A-side face name wraps once per boolean (N1
             // derivation paths through the new subtract node).
             for name in &mut cube_face_names {
-                *name = face_name(sub, RoleSeg::FromA(Box::new(name.clone())));
+                *name = face_name(sub, RoleSeg::FromA(name.clone().into()));
             }
         }
     }
@@ -728,7 +725,10 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandFoot(x)
         | RoleSeg::BandCross(x)
         | RoleSeg::BandCut(x)
-        | RoleSeg::BandSlit(x) => vec![x.as_ref()],
+        | RoleSeg::BandSlit(x)
+        | RoleSeg::Inner(x)
+        | RoleSeg::Rim(x)
+        | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
         RoleSeg::Seam { a: x, b: y }
         | RoleSeg::TrimEdge {
             edge: x,

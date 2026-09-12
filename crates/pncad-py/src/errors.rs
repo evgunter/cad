@@ -143,17 +143,27 @@ pub enum ErrorClass {
     /// `DimensionError`, raised on the LITERAL-CONSTRUCTION door.
     /// The Python class is `LiteralError`.
     ///
-    /// That type has genuine dimension-mismatch arms too, and two
+    /// That type has genuine dimension-mismatch arms too, and three
     /// other doors reach them. `load` does (`WireExpr::rebuild`
     /// re-runs every check through the operator builders) and they
     /// arrive as [`ErrorClass::Persist`] with the `parse` tag rather
     /// than under any dimension class — issue #694. The expression
     /// TEXT door does too, and they arrive as [`ErrorClass::Parse`]
     /// with `variant == "dimension"` and the mismatch's own tag as
-    /// `kind`, which is the one of the three that keeps the inner
-    /// refusal branchable. Nothing anywhere is routed to
+    /// `kind`, which is the one of those two that keeps the inner
+    /// refusal branchable. And the MEASUREMENT sublanguage's
+    /// arithmetic constructors do, arriving on THIS class with the
+    /// mismatch's own tag as `kind` — they are the same kernel type
+    /// refusing at the same layer, because that language asks `Expr`'s
+    /// own constructors for its dimensions rather than restating the
+    /// F1 table. Nothing anywhere is routed to
     /// [`ErrorClass::Dimension`], which is the quantity boundary's
     /// own check and a different type.
+    ///
+    /// So `value` is the offending number where the refusing door had
+    /// one in hand and `None` where it did not: a measurement
+    /// constructor refuses over two operands' DIMENSIONS, and there is
+    /// no single float to name.
     Literal,
     /// The expression TEXT door refused: `parse_expr` could not read
     /// the source as an expression. The Python class keeps the Rust
@@ -297,6 +307,91 @@ pub enum ErrorClass {
     /// refused on it. `run_checks` never raises this and
     /// `enforce_checks` never raises the other.
     Enforce,
+    /// A [`Distribution`](pncad::document::Distribution) that breaks
+    /// an E2 invariant, refused at the Python constructor. The Python
+    /// class keeps the Rust type's own name,
+    /// [`DistributionFault`](pncad::document::DistributionFault).
+    ///
+    /// The one class in this taxonomy raised by a VALUE constructor
+    /// rather than by a door that touches a document. It is not an
+    /// invented pre-check: `Distribution::check` is the kernel's own
+    /// single statement of the invariants, the one the edit door and
+    /// the persistence validator both run, and the binding calls it
+    /// rather than restating it. Calling it EARLY is what the value
+    /// class buys — a Python caller learns that a sigma is negative
+    /// where the sigma is written, not three edits later.
+    Distribution,
+    /// The analysis lane could not price a mass: the parameter
+    /// carries a band, which states limits without a shape (E2). The
+    /// Python class keeps the Rust type's own name,
+    /// [`MeasureUnavailable`](pncad::analysis::MeasureUnavailable).
+    ///
+    /// A REFUSAL, not an absence. "I know the limits but not the
+    /// shape" is real information and no report may quietly promote
+    /// it to uniform, so the door that would have to guess raises
+    /// instead, naming the parameter.
+    Measure,
+    /// A [`Node::Measure`](pncad::document::Node)'s expression reads a
+    /// reference the node does not carry, refused at the Python
+    /// construction door. The Python class keeps the Rust type's own
+    /// name,
+    /// [`MeasureNodeFault`](pncad::document::MeasureNodeFault).
+    ///
+    /// The second class in this taxonomy raised by a VALUE
+    /// constructor rather than by a door that touches a document, and
+    /// for [`Self::Distribution`]'s reason: `Node::measure` is the
+    /// kernel's ONE construction door and it runs the same check the
+    /// edit door and the load door's re-check run, so the binding
+    /// calls it rather than restating it. What the timing buys is
+    /// that an index past the end of the reference list refuses where
+    /// it is written, not at the `Doc.apply` after it — where the
+    /// same fault arrives as `EditError` with `variant ==
+    /// "measure_malformed"`.
+    MeasureNode,
+    /// A measure whose value is an ENCLOSURE, read at a build whose
+    /// scalar is a point (E3/E7, M10-6). The Python class keeps the
+    /// Rust type's own name,
+    /// [`MeasureUnavailableAt`](pncad::document::MeasureUnavailableAt).
+    ///
+    /// **Deliberately not [`Self::Measure`], and the two names are
+    /// one word apart on purpose.** That one is the ANALYSIS lane
+    /// refusing to price a mass whose parameter carries a band; this
+    /// one is the MEASUREMENT lane saying a `min_clearance` has no
+    /// value at the `f64` scalar the binding evaluates at. Different
+    /// kernel types, different questions, and a caller catching one
+    /// must not catch the other — so each keeps its own Rust name and
+    /// neither subclasses the other.
+    ///
+    /// A typed ABSENCE rather than a failure: the measure node
+    /// evaluates successfully and says what it cannot say, which is
+    /// why an assertion over it reports `Unevaluated` carrying this
+    /// reason instead of being poisoned. The payload names the DOOR
+    /// that could answer, so the recourse is in the refusal.
+    MeasureUnavailableAt,
+    /// An analysis policy that cannot be honoured: a quantile mass
+    /// outside `(0, 1)`. The Python class keeps the Rust type's own
+    /// name,
+    /// [`AnalysisPolicyError`](pncad::analysis::AnalysisPolicyError).
+    ///
+    /// Deliberately not [`Self::Measure`]: that one is about a
+    /// distribution the document declared, this one about the knob the
+    /// REQUEST set, and E2's whole point is that the analyzed box is
+    /// the analysis's property rather than the distribution's.
+    AnalysisPolicy,
+    /// A Monte-Carlo run that produced nothing (ERROR-DESIGN E11.1).
+    /// The Python class keeps the Rust type's own name,
+    /// [`McRefusal`](pncad::analysis::McRefusal).
+    ///
+    /// Three arms and one class, because all three say the same thing
+    /// to a caller: there is no advisory estimate for this request.
+    /// One of them CARRIES a [`Self::Measure`] refusal — the band a
+    /// draw cannot be taken from — and it is still raised as this
+    /// class rather than as that one, because what refused is the RUN.
+    /// The carried fault is not lost: its parameter rides on the
+    /// payload and its tag is the word this class's `variant` answers,
+    /// so a caller who branches on `band_has_no_measure` reads the
+    /// same word from either door.
+    Mc,
 }
 
 impl ErrorClass {
@@ -332,6 +427,12 @@ impl ErrorClass {
             Self::NodePick => "NodePickError",
             Self::Checks => "ChecksError",
             Self::Enforce => "CheckRefusal",
+            Self::Distribution => "DistributionFault",
+            Self::Measure => "MeasureUnavailable",
+            Self::MeasureNode => "MeasureNodeFault",
+            Self::MeasureUnavailableAt => "MeasureUnavailableAt",
+            Self::AnalysisPolicy => "AnalysisPolicyError",
+            Self::Mc => "McRefusal",
         }
     }
 }

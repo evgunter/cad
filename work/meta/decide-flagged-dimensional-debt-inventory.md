@@ -5,7 +5,7 @@ title: Dimensional-debt inventory — the 11+1 decide_flagged sites (F2/F6/F7/F1
 status: open
 opened: 2026-08-06
 github: 214
-refs: [213, 501, 502, S13]
+refs: [213, 501, 502, 2063]
 ---
 
 ## From GitHub issue 214
@@ -33,3 +33,7 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Refs at GATES' sweep (2026-09-08)
+
+GATES closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 7); `S13` is now cited by its closing PR 2063.

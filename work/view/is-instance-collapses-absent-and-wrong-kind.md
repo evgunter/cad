@@ -29,7 +29,7 @@ pub fn is_instance(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 }
 ```
 
-`crates/viewer/src/display.rs:238`. `None` (the node is not in the
+`crates/viewer/src/display.rs:248`. `None` (the node is not in the
 document) and `Some(other_kind)` (it is there and is not an instance)
 both answer `false`.
 
@@ -44,7 +44,7 @@ it.
 ## Why it is not urgent, stated so it is not overstated
 
 **The one caller does not care today.** `PropertiesPane::instance_ui`
-(`crates/viewer/src/pane/properties.rs:333`) early-returns for a
+(`crates/viewer/src/pane/properties.rs:336`) early-returns for a
 `false`, drawing no per-instance section — and drawing nothing is the
 right answer for both an absent node and a datum. So there is no live
 defect. The reviewer's confidence was `sure` on the door's shape and

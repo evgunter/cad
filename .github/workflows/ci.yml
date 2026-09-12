@@ -216,9 +216,10 @@ concurrency:
 # (`build`, `build-interval`), each `cargo nextest archive` + artifact
 # upload, and thin RUN jobs that download the archive and only execute.
 #
-# cargo-nextest is the archive/run vehicle, PINNED here (single source of
-# truth for the version): 0.9.140, published 2026-07-05 — ~4 weeks old at
-# adoption (2026-08-03), past the 2-week dependency-age rule; a dev/CI
+# cargo-nextest is the archive/run vehicle, PINNED at this workflow's
+# `env:` block (the single source of truth for the version). The adoption
+# record: 0.9.140, published 2026-07-05 — ~4 weeks old at adoption
+# (2026-08-03), past the 2-week dependency-age rule; a dev/CI
 # tool only, never in any shipped build graph. Install is the official
 # get.nexte.st prebuilt at the pinned URL — no third-party action — via
 # the in-repo composite `.github/actions/install-nextest`, which caches
@@ -344,7 +345,7 @@ env:
 
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
-# rustup's toolchain-file override then auto-installs the pinned 1.97.0 with
+# rustup's toolchain-file override then auto-installs the pinned channel with
 # its components on the first cargo invocation. The pinned compiler (D9 / L2)
 # has a single source of truth — the toolchain file.
 #
@@ -393,39 +394,20 @@ jobs:
       run_editor_core: ${{ steps.classify.outputs.RUN_EDITOR_CORE }}
       run_stl: ${{ steps.classify.outputs.RUN_STL }}
       run_step_export: ${{ steps.classify.outputs.RUN_STEP_EXPORT }}
-      run_pncad_py: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
+      # NO `run_pncad_py` OUTPUT. The filter still computes the key and
+      # echoes it with the seeds it came from, because "did this change reach
+      # the bindings" is a useful thing for a reader triaging a python-suite
+      # red to have — but no job here gates on it: the python suite runs on
+      # every code-tier run. An output is worth publishing when a reader needs
+      # it to interpret THIS run's job list, and this one would only record
+      # that a gate used to exist.
       run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
       run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
-      # NO `run_topo_release` OUTPUT. The filter still emits the key — the
-      # local half reads it (`local-scripts/ci-local.sh`'s
-      # `corrupt input (release profile)` row) — but the QUESTION that
-      # output answered has no hosted job left to ask it of: "does this
-      # run gate the release-profile row?" has one answer now, `no`, on
-      # every run, because that row moved to nightly.yml and runs ungated
-      # there. The tombstone below carries the argument.
-      #
-      # NOT "an output nothing reads is dead wiring" — this job publishes
-      # two of those on purpose, and they are eight lines down.
-      # `config_source` and `lane_advisory` are read by no job and exist
-      # so that a question ABOUT THIS RUN — which configuration gated it,
-      # was it possibly about the axis it did not gate — is answerable
-      # from the run's outputs. That test is what `run_topo_release`
-      # fails: it would not describe this run, it would describe a job
-      # that is not in this workflow, and its value would be the same
-      # function of the diff it always was with nothing here acting on it.
-      # An output is worth keeping when a reader needs it to interpret
-      # THIS run; it is not worth keeping to record that a job used to
-      # live here.
-      #
-      # AND NO VERDICT STEP, which is where this differs from the python
-      # suite's seed-keyed axis (that one prints RUN/SKIP with its seeds
-      # in a step of this job). A verdict is worth a step when the run
-      # MADE a decision a reader could otherwise only infer from a job's
-      # absence. This run makes none: the demotion is unconditional, so
-      # the step would print one identical constant on every run forever,
-      # and a constant restated in a workflow step is the second copy this
-      # file has twice watched drift away from its source. The tombstone
-      # is where a constant belongs.
+      # Whether this run gates `corrupt input (release profile)`. Its root
+      # is `topo`, the crate the suites live in: nothing that job runs can
+      # have moved unless `topo` is in the change closure. The local half
+      # reads the same key.
+      run_topo_release: ${{ steps.classify.outputs.RUN_TOPO_RELEASE }}
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
       # THE MATRIX THIS RUN GATES (scripts/ci-filter.py, CONFIGURATION
       # COVERAGE). `both` / `all` unless a dispatch input NARROWED it, which
@@ -479,8 +461,11 @@ jobs:
       seeds: ${{ steps.classify.outputs.SEEDS }}
       # Whether this run compiles the GUI toolkit graph (eframe + wgpu +
       # naga + winit). SEED-keyed per Ev's viewer-CI-posture ruling
-      # (docs/GUI-LOG.md, 2026-08-27) — the argument is at
-      # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
+      # (2026-08-27), which was recorded in the closed GUI program's log;
+      # that log left the tracker with the program's directory in
+      # DOC-LEDGER sweep 5 and reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`.
+      # The argument is at `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
       # WHERE THE THREE VALUES ABOVE CAME FROM — `unsampled` for a dimension
       # that runs whole, which since 2026-09-04 is what all three do unless
@@ -522,7 +507,7 @@ jobs:
         run: rm -rf local-scripts .claude
       - name: classify the change set
         id: classify
-        # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned 1.97.0
+        # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned toolchain's
         # download: the script only runs `cargo metadata --no-deps`, which
         # parses the workspace manifests and neither builds nor resolves the
         # registry, so the compiler version is irrelevant — and if a future
@@ -775,42 +760,6 @@ jobs:
               ;;
           esac
 
-      # THE PYTHON SUITE AXIS — ITS VERDICT, IN A SEAT THAT ALWAYS SPEAKS.
-      #
-      # `python suite (wheel + guide + north-star)` is SEED-keyed (see that
-      # job, and `RUN_PNCAD_PY` in scripts/ci-filter.py). The viewer axis
-      # prints its verdict inside `fmt`, beside the rows it gates; this one
-      # cannot borrow that arrangement, because when the axis is false the
-      # whole JOB is skipped and a skipped job runs no step at all. A
-      # green checks list with no python row in it, and nothing anywhere
-      # saying why, is exactly the "green job name over a silent skip" the
-      # ruling that created the viewer axis forbade.
-      #
-      # So it is sited here, in the job that computed it and that carries
-      # no `if:` — the same seat and the same reasoning as the two steps
-      # around it. The seeds are printed with the verdict, so a reader who
-      # sees SKIP can see the list it was decided from without re-deriving
-      # it.
-      - name: python suite - the filter's verdict
-        env:
-          TIER: ${{ steps.classify.outputs.TIER }}
-          SEEDS: ${{ steps.classify.outputs.SEEDS }}
-          RUN_PNCAD_PY: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
-        run: |
-          printf 'seeds: %s\n' "$SEEDS"
-          printf 'tier: %s\n' "$TIER"
-          if [ "$RUN_PNCAD_PY" = true ]; then
-            echo 'RUN: a seed is a member a build of the wheel compiles (or the tier is unscopable).'
-            echo 'RUN: the wheel is built and the unittest suite discovered over crates/pncad-py/tests.'
-          else
-            echo 'SKIP: no seed is a member a wheel build compiles — every seed is either above the'
-            echo 'wheel in the graph or reaches the binding crate along a dev edge only, so nothing'
-            echo 'the suite can observe moved. The wheel is NOT built on this run and the'
-            echo '`python suite (wheel + guide + north-star)` job below is skipped entirely.'
-            echo 'The seed set is printed by the classify step above; the nightly lane re-takes the'
-            echo 'whole suite ungated once a day.'
-          fi
-
       # DOES THIS RUN GATE ANYTHING AT ALL (#1204). A draft run zeroes every
       # RUN_* flag above and still ends GREEN, with TIER, CARGO_SCOPE and LANE
       # left truthful — a green that means "nothing ran" wearing the clothes of
@@ -1009,6 +958,54 @@ jobs:
         run: |
           python3 scripts/check-ci-mirror-parity.py --selftest
           python3 scripts/check-ci-mirror-parity.py
+      # A GATE THAT CANNOT FAIL. `PIPESTATUS` names the last pipeline the
+      # shell ran, and EVERY command rewrites it — including the assignment
+      # on the line above the read. A step spelled `... | tee … ||
+      # status=$?` and then `status=${PIPESTATUS[0]:-$status}` reports
+      # success whatever the pipeline said, because the `:-` default never
+      # fires on the assignment's own `0`; the `driver K-telemetry lint`
+      # step below spent eight commits in exactly that state, green over a
+      # lint that was refusing every file it was handed. The failure is
+      # silent by construction: nothing goes red, so no later run finds it.
+      #
+      # SITED HERE, in the job with no `if:`, because its inputs are every
+      # workflow file and every tracked shell script — `local-scripts/`
+      # included, a tree that classifies TIER=docs and that every hosted
+      # job but this one deletes at checkout. Under `if: run_build` the
+      # change class that can break it is the class that would skip it.
+      #
+      # NOT SHELLCHECK'S JOB, measured rather than assumed: shellcheck
+      # 0.9.0 says nothing at all about this shape (it has SC2319/SC2320
+      # for the sibling `$?` reads and no `PIPESTATUS` equivalent), and
+      # nothing in this repo runs shellcheck anyway —
+      # `work/ciw/shellcheck-is-not-run.md` carries that residue.
+      #
+      # AND A SEPARATE SCRIPT RATHER THAN A CLAIM IN THE STEP ABOVE, for
+      # blast radius rather than subject: `check-ci-mirror-parity.py`'s
+      # claim 10 DOES read shell out of `run:` bodies, so the subject is
+      # not foreign to it — but every one of its claims shares one
+      # tokenizer, and a change made for this property could move any
+      # other claim's answer. This reader is its own file so it fails
+      # alone, and its own shell splitter is written against the CMD_BREAK
+      # comment there, which records meeting the `&`-in-a-redirection
+      # defect twice.
+      - name: status capture (PIPESTATUS is read before anything rewrites it)
+        run: |
+          python3 scripts/check-status-capture.py --selftest
+          python3 scripts/check-status-capture.py
+      # THE LANE ROSTER THE HELPER WORKS FROM, HELD AGAINST THE ONE
+      # render.yml DECLARES: every lane fact in
+      # `local-scripts/render-hosted.sh` — the lanes, what `--lane all`
+      # expands to, each artifact, each committed directory, the jobs the
+      # poll waits for — is a statement about render.yml, and this
+      # compares them. Sited here for the same reason as the row above:
+      # its inputs are a workflow file and `local-scripts/`, a tree that
+      # classifies TIER=docs and that every hosted job but this one
+      # deletes at checkout.
+      - name: render lane parity (the helper knows the lanes render.yml declares)
+        run: |
+          python3 scripts/check-render-lane-parity.py --selftest
+          python3 scripts/check-render-lane-parity.py
       # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
       # its own rather than by association. `scripts/ci-filter.py` decides
       # whether every `if: run_build` job below runs at all, and its `docs`
@@ -1052,6 +1049,40 @@ jobs:
       # no toolchain — stdlib python against temp fixtures.
       - name: pin reader selftest (ci.yml's env block is read, not guessed)
         run: scripts/ci-pin.py --selftest
+      # THE APT PREAMBLE'S SELFTEST, and the reason it is a selftest at all:
+      # the mirror whose broken index reddened four runs across two branches
+      # recovered on its own, so the failure this script exists for cannot be
+      # reproduced by waiting for it. The selftest CONSTRUCTS it — two
+      # `file://` repositories, one publishing an index its own Release file
+      # disagrees with — and asserts that an unnarrowed `apt-get update` dies
+      # on it while the script's does not. A run against a healthy mirror
+      # proves nothing about that case, which is what makes this row, and not
+      # the four install steps, the evidence.
+      #
+      # Sited here for the same reason as the two rows above: the job carries
+      # no `if:`, and this needs no toolchain and no root — apt is pointed at
+      # a scratch tree with `-o Dir::*` and touches no system file.
+      - name: apt preamble selftest (the narrowed update survives a bad index)
+        run: scripts/apt-install.sh --selftest
+      # AND THE DOOR IS THE ONLY DOOR. The row above proves the wrapper
+      # works; this one proves it is what every apt call site uses. The two
+      # are independent: a step spelling `sudo apt-get update && sudo
+      # apt-get install -y foo` inline reds every branch during a stranger's
+      # bad hour, indistinguishable from a real red, and nothing else in
+      # this tree can see it:
+      # `check-ci-mirror-parity.py` reads workflows for INVOCATIONS of
+      # `scripts/` and `demos/`, so a step that invokes no script is outside
+      # its claims 1-4 by construction; its claim 9 is about jobs, not steps;
+      # and no shell linter runs in this gate at all.
+      #
+      # Sited here for the reason every row above is: its inputs are every
+      # workflow file, every composite action and every tracked shell script
+      # — `local-scripts/` among them, a tree that classifies TIER=docs and
+      # that every hosted job but this one deletes at checkout.
+      - name: install wrappers (a wrapped idiom is spelled only through its wrapper)
+        run: |
+          python3 scripts/check-install-wrappers.py --selftest
+          python3 scripts/check-install-wrappers.py
       # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
       # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
       # the same reason as every row above. Stdlib python and git; the
@@ -1145,8 +1176,7 @@ jobs:
       # minute to do four seconds of work, and would also have to
       # re-argue the prune exception that claim 6 keeps to exactly one
       # job. The `python-suite` job is the other candidate and fails on
-      # both counts: it prunes local-scripts/, and it is
-      # `if: run_pncad_py`.
+      # the first count: it prunes local-scripts/.
       # Its own directory, added to PATH explicitly: this job installs no
       # toolchain, so it may not assume ~/.cargo/bin exists the way the
       # nextest and maturin steps do in jobs that set one up.
@@ -1339,6 +1369,24 @@ jobs:
           python3 scripts/slowest-tests.py --selftest
           python3 scripts/pr-added-tests.py --selftest
           scripts/base-test-listing.sh --selftest
+      # THE PAYLOAD-RUNG SWEEP, run rather than re-derived. The façade's four
+      # curated lists carry refusals whose payloads may be on no list at all,
+      # and the sweep that finds them was a paragraph of prose re-implemented
+      # by every unit that ran it: three runs reported three sets of numbers
+      # over one tree, and one disagreed with itself. `--check` pins the
+      # NAMES it finds against the dispositions in the script, so a new rung
+      # reds the PR that lands it instead of waiting for the next re-sweep.
+      #
+      # SITED IN THIS JOB because its inputs are the crates' sources and the
+      # script, which is exactly the change set a `run_build` job runs on. Its
+      # own fixture battery rides the same row, for the reason every selftest
+      # here does: nothing else drives a scanner's filters, and a scanner that
+      # stopped seeing a category reports the same green as one that saw none.
+      # Stdlib python over the tree — no toolchain, no cargo, no network.
+      - name: payload-rung sweep (the curated lists' payloads are decided)
+        run: |
+          python3 scripts/payload-rung-sweep.py --selftest
+          python3 scripts/payload-rung-sweep.py --check
       # THE REQUIRED CHECK'S OWN READER, and it is the same argument as the row
       # above one step further out. `scripts/check-run-jobs.py` IS the `gate ok`
       # job — the single name a merge queue or a branch protection is meant to
@@ -1356,6 +1404,77 @@ jobs:
       # are prose or `local-scripts/`.
       - name: run-job gate selftest (the one required check's seven paths)
         run: python3 scripts/check-run-jobs.py --selftest
+      # THE OPT-LEVEL CALIBRATOR'S OWN TESTS, and the row exists because until
+      # it was written the script's `--selftest` was invoked by NOTHING: the
+      # three real modes run in nightly.yml and the guard over them ran
+      # nowhere, so its greenness was a statement about nothing. What it drives
+      # is the population no real run produces on demand — shard summing, a
+      # cancelled shard, a renamed step, the docs-tier skip, the schema-1/2/3
+      # readers, the cadence triggers, the argmin over three arms, the one-arm
+      # refusal, the environment block's host-identity degradation — and the
+      # `record` mode those feed APPENDS TO AN APPEND-ONLY HISTORY under
+      # docs/perf-data/opt-level/, where a malformed entry cannot be
+      # overwritten out.
+      #
+      # SITED PER-PR AND NOT IN nightly.yml, deliberately, and this is the
+      # whole argument. A guard that runs only on a schedule is exercised at
+      # the next fire, to nobody, and a row that fails to run at all reports
+      # the same green as a row that ran and passed — which is the defect this
+      # row exists to close, not one to reproduce one level out. The selftest
+      # is a fixture battery over the script's own code paths: the only thing
+      # that can break it is a change to `scripts/opt-level-calibrate.py`, a
+      # tree change a PR gate sees now and a schedule sees hours later. The
+      # nightly runs main, and main is reached through this gate, so a
+      # second copy at 03:00 would re-prove a tree this row already proved.
+      #
+      # THAT LAST SENTENCE IS CONTESTED BY THE ROW BELOW, and a reader of this
+      # file alone would otherwise get two rules with no sign that one is
+      # disputed. The criterion emitter's selftest keeps a nightly copy
+      # BECAUSE nightly.yml's jobs also run on a `workflow_dispatch` ref — an
+      # arbitrary SHA no gate row can have proved — and that is equally true
+      # of the opt-level job, which takes the same input. So either this lane
+      # is missing a row or that one has a spare;
+      # `work/ciw/calibrator-record-writes-without-its-selftest` holds the
+      # question and neither row waits on it.
+      #
+      # SITED IN THIS JOB and not in `mirror`, by `check-run-jobs.py`'s
+      # argument above: the script's inputs are `scripts/*.py`, which
+      # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
+      # set that can break it is exactly the change set this job runs on.
+      # No toolchain and no cargo — stdlib python against its own fixtures.
+      - name: opt-level calibrator selftest (the guard over an append-only history)
+        run: python3 scripts/opt-level-calibrate.py --selftest
+      # THE CRITERION HISTORY EMITTER'S OWN TESTS, sited here for the reason
+      # the row above is: the selftest is a fixture battery over the script's
+      # own code paths, so the only change that can break it is a change to
+      # `scripts/criterion-emit.py` — a `scripts/*.py` path, which
+      # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
+      # set that can break it is exactly the change set this job runs on.
+      # WHAT IT ACTUALLY HOLDS, stated at the coverage it has rather than at
+      # the coverage a reader would assume, because that number was measured:
+      # a battery of 20 single-token mutations of the script kills 9 of them.
+      # Held: the roster pin in all three of its shapes (a row renamed, added,
+      # or dropped), `collect` reading `new/` and not criterion's previous
+      # `base/`, the sample count, RUSTFLAGS, and the cpuinfo parser in both
+      # directions — a known cpuinfo parsed, and an absent one degrading to
+      # null without costing the rest of the block. NOT held: the VALUE of
+      # most collected fields, because the fixture writes one scalar into five
+      # of them, so a field dropped from the emitted block or a reader that
+      # swapped two passes this row.
+      # `work/ciw/criterion-selftest-fixture-is-one-scalar-in-five-fields`
+      # carries the measurement, the table and the repair.
+      #
+      # THE LANE IS HOSTED-ONLY AND THIS ROW IS NOT. Only a runner may commit
+      # a measurement (`local-scripts/ci-local.sh` says why at its own key),
+      # but the guard over the writer is a stdlib-python fixture battery that
+      # runs anywhere, so it belongs in both halves like every other selftest
+      # out here. No toolchain, no cargo, no benchmark build.
+      #
+      # nightly.yml KEEPS ITS OWN COPY and that is not a duplicate of this
+      # row: that job also runs on a dispatched `ref`, an arbitrary SHA this
+      # gate never saw. The argument is written at that row.
+      - name: criterion history emitter selftest (the guard over an append-only history)
+        run: python3 scripts/criterion-emit.py --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: it is what lets the wasm32 guard below run the interval
       # leg ONLY, and it is what made this lane a stand-in for the default
@@ -1396,7 +1515,7 @@ jobs:
         run: |
           scripts/gates/bit-identity-consumer.sh --selftest
           scripts/gates/bit-identity-consumer.sh
-      - name: bit-identity debug-only guard (topo/source.rs)
+      - name: bit-identity debug-only guard (the subject list)
         run: |
           scripts/gates/bit-identity-debug-only.sh --selftest
           scripts/gates/bit-identity-debug-only.sh
@@ -1495,7 +1614,8 @@ jobs:
   # local-scripts/ci-local.sh. None of the three is on the critical path,
   # which is `build + archive (interval)` at ~88% of a ~13 min run, so the
   # serialisation costs no wall-clock for the run as a whole. The measured
-  # figures live at the wasm32 step.
+  # figures live at the wasm32 steps — there are two of them now, the
+  # workspace one and the viewer one, and each carries its own.
   #
   # NOT MERGED IN, deliberately: `discipline`, whose ~30 s buys nothing
   # here and would eat the headroom this job keeps under its billing
@@ -1507,20 +1627,33 @@ jobs:
   # Merging rotates Swatinem/rust-cache's key (it hashes the job), so
   # expect exactly one cold run after any change here and warm thereafter.
   #
-  # WHY THESE THREE AND NOT SOME OTHER SET. All three are workspace-wide
-  # ratchets that share one checkout and one toolchain: `cargo fmt --all`,
-  # the rustdoc gate over a derived root set, and a `--workspace`
-  # cross-compile. Two of them still read nothing from the filter and
-  # behave identically in tier `all` and tier `closure`.
+  # WHY THIS SET, AND WHAT THE SET ACTUALLY IS NOW. It started as three
+  # workspace-wide ratchets that read nothing from the filter — `cargo fmt
+  # --all`, the rustdoc gate over a derived root set, and a `--workspace`
+  # cross-compile — and the paragraph here argued from that shape. The
+  # shape has moved twice and the argument no longer rests on it, so it is
+  # restated rather than patched:
   #
-  # THE RUSTDOC ROW NO LONGER DOES, and that is a change to this
-  # paragraph's own premise rather than a footnote to it (S-TCOST C2): it
-  # reads `cargo_scope` and runs the workspace pass over the closure. The
-  # sharing still holds, because what makes these three shareable is one
-  # checkout, one toolchain and three verdicts that must not merge — not
-  # the scoping. `clippy` stays out for a different reason than "it is
-  # scoped": it is the job the filter's per-closure row is NAMED by, and a
-  # red there should say `clippy`.
+  #   * THE VIEWER AXIS IS READ ALL OVER THIS JOB, not by the one pair
+  #     that arrived with it: the rustdoc pass's `--skip-viewer-toolkit`
+  #     arm, the verdict step that prints which way it went, and the
+  #     `run_viewer_toolkit` guards on the app-feature clippy row, its two
+  #     installs, the app-feature test row and the viewer wasm32 row at
+  #     the foot of the job. Grep the key rather than trusting a count
+  #     here. They are HERE precisely because this job has no lane gate —
+  #     a seed-keyed axis has to be able to speak on every run, which in
+  #     the lane-gated `clippy` job it could not.
+  #   * ONE STEP IS OUTSIDE THE WORKSPACE ENTIRELY (`rustfmt (benches)`),
+  #     for the reason written at it.
+  #
+  # SO THE SHARED PROPERTY IS NOT "workspace-wide and filter-blind". It is
+  # one checkout, one toolchain, one cache, and verdicts that must stay
+  # separate — formatting, prose, and two cross-compiles are four
+  # different findings and the matrix-free merge must not turn them into
+  # one. That is what admits a new row here and what would refuse one that
+  # needed a different checkout or a lane gate. `clippy` stays out for a
+  # different reason than "it is scoped": it is the job the filter's
+  # per-closure row is NAMED by, and a red there should say `clippy`.
   fmt:
     name: rustfmt + rustdoc (gate) + wasm32
     runs-on: ubuntu-latest
@@ -1540,23 +1673,21 @@ jobs:
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
-      # THE CACHE'S SCOPE IS THE RUSTDOC GATE'S OWN ROOT LIST (#921) —
-      # AND SINCE S-TCOST C2, THE ROOT LIST OF THE MODE THIS JOB RUNS.
+      # THE CACHE'S SCOPE IS THE RUSTDOC GATE'S OWN ROOT LIST (#921).
       #
       # `Swatinem/rust-cache` caches the target directories it is TOLD
       # about, and its default is one: `./target`. The rustdoc gate below
-      # used to document SEVEN cargo roots here — the workspace plus the
-      # six the workspace excludes — and each of those six builds into a
-      # target directory of its own. Every one of them therefore compiled
-      # from nothing on EVERY run of this job, `demos/tour` and
-      # `demos/wild` rebuilding the whole kernel each time, while the
-      # workspace pass ran against a warm graph. F6 fixed that by telling
-      # the cache about all seven.
+      # documents EVERY cargo root — the workspace plus the ones it
+      # excludes — and each excluded root builds into a target directory
+      # of its own. Every one of them therefore compiled from nothing on
+      # EVERY run of this job, `demos/tour` and `demos/wild` rebuilding
+      # the whole kernel each time, while the workspace pass ran against a
+      # warm graph. F6 fixed that by telling the cache about all of them.
       #
-      # THIS JOB NOW DOCUMENTS ONE, so `--print-roots` under `--pr` prints
-      # one and this input names one. The six excluded roots moved to the
-      # nightly with the pass that reads them; caching them here would
-      # restore and re-save target directories no step in this job writes.
+      # NO COUNT IS WRITTEN HERE, and that is deliberate: this paragraph
+      # said "six" and "seven" for as long as there were six, and went on
+      # saying it after `tools/tess-meter` made it seven. The list is
+      # `scripts/doc-gate.sh --print-roots` and nowhere else.
       # The derivation is unchanged and still comes from the gate, so the
       # cache's scope cannot drift from the passes that run — which is the
       # whole point of asking rather than listing.
@@ -1598,7 +1729,7 @@ jobs:
         # diagnosis. The assignment fails under `bash -e` before
         # anything is appended.
         run: |
-          roots=$(scripts/doc-gate.sh --print-roots --pr)
+          roots=$(scripts/doc-gate.sh --print-roots)
           {
             echo 'roots<<DOC_GATE_ROOTS'
             printf '%s\n' "$roots"
@@ -1625,50 +1756,16 @@ jobs:
       # command and the flags live in scripts/doc-gate.sh — one
       # implementation, called from here and from
       # local-scripts/ci-local.sh, the ci-filter.py arrangement.
-      # SCOPED, AND ONLY THE WORKSPACE PASS RUNS HERE (S-TCOST C2, Ev's
-      # approval in chat 2026-09-03). This step used to be the whole gate:
-      # the workspace pass, one `--no-deps` pass per cargo root the
+      # THE WHOLE GATE RUNS HERE, UNSCOPED — all three passes over every
+      # cargo root this repository tracks: the WORKSPACE at
+      # `--all-features`, one `--no-deps` pass per cargo root the
       # workspace excludes, and a `--no-default-features` re-read of every
-      # root carrying a `not(feature)` half. Passes 2 and 3 are now
-      # nightly.yml's `rustdoc (gate, every root)`, ungated, once a day,
-      # and this row runs `--pr`.
-      #
-      # WHY THAT IS SOUND, and it is the persistence case:
-      # docs/CI-MINUTES-2026-08.md §*What is NOT sampled, and the rule*
-      # licenses a cadence for a detector whose subject PERSISTS in the
-      # tree, and forbids one for a detector of ABSENCE. A broken
-      # intra-doc link, a doc comment that stopped rendering, a
-      # `not(feature)` half that no longer compiles: every one of them
-      # stays broken in the tree until someone fixes it, so tonight's run
-      # finds what this row would have found today. Nothing in passes 2
-      # and 3 detects an absence — the derivations that WOULD (the two
-      # readers, and the root list itself, which is exactly the "a root
-      # fell out of coverage and nothing said so" shape the gate's header
-      # argues about) moved WITH the passes and run in full every night,
-      # over the same tree. The residue is attribution: a break lands on
-      # the night's merges rather than on the PR that wrote it, and
-      # nightly.yml's `ref` dispatch input and the local gate — which
-      # still runs every pass over every root — are the handles for that.
-      #
-      # AND THE WORKSPACE PASS IS SCOPED to the change filter's closure
-      # when the tier is `closure`, the way `build` scopes, so a PR that
-      # touches one crate documents that crate and its dependents rather
-      # than the whole workspace. `cargo_scope` is `--workspace` on tier
-      # `all`, which is the fail-open direction every signal here takes.
-      #
-      # THAT SCOPING IS A SECOND DEMOTION AND IS ARGUED AS ONE, per row,
-      # rather than riding the argument above. What it gives up is a
-      # workspace MEMBER outside the closure: its prose is read on a PR
-      # run by nothing, and by the nightly alone. Two things bound it.
-      # A member whose OWN sources changed is a seed, so it is in its own
-      # closure by construction — what is skipped is a member nothing in
-      # the diff touches or depends on. And the break a doc link most
-      # often takes is a RENAMED or DELETED item, where the crate holding
-      # the link is by definition a dependent of the crate that renamed
-      # it, which is exactly what `cargo_scope` selects. What escapes is
-      # a link broken by an edit to prose in an unrelated member, and
-      # that is the ordinary persistence case: it stays broken until
-      # someone fixes it, and the nightly reads every member every night.
+      # root carrying a `#[cfg(not(feature = …))]` half, which no feature
+      # selection above it can compile. It is a tree-wide ratchet over a
+      # derived root set, so it reads no closure: a doc link is broken by
+      # an edit anywhere, and the crate holding the link need not be a
+      # dependent of the crate that moved. The gate still respects the
+      # docs tier, via this job's `run_build`.
       #
       # THE `--selftest` LINE IS PART OF THE GATE, not a nicety: the
       # script's `-D warnings`, its `--document-private-items`, its
@@ -1686,24 +1783,29 @@ jobs:
       # two findings into one. `!cancelled()` rather than `always()` so
       # a cancelled run still stops here.
       # `--skip-viewer-toolkit` when the change filter's seeds do not buy
-      # the GUI toolkit rows (Ev's viewer-CI-posture ruling,
-      # docs/GUI-LOG.md 2026-08-27). It takes `viewer` out of the
+      # the GUI toolkit rows (Ev's viewer-CI-posture ruling, 2026-08-27,
+      # in the closed GUI program's log, which left the tracker with that
+      # program's directory in DOC-LEDGER sweep 5 and reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
+      # It takes `viewer` out of the
       # --all-features pass and puts it back at DEFAULT features, so its
       # renderer-free modules are gated on every run and only the
       # `app`-gated ones — the ones that drag ~140 eframe/wgpu crates
       # into a rustdoc pass — are skipped. The verdict is printed by the
       # step below, never left to be inferred from a green job name.
+      # THE RULING'S SECOND CLAUSE TRAVELS WITH THE SKIP, so it is named
+      # here too: what this pass stops documenting is re-taken ungated,
+      # once a day, by nightly.yml's `rustdoc (viewer, all features)` row
+      # in the `viewer-toolkit` job. A row that takes the skip without the
+      # re-take is not applying the ruling — it is giving the coverage up.
       - name: rustdoc (gate)
         if: '!cancelled()'
         run: |
           scripts/doc-gate.sh --selftest
-          echo 'PR mode: the workspace pass only, over ${{ needs.filter.outputs.cargo_scope }}.'
-          echo 'The excluded roots and the --no-default-features pass are re-taken ungated by'
-          echo "nightly.yml's \`rustdoc (gate, every root)\` job — see this step's comment."
           if [ '${{ needs.filter.outputs.run_viewer_toolkit }}' = 'true' ]; then
-            scripts/doc-gate.sh --pr --scope '${{ needs.filter.outputs.cargo_scope }}'
+            scripts/doc-gate.sh
           else
-            scripts/doc-gate.sh --pr --scope '${{ needs.filter.outputs.cargo_scope }}' --skip-viewer-toolkit
+            scripts/doc-gate.sh --skip-viewer-toolkit
           fi
       # THIS JOB'S TOOLKIT ROWS, IN AN EVERY-LANE SEAT.
       #
@@ -1732,6 +1834,8 @@ jobs:
             echo 'RUN: the app-feature clippy row below compiles the eframe/wgpu graph.'
             echo 'RUN: the app-feature TEST row below executes the `app`-gated rows —'
             echo '     the chrome suites and the viewport pipeline-creation smoke row.'
+            echo 'RUN: the wasm32 viewer row at the end of this job compiles the browser'
+            echo '     entry point — the cfg(target_family = "wasm") arms no host row builds.'
           else
             echo 'SKIP: no seed in {viewer, pncad, bvh} — the eframe/wgpu graph is not compiled on this run.'
             echo 'SKIP: viewer was documented at DEFAULT features and its app-feature clippy row did not run.'
@@ -1739,6 +1843,11 @@ jobs:
             echo '     or the viewport pipeline-creation smoke row on this run. The archive'
             echo '     lane builds viewer at default features and reports that in its own'
             echo '     output, by name: the `app_lane_skipped_*` rows.'
+            echo 'SKIP: the wasm32 viewer row did not run, so the browser entry point —'
+            echo '     `run_web` and its cfg(target_family = "wasm") arms — was compiled by'
+            echo '     NOTHING on this run. No other row in this workflow builds it. A diff'
+            echo '     that could break it seeds viewer or classifies TIER=all, either of'
+            echo '     which turns this axis true — see that row for the full argument.'
             echo 'The nightly lane re-takes both ungated; viewer default-feature rows still ran in the closure.'
           fi
       # Sited here rather than in `clippy` so no lane gate can take it away
@@ -1802,12 +1911,23 @@ jobs:
       # NAME in the archive legs' PASS list instead.
       #
       # Mirror: local-scripts/ci-local.sh's toolkit rows.
+      #
+      # THROUGH scripts/apt-install.sh, which is where the whole argument
+      # lives — what it narrows, why, the two timeout guards and the
+      # arithmetic between them. `exec` so the runner's cancel and this
+      # step's `timeout-minutes` reach the process holding the restore
+      # trap, rather than a step shell that dies leaving the script
+      # orphaned. `timeout-minutes: 8` is the bound that script's header
+      # derives; every one of its callers sets the same one.
       - name: install a software Vulkan adapter (lavapipe)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools
-          vulkaninfo --summary
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh --no-install-recommends mesa-vulkan-drivers vulkan-tools
+      # Its own step because the install `exec`s: this prints WHICH adapter
+      # the row below will land on, before that row runs.
+      - name: name the Vulkan adapter this row will use
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: vulkaninfo --summary
       - name: install cargo-nextest (pinned, official prebuilt)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
         uses: ./.github/actions/install-nextest
@@ -1892,10 +2012,16 @@ jobs:
       # dev-dependency of a path dependency and never enters either.)
       #
       # WHAT IS NOW UNGUARDED, stated because §Q6's whole subject is
-      # claims nothing re-takes: the `pncad`/`pncad-py` façade under
-      # `--cfg getrandom_backend="wasm_js"`. GQ6-RESURVEY §4's third table
-      # row and its "verified fix" paragraph are a one-time reading again,
-      # and §4 now says so at the row. Same ruling, same reason.
+      # claims nothing re-takes: `pncad-py` at wasm32. `pncad` was in this
+      # sentence too until the viewer row at the end of this job landed —
+      # `viewer` depends on the façade, so on every axis-true run that row
+      # compiles `pncad` for this target inside the viewer's feature
+      # unification, which is where the `getrandom` wasm backend is
+      # selected. That is a CONDITIONAL guard on a row this one is not
+      # allowed to assume ran; what it is not is the nothing this
+      # paragraph used to describe. GQ6-RESURVEY §4's third table row and
+      # its "verified fix" paragraph are a one-time reading again, and §4
+      # now says so at the row. Same ruling, same reason.
       #
       # SITED IN THIS JOB, not in one of its own (Ev's earlier
       # constraint: the guard must not add runner time). Actions bills PER
@@ -1963,7 +2089,7 @@ jobs:
       #
       # Target install goes through `rustup target add` rather than the
       # toolchain action's `targets:` input on purpose: rust-toolchain.toml
-      # pins 1.97.0, and `rustup` resolves that directory override, so the
+      # pins the channel, and `rustup` resolves that directory override, so the
       # std artifacts land on the toolchain cargo will actually use.
       #
       # `!cancelled()` on both, for this job's stated reason: a formatting
@@ -1975,11 +2101,150 @@ jobs:
       # `viewer` is excluded for the SAME reason `pncad` is — it depends
       # on `pncad`, so a leg that excludes the façade cannot include a
       # crate sitting on top of it. GUI-5 owns the real wasm lane for
-      # the GUI (docs/GUI-PLAN.md's unit list); this guard's subject is
-      # the kernel plus `editor-core`, and it stays that.
+      # the GUI (the closed GUI program's unit list, which left the
+      # tracker with that program's directory in DOC-LEDGER sweep 5 and
+      # reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/plan.md`);
+      # this guard's subject is
+      # the kernel plus `editor-core`, and it stays that. What the
+      # exclusion leaves uncompiled is picked up by the seed-keyed viewer
+      # row below rather than by widening this one.
       - name: wasm32 check (kernel + editor-core, --features interval)
         if: '!cancelled()'
         run: cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --features interval --target wasm32-unknown-unknown
+
+      # THE VIEWER'S OWN WASM ROW, AND WHY THE EXCLUSION ABOVE IS NOT A
+      # HOLE ANY MORE.
+      #
+      # The browser entry point — `viewer::app::run_web`, the
+      # `WebStartupError` enum and every `cfg(target_family = "wasm")`
+      # arm around them — is compiled by NO row above. The workspace row
+      # excludes `viewer`; every other viewer row in this job builds the
+      # HOST target, where those arms are `cfg`-ed out. So the block was
+      # source that no CI target compiled, and a text-driven sweep over
+      # this crate edited code the compiler never saw: PR 1741 shipped
+      # `error.to_string()` on `WebRunner::start`'s `JsValue`, which
+      # implements `Debug` and no `Display`, and that PR was green.
+      #
+      # SEED-KEYED, NOT FLAT, per Ev's viewer-CI-posture ruling
+      # (2026-08-27): the eframe/wgpu graph is not a bill every kernel
+      # change pays. This row reads the same `run_viewer_toolkit` axis
+      # the three rows above read, so it fires exactly when they do —
+      # when the seeds intersect {viewer, pncad, bvh}, or the tier is
+      # unscopable — and the verdict step above names it in both
+      # branches, because a green job name over a silent skip is the
+      # thing that ruling forbade.
+      #
+      # WHAT THE AXIS CAN ACTUALLY TAKE AWAY FROM THIS ROW IS ALMOST
+      # NOTHING, and that is worth writing down rather than leaving to
+      # be re-derived, because it is what makes the seed key sufficient
+      # here where the three rows above needed a nightly re-take. The
+      # code this row is the only compiler of lives in
+      # `crates/viewer/src/`, so a change to it SEEDS `viewer` and the
+      # axis is true. A dependency bump is a Cargo.toml or Cargo.lock
+      # edit, which is not an `_is_docs` path, so it classifies TIER=all
+      # and the axis is true. What is left is a wasm-specific break
+      # introduced in a crate `viewer` depends on but which is not in
+      # {viewer, pncad, bvh} — and every such crate is a member the
+      # workspace wasm row above already compiles for this target, since
+      # that row excludes only `pncad`, `pncad-py` and `viewer`. So the
+      # skipped case is a break that is simultaneously wasm-specific,
+      # outside the seed set, and outside a row that just compiled the
+      # same crate for the same target. That is not a hole this row is
+      # deferring to a nightly; it is the empty set for a BREAK at this
+      # dependency shape, and it stops being empty the day `viewer` grows
+      # an edge on a crate the workspace row excludes. FOR A LINT IT IS
+      # NOT EMPTY NOW: the row it leans on denies nothing, so a lint in a
+      # non-seed crate's wasm arm is caught here alone and the axis can
+      # take it away — a property of that row's spelling, held with the
+      # crates it excludes in
+      # `work/ciw/kernel-wasm-row-denies-no-warnings.md`.
+      #
+      # WHAT IT COSTS, AND WHY NOTHING HERE IS A BUDGET. One lint pass
+      # over the toolkit graph at a SECOND target; no other row in this
+      # job shares artefacts with it, since they are all host-target.
+      # BIMODAL across runs — `rust-cache` restores this target's
+      # artefacts often enough that both a cold build and a restore are
+      # common — so neither mode is the figure. MEASURED, hosted
+      # (ubuntu-latest, the 4 vCPU public-repo runner this file's header
+      # derives from the provenance step): 17, 43, 43 and 55 s over four
+      # consecutive pushes to one branch, runs 34559116872, 34556713442,
+      # 34560366278, 34557952266. Locally, from an empty
+      # CARGO_TARGET_DIR on 4 vCPU, 65 s — so the 17 s cannot be a cold
+      # build. A JOB-level delta is not quotable at all: this job's own
+      # baseline swings wider than the step (`rustdoc (gate)` alone
+      # moved 106-126 s across four readings), so a before/after pair
+      # measures that noise. Take a cost from here against a
+      # distribution, never a pair, and RE-TAKE IT with the step's own
+      # command below.
+      #
+      # It buys nothing when the axis is false, which is why it is on
+      # the axis rather than beside the row above.
+      #
+      # `--features app` IS THE LOAD-BEARING HALF and must not be dropped
+      # for speed: `run_web` lives behind that non-default feature, so a
+      # default-features `-p viewer` wasm row passes over the very defect
+      # this exists to catch. Measured both ways on the 1741 revert.
+      #
+      # RUSTFLAGS, AND WHAT IT IS AND IS NOT DOING — measured at this
+      # lockfile rather than inherited, because the repo's prose about it
+      # was stale in three places when this row was written. `getrandom`
+      # refuses to build for wasm32-unknown-unknown until a backend is
+      # selected. THE FEATURE ALONE NOW SELECTS ONE: at the `getrandom`
+      # this tree pins, the final wasm32 arm of `src/backends.rs` takes
+      # `mod wasm_js` under `cfg(feature = "wasm_js")`, and the
+      # `compile_error!` whose text still reads *"enabling the `wasm_js`
+      # feature flag alone is insufficient"* sits in that arm's ELSE. So
+      # `viewer`'s `cfg(target_arch = "wasm32")` stanza is what makes this
+      # build work, and this row was verified green with the cfg dropped.
+      #
+      # IT STAYS ANYWAY, for two reasons that are not "it might be
+      # needed": the row's subject is the build
+      # `local-scripts/serve-wasm.sh` performs, and guarding a recipe with
+      # a different command is how a guard drifts off its claim; and
+      # getrandom's own diagnostic still asserts the flag is required, so
+      # the day that arm changes back this row must not be the thing that
+      # discovers it. It costs nothing and it is not load-bearing — do not
+      # write that it is.
+      #
+      # Scoped to the command, not exported and not an `env:` key, because
+      # RUSTFLAGS silently REPLACES any .cargo/config.toml rustflags; the
+      # repo sets none today, so scoping costs nothing and a future entry
+      # is not quietly dropped. Same spelling as serve-wasm.sh's build.
+      #
+      # `-D warnings`, THROUGH CLIPPY: the deny every other viewer row
+      # carries — `clippy (viewer app feature - eframe + wgpu)` in this
+      # same job is the host-target sibling — at the one target nothing
+      # else lints. THE VERDICT IS WIDER THAN `viewer`, which is why the
+      # name says so: `-p` scopes what is BUILT, and cargo caps lints on
+      # registry crates only, so every workspace crate in the graph is
+      # denied here too, clippy's own lints included; the crate named in
+      # a red log is the one to go to.
+      # `RUSTFLAGS='-Dwarnings …' cargo check` denies the same set minus
+      # clippy's lints, at the same cost, which is why this is the
+      # spelling. RE-TAKE THAT against the step below and
+      #
+      #   RUSTFLAGS='-Dwarnings --cfg getrandom_backend="wasm_js"' \
+      #     cargo check -p viewer --features app \
+      #       --target wasm32-unknown-unknown
+      #
+      # planting a `dead_code` item, and then a clippy-only lint, in a
+      # path dependency such as `editor-core`: the first reds both, the
+      # second reds this row alone.
+      #
+      # NO `--all-targets`, and that is not the sibling row's spelling
+      # dropped by accident. Two independent causes, either alone
+      # sufficient: `crates/viewer`'s tests and examples import
+      # `ThreadEvaluator` and `prefs::file`, which `src/lib.rs` and
+      # `src/prefs.rs` gate on `cfg(not(target_family = "wasm"))`, so
+      # building them here ends in E0432 for a reason that has nothing to
+      # do with lints.
+      #
+      # Mirror: local-scripts/ci-local.sh's `wasm32 clippy (viewer app + deps)`.
+      - name: wasm32 clippy (viewer app feature + its workspace deps - the browser entry point)
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: |
+          RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo clippy -p viewer --features app --target wasm32-unknown-unknown -- -D warnings
 
   clippy:
     name: clippy
@@ -2016,7 +2281,11 @@ jobs:
       # `viewer`'s `app` feature (eframe + wgpu + naga + winit) is ~140
       # crates that no other row in this workflow needs. It is not a
       # default feature, and per Ev's viewer-CI-posture ruling
-      # (docs/GUI-LOG.md, 2026-08-27) the rows that compile it run only
+      # (2026-08-27, in the closed GUI program's log, which left the
+      # tracker with that program's directory in DOC-LEDGER sweep 5 and
+      # reads at
+      # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`)
+      # the rows that compile it run only
       # when the change filter's SEEDS intersect {viewer, pncad, bvh} —
       # seed-keyed, NOT closure-keyed, because `pncad` re-exports the
       # kernel and is therefore in nearly every change's closure while
@@ -2186,6 +2455,26 @@ jobs:
             echo '      Every other workspace member is linted at --all-features below.'
             cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
           fi
+
+      # THE SCALPEL, EXERCISED. D1's whole-body tier-1 postcondition
+      # runs once per public door; `topo/per-op-postcondition` puts it
+      # back after every operator, and it is the only way a door-level
+      # failure is localized to the operator that caused it
+      # (work/perf/d1-per-op-tier1-sweep-price, Ev, PR 2305). A scalpel
+      # nothing runs is a scalpel nobody knows is blunt: the two-arm
+      # corruption row asserts the OPERATOR's name in the panic under
+      # this feature and the DOOR's without it, so the arm below is the
+      # only place the first half is ever taken.
+      #
+      # It rides this job because this job already compiles the
+      # workspace with the feature on (`--all-features` includes it),
+      # so the marginal cost is the test binary's link and a handful of
+      # rows. Plain `cargo test`, not nextest: this job installs no
+      # extra tooling and one filtered module does not need a runner.
+      - name: the per-op postcondition scalpel (topo)
+        run: |
+          cargo test -p topo --lib --features topo/per-op-postcondition -- \
+            --nocapture surgery::tests::
 
   # ============================================================
   # CACHE PRIMING — the two jobs below are the ONLY compiling jobs on the
@@ -2404,7 +2693,10 @@ jobs:
     #   billed                  ~137m  ->  ~72m    (-65 min)
     #
     # The compile penalty is WORSE hosted than locally (4.58x vs 3.24x) —
-    # 2 vCPU parallelises opt-2 codegen badly — and the execution win is
+    # the 2-vCPU runner these were taken on parallelised opt-2 codegen
+    # badly, and nothing has re-taken them on the 4-vCPU public-repo
+    # runner that replaced it, so the RATIO is the stale half here — and
+    # the execution win is
     # much BETTER (7.1x vs the 2.29x measured locally, which was taken on
     # a box with an express-lane job running alongside it and is therefore
     # pessimistic). Both errors happened to point the same way; the trade
@@ -2520,7 +2812,12 @@ jobs:
     #
     # THE HONEST CAVEAT, AND IT IS THE SAME ONE THIS NOTE HAS MADE TWICE
     # ALREADY: that sweep was taken on a 4-core AVX-512 guest, the same class
-    # as the census box and NOT this 2-vCPU runner. A ratio does not transfer
+    # as the census box and NOT the 2-vCPU runner the figures above came from.
+    # (That runner is gone — this repo went public and the standard runner is
+    # 4 vCPU / 16 GB, per this file's header. The caveat did not go with it:
+    # nothing below has been re-taken on the runner of today, so the sweep and
+    # the gate figures are still two machines apart, just different ones.)
+    # A ratio does not transfer
     # between machines — the figures above are themselves a demonstration
     # (3.24x local against 4.58x hosted; 2.29x local against 7.1x hosted). So
     # this flip is made on evidence from a box the calibration lane explicitly
@@ -2722,24 +3019,64 @@ jobs:
       # / k-lint) now select by `--test all -- <module>::` or by a nextest
       # `test(/^<module>::/)` expression, verified to match the old
       # per-binary test counts exactly.
-      # SHARDING SURVIVES THE ε CUT, and the arithmetic is the reason —
-      # the August audit's F2 declined this exact merge for the default
-      # legs and the ε cut does not reverse it. From the figures in
-      # docs/CI-MINUTES-2026-08.md (F2): the two shards are ~10 s setup +
-      # 63 s and 56 s of execution, so 2 billed minutes each; merged they
-      # are ~139 s, which is 3. That is ONE billed minute saved for ~66 s
-      # of added latency on a leg that sits directly behind a build job on
-      # the critical path. One minute of a ~60-minute run against ~9% of its
-      # wall clock is the wrong side of the trade, and it is worse on the
-      # interval lane (see that job).
       #
-      # BOTH BUILDS RUN AGAIN (2026-09-04), which only strengthens this:
-      # these legs sit behind the FASTER of the two archives. On run
-      # 33848247472 — a `lane=both` run, the shape every run now has — they
-      # finished at t+416 s against the interval legs' t+516 s, so the
-      # latency a merge would add would be spent where nothing waits on it.
-      # Nothing about a run's total job time changes either way: merging two
-      # shards trades two jobs for one longer one, once per eps row.
+      # WHY THE COUNT IS 2 — RE-MEASURED ON WALL CLOCK (2026-09-12).
+      # The argument that stood here was arithmetic in BILLED ACTIONS
+      # MINUTES, and that currency stopped existing when this
+      # repository went public on 2026-09-03, so the knob was
+      # re-measured rather than re-argued: four shard counts (2, 3, 4,
+      # 6), three full code-tier runs each, twelve runs, 270 test legs.
+      #
+      # THE FIGURES ARE NOT RESTATED HERE. They live once, on
+      # `work/tcost/one-test-is-the-whole-ci-critical-path` — the row
+      # that owns the finding and that outlives this program's tracker
+      # — with the per-run readings and the method behind them on
+      # `work/tcost/nextest-shard-count-needs-remeasure`. A fifth copy
+      # is the defect and not the fix, the same rule the render gate's
+      # note below states about the critical-path figure: the triple
+      # this paragraph would restate stood in five places on the day it
+      # was written, and three of them already disagreed.
+      #
+      # WHAT IT SAYS. More shards DO cut these three eps legs, cleanly
+      # and monotonically, until the per-leg fixed cost eats the gain
+      # at N=6. The cut reaches nothing: a RUN's wall is the MAXIMUM
+      # over its legs, not their sum, and the interval lane's
+      # ε = 1e-12 leg runs several times longer than any leg here, in
+      # every one of the twelve runs, at every count. Cutting one of
+      # these legs while that one decides the run buys a contributor
+      # nothing, and it pays the fixed cost again per added leg and
+      # doubles the job list a reader scans.
+      #
+      # THAT LAST SENTENCE HAS ONE EXCEPTION AND IT IS REACHABLE. A
+      # `workflow_dispatch` with `lane: default` skips `test-interval`
+      # outright (its `if` reads `lane != 'default'`), so on that run
+      # there is no interval leg and THESE legs are the wall — a cut
+      # here would be a cut a contributor feels. It does not move the
+      # count, because the gate's own runs draw both lanes and one
+      # literal serves both run shapes; it is stated because an
+      # unconditional "buys a contributor nothing" is false on a shape
+      # this file's own dispatch header offers.
+      #
+      # SO THE COUNT IS NOT THE LEVER, AND WHAT IS ONE IS FILED:
+      # `work/tcost/one-test-is-the-whole-ci-critical-path`. Re-open
+      # the count when that row is fixed, not before — while one test
+      # is most of the slowest leg, no partition of the rest can move
+      # it. NOTHING GOES RED WHEN THAT STOPS BEING TRUE: no register
+      # re-takes the ε = 1e-12 leg or that test (nightly.yml's
+      # opt-level lane does commit durations, but at an empty
+      # `tolerance_eps` and as one whole-arm total), and the full
+      # reason it can have neither guard nor register is on the row.
+      # The count is also PROSE here, which is the class
+      # `work/ciw/eps-klint-and-shard-counts-are-prose` holds.
+      #
+      # BOTH BUILDS RUN AGAIN (2026-09-04), and it is a second reason
+      # THESE legs are not the ones to watch: they sit behind the
+      # FASTER of the two archives. On run 33848247472 — a `lane=both`
+      # run, the shape every run now has — they finished at t+416 s
+      # against the interval legs' t+516 s. Merging a row back to ONE
+      # leg is a different knob, and this measurement does not reach
+      # it: it read counts 2, 3, 4 and 6, and not 1. That knob is site 2
+      # of `work/ciw/billed-minute-arguments-survive-across-ci-yml`.
       matrix:
         shard: [1, 2]
         eps: ${{ fromJSON(needs.filter.outputs.eps_rows) }}
@@ -2776,7 +3113,7 @@ jobs:
       # `default` leg — see the matrix comment on why not `env:`).
       #
       # `--no-fail-fast`, AND THE RUN SAYS SO (#1128). nextest's default is
-      # fail-fast — measured against the pinned 0.9.140, not inferred. The
+      # fail-fast — measured against cargo-nextest 0.9.140, not inferred. The
       # measurement, reproducible as written: a six-test crate with two
       # planted failures, run `--test-threads 1`, reports
       # `Cancelling due to test failure`, `1/6 tests run: 0 passed, 1 failed`
@@ -2968,37 +3305,140 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # THE `corrupt input (release profile)` JOB STOOD HERE, AND HAS MOVED TO
-  # .github/workflows/nightly.yml (Ev, 2026-09-03; S-TCOST unit C1). It is
-  # a PERSISTENCE-detector, and the demotion was argued against
-  # docs/CI-MINUTES-2026-08.md §*What is NOT sampled, and the rule* row by
-  # row rather than by inheriting another job's licence:
+  # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
+  # tier-1-INVALID bodies to the Euler operators and are written about
+  # RELEASE semantics; the archive matrix above is the dev profile at
+  # opt-1 with debug-assertions ON, so it cannot be what runs them.
+  # `review_m1_pr2::release_corruption` splits its expectations on
+  # `cfg(debug_assertions)` outright, so no single profile covers the
+  # file; `review_m1_pr4`'s section 9 ("Release-mode garbage-in") is not
+  # cfg-split and is named for a profile only this job supplies.
   #
-  #   * The three profile-independent-but-release-named rows
-  #     (`garbage_in_garbage_out_release`,
-  #     `large_torn_body_terminates_quickly`,
-  #     `kill_ops_survive_torn_bodies_without_panicking`) assert on a body
-  #     the operators produce. A wrong body stays wrong until someone
-  #     changes the code, so a later run of the row still finds it.
-  #   * `review_d18`'s two `cfg(not(debug_assertions))` hammer rows run in
-  #     NO other lane, which is the case that looks like an absence
-  #     detector and is not one: what they detect is a row-4 `unreachable!`
-  #     becoming input-reachable, i.e. a property of the tree's code, which
-  #     persists exactly as the rows above do. The thing that WOULD be an
-  #     absence — those rows silently ceasing to be compiled or selected —
-  #     is caught by the count guard and the five name greps, which moved
-  #     with the job and still run every night.
-  #   * The two suite-header greps are absence detectors about the job's own
-  #     NAME, and they are unaffected by a cadence: they read source files,
-  #     not a test result, and a rename that falsified them stays false
-  #     until fixed.
+  # WHAT IT BUYS, stated against the ratified text rather than against
+  # the code's current behaviour, because those have diverged:
   #
-  # −2 billed minutes per code-tier PR run whose closure holds `topo` (89 of
-  # the last 128 first-parent merges), against ~2 a night. `run_topo_release`
-  # still has a consumer — `local-scripts/ci-local.sh` runs the row on every
-  # local gate, where nothing is billed by the minute — so the filter's
-  # plumbing for it stays and the local half is now the only lane that runs
-  # these suites on a PR's tree.
+  #   * BOUNDED TRAVERSAL. DESIGN.md's D9 footnote, as amended by the D2
+  #     addendum, keeps exactly one clause of the old corrupt-input
+  #     disposition: "The bounded-traversal half stands: never a hang;
+  #     every traversal is bounded." That is
+  #     `large_torn_body_terminates_quickly`, which attacks 3000 struts
+  #     here and 500 under debug-assertions (where the per-op
+  #     postcondition sweep makes the construction loop quadratic). The
+  #     case this job sees is six times larger than the matrix's, and the
+  #     clause it defends is not superseded by anything.
+  #   * THE ROW-4 ARMS ARE NOT INPUT-REACHABLE, which is the clause the
+  #     whole D2 addendum rests on and the only one with an executable
+  #     test. `review_d18`'s two hammer rows drive every operator that
+  #     reaches `link_half_edges` over randomly torn bodies and over a
+  #     genuinely spent graft destination, counting mutation-phase
+  #     completions. They are release-only BY CONSTRUCTION, not by
+  #     preference: in debug a torn body may legitimately panic at the
+  #     postcondition, so telling that apart from a row-4 arm needs a
+  #     process-global panic hook, which races the threaded matrix. With
+  #     the postcondition compiled out, any panic IS a row-4 arm. So this
+  #     job is the only lane in which those rows mean anything, and the
+  #     only lane that runs them at all.
+  #   * COMPILE ROT, which is a PROFILE-level hazard and independent of
+  #     what any row asserts: a `#[cfg(not(debug_assertions))]` item that
+  #     no CI job ever type-checks can rot into a build error with every
+  #     check green, because clippy and the matrix are both debug passes.
+  #     `foreign_parent_loop_garbage_in_garbage_out_release` and the
+  #     `use crate::validate;` it needs are exactly that shape.
+  #
+  # WHAT IT DOES NOT BUY: it does not certify silent discard, and that
+  # distinction is why it survived **W2c**. D9's ratified corrupt-input
+  # disposition allowed "documented garbage-out in release" until the
+  # **D2 addendum** (2026-08-19) superseded that half with "Silent
+  # discard is never an answer"; W2c executed the addendum across
+  # `euler{,_ring,_kill}.rs`, `link_half_edges` and its two unproven
+  # callers included, so no write there swallows a failed lookup any
+  # more. `foreign_parent_loop_garbage_in_garbage_out_release` passes
+  # unchanged across that conversion because the `parent_loop` it plants
+  # is LIVE BUT WRONG: no lookup fails, every write lands, and what the
+  # row observes is wrong DATA, never a swallowed failure. That is the
+  # residue the addendum deliberately leaves standing — corruption a
+  # plan phase cannot observe still yields `Ok` plus a body the
+  # validator refuses — and it is what the row records. The three greps
+  # below are unchanged for the same reason: the conversion renamed and
+  # retired nothing here.
+  #
+  # The other rows in the file are profile-independent — `pillow()` runs
+  # three SUCCESSFUL operators, so they do fire the debug postcondition
+  # during setup, but the operator each one asserts on fails a
+  # precondition and returns before its mutation phase, so no
+  # postcondition runs over the asserted call and the expectation is the
+  # same in both profiles. `debug_postcondition_fires_on_corrupt_input`
+  # is `#[cfg(debug_assertions)]` and belongs to the matrix above.
+  #
+  # SCOPED to one crate's lib unittests, deliberately, not a release
+  # build of the workspace: `-p topo --lib` compiles topo's closure plus
+  # its dev-dependencies and links one binary. The rows execute in
+  # milliseconds — the compile IS the cost of this job, and that cost is
+  # ~93 s on a cold cache. It is a PARALLEL job hanging off `filter`,
+  # not a link in the `build` -> `test` chain that sets this run's wall
+  # clock, so a contributor waits on it for zero seconds; the scoping is
+  # what keeps it that way and is the shape the next reader needs.
+  release-corruption:
+    name: corrupt input (release profile)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: github.event_name != 'push' && needs.filter.outputs.run_topo_release == 'true'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # STRUCTURAL — see the full note on the `filter` job above.
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      # Its own cache key: release artifacts share no fingerprint with
+      # the dev-profile jobs, so one shared entry would only thrash.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: topo-release
+      - name: corrupt-input suites, release profile
+        # DEBUG ASSERTIONS OFF, EXPLICITLY — this job's whole subject is
+        # the posture that SHIPS, and the shipping posture is
+        # debug-assertions off (`DESIGN.md`, "Before publishing"). The
+        # root `[profile.release]` turns them ON as a development
+        # measure, which would compile the three `cfg(not(debug_assertions))`
+        # rows below OUT of the only lane that runs them — silently
+        # deleting the coverage this job exists to provide. The count
+        # guard caught exactly that. Pinned here rather than inherited,
+        # so the job states which posture it tests instead of depending
+        # on a profile default that has now changed once.
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"
+        run: |
+          set -o pipefail
+          cargo test --release -p topo --lib -- \
+            review_m1_pr2::release_corruption \
+            review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
+            review_d18 \
+            | tee release-corruption.log
+          # A name filter that matches NOTHING exits 0 — the exact
+          # silence this job exists to remove. So assert the selection is
+          # non-empty AND name the rows the job is justified by: delete
+          # or rename one and this reds, rather than quietly returning to
+          # zero coverage.
+          passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' release-corruption.log)
+          echo "release-profile rows run: ${passed:-0}"
+          test "${passed:-0}" -gt 0
+          grep -q 'garbage_in_garbage_out_release \.\.\. ok' release-corruption.log
+          grep -q 'large_torn_body_terminates_quickly \.\.\. ok' release-corruption.log
+          grep -q 'kill_ops_survive_torn_bodies_without_panicking \.\.\. ok' release-corruption.log
+          # `review_d18`'s two hammer rows are `cfg(not(debug_assertions))`
+          # on purpose — in debug a torn body may legitimately panic at the
+          # postcondition, so classifying one needs a process-global hook
+          # that races the matrix; in release the postcondition is compiled
+          # out, so any panic IS a row-4 `unreachable!` and no hook is
+          # needed. This job is therefore the ONLY lane that runs them.
+          grep -q 'torn_bodies_never_reach_a_row_four_unreachable \.\.\. ok' release-corruption.log
+          grep -q 'a_spent_graft_destination_never_reaches_a_row_four_unreachable \.\.\. ok' release-corruption.log
+          # Both suite headers name this job as their mechanism. Nothing
+          # else greps for that name, so renaming the job would leave two
+          # doc comments quietly false; this is what makes it loud.
+          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr2/release_corruption.rs
+          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr4.rs
 
   # BUILD job, interval features — the ONE genuinely different build
   # graph in the matrix. Owns the interval clippy pass and the interval
@@ -3260,16 +3700,33 @@ jobs:
     # runs; the ε rows are the same three the default lane runs, off the same
     # `eps_rows` output, on the interval archive.
     #
-    # The collapse was correct for what this job was then: four legs billing
-    # a minute each to execute 12-20 s of an interval-only selection. At the
-    # FULL suite the numbers are the other lane's, doubled — the
-    # pre-selection interval lane measured 117 s per shard at opt-2 (the OPT
-    # LEVEL note on the default build job, run 31668174443), so ~234 s
-    # unsharded. Unsharded that is 5 billed minutes against 6 for two
-    # shards: the same 1-minute saving the default lane declines, for ~117 s
-    # of added latency on the run's critical path rather than ~66. The
-    # sharding's original premise — "the unsharded leg is the run's slowest"
-    # — is true of this job again.
+    # The collapse was correct for what this job was then: four legs
+    # executing 12-20 s of an interval-only selection. At the FULL suite
+    # this lane holds the run's critical path — its legs are the last
+    # jobs to finish on every code-tier run — so the sharding's original
+    # premise, "the unsharded leg is the run's slowest", is true of this
+    # job again and a merge back to one leg per eps row would add its
+    # whole execution to what a contributor waits for.
+    #
+    # THE COUNT STAYS AT 2 ON A MEASUREMENT, NOT ON A BILLED MINUTE
+    # (2026-09-12). More shards do cut this lane's other two eps rows,
+    # and the cut cannot reach the run's wall, because the ε = 1e-12
+    # row is FLOORED BY A SINGLE TEST — `editor-core::all`'s
+    # `r2_m10_6_probes_interval::` row
+    # `a_tolerance_study_end_to_end_through_the_public_doors`, which is
+    # most of the leg that carries it at that ε and a rounding error at
+    # the other two. A count partition cannot go below its longest
+    # single test, so that row and not this matrix is what a cut to
+    # this lane's critical path has to go through.
+    #
+    # THE FIGURES ARE NOT RESTATED HERE — the row's own wall, the leg's
+    # wall and the share between them live once, on
+    # `work/tcost/one-test-is-the-whole-ci-critical-path`, with the
+    # per-run readings and the method behind them on
+    # `work/tcost/nextest-shard-count-needs-remeasure`. The default
+    # lane's copy of this note says why a further copy is the defect
+    # rather than the fix, and why nothing goes red when the share
+    # stops being true.
     #
     # The union of the two shards is exactly the row: nextest's count
     # partition is applied deterministically within each binary.
@@ -3575,8 +4032,11 @@ jobs:
           grep -q fma /proc/cpuinfo || { echo "NO FMA"; exit 1; }
       # gmp-mpfr-sys needs a C toolchain plus m4; ubuntu-latest carries
       # build-essential but m4 is worth asserting rather than assuming.
+      # Through scripts/apt-install.sh, `exec`'d, at that script's bound —
+      # see its header for both.
       - name: m4 for the gmp build
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq m4
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh m4
       # Depth is nearly free on this lane and that is the whole reason to
       # spend it. The build above is a fixed ~234s; the cases are ~7s at
       # effort 1 (measured hosted, #480) and scale linearly — 8.2x measured
@@ -3663,53 +4123,29 @@ jobs:
   # `python` feature, which only maturin turns on). Its failure still
   # reds the PR — that is the point.
   #
-  # SEED-KEYED, NOT CLOSURE-KEYED (Ev's approval in chat, 2026-09-03;
-  # S-TCOST unit C3), and the argument is at `RUN_PNCAD_PY` in
-  # scripts/ci-filter.py. This job used to be keyed on `pncad-py in the
-  # dependent CLOSURE` — the wheel compiles that crate's whole dependency
-  # graph, the entire façade stack, so the condition read as "something
-  # the wheel compiles moved". It is true of nearly every kernel change,
-  # because `pncad` re-exports the kernel and `pncad-py` sits under it, so
-  # it selected almost nothing while buying a SECOND compile of the kernel
-  # under the non-default `python` feature on almost every code-tier run.
+  # IT RUNS ON EVERY CODE-TIER RUN, and the only gate on it is this
+  # workflow's tier: `run_build`, which is false for a docs-tier change
+  # and true for everything else. There is no seed or closure key,
+  # because there is nothing for one to save. This job needs only
+  # `filter`, so it hangs off the change filter in parallel beside the
+  # serial `build` -> `test` chain that sets the run's wall clock, and it
+  # finishes far inside that chain — a contributor waiting on the gate
+  # waits zero seconds for it. A key that selects almost always and buys
+  # nothing a contributor waits for is a key that only costs attribution:
+  # the run where the suite breaks stops being the run that broke it.
   #
-  # The condition is the change filter's SEEDS — the members whose OWN files
-  # moved — intersecting the members a BUILD OF THE WHEEL COMPILES, which is
-  # `pncad-py`'s non-dev dependency closure, derived from `cargo metadata` by
-  # `scripts/ci-filter.py`'s `pncad_py_seeds` and printed by the classify
-  # step. The .py tests and .pyi stub live under `crates/pncad-py/`, so they
-  # seed that member like any other source.
+  # What it gates is the ONLY execution of `crates/pncad-py/tests/*.py`
+  # any run has, and the only compile of the kernel under the non-default
+  # `python` feature. Nothing else in this file reaches either.
   #
-  # WHICH IS THE OLD CLOSURE CONDITION, RESTORED ON A MEASUREMENT (2026-09-06).
-  # "A seed is under the wheel" and "pncad-py is in the dependent closure of
-  # the seeds" are one statement read from two ends, so this is what C3
-  # withdrew, minus dev edges. C3 withdrew it on cost, and the cost was
-  # re-taken: this job needs only `filter`, so it runs beside the serial
-  # build -> test chain that sets the run's length and finishes far inside it.
-  # It adds ZERO wall clock, which is the currency here — minutes are free on
-  # a public repository. The figures, the sample and what the sample does not
-  # show live in docs/CI-MINUTES-2026-08.md's entry of that date and are not
-  # restated here, so the two cannot drift. A gate that is almost always true
-  # costs nothing when the row it gates is free, and what it buys is the only
-  # execution of `crates/pncad-py/tests/*.py` any run has.
-  #
-  # THE THREE-NAME SET IT REPLACES ({pncad-py, pncad, editor-core}) called a
-  # crate unreachable whenever the façade did not re-export it whole. That is
-  # not what reach means: `bvh::Ray` arrives in Python through
-  # `editor-core`'s `pub use bvh::Ray`, `pncad::select`'s re-export and a
-  # `#[pyclass] Ray` in `crates/pncad-py/src/py/pick.rs` that
-  # `tests/test_picking.py` drives in 37 places.
-  #
-  # WHAT STILL SKIPS IT: `viewer`, which sits OVER the wheel rather than under
-  # it, and `test-utils`, which reaches the binding crate along a dev edge
-  # that `maturin build` does not follow. Both are re-taken daily by
-  # nightly.yml's `python suite (ungated re-take)`, which runs with no filter
-  # at all.
-  #
-  # RECORDED, NEVER SILENT: the verdict is printed by an always-run step
-  # in the `filter` job, with the seeds it was decided from. That siting
-  # is not decoration — a SKIPPED job shows no steps at all, so unlike the
-  # viewer rows there is no seat inside this job from which it could speak.
+  # A CLOSURE KEY WOULD ALSO HAVE BEEN NEARLY VACUOUS, which is worth
+  # saying because it is the shape a reader reaches for: the wheel
+  # compiles `pncad-py`'s whole non-dev dependency graph — the entire
+  # façade stack — so "something the wheel compiles moved" is true of
+  # nearly every kernel change. `bvh::Ray` alone arrives in Python
+  # through `editor-core`'s `pub use bvh::Ray`, `pncad::select`'s
+  # re-export and a `#[pyclass] Ray` in `crates/pncad-py/src/py/pick.rs`
+  # that `tests/test_picking.py` drives in 37 places.
   # Budget: one job, one Python version, no matrix, debug-profile build
   # (release is not required to prove the suite; the D9 bit-exactness
   # pins hold at any opt level — opt never moves rounding, and the
@@ -3722,7 +4158,7 @@ jobs:
     name: python suite (wheel + guide + north-star)
     runs-on: ubuntu-latest
     needs: filter
-    if: github.event_name != 'push' && needs.filter.outputs.run_pncad_py == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -3802,18 +4238,10 @@ jobs:
       # `error: no Python 3.x interpreter found` — and setup-python above
       # is it.
       #
-      # WHAT THE SITING GIVES UP is this job's seed key and its `push`
-      # skip: on a PR whose seeds miss the python-suite seed set the row
-      # does not run. That set is every member a build of the wheel
-      # compiles, derived from `cargo metadata` by `scripts/ci-filter.py`'s
-      # `pncad_py_seeds` and printed by the change filter, so a lint
-      # reaching `src/py/` from anywhere under the wheel — `quantity` and
-      # the whole re-exported kernel included — seeds the axis and is
-      # caught on its own PR. What still seeds nothing is a member above
-      # the wheel (`viewer`), one that reaches it along a dev edge only
-      # (`test-utils`), and a `stable` toolchain bump shipping a new lint;
-      # those wait for nightly.yml's `python suite (ungated re-take)`,
-      # which carries this same step ungated once a day.
+      # WHAT THE SITING GIVES UP is this job's `push` skip: like every
+      # other row in this file it runs on pull requests and not on the
+      # merge. A `stable` toolchain bump shipping a new lint therefore
+      # lands here on whichever pull request next opens, not on the bump.
       - name: clippy (pncad-py, python feature)
         run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: install maturin (pinned, official prebuilt)
@@ -3855,14 +4283,13 @@ jobs:
       # ECHOED, so "the python suite ran N tests" comes off the run
       # rather than being assumed.
       #
-      # THREE COPIES OF THIS GUARD EXIST and that is stated rather than
-      # hidden: here, in nightly.yml's ungated re-take, and in
-      # crates/pncad-py/run-python-tests.sh. There is no one place all
-      # three call — the hosted jobs cannot call that script, which
+      # TWO COPIES OF THIS GUARD EXIST and that is stated rather than
+      # hidden: here and in crates/pncad-py/run-python-tests.sh. There is
+      # no one place both call — this job cannot call that script, which
       # builds through `local-scripts/with-build-slot.sh`, a tree every
       # hosted job deletes at checkout, and stages a cdylib rather than
       # installing a wheel. The lift is filed at
-      # work/issues/python-suite-zero-test-guard-three-copies.md.
+      # work/ciw/python-suite-zero-test-guard-three-copies.md.
       #
       # `Ran N tests` goes to STDERR, so the redirect is load-bearing,
       # and `pipefail` is what keeps python's own exit status from being
@@ -4178,11 +4605,13 @@ jobs:
       # the tour's composed die by replaying committed BYTES, because
       # `demos/tour` is a detached workspace the kernel must not depend
       # on. Bytes go stale silently; this step is why these ones cannot.
-      # It regenerates through the tour's own door and diffs — the same
-      # closure `crates/pncad-py/tests/corpus/bench/` still lacks
-      # (issue #1186), available here only because this job already
-      # builds `demo-tour` in release and the diff costs one sub-second
-      # run of it.
+      # It regenerates through the tour's own door and diffs, available
+      # here only because this job already builds `demo-tour` in release
+      # and the diff costs one sub-second run of it. The bench scene the
+      # python suite evaluates needs no such closure: it is AUTHORED per
+      # run from `crates/pncad-py/tests/bench_scene.py`, and a source
+      # guard in `test_assembly_eval.py` holds that module to the tour's
+      # own constants, formulas and placement literals.
       #
       # IT IS A PER-RUN GATE AGAIN (2026-09-04). While the row was drawn
       # this note said the opposite and had to: a PR that changed the die
@@ -4363,8 +4792,8 @@ jobs:
       # the tally every merge and prints it per crate.
       #
       # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
-      # `release-corruption` — nightly.yml's since 2026-09-03 — would
-      # suggest. That job is separate because release artifacts share no
+      # `release-corruption` would suggest. That job is separate because
+      # release artifacts share no
       # fingerprint with any dev-profile job, so it had to own a cache key. The opposite holds
       # here: this is already the only job that passes `--features
       # probe`, so its cache is where the probe-instantiated graph lives,
@@ -4652,7 +5081,7 @@ jobs:
   # a local half — `scene-inputs` does and is cited, `montage` says why it
   # cannot. One reason written here would have to be true of both, and the
   # FreeCAD one is true of `montage` alone: the local half already runs the
-  # renderer-free lanes' work through `uv sheet drift (demos)`.
+  # renderer-free lanes' work through `sheet drift (demos: uv + mc)`.
   renders:
     name: render lanes
     needs: filter
@@ -4840,6 +5269,7 @@ jobs:
       - cache-prime-interval
       - build
       - test
+      - release-corruption
       - build-interval
       - lint-interval
       - test-interval

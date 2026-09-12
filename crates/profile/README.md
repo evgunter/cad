@@ -44,7 +44,10 @@ as `DynTip`, an enum over the lattice states each carrying the typed
 whose arm can only call the one typed binder well-typed there. Typed
 method, driver arm, `Step` variant and `Verb` tag are projected from one
 `transition_table!` row, so a transition cannot exist in one surface
-and not the other. The typed surface records as it lowers: a closing
+and not the other; the row also carries the word the verb is CALLED,
+which is `Verb`'s `Display` — the authoring spelling, for a sentence
+about the step a person wrote (`Debug` is the variant identifier, which
+is what the table-coordinate sentence renders). The typed surface records as it lowers: a closing
 verb returns `ClosedLoop { loop_, program, structure }`. Replay is the
 only path from steps to geometry; serde (in `editor-core`) is transport,
 never a constructor. Two refusal classes (`ReplayErrorKind`):
@@ -110,7 +113,10 @@ DAG input; evaluation resolves the frame at f64 for structure selection
 vocabulary through the `RawLoop` trait (`new`, `polygon`,
 `with_tangent_joints`), omitted from the `pncad::profile` façade;
 `ProfileLoop`'s fields are private, so outside this crate a loop exists
-only through the lattice or that trait. `continue_to` is a lattice verb
+only through the lattice, the `map_scalar` materialization door, or that
+trait — whose item is declared `pub(crate)` in any build satisfying
+neither `test` nor `test-support` (`ProfileLoop`'s own docs are the one
+home for the door list). `continue_to` is a lattice verb
 the document vocabulary does not spell yet
 (`RecordedProgramError::VerbNotInDocumentVocabulary`).
 
@@ -118,8 +124,9 @@ the document vocabulary does not spell yet
 mints a chain- or carrier-vocabulary program from a vertex+bulge loop
 with declared joints: declared junctions become `.tangent()`, every
 other junction a sharp `line_to`/`arc_to`, the seam rotated to the first
-undeclared joint (a fully declared loop refuses
-`LiftRefusal::AllJointsDeclared`); no director is ever emitted, so no
+undeclared joint — and when there is none, seamed at 0 with the closing
+target carrying joint 0's declaration (`Start.arrives_tangent()`); no
+director is ever emitted, so no
 `sin_cos` quantization enters a lifted program; fillets are not
 recovered (un-trimming a corner is inference, not a flag read).
 Structural walls are `LiftRefusal`; geometric walls are the driver's own
@@ -131,9 +138,12 @@ persistence header door.
 **V6 — What programs do not change.** The verify layer runs unchanged on
 replayed output under every binding: flags verified-never-trusted
 (`UndeclaredTangency`, `TangencyContradicted`), same-carrier
-continuation is identity, fit gating; `ValidatedProfile` is minted only
-by `validate` on segments, and extrude/revolve/fillet/loft/sweep never
-see a program. Junction predicates classify at replay exactly as at
+continuation is identity and is legal declared or undeclared, fit
+gating; a `ValidatedProfile` is minted by the validate doors
+(`validate`, `validate_recording`, `validate_guided`) on segments and by
+`ValidatedProfile::lift_onto` from an `f64` one, and
+extrude/revolve/fillet/loft/sweep never see a program. Junction
+predicates classify at replay exactly as at
 typed authoring. Replay is deterministic (libm-pure, no ordering
 effects). A chain's seam still sits at a junction or fillet, never
 mid-carrier (PQ4); `circle` and `circle_split` author no seam (their

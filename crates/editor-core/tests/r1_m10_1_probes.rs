@@ -5,8 +5,10 @@
 //! re-reading of its diff. Written against the public surface only.
 //!
 //! The sampled rows follow `memories/test-suite-cost.md`: counterexample
-//! searches with a varying seed, logged unconditionally, counts on the
-//! `R1_EFFORT` dial, replayable via `R1_SEED`.
+//! searches drawing a fresh seed per run from `test_utils::fuzz` — the
+//! one harness every randomized sweep in the tree draws from, logged
+//! unconditionally, replayed by `CAD_FUZZ_SEED`, with every count a
+//! multiple of `CAD_FUZZ_EFFORT`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,54 +25,14 @@ test_utils::gated_to![
 
 use crate::corpus;
 
+use test_utils::fuzz;
+
 use editor_core::{
     AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,
     DocumentId, EvalOptions, MeasureUnavailable, OffsetInterval, ParamName, ProfileDoc,
     analyzed_box, apply, box_mass, evaluate, tail_mass,
 };
 use geom_core::Tol;
-
-// A tiny deterministic-per-run PRNG (SplitMix64) so the probe file
-// carries no new dependency. Seed varies per run and is logged
-// unconditionally; override with R1_SEED for exact replay.
-struct Rng(u64);
-impl Rng {
-    fn from_env() -> (Self, u64) {
-        let seed = std::env::var("R1_SEED")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| {
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .expect("clock after epoch")
-                    .as_nanos() as u64
-            });
-        println!("R1 probe seed: {seed} (replay with R1_SEED={seed})");
-        (Self(seed), seed)
-    }
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E3779B97F4A7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
-        z ^ (z >> 31)
-    }
-    /// Uniform in [0, 1).
-    fn unit(&mut self) -> f64 {
-        (self.next() >> 11) as f64 / (1u64 << 53) as f64
-    }
-    /// Uniform in [lo, hi).
-    fn range(&mut self, lo: f64, hi: f64) -> f64 {
-        lo + (hi - lo) * self.unit()
-    }
-}
-
-fn effort() -> usize {
-    std::env::var("R1_EFFORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(1)
-}
 
 fn p(name: &str) -> ParamName {
     ParamName::new(name)
@@ -106,8 +68,8 @@ fn normal_mass_oracle(sigma: f64, lo: f64, hi: f64) -> f64 {
 /// integration oracle, stays in `[0, 1]`, and complements sum to 1.
 #[test]
 fn sampled_masses_match_an_independent_integration_oracle() {
-    let (mut rng, seed) = Rng::from_env();
-    let rounds = 40 * effort();
+    let mut rng = fuzz::start("sampled_masses_match_an_independent_integration_oracle");
+    let rounds = fuzz::scaled(40);
     for round in 0..rounds {
         let sigma = rng.range(1e-4, 2.0);
         let (slo, shi) = (-rng.range(0.0, 3.0 * sigma), rng.range(0.0, 3.0 * sigma));
@@ -116,12 +78,23 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             let y = rng.range(-4.0 * sigma, 4.0 * sigma);
             (x.min(y), x.max(y))
         };
-        let ctx = format!("seed {seed} round {round}: sigma {sigma}, sub ({a}, {b})");
+        // A THUNK, not a string: this runs `scaled(40)` times and the
+        // message is wanted only on the round that fails.
+        let ctx = || {
+            format!(
+                "round {round}: sigma {sigma}, sub ({a}, {b}) ({})",
+                fuzz::replay()
+            )
+        };
 
         // Normal against the oracle.
         let got = box_mass(&p("x"), &Distribution::Normal { sigma }, (a, b)).expect("priceable");
         let want = normal_mass_oracle(sigma, a, b);
-        assert!((got - want).abs() < 1e-9, "{ctx}: normal {got} vs {want}");
+        assert!(
+            (got - want).abs() < 1e-9,
+            "{}: normal {got} vs {want}",
+            ctx()
+        );
 
         // TruncatedNormal against the renormalized oracle.
         let t = Distribution::TruncatedNormal {
@@ -140,7 +113,8 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             };
             assert!(
                 (got - want).abs() < 1e-8,
-                "{ctx}: truncated ({slo}, {shi}) {got} vs {want}"
+                "{}: truncated ({slo}, {shi}) {got} vs {want}",
+                ctx()
             );
         }
 
@@ -152,7 +126,8 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             let want = overlap / (shi - slo);
             assert!(
                 (got - want).abs() < 1e-12,
-                "{ctx}: uniform ({slo}, {shi}) {got} vs {want}"
+                "{}: uniform ({slo}, {shi}) {got} vs {want}",
+                ctx()
             );
         }
 
@@ -180,7 +155,8 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             // mass on a point, so the sum is still 1.
             assert!(
                 (inside + left + right - 1.0).abs() < 1e-9,
-                "{ctx}: {dist:?} partition {inside} + {left} + {right}"
+                "{}: {dist:?} partition {inside} + {left} + {right}",
+                ctx()
             );
         }
     }
@@ -190,8 +166,8 @@ fn sampled_masses_match_an_independent_integration_oracle() {
 /// zero — `==`, not "small" — across sampled supports and sigmas.
 #[test]
 fn truncated_normal_tail_is_exactly_zero_on_its_own_support() {
-    let (mut rng, seed) = Rng::from_env();
-    for round in 0..(50 * effort()) {
+    let mut rng = fuzz::start("truncated_normal_tail_is_exactly_zero_on_its_own_support");
+    for round in 0..fuzz::scaled(50) {
         let sigma = rng.range(1e-6, 10.0);
         let lo = -rng.range(0.0, 5.0 * sigma);
         let hi = rng.range(f64::MIN_POSITIVE, 5.0 * sigma);
@@ -199,7 +175,8 @@ fn truncated_normal_tail_is_exactly_zero_on_its_own_support() {
         assert_eq!(
             tail_mass(&p("t"), &dist, &OffsetInterval { lo, hi }),
             Ok(0.0),
-            "seed {seed} round {round}: sigma {sigma} support ({lo}, {hi})"
+            "round {round}: sigma {sigma} support ({lo}, {hi}) ({})",
+            fuzz::replay()
         );
     }
 }
@@ -248,7 +225,7 @@ fn band_answers_are_exactly_the_measure_free_ones() {
 /// at least (within an ulp's worth of scaling) the requested mass.
 #[test]
 fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
-    let (mut rng, seed) = Rng::from_env();
+    let mut rng = fuzz::start("the_quantile_box_is_deterministic_monotone_and_covers_its_mass");
     let dist = Distribution::Normal { sigma: 1.0 };
     let doc = {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-quantile"), Tol::witness());
@@ -271,7 +248,7 @@ fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
             .offsets
             .hi
     };
-    let mut masses: Vec<f64> = (0..(20 * effort()))
+    let mut masses: Vec<f64> = (0..fuzz::scaled(20))
         .map(|_| rng.range(1e-6, 1.0 - 1e-12))
         .collect();
     masses.push(DEFAULT_QUANTILE_MASS);
@@ -283,17 +260,20 @@ fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
         assert_eq!(
             z1.to_bits(),
             z2.to_bits(),
-            "seed {seed}: same request, same box, bit for bit (mass {mass})"
+            "same request, same box, bit for bit (mass {mass}) ({})",
+            fuzz::replay()
         );
         let covered = box_mass(&p("n"), &dist, (-z1, z1)).expect("priced");
         assert!(
             covered >= mass - 1e-12,
-            "seed {seed}: box for mass {mass} covers only {covered}"
+            "box for mass {mass} covers only {covered} ({})",
+            fuzz::replay()
         );
         if let Some((pm, pz)) = prev {
             assert!(
                 z1 >= pz,
-                "seed {seed}: monotone: mass {pm} -> {pz}, mass {mass} -> {z1}"
+                "monotone: mass {pm} -> {pz}, mass {mass} -> {z1} ({})",
+                fuzz::replay()
             );
         }
         prev = Some((mass, z1));

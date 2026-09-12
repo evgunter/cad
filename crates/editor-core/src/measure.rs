@@ -469,7 +469,7 @@ pub enum MeasureUnavailableAt {
         /// Which primitive.
         verb: &'static str,
         /// The scalar this build ran at, in its own name
-        /// ([`MinClearanceLane::LANE`]).
+        /// ([`crate::lane::Lane::NAME`]).
         scalar: &'static str,
         /// The door that answers it, named so the recourse is in the
         /// refusal rather than in a reader's memory.
@@ -514,10 +514,7 @@ impl core::fmt::Display for MeasureUnavailableAt {
 ///
 /// The engine that computes it is the interval lane's
 /// ([`crate::clearance::min_separation`]) and so is the only `Some`.
-pub trait MinClearanceLane: geom_core::Real {
-    /// This lane's own name, for the refusal that names it.
-    const LANE: &'static str;
-
+pub trait MinClearanceLane: crate::lane::Lane {
     /// The minimum separation between two resolved selections, or
     /// `None` when this scalar cannot carry an enclosure.
     ///
@@ -583,8 +580,6 @@ impl core::error::Error for MinClearanceRefusal {}
 /// A point scalar has no enclosure to answer with. The whole content of
 /// the trait, at the lane where it bites.
 impl MinClearanceLane for f64 {
-    const LANE: &'static str = "f64";
-
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
@@ -597,8 +592,6 @@ impl MinClearanceLane for f64 {
 /// exactly what `f64` carries — here, nothing.
 #[cfg(feature = "probe")]
 impl MinClearanceLane for geom_core::Probe {
-    const LANE: &'static str = "Probe";
-
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
@@ -615,10 +608,8 @@ impl MinClearanceLane for geom_core::Probe {
 /// the same typed absence a plain f64 build does.
 impl<T: geom_core::Real> MinClearanceLane for geom_core::Dual<T>
 where
-    geom_core::Dual<T>: geom_core::Real,
+    geom_core::Dual<T>: crate::lane::Lane,
 {
-    const LANE: &'static str = "Dual";
-
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,
@@ -631,8 +622,6 @@ where
 /// bracket, at the shipped dials.
 #[cfg(feature = "interval")]
 impl MinClearanceLane for geom_core::Interval {
-    const LANE: &'static str = "Interval";
-
     fn min_separation(
         a: &MinClearanceOperand<'_, Self>,
         b: &MinClearanceOperand<'_, Self>,
@@ -682,10 +671,8 @@ impl MinClearanceLane for geom_core::Interval {
 /// silently degrades.
 impl<T: MinClearanceLane> MinClearanceLane for geom_core::Sym<T>
 where
-    geom_core::Sym<T>: geom_core::Real,
+    geom_core::Sym<T>: crate::lane::Lane,
 {
-    const LANE: &'static str = "Sym";
-
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
         _b: &MinClearanceOperand<'_, Self>,

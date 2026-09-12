@@ -2,8 +2,9 @@
 id: loop-key-is-uncurated-and-invisible-to-payload-scans
 kind: issue
 title: LoopKey is curated out of step with its sibling keys, and no payload scan can see it
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-08
 refs: [LIB-CUR4]
 ---
 
@@ -46,3 +47,32 @@ declare the same name. `viewer::blend::BlendError`
 `sweep::blend::BlendError` on the first run and hid the entire fillet
 quartet LIB-CUR4 went on to carry. Any future scan must be
 crate-aware and restricted to the façade-reachable crate set.
+
+## Closed
+
+LIB-CUR5, under LB17's rule. `LoopKey` joins `VertexKey`, `EdgeKey`
+and `FaceKey` in the prelude's group 4, through the same `topo`
+re-export, and the group's comment now states the four as one set with
+the refusal that names three of them —
+`ValidationError::RingMeetsOuter` is `{ face, ring, contact }`, and
+`RingContactEscalated` beside it carries a ring too. `all.rs`'s
+`stale_declaration_and_ring_contact_are_matchable` takes the ring as
+its second argument, so the claim is pinned by a signature that stops
+compiling if the name leaves the list. Census: `NOT_BOUND` with its
+three siblings, in the same bullet and for their reason — Python holds
+opaque name text and never a key.
+
+**Finding 2, blind spot (e), is recorded where (a)–(d) are.** Those
+four live in CUR3's PR body (#1262) and were restated in CUR4's
+(#1633); (e) is restated the same way in this unit's PR, in the same
+table form, with the crate-awareness note beside it. The shorter
+statement is also now in the tree, in the prelude comment that carries
+`LoopKey`: a slotmap-minted type is invisible to a scan of `pub
+struct` declarations, so no payload sweep this façade has run could
+have reported it.
+
+**What this does NOT cover.** The blind spot is recorded, not closed:
+no scan in this tree indexes macro-minted types, and this unit built
+no new scanner. The other four key kinds `EntityId` sums over
+(`SolidKey`, `ShellKey`, `HalfEdgeKey`) stay one module hop away, as
+an argued stop — see the item below.

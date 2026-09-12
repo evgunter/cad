@@ -6,14 +6,16 @@
 //! 13–15).
 //!
 //! Four things carry the design; the rest of the module is their
-//! vocabulary ([`Target`], [`ArcData`] with its [`ArcMode`] tag,
+//! vocabulary ([`Target`] with its [`TargetKind`] tag, [`ArcData`]
+//! with its [`ArcMode`] tag,
 //! [`TipState`], [`ReplayError`], [`DynTip`]) and the mode dispatchers
 //! the arms call.
 //!
 //! 1. `transition_table!` — the one declaration. One row per
 //!    (state, verb, kernel fn, next state), expanded into all four
 //!    artifacts: the typed method, the driver arm, the [`Step`]
-//!    variant, and the [`Verb`] tag.
+//!    variant, and the [`Verb`] tag — the last carrying the word the
+//!    verb is called by, so its `Display` is the row's too.
 //! 2. [`Step`] — the step vocabulary: one variant per authoring verb,
 //!    storing **authored data only**. `ArcVia`/`ArcCenter` keep the
 //!    points the author wrote; their bulges are DERIVED at replay, by
@@ -104,19 +106,87 @@ use geom_core::Tol;
 // The step vocabulary
 // ------------------------------------------------------------------
 
-/// Where a target-taking verb ends: an authored absolute point, or the
-/// entry vertex ([`Start`]).
+/// **The target vocabulary — ONE declaration, THREE projections.**
 ///
-/// The distinction is STRUCTURAL — it is the verb's shape, never a
-/// value — so it stays literal in the step when the continuous
-/// arguments become expressions (PROFILES-V2 §V2). Targeting `Start` IS
-/// closing, here exactly as in the typed surface.
-#[derive(Clone, Copy, Debug)]
-pub enum Target<T: Real> {
+/// A target form is named exactly once here, and the macro expands
+/// the name into [`Target`]'s variant, the [`TargetKind`] tag, and
+/// that tag's membership in `TargetKind::ALL`. So the form SET has
+/// one home, and a census anchored on `ALL` cannot fall behind a form
+/// the vocabulary gains — the same construction `arc_modes!` gives
+/// the mode vocabulary one level up and `transition_table!` gives the
+/// verbs one level above that.
+///
+/// It is a SECOND small macro rather than a generalisation of
+/// `arc_modes!`: the two vocabularies differ in variant SHAPE (modes
+/// are struct variants carrying per-mode fields, forms are a tuple
+/// variant and two unit ones), so one grammar over both is more
+/// machinery than a second use buys. What they share is the property,
+/// not the expansion.
+macro_rules! target_forms {
+    (
+        $(
+            $(#[doc = $doc:literal])*
+            form $name:ident $(($payload:ty))?
+        )*
+    ) => {
+        /// Where a target-taking verb ends: an authored absolute point,
+        /// or the entry vertex ([`Start`]).
+        ///
+        /// The distinction is STRUCTURAL — it is the verb's shape, never
+        /// a value — so it stays literal in the step when the continuous
+        /// arguments become expressions (PROFILES-V2 §V2). Targeting
+        /// `Start` IS closing, here exactly as in the typed surface.
+        #[derive(Clone, Copy, Debug)]
+        pub enum Target<T: Real> {
+            $( $(#[doc = $doc])* $name $(($payload))? ),*
+        }
+
+        /// Which form a target names — [`Target`]'s tag, one value per
+        /// variant, projected from the same declaration.
+        ///
+        /// It is what a census over the target vocabulary is keyed on,
+        /// exactly as [`ArcMode`] is for the modes: a target travels
+        /// inside a verb AND inside an arc spec, so a form that fails to
+        /// reach a downstream spelling is invisible to both the
+        /// verb-keyed and the mode-keyed checks.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub enum TargetKind {
+            $( $(#[doc = $doc])* $name ),*
+        }
+
+        impl TargetKind {
+            /// Every target form the vocabulary declares, in declaration
+            /// order — enumerated from the same declaration as the
+            /// variants, so a census keyed on it grows with the
+            /// vocabulary rather than behind it.
+            #[doc(hidden)]
+            pub const ALL: &'static [TargetKind] = &[$( TargetKind::$name ),*];
+        }
+
+        impl<T: Real> Target<T> {
+            /// Which form this target names.
+            ///
+            /// A read-back door rather than a convenience, on
+            /// [`ArcData::mode`]'s model: a census over the target
+            /// vocabulary has to be able to ASK a resolved target what
+            /// form it is, and re-deriving that by matching the forms at
+            /// every such site is how a new form goes missing from one
+            /// of them.
+            #[must_use]
+            pub fn kind(&self) -> TargetKind {
+                match self {
+                    $( Target::$name { .. } => TargetKind::$name ),*
+                }
+            }
+        }
+    };
+}
+
+target_forms! {
     /// An authored absolute point in the profile frame.
-    Point(Point2<T>),
+    form Point(Point2<T>)
     /// The entry vertex: this step closes the loop.
-    Start,
+    form Start
     /// The entry vertex, with the seam's tangent joint DECLARED: the
     /// seam is the one junction whose arriving leg is the
     /// later-authored one, so the declaration that elsewhere rides the
@@ -131,7 +201,7 @@ pub enum Target<T: Real> {
     /// nothing — bound by every match, branched on by no reader. If a
     /// second declaration is ever ruled, the variant grows a payload
     /// then, additively, exactly as this one arrived.
-    StartArriving,
+    form StartArriving
 }
 
 impl<T: Real> ArcData<T> {
@@ -332,7 +402,8 @@ arc_modes! {
 /// # Row grammar
 ///
 /// ```text
-/// verb Name { field: Ty }          // the Step payload (+ its rustdoc)
+/// verb Name { field: Ty } = "name" // the Step payload (+ its rustdoc),
+///                                  // then the word the verb is CALLED
 /// bind { field }                   // how an arm destructures the step
 /// rows {
 ///     row {
@@ -371,6 +442,7 @@ macro_rules! transition_table {
             verb $name:ident
                 $({ $($(#[doc = $fdoc:literal])* $f:ident : $ft:ty),* $(,)? })?
                 $(( $($tt:ty),* ))?
+                = $said:literal
             bind $bind:tt
             rows {
                 $(
@@ -403,6 +475,20 @@ macro_rules! transition_table {
         /// Which verb a step names — the `verb` half of a
         /// [`ReplayErrorKind::Transition`]. One value per [`Step`]
         /// variant, projected from the same declaration.
+        ///
+        /// Its `Display` is the AUTHORING SPELLING — the word the
+        /// algebra calls the verb (`line_to`, `arc_fillet`), declared
+        /// on the row beside the variant so the two cannot disagree
+        /// and neither outlives the row. That is the word for a
+        /// sentence about the step a person wrote; `Debug` is the
+        /// variant identifier, for a sentence about the table
+        /// coordinate ([`ReplayError`]'s rendering states which is
+        /// which).
+        ///
+        /// The SKETCH program's verb, not the kernel's: that one is
+        /// `verbs::Verb` (an operation on a body). No signature takes
+        /// both; outside the owning crate, prose spells the crate and
+        /// code imports at most one of the two per file.
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub enum Verb {
             $( $(#[doc = $doc])* $name ),*
@@ -415,6 +501,16 @@ macro_rules! transition_table {
             /// the table gains (`tests/path_program.rs`).
             #[doc(hidden)]
             pub const ALL: &'static [Verb] = &[$( Verb::$name ),*];
+        }
+
+        /// The word the verb is CALLED — the authoring spelling, which
+        /// is the row's own and vanishes with it.
+        impl core::fmt::Display for Verb {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str(match self {
+                    $( Verb::$name => $said ),*
+                })
+            }
         }
 
         impl<T: Real> Step<T> {
@@ -483,7 +579,7 @@ transition_table! {
     witness tol;
     guide guide;
     #[doc = " `.at(p)` — bind the position bit."]
-    verb At(Point2<T>) bind (p) rows {
+    verb At(Point2<T>) = "at" bind (p) rows {
         row {
             /// Binds the entry position: `Open → Point` (plain flavor — the
             /// entry has no incoming carrier; its junction check happens at
@@ -548,7 +644,7 @@ transition_table! {
     }
 
     #[doc = " `.angle(θ)` — bind the outgoing direction as an angle (radians)."]
-    verb Angle(T) bind (theta) rows {
+    verb Angle(T) = "angle" bind (theta) rows {
         row {
             /// Binds the entry direction first: `Open → Angle` (radians, in
             /// the sketch plane; position pending).
@@ -647,7 +743,7 @@ transition_table! {
         dx: T,
         #[doc = " y component."]
         dy: T,
-    } bind { dx, dy } rows {
+    } = "toward" bind { dx, dy } rows {
         row {
             /// Binds the entry direction first as exact COMPONENTS
             /// (`Open → Angle`): the direction-valued alternative to
@@ -752,7 +848,7 @@ transition_table! {
     }
 
     #[doc = " `.tangent()` — inherit the incoming end tangent and DECLARE the joint."]
-    verb Tangent bind {} rows {
+    verb Tangent = "tangent" bind {} rows {
         row {
             /// Consumes a **directed point only**: re-uses the incoming end
             /// tangent as the departure — exact by construction, nothing for
@@ -773,7 +869,7 @@ transition_table! {
     }
 
     #[doc = " `.cusp()` — reverse onto the incoming end tangent and DECLARE the joint."]
-    verb Cusp bind {} rows {
+    verb Cusp = "cusp" bind {} rows {
         row {
             /// Consumes a **directed point only**, exactly as
             /// [`tangent`](Self::tangent) does, and departs along the
@@ -802,7 +898,7 @@ transition_table! {
     }
 
     #[doc = " `.turn(δ)` — depart at the incoming tangent rotated by δ."]
-    verb Turn(T) bind (delta) rows {
+    verb Turn(T) = "turn" bind (delta) rows {
         row {
             /// `.angle(incoming + δ)` sugar on a directed point: turns by `δ`
             /// radians from the incoming tangent. `turn(0)` lands in the
@@ -825,7 +921,7 @@ transition_table! {
     }
 
     #[doc = " `line(len)` — a straight leg along the bound direction."]
-    verb Line(T) bind (len) rows {
+    verb Line(T) = "line" bind (len) rows {
         row {
             /// A straight leg of length `len` along the bound departure,
             /// terminating at a directed point. After a fillet this extends
@@ -902,7 +998,7 @@ transition_table! {
     }
 
     #[doc = " `line_to(target)` — a straight leg to the target."]
-    verb LineTo(Target<T>) bind (target) rows {
+    verb LineTo(Target<T>) = "line_to" bind (target) rows {
         row {
             /// `.angle(toward target).line(distance)` in one call
             /// (`Point → Point`, also from arrivals): on a directed point the
@@ -924,7 +1020,7 @@ transition_table! {
     }
     #[doc = " `continue_to(target)` — the DECLARED straight continuation"]
     #[doc = " landing on a named point; `Start` is the structural closer."]
-    verb ContinueTo(Target<T>) bind (target) rows {
+    verb ContinueTo(Target<T>) = "continue_to" bind (target) rows {
         row {
             /// **The declared point-target continuation** (`directed point →
             /// directed point`, and `→ closed loop` for [`Start`]): the same
@@ -991,7 +1087,7 @@ transition_table! {
     #[doc = " `arc_to(spec)` — the sharp arc leg, every mode in the one"]
     #[doc = " unified [`ArcData`] record; the mode the author wrote is"]
     #[doc = " what is kept, because the VQ contracts rely on it."]
-    verb ArcTo(ArcData<T>) bind (spec) rows {
+    verb ArcTo(ArcData<T>) = "arc_to" bind (spec) rows {
         row {
             /// **§2c**: the SHARP arc leg from a point tip — one verb over the
             /// endpoint-full `ArcData` modes (`Bulge{p, b}` chord-relative,
@@ -1045,7 +1141,7 @@ transition_table! {
     }
 
     #[doc = " `tangent_arc_to(target)` — the unique tangent arc to the target."]
-    verb TangentArcTo(Target<T>) bind (target) rows {
+    verb TangentArcTo(Target<T>) = "tangent_arc_to" bind (target) rows {
         row {
             /// The unique arc tangent to the bound departure through the
             /// target: `tangent_arc_to(p)` continues to a directed point;
@@ -1065,7 +1161,7 @@ transition_table! {
     }
 
     #[doc = " `arc_continue(target)` — the declared-subdivision step."]
-    verb ArcContinue(Point2<T>) bind (p) rows {
+    verb ArcContinue(Point2<T>) = "arc_continue" bind (p) rows {
         row {
             /// **The declared-subdivision step** (LIB-SWITCH §5-1 fallback,
             /// ruled 2026-08-08): continue the incoming ARC CARRIER to
@@ -1110,7 +1206,7 @@ transition_table! {
     verb Fillet {
         #[doc = " The fillet radius."]
         radius: T,
-    } bind { radius } rows {
+    } = "fillet" bind { radius } rows {
         row {
             /// Opens a corner fillet of radius `radius`: consumes the incoming
             /// Directed (the departure ray) and opens the arrival side Open,
@@ -1167,7 +1263,7 @@ transition_table! {
         radius: T,
         #[doc = " The arc-arrival spec."]
         spec: ArcData<T>,
-    } bind { radius, spec } rows {
+    } = "fillet_arc" bind { radius, spec } rows {
         row {
             /// **§2c**: line incoming, ARC arrival — consumes the directed tip
             /// (the incoming side is its ray) and opens/resolves the arc
@@ -1235,7 +1331,7 @@ transition_table! {
         spec: ArcData<T>,
         #[doc = " The fillet radius."]
         radius: T,
-    } bind { spec, radius } rows {
+    } = "arc_fillet" bind { spec, radius } rows {
         row {
             /// **§2c, the entry fused verb**: authors the ENTRY side ON an arc
             /// carrier — the spec's `p` is the entry anchor, the direction is
@@ -1370,7 +1466,7 @@ transition_table! {
         radius: T,
         #[doc = " The arc-arrival spec."]
         spec2: ArcData<T>,
-    } bind { spec, radius, spec2 } rows {
+    } = "arc_fillet_arc" bind { spec, radius, spec2 } rows {
         row {
             /// The entry fused verb with an ARC arrival: `arc_fillet` whose
             /// arrival is the spec₂ mode's own completion (a `Center` interior
@@ -1522,7 +1618,7 @@ transition_table! {
     }
 
     #[doc = " `.to(anchor)` — the far-end anchor: end the arrival side there."]
-    verb FarEndTo(Point2<T>) bind (anchor) rows {
+    verb FarEndTo(Point2<T>) = "to (far end)" bind (anchor) rows {
         row {
             /// **The far-end anchor** (G1 constructor 4, the W5 wall): binds an
             /// arrival side's position bit to `anchor` AND ends the side there —
@@ -1585,7 +1681,7 @@ transition_table! {
     }
 
     #[doc = " `.to(Start)` — the seam-fillet close (entry vertex retrimmed)."]
-    verb CloseTo bind {} rows {
+    verb CloseTo = "to Start (close)" bind {} rows {
         row {
             /// The combined binder consuming a directed-point VALUE
             /// (`Open → Directed` in one step). [`Start`] is its canonical
@@ -1610,7 +1706,7 @@ transition_table! {
         centre: Point2<T>,
         #[doc = " The circle's radius (definitely positive)."]
         radius: T,
-    } bind { centre, radius } rows {
+    } = "circle" bind { centre, radius } rows {
         free {
             /// The circle primitive (G1 constructor 1): a **one-step complete-loop
             /// program form**, not a chain — `circle(center, r)` IS the whole loop,
@@ -1665,7 +1761,7 @@ transition_table! {
         n: usize,
         #[doc = " The first vertex's angle from +x (continuous)."]
         phase: T,
-    } bind { centre, radius, n, phase } rows {
+    } = "circle_split" bind { centre, radius, n, phase } rows {
         free {
             /// The declared-subdivision closed carrier (LIB-SWITCH §0 corpus
             /// ruling): one circle, authored WITH its seam structure — `n` arcs of
@@ -1837,16 +1933,24 @@ impl<T: Real> ReplayError<T> {
     }
 }
 
-// The one home of the (state, verb) rendering rule, which
-// `editor-core`'s `ProgramFault::Lattice` repeats for the fault this
-// refusal raises there. The pair is a COORDINATE in the transition
-// table — the row a reader looks up next — so both halves render
-// through `Debug`: the variant spelling is the lookup key and a prose
-// paraphrase would not find it, which is the identifiers-as-location
-// case. Each is introduced by the noun it is ("verb", "tip") so the
-// identifier reads as a value in the sentence and not as a dump that
-// leaked into one. Scalars and typed payloads elsewhere in this
-// module render as words; these do not.
+// The one home of the (state, verb) rendering rule FOR THE COORDINATE
+// SENTENCE, which `editor-core`'s `ProgramFault::Lattice` repeats for
+// the fault this refusal raises there. This refusal is the
+// corrupt-or-hand-edited-file class, so the pair it reports is a
+// COORDINATE in the transition table — the row a reader looks up next
+// — and both halves render through `Debug`: the variant spelling is
+// the lookup key and a prose paraphrase would not find it, which is
+// the identifiers-as-location case. Each is introduced by the noun it
+// is ("verb", "tip") so the identifier reads as a value in the
+// sentence and not as a dump that leaked into one. Scalars and typed
+// payloads elsewhere in this module render as words; these do not.
+//
+// A sentence about the STEP A PERSON WROTE is the other case and takes
+// the other rendering: `Verb`'s own `Display` gives the authoring
+// spelling, which is a lookup key too (it is the method name the row
+// declares), so naming the verb that way costs the reader nothing and
+// says it in the vocabulary they authored in. The sketch preview's
+// refusal is that case.
 impl<T: Real> core::fmt::Display for ReplayError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.kind {
