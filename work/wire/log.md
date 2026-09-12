@@ -1382,3 +1382,47 @@ the three `WrongOperand` sites have **stopped being one door** — two
 test the payload, one tests `placement` — which is worse than when that
 row opened, because a copy testing a *different thing* cannot be unified
 by a rename. NOTE 5's convention-not-type point is recorded there too.
+
+## 2026-09-12 — `frame-f64-placement-is-re-evaluated-per-profile` merged (PR 2435, `ceed1fc`)
+
+Verified at the check-run level before merging: twelve `test (…)` jobs
+({default, interval} × {default, 1e-6, 1e-12} × 2 shards), five
+`k-lint (gate, …)` unifications, `gate ok` — zero failures, zero
+in-flight. The skipped names are the usual optional lanes (interval
+oracle, corrupt input, step import (freecad), cache priming), which is
+what a code-tier run at this filter looks like; no green name sits over
+a skipped step in the gated set.
+
+**Two residues recorded rather than grown into the diff.**
+
+**NOTE 1 is filed** as
+`frame-direction-refusal-lands-on-the-profile-without-naming-the-frame`.
+The fix pass was right to scope it out: the arm is one line in
+`wire.rs`, but the variant behind it costs a `NodeErrorKind` arm, its
+`Display`, two exhaustive matches in `crates/pncad-py/src/tags.rs` and
+a roster string in that crate's census — another crate's error
+vocabulary, arriving after the delta verdict. The row carries the
+`DerivedFrameSection { profile, frame }` precedent and the open
+question of whether to add a new variant or an id field to all four
+direction variants.
+
+**The public-API side effect is adjudicated, not filed.** The lane
+flagged that fixing MINOR 1 made `DirectionRefusal` public
+(`wire.rs:845`, re-exported at `editor-core/src/lib.rs:118` and
+`pncad/src/document.rs:195`) as a side effect of a duplication fix, and
+asked for it to be seen as a surface decision rather than a code move.
+It is one, and it is the right one: `FramePlacement` is public by
+necessity — it rides on `NodeResult`, which `pncad` re-exports — and
+`Unreadable` has to carry something. Inlining `{ role, error }` into
+the arm would expose the same two fields with no type to hang the
+invariant on, and `node_error`'s "**the one spelling**" doc is written
+on the type. Same surface area, one more name, and the name is where
+the invariant lives. No ratified clause governs `editor-core`'s export
+list and no census gates it, so there was nothing for Ev here.
+
+**The instrument tally closed at six of nine**, and every one of the
+six was an instrument rather than a reading: mutation (×3), a built
+fixture, the ε matrix, and a fixture's own asserted precondition
+hiding the thing under test. That is the guidance for the rest of the
+program — ask what instrument answers the claim, not whether the claim
+is argued well.
