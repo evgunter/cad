@@ -221,58 +221,51 @@
 //!    On the area it cannot, and the scene says so instead of
 //!    pretending otherwise** — see below.
 //!
-//!    **The sections are POLYGONS, which is the newest finding on this
-//!    page, and the tour's own ε sweep is what found it.** The first
-//!    authoring used circles and could not be WEIGHED at ε = 1e-12 at
-//!    all: a circle is rational, so its lofted walls are rational
-//!    patches, a rational patch is a quadrature face whose certified
-//!    enclosure is chased to a width derived from ε, and that chase
-//!    ran out of budget — `mass_properties` refused, typed, naming the
-//!    face and the width it reached. Four times the arcs per section
-//!    bought eighteen times the resolution and was still short — by
-//!    36%, with decelerating but real returns, so a further doubling
-//!    would probably have cleared it. The circle was ruled out on
-//!    COST, not on impossibility: 32 arcs is 64 lateral walls before
-//!    the caps, and the certificate would still be a chase whose
-//!    margin is whatever round it stops at. [`SPOUT_SIDES`] carries
-//!    the table and that reading. A polygon's
-//!    sides are STRAIGHT, so these walls are POLYNOMIAL and the
-//!    polynomial lane has an exact per-span shortcut the rational lane
-//!    has none of — which is also why `twisted_tube` next door can be
-//!    a loft and be a solid at every ε: its sections are squares.
+//!    **The sections are ROUND, and what that costs at a tight ε is a
+//!    volume NUMBER rather than a certificate.** A circle is RATIONAL,
+//!    so these lateral walls are rational patches, and a rational
+//!    patch is a QUADRATURE face whose enclosure is chased to a
+//!    reporting target derived from ε. At ε = 1e-12 the schedule's
+//!    own last-round bound proves that target unreachable, so
+//!    `mass_properties` refuses `QuadratureBudget` after round 0
+//!    (`rounds: 1`, no work spent).
 //!
-//!    **And then the two readings that came back are different KINDS
-//!    of number, TEN orders apart, off the same patches through the
-//!    same lane.** The volume's certified pad is 1.18e-17 — 2.4e-13 of
-//!    the answer, f64 noise — because a volume is `∮ F·n dA` over a
-//!    LINEAR field, so on a polynomial patch the integrand is a
-//!    polynomial and the exact shortcut applies. The area's is 2.65e-4
-//!    — 1.08e-2 of the answer, one percent — because an area is
-//!    `∬ |X_u × X_v|`, and that norm is a SQUARE ROOT: not polynomial
-//!    on any patch, however polynomial the patch. The polygon bought
-//!    the volume an exactness it could not buy the area.
+//!    **Tier 3 admits the body anyway.** Its +V check consumes only
+//!    the SIGN of the volume enclosure — the tier's own docs say
+//!    deciding that sign "is an act of certification rather than a
+//!    measurement" — and this body's enclosure excludes zero by about
+//!    five orders of magnitude at the very round the chase stops on.
+//!    So the scene certifies at every ε, and where it has no number
+//!    to print the tour's ribbon prints the SIGN-level bracket
+//!    instead. What is left of the friction is a CONSUMER-side gap and
+//!    the scene meets it below: the refusal that carries no number
+//!    also drops the enclosure, so this probe cannot report the
+//!    bracket it was refused on without reaching two crates down
+//!    (`work/perf`'s
+//!    `budget-refusal-drops-the-enclosure-the-caller-needs`).
 //!
-//!    So the scene makes two different claims and only where each is
-//!    earned. The VOLUME's gap is seven orders above its pad, which
-//!    leaves the arithmetic no room to be responsible for it, so it
-//!    reads as the skin and is held to a fixed [`SPOUT_SKIN_FIT_V`].
-//!    The AREA's gap is six hundred times INSIDE its pad, so the
-//!    kernel's certificate already admits every bit of it and there is
-//!    nothing to attribute: the only true statement is that the closed
-//!    form lies in the bracket, and that the bracket is far too wide to
-//!    see a fit through. There is no `SPOUT_SKIN_FIT_A` for that
-//!    reason, and the "too wide" half is asserted POSITIVELY, so the
-//!    day the area quadrature gets sharp this reds and the scene gets
-//!    to say the fit is visible on the area too.
+//!    More budget is not the fix, and that is measured: at
+//!    `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early exit stops firing, so
+//!    the bound is hull-dominated rather than floor-dominated — and
+//!    the face then runs for over half an hour without finishing.
 //!
-//!    The circle was ruled out TWICE, at two different doors, and the
-//!    first is filed as `work/mesh`'s
-//!    `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`:
-//!    a plain `LoopProgram::Circle` is two segments, so each lateral
-//!    wall spans a semicircle — two rational Béziers joined at an
-//!    interior knot of multiplicity = degree, a C⁰ crease the
-//!    TESSELLATOR refuses by name, three steps after the authoring
-//!    that caused it.
+//!    This scene was briefly re-authored with OCTAGONAL sections,
+//!    which had a volume number at every ε: a polygon's sides are
+//!    straight, so its walls are polynomial and take the integral
+//!    lane's exact per-span rule. That is reverted. The shape a potter
+//!    draws is round, and a demo bent around the kernel's reporting
+//!    floor hides the floor —
+//!    `memories/demo-purpose.md` says awkwardness is a LIBRARY
+//!    FINDING, never hidden. What the octagon bought is kept as
+//!    knowledge and stated where it belongs: the integral lane has an
+//!    exact per-span rule the rational lane has none of, which is why
+//!    `twisted_tube` next door can be a loft and a solid at every ε.
+//!
+//!    So what the comparison measures, where the door opens at all, is
+//!    the BRACKET: the straightened frustum inside the kernel's own
+//!    certified enclosure. That oracle self-calibrates with ε, and the
+//!    scene PROBES rather than asserting through a door that may not
+//!    open.
 //! 6. **The lid's roll takes ONE kernel call and TWO document
 //!    requests, and the difference is the NAME emitter.**
 //!    `fillet_edges` rolls all three rims in one request. The same
@@ -438,88 +431,49 @@ const SPOUT_R1: f64 = 3.0 / 256.0;
 const SPOUT_BORE: f64 = 3.0 / 4.0;
 /// How many sections the spout's skin is fitted through.
 const SPOUT_STATIONS: usize = 7;
-/// **How many SIDES each section has — and the section is a POLYGON
-/// rather than a circle, which is the scene's sharpest measured
-/// finding and not a convenience.**
+/// **How many arcs each circular section is authored as.**
 ///
-/// A circle is RATIONAL. Its lofted walls therefore go down
-/// `props`'s rational quadrature lane, which has no exact per-span
-/// shortcut — the midpoint rule's O(h²) is the whole convergence
-/// story there — and at the tightest tolerance the tour runs
-/// (ε = 1e-12) that lane cannot certify a face of this size AT ANY
-/// BUDGET. The engine says so before paying for it: it proves after
-/// round 0 that even its last round (1024 pieces per axis) falls
-/// short, and refuses `QuadratureBudget` with the bound it would have
-/// reached. Without a volume, tier 3's `+V` invariant has nothing to
-/// check, so the BODY does not validate.
+/// FOUR, not a plain `LoopProgram::Circle`: a `Circle` loop is two
+/// segments, so each lateral wall would span a semicircle — two
+/// rational Béziers joined at an interior knot of multiplicity =
+/// degree, a C⁰ crease the TESSELLATOR refuses by name. That is
+/// `work/mesh`'s
+/// `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`,
+/// and `CircleSplit(4)` is the door through it.
 ///
-/// Measured across three circular authorings, against a target of
-/// 1.024e-9:
+/// **The sections are ROUND, and at a tight ε that costs this body
+/// its volume NUMBER.** A circle is RATIONAL, so these lateral walls
+/// are rational patches, and a rational patch is a QUADRATURE face
+/// whose certified enclosure is chased to `QUAD_TARGET_LEN_FACTOR·ε`.
+/// At ε = 1e-12 that target is 1.024e-9, and the schedule's own
+/// last-round bound proves it unreachable, so `mass_properties`
+/// refuses `QuadratureBudget` after round 0 — `rounds: 1`, no work
+/// spent.
 ///
-/// | arcs per section | last round's width |
-/// |---|---|
-/// | 4 | 2.53e-8 |
-/// | 8 | 3.97e-9 |
-/// | 16 | 1.39e-9 |
+/// **Tier 3 certifies the body all the same, which is why this
+/// authoring is the honest one.** Its +V check consumes only the SIGN
+/// of the volume enclosure — the tier's own docs say deciding that
+/// sign "is an act of certification rather than a measurement" — and
+/// this body's enclosure excludes zero by about FIVE ORDERS OF
+/// MAGNITUDE at the round the chase stops on. So the solid is
+/// certified at every ε and what it lacks at 1e-12 is a number, which
+/// the tour's ribbon reports as the SIGN-level bracket rather than
+/// dying on.
 ///
-/// Four times the arcs bought eighteen times the resolution and it is
-/// still short — but only by 36%, and the returns, while decelerating
-/// (6.4× then 2.85×), are not collapsing to nothing. **A further
-/// doubling would probably have cleared it**, and this table is not
-/// evidence that no arc count works. An earlier draft of this comment
-/// claimed exactly that; the numbers above never supported it.
+/// Raising the round cap does not fix it either, measured: at
+/// `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early-exit stops firing (so the
+/// bound is hull-dominated, not floor-dominated) and the face then
+/// runs for over half an hour without finishing. More budget is not
+/// the answer; not demanding the precision is.
 ///
-/// What ruled the circle out is COST, and it is worth stating as cost
-/// rather than as impossibility. Thirty-two arcs is 64 lateral walls
-/// over the two loops before the caps, on a body that is one cell of
-/// a montage sheet and eight faces of a tess-budget baseline. And the
-/// certificate would still be a chase: a fixed O(h²) schedule is only
-/// ever as good as the round it stops at, so the margin would be
-/// whatever that round happened to reach, at every ε, forever.
-///
-/// A POLYGON's sides are straight, so its lofted walls are
-/// POLYNOMIAL and take the integral lane, which does have that
-/// shortcut. That is why `twisted_tube` next door can be a loft and be
-/// a solid at every ε: its sections are squares. This canal is the
-/// same trade at eight sides instead of four — round enough to read as
-/// a spout at cell scale, and certifiable at every tolerance the tour
-/// runs.
-///
-/// The circle was ruled out TWICE, at two different doors, and the
-/// first one is filed as
-/// `work/mesh/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`:
-/// a plain `LoopProgram::Circle` is two segments, so each lateral wall
-/// spans a semicircle — two rational Béziers joined at an interior
-/// knot of multiplicity = degree, a C⁰ crease the TESSELLATOR refuses
-/// by name. `CircleSplit(4)` clears that door and then meets this one.
-const SPOUT_SIDES: usize = 8;
-/// **How far the canal's VOLUME may sit from the straightened tube's
-/// closed form**, relative. It is a bound on the LOFT SKIN and on
-/// nothing else, and everything that licenses reading it that way is
-/// what [`SPOUT_SIDES`] bought.
-///
-/// The oracle is exact for the ideal swept tube — the bend is
-/// volume-neutral, argued at the assertion site. The kernel certifies
-/// its own integration of this body's VOLUME to a pad of 1.18e-17, or
-/// 2.4e-13 of the answer, which is f64 noise and nothing else: a
-/// volume is `∮ F·n dA` for a linear field, so on a POLYNOMIAL patch
-/// the integrand is a polynomial and the polynomial lane's per-span
-/// shortcut is exact. So a disagreement seven orders ABOVE that pad is
-/// not the arithmetic and cannot be. What is left is the cubic skin
-/// through [`SPOUT_STATIONS`] stations departing from the tube it
-/// interpolates, and this is the one number on this page that measures
-/// that departure.
-///
-/// It does not move with ε — a station's frame and a section's
-/// vertices are arithmetic on the constants above and never consult a
-/// tolerance, and the tour's own sweep is what says so, bit for bit at
-/// 1e-6, at the default and at 1e-12. A FIXED bound is the honest one
-/// here for exactly that reason, where on the rational authoring,
-/// whose gap WAS the quadrature's chased width, it was not.
-///
-/// Measured: **2.30e-6**. There is deliberately no companion constant
-/// for the area; see the assertion site for why there cannot be one.
-const SPOUT_SKIN_FIT_V: f64 = 1e-5;
+/// This scene was briefly re-authored with OCTAGONAL sections to get
+/// a number at every ε, and that worked — a polygon's sides are
+/// straight, so its walls are polynomial and take the integral lane's
+/// exact per-span rule. It is reverted here because the shape a potter
+/// draws is round, and because a demo bent around the kernel's
+/// reporting floor hides the floor. `memories/demo-purpose.md` is the
+/// rule: awkwardness is a LIBRARY FINDING, never hidden.
+const SPOUT_ARCS: u32 = 4;
 /// **The spout's total bend**, root tangent to tip tangent: half a
 /// right angle. The canal leaves the belly on [`SPOUT_DIR`] and
 /// arrives pointing that much further up, which is the shape a spout
@@ -772,35 +726,6 @@ fn spout_frames(doc: &mut Doc<ProfileProgram>, tol: Tol) -> Vec<(RecipeNodeId, f
         .collect()
 }
 
-/// A regular [`SPOUT_SIDES`]-gon of circumradius `r`, centred on the
-/// section frame's origin — which is what keeps the section's centroid
-/// ON the spine, and a centred section is what makes the bend
-/// volume-neutral.
-fn ngon(r: f64) -> LoopProgram {
-    let pts: Vec<(f64, f64)> = (0..SPOUT_SIDES)
-        .map(|k| {
-            #[allow(clippy::cast_precision_loss)]
-            let a = TAU * k as f64 / SPOUT_SIDES as f64;
-            let (s, c) = a.sin_cos();
-            (r * c, r * s)
-        })
-        .collect();
-    LoopProgram::polygon(pts).expect("a regular polygon's corners are finite and distinct")
-}
-
-/// The unit regular [`SPOUT_SIDES`]-gon's three shape constants:
-/// area, perimeter and apothem, all at circumradius 1. Every closed
-/// form the canal is held to is one of these times a radius.
-fn ngon_shape() -> (f64, f64, f64) {
-    #[allow(clippy::cast_precision_loss)]
-    let n = SPOUT_SIDES as f64;
-    (
-        0.5 * n * (TAU / n).sin(),
-        2.0 * n * (PI / n).sin(),
-        (PI / n).cos(),
-    )
-}
-
 /// **The spout, as one `Node::Loft` through those sections.**
 ///
 /// Two loops per section — the outer arc chain and the bore, the bore
@@ -813,15 +738,22 @@ fn spout_loft(
     frames: &[(RecipeNodeId, f64)],
     tol: Tol,
 ) -> RecipeNodeId {
-    // **A POLYGON and not a circle, and [`SPOUT_SIDES`] carries the
-    // measurement that chose it.** Straight sides make the lofted
-    // walls POLYNOMIAL, which is what lets `props` certify them at
-    // every tolerance the tour runs; a circle is rational and its
-    // walls cannot be certified at the tightest one at any budget.
+    // **Circles, split into [`SPOUT_ARCS`] arcs**, which is the shape a
+    // potter draws and the shape this scene is FOR. The split is the
+    // tessellator's door (a whole `Circle` loop makes a semicircular
+    // wall with a C⁰ crease); the rationality that comes with it is
+    // what tier 3 currently cannot certify at ε = 1e-12, and that is a
+    // kernel finding this scene exhibits rather than dodges.
     let profiles = frames
         .iter()
         .map(|&(plane, outer)| {
-            let loops = vec![ngon(outer), ngon(outer * SPOUT_BORE)];
+            let arcs = |radius: f64| LoopProgram::CircleSplit {
+                centre: lpt(0.0, 0.0),
+                radius: len(radius),
+                n: SPOUT_ARCS,
+                phase: ang(0.0),
+            };
+            let loops = vec![arcs(outer), arcs(outer * SPOUT_BORE)];
             insert(doc, Node::Profile(ProfileProgram { plane, loops }), tol)
         })
         .collect();
@@ -2086,171 +2018,98 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // `R0 → R1`, a bore that is `SPOUT_BORE` of each, and the SPINE
     // LENGTH as the height.
     //
-    // The section is a regular polygon, so the three shape constants
-    // stand where π used to: `A·r²` for a section, `P·r` for its
-    // perimeter, and the apothem for how far a wall leans out over the
-    // taper. Every one of them is a closed form of `SPOUT_SIDES`, so
-    // nothing here is fitted.
-    let (ngon_area, ngon_perim, ngon_apothem) = ngon_shape();
-    let hollow = SPOUT_BORE.mul_add(-SPOUT_BORE, 1.0);
-    let v_spout = hollow
-        * ngon_area
-        * SPOUT_LEN
-        * SPOUT_R1.mul_add(SPOUT_R1, SPOUT_R0.mul_add(SPOUT_R0 + SPOUT_R1, 0.0))
-        / 3.0;
-    // One wall of the prismatoid is a trapezoid: parallel sides
-    // `P·r₀/2` and `P·r₁/2` over the whole side count, and a slant
-    // that leans out by the apothem's share of the taper.
-    let lateral =
-        |r0: f64, r1: f64| 0.5 * ngon_perim * (r0 + r1) * SPOUT_LEN.hypot((r0 - r1) * ngon_apothem);
-    let a_spout = lateral(SPOUT_R0, SPOUT_R1)
-        + lateral(SPOUT_BORE * SPOUT_R0, SPOUT_BORE * SPOUT_R1)
-        + hollow * ngon_area * SPOUT_R0.mul_add(SPOUT_R0, SPOUT_R1 * SPOUT_R1);
+    // The sections are circles, so the frustum forms this scene
+    // already uses for its lid stand unchanged, with the bore's
+    // FRACTION doing the hollowing.
+    let bore = SPOUT_BORE;
+    let v_spout = (1.0 - bore * bore) * frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN);
+    let a_spout = frustum_lateral(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
+        + frustum_lateral(bore * SPOUT_R0, bore * SPOUT_R1, SPOUT_LEN)
+        + annulus(SPOUT_R0, bore * SPOUT_R0)
+        + annulus(SPOUT_R1, bore * SPOUT_R1);
 
-    // **AND HERE IS THE SCENE'S NEWEST FINDING, which the tour's own
-    // eps sweep is what found — twice, at two different doors.**
+    // **AND HERE IS WHAT THIS SCENE NOW EXHIBITS RATHER THAN AVOIDS.**
     //
-    // The first authoring of this canal had CIRCULAR sections, and it
-    // could not be weighed at all at eps = 1e-12. A circle is
-    // RATIONAL, so its lofted walls are rational patches; a rational
-    // patch is a QUADRATURE face whose certified enclosure is chased
-    // down to a width derived from eps; and that chase ran out of
-    // budget and `mass_properties` REFUSED, typed, naming the face and
-    // the width it reached. [`SPOUT_SIDES`] carries the measured arc
-    // table, and what it does and does not show: more arcs kept
-    // helping, so the circle was ruled out on COST rather than on
-    // impossibility.
+    // These walls are RATIONAL — [`SPOUT_ARCS`] carries why, and why
+    // that is the honest authoring — so they are QUADRATURE faces.
+    // `mass_properties` publishes a certified ENCLOSURE rather than a
+    // number, where every analytic body on this page publishes a pad
+    // of exactly 0. That enclosure is chased to a REPORTING target
+    // derived from ε, and **at ε = 1e-12 it is not reachable**: the
+    // schedule's own last-round bound proves it after round 0, so this
+    // reading refuses `QuadratureBudget`.
     //
-    // A polygon's sides are STRAIGHT, so these walls are POLYNOMIAL,
-    // and the polynomial lane has an exact per-span shortcut the
-    // rational lane has none of. The reading below therefore exists at
-    // every tolerance the tour runs at.
+    // Tier 3 admits the body regardless — its +V check consumes only
+    // the SIGN of this enclosure, decided by five orders of magnitude
+    // at the very round the chase stops on — so the refusal here is a
+    // missing NUMBER and not a missing certificate.
     //
-    // **And then the two readings it hands back turn out to be
-    // different KINDS of number, which is the part this scene did not
-    // expect and now measures.** Both come off the same polynomial
-    // patches through the same lane, and their certified pads are TEN
-    // orders apart:
+    // So the scene PROBES rather than asserting through a door that
+    // may not open, and says which it got. What the refused arm CANNOT
+    // say is the part still worth reading: the error carries no
+    // enclosure, so this probe has nothing to report the bracket from
+    // even though the certificate the tier just took holds one
+    // (`work/perf`'s
+    // `budget-refusal-drops-the-enclosure-the-caller-needs`).
     //
-    // | reading | pad | relative to the answer |
-    // |---|---|---|
-    // | volume | 1.18e-17 | 2.4e-13 |
-    // | area   | 2.65e-4  | 1.08e-2 |
-    //
-    // Ten orders of magnitude, read relative to their own answers.
-    //
-    // The integrands are what differ. A volume is `∮ F·n dA` over a
-    // LINEAR field, so on a polynomial patch the integrand is a
-    // polynomial and the exact per-span shortcut applies — the pad is
-    // f64 noise. An area is `∬ |X_u × X_v| du dv`, and that norm is a
-    // SQUARE ROOT: not a polynomial on any patch, however polynomial
-    // the patch. So the area can only ever be BRACKETED, and the
-    // polygon bought the volume exactness it could not buy the area.
-    //
-    // And the area's bracket is not merely wider — it is not CHASED at
-    // all. `area_midpoint_taylor` is a FIXED-resolution rule that both
-    // patch lanes share, at `QUAD2_AREA_PIECES` cells per axis with a
-    // first-order Lipschitz pad, so its width is set by that
-    // resolution and not by any target derived from ε. Which is worth
-    // knowing before reading anything into the area pad's stability
-    // across the tour's ε sweep: it is fixed BY CONSTRUCTION, so
-    // finding it unchanged at three tolerances is no evidence about
-    // this scene. The GAP's stability across the same sweep is the
-    // real evidence, and it is a fact about the geometry.
-    //
-    // Which splits the comparison below into two claims that are not
-    // the same claim, and the scene makes each one only where it is
-    // earned:
-    //
-    // * **the VOLUME resolves the skin.** The gap is 1.14e-10, ten
-    //   MILLION times a pad of 1.18e-17, so the arithmetic has no room
-    //   to be responsible for it and what is left is the cubic skin
-    //   departing from the tube it interpolates. Held to
-    //   [`SPOUT_SKIN_FIT_V`], and separately held to be far above the
-    //   pad, because the second is what licenses reading the first as
-    //   a fact about geometry.
-    // * **the AREA cannot, and saying so is the honest row.** Its gap
-    //   is 4.31e-7 and its pad is 2.65e-4 — the gap is six hundred
-    //   times INSIDE the enclosure, so the kernel's own certificate
-    //   already admits every bit of it. There is nothing here to
-    //   attribute to the skin: the only true statement is that the
-    //   closed form lies inside the bracket, and that the bracket is
-    //   far too wide to see a fit through. Both halves are asserted,
-    //   the second one positively, so that the day the area quadrature
-    //   gets sharp this row REDS and the scene gets to say the fit is
-    //   visible on the area too.
-    let sp = pncad::topo::mass_properties(&spout, tol).expect(
-        "polygonal sections put the canal's walls in the POLYNOMIAL lane, where the \
-         quadrature has an exact per-span shortcut — so unlike the rational authoring \
-         this reading exists at every eps the tour runs at",
-    );
-    let v_gap = (sp.volume - v_spout).abs();
-    let a_gap = (sp.surface_area - a_spout).abs();
-    // Neither pad is vacuous, and saying so is what keeps both rows
-    // claims: an ANALYTIC body publishes exactly 0, so every
-    // comparison below would be free on the pot next door.
-    assert!(
-        sp.volume_pad > 0.0 && sp.area_pad > 0.0,
-        "a fitted skin is still a quadrature face and publishes a nonzero pad; got \
-         {:e} and {:e}",
-        sp.volume_pad,
-        sp.area_pad
-    );
-    // VOLUME, half one: the skin fits.
-    assert!(
-        v_gap <= SPOUT_SKIN_FIT_V * v_spout,
-        "the canal's V = {} vs the straightened tube's {v_spout}: gap {v_gap:e} m^3, \
-         {:e} relative, outside {SPOUT_SKIN_FIT_V:e}",
-        sp.volume,
-        v_gap / v_spout
-    );
-    // VOLUME, half two: and the gap is the SKIN, because the kernel's
-    // own certificate leaves the arithmetic no room to be responsible
-    // for it. A thousand is not a tuned number — the measured ratio is
-    // ten million, and this asserts only that the two are not the same
-    // size.
-    assert!(
-        sp.volume_pad * 1e3 < v_gap,
-        "the volume gap reads as the loft skin only while the kernel's own certified \
-         enclosure is far below it; got a pad of {:e} against a gap of {v_gap:e}",
-        sp.volume_pad
-    );
-    // AREA, half one: the closed form is inside the bracket. This is
-    // the SAME shape of claim the volume made before the sections
-    // became polygons, and here it is still the only one available.
-    assert!(
-        a_gap <= sp.area_pad,
-        "the canal's A = {} vs the straightened tube's {a_spout}: gap {a_gap:e} m^2, \
-         OUTSIDE the certified enclosure's own half-width {:e}",
-        sp.surface_area,
-        sp.area_pad
-    );
-    // AREA, half two: and the bracket is too wide to see a fit
-    // through, which is why there is no `SPOUT_SKIN_FIT_A`. Asserted
-    // positively so it cannot rot: if the area quadrature ever gets
-    // within a factor of a hundred of the gap, this reds.
-    assert!(
-        a_gap * 100.0 < sp.area_pad,
-        "the area's enclosure is no longer far wider than the gap ({a_gap:e} against a \
-         half-width of {:e}) — the area may now resolve the loft fit, and this scene \
-         should say so rather than declining to",
-        sp.area_pad
-    );
-    let spout_reading = format!(
-        "V = {:.12} m^3 against the straightened tube's {v_spout:.12} — a gap of {:e} \
-         relative, against a certified pad of {:e} m^3 that is {:e} relative, so the gap \
-         is the SKIN and not the integral; A = {:.12} against {a_spout:.12}, a gap of \
-         {:e} relative sitting {:.0}x INSIDE a pad of {:e} m^2, which resolves nothing \
-         about the fit and is said rather than dressed up",
-        sp.volume,
-        v_gap / v_spout,
-        sp.volume_pad,
-        sp.volume_pad / v_spout,
-        sp.surface_area,
-        a_gap / a_spout,
-        sp.area_pad / a_gap,
-        sp.area_pad
-    );
+    // Where the door DOES open, what is asserted is the bracket: the
+    // straightened frustum lies inside the kernel's own certified
+    // enclosure. That oracle self-calibrates with ε — a looser
+    // tolerance buys a wider bracket and the claim stays exactly as
+    // strong as the certificate — which is what a fixed relative bound
+    // could not do, and what a fixed bound measured at one ε got
+    // wrong when this scene first shipped.
+    let spout_props = pncad::topo::mass_properties(&spout, tol);
+    let spout_reading = match &spout_props {
+        Ok(p) => {
+            let v_gap = (p.volume - v_spout).abs();
+            let a_gap = (p.surface_area - a_spout).abs();
+            assert!(
+                v_gap <= p.volume_pad,
+                "the canal's V = {} vs the straightened frustum's {v_spout}: they differ \
+                 by {v_gap:e} m^3, OUTSIDE the certified enclosure's own half-width {:e}",
+                p.volume,
+                p.volume_pad
+            );
+            assert!(
+                a_gap <= p.area_pad,
+                "the canal's A = {} vs the straightened frustum's {a_spout}: they differ \
+                 by {a_gap:e} m^2, OUTSIDE the certified enclosure's own half-width {:e}",
+                p.surface_area,
+                p.area_pad
+            );
+            // The pads are not vacuous, and saying so is what makes
+            // the bracket a test: an analytic body publishes 0, so a
+            // bracket claim on THIS body is a claim only because these
+            // walls are quadrature faces.
+            assert!(
+                p.volume_pad > 0.0 && p.area_pad > 0.0,
+                "a fitted rational skin publishes a nonzero pad; got {:e} and {:e}",
+                p.volume_pad,
+                p.area_pad
+            );
+            format!(
+                "V = {:.9} m^3 against the straightened frustum's {v_spout:.9} — inside \
+                 the kernel's own certified enclosure, {v_gap:e} against a half-width of \
+                 {:e}; A = {:.9} against {a_spout:.9}, {a_gap:e} against {:e}",
+                p.volume, p.volume_pad, p.surface_area, p.area_pad
+            )
+        }
+        Err(e) => format!(
+            "mass properties REFUSED TYPED at this tolerance — {e:?} — so the closed form \
+             has nothing to be compared against here. These walls are RATIONAL, so they \
+             are QUADRATURE faces whose enclosure is chased to a REPORTING width derived \
+             from eps, and at a tight enough eps that chase is proven unreachable after \
+             round 0. What is missing is a NUMBER and not a certificate: tier 3 admitted \
+             this body at this same eps, because its +V check consumes only the SIGN of \
+             that enclosure and the enclosure excludes zero by about five orders of \
+             magnitude. The tour's own volume ribbon prints that SIGN-level bracket; THIS \
+             probe cannot, because the refusal carries no enclosure to print — \
+             work/perf's budget-refusal-drops-the-enclosure-the-caller-needs. The \
+             straightened frustum's own numbers, which do not depend on eps: \
+             V = {v_spout:.9} m^3, A = {a_spout:.9} m^2"
+        ),
+    };
     let spout_bend_deg = SPOUT_BEND.to_degrees();
 
     // ---- the handle ----
@@ -2553,38 +2412,29 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              a centred section's is zero. The same cancellation runs over the lateral \
              area. So the oracle is the STRAIGHTENED tube — outer radii R0 → R1, a bore \
              {SPOUT_BORE} of each, the spine length as the height — and the canal is \
-             held to it — and HOW it is held is the scene's newest finding, found by the \
-             tour's own eps sweep: {spout_reading}. THE SECTIONS ARE POLYGONS AND NOT \
-             CIRCLES. A circle is RATIONAL, so lofted circular sections make rational \
-             walls; a rational wall is a QUADRATURE face whose certified enclosure is \
-             chased down to a width derived from eps; and at eps = 1e-12 that chase ran \
-             out of budget and mass_properties REFUSED TYPED, naming the face and the \
-             width it reached. Four times the arcs per section bought eighteen times the \
-             resolution and was still short -- by 36%, with decelerating but real \
-             returns, so a further doubling would probably have cleared it. The circle \
-             was ruled out on COST and not on impossibility: 32 arcs is 64 lateral walls \
-             before the caps, and the certificate would still be a chase whose margin is \
-             whatever round it stops at. A POLYGON's sides are straight, so \
-             these walls are POLYNOMIAL, and the polynomial lane has an exact per-span \
-             shortcut the rational lane has none of — which is also why `twisted_tube` \
-             next door can be a loft and be a solid at every eps: its sections are \
-             squares. AND THEN THE TWO READINGS CAME BACK DIFFERENT KINDS OF NUMBER, TEN \
-             orders apart relative to their own answers, off the same patches through \
-             the same lane: the volume's \
-             certified pad is 2.4e-13 of the answer and the area's is 1.08e-2 of it. A \
-             volume is a flux integral of a LINEAR field, so on a polynomial patch the \
-             integrand is a polynomial and the shortcut is exact; an area integrates \
-             |Xu x Xv|, a SQUARE ROOT, which is polynomial on no patch however \
-             polynomial the patch. So the polygon bought the volume an exactness it \
-             could not buy the area, and the scene makes two different claims. The \
-             VOLUME's gap sits SEVEN orders ABOVE its pad, leaving the arithmetic no room \
-             to be responsible for it, so it reads as the loft's cubic skin through \
-             {SPOUT_STATIONS} stations departing from the tube it interpolates — the one \
-             number on this page that measures that. The AREA's gap sits six hundred \
-             times INSIDE its pad, so the certificate already admits every bit of it and \
-             there is NOTHING to attribute to the skin; the scene says that rather than \
-             dressing the number up, and asserts the TOO-WIDE half positively so that \
-             the day the area quadrature gets sharp this row reds. The handle checks by \
+             held to it INSIDE THE KERNEL'S OWN CERTIFIED ENCLOSURE rather than at a \
+             relative bound: {spout_reading}. THE SECTIONS ARE ROUND, AND WHAT THAT \
+             COSTS AT A TIGHT EPS IS A VOLUME NUMBER RATHER THAN A CERTIFICATE. A circle \
+             is RATIONAL, so these lateral walls are rational patches, and a rational \
+             patch is a QUADRATURE face whose enclosure is chased to a REPORTING target \
+             derived from eps. At eps = 1e-12 the schedule's own last-round bound proves \
+             that target unreachable, so mass_properties refuses QuadratureBudget after \
+             round 0 -- rounds: 1, no work spent. TIER 3 ADMITS THE BODY ANYWAY, which is \
+             what makes this authoring the honest one: its +V check consumes only the \
+             SIGN of that enclosure, and the enclosure excludes zero by about five orders \
+             of magnitude at the very round the chase stops on, so the scene certifies at \
+             every eps and the volume ribbon prints the SIGN-level bracket where it has \
+             no number to print. What is left is a consumer-side gap this probe sits in: \
+             the refusal carries no enclosure, so the reading above cannot report the \
+             bracket the tier just certified -- work/perf's \
+             budget-refusal-drops-the-enclosure-the-caller-needs. More budget would not \
+             buy the number back and that is measured: at one more round the early exit \
+             stops firing and the face then runs over half an hour without finishing. An \
+             OCTAGONAL authoring had a number at every eps -- straight sides make \
+             polynomial walls, which take the integral lane's exact per-span rule, the \
+             same reason `twisted_tube` next door can be a loft and a solid at every eps \
+             -- and it is reverted, because the shape a potter draws is round and a demo \
+             bent around the kernel's reporting floor hides the floor. The handle checks by \
              Pappus on its own disc. The document says a placement in AXIS-ANGLE and the \
              3-4-5 turn is not a binary-exact angle, so what that costs is MEASURED off \
              the PLACED BODY: the TIP cap, a whole spine-length off the turn's fixed \
