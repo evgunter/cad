@@ -805,3 +805,15 @@ PERF-9 = M / structural (slot 2). Dual review on every unit (kernel
 and index-seam code; none is low risk). Ordinals continue in the PERF
 band from 3406.
 Draw: `/dev/urandom` byte **173** (< 252), 173 mod 3 = 2 ⇒ fable position 2. **Slot 0 PERF-7 = OPUS, slot 1 PERF-8 = OPUS, slot 2 PERF-9 = FABLE.**
+
+## 2026-09-12 — block B3 lanes near their PRs; the display probe dispatched
+
+All three B3 implementers are at or near their PRs an hour in (PERF-8
+has PR 2452 up and its item at `review`; PERF-7 is merging main;
+PERF-9 is on its pin rows). Beside the block, the display-probe side
+unit is dispatched (opus, single review; brief stored): `scene::fit_
+delta` must never tessellate more than the picture it sizes — probe
+coarse and solve, or move the probe onto the index worker — with
+every document's committed δ pinned equal to main's. VIEW territory
+(`crates/viewer/*`), announced here; `work/view`'s `ui-thread-work-
+after-the-index-seam` names the same cost.
