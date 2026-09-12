@@ -2,10 +2,10 @@
 id: axis-flavoured-declarations-have-no-channel
 kind: issue
 title: Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: ParamSource carries stored scalar fields only, so CoaxialEvidence and SPHSPH's option (a) cannot be served by it
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1593, 1604, 1372]
-needs_ev: true
+closed: 2026-09-12
 ---
 
 
@@ -295,3 +295,47 @@ OPEN QUESTION.
 The obligation this row already recorded travels with it:
 `crates/verbs/README.md` §3 P2's SPHSPH sentence is wrong as landed and
 is corrected when the question is answered.
+
+## Closed (2026-09-12) — ratified, PR 2404
+
+Ev ruled on all three questions:
+
+> axis shaped sounds good
+>
+> refuse on absence also sounds good
+
+with question 1 (declared intent, structural invalidation) ratified in
+the round before. `docs/AXIS-DECLARATION-DESIGN.md` is the record and
+`docs/DESIGN.md`'s companion table carries it as **Ratified; unbuilt**.
+
+**This row asked the question and the question is answered, so it
+closes.** The design is not built; that is three new rows, not this one
+staying open — `work/README.md` is explicit that a residue disclosed in
+a `## Closed` section is invisible to the re-homing sweep, so each has
+its own file:
+
+- `axis-shaped-identity-channel` (this program) — the channel itself.
+- `work/topo/geom-source-absence-conflates-four-origins.md` — the repair
+  that makes "no provenance" mean something.
+- `work/exch/step-import-discards-the-entity-ids-that-are-its-identity-channel.md`
+  — Ev's adoption step.
+
+**Two corrections this row made to itself**, both worth keeping because
+each was an orchestrator claim that the code falsified:
+
+1. The link to `two-verb-seats-do-not-compose` was **withdrawn**.
+   `GeomSource`'s `node` is an opaque `u64` the kernel only compares;
+   nothing maps it back to a `RecipeNodeId`, so a new minter needs no
+   recipe anchor — only the retirement theorem and namespace
+   disjointness.
+2. The claim that axis-shaped costs **reopening §3 P1** was **wrong**.
+   P1's exclusion is scoped to *motion-invariant* fields; an axis is not
+   one, so the channel extends `GeomSource`'s discipline (where `Placed`
+   composition already lives in the kernel) rather than widening
+   `ParamSource`'s. The ratified option is cheaper than it was priced.
+
+**One obligation discharged by inspection**: this row required
+`crates/verbs/README.md` §3 P2's SPHSPH sentence to be corrected when
+answered. That sentence is **gone** from the README — `SPHSPH`,
+`CoaxialEvidence` and `parallel` all return zero hits at `cce8d3b`. It
+left in other work since 2026-09-04. Closed by evidence, not forgotten.

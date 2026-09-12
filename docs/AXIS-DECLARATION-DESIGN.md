@@ -1,6 +1,9 @@
 # Axis-flavoured declarations — a design question
 
-**STATUS: OPEN QUESTION, not ratified.** Opened by WIRE, 2026-09-12.
+**STATUS: RATIFIED (Ev, 2026-09-12, PR 2404).** Opened by WIRE the same
+day. The ruling is in §"Round 3" at the foot; the rounds above are the
+conversation that produced it and are kept because the reasoning is the
+design.
 The tracker row is
 `work/wire/axis-flavoured-declarations-have-no-channel.md`, which
 carries the provenance and the code citations; this doc states the
@@ -300,3 +303,92 @@ missing", at two different granularities.
 - **Q3**: refuse on absence is recommended and argued above. Does
   positive origin marking get opened as a unit — and does it belong to
   this design or to the adoption path?
+
+---
+
+# Round 3 — RATIFIED (Ev, 2026-09-12, PR 2404)
+
+> axis shaped sounds good
+>
+> refuse on absence also sounds good
+
+**All three questions are answered.** The design is:
+
+1. **Declared intent, structural invalidation.** A declaration supplies
+   what nothing can infer; whether it still holds is decided by
+   comparing placement provenance, never by measuring. Coaxiality is
+   invariant under a rigid motion applied to BOTH carriers and destroyed
+   by one applied to one, so the test is "same chain since the
+   declaration?" — token equality, zero numerics.
+2. **Axis-shaped, not carrier-pair.** The declaration names the axis;
+   coaxiality between two carriers is derived. A function, not a
+   relation; it names what is shared, so a stale row refuses with *"these
+   no longer share axis D"*; and one channel then serves parallelism
+   ("same direction") and concentricity ("same point") instead of each
+   growing its own evidence type, which is how `CoaxialEvidence` became
+   a one-off nothing could serve.
+3. **Absence refuses**, per `crates/verbs/README.md` §3 P3's precedent —
+   because absence is not a signal: `Option<&GeomSource>`'s `None`
+   covers imported, hand-built, kernel-derived AND *a re-stamp that
+   failed*, and the last is a defect. Refusing makes that defect loud;
+   verifying instead would silently downgrade an exact answer to an
+   approximate one.
+
+## A correction to Round 2's pricing, in the ratified option's favour
+
+Round 2 said the axis-shaped form costs **reopening §3 P1's scoping
+decision**, on the reading that it needs `ParamSource`'s granularity
+with placement fields admitted. **Read against P1's actual text, that is
+wrong, and the ratified option is cheaper than it was priced.**
+
+P1 says (`crates/verbs/README.md:296-300`):
+
+> It carries deliberately LESS structure than `GeomSource`:
+> `SourceExpr::Placed` exists in the kernel only because rigid placement
+> re-parameterizes a *description*, while a stored scalar field is
+> **motion-invariant**, so no kernel op composes or interprets one and
+> no second spelling of expression structure enters the kernel.
+
+and VS-Q4 (`:388-390`) rejects a SourceExpr-style address in the
+parameter channel *"with nothing to compose a motion-invariant field."*
+
+**The exclusion is scoped to motion-invariant fields, and an axis is not
+one.** An axis is placement data — re-parameterized by placement — which
+puts it on the `GeomSource` side of exactly the line P1 draws, where
+`Placed` composition already exists and is already in the kernel. So the
+axis channel **extends `GeomSource`'s discipline at a finer granularity**
+rather than widening `ParamSource`'s scope, and P1 stands untouched.
+Nothing here reopens it.
+
+What remains genuinely new is the granularity: `GeomSource` identifies a
+whole description (a surface key), and an axis is a *component* of one.
+A per-component source that composes through placement is new work. It
+is not a contradiction of ratified design, which is what Round 2
+implied.
+
+## Consequences, filed as work
+
+- **The channel itself** — a per-component, placement-composing source
+  for axis-shaped facts, on `GeomSource`'s side of P1's line.
+  `work/wire/axis-shaped-identity-channel.md`.
+- **Positive origin marking** — the repair that makes absence mean
+  something, since `None` today covers four situations one of which is a
+  bug. `work/topo/geom-source-absence-conflates-four-origins.md`.
+- **The adoption step** — imported geometry gains a source derived from
+  the file's own entity ids, which `import_step` already has in hand and
+  discards at the door. Ev's idea, 2026-09-12.
+  `work/exch/step-import-discards-the-entity-ids-that-are-its-identity-channel.md`.
+
+## One obligation discharged by inspection
+
+The row carried an obligation to correct `crates/verbs/README.md` §3
+P2's SPHSPH sentence — *"reads the same channel at its own position"* —
+when this was answered. **That sentence is no longer in the README**:
+`SPHSPH`, `CoaxialEvidence` and `parallel` all return zero hits at
+`cce8d3b`. It was removed or reworded by other work since the row was
+filed on 2026-09-04. Nothing to correct; recorded here so the obligation
+is closed by evidence rather than forgotten.
+
+`cs_pair_frame`'s own sentence in `crates/topo/src/boolean/join.rs` is
+still accurate and needs no change: it says the declaration enters
+there, which is what this design ratifies.
