@@ -115,9 +115,17 @@ that touch the same match.
   named rider at `work/docm/plan.md:94-96`, so nothing is owed there.
 - `split-crossings-skip-pattern-mate-ends` — `is_mate_edge_end` learns
   `Pattern`+`Instance(i)` heads; take the ASM-XSPLIT view alongside.
-- `mate-clocking-has-no-gui-path` half (1) — refuse a nonzero clocking
-  rider on `FrameCoincidence` at `AddMate`; half (2) (a rotate-mate
-  affordance or documented roll conventions) is DOCM's question.
+- `mate-clocking-has-no-gui-path` — **re-homed to DOCM, 2026-09-12,
+  both halves.** This program held half (1) (refuse a nonzero clocking
+  rider on `FrameCoincidence` at `AddMate`) while DOCM's plan already
+  carried half (2), on a fence that has since been claimed twice:
+  S-MATE's exit did not free `crates/editor-core/src/mate/*`, it left
+  DOCM and MSOLVE both claiming it. An `AddMate` door is the `DocEdit`
+  set, which is DOCM's charter; DOCM rules and hands the build back
+  here if the ruling is "refuse typed at the door".
+  `levered-clash-margins-hide-their-arm` went to MSOLVE in the same
+  move, as solve semantics rather than document custody, and because
+  MSOLVE's open PR #2116 is on that row's own quantity.
 - `nested-pattern-mate-heads-refuse` — the one ruling: nested heads
   compose associatively, or the single-level fence gets its sentence
   in the A11 rider; a small PR either way.

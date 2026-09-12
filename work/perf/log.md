@@ -488,3 +488,23 @@ measures the geom-brep binary's wall in its report; recorded there.
   2321's body: this file's ε axis buys nothing (the 70-cell face map
   is identical at all three rows) and its tolerance axis is near-
   degenerate — theirs to act on.
+
+## 2026-09-12 — limit reset: PERF-6 review dispatched, side unit landed
+
+- **PR 2328 merged** (`gathers-counter-blocks-the-assertions-off-build`
+  closes with it): the twelve `gathers` counter reads in
+  `crates/editor-core/tests/docm5_subject.rs` are `#[cfg(debug_assertions)]`
+  per statement; full CI green on run 34557038654; merged at
+  `9980a8a7f`.
+- **PERF-5 R2 re-dispatched** (fable) on the same frozen head `61d4ba406`
+  after Ev reported the limit reset; the pair stays recorded as
+  interrupted (v6 3(e)) and is excluded from the tally. R1's report is
+  in hand; adjudication waits on R2.
+- **PERF-6 dual review dispatched** on frozen `dd0500150` (PR 2339):
+  draw byte 109, parity 1 ⇒ R1 = FABLE, R2 = OPUS; ordinal **3405**
+  claimed on main (`perf/ab-claim-3405`, docs-only). Both briefs ask the
+  reviewer to run Ev's teapot scene (PR 2306's branch merged with the
+  frozen head) at ε = 1e-12 — the finding's own body, not the fixture's
+  arc loft — and to attack the sign decision's soundness in both
+  directions (a valid body newly refused, an inside-out body newly
+  admitted).

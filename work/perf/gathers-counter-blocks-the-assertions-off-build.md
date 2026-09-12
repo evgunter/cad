@@ -2,8 +2,10 @@
 id: gathers-counter-blocks-the-assertions-off-build
 kind: issue
 title: gathers_on_this_thread is cfg(debug_assertions) and a test calls it unguarded, so no build can turn debug assertions off
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-09-11
+pr: 2328
 ---
 
 ## The finding
