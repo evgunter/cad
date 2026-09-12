@@ -577,7 +577,15 @@ good"; sequencing left to the orchestrator):
 - PERF-8 — per-face mass-property fluxes as idiom 1 with the K-funnel
   composing across threads (`docs/PERF-8-SPEC.md`).
 - PERF-9 — the pick index's BVH as per-face trees under a top-level
-  tree, memoized beside the patches (`docs/PERF-9-SPEC.md`).
+  tree, memoized beside the patches — landed (PR 2451): a `Bvh` per
+  patch under a top-level tree, served from `PickMemo`'s tree level by
+  digest and bit-identical boxes (`Bvh::is_over`), pick answers
+  reproduced hit-for-hit against a single-level reference; the tour
+  die's memo'd index build 131 → 33 ms; no first-open regression. The
+  residual is the per-build triangle table and boxes (`pick-index-
+  triangle-table-rebuilt-every-build`); a grazing-ray pick answer's
+  dependence on candidate order is docm's `pick-grazing-ray-answer-
+  depends-on-candidate-order`.
 - Beside the block, the display probe (viewer) as a side unit.
 
 **Block PERF-B2**, after B1 and Ev's D1 ruling:

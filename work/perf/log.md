@@ -52,3 +52,17 @@ no query or build changes). The pin is `viewer`'s `index_memo`
 differential against a single-level reference, tie-break row
 included. A finding on `docm`'s ground went to its slate:
 `work/docm/pick-grazing-ray-answer-depends-on-candidate-order.md`.
+
+## 2026-09-12 — PERF-9 merged
+
+Fix pass landed the union with one item disputed and accepted (the
+`tol` half of the "(δ, tol) change misses everything" row: `Tol` is a
+process witness with one constructor, so there is no second value to
+change to in-process — CI's per-ε rows are that axis). `Bvh::is_over`
+and `Aabb::same_bits` carry the tree-identity proof in `bvh`; the
+unread bytes chain is gone; the keys-short arm is `unreachable!` with
+both counts; a tree-for-tree row pins the memoised index's trees
+against a fresh build after every landing; the per-build triangle
+table is filed (`pick-index-triangle-table-rebuilt-every-build`).
+State-sync rode the PR; merged at `0ad4d28a3` (PR 2451). First B3
+unit landed; lane reclaimed.
