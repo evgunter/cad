@@ -151,15 +151,31 @@ impl View {
 }
 
 /// **The pitch one cell is drawn at**: the rung of the 1-2-5 ladder
-/// whose on-screen span is nearest [`TARGET_PITCH_PX`].
+/// whose on-screen span is nearest [`TARGET_PITCH_PX`], or `None`
+/// when there is no rung to read.
 ///
 /// Public because it is the module's one arithmetic claim worth
 /// asserting on its own — that the realized pitch stays inside the
-/// band the ladder's step size implies, at every scale.
-pub fn grid_pitch(metres_per_pixel: f64) -> f64 {
+/// band the ladder's step size implies, at every scale, and that a
+/// scale which is not one gets no rung at all.
+///
+/// **The refusal is the whole reason this returns an `Option`.** The
+/// ladder is a reading of `metres_per_pixel * TARGET_PITCH_PX`, and
+/// when that span is not a positive finite length there is nothing to
+/// read: the logarithm below has no floor and the ratio has no
+/// minimum. Every rung this could hand back instead is a number the
+/// function did not compute, arriving at the caller in the shape of
+/// one that it did — and the caller rules a lattice at multiples of
+/// it, so the substitution does not stay small. `f64::MIN_POSITIVE`
+/// is the worst of them and was what this returned: the index bounds
+/// come out `-inf..=inf`, so the patch is ruled at the cap
+/// ([`MAX_GRID_LINES`]) with every coordinate `NaN`. Refusing hands
+/// the caller the one fact it can act on — this view has no scale —
+/// and it draws nothing.
+pub fn grid_pitch(metres_per_pixel: f64) -> Option<f64> {
     let wanted = metres_per_pixel * TARGET_PITCH_PX;
     if !wanted.is_finite() || wanted <= 0.0 {
-        return f64::MIN_POSITIVE;
+        return None;
     }
     // The decade below `wanted`, then the mantissa on the ladder that
     // lands closest to it in RATIO — a grid is read logarithmically,
@@ -178,7 +194,7 @@ pub fn grid_pitch(metres_per_pixel: f64) -> f64 {
             }
         }
     }
-    best
+    Some(best)
 }
 
 /// **How many windows across a drawn plane's patch spans.**
@@ -389,7 +405,10 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
 /// plane rather than a rectangle somebody placed.
 fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
     let (u, v) = basis(normal);
-    grid(origin, u, v, normal, view)
+    // No segments is how this module says "nothing drawn", and it is
+    // the refusal itself rather than a substituted drawing: a plane
+    // the view cannot scale has no patch, no ruling and no tick.
+    grid(origin, u, v, normal, view).unwrap_or_default()
 }
 
 /// **A frame's grid, ruled along the frame's OWN axes**, plus an
@@ -413,7 +432,12 @@ fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, view: View) -> Vec<[f6
 /// the mark that cannot coincide with the ruling. The arms stay
 /// because an arrowhead floating at a distance reads as debris.
 fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
-    let mut out = grid(origin, u, v, cross(u, v), view);
+    // The arrows are sized against the same view the grid is, so a
+    // view that cannot scale the grid cannot scale them either; they
+    // go with it rather than being drawn over an absent patch.
+    let Some(mut out) = grid(origin, u, v, cross(u, v), view) else {
+        return Vec::new();
+    };
     let arm = view.metres_per_pixel_at(origin) * FRAME_ARM_PX;
     let o = [origin.x, origin.y, origin.z];
     // The two arrows differ in LENGTH as well as direction: a grid is
@@ -443,13 +467,19 @@ fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -
 
 /// The gridded patch the two plane-like datums share, ruled along
 /// `u`/`v` and ticked along `normal`.
+///
+/// `None` when the view lends this plane no scale — see the refusal
+/// at [`grid_pitch`]. Every number below is that one scale spent
+/// twice, on the patch's extent and on the pitch, so a scale which is
+/// not a length leaves nothing here to draw and not merely a pitch to
+/// choose differently.
 fn grid(
     origin: Point3<f64>,
     u: Vec3<f64>,
     v: Vec3<f64>,
     normal: Vec3<f64>,
     view: View,
-) -> Vec<[f64; 3]> {
+) -> Option<Vec<[f64; 3]>> {
     // What the camera is looking at, dropped onto the plane, in the
     // plane's own coordinates.
     let to_target = Vec3::new(
@@ -471,7 +501,7 @@ fn grid(
     // a perspective view cannot avoid.
     let per_pixel = view.metres_per_pixel_at(centre);
     let half = view.window_metres_at(centre) * PATCH_COVER * 0.5;
-    let pitch = grid_pitch(per_pixel);
+    let pitch = grid_pitch(per_pixel)?;
     let at = |a: f64, b: f64| {
         [
             origin.x + u.x * a + v.x * b,
@@ -512,7 +542,7 @@ fn grid(
             origin.z + normal.z * tick,
         ],
     ]);
-    out
+    Some(out)
 }
 
 /// **One segment along the axis, reaching past the window**, with a

@@ -352,7 +352,7 @@ fn no_zoom_leaves_the_eye_inside_a_grid_cell() {
     while height > 1.0e-4 {
         let view = view_from([0.0, 0.0, height]);
         let per_pixel = view.metres_per_pixel_at_one_metre * height;
-        let pitch = grid_pitch(per_pixel);
+        let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
         let pitch_px = pitch / per_pixel;
         assert!(
             (20.0..=400.0).contains(&pitch_px),
@@ -382,7 +382,7 @@ fn the_grid_pitch_steps_rather_than_sliding() {
     let mut seen: Vec<f64> = Vec::new();
     let mut per_pixel = 1.0e-6;
     while per_pixel < 1.0e-4 {
-        let pitch = grid_pitch(per_pixel);
+        let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
         if seen
             .last()
             .is_none_or(|last| (last - pitch).abs() > 1.0e-15)
@@ -407,6 +407,75 @@ fn the_grid_pitch_steps_rather_than_sliding() {
             "pitch {pitch:e} has mantissa {mantissa}, which is not on the ladder",
         );
     }
+}
+
+/// **`grid_pitch` refuses a scale that is not a positive length**, and
+/// reads every one that is.
+///
+/// The row above asserts what the drawing does with the refusal; this
+/// one asserts the refusal, at the door, over the inputs a `View` can
+/// actually put through it. `f64::MAX` is in the list because the
+/// overflow happens INSIDE the function — the scale is finite and the
+/// span it wants is not — which is the case a caller checking its own
+/// argument would miss.
+///
+/// **The value that makes this false** is any `Some(_)` on the first
+/// list: on the rung side a refused scale used to answer
+/// `f64::MIN_POSITIVE`, a number indistinguishable at the call site
+/// from a reading of a very close plane.
+#[test]
+fn grid_pitch_refuses_a_scale_that_is_not_a_positive_length() {
+    for bad in [
+        f64::NAN,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        0.0,
+        -1.0e-3,
+        f64::MAX,
+    ] {
+        assert_eq!(
+            grid_pitch(bad),
+            None,
+            "grid_pitch({bad:e}) answered with a rung",
+        );
+    }
+    for good in [f64::MIN_POSITIVE, 1.0e-9, 1.0e-3, 1.0, 1.0e6, 1.0e300] {
+        let pitch = grid_pitch(good);
+        assert!(
+            pitch.is_some_and(|p| p.is_finite() && p > 0.0),
+            "grid_pitch({good:e}) answered {pitch:?} for a positive finite scale",
+        );
+    }
+}
+
+/// **A view that lends a plane no scale draws NOTHING**, rather than a
+/// lattice of infinities.
+///
+/// The pitch is a READING of the view, and a view can fail to be one:
+/// with the eye at the far corner of representable space the
+/// eye-to-plane distance overflows to infinity, so world-per-pixel is
+/// infinite and there is no on-screen span to put on the ladder. The
+/// only honest answer is no grid. A substituted pitch is a number the
+/// module did not compute, and the caller cannot tell it from a
+/// reading.
+///
+/// **The value that makes this false** is a substituted
+/// `f64::MIN_POSITIVE`: the index bounds become `-inf..=inf`, their
+/// difference saturates to `usize::MAX` on the cast to `usize` and is
+/// capped at `MAX_GRID_LINES`, and the plane draws 390 positions — 97
+/// lines each way plus the normal tick — whose coordinates are `NaN`,
+/// because a basis vector's zero component times an infinite offset
+/// is not a number.
+#[test]
+fn a_view_with_no_finite_scale_draws_no_grid() {
+    let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
+    let segments = &draws(&doc, tol, [f64::MAX, f64::MAX, f64::MAX])[0].segments;
+    assert!(
+        segments.is_empty(),
+        "an infinite world-per-pixel drew {} positions, the first at {:?}",
+        segments.len(),
+        segments.first(),
+    );
 }
 
 /// **The ruling sits on ONE LATTICE, wherever the camera looks.**
@@ -448,7 +517,7 @@ fn the_ruling_is_anchored_on_the_origin_not_on_the_view() {
         // The pitch this view asks for: the plane is z = 0 and the
         // looked-at point is on it, so the patch centre IS `look_at`.
         let per_pixel = view.metres_per_pixel_at_one_metre * reach(&[look_at], eye);
-        let pitch = grid_pitch(per_pixel);
+        let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
         // The last pair is the normal tick, which is anchored on the
         // origin by construction and says nothing about the ruling.
         for pair in segments[..segments.len() - 2].chunks_exact(2) {
