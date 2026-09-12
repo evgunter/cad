@@ -2,7 +2,8 @@
 id: PERF-9
 kind: unit
 title: the pick index's BVH reuses what did not change - per-face trees under a top-level tree
-status: dispatched
+status: review
+pr: 2451
 opened: 2026-09-12
 branch: perf/9-per-face-bvh
 ---
