@@ -17,7 +17,7 @@ use geom_core::{Point2, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::{Filleted, fillet_edges};
-use sweep::test_support::{revolved_about_y, rim_arcs_at};
+use sweep::test_support::{one_edge_rim_at, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -46,12 +46,6 @@ const ZONE_SPHERE_LO: (f64, f64) = (1.936_491_673_103_708_5, -0.5); // sqrt(4-0.
 const ZONE_SPHERE_HI: (f64, f64) = (1.732_050_807_568_877_2, 1.0); // sqrt(3)
 const ZONE_BORE_LO: (f64, f64) = (0.6, -0.5);
 const ZONE_BORE_HI: (f64, f64) = (0.6, 1.0);
-
-fn one_edge_rim(body: &Body<f64>, sel: (f64, f64)) -> EdgeKey {
-    let hits = rim_arcs_at(body, sel.0, sel.1);
-    assert_eq!(hits.len(), 1, "one closed rim at {sel:?}");
-    hits[0]
-}
 
 fn volume(body: &Body<f64>) -> f64 {
     let p = mass_properties(body, tol()).expect("mass properties");
@@ -88,8 +82,8 @@ fn sequential(src: &Body<f64>, order: &[(f64, f64)], r: f64) -> f64 {
 fn r2_p1_zone_pair_equality_off_the_fixture_radius() {
     let body = zone();
     let (lo, hi) = (
-        one_edge_rim(&body, ZONE_SPHERE_LO),
-        one_edge_rim(&body, ZONE_SPHERE_HI),
+        one_edge_rim_at(&body, ZONE_SPHERE_LO.0, ZONE_SPHERE_LO.1),
+        one_edge_rim_at(&body, ZONE_SPHERE_HI.0, ZONE_SPHERE_HI.1),
     );
     for (r, exact) in [(0.11, true), (0.3, false)] {
         let one = fillet_edges(&body, &[lo, hi], r, tol())
@@ -150,8 +144,8 @@ fn r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call() {
     let body = zone();
     let r = 0.08;
     let (sph, bore) = (
-        one_edge_rim(&body, ZONE_SPHERE_HI),
-        one_edge_rim(&body, ZONE_BORE_HI),
+        one_edge_rim_at(&body, ZONE_SPHERE_HI.0, ZONE_SPHERE_HI.1),
+        one_edge_rim_at(&body, ZONE_BORE_HI.0, ZONE_BORE_HI.1),
     );
     let one = fillet_edges(&body, &[sph, bore], r, tol())
         .unwrap_or_else(|e| panic!("the cap-sharing pair builds in one call, got {e:?}"));
@@ -183,7 +177,7 @@ fn r2_p4_four_rims_in_a_sharing_cycle_compose_in_one_call() {
     let r = 0.08;
     let all: Vec<EdgeKey> = [ZONE_SPHERE_LO, ZONE_SPHERE_HI, ZONE_BORE_LO, ZONE_BORE_HI]
         .into_iter()
-        .map(|sel| one_edge_rim(&body, sel))
+        .map(|sel| one_edge_rim_at(&body, sel.0, sel.1))
         .collect();
     let one = fillet_edges(&body, &all, r, tol())
         .unwrap_or_else(|e| panic!("the four-rim cycle builds in one call, got {e:?}"));
@@ -260,14 +254,14 @@ fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
     let body = zone();
     let pair: Vec<EdgeKey> = [ZONE_SPHERE_HI, ZONE_BORE_HI]
         .into_iter()
-        .map(|sel| one_edge_rim(&body, sel))
+        .map(|sel| one_edge_rim_at(&body, sel.0, sel.1))
         .collect();
     let out = fillet_edges(&body, &pair, 0.08, tol()).expect("the cap pair builds");
     partition_check(&body, &out);
 
     let all: Vec<EdgeKey> = [ZONE_SPHERE_LO, ZONE_SPHERE_HI, ZONE_BORE_LO, ZONE_BORE_HI]
         .into_iter()
-        .map(|sel| one_edge_rim(&body, sel))
+        .map(|sel| one_edge_rim_at(&body, sel.0, sel.1))
         .collect();
     let out = fillet_edges(&body, &all, 0.08, tol()).expect("the four-rim cycle builds");
     partition_check(&body, &out);

@@ -50,7 +50,7 @@ use crate::node::RecipeNodeId;
 /// This type is how a caller finds that out before asking, and it
 /// deliberately carries a COUNT rather than the candidates: the
 /// candidates are arena keys, and those do not leave this crate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Denotation {
     /// Exactly one entity answers to this name.
     Unique,

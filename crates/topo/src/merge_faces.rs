@@ -734,7 +734,11 @@ impl OpPlacement {
             | E::NullScaffoldCurve { .. }
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
-            | E::CrossSolid { .. } => Self::TheEnumsVerdict,
+            | E::CrossSolid { .. }
+            | E::NoShellsNamed
+            | E::ShellRepeated { .. }
+            | E::ShellsAcrossSolids { .. }
+            | E::SolidWouldEmpty { .. } => Self::TheEnumsVerdict,
         }
     }
 }
@@ -1055,20 +1059,38 @@ impl<T: Decide> Body<T> {
         for (rep, rest) in groups {
             match work.group_regime(rep, &rest, &declared_faces)? {
                 GroupRegime::RefusesTheCall => {
-                    outcome.groups.push(work.merge_group(rep, &rest, tol)?);
+                    // One surgery scope per group: the ring surgery
+                    // inside `merge_group` is this door's, and the
+                    // tier-2 gate below is what certifies its result.
+                    let mut surgery = work.begin_surgery();
+                    let group = surgery.merge_group(rep, &rest, tol)?;
+                    surgery.sweep_and_close();
+                    outcome.groups.push(group);
                 }
                 GroupRegime::RecordsASkip => {
                     let mut trial = work.clone();
                     // The sub-stage's own tier-2 gate: the group is
                     // adopted only if its trial validates, so a
                     // recorded skip leaves `work` exactly as it was.
-                    let staged =
-                        trial
-                            .merge_group(rep, &rest, tol)
-                            .and_then(|group| match validate_closed(&trial) {
-                                Ok(()) => Ok(group),
-                                Err(errors) => Err(MergeCoplanarError::GroupNotClosed { errors }),
-                            });
+                    let staged = {
+                        // The sweep is the SUCCESS path's. A refusal
+                        // here is the trial's own — the group is
+                        // recorded as skipped and the trial thrown
+                        // away — and the state a refusal leaves
+                        // behind was never this door's to certify.
+                        let mut surgery = trial.begin_surgery();
+                        match surgery.merge_group(rep, &rest, tol) {
+                            Ok(group) => {
+                                surgery.sweep_and_close();
+                                Ok(group)
+                            }
+                            Err(error) => Err(error),
+                        }
+                    }
+                    .and_then(|group| match validate_closed(&trial) {
+                        Ok(()) => Ok(group),
+                        Err(errors) => Err(MergeCoplanarError::GroupNotClosed { errors }),
+                    });
                     match staged {
                         Ok(group) => {
                             work = trial;
@@ -1116,7 +1138,7 @@ impl<T: Decide> Body<T> {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
-        *self = work;
+        self.adopt(work);
         Ok(outcome)
     }
 

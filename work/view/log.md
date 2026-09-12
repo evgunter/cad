@@ -5983,6 +5983,70 @@ declaration marking that set, which is the `Derived` question one layer
 up rather than the destructuring one.
 `viewerapp-document-derived-state-has-no-boundary` carries it.
 
+## 2026-09-07, orchestrator: #2103 merged, and what its two rounds cost
+
+**#2103 is on main** (`574223e5d`), twentieth unit. Full code tier
+green before the merge: 37 jobs, `gate ok` success, 12 `test (…)`,
+5 `k-lint (gate, …)`. `#[test]` in `crates/viewer` 535 at the merge
+base and 535 at head.
+
+The unit went out as a style review because the class was settled by
+#2093 and the conversions looked mechanical. That was right about the
+CODE and wrong about what a review of it would find. **The review found
+no broken code and four broken sentences**, and both rounds since have
+been about prose:
+
+- every compiler claim survived independent re-derivation — seven
+  conversions byte-identical, `[f64; 8]` equality run against NaN,
+  `±0.0` and `±INFINITY`, the `Folded` observer set reproduced at
+  exactly seven by driving the compiler to a fixpoint, twelve rendering
+  sites by delete-and-compile;
+- two UNIVERSALS in `crates/viewer/README.md` were false. *"Every place
+  in this crate that lists a value's fields by hand destructures the
+  value instead"* missed `BlendTool::clear` — two fields named by hand,
+  in a file the PR edited, 355 lines below a census it had already
+  converted. *"Every other one is over an enum and is exhaustive by its
+  `match` already"* conflated two axes: a `match` is exhaustive over
+  VARIANTS, and `Display for CameraOp` drops `bounds` behind a `..`
+  that carried no argument at all.
+
+**The eighth census and the two `..` arms are the substance of the
+second round.** `BlendTool::clear` converts; `camera.rs:357` and
+`matetool.rs:353` do NOT — rendering either would change what the
+chrome says, and the PR's whole claim is that no rendering moved, so
+what they get is the argument for the drop rather than the field. That
+is the orchestrator's call and it is the §3 line: a behaviour change
+smuggled through a mechanical one is still a behaviour change, even
+when the mechanical one is right.
+
+**The citation sweep is the number worth carrying.** Re-deriving every
+`<file>.rs:<line>` in `work/view/`'s open items into the five files
+this PR changed corrected **25 citations across 12 items — and 20 of
+the 25 were already wrong at this PR's own merge base**, two of them by
+~80 lines. So `stale-file-citations-after-the-split` is not a residue
+of one split; it is the tracker's steady state between sweeps, and a
+sweep that only runs when a PR moves code will always find more than
+that PR moved. Three could not be repaired and are now three named
+classes on that row: a citation whose SUBJECT is gone rather than moved
+(repointing it fabricates), one into a file outside the sweeping PR's
+diff (so a diff-scoped sweep cannot converge), and a pasted TOOL
+TRANSCRIPT that is not a citation at all — which constrains any
+mechanical repointer, since one built for this row will match
+transcripts and one that edits them is worse than none.
+
+**The retitle was re-minted by the commit that made it.** The fix pass
+retitled the row from "three" to "seven", converted an eighth census,
+wrote the eighth row into the README table and the eighth section into
+the body — and left the title at seven. Corrected to eight before the
+merge. The rule it argues for is the one already on the plan: a title
+is read against its own BODY, not against the brief that cited it.
+
+**Residue, all filed rather than disclosed**:
+`viewerapp-document-derived-state-has-no-boundary` (new — the reset arm
+draws from the fields derived from the outgoing document and nothing at
+the declaration marks that set, which destructuring cannot reach), and
+the three citation classes above.
+
 ## 2026-09-07 — the const-ALL rule stops being prose
 
 `a-new-hand-written-all-table-meets-no-gate` closed on `view/all-gate`.
@@ -6084,3 +6148,4077 @@ shipped green over three garbage diagnoses. Four cases now match a
 fragment containing the subject, and
 `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names` is
 the durable half — a harness affordance, not this gate's to build.
+
+## 2026-09-07, orchestrator: #2106 merged, and what a correctness lane bought
+
+**#2106 is on main** (`24be3075d`), twenty-first unit, 37 jobs — 34
+success, 3 correctly skipped, zero failures. The unit closes
+`a-new-hand-written-all-table-meets-no-gate`, the schedule #2046 owed
+under §Q6.
+
+**This is the wave's one unit that was NOT style-only, and the posture
+was right.** The trigger for escalating it was not size or risk in the
+usual sense: it was that **a gate which silently never fires is
+indistinguishable from a gate that passes**, so the failure mode is a
+confident wrong answer by construction. The correctness lane found
+three MAJORs. One of them made the gate print `OK` and exit **0** over
+two planted breaches whenever the roster table was empty — a docs-tier
+edit away, and the #1953 class exactly, one program-generation after
+this program last re-minted it.
+
+**The fix pass then improved on its own review**, which is the part
+worth keeping:
+
+- it derived a **reader-population rule** — *a reader is any command
+  reading the gate's subject whose exit status the shell DISCARDS, i.e.
+  every STAGE of every pipeline inside a process substitution*. Stages
+  rather than pipelines is precisely what the old universal got wrong,
+  and the rule found a **second** unguarded reader the review had
+  missed;
+- it got the guard SHAPE right for a reason neither the review nor this
+  orchestrator had: a brace group, not `|| reader_failed` on the
+  pipeline, because `pipefail` reports the rightmost non-zero stage —
+  so guarding the pipeline would diagnose an upstream death as the
+  classifier and re-mint the bug inside its own fix;
+- it ran **negative controls**: the self-test must FAIL when the gate
+  is broken, verified three ways. That answers the review's MINOR-8,
+  which was itself found by accident when a broken name extraction left
+  a twelve-case self-test green over three garbage diagnoses.
+
+**Verified here rather than taken on report**: the killer case rebuilt
+by hand — roster emptied, breach planted — gives **exit 1 with five
+errors**; the gate green on the real tree; 21 gates and every self-test
+`FAIL=0` on the MERGED tree; `gate-roster` 22 registered;
+`check-ci-mirror-parity OK`.
+
+**Two rulings this unit needed.** The territory fork went four paths
+wide and is settled in
+`work/issues/gate-wiring-fence-is-undrawn-for-the-parity-entry.md`: the
+`TIER_BLIND` entry in `scripts/check-ci-mirror-parity.py` is ruled the
+same "one announced line" class as CIW's workflow files, because it is
+FORCED — a TIER-blind gate in the `mirror` job with no such row reds
+parity itself, so the entry cannot be split into a follow-up by its
+owning program. And the lane's §6 report, which it had recorded as
+"None": `gate_rust_code --statements` splits a Rust array type at the
+`;` inside it, filed as
+`gate-rust-reader-splits-an-array-type-at-its-semicolon` with the
+property its eventual fix must inherit — the shared reader does not
+track `<>` either.
+
+**The merge itself is a rule.** `gate ok` was green at `77505a340` and
+the merge was still refused: `main` had moved and #2103 had rewritten a
+neighbouring section of `crates/viewer/README.md`, the file this gate
+parses its allowlist from. Resolved by merging `main` IN — never
+rebasing, never force-pushing — with `work/view/log.md`'s two halves
+both kept in merge order, which is what an append-only file needs when
+two units land on one day. Green CI on an old head is not a merge
+criterion; it is a criterion about the head it ran on.
+
+## The summarised field says so itself, and the marker is left alone (2026-09-08)
+
+`finish-marker-cannot-say-summarised` closed, on none of the three
+candidates it listed. Ev's ruling: the tree already held the right
+mechanism in one of the four walks. `LandedRun` carried `checks`
+through a `format_args!` that renders as something obviously a summary
+(`0 finding(s), 0 skipped`), while the other summarised fields
+rendered as `is_some()`, a `len()` or a mapped generation — and
+`scratch: false` is a `bool` a reader who knows `std` and not the
+README takes for the whole of a `Doc`. Every summarised presence now
+renders as an elision naming what it stands for — `Some(<Doc>)`,
+`Some(<Body>)`, `Some(<Gesture>)`, `Some(<DirResolver>)`,
+`Some(<PickIndex for Generation(1)>)` — and `states` and `checks` are
+untouched, because a count already reads as a count. `Derived` still
+`finish`es; the other three still `finish_non_exhaustive`; no key was
+renamed.
+
+**The distinction belongs at the FIELD, not at the marker.** The
+marker answers *are all fields shown?*, which is the only question a
+two-valued flag over a field SET can answer; the question a reader has
+at a summarised field is *is this value the whole field?*, and the
+value is where that gets answered. The three-way split was never the
+marker's to carry.
+
+**Nothing rendered these dumps, and the compiler said so, not a grep.**
+Deleting all four impls leaves the workspace building `--all-targets`
+under both of `viewer`'s feature configurations, with its one doctest
+unaffected: no `{:?}`, no `#[derive(Debug)]` over these types, no
+`T: Debug` bound reached them, so no test could have been asserting on
+one either. `crates/viewer/tests/debug_dumps.rs` is now the only
+reader and holds the seven summarised fields to their spellings; it is
+also the reason the README's new universal is not a claim over an
+unread population.
+
+**The sweep behind a universal is stated at the sentence.** The README
+paragraph now gives the rule that produces its list — read every
+`.field(…)` call in the four walks, 22 of them, and take the nine
+whose value argument is not the destructured binding — and, because
+nothing can hold the NEXT summarised field to the rule, the reason it
+has no guard is written where the claim is: the destructuring makes
+the compiler send a field's author to the walk, the rule is stated
+there for them to read, and nothing in the tree computes on a dump.
+
+**The citation pass found 26 of 29 already wrong at its merge base.**
+Three of the re-pointed citations were falsified by this change; every
+other one had been wrong at `92b2c303d`, some by hundreds of lines.
+Four rows were left alone deliberately — a receipt dated to a SHA is a
+record, and re-pointing it falsifies the record it is. The full table,
+its enumeration rule and its blind spot are in the closed item.
+
+## Corrections to the entry above, before it merged (2026-09-08)
+
+Appended rather than edited, because this file is the narrative record
+and not a slate: what the entry said is what it said.
+
+**"Nothing in the tree computes on a dump" denied its own premise two
+paragraphs earlier**, which named `tests/debug_dumps.rs` as the only
+reader of these dumps — a reader that computes on one is exactly what
+that suite is. The claim carrying the no-mechanical-guard argument is
+about PRODUCTION code: no shipped path reads a dump, so a lapse in a
+spelling costs a reader a misreading and can never cost an answer. The
+test suite is the one reader, and what it computes on a dump is the
+spellings themselves. `crates/viewer/README.md` now says it that way.
+
+**The spelling claim was true of six fields and not of the seventh.**
+`resolver: Some(<DirResolver>)` was asserted nowhere: the suite read
+`resolver: None` and refused `resolver: false`, which catches a
+regression to `is_some()` but not a rewrite of the elision's text —
+mutating it to `<Resolver>` left the suite green. `resolver` is written
+only by `Open` and `Save`, so reaching its present arm needs a file:
+the suite now saves into a tempdir the way `tests/doc_io.rs` does and
+reads both arms. The same mutation now fails a named assertion, and
+"holds the seven to their spellings" is true at the granularity of
+spelling, not only of field.
+
+**Four citations were falsified by this change, not three.** The three
+counted were tokens; the fourth is
+`viewerapp-document-derived-state-has-no-boundary`'s `(:1555-1560)`,
+the doc paragraph quoted in the same sentence as the `:1583-1586` that
+WAS re-pointed — a continuation left behind by the re-point it hangs
+off, which is worse than a visibly stale row because the sentence reads
+as freshly verified. It is `:1563-1568` at head. Two more citations the
+pass had passed or shifted were re-derived by subject in the same fix:
+`a-module-…`'s README range (a delta of +17 applied to a hunk that
+added 22 lines — the exact defect
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` closed at
+#2083, re-minted), and `outstanding-and-progress-…`'s
+`README.md:345-347`, passed as still true when its quoted phrase is at
+`:349-350`. The receipt's split is therefore **30 re-pointed / 6 still
+true**, of which 27 were already wrong at the merge base; and the split
+counts CITATIONS — by leading number the same 36 split 28/8, because
+two ranges had their ends re-derived while their anchors did not move.
+
+**A count fixed in one place contradicts itself.**
+`four-debug-walks-are-spelled-and-placed-two-ways` had `1953 − 173 =
+1780` re-derived in its body while its own title and closing paragraph
+still said 1,779 — #2103's defect re-minted. Both are 1,780 now; the
+1,779s in this file and in `debug-for-docsession-…` are records of what
+was said then and stay.
+
+## 2026-09-08 — the two-shape rule stops counting readers
+
+`bare-vocabularies-declare-their-words-a-second-time` closed on **Ev's
+ruling, which is neither answer the item framed**: two of the four bare
+vocabularies convert, and the README's rule is CORRECTED rather than
+deleted.
+
+**What was wrong with the rule, not with the population.** It asked
+"is there a single-value reader?" and answered "method". That sends
+`PathVerb` and `ArcMode` to the bare arm although a production loop
+walks their table and wants a word per entry — the labelled arm's whole
+purpose — because each *also* names one value's word on a combo's
+closed face. The corrected test is **does anything walk the table for
+its WORDS?**: a question about whether the words are table data, which
+a sweep can answer, where a count of readers cannot.
+
+**The sweep, stated at the sentence it produces.** Every loop over a
+vocabulary's `ALL` under `crates/viewer/src`, read for what it asks
+each entry for. Two exist and both ask for the word —
+`pane/create.rs:727` (`:738`, `:748`) and `widgets.rs:300` (`:301`) —
+so `PathVerb` (17) and `ArcMode` (6) are labelled and their loops now
+read `(option, label)` pairs. `ToolKind` and `Seat` have no `src/`
+reader of `ALL` at all and stay bare; the suites walk both lists for
+the VALUES (`tests/combine_ops.rs:1290`, `:1422`), and a seat's word
+reaches only an assertion message about the one seat that failed
+(`:1471`, `:1478`) — a walk that would still do its job if the words
+did not exist is not a reader of them.
+
+**The accessor is opt-in, which is what made this a unit.** Giving the
+labelled arm a `label()` unconditionally would hand one to the five
+labelled vocabularies that never ask for a single value's word: dead
+code under `-D warnings`, and an `#[allow(dead_code)]` over the arm
+would silence the report that an accessor has lost its last reader. So
+a vocabulary DECLARES the projection it wants — `pub(crate) fn label;`
+under its `ALL` — and the macro emits a `const fn` MATCH over the same
+tokens the array is built from. Not a scan of `ALL`: exhaustive by
+construction, no fallback arm to write, const-evaluable (which
+declaring it `const fn` is what checks), and the same codegen the
+hand-written match had.
+
+**The words are unchanged, proved by running.** A throwaway unit test
+printed `index, variant, word` for all 23 entries at the merge base and
+again after the conversion; the two outputs are byte-identical, same 23
+rows and same md5. That is the receipt #2103's lesson asks for — these
+words are on the user's screen, and a literal moving from a match arm
+into a declaration is exactly where a rendering goes quietly wrong.
+
+**Citations re-derived by subject, in the open rows that cite the files
+this branch touched.** Four were wrong at the merge base and none of
+the four was shifted by this branch:
+`hand-maintained-mirrors-of-a-kernel-enum-are-unforced` cited
+`forms.rs:44` for `BOOLEAN_OPS` (`:67`), `forms.rs:471` for
+`MATE_PRIMITIVES` (`:511` at the merge base, `:487` here) and
+`create.rs:887` for its production reader (`:892`);
+`revolve-tool-unreachable-no-axisinplane-form` cited `forms.rs:52` for
+`DatumKind` (`:93`) and `create.rs:354-363` for the four `DatumSpec`
+arms (`:358-371`); `tone-is-a-value-in-frame-and-a-comment-in-two-panes`
+cited `create.rs:592-594` for "a third copy" of the weak/coloured rule,
+which is the "Add profile" button — the copy is at `:581-585`. The
+`Was`/`Now` table in `stale-file-citations-after-the-split` is NOT
+re-pointed: it is dated to `d799235e`, where `forms.rs:52` and
+`create.rs:354-363` are exactly what it says they are, and rewriting a
+dated record would make it false about the tree it names.
+
+## 2026-09-08 — #2143's fix pass: the sweep rule did not produce its own population
+
+The style review returned **merge after named fixes** on #2143, and the
+first of them is this program's own rule broken by the PR that states
+it: *a universal in prose owes the sweep rule that produces its
+population, written at the sentence.* The entry above states the sweep
+as "every loop over a vocabulary's `ALL` under `crates/viewer/src`" and
+then says **two** exist. **Seven exist, and all seven ask for the
+word** — `pane/create.rs:309` (datum row), `:409` (profile row),
+`:727` (path verb), `:989` (pattern rule), `:995` (pattern output),
+`:1093` (blend kind) and `widgets.rs:300` (arc mode), each binding
+`(value, label)` and putting that label on the control it draws. "Two"
+was the count of vocabularies this unit CONVERTS, which is a fact about
+the diff and not about the population; and at head it is no longer even
+expressible as a restriction, because `PathVerb` and `ArcMode` are
+labelled now and sit among the seven indistinguishably. It was a
+REGRESSION as well as an error: the paragraph the rewrite deleted
+(`crates/viewer/README.md:940-941` at `92b2c303d` — *"the five labelled
+ones are labelled because their word appears nowhere but the radio row
+that draws them"*) was the only text accounting for the other five, and
+nothing replaced it.
+
+**The repair states the population, not a scoped sweep.** The other
+open shape was to scope the sweep to "a vocabulary whose shape is in
+question", and it is the wrong one here. The section's whole subject is
+which shape each of the NINE has, so a sweep that answers for a subset
+does not produce that population; and "in question" is a prior
+judgement, not a mechanical filter — the same defect as the "count the
+readers" rule this unit replaced, one level up. Stated as all seven,
+the sentence is re-runnable by a reader: grep the loops, get seven,
+check each binds a label, and the two that never appear are the two
+bare ones.
+
+**The sweep's scope now says `src/` AND `tests/`, because its reasoning
+already did.** The entry above declares the sweep `src/`-only and then
+rules `ToolKind` and `Seat` bare on evidence from
+`crates/viewer/tests/combine_ops.rs` — which is where the only
+word-touching walk of a bare vocabulary would live. A `src/`-only sweep
+has nothing to discriminate on exactly the two rows it is deciding, and
+a future tests-only word-walk goes unseen. The README carries the
+corrected scope; the suites' two word-reading walks
+(`tests/combine_ops.rs:896`, `:880`; `tests/blend_authoring.rs:831`)
+are over already-labelled vocabularies and confirm their shape rather
+than deciding it.
+
+**The `for … in <V>::ALL` shape is the blind spot, and it is wider than
+the entry above admitted.** Four walks reach a vocabulary's `ALL`
+without that spelling: `tests/combine_ops.rs:880`
+(`PatternOutputChoice::ALL.map`) and `tests/blend_authoring.rs:831`
+(`BlendKindChoice::ALL.map`) READ THE WORD; `tests/combine_ops.rs:1290`
+and `:1321` (`ToolKind::ALL.map`) and `tests/blend_authoring.rs:786`
+(`ToolKind::ALL.into_iter().filter(…).all(…)`) read values only. None
+is under `src/` and none reaches a BARE vocabulary for its word, so the
+ruling is unchanged — but that is the sentence the receipt owed, not
+"neither exists today".
+
+**`vocabulary!`'s accessor name is no longer a free parameter.** The
+matcher spelled it `$fvis:vis fn $word:ident;`, so the macro would
+project whatever identifier a site handed it — and the crate already
+spells this concept two ways (`ToolKind::label`, `Seat::name`). That is
+the family's own argument turned on itself: `vocabulary!` exists
+because a second hand-written copy of a list drifts, and a free
+parameter reintroduces the drift in what the readers have to call. The
+matcher is now a literal `fn label;` (`crates/viewer/src/vocab.rs:178`)
+with the visibility left free, because visibility is a fact about who
+may read the word rather than a second spelling of anything. It costs
+nothing today: `PathVerb` and `ArcMode` are the only declarers and both
+said `label` already, and `Seat::name` (`seats.rs:153`) and
+`ToolKind::label` (`tools.rs:85`) are hand-written methods in their own
+`impl` blocks that the bare arm never projects.
+
+**`PathVerb::label`'s doc is trimmed to its own subject.** Eleven lines
+for a one-line declaration, half of them about `ALL`'s completeness and
+about issue #1385's coverage gap — migrated from the deleted `impl`
+block rather than written for the new site. What is true of `label`
+stays; the `ALL` half moves onto `ALL`'s own doc, where its subject is.
+
+**The arithmetic.** `forms.rs` is 515 lines at `92b2c303d` and **486**
+here, **−29**; the entry above says −24 (and #2143's body said −23),
+both stated before this fix pass. No line at or above `:182` moves.
+`MATE_PRIMITIVES` is therefore at `forms.rs:482`, not `:487` as that
+entry and `hand-maintained-mirrors-of-a-kernel-enum-are-unforced` say;
+the item is re-pointed, and this line corrects the record here.
+
+## 2026-09-08, orchestrator: #2148 and #2143 merged, and the shape of the day
+
+**Both on main** — `f982823b0` (#2148, the summarised-field rendering)
+and `65929a454` (#2143, the two vocabularies and the corrected rule).
+Twenty-three units. Both green on the full code tier, 37 jobs each,
+verified from the job list rather than a summary. Both were **Ev's
+rulings, taken in chat**, and in both cases the ruling was **not** one
+of the options the item itself framed — which is the finding worth
+carrying out of the day.
+
+**Re-deriving a fork against the tree moved the question, twice.**
+`finish-marker-cannot-say-summarised` offered three candidate spellings
+and called none obviously right; the tree held a fourth, because
+`LandedRun` already summarised through `&format_args!(…)` while every
+other summarised field used `is_some()` and rendered `false`. The
+answer was to follow the precedent already in the file.
+`bare-vocabularies-declare-their-words-a-second-time` framed a
+dichotomy — the labelled arm absorbs all four bare vocabularies, or
+none — and tracing every reader gave **two**, with the rule CORRECTED
+rather than deleted. **An item's own menu of options is a claim like
+any other, and re-deriving it against the tree is what a fork costs.**
+
+**Two closures under a week old were re-minted inside one PR**, both
+found by a reviewer re-deriving citations by hand — never by a gate,
+never by a lane's receipt. A count was re-derived at one site and left
+in its file's `title:` and body (#2103's defect), and a citation was
+re-pointed by applying a DELTA rather than re-finding the subject —
+`787+17` where the hunk was `+22`, so the words the row quotes ended up
+outside the range it named (`citation-repoint-shifted-a-number-the-
+lane-knew-was-wrong`, closed at #2083 two days earlier). **A closed
+item is a record, not a guard.** The orchestrator did it too, passing
+`README:936-937` forward from a review report when the line was
+`:940-941`; #2143's lane caught that and said so.
+
+**Mutation testing earned its place.** #2148's reviewer did not read
+the new test file and conclude it held the seven renderings — it
+changed `resolver`'s elision to `<Resolver>` and ran the suite, which
+stayed **green**. Six of seven were held; the seventh was only claimed.
+The fix pass then reached that arm through a `Save` into a tempdir, and
+the same mutation now fails by name. *Asserted-somewhere is not
+asserted-here, and only a mutation tells them apart* — the counterpart
+to #2103's *rendered-and-unasserted is not unrendered*.
+
+**Residue**: `vocab-gate-counts-bullets-across-a-whole-prose-section`
+(the #2106 gate reads every `- **` between its heading and the next
+heading of any level — 131 lines of prose — so the real constraint is
+"no bulleted list in this section" and the error misdiagnoses it), and
+`work/issues/code-quality-item-quotes-a-viewer-doc-string-that-was-
+rewritten` (§6, quotation rot on another program's slate). Both filed
+by the orchestrator, neither taken here.
+
+## 2026-09-08 — the vocab gate's kind scan is anchored to a paragraph, and the item's own numbers were wrong (#2172)
+
+**The region, re-derived.** `readme_kinds` stopped at the next heading
+of ANY level, and `#### The lists that stay hand-written` is one, so the
+scan region was never the `###` section. Running the reader's own awk
+over `crates/viewer/README.md` at `d02bb0e6b` gives `:931-1079` — **149
+lines** — with the three bullets at `:1023`, `:1026`, `:1031`, all
+inside the enumeration paragraph `:1020-1033`. The residue entry above
+says "131 lines of prose" and the item said `:907-1037`; at the tree the
+item was written against the region was `:908-1021`, 114 lines, and
+`:1037` is inside the table's trailing prose — neither the end of the
+scan region nor the end of the section (`:1044`). Both endpoints and the
+count were wrong, and the item's `title:` carried the figure. **An
+orchestrator's filed number is a claim like any other**, and the lane
+that takes the item is where it gets checked; this one was told to check
+it and it did not survive.
+
+**The fix is an anchor on the announcing sentence**, which is what the
+item proposed. Two things it did not: the anchor matches a PREFIX of the
+line rather than the whole line, because a paragraph's wrap point is an
+artifact of the fill column while the four constants this gate already
+pins are headings and a table header, whole lines by construction; and
+the anchor carries the count word, so the README's prose number and
+`KIND_COUNT` now hold each other. Before this the section could say
+"Four kinds of list stay hand-written" over three bullets and nothing
+read the sentence at all.
+
+**A pass case is the receipt, and it has to fail unfixed.** The case
+this owed — a bolded bullet in the section's PROSE, expecting GREEN —
+was run against the whole-section scan restored into the file, and
+failed with the misdiagnosis the item described: *"ratifies 3 kinds …
+and this pass read 4: "A bolded bullet""*. Two more cases and three
+negative controls turn the suite red on demand. **A self-test case that
+passes before and after proves nothing**, and the way to know which one
+you wrote is to put the old code back and run it.
+
+**Two citations into this gate were stale before the branch touched
+it.** `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-
+names.md:25` names `:611-625` and "twelve `gate_selftest_case` rows";
+at `d02bb0e6b` those rows were `:930-973` and there were twenty. `work/
+issues/gate-rust-reader-splits-an-array-type-at-its-semicolon.md:65`
+names `:139-153` for a sentence that lives in the item reader's header,
+`:212-218`. Both were reported in the PR body rather than repointed from
+a unit branch, per §6. **A file that grows fast falsifies its own
+citations quietly**: neither was wrong when written, and nothing reads a
+line range to check it.
+
+## 2026-09-08 — a correction: the count hold was reachable around, and the kind reader read column 0 only (#2172, fix pass)
+
+**The entry above is falsified in one sentence and it is corrected
+here, not rewritten.** It says *"the anchor carries the count word, so
+the README's prose number and `KIND_COUNT` now hold each other."* They
+did not. The anchor holds the README against the GATE — amend the
+section to four kinds and no line starts "Three kinds of list stay
+hand-written", so the anchor reds. It did not hold the gate against
+ITSELF, and the red named the way around as a co-equal repair: *"restore
+the sentence, or change `KIND_ANCHOR` in $0 in the same diff"*. Take
+that second repair alone — `KIND_ANCHOR='Four kinds of list stay
+hand-written'`, `KIND_COUNT` left at 3 — and a section announcing Four
+across three bullets was GREEN, with `3 kinds read from "Four kinds of
+list stay hand-written"` printed on the OK line, a self-contradiction
+nothing reads. **A hold whose own diagnosis names the edit that
+defeats it is not a hold**, and the cost was one extra edit.
+
+**Both copies are kept; the third edge is what was missing.**
+`KIND_COUNT` is what makes an amendment cost an edit to the gate, so
+deriving the number from the anchor and deleting the constant would
+close the divergence by giving up the reason it exists.
+`anchor_states_count` checks the anchor's first word against
+`KIND_COUNT` before the README is opened, and the two anchor
+diagnoses now say the number word moves with `KIND_COUNT`. The
+count-mismatch red now names WHICH SIDE each number came from — it
+asserted *"$README's section ratifies $KIND_COUNT kinds"* using the
+GATE's number, telling an author the README ratifies four when the
+README ratified three, whose plausible wrong repair is to add a fourth
+bullet. The self-contradicting OK line is unreachable rather than
+diagnosed: a green line nobody reads is not a guard.
+
+**The kind reader read a bullet at column 0 only, and CommonMark does
+not.** A list marker sits at up to three spaces of indent and may
+interrupt a paragraph, so `  - **A fourth kind** …` on the line after
+the announcing sentence renders to every human reader as the first item
+of the announced list — and state 1 swallowed it as the sentence's own
+wrap, state 2 as a continuation. Three kinds read, `OK`, exit 0: **the
+wrong-and-quiet shape this gate exists to prevent, in the gate.** Fixed
+as a class at all three sites that assumed column 0 (state 1's escape,
+state 2's bullet, the `sed` that extracts the name), with the other
+side of the boundary encoded exactly rather than approximated: at four
+spaces the marker is a lazy continuation of the paragraph, a nested
+item of the bullet above, or an indented code block, and a leading tab
+advances to column four. Every rendering was checked against
+`markdown-it-py` in CommonMark mode.
+
+**Five fixtures and four direct rows, each run against the shape it
+covers.** A case that passes before and after proves nothing, so each
+was run against the unfixed spelling: reverting state 1's escape, state
+2's bullet or the `sed` each makes a planted indented kind pass;
+dropping the "the anchor must OPEN a paragraph" rule makes a QUOTATION
+of the sentence red as a second announcement; widening the boundary to
+`[[:space:]]*` reds on all three four-space near misses. The constant
+pair is not expressible as a fixture — a fixture plants a tree and the
+pair lives in the script, and a test hook that let one vary it would be
+a way to set the count from outside — so it is four direct calls on the
+predicate the guard is one `case` over.
+
+**The README's universal owed its exception.** *"The prose in this
+section may carry bulleted lists like any other prose"* is false for
+one position: a list separated from the ratified list by nothing but
+blank lines is ONE loose list in CommonMark, so its items are read as
+ratified kinds and red. The sentence now carries the exception and the
+rule that produces it. **A universal in prose owes the sweep rule that
+produces its population** — the same obligation §5 puts on a scope
+sentence in a PR.
+
+## 2026-09-08, orchestrator: #2172 merged, and a gate that failed its own thesis
+
+**#2172 is on main** (`2679a9451`), twenty-fourth unit, 37 jobs green.
+It closes `vocab-gate-counts-bullets-across-a-whole-prose-section`:
+the #2106 gate read every `- **` between its section heading and the
+next heading of any level — 149 lines of prose — so the constraint it
+actually imposed was *never write a bulleted list in this section*, and
+its error told the author they had added a **ratified kind** they had
+not. #2143's author had already paid for it, writing a whole README
+rewrite with no bulleted list to keep the gate green.
+
+**The review found the gate failing its own thesis.** A bullet indented
+two or three spaces renders — to CommonMark and therefore to every
+reader of the page — as an item of the announced list. The new reader
+escaped its paragraph state on `/^- /`, column zero only, and swallowed
+anything indented as a continuation. So a fourth ratified kind, visible
+to every human, read as three and printed `OK`, exit 0: **the exact
+defect this gate exists to prevent, inside the gate written to prevent
+it.** A `^`-anchored pattern over markdown is a claim about column zero
+that markdown does not make.
+
+**And the hold the change was argued on was not a hold.** The unit put
+the count word inside `KIND_ANCHOR` on the ground that the section
+could otherwise say "Four kinds…" over three bullets unread. The
+reviewer did not argue with that; it took the resulting red's OWN
+second suggested repair — change `KIND_ANCHOR` to match — and got
+**green, exit 0**, with the `OK` line printing `3 kinds read from
+"Four kinds of list stay hand-written"`. The count word bought one
+extra edit, and the error message named that edit. **A guard whose
+diagnosis offers a way around it is a speed bump, and the only way to
+learn that is to follow the repair the tool prints.**
+
+Both are closed, and both were verified here rather than taken on
+report: the indented bullet now exits 1 listing `"A fourth kind"` among
+the bullets read, and the `Four kinds…` state is now unreachable rather
+than merely diagnosed — a green line that contradicts itself is read by
+nobody, so it gets a guard, not a message.
+
+**The fix pass went past its brief three ways.** It settled the indent
+boundary with a CommonMark parser per position rather than reasoning
+about it (two and three spaces are items; four after the anchor line is
+a lazy continuation; four after a blank is an indented code block) and
+checked the regex under both gawk and mawk. It found a paired case
+nobody had named — the anchor now matches only where it OPENS a
+paragraph, which is the renderer's own lazy-continuation rule. And it
+caught a defect of its own: the new guard was first a bare call under
+`set -e` and killed the gate before its own `gate_error` could print.
+**A guard that dies before its own diagnosis is worse than no guard.**
+
+**The orchestrator's filed figures were wrong, and the diagnosis is
+better than "wrong".** The item said `crates/viewer/README.md:907-1037`,
+131 lines; the region was 114 lines at the tree it was written against
+and 149 at the branch's base. The reviewer found where 131 came from:
+`447124324`, one commit earlier, where `907-1037` inclusive *is* 131.
+**The figures were a blend of two trees.** The orchestrator's numbers
+get re-derived like anyone's.
+
+**Residue, filed rather than absorbed**:
+`gate-section-scans-end-on-any-column-zero-hash` (both README scans end
+at any column-0 `#`, so a Rust attribute inside a fence truncates the
+section and the anchor then reports a sentence that is visibly present
+as gone) and
+`gate-reader-guards-count-six-where-the-stated-rule-yields-nine` (the
+header's number counts guards where its own rule counts stages, leaving
+three diagnoses able to name the wrong reader — the
+misdiagnosis-by-`pipefail` that same file argues against elsewhere).
+
+## 2026-09-09 — the two wasm dead items are `cfg`, and the refusal that IS unsaid is somewhere else
+
+`viewer-items-unreferenced-at-wasm32` closed. CIW's PR 2263 added the
+first CI row compiling this crate for `wasm32-unknown-unknown` and
+found `WINDOW_TITLE` and `ViewerApp::deliver_status` unreferenced
+there; the row is `cargo check` and not `-D warnings` because of them,
+which made it the one viewer row in the workflow that cannot fail on a
+warning.
+
+**Both took shape (1) — `#[cfg(not(target_family = "wasm"))]` on the
+item — but only after shape (2) was run down.** The item declined to
+choose, and the reason to choose carefully is that shape (2) is a live
+defect and shape (1) buries it: if the browser build ought to be
+delivering status for a refusal it swallows, the `cfg` makes the
+silence permanent. Three findings settle it for `deliver_status`. The
+dialog verdict it carries cannot occur on wasm, because the browser
+links no dialog to return from. The refusal wasm *does* raise on those
+controls is raised earlier and already said, through
+`.on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)` — the same const
+string `dialog_status`'s `Show` arm would put on the line, so #1125's
+posture is met on the hover route, not the status route, and the same
+is true on a desktop with no zenity and no portal. And the status-line
+sentence is unreachable on every target anyway: one `self.chooser` copy
+both gates the button and feeds `dialog_status`, so every reachable
+verdict at both sites is `Keep`.
+
+**Shape (2) is real in this crate, and the sweep found it one control
+over.** The sweep rule was every `cfg(…target_family = "wasm"…)` site
+under `crates/viewer/src` — 35 by that spelling — asked whether the
+browser takes a different arm, whether the difference is a refusal, and
+whether anything says so. The preferences store is one: on wasm
+`Store` is `prefs::Absent`, `remember_theme` returns early on
+`!store.usable()`, and the palette picker is an ordinary enabled
+`ComboBox`. So a browser user picks a theme, it applies, the tab
+reloads, and the default is back with nothing having said why — against
+`prefs.rs:318-321`'s *"disabled with a reason, never offered and then
+silently ineffective"* and `app.rs:88-91`'s *"the Save control disables
+itself"*, which names a control that does not exist. Filed as
+`wasm-theme-choice-is-offered-and-silently-not-kept`. It gives
+`deliver_status` no wasm caller — `remember_theme` reports through
+`notices.push`, and the repair is chrome — which is why the two
+questions came apart.
+
+**The flip is proved and not made.** `.github/workflows/ci.yml` is
+CIW's and is untouched; **no YAML was written here** — what went to the
+orchestrator to route is the evidence that the flip would pass, and the
+two candidate commands it would have to hold, not a diff. Both spellings run clean at the wasm target on
+the closing tree, and the negative control is what makes that evidence:
+the same clippy command on the unfixed tree exits 101 with those two
+warnings as errors and nothing else, which is also the enumeration rule
+behind *exactly two* — the compiler's reachability verdict over the
+compiled configuration, not a grep. `--all-targets` is not available at
+that target and never was: `crates/viewer/tests/` reaches
+`ThreadEvaluator`, which is host-only.
+
+**A second residue, disclosed with its number.** A rustdoc pass at the
+browser target was already red at `1d29a8eeb` with nine unresolved
+intra-doc links — doc comments compiled at both targets linking
+host-only items, including `run_web`'s own doc linking `run`, which is
+unresolvable in the only configuration that compiles the item it
+documents. Nothing runs that pass, so nothing held the number. This PR
+makes it ten, deliberately: `apply_status`'s doc links
+`ViewerApp::deliver_status`, and de-linking a working host link to hold
+a count nothing reads would make the host docs worse for no reader.
+Filed as `viewer-docs-do-not-build-at-wasm32` with both shapes.
+
+**Citation sweep.** Every `app.rs:NNN` in `work/view/` was enumerated
+and each read at its base line; a pure 21-line insertion shifts every
+citation at or after 114. Most were already stale — the split's residue,
+which `stale-file-citations-after-the-split` holds — and a citation
+already wrong is not one this change falsified. Re-derived by finding
+the subject by name on the closing tree, in the three OPEN rows where
+the base line really was the subject: `to_f32` (`cursor-projection-is-
+f32-…`), `enum Pane` (`viewer-suites-hold-hand-written-complete-
+variant-lists`), and `ViewerApp`'s declaration, `sync_scene`'s six
+writes, the `None if opened` arm and its door comment
+(`viewerapp-document-derived-state-has-no-boundary`). Closed rows and
+this log's own past entries were left alone: both are records of what
+was true when written, not guards.
+
+## 2026-09-09 — #2272's fix pass: the wasm framing was half a class, and one dead symbol in `src/` was the cause of a tracker row
+
+The style review returned mergeable with no MAJOR. Four fixes, and
+three of them are the same mistake seen from three distances.
+
+**A target is not a class.** `wasm-theme-choice-is-offered-and-silently-
+not-kept` was filed as a browser defect — *"the one target where the
+store is known unusable"*. It is not: `remember_theme`'s guard reads
+`store.usable()`, which is a property of the store's STATE, and the
+native `FileStore` answers `false` too whenever `frame::prefs_path()`
+returns `None`, which it does when neither `XDG_CONFIG_HOME` nor `HOME`
+is set — a rule `frame.rs:1703-1706` states in the imperative and this
+path breaks. The item is re-framed around `usable()`; the reason it
+matters is that a fix keyed on `target_family` would have repaired the
+browser and shipped the desktop instance untouched.
+
+**And one level down, the refusal written for exactly that environment
+is dead.** `FileStore::save`'s pathless arm (`prefs.rs:407-413`) says
+*"no config directory in this environment"*; `store.save` has one call
+site in `src/` (`app.rs:1022`) and the `usable()` guard returns before
+it under precisely the condition that arm fires. No test reaches it
+either — the suite only builds `FileStore` through `at`. So the crate
+holds a typed sentence for a case it answers by returning quietly, and
+the guard and the refusal are one decision, not two.
+
+**A doc comment in `src/` was the source of a wrong tracker citation,
+and the sweep found the symptom.** `session/op.rs:742` said the chrome
+renders supersessions through `frame::supersession_notice`. **That
+symbol has never existed.** The real path is
+`frame::Withdrawal::superseded` through `Withdrawal::notice`, reached
+at `app.rs:932-935`. Fifteen occurrences of the dead name are in
+`work/view/*.md`, four in still-open items — including the
+`free-move-drag-dissolved-by-open.md:53-55` citation that
+`stale-file-citations-after-the-split` had already, correctly, decided
+not to repoint. The tracker learned the name from the code.
+
+The rule that makes it invisible: **`scripts/doc-gate.sh` fails only on
+BRACKETED intra-doc links**, so a bare `` `frame::foo` `` code span in a
+doc comment is prose to rustdoc and to the gate. Swept
+`crates/viewer/src` for the shape — 19 spans over 12 names for
+`frame::`/`session::`, 132 over 97 admitting every module prefix —
+restricting the definition check to this crate's own modules, which is
+what makes "not defined here" mean "does not exist". **Exactly two dead
+names, both `frame::`**: the one fixed, and `frame::dropped_hide_notice`
+thirteen lines below it. Filed as
+`doc-comments-name-symbols-that-do-not-exist`; the fixed one is now
+bracketed, so rustdoc holds it. The blind spot that bites is plain `//`
+comments — `app.rs:939` carries the same dead name and rustdoc can
+never reach it however it is written.
+
+**§Q6 on an unguarded reachability claim: write the reason, at the
+claim.** `deliver_status`'s doc says no `Show` reaches it at either call
+site. Nothing holds that: the one row over the arm exercises
+`dialog_status` as a pure function and stays green through any chrome
+change, and the door exists precisely because the `add_enabled` gate
+might be loosened. The paragraph now says so and names what a reader
+who loosens the gate must re-check. **No guard was invented for it** —
+Q6's third option is a written reason, and the honest answer here is
+that a guard would cost more than the arm.
+
+**What went to Ev rather than being answered.** Whether the status
+route was SUPPOSED to fire for an absent chooser, or whether
+`add_enabled` quietly took its job, is not decidable from the tree:
+every line is consistent with both readings and the difference is what
+#1125 intended. Filed as a `ruling`,
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser`, with
+`needs_ev: true` and no answer in it.
+
+**Two citations found wrong, left alone, and now written down.** The
+PR's sweep found `free-move-drag-dissolved-by-open.md:53-55` (a symbol
+that does not exist) and `new-document-owes-the-reframe-open-gets.md:18,
+20` (right subjects, wrong lines, at base and at head), judged both
+correctly, and recorded neither anywhere a later reader could find. A
+PR body is not a slate (§6). Both are rows in
+`stale-file-citations-after-the-split` now, with the base and head
+locations derived, and the first of them is a FOURTH class that item's
+line-number sweep cannot fix: a citation whose file and line are
+repairable but whose named symbol never existed. Class 1 is a subject
+that is gone; this is a subject that was never there, and repairing the
+number would leave a false sentence pointing somewhere real.
+
+**Operational.** The §Q6 paragraph is a ten-line insert at `app.rs:1065`,
+so every `app.rs` citation at or after it moved by +10 — including four
+this branch had already re-derived once. Re-derived again after the
+last edit, by finding each subject by name. That is the second time in
+one PR that the LAST edit invalidated an earlier sweep; the instrument
+is fine, the discipline is to run it last.
+
+## 2026-09-09, orchestrator: #2272 merged, and the question it left standing
+
+**#2272 is on main** (`47bfaedae`), twenty-fifth unit, 37 jobs green.
+It closes `viewer-items-unreferenced-at-wasm32`, CIW's §6 report from
+PR 2263: two items in `app.rs` were unreferenced at
+`wasm32-unknown-unknown --features app`, and were the only reason that
+CI row cannot deny warnings.
+
+**The unit was the choice, not the edit.** The item offered two shapes
+and declined between them — `#[cfg]` the items, matching every user, or
+find the wasm caller that was lost, in which case the warning is the
+symptom of a live defect. **Shape (1) for both**, and the review agreed,
+but narrowed the ground it rests on: of the three the PR argued, only
+one carries it. A single `self.chooser` copy both gates the button
+(`add_enabled(chooser.usable(), …)`) and feeds the verdict
+(`frame::dialog_status`), so `Show` requires a click on a widget built
+`enabled = false`. The reviewer closed that by reading egui 0.36.1
+rather than assuming it: pointer, keyboard and AccessKit click routes
+are each `if enabled &&`-gated, so the button cannot report a click.
+
+**Asking what would have shown the OTHER shape is what found the real
+defect**, one control over. The store's `usable()` guard makes
+`remember_theme` return early, so the palette picker is offered,
+applies, and its persistence is silently ineffective — against two
+prose claims that say the opposite, one naming a "Save control" that
+does not exist anywhere in the chrome. The fix pass then re-framed that
+finding off the target and onto the guard: `FileStore::usable` is
+`path.is_some()` and `frame::prefs_path()` returns `None` with neither
+`XDG_CONFIG_HOME` nor `HOME`, so **the native build takes the identical
+silent return**. A `target_family` fix would have repaired the browser
+and shipped the other half untouched. Filed as
+`wasm-theme-choice-is-offered-and-silently-not-kept`, now framed on the
+guard.
+
+**A dead symbol in `src/` was the cause of a wrong citation in
+`work/`.** `session/op.rs` named `frame::supersession_notice`, which
+has zero definitions; the real renderer is `frame::Withdrawal::superseded`.
+The tracker sweep had found the symptom and not the cause, and
+`doc-gate.sh` could not see it because the span was unbracketed. Fixed
+bracketed, so the name is held rather than merely correct today, and
+the class filed as `doc-comments-name-symbols-that-do-not-exist` —
+19 spans over 12 names for `frame`/`session`, exactly two dead, the
+second thirteen lines below the one repaired.
+
+**A fourth class for `stale-file-citations-after-the-split`**: class 1
+is a citation whose subject is GONE; this is one whose subject was
+NEVER THERE. Repairing the number leaves a false sentence pointing at
+something real, which is worse than a visibly broken one.
+
+**What stays open, and it is Ev's**:
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser`. Ground 3
+proves `dialog_status`'s `Show` arm has **zero production reachability
+on any target** — its only reader is a unit test on the pure function.
+That sentence was written for #1097, a WSL box where Open silently did
+nothing. Everyone in this chain read "it can never fire" as
+reassurance; it may instead be the finding, with `add_enabled` having
+quietly taken the status route's job. Pressing the PR's second ground
+points the same way: a disabled button's hover text is neither of the
+two channels `crates/viewer/README.md`'s provenance rule enumerates,
+and by that rule's own test it is badge-shaped — so "the same const
+string" was never the substitute it reads as. Harmless only because the
+route is empty everywhere.
+
+**Corrections to the orchestrator, both from lanes**: `superseded_text`
+is a `#[cfg(test)]` helper, not the production renderer, and the
+contract clause in `stale-file-citations-after-the-split` is at `:40-41`,
+not `:47-49`. Both were mine, both stated in briefs, both caught.
+
+## 2026-09-10 — the absent chooser was in the wrong CHANNEL, and `Keep` had to be proved a no-op first (#2278)
+
+Ev ruled **(c)** on #2275 — *"(c) is right!"* — so `frame::dialog_status`
+is deleted whole, `ViewerApp::deliver_status` with it (no callers left),
+and #2272's `#[cfg(not(target_family = "wasm"))]` and the fifty-line
+paragraph defending the arm's latency go with them. `app.rs` 2,022 →
+1,956. The surface stays the hover text: Ev ratified (c) without asking
+for a badge, and (c)'s own argument is that a disabled control with its
+reason on hover already IS a read of held state.
+
+**The deletion rested on a claim nobody had checked, and checking it is
+the whole unit.** Every reachable verdict at both call sites was `Keep`
+— that is what made the arm unreachable — so removing the calls is
+behaviour-preserving *if and only if* `frame::deliver(…, Keep)` does
+nothing. Not "obviously": if `Keep` touched `status`, or reset or
+preserved anything a later frame reads, this would be a rewrite wearing
+a deletion's clothes. Settled three ways rather than assumed. The
+compiler argument is airtight — `deliver`'s `Keep` arm is
+`apply(status, Keep)` and does not name `notices` at all, and `apply`'s
+`Keep` arm is `{}` — but a compiler argument is not a demonstration, so
+it was demonstrated too.
+
+**And the demonstration found that the existing row could not have
+caught the interesting failure.**
+`deliver_sends_news_to_the_notices_and_retirements_to_the_field`'s
+`Keep` block started from `notices = Vec::new()` and asserted
+`notices.is_empty()`. That is green for a `Keep` that does nothing AND
+green for a `Keep` that SWEEPS the frame's news — an empty vector cannot
+tell "did not push" from "cleared what was there" — and a sweep is
+exactly the behaviour whose absence the deletion depends on. The block
+now starts non-empty and asserts against a snapshot. Two perturbations
+prove the new assertion falsifiable in both directions: `Keep` made
+`notices.clear()` reds `frame.rs:2166` where the old assertion stayed
+green, and `apply`'s `Keep` made `*status = None` reds `:2170`. This is
+#2148's rule again — **asserted-somewhere is not asserted-here, and only
+a MUTATION tells them apart** — met before the deletion rather than
+after it.
+
+**A deletion falsifies sentences about structure, and two of the four it
+falsified were not on the dispatch's list.** The sweep rule was an
+unfiltered grep for the three deleted names plus a prose pass for the
+phrasings that describe the route without naming it (*belt to*,
+*braces*, *loud arm*, and `dialog` inside the viewer README and
+`frame.rs`); its blind spot is a description sharing no token with any
+of those. Beyond the six sites the dispatch named it found
+`frame.rs:102`, where the module header's examples of what goes on the
+line included *"a dialog that could not open"* — a sentence nothing in
+the crate can now produce — and, in the tracker,
+`viewer-suites-hold-hand-written-complete-variant-lists`, whose FOURTH
+instance was the deleted test's three-`ChooserBackend` loop. That row
+now says three and says why: **the member was removed, not repaired.**
+`ChooserBackend` still has three variants and still has no `ALL`.
+
+**The `frame.rs` growth ledger falls for the first time, by one line**;
+the entry and its caveat are in
+`frame-module-has-eight-concerns-and-no-holds-row` and are not repeated
+here. What is only here: that file also asserted *"is 984 lines"* in the
+present tense at its own head, contradicted by its own ledger four
+paragraphs below — and it was the file's ONLY present-tense copy, which
+is what made re-deriving it a whole-file fix rather than #2148's
+half-fix.
+
+**A correction this lane wrote and then had to withdraw.** The first
+draft of the record above accused the ruling row of misciting its own
+defending paragraph, comparing its `app.rs:1056-1073` against the
+deleted item's `:1046-1099`. Those are two spans of two subjects: read
+on `origin/main`, `:1056-1073` is exactly the two paragraphs the row
+names. **A re-derivation that compares two different subjects invents a
+defect**, which is the same failure as shifting a number by a delta and
+is easier to commit under a rule that says to look for one.
+
+**A diff that shifts a file is the diff that broke the citations in
+it, and this one shifted two.** `frame.rs` moves +1 below ~line 382 and
+−12 below ~1767; `app.rs` moves −61 below 1046. The census: **101
+citations into `app.rs`, `frame.rs` or `frame_policy.rs` across every
+OPEN row in `work/*/`** — 50 unmoved, 30 moved, 21 pointing at a line
+that is gone or past the file's end. Method: build an exact old→new
+line map per file with `difflib.SequenceMatcher` over the `origin/main`
+and head versions, then map every `file:line` a regex finds in an open
+row. **Eleven were mine to fix and are fixed** — the five the review
+named plus `frame-module`'s concern span, `wasm-theme`'s four, and
+`stale-file-citations`' two live derivations. What the method cannot
+see: a citation written as prose (*"the arm at the top of `deliver`"*),
+a range whose END line is stale while its start is not, a citation into
+a file this diff did not touch, and — the one that produced a false
+positive on every row this branch had already re-derived — it cannot
+tell a number written against `origin/main` from one written against
+this head, so nine hits had to be read back by hand before being
+dismissed.
+
+**And the census had to be run TWICE, which is this program's own rule
+arriving on schedule.** The first pass fixed eleven citations; the fix
+pass then shortened three doc comments and lengthened one, moving
+`frame.rs` by +2 below line ~382 and `app.rs` by −5 below 1172 — so
+every number the first pass had just derived was wrong again. *The last
+edit invalidates the earlier sweep* is written in `plan.md` twice, and
+it still cost a second full derivation here. The instrument that closed
+it: find each subject BY REGEX ON ITS OWN TEXT at head, print the line,
+and read all 31 back — never map a delta, and never derive before the
+prose is final. Final: `frame.rs` 2,538 → **2,536**, `app.rs`
+2,022 → **1,956**, `#[test]` 539 → **538**.
+
+**Two of the thirty are not arithmetic and are not this diff's.**
+`chrome/drag-tick-has-three-homes.md:19-22` says the drag tick is
+answered in three places in `crates/viewer/src/app.rs` and cites
+`app.rs:1093-1099` and four constants at `:1056`-`:1079`; `drag_tick`
+and all four constants are in `crates/viewer/src/forms.rs` (`:391`,
+`:354`), so `app.rs` holds none of them and the row was pointing at the
+wrong FILE before this branch existed. `prune-report-rows-are-nine-
+copies-of-one-assertion.md:21` cites `frame_policy.rs:963` for a
+15-line `outcome.superseded` block; on `origin/main` that line is `);`
+inside a hover-midpoint closure and the block is near `:1893`. Both
+left as written — the first is CHROME's, and the second is one entry of
+a nine-site census whose other eight are unverified, so fixing it alone
+is the half-fix this program has a rule against.
+
+**Nothing asserts `NO_CHOOSER_BACKEND`'s wording now, and the answer is
+a row rather than a test.** The deleted suite carried
+`contains("zenity" / "xdg-desktop-portal" / "command line")`. Restoring
+them would read as coverage for `README.md:35-46`'s promise — that a
+person sees three remedies in a tooltip — while covering none of it: a
+`const &str` is fixed at compile time, and the untested step is the
+const REACHING a tooltip, which `chrome_labels.rs`'s own header says
+this crate cannot test (*"not testable without a window"*). A test that
+looks like it holds a claim it does not hold is worse than a stated
+gap. Filed as `hover-route-for-an-absent-chooser-has-no-test`, with two
+candidate shapes and neither costed.
+
+**§6, across the fence and staying there.** `.github/workflows/ci.yml`'s
+wasm row says in the present tense that the crate carries two dead-code
+warnings, `WINDOW_TITLE` and `ViewerApp::deliver_status`, and that
+`-D warnings` would red on them. #2272 `cfg`-ed both and proved the flip
+clean, so the comment named a resolved state before this branch existed;
+now one of its two subjects does not exist at all. The row is CIW's, the
+closed item says CIW will take the edit on request, and it is filed as
+`work/ciw/wasm-row-warning-debt-comment-names-a-closed-item-and-a-deleted-symbol.md`,
+which names this deletion at `:48-51`. Reported, not edited.
+
+## 2026-09-10 — `view/gate-readers`: the vocab gate's two reader defects (#2282)
+
+Two filed items, both pre-existing, both found by the style review of
+#2172, both against `scripts/gates/viewer-vocab-declared-once.sh`:
+`gate-section-scans-end-on-any-column-zero-hash` and
+`gate-reader-guards-count-six-where-the-stated-rule-yields-nine`. One
+pass over one file, not one defect.
+
+**The population count re-derived: nine, and the same nine.** The
+item's enumeration was a reviewer's and unchecked. Deriving it from the
+stated rule against the file at `104f1445b` — every stage of every
+pipeline inside a process substitution — gives five substitutions and
+nine stages: `find`+`sort`; kinds `awk`+`sed`; table `awk`; rows `sed`;
+`gate_rust_code`+`ITEM_AWK`+`HIT_AWK`. The item's exclusion of `printf`
+holds, and now has a second argument at the site: it is a bash BUILTIN,
+so nothing on PATH can shadow it away.
+
+**Where the item was wrong is its CONSEQUENCE half, in both
+directions**, and this is the half worth keeping. It names three
+misdiagnoses. Two are real, one is not, and one it does not name is:
+
+- a dead `sort` reported as *the source enumerator* — real, and a
+  genuine wrong name;
+- a dead kinds `sed` reported as *the kinds reader* — real, but not a
+  WRONG name: one name covering two stages, so a CI log could not say
+  which died;
+- a dead rows `sed` reported as *the row reader* — **not a defect**.
+  `table_rows` is `printf | sed`, `printf` is not a reader by the
+  gate's own rule, so that guard already covered exactly one reader
+  stage and *the row reader* IS that `sed`;
+- **the one it missed**, and it is the same shape as its `sort` case: a
+  dead `gate_rust_code` drew TWO diagnoses — `lib.sh`'s own correct
+  *the shared Rust reader* AND this file's *the const-item reader*, for
+  a stage this file does not own.
+
+An item's enumeration is a claim like its options are (#2172's lesson,
+one column over): the arithmetic was right and three of the four
+consequences it asserts came out differently when reproduced. All four
+were reproduced by hand before any edit.
+
+**The repair, not the disclosure**, at every site: nine stages, eight
+guards in this file plus `lib.sh`'s own, each brace-grouped so the
+status it reads is that stage's own. That is the shape `const_hits`
+argued for alone and the rest of the file has now been brought to.
+
+**Item 1 fixed wider than it asked for, deliberately.** One
+`FENCE_AWK`/`md_fenced` helper prepended to both README readers the way
+`gate_record_awk` prepends `gate_record_split`, and both readers ask it
+of EVERY rule they have rather than only of `^#` — because a `|` line
+inside a fence was being read as a roster row, which is the same defect
+with the other sentinel. The rule is CommonMark's and not a toggle: a
+bare toggle lets a ``` line close a `~~~` block and hands the rest back
+to the heading rule, which is the repaired defect re-minted by the
+cheaper spelling of the repair, so that case is planted.
+
+**The defect was LATENT on the real tree, not firing**, and the item's
+*"live rather than theoretical"* heading does not say so. All fourteen
+fence lines in `crates/viewer/README.md` are at `:3-262` and the section
+opens at `:930`, so every one of them is above the scanned region — the
+defect was one fenced example inside the section away. The tracker runs
+over all fourteen every pass regardless, and they balance; an unclosed
+one would leave the section heading itself fenced and red the gate,
+which is why the closed-fence case is planted rather than argued.
+
+**The negative-control table.** Control = the file at `104f1445b` with
+the new planters spliced in verbatim and a one-case dispatcher in place
+of `gate_selftest`, so the only difference between columns is the
+reader.
+
+| case | before | after |
+|---|---|---|
+| fenced `#[derive(Debug)]` above the anchor | RED — *"no line … begins "Three kinds of list stay hand-written""* | GREEN |
+| fenced `#!/bin/sh` + `# a comment` below the list | RED — *"carries no "#### The lists that stay hand-written" heading"* | GREEN |
+| backtick line inside a tilde fence | RED — same missing-anchor red | GREEN |
+| worked table row written inside a fence | RED — *"row `GHOSTS` says `ghosts` declares"* | GREEN |
+| closed fence, decoy roster outside the section | RED — same missing-anchor red | GREEN |
+| `sort` dead | RED — got *the source enumerator over* | GREEN |
+| `awk` dead | RED — got *the kinds reader over* | GREEN |
+| kinds `sed` dead (consumes, then exits) | RED — got *the kinds reader over* | GREEN |
+| `gate_rust_code`'s `awk` dead | GREEN | GREEN |
+| `ITEM_AWK` dead (consumes, then exits) | GREEN | GREEN |
+
+**Eight of ten are controls; the last two are declared coverage and not
+evidence**, in the file as well as in the PR. The `gate_rust_code`
+split REMOVED a wrong second name, and `gate_selftest_case` and its
+broken-tool twin match a substring with no way to assert a string is
+ABSENT — so a removal cannot be observed. That is the AFFORDANCE half
+of `work/issues/gate-selftest-cannot-observe-the-identity-a-gate-names`,
+restated at this gate rather than filed a second time; `lib.sh` was
+read, called and not edited. Worth recording what the harness CAN do,
+since the item is read as saying otherwise: it matches a substring of
+the whole output and `--also` requires several, which is enough to
+assert a reader's name and is what three of the controls above use. The
+gap is absence, not identity.
+
+**The `ITEM_AWK` case is the sharpest single finding.** Before this PR
+the only case asserting *the const-item reader* actually killed
+`gate_rust_code` — a different stage. The defect the item describes was
+sitting inside the self-test written to hold it, with a `want` string
+that was itself an instance of it.
+
+**Operational, and out of fence: `mawk` 1.3.4 aborts its regex compiler
+on an interval followed DIRECTLY by `(`.**
+`REcompile() - panic: values still on machine stack`. The boundary was
+derived, not guessed: `/^ {0,3}(a)/` and `/^a{2}(b)/` panic;
+`/^ {0,3}-(a)/` and `/^(a){2}/` compile. `gawk` 5.2.1 compiles all
+four. The natural spelling of *"three or more backticks or tildes"* is
+exactly that shape, so the first draft took the gate down under mawk
+with `exit 100` while staying green under gawk — and since the box's
+`awk` is gawk now and the hosted runner's is too, nothing on either
+lane would have shown it. This is a sibling of the directory's
+*no backslash, use `[(]`* rule
+(`loop-boundary-discards.sh:222-234`, `lib.sh:230-235`) and belongs
+beside it; reported in #2282 rather than filed, because whether
+`lib.sh`'s conventions block carries it is GATES' call. Two incidentals
+worth having: the failure surfaced as *"the kinds scanner over
+crates/viewer/README.md exited 100"* — this unit's own repair naming
+the right stage on its first real use — and the plan's note that the
+box's `awk` moved to gawk is exactly why the mawk run had to be done by
+hand rather than assumed.
+
+**`crates/viewer/README.md` was not touched.** The gate passes the real
+tree unchanged, same `4 ratified … 3 kinds` line as before, under both
+awks.
+
+**The §5 sweep, and it found one sibling.** Both defects are classes,
+so the shape was swept rather than the symbol: every gate that scans a
+markdown section, and every `|| status=$?` / `|| reader_failed` sitting
+on a multi-stage pipeline. **One hit outside the unit's file**, and it
+is VIEW's own: `scripts/gates/viewer-module-kinds.sh:220-227`'s
+`readme_table_modules` has BOTH — `:223`'s bare `^#` region end and
+`:224`'s `inside && /^\|/`, plus two unguarded reader stages inside two
+process substitutions (`:270`, `:277`) in a gate that has **no reader
+guard apparatus at all**. Filed as
+`module-kinds-table-scan-repeats-both-vocab-gate-reader-defects`, a
+file rather than a sentence in a merged PR body.
+
+**Two things the sweep learned that reading the vocab gate would not
+have taught.** First, the callers there red on an EMPTY roster
+(`:271-274`, `:278-282`) but never on a SHORT one, so defect 1 has a
+worse direction at that gate than at this one: a fence part-way down a
+table truncates the region, the rows below vanish, and the gate goes on
+printing OK while enforcing its rule over fewer modules than the README
+lists. Second, that same empty check means defect 2 there is a
+MISDIAGNOSIS rather than a false green — a dead reader reds with *"the
+heading was renamed or the table was reshaped"* about a README that is
+fine. Both stated in the item, because *"the same defect next door"* is
+the claim a reader would otherwise assume and it is not true in either
+direction.
+
+**What the sweep could not match**, stated because a blind spot left
+unstated is not a negative result: it is a grep over one line at a
+time, so a section scan whose `^#` rule is spelled across two awk rules,
+or built by string concatenation before `awk` sees it, would not appear;
+and it covers `scripts/gates/*.sh` only, so a markdown section scan
+anywhere else under `scripts/` is outside it. The three `lib.sh` hits it
+did return are single-stage pipelines and not this class — checked by
+reading each, not by filtering on the path.
+
+## 2026-09-10 — `view/gate-readers` fix pass: the fence repair had left a FALSE GREEN open
+
+The review of #2282 found, and the orchestrator reproduced, a **false
+green over an unratified fourth kind**. Reproduced here again before
+anything was edited, both directions, plus the control that separates
+them.
+
+**A boolean fence answer is the wrong answer for one predicate, and
+"ask it of every rule" is what made that look closed.** `readme_kinds`'s
+`opens` does not ask *is this line markdown structure*; it asks *did the
+previous line END a block*. An OPENING delimiter starts one, so the line
+under it is content and the boolean is right. A CLOSING delimiter ENDS
+one, so the line under it BEGINS a paragraph — and the boolean has that
+backwards. `markdown-it-py` 4.2.0 in CommonMark mode emits `fence` then
+`paragraph_open` for both plants, so markdown draws them as paragraphs
+and the gate did not.
+
+**Both directions were live on that one answer, one blank line apart.**
+A second announcement DIRECTLY under a closing fence was not counted as
+an announcement, so the gate found one anchor, read three kinds under it
+and printed `OK`, exit 0, over a duplicate announcement AND an
+unratified fourth kind bulleted beneath it. The same plant with a single
+blank line between fence and announcement reds correctly. The other
+direction is the anchor itself under a closing fence, which reds with
+*"the paragraph … is gone"* — the exact misdiagnosis the fence work was
+filed to remove.
+
+**The repair:** `md_fenced` became `md_fence` and returns `open`,
+`inside`, `close` or `""`. Callers wanting *is this markdown structure*
+test `!= ""`; `opens` additionally counts `close` as ending a block. The
+RENAME is the point — a contract change that a caller can miss is a
+contract change that will be missed.
+
+**Neither direction was a regression**, and the controls say so by
+running against three trees rather than two:
+
+| case | base `104f1445b` | first repair `7e70be4d3` | now |
+|---|---|---|---|
+| second announcement under a closing fence | RED — *"PASSED on a planted violation"* | RED — same | GREEN |
+| the anchor directly under a closing fence | RED — *"the paragraph … is gone"* | RED — same | GREEN |
+| the other ten rows | unchanged | unchanged | unchanged |
+
+**The lesson, and it is not "add a case".** The header claimed both
+readers *"ask this question of every rule they have"*, and that sentence
+was TRUE and still insufficient — every rule got the answer, and one
+rule needed a different question. **A helper that answers one question
+well invites callers to assume it answers theirs**, so the thing to
+check is not whether every caller consults it but whether any caller's
+question is a different one. The three-answer return makes that
+structural: `close` cannot be spelled as `!fenced` by accident.
+
+**Three corrections to the last entry's own claims**, all from the
+review and all confirmed here:
+
+- *"their guards were already on their own stage"* was **false for stage
+  6**: base `table_rows` was `printf | sed || status=$?`, a guard on a
+  two-stage pipeline, which this unit moved into a brace group. The
+  conclusion survives and the reason does not — the true reason no case
+  is owed is that neither guard's NAME changed, and a case can only
+  assert a name is PRESENT.
+- The mawk paragraph said *"the other interval in this file"*. The
+  sweep rule `grep -nE '[{][0-9]+,[0-9]*[}]' $0` returns **five lines
+  carrying six intervals**; the paragraph now states the rule and both
+  counts, which differ because two share a line. A universal without its
+  sweep rule, in the paragraph whose whole job is to let a successor
+  re-derive the hazard.
+- A citation named the helper's argument as `:541-614`, which is the
+  comment prose plus the assignment line; the argument is the function.
+
+**The sweep's arm 2 was shaped like the symptom, and that is what let a
+live false green sit unopened elsewhere.** `|| status=$?` /
+`|| reader_failed` can only match a pipeline that **already has a
+guard**, so it structurally cannot see one with none — which is exactly
+the population with the worse direction. The right arm is the rule the
+gate itself states: *every stage inside a process substitution whose
+exit status the shell discards*, i.e. `grep -n '< <('` and read each.
+Arm 1 was genuinely class-shaped and the reviewer's wider re-run (all of
+`scripts/` and `local-scripts/`, `.sh` and `.py`) returned the same
+single hit, which discharges the blind spot the last entry named.
+Re-running arm 2 on the right rule is the orchestrator's, already done
+and filed on **code-quality's** slate as
+`gate-roster-and-probe-census-have-no-reader-guards` —
+`scripts/gates/*` returned to code-quality when the `gates` program
+closed. Named in prose and not in `refs:`, because it is not on `main`
+yet and the reference would not resolve.
+
+**The sibling row split in two**, on the test *can half of it be
+closed?* — `module-kinds-table-scan-ends-at-any-column-zero-hash` is
+`md_fence` plus a length check; `module-kinds-gate-has-no-reader-guards`
+is apparatus that gate has never had. Different repairs, different
+controls, and a row that can only be half-closed is what one-file-one-item
+protects against.
+
+**Trims, and what was kept.** The pipefail-blames-the-wrong-reader
+argument had grown to three wordings; it now has one home in the header
+and `viewer_sources` keeps only its local fact (the ORDER is a read, so
+`sort` earns a guard). The reproduction narrative in `THE ANCHOR MADE IT
+WORSE` and the stage-7 narrative both became invariants — comments state
+the invariant, not the history, and the history is in this log. The
+self-test's re-enumeration of the nine now points at the one home and
+keeps only the technique a reader cannot derive: killing a right-hand
+stage needs a shim that CONSUMES and then exits, or SIGPIPE names the
+wrong reader. **Kept in full deliberately**: the mawk paragraph, whose
+four probe regexes are the only record in the tree of why a spelling is
+forbidden.
+
+**Left alone, with the reason:** `md_fence` mutates `FENCE_CHAR` and
+must be called once per line, held by convention. Caching on `NR` would
+enforce it but adds state across four return paths in the file's most
+delicate function; judged not free, and the single call site is the
+first rule of each program where it is visible.
+
+**Re-derived after merging `origin/main` at `d268d319b`, because #2278
+moved this unit's SUBJECT.** That PR rewrote the absent-chooser
+paragraph inside `### Closed vocabularies are declared once` — the
+region this gate's readers scan — so the green above was taken on a
+tree without it and the entry's own numbers were measurements of a
+tree that had moved. Re-measured on the merged tree: **fourteen fence
+lines, still `:3-262`, still seven balanced pairs, still none inside
+any scanned region**, and the gate's verdict byte-identical. What DID
+move is the section, `:930` → **`:958`**, carrying its anchor to
+**`:1048`**; `gate-section-scans-…` is corrected, and this note is the
+append-only half so the two cannot be read against each other. The
+`### The drivers` region `module-kinds-table-scan-…` measures is
+unchanged at `:290` — #2278's edit sits below it — which is why one
+row moved and the other did not. **The rule this pays for is
+`plan.md`'s**: green CI on an old head is not a merge criterion when
+the diff's SUBJECT moved under it, and "the inputs are byte-identical"
+was a true argument that stopped being true.
+
+## 2026-09-10 — `view/module-kinds`: the sibling gate's two defects, and the one that was genuinely silent
+
+Both rows split off #2282's §5 sweep, closed separately in one PR:
+`module-kinds-table-scan-ends-at-any-column-zero-hash` (`md_fence` plus
+a length check) and `module-kinds-gate-has-no-reader-guards` (apparatus
+`scripts/gates/viewer-module-kinds.sh` never had). **Every claim below
+was reproduced on a copy of the real tree before anything was edited**,
+which is how three of them came out different from the rows.
+
+**The fence question went to a SIDECAR, and the deciding fact is
+`gate-roster.sh`.** The row says reuse `md_fence` rather than re-derive
+it, and the honest options were `lib.sh` (out of fence), a shared
+helper both viewer gates source, or a second copy. The middle one is
+blocked in the spelling everyone would reach for:
+`gate-roster.sh:139` derives the gate roster from `scripts/gates/*.sh`
+and excludes exactly ONE member by name (`NOT_A_GATE=lib.sh`), so a
+second sourced `.sh` fragment there reads as a gate that runs nowhere
+and must be wired into both CI halves — and teaching that roster about
+it means editing code-quality's file. `scripts/gates/viewer-readme-fence.awk`
+is invisible to that glob, to `local-scripts/ci-local.sh:380`'s loop
+and to `check-ci-mirror-parity.py`'s `SCRIPT_RE` (which matches `.sh`
+and `.py` only), while `scripts/**` still widens the CI tier the same
+way. So: **one copy of the tracker, no duplication to disclose**, and
+`viewer-vocab-declared-once.sh` now loads it too. Both gates' loaders
+are guarded and both self-tests call the load DIRECTLY, because no
+`--root` tree can express a tracker that lives outside every fixture.
+
+**A prepended comment is part of every program it is prepended to.**
+The sidecar's header first said the tracker is loaded *"the way
+`lib.sh` prepends `gate_record_split`"*, and the vocab gate's
+const-item shim keys on exactly that string — so the kinds scanner died
+instead and the case failed naming the wrong stage. Loud, not silent,
+and the sidecar now says so at the site. A shared awk file is shared
+TEXT, not just shared code.
+
+**Three things the rows got wrong, all three read off the tree.**
+
+- **The driver table's truncation is not silent.** Check 3 holds that
+  roster against the tree in BOTH directions, so a fence four rows into
+  `### The drivers` reds — as a misdiagnosis naming the seven modules
+  the table lists BELOW the fence. Only the vocabulary tables have
+  the quiet direction, because check 4 is one-directional: the same
+  fence in `### The session's vocabularies` left the cross-check
+  covering **2 of 6** and printed OK with a **byte-identical** line.
+- **The unguarded population is twelve stages, not two.** The item's
+  arm could only see `readme_table_modules`. The gate also has
+  `find | sed | sort`, `awk | sed | tr | sort`, the kind extractor's
+  `sed`, and the hit union's deduplicator and `sort`. A dead `sed`
+  reported *"no modules under crates/viewer/src … besides lib.rs and
+  bin/"* about a tree holding forty-five — a second live misdiagnosis
+  the item does not name.
+- **A status the shell KEEPS still buys no diagnosis.** Three stages
+  sit in `$(…)`, so errexit ends the gate — with no gate name, no
+  `::error::` framing and nothing said about what was undecided. Their
+  base-side cases fail as *"exited non-zero WITHOUT a gate_error
+  diagnosis"*, which is `lib.sh`'s S157 second half, and it is why they
+  are guarded rather than left to `pipefail`.
+
+**What the length check can honestly check is argued at the reader**
+(`readme_table_block`'s header and `read_table_roster`'s two blocks),
+and the short of it is that nothing in the gate knows how long the table
+is SUPPOSED to be. `!stray` and not the fence tracker is what closes the
+silent half.
+
+**The control table.** Control = the gate at `09b0ef5a8` with the new
+planters and a one-case dispatcher spliced in verbatim, in a tree
+holding only `lib.sh`, the sidecar and the real manifest, so the only
+difference between the columns is the reader. **All 27 fail on base**
+and pass here — twenty-six because the base reader answers wrongly,
+and one (the table row reader) because its shim keys on a program only
+the new reader has, so on base nothing dies and the gate passes.
+
+| case | base | head |
+|---|---|---|
+| a fence opening inside the table body | GREEN over an OVER-inclusive roster — the base reader has no fence rule, so it reads all six rows where `markdown_it` draws one | RED — *"is INTERRUPTED by a fenced code block"* |
+| a row below a blank line | RED, wrong message | RED — *"table line(s) BELOW the table"* |
+| a second table in the section | RED, wrong message | RED — same |
+| the `\|---\|---\|` separator gone | GREEN | RED |
+| the header columns reordered | GREEN | RED |
+| a row whose module cell is not backticked | GREEN | RED |
+| the table gone, the heading kept | RED, wrong message | RED — *"no table follows it"* |
+| a header and a separator and no rows | RED, wrong message | RED — *"no rows under them"* |
+| the heading twice | GREEN | RED |
+| the driver heading renamed | RED, wrong message | RED — *"carries no … heading"* |
+| a vocabulary heading renamed | RED, wrong message | RED — same |
+| a fenced `#[derive]` above the table | RED (false) | GREEN |
+| a worked table row inside a fence | RED (false) | GREEN |
+| a backtick line inside a tilde fence | RED (false) | GREEN |
+| a closed fence, section still ends | RED (false) | GREEN |
+| `find` (module enumerator) | RED, wrong message | RED — names the stage |
+| `sed` (module path trimmer) | RED, wrong message | RED — names the stage |
+| `sort` (module sorter) | RED, wrong message | RED — names the stage |
+| `awk` (table reader) | RED, wrong message | RED — names the stage |
+| `sed` (table row reader) | GREEN — no stage on base carries that program | RED — names the stage |
+| `sed` (kind extractor) | RED, NO diagnosis | RED — names the stage |
+| `awk` (manifest feature reader) | RED, wrong message | RED — names the stage |
+| `sed` (dep extractor) | RED, wrong message | RED — names the stage |
+| `tr` (dep speller) | RED, wrong message | RED — names the stage |
+| `sort` (dep sorter) | RED, wrong message | RED — names the stage |
+| `awk` (hit deduplicator) | RED, NO diagnosis | RED — names the stage |
+| `sort` (hit sorter) | RED, NO diagnosis | RED — names the stage |
+
+**`crates/viewer/README.md` is untouched**, and it was checked rather
+than assumed: each of the three scanned sections holds exactly ONE
+contiguous run of `|` lines and no stray table line, so the contiguity
+rule and the `!stray` answer are both green over the page as written.
+
+**The census of the shifted bands.** No open row cites into
+`viewer-module-kinds.sh`; the three that do
+(`a-new-hand-written-all-table-meets-no-gate:33` → `:10-18`,
+`pick-rename-left-two-live-sites…:95` → `:74`,
+`pick-and-parts…:103` → `:156-159`) are all CLOSED, and the first two
+are above the diff and unmoved anyway. In
+`viewer-vocab-declared-once.sh` two open rows cite in:
+`gate-rust-reader-splits-an-array-type-at-its-semicolon:65,88` →
+`:139-153`, unmoved and re-read; and
+`gate-selftest-cannot-observe-the-identity-a-gate-names`, whose
+correction table already said `:930-973` — stale AGAIN since #2282, and
+now `:1528-1597` over 27 rows. Corrected there with the reason, which
+is that **a citation into a self-test's case list moves whenever anyone
+adds a case**: it is the wrong half of a gate to cite by line, and this
+is the second correction that row has needed in two days.
+
+**Fix pass, same day: a hand-written test for a diagnosis matched ONE
+of `gate_error`'s two spellings.** The first CI run red at
+*"SELFTEST FAILED: load_fence_awk … failed without a gate_error
+diagnosis"* — with the diagnosis printed two lines above it, in the
+`::error::` form. `lib.sh:77-83` writes `ERROR: ` locally and
+`::error::` under Actions, so `selftest_fence_load`'s own `case`
+matched on a developer's box and could not match on the runner. Both
+gates now call `gate_selftest_assert_diagnosed`, which is the one place
+that knows both spellings and is what every other case in this
+directory already goes through. **The class**: a self-test that
+re-implements a check `lib.sh` already owns is a check that agrees with
+it only by accident, and the environment where it disagrees is the one
+nobody runs by hand. Re-verified under `GITHUB_ACTIONS=true` as well as
+without it, and that is now the way to run a gate self-test before
+pushing one.
+
+## 2026-09-10 — `view/module-kinds` fix pass: the reader re-minted the defect it was written to remove
+
+**The lead finding is the row's own headline, inside the unit that
+closes it.** `readme_table_block` anchored every rule at `^`, so a table
+row indented one to three spaces — a row every renderer draws — was seen
+by no rule. Indenting `crates/viewer/README.md:326`'s `session::probe`
+row by two spaces dropped that module out of the vocabulary roster with
+the gate at **exit 0 and its whole output `cmp`-identical** to the clean
+run. That is the silent short roster
+`module-kinds-table-scan-ends-at-any-column-zero-hash` was filed for.
+
+**The rule was already written down and this program earned it.**
+`plan.md`: *a `^`-anchored pattern over markdown is a claim about column
+zero that markdown does not make* — #2172, whose new reader escaped its
+paragraph on `/^- /` and read three kinds where a two-space-indented
+bullet renders as a fourth. Same reader family, same boundary, one
+sentinel over: `^|` for `^- `. **A rule this program has paid for is not
+a rule this program applies**, and the gap is that the rule was learned
+about BULLETS and filed as being about bullets; nothing in it said
+*every anchored pattern in every markdown reader here*.
+
+**The repair is one strip, not a widened pattern.** `sub(/^ {0,3}/, "",
+line)` once per line, before any rule, and every rule reads the stripped
+line — heading match, `^#` region end and every `^|` test at once. Four
+spaces keeps one space and matches nothing; a tab keeps its tab. Settled
+with `markdown-it-py` 4.2.0 in CommonMark mode with tables on, over all
+six positions rather than the one that broke: **the header, the delimiter
+row and a body row each accept one to three spaces**, four spaces on the
+header is a code block, and four on the DELIMITER leaves no table at all.
+
+**Being right about four spaces is not being loud about it**, which is
+the residue the strip alone leaves and `!indent` closes. A row the author
+indented four spaces is correctly not read — and if it is the table's
+last row, nothing follows it to become a `!stray`, so the roster is one
+shorter and every other figure is unchanged. The reader now reports the
+line and still does not read it as a row. Sweep:
+`grep -nE '^[[:space:]]+[|]' crates/viewer/README.md` returns nothing
+over the whole page.
+
+**The OK line carries two README-derived counts now.** Every other
+figure on it is tree- or manifest-derived, which is exactly *why* a
+narrowed roster came back byte-identical; `${#driver_rows[@]}` and
+`${#vocab_rows[@]}` cost nothing and make a narrowing visible in a log
+even where it does not gate. It is not the fix and does not pretend to
+be — it is what makes the next one of these findable.
+
+| case | at `b37a67fb2` | here |
+|---|---|---|
+| a ghost row indented two spaces | **GREEN** — the row is invisible, the roster is one short | RED — *"is not a module in the tree"* |
+| a real row indented four spaces | **GREEN** — one shorter, silently | RED — *"indented FOUR or more spaces"* |
+| a real row indented with a TAB | **GREEN** — same | RED — same |
+| a section heading indented three spaces | RED (false) — *"carries no heading"* | GREEN |
+
+The ghost is what makes the first case observable at all: with the row
+read the gate reds naming a module the tree does not hold, and with it
+unread the gate is green — and no figure the gate prints could tell the
+two apart before this pass. The other three are the upper side of the
+boundary and are what keeps it from being widened to `[[:space:]]*`.
+The original 27 rows were re-run against this head unchanged.
+
+**Three claims of mine that were false, and one was false in three
+places.** *"It needs the tracker's THIRD answer"* is not true at this
+gate: `close` and `inside` are unreachable where a table body ends, so
+`fence != ""` decides identically — mutated and confirmed green on the
+fixtures and on the real tree, while returning `open` where `md_fence`
+returns `close` reds the VOCAB gate's self-test and not this one. The
+third answer is load-bearing for `opens` and for nothing else, and the
+sidecar now says which caller holds it. The receipt *"red against four
+modules"* over a 3-of-10 roster was arithmetically impossible: re-run,
+it is **seven** — 10 − 3 — and a receipt is a citation. And the control
+table's first row gave the opposite reason: the base reader has no fence
+rule at all, so its error there is over-INCLUSION, six rows where
+`markdown_it` draws one.
+
+**The duplication I told the orchestrator did not exist.** True of the
+tracker, false of what loads it: `load_fence_awk`, `VIEWER_FENCE_AWK`
+and `selftest_fence_load` are spelled twice, the last byte-identically.
+It is irreducible in fence — the tracker has one home because it is
+AWK, while a loader is SHELL, and the only shared shell homes are
+`lib.sh` (code-quality's) and a second `.sh` here, which `gate-roster.sh`
+reads as a gate that runs nowhere. So it is **disclosed at both sites**
+with that reason and with what bounds it: a path, an existence test and
+a message. **"One copy of the tracker" was a true sentence doing the
+work of a false one** — the claim a reader takes from it is that nothing
+about the tracker is duplicated.
+
+**Two prose claims corrected while they were being read.** The
+*"only two things in this file are hand-kept"* sentence was already off
+by one before this unit and this unit added two more; it is now four,
+with the rule that produces them (`grep -nE '^[A-Z_]+=' $0`) and with
+`VIEWER_FENCE_AWK` marked as the one held by nothing but its own
+existence test — a path cannot rot silently, which is what makes it not
+check 6b's class. And the FIFTEEN STAGES census certified a population
+it did not produce: at least nine more `gate_grep`/`gate_rust_code`
+stages exist, and it sited `gate_rust_code` under the wrong assignment.
+It is now TWELVE with its rule stated — *every stage on PATH whose
+status this file must read for itself* — and the self-diagnosing ones
+named so their absence does not read as an oversight.
+
+**Also unstated and now listed**: setext headings are a fourth
+structure the reader does not model (`grep -nE '^(=+|-+)$'` over the
+README: nothing), alongside HTML blocks and block quotes.
+
+**The `unsure` the reviewer left dissolved rather than being fixed.**
+`!row` is asked before `!stray`, so indenting a table's FIRST data row
+used to red about a table having no rows when it had two. With the
+strip, a one-to-three-space row IS a row and the case cannot arise; a
+four-space one is reported by `!indent`, which is asked before both.
+## 2026-09-10 — `view/wasm-docs`: the repo had already answered this one axis over
+
+`viewer-docs-do-not-build-at-wasm32` offered two shapes over nine broken
+intra-doc links at `wasm32-unknown-unknown`. The split is seven-a-cost,
+two-dead-links, but the unit's substance is that **neither the row nor
+this lane's first close cited the precedent**:
+`scripts/doc-gate.sh:243-262` already rules the isomorphic problem on the
+FEATURE axis — with F off every link into F-gated code is unresolvable BY
+CONSTRUCTION, answered by allowing `rustdoc::broken_intra_doc_links` for
+that pass only (`RUSTDOC_LINTS_INERT`, `:559`), population enumerated
+complete, line numbers deliberately not carried.
+`crates/viewer/README.md`'s **Rustdoc posture** is now that shape with
+`target_family` for `feature`. The first close reached the same verdict
+on the seven by a worse argument — *the browser docs have no reader* —
+where the reason is that the lint cannot tell *this link is broken* from
+*this link's target is in the other half*.
+
+**Re-derived first.** The row's command at `ac4a69dd5` printed nine
+errors whose `-->` lines matched the filed table cell for cell, every
+third-column citation and `doc-gate.sh:555`/`:638` resolving.
+
+**The classifier the first close shipped was a proxy, and a reviewer
+caught it.** It read the `cfg` on the item a doc comment is attached to.
+`WebStartupError` carries that `cfg`; its five variant doc comments carry
+none, so the test called them unconditional and permitted exactly the
+brackets it meant to forbid — #2278's shape again, a rule over an
+attribute where the claim is over existence at a target. The test is now
+page existence in rustdoc's own output, which also dissolves the case the
+dichotomy missed (`app.rs:41` sits on `pub mod app`, `cfg(feature =
+"app")`, which the host pass documents).
+
+**The two `run` links were measured.** Host renders `app/fn.run.html` and
+no `app/fn.run_web.html`; wasm the reverse — the link resolved on no page
+any pass renders. Repaired within the line, so `app.rs` is 1,956 lines
+before and after. `indexer`'s `# Errors` was repaired in four lines for
+the same reason: it does NOT inherit `evaluator`'s infallibility sentence
+(separate rendered section), and a +1 shift there would have broken
+CHROME's and CIW's `app.rs` citations, which §6 forbids fixing from here.
+
+**Two further corrections.** `--bins --examples` at wasm32 does not
+merely add no site, it does not compile (`E0432`,
+`examples/r1_e2e.rs:19:37`); "cannot" was too strong. And the new row's
+class is links, not doc comments — `bin/viewer.rs` has five such doc
+comments and no link.
+
+**The count moved out of this entry and out of a title.** The first close
+claimed it lived only in the closed row; false, since that row's TITLE
+carried the number `work/STATUS.md` renders and the new row carried live
+figures. The README owns the population now, dated, by identifier, no
+line numbers; the row's table is kept as the superseded reading.
+
+**The intermediate was priced and wins.** A browser pass with that one
+lint allowed costs nothing per site, buys what pass 3 buys, and is clean
+today at lib scope; its precondition is the `E0432`. `cfg_attr` is
+refused on precedent, not price: it closes a blind spot the feature axis
+accepts permanently (#1317), and doc-gate's rejected *per-root deny list*
+is the same argument one level coarser.
+
+**Census and verification.** README grew at `:1428` and the highest
+README line cited anywhere is `:1079`, so nothing moved; `app.rs`
+unchanged. Seven errors after, quoted in the PR; `doc-gate.sh
+--selftest` and `--pr --scope '-p viewer'` green, fmt clean, both
+README-parsing gates green, clippy green at host and wasm32 at
+`-D warnings`, `tests/all.rs` 508/0. The one local red is the WGPU
+adapter row, green hosted.
+
+## 2026-09-10 — `view/theme-store`: the theme picker says what it keeps
+
+`wasm-theme-choice-is-offered-and-silently-not-kept` closed. A user
+picked a theme, it applied, the session ended and the default came
+back; `ViewerApp::remember_theme` returned early on
+`!self.store.usable()` and said nothing, and the reporting arm below
+that guard was reachable only from the `save` the guard had skipped.
+
+**The channel was decided by the ratified rule and not by taste.**
+`store.usable()` is settled when the store is built — either arm of the
+`cfg` can answer false — and answers the same on every frame after, so
+the sentence exists on a frame where nobody acted. That is provenance's
+own visible test, and Ev's ruling on
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser` supplies
+the negative half: a whole-run environmental fact has no correct
+sentence on a line carrying one frame's news. So `frame::prefs_badge`,
+`Subject::Preferences`, `Tone::Advisory`, `Affordance::Read`, drawn
+beside the picker rather than in the badge run above it, because it is
+the only badge about a CONTROL. It is drawn from the first frame, which
+is a better reading of *once and not on every switch* than the item's
+own: a reader learns it before spending a choice, not after.
+
+**Annotated, not disabled**, which is where this parts company with the
+chooser it was filed against: a dialog with no backend can do nothing;
+the picker applies the theme and loses only the memory.
+
+**The fork on the two dead refusals went the second way, and what went
+was the refusals as independent prose.** Neither `save` could drop its
+refusal — a store that keeps nothing has no honest `Ok(())` — so the
+condition is stated by the party that knows it. `usable() -> bool`
+became `unusable() -> Option<Unusable>`; the chrome renders those words
+and `Unusable::refusal` renders them for a caller that saves without
+asking. Two hand-written refusals for an unspoken condition became zero
+and one value a reader sees. **What that buys is that the two
+renderings cannot DIVERGE, not that the condition has one spelling** —
+the suite asserts them equal, so a second spelling reds when it says
+something different and is green while it says the same thing, which
+was measured rather than assumed. The guard stays and is now
+load-bearing rather than silent — it keeps a whole-run fact off the
+outcome channel — and it says so where it stands.
+
+**A bool could not have carried this.** With `usable() -> bool` the only
+party that knew WHY was the store and the only party with a person to
+tell was the caller, so any sentence a reader saw had to be composed
+where the reason was not. That is the same shape as the census failure
+this program keeps meeting from the other end.
+
+**Mutation, not reading.** Four perturbations of the doors, each red:
+`FileStore` claiming it is usable (2 rows), `Absent::save` re-wording
+its refusal (2 rows), the badge's subject and tone (2 rows), and the
+badge speaking for a store that is fine (1 row). What is NOT held is
+the wiring —
+`ViewerApp` cannot be built in the suite, so the guard and the draw are
+read by eye. Said plainly rather than implied, and filed as
+`the-guard-that-decides-whether-a-preference-is-kept-has-no-test`,
+which is `hover-route-for-an-absent-chooser-has-no-test`'s boundary
+with a second instance that differs in kind: a control-flow decision, not
+a tooltip.
+
+**Both universals carry their sweep rule.** The badge family's
+population is every `frame` fn returning `Option<Badge>` — eight —
+which ranges over the property rather than the `_badge` naming
+convention it agrees with today, and is complete because `Badge`'s
+fields and its three constructors are private to `frame`. The store's
+is every read of `app::ViewerApp::store`, a private field — **three**,
+all in `app.rs` — complete because `prefs_store()` has one caller.
+That said four until a reviewer ran it: `store.load()` in the
+constructor reads the LOCAL binding, before the struct literal that
+makes the field exist, so a rule ranging over the field had a count
+ranging over the name. Both numbers are now held by a `#[test]` that
+re-derives them from the sources and reads the README's word, rather
+than by the sentences that state them. Neither rule ranges over
+`target_family`, which is the half-fix the item predicted.
+
+**Census of the shifted bands — the first one was wrong, and wrong in
+the way the rule exists to catch.** The entry that stood here claimed
+*"every `file:line` in `work/` landing at or past those lines was
+enumerated"*. The pattern behind it required a full `crates/viewer/...`
+path, so it could not see a bare `frame.rs:1747-1749` or a backtick
+continuation `` `:1194` `` — the two spellings this tracker actually
+uses most. It found 19 citations; the population is **122**. A sentence
+that certifies a population it does not produce tells the next reader
+to stop looking, which is the whole of why the rule is written.
+
+The corrected rule: a file token naming any of the six changed files
+(bare or fully qualified), plus every backtick-quoted `:NNN`
+continuation attributed to the last file token on the line, over every
+live row as it stood at the merge base. **Its own blind spot, stated:**
+a bare `frame.rs` or `prefs.rs` is ambiguous across crates and only the
+sentence disambiguates it — eight hits in two rows are `geom-core`'s
+`linalg/frame.rs` and `src/camera.rs`, caught by reading and not by the
+pattern.
+
+**122 citations, 25 rows, disposed as:**
+
+| n | rows | disposition |
+|---|---|---|
+| 33 | 13 | **repointed** — the subject was at the base line, so my diff moved it |
+| 34 | 11 | left: **already wrong at the base line**, and repointing manufactures a fresher wrong number |
+| 26 | 1 | this unit's own closed row, left as written and naming its SHA |
+| 18 | 1 | `stale-file-citations-after-the-split`, left whole |
+| 8 | 2 | another crate's file — the pattern's blind spot |
+| 3 | 3 | unmoved (the band's edge) |
+
+**Text identity and subject are two different questions and only one
+instrument answers each.** The first entry offered *"checked by TEXT
+IDENTITY at the new line rather than by trusting a delta"* as the
+stronger check. It is not stronger, it is orthogonal: identity at the
+new line proves the MAPPING is right, and says nothing about whether
+the citation was ever right. Five of the first pass's nineteen passed
+identity at both endpoints and landed on text that is not the row's
+subject, because they were broken before this branch existed. The
+instrument that catches those is #2083's — read the line and ask
+whether the subject is there — and it has to be run at the BASE line,
+which is where the row was written. Both are run now, in that order,
+and the five are reverted to the numbers they had.
+
+**`stale-file-citations-after-the-split` is left whole, deliberately.**
+Every number in it is either a stale citation quoted as evidence
+(*"what it cites"*) or a correction qualified by a named SHA (*"is
+`:925` at #2272's head"*). Repointing the first kind destroys the
+evidence; repointing the second makes the record false. Half-fixing a
+file whose numbers are half evidence and half record is the
+contradicts-itself defect one level up, so its re-derivation is that
+row's own work.
+
+**Past EOF, and not this diff's.** 31 citations in 11 live rows name
+`app.rs` beyond its 1,985 lines, spanning `work/chrome/`, `work/ciw/`,
+`work/code-quality/`, `work/fix/`, `work/issues/` and `work/view/`.
+They were already past EOF at the merge base — that file has been 1,985
+lines since the split — and they are that row's population. The first
+entry said *"seven, in five rows across `work/chrome/` and
+`work/fix/`"*, which was the same pattern's blind spot again.
+
+**Verification.** fmt clean; clippy `-p viewer --features app
+--all-targets` green; wasm32 clippy green at `-D warnings` (the hosted
+row still runs as `cargo check`); `doc-gate.sh` OK; both
+README-parsing gates green — module kinds 10/10 and 9 tabulated
+vocabularies, vocab declared-once 4 ratified; `no-ambient-env` OK;
+`work.py lint` clean. **`tests/all.rs` 511/0/1 against 508 at the
+merge base** — three new rows, two on the stores and one holding the
+README's two counts — and the count is checked against this branch's
+own base rather than against a number in a brief. The one local red is
+`gpu::…every_pass_builds_on_a_real_device`, which wants a WGPU adapter
+this box has none of and is green hosted.
+
+**Ten mutations, all red.** Four on the doors (a store claiming it is
+usable; `Absent::save` re-wording its refusal; the badge's subject and
+tone; the badge speaking for a healthy store), four on the new count
+guard (the README's word wrong in either population, a ninth badge
+door, a fourth field read), and — the one that came back GREEN and is
+recorded as a limit rather than a proof — an identical literal written
+back at `Absent::save`, which the equality assertion cannot see. Two
+deletions were also run and stayed green at 511: the guard line and
+the badge draw, which is the disclosure that has its own file.
+
+**The guard that holds a count is itself a source reader, and it
+arrived without registering.** `gate ok` went red on three jobs — the
+`1/2` shard at all three eps values, so deterministic rather than
+eps-dependent — on one row:
+`test-utils::reader_census::every_site_that_reads_rust_source_is_in_the_ledger`.
+`the_readme_counts_its_two_populations_correctly` reads `src/frame.rs`
+and `src/app.rs` through `test_utils::source::code_only`, and that file
+keeps one line per site that does. Registered as
+`crates/viewer/tests/frame_policy.rs`, `Shared`, *"the README's
+badge-door and store-read counts, code view"*, in the ledger's sort.
+The census's header names three honest dispositions and this is the
+first of them; the third — a new hand-rolled reader — is the one it
+refuses, and the shared lexer was used from the start.
+
+**Announced, not silent.** `crates/test-utils/*` is S-TCOST's and
+`crates/viewer/tests/*` is S-TCOST's and Track W's by declaration. The
+act is sanctioned rather than a crossing on two clauses read here
+rather than inherited: CIW's `keep_out` scopes S-TCOST's claim there to
+*"the Shared ledger row's AUDIT"*, and TOPO's says D261 converts *"its
+own census entries"* — so a program registering its own arriving reader
+is the mechanism working, and the audit of that row stays S-TCOST's.
+The line is one `Shared` entry and touches nothing else in the file.
+
+**Running the crate's own suite is not running the suite**, and this is
+the rule the wave earned. `cargo test -p viewer --features app --test
+all` came back 511/0/1 and was never going to see this: the row that
+fired lives in another crate's test binary. **A guard that reaches
+outside its crate is held by a row outside it too** — and the shape
+generalises past readers, because this same unit registered a new badge
+in a README count and a new store read in another. The receipt to run
+is the workspace suite as CI runs it, and a report names the COMMAND as
+well as the number.
+
+## `view/dead-symbols` — the doc-comment dead-name class, closed (2026-09-10)
+
+`doc-comments-name-symbols-that-do-not-exist`, closed in place. The
+item's two figures both reproduce exactly at the SHA it states them at
+— 19 spans / 12 names / 2 undefined with `<mod>` restricted to
+`frame`/`session`, and 132 / 97 unrestricted — and the unrestricted
+one needed its wording pinned before it would: *"every module prefix
+is admitted"* means every **module-shaped** (lowercase) prefix. Admit
+type-qualified prefixes as well and it is 284/197; restrict to this
+crate's own modules and it is 66/49. Only the middle reading gives
+132/97, so that is what the sentence means.
+
+**The whole decidable set was taken, not the two names.** 64 spans
+over 47 names at the merge base — every unbracketed `<own-mod>::<path>`
+span in a doc comment under `crates/viewer/src`. 44 are now
+`[`crate::…`]` links; 20 are named rather than linked, and the
+undefined count is **0**. The item scoped its own decidability
+argument to 12 names; it applies to all 49, and blind spot 5's
+*"85 of the 97"* should read 48.
+
+**The ruling's test came back wrong at 20 sites, and the gate is what
+said so.** `crates/viewer/README.md`'s *Rustdoc posture: the host pass
+is the gate* asks whether the HOST pass renders a page for the item the
+doc comment sits on. Asked that way all 64 answer *it does*, and the
+`--all-features` host pass agreed at zero errors — then
+`scripts/doc-gate.sh` reded on **13**, because it documents `viewer` a
+second time at DEFAULT features under `--skip-viewer-toolkit`, also at
+`-D warnings`, where `app`/`forms`/`pane` do not exist. Chasing that
+also turned up **7 spans inside `#[cfg(test)]` modules**, which no pass
+renders, so bracketing them is inert. **That one is this lane's own
+mis-reading and not a gap**: `cargo doc` does not set `cfg(test)`, so
+the page is absent and the ruling's literal answer is *it does not* —
+the remedy taken. The reason all 64 first answered *it does* is that
+the question was asked of the MODULE rather than of the ITEM the doc
+comment sits on, which is not what the ruling says. **One** gap
+survives, the feature axis, filed as
+`rustdoc-posture-test-names-one-axis-of-three` rather than edited into
+ratified text that merged this morning. A row is better for being one
+finding than three.
+
+**The trap never fired, for reasons of population**, and the receipt
+for the whole disposition is the browser pass: **7 unresolved links
+over 4 identifiers** after the diff — the README's dated population,
+unchanged. 44 new links, zero new browser-pass errors.
+
+**A third dead name, and the bracketing found it.** `frame.rs:216`
+named `pane::viewport::viewport_ui`; bracketed, the host pass reded.
+`viewport_ui` is an inherent method on `ViewerBehavior`, an `app`
+item merely written in `pane/viewport.rs:58`, so the module path names
+nothing. The item's own rule could never have found it — the leaf IS
+declared under `crates/viewer/src`, so a declaration regex resolves it
+and it reads as live. Only a resolver that checks the PATH sees it,
+and bracketing borrows rustdoc's. That is candidate 1's argument
+demonstrated rather than asserted.
+
+**The item's central claim is wrong, and correcting it strengthens
+the case.** The title said the two names *"have never existed"*, and
+`stale-file-citations-after-the-split` built a claimed **fourth**
+citation class on it — *a subject that was never there*, distinct from
+class 1, *a subject that is gone*. `git log -S` over `crates/` refutes
+it: `supersession_notice` and `dropped_hide_notice` were both `pub
+fn`s in `frame.rs` from `6877a40ff` until `4db112ada` — **#1957**,
+which replaced them with the `Withdrawal` vocabulary, rewrote the call
+sites and left every prose mention behind. The fourth class does not
+exist. `four-badges-five-spellings.md:107` turns out to be the proof
+rather than the oddity: it cites `frame.rs:232`, and `6877a40ff` puts
+`supersession_notice` at exactly `frame.rs:232`. An invented name is
+one author's slip; a deleted one is a rename that outran its prose,
+and a bracketed link would have reded #1957 on its own branch.
+
+**A dated sentence is not a stale citation.** The tracker count also
+reproduces exactly — 15 occurrences across 8 items, 4 in open rows —
+and three of the four were repaired. The fourth,
+`frame-module-…-no-holds-row.md:76`, is dated *"(#1886, 2026-09-05)"*
+and all three names it uses were real on that date, so it is left as
+written because it is TRUE. Believing the *"never existed"* claim, the
+honest move would have been to correct it, and correcting it would
+have falsified a true record. The class is *present-tense claim*, not
+*dead name*.
+
+**No line shifts, and the receipt is `origin/main...HEAD`: 11 files,
++40/-40.** Every edit within-line, every file's line count identical to
+the merge base. The figure to quote is that one — an earlier draft said
+58/58 across 16 files, which is the first commit alone and was partly
+reverted by the second; a receipt is a citation and gets no exemption.
+The unconditional argument is better than either: **every changed line
+under `crates/viewer/src` is a comment line**, zero non-comment lines,
+so the diff cannot move a compile result at any target or feature set.
+
+**The disposition is durable in a tracker file and nowhere else, and
+that is a defect this lane created.** Eleven of the thirteen
+feature-axis sites now carry a bare span with nothing saying it is
+deliberate — `frame.rs:6,85,216,385,554,1766,1802`, `pickindex.rs:12,13`,
+`props.rs:40`, `tree.rs:278` — in a crate whose `theme.rs:9-12`,
+`vocab.rs:51-52` and `forms.rs:18-20` all explain exactly this choice
+in prose. The sharpest is `pickindex.rs:12-13`, where a bracketed
+`[`crate::marks`]` and a bare `pane::viewport` sit in one sentence and
+a reader repairing the "inconsistency" reds the gate. Not fixed here:
+the note adds lines, and `frame.rs`/`pickindex.rs`/`props.rs`/`tree.rs`
+carry **155** `file:line` citations between them, so it costs a census
+and is its own unit —
+`named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites`.
+
+**The revision the ruling wants is EXISTENTIAL, and getting that
+quantifier wrong is how this lane nearly shipped a rule against its own
+diff.** The first draft proposed *"every rustdoc pass that runs at
+`-D warnings` renders a page … and can resolve the target"*, one line
+after claiming it changed no disposition. It changes 25 of them: only
+**19** of the 44 links are in modules the default-features pass renders
+at all, and the other 25 sit in `app`, `forms`, `pane` and `widgets`,
+which it never renders. A link checked by ONE pass is a checked claim;
+demanding every pass check it forbids linking anything feature-gated.
+The row now proposes *some* pass, and says why.
+
+**Three residues filed rather than disclosed**, the two above and
+`comment-symbol-names-outside-rustdocs-reach-have-no-gate`. Rustdoc
+reads `///` and `//!` and nothing else, so the same dead name at
+`app.rs:950` — a plain `//` comment — could only be corrected by hand
+and is held by nothing afterwards. 26 plain-`//` own-module names under
+`crates/viewer/src`, every one live today, and zero split-span ones: a
+clean population with no gate holding it clean.
+
+## 2026-09-11 — `view/cancel-doors`: both gesture cancels get a door, and the stranding is traced
+
+`gesture-drags-have-no-cancel-door` closed. `SessionOp::CancelGesture`
+and `SessionOp::CancelFreeMove` had an arm in `perform`, coverage in six
+suites and **no emitter in the crate**; they have one each now, composed
+as `DocSession::cancel_doors` and drawn in the toolbar beside Undo and
+Redo.
+
+**The item left reachability open and named three candidates; it is the
+first of them, and it needs nothing a second pointer or a relayout would
+have to supply. The drag's own preview strands it.** `slot_rows`
+answers nothing when `standing().live()` is false, and a face whose name
+did not resolve is not live; every frame a drag moves submits its scratch
+document, so a preview taking an extrude's distance to zero lands an
+evaluation the picked face does not survive, the panel is handed no
+rows, and the field whose `drag_stopped()` is the drag's only exit is
+not drawn on the release frame. The item could not find this because it
+went looking for an OPERATION that changes what the panel draws and
+correctly found all of them click-driven. The drag is not another
+operation. Held end to end at the session layer; the last link — a group
+absent from the list is not drawn, `properties_ui`'s
+`for group in &groups` — is read and not run, because the crate has no
+headless egui harness, and the row says so in as many words.
+
+**The item's sharpest claim names the wrong sentence, and the shape it
+describes is real.** `DisplayFault::FreeMoveInFlight` (*"finish the
+free-move first"*) cannot be shown to a user at all: reaching it needs a
+free-move already in flight, which needs a free-move strand nothing has
+traced — the probe's field is drawn off the shown document, and a
+document change under an in-flight probe is pruned rather than
+stranded. The reachable inverted refusal is `Refusal::GestureInFlight`,
+*"finish the drag first"*, which the trace above reaches with no pointer
+behind the drag. Filed as
+`free-move-in-flight-refusal-has-no-reachable-producer`; the free-move
+door is owed either way, on the emitter count alone.
+
+**Where the door went, and why not a key.** The toolbar, because the
+defect is that the chrome owning the gesture can stop being drawn — a
+cancel sited beside the field would vanish with the exit it replaces.
+`input.rs` could not hold a key for it whatever we decided: it maps what
+the pointer did inside the VIEWPORT, and `input::PRESETS` records that
+this crate binds no key to any operation anywhere and what a keyboard
+vocabulary would have to settle first. So the item's "no Escape binding
+in `input.rs`" points at a module with no room for one, and the key is a
+decision rather than a row.
+
+**Both doors are one composition**, `CancelDoor::of(label, op,
+in_flight, refused)`, and out of flight each carries the `Refusal` its
+own operation answers with rather than a sentence written beside the
+button — the fix `environmental-facts-answer-usable-as-a-bool-with-the-
+reason-elsewhere` is open about one facility over, applied prospectively
+here. Drawn in every state, disabled with that reason when there is
+nothing to cancel, which is the posture the two file-dialog controls
+take. `DisplayState::probing` gains its first production reader.
+
+**The census is a match over `SessionOp`, not a search for `Cancel`.**
+`CancelEvaluation` is spelled `Cancel` and cancels a run, so a
+name-shaped rule would hand it a gesture door and keep agreeing with
+itself. `every_gesture_cancel_has_a_chrome_door` runs the exhaustive
+predicate against the door list both ways, so a third gesture cannot
+join the enum with no door and a door cannot exist with no operation
+behind it.
+
+**Six mutations, each reverted**: the drag's door removed (census +
+strand rows red), `perform`'s cancel arm no longer taking the gesture
+(strand), `blocked` inverted (three rows), the toolbar loop deleted
+(`the_cancel_doors_have_a_reader_in_the_chrome`), `CancelFreeMove`
+marked not-a-gesture-cancel (census), and `slot_rows`' dead-standing
+guard removed — the last so that the reachability half is not green over
+its own absence.
+
+**A new source reader, registered.** The chrome half of the claim cannot
+be executed, so the emitter count is held as text: one read of
+`cancel_doors` under `crates/viewer/src`. That made `gesture_table.rs` a
+source reader and `reader_census.rs` red until its ledger line was
+written — the mechanism working, announced rather than landed quietly,
+and the row's own three dispositions say who writes the line.
+
+**The citation census of the bands this diff shifted, and a refinement
+the rule needs.** `session.rs` +39 from `:595`, `app.rs` **+28** from
+`:1241` (the hunk is `@@ -1238,6 +1238,34 @@`, 28 added and 0 removed —
++26 was the pre-`cargo fmt` figure and is the number this entry first
+carried, fixed here because the log is the artifact that survives),
+`README.md` **+58** from `:977` (+42 before the fix pass grew the
+clause; both figures are of the same one hunk at `:977`, and the only
+in-band `README.md` citations are in a CLOSED row and in this log, so
+neither number reaches a repoint), `reader_census.rs` +4 from `:306`;
+`op.rs` and `gesture_table.rs` grew at EOF and shifted nothing.
+**Re-swept at the merge, and one band moved**: `origin/main` (`9893bdcdb`)
+added a ledger entry of its own, so `reader_census.rs` is **+8** from
+`:306` against `8cf86ec32` — four lines this branch's and four not. The
+out-of-fence rows citing into it are owed the +8, not the +4 this entry
+first carried, which is the *a sweep is accurate as of your merge base,
+not your merge* rule collecting on a lane that ran for one day. The
+instrument was per-citation text identity — `base[i]` against
+`head[i+shift]`, machine-checked — which **certifies the mapping and
+says nothing about the subject**, and that is stated rather than dressed
+up as a re-derivation. **Eleven open rows repointed.** The enumeration
+rule is *files under `work/view/` this branch MODIFIES, less this log
+and less the row being closed* — every one of those eleven was modified
+because a citation in it moved, and nothing else was. Sixteen was the
+POPULATION rather than the count of repoints (the eleven, plus the four
+declared exclusions below, plus the closed row), and stood one line
+above a paragraph saying four were deliberately left — a number
+contradicting its own next sentence. The eleven carry their bare
+`:NNN` continuations and, for
+`four-debug-walks-are-spelled-and-placed-two-ways`, the two prose counts
+its own stated rule derives (`1,780` → `1,819`, `2,000-line` →
+`2,039-line`, title included — a count fixed in one place contradicts
+itself).
+
+**Four rows in the population were deliberately NOT repointed, and this
+is the refinement**: a row whose SUBJECT is citations must be left
+alone. `stale-file-citations-after-the-split` holds a `Was | Now` table
+of numbers that were wrong; `viewer-preview-names-a-verb-by-its-variant-
+identifier` quotes another program's citations and says "at their
+pre-split paths"; `sweep-blind-spots-the-precheck-sweep-could-not-see`
+is a receipt pinned to `8604dfb3`; `the-citation-receipts-summary-
+numbers-are-not-re-derivable` audits a receipt's numbers. Shifting any
+of them re-mints `citation-repoint-shifted-a-number-the-lane-knew-was-
+wrong` — and the first draft of this lane's census did shift all four
+before the diff was read. Closed rows were excluded for the same reason:
+a closed row is a record.
+
+**Out of fence, reported and not filed** (implementer-discipline §6):
+the same shift is owed by in-band citations in `work/chrome/`
+(`app-rs-doc-comment-merge-scars`, `placed-union-has-no-session-op`),
+`work/ciw/` (`gui-wasm-build-is-not-gated-at-all`,
+`tree-wide-guards-outside-the-change-closure`), `work/docm/`
+(`check-registry-gathers-product-twice`,
+`docm1-face-frame-owes-a-reader-census-ledger-line`), `work/fix/`
+(`boolean-error-has-no-fieldless-kind`,
+`verb-and-dimension-render-through-debug`), `work/instr/`
+(`baseline-census-partition-assert-cannot-fail`), `work/tcost/`
+(`source-lacks-an-item-body-carve-and-shared-means-any-mention`) and
+`work/issues/tracker-file-line-citations-measured`. Each is in the PR
+body with its old and new number.
+
+**Residue, filed**: `preview-and-commit-carry-no-gesture-identity` — in
+the stranded state a drag on any OTHER field is refused its begin and
+then previews and commits into the stranded slot, observed with the
+extrude's `Distance` taking a datum origin's number. The door is a way
+out and does not repair that. Plus the `FreeMoveInFlight` row above.
+
+**An operational near-miss worth the line**: `git checkout -- <file>`
+to revert a mutation discarded the lane's own uncommitted work, because
+nothing was staged. Commit before mutating; the mutation evidence here
+was taken against a committed tree.
+
+### Fix pass on #2320 — what the review found, and what it cost
+
+Mergeable on the verdict; five record defects and three reports. The
+review reproduced all six mutations and added two of its own on the
+agreement row (mutating `perform`'s refusal, then the door's), ran the
+citation population sweep independently and got exactly this lane's four
+declared exclusions, and put an instrument on the `input::PRESETS`
+universal rather than reading the prose.
+
+**Four of the five were in the RECORD, not the code, and that is the
+lesson.** A repoint that should have been a revert
+(`four-debug-walks…:33` — `session.rs:1991` is a blank line, the
+`Debug for DocSession` subject is at `:2010`, and `origin/main:1952` was
+blank too, so it was wrong at the merge base and this lane's own stated
+rule says revert; that file's `:46-50` also declares its `std::fmt`
+citations left as written, and this was one of them). The log's own
+`+26` where the PR body carried the corrected `+28`. "Sixteen open rows
+repointed" where eleven were, one line above the paragraph naming the
+other four. And two citations in the closed row left at `properties.rs`
+`:100`/`:557` when the `CommitGesture` pushes are at `:103`/`:560` —
+the half-fixed-file shape, in a row whose other citations this lane DID
+re-derive. **A lane that repoints thirty citations correctly and leaves
+four wrong has produced a file a reader cannot trust**, which is the
+cost the class has always had; the instrument that caught all four was a
+reviewer re-deriving by hand, again.
+
+**The fifth was a false precedent in ratified text.** The README clause
+and `CancelDoor`'s docs both cited `frame::ChooserBackend`'s two dialog
+controls for the whole posture. They are the precedent for *drawn in
+every state* and the **counter-example** for *typed*: they hand
+`frame::NO_CHOOSER_BACKEND`, a `&'static str` composed at each button
+(`app.rs:1198`, `:1217`), to `on_disabled_hover_text`. The precedent for
+the typed half was in this crate and uncited —
+`pane/create.rs:248-259`, *"carrying the op's own refusal — read off
+the entry, not minted here."* Both texts now cite one for each half, and the
+clause says which of its universals is held by a TEST
+(`a_closed_door_says_what_its_own_operation_refuses`) rather than by the
+type, because nothing structural stops a future door composing its own
+sentence.
+
+**The clause's "drawn in every state" is now scoped to the states it was
+checked against** — the selection, the standing and the evaluation. The
+toolbar is one non-wrapping `ui.horizontal` (`app.rs:1148`) and the row
+now holds twelve controls, two of them this unit's, so a narrow window
+can push them out of reach. Nobody measured it and nobody can here;
+`the-toolbar-row-does-not-wrap` holds the question and says in its own
+`## What is NOT established` that the clipping is egui's documented
+rule, not an observation of this toolbar.
+
+**Two reports taken as files rather than as sentences.**
+`a-disabled-control-says-why-in-four-shapes` — the review found the
+cancel door is the fourth spelling of *a control a reader cannot use
+that says why*, and the sweep rule it owes is over that DISPOSITION and
+not over `on_disabled_hover_text`, because two members (a
+`blocked: Option<&'static str>` in `pane/create.rs:445` sharing this
+unit's field name with the opposite typing, and `properties.rs:347-352`)
+do not call it at all. And
+`the-new-document-button-states-its-refusal-twice`, eighteen lines above
+these doors: a comment claiming `Refusal::EmptyName` backs a disabled
+button whose tooltip is a literal saying something else.
+
+**A correction to the dispatch that every later lane needs: the expected
+WGPU red is in the `--lib` target, not `--test all`.**
+`cargo test -p viewer --features app --test all` is **517 passed / 0
+failed / 1 ignored** and carries no `gpu` row at all; the adapter row is
+`cargo test -p viewer --features app --lib`. A lane told to expect one
+red and running only `--test all` gets a clean number that means
+something else entirely — *running the crate's own suite is not running
+the suite*, one target deeper. `cargo nextest run -p viewer --features
+app` covers both (542 = 517 + the lib rows) and is the command to quote.
+Second correction: `clippy --all-targets --target wasm32-unknown-unknown`
+does not compile at all (`ThreadEvaluator` is
+`cfg(not(target_family = "wasm"))`, `lib.rs:139-140`); CI's row is
+`cargo check -p viewer --features app --target wasm32-unknown-unknown`
+under the `getrandom_backend` flag, and that is what this lane ran.
+
+**Out of fence, reported**: `crates/test-utils/tests/reader_census.rs:82`
+says the ledger is "Sorted by path" and nothing enforces it — `found.sort()`
+at `:592` sorts the tree walk, not the ledger.
+
+## 2026-09-11 — #2320 merged; the proxy class is written down
+
+**`view/cancel-doors` is on main** (#2320, merge `4f621cf31`), green on
+the full code tier: 39 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`, `gate ok` success, one `neutral` on
+`render drift (gui)` and five skips that belong to closures this diff
+does not open. Read from the job list rather than a summary. Its two
+lane worktrees and their private target dirs are reclaimed.
+
+**The eighth instance of the proxy class was mine, and the class is now
+a rule in `plan.md` rather than eight scattered post-mortems.** A sweep
+rule fails when its classifier is a PROXY for the property the claim is
+about — and a proxy agrees with itself over the population it can see,
+so it reads complete from the inside every time. The eight are
+tabulated at the sweep-rule paragraph: a constant standing in for a
+fact (#2278), a boolean for a three-way question (#2282), `^`-anchors
+for markdown's 1–3 spaces of indent (#2172, re-minted #2287), an
+attribute's presence for existence at the target (#2288), full paths
+for the bare filenames the tracker writes and the name `store` for the
+field (#2293 twice), "the host pass" for a gate that runs two (#2304),
+and `add_enabled` + `on_disabled_hover_text` for a DISPOSITION (#2320 —
+the dispatch was mine, the correction the lane's). The check that
+catches all eight is the same one: name the property first and the
+pattern second, then ask what a member could look like that the pattern
+cannot match.
+
+**Both of #2320's command corrections are in `plan.md`** — the viewer
+suite has two targets and the WGPU adapter red lives in `--lib`, and at
+wasm32 the CI row is `cargo check` because `clippy --all-targets` does
+not compile there at all.
+
+**Still running**: `view/link-thirteen`, building Ev's rustdoc ruling
+(link the thirteen bare spans with the house `[`crate::X`]` spelling,
+make the lint inert on the skip-mode viewer pass, retire the three
+module notes, amend the README's Rustdoc posture clause). It is the only
+open lane.
+
+## 2026-09-11 — `view/link-thirteen`: the thirteen are links, and the pass that forbade them stopped judging links
+
+**Ev ruled, in chat on 2026-09-11: link them, and make the lint inert
+on that pass.** `rustdoc-posture-test-names-one-axis-of-three` had put
+both options up with their costs; the ruling took the tool change and
+the links together. Both halves are here, plus the residue each one
+left.
+
+**The thirteen, re-derived at `6891829ee` rather than trusted.** The
+list had not moved: `frame.rs:6`, `:85`, `:216`, `:385`, `:554`,
+`:1766`, `:1802`; `pickindex.rs:12`, `:13`; `props.rs:40`;
+`tree.rs:278`; `vocab.rs:50` ×2. All thirteen are `` [`crate::X`] ``
+now. The three inside `#[cfg(test)]` were left, `frame.rs:2001`
+included — it sits *above* the `#[cfg(test)]` at `:2003` because it is
+the doc comment ON the test module, so it reads as production by line
+and is rendered by nothing by item.
+
+**Red before, green after, and the commands, because this PR's own CI
+cannot run the pass it changes.** `scripts/ci-filter.py --files` over a
+diff touching `crates/viewer` sets `RUN_VIEWER_TOOLKIT=true`, so
+`ci.yml:1834` takes the non-skip path and the skip-mode viewer pass
+never executes on this branch — which is exactly why these thirteen
+reds never appeared on #2304. So the evidence is local and named:
+`scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit`
+exits **1** with the links in place and the gate unchanged, naming
+**15** distinct sites (the thirteen, plus `theme.rs:7` and `:8`, linked
+when that file's note retired), and exits **0** after. The non-skip path
+CI does take, `--pr --scope '-p viewer'`, exits 0 both ways: all
+thirteen resolve at `--all-features`.
+
+**The fence: `scripts/doc-gate.sh` is CIW's** (`work/ciw/program.md:11`).
+Ev ruled the change directly, so it is authorised rather than a lane's
+decision, and the obligation that came with it was to announce it —
+cited at the site, written in the PR, and filed on CIW's slate as
+`view-made-the-skip-mode-viewer-doc-pass-lint-inert`, a notice row that
+asks CIW for nothing but a read and a close.
+
+**The pass is NOT dominated, and the item's own plan said it was.**
+*"Delete that pass as dominated"* rested on the default-features pass
+rendering a strict subset of `--all-features`. The two viewer passes are
+the `if` and the `else` of one branch (`doc-gate.sh:890-907` at the
+base) and **never run on the same invocation**: under
+`--skip-viewer-toolkit` the all-features invocation does not name
+`viewer` at all, so on a skip-mode run the default-features pass is the
+only rustdoc that reads this crate, carrying every lint that is not
+about a link target. Deleting it would have removed the crate's doc gate
+from precisely the runs it was built for. This is the same shape the
+plan warns about under *a universal without its sweep rule* — the
+universal here was *"the pass is redundant"*, and the thing it ranged
+over was lint coverage rather than pass scheduling.
+
+**The spelling stayed the house one.** The item's table recommended
+``[`X`](crate::X)`` so default-features prose would read as it does
+today. Ev on the residue: *"totally fine for `cfg(not(feature))` stuff
+to work badly — we already assume that several places."* So the leaked
+`[crate::app::…]` brackets are accepted, the 1022-site house spelling
+holds, and the crate does not grow a second link form.
+
+**Two module notes retired, not three, and the item was wrong about the
+third.** `theme.rs:9-12` and `vocab.rs:51-52` each said an intra-doc
+link into the gated half breaks the headless pass; both are gone, and
+`theme.rs`'s two bare module spans (`app`, `gpu`) became links in the
+same edit rather than being left silent behind a deleted explanation.
+**`forms.rs:18-20` stays**: its reason is `pub(crate)` items on a
+public module page, not the headless pass — `named-not-linked-…` read
+that correctly and `rustdoc-posture-…` did not, and the ruling does not
+touch it. **Where #1330's reason now lives**: in
+`crates/viewer/README.md`'s posture section, in the DEFAULT-features
+bullet of the new *what is checked where* list, which says the same
+thing in the present tense — the lint is off on that pass, so the link
+no longer breaks it.
+
+**The README ruling now names two host passes.** The heading was
+*"Rustdoc posture: the host pass is the gate"*, and *"the host pass"*
+was the exact word this row was filed about; it is *"the host
+all-features pass is the link gate"* now, with a new paragraph saying
+there are two, which one judges links, and an exhaustive three-bullet
+*checked where* — everything at `--all-features`; everything except
+`broken_intra_doc_links` at default features; and **nowhere** for a
+broken renderer-free link written on a branch that never takes the
+all-features pass, which is empty because writing one means diffing
+`crates/viewer` and that diff seeds the toolkit. The closed row
+`doc-comments-name-symbols-that-do-not-exist:216` still quotes the old
+heading and is left as written: it records the heading it applied, on
+the date it applied it.
+
+**The selftest moved with the gate, and the arm that matters is the one
+added.** Two arms inverted — a planted broken link in the fixture's
+`viewer` member no longer fires under `--skip-viewer-toolkit`, by the
+ruling. Left there, that pass would have had **no firing arm at all**
+and could have been deleted with every case still green, which is
+#2106's shape in the file whose subject is that shape. So
+`plant_bare_url_in_viewer_member` was added as the positive control on
+the same pass (a rustdoc lint that is not about a link target), and the
+same planted link under `--pr --scope "-p clean -p viewer"` as the
+control in the other direction. `--selftest` exits 0.
+
+**No line shifts where they would have cost.** The thirteen edits are
+in-place on their own lines, so `frame.rs`, `pickindex.rs`, `props.rs`
+and `tree.rs` — **155** `file:line` citations between them — are
+exactly the length they were, and lines up to 88 characters are within
+this crate's practice: at the head tree **80** doc lines under
+`crates/viewer/src` exceed 75 characters, to a maximum of **114** at
+`drafts.rs:261`. (An earlier draft of this paragraph said *"116 at
+`datums.rs:273`"*, read off the first ten rows of an unsorted list —
+the plan's *distrust the first number out* in miniature, and the real
+maximum was a line this diff has since repaired.) `theme.rs` loses 3 lines at
+`:10-12`, so its `:13` and below move by -3; `vocab.rs` loses 2 at
+`:50-55`, so its `:56` and below move by -2;
+`crates/viewer/README.md` grows 32 below `:1493` and
+`scripts/doc-gate.sh` grows 54. **The census of those bands**, by
+finding the subject rather than shifting a number: one OPEN row is
+affected and it is not ours —
+`work/chrome/chrome-weight-is-outside-the-palette.md:22` cites
+`theme.rs:425-428`, whose subject now sits at `422-425`. Reported to
+the orchestrator rather than edited, per the implementer discipline's
+§6; CHROME's slate is CHROME's. Everything else in those bands is on a
+closed row, which is a record of its own tree:
+`marks-header-…:34,46,87`, `viewer-const-all-…:105`,
+`doc-comments-…:387`, and two of CIW's, both named in the notice row.
+
+**The wider sweep is what earned the residue, and it found a dead
+symbol.** The ruling's population is path-shaped —
+`` `<app-gated mod>::<path>` `` — and running only that rule would have
+been a sweep over the pattern that surfaced the defect rather than over
+the property. Re-derived from the property (*a doc comment in the
+renderer-free half naming an item behind the `app` feature*), there are
+**five more**, spelled as a possessive across two spans:
+`blend.rs:169`, `pickcache.rs:256`, `prefs.rs:387-388`, `scene.rs:887`,
+`pickindex.rs:1582`. No sweep this crate has run can see that spelling
+— it is not among the six enumerated blind spots of
+`comment-symbol-names-outside-rustdocs-reach-have-no-gate`, whose blind
+spot 3 is a span split across two LINES and measured at zero. And one
+of the five is live: **`blend.rs:169` names `app`'s `unit_picker`, and
+there is no `unit_picker` anywhere in this workspace** — the class
+`doc-comments-name-symbols-that-do-not-exist` closed over 64 spans on
+2026-09-10, alive in the same crate because that sweep's rule could not
+match the spelling. Filed as
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`.
+
+**A second class fell out of checking that number, and it is three
+lines long.** Re-deriving the longest doc line turned up
+`sketch.rs:1015` at 125 characters, and the reason it was long is that
+it says its own first sentence twice with a `///` wedged between the
+copies: *"`/// **How big the tip marks in a profile preview are**/// **How
+big the tip marks…**, in sketch-plane metres`"*. Rustdoc renders that
+literally, on a page in the renderer-free half that BOTH host passes
+build. Swept with *a doc line carrying a second `///` or `//!` after
+column zero, outside backticks and outside an indented doc code block*
+— over every tracked `.rs` in the repository, not just this crate —
+and it is exactly **three**, all here: `datums.rs:201`, `:273` and
+`sketch.rs:1015`. All three repaired in place, no line shift. **No gate
+holds this**: it is not a broken link, so `doc-gate.sh` is green over
+it at every pass, and the sweep's blind spot is the honest one — a
+duplicated sentence that did NOT keep its `///` is invisible to this
+rule and to every other.
+
+**Two rows closed and two opened.**
+`rustdoc-posture-test-names-one-axis-of-three` is closed with the
+ruling and both corrections to its own plan recorded, `needs_ev`
+cleared. `named-not-linked-is-a-silent-disposition-at-eleven-of-
+thirteen-sites` is closed as **dissolved** — its Category A is links
+now, so there is no silent disposition left to annotate and the
+per-file note it costed is not owed. Its Category B did not dissolve
+and does not die in a Closed section: seven `#[cfg(test)]` spans, which
+the ruling cannot reach because nothing renders them, sitting beside ten
+bracketed links in the same two files with no rule saying which is
+right. Re-filed as `cfg-test-bare-spans-have-no-stated-disposition`.
+
+### The review pass on #2332, and both fixes were the same mistake
+
+**A dangling row id inside a CLOSED row.** The dissolved row's prose
+said Category B was *"re-filed as
+`bare-spans-outside-the-path-rule-have-no-stated-disposition`, together
+with a second population"*. Neither half was true of the tree: the row
+is `cfg-test-bare-spans-have-no-stated-disposition`, no row of that
+first name exists, and the possessive population is a **separate** row,
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`.
+The dangling name was this lane's own working title, kept in the prose
+after the row was split in two. `work.py lint` passes over it because
+it resolves `refs:` frontmatter and not prose — so *a receipt is a
+citation and gets no exemption* applies to a row id in a sentence, in a
+file that outlives this program's directory. Both rows are named now,
+and the row says they are two and why the rules differ.
+
+**A universal whose reason did not produce its population, in the
+section that ratifies the rule against exactly that.** The README's new
+*Nowhere* bullet argued no branch can break a renderer-free link
+without taking the all-features pass, because *writing* a link means
+diffing `crates/viewer`. The property is a link being BROKEN, and a
+link breaks when its TARGET moves — on a branch that never touches this
+crate. `cargo_scope` is the dependent closure while
+`run_viewer_toolkit` is seed-keyed (`ci.yml:1833-1836`), so such a
+branch takes skip mode with `viewer` in scope and the now-inert pass is
+the only rustdoc reading the crate. The position the bullet called
+impossible is reachable.
+
+**It is still true, and the reason is a contingency worth writing
+down.** Swept by *every intra-doc link in the renderer-free half whose
+first path segment is an external crate, against
+`VIEWER_TOOLKIT_SEEDS`*: **twelve sites, all into `pncad`**, and
+`pncad` is itself a seed (`ci-filter.py:1428`). So every branch that
+can move one of these targets buys the all-features pass. A first link
+into any crate outside that set opens the hole.
+`renderer-free-cross-crate-links-are-ungated-off-the-seed-set` owns it.
+
+**The count came in at twice the estimate, and the twelfth is the one
+that matters.** The review offered six sites; the derivation gives
+twelve — `blend.rs:425`, `display.rs:262`, `docio.rs:85`,
+`marks.rs:297`, `matetool.rs:33`, `:54`, `:153`, `:220`, `parts.rs:11`,
+`props.rs:652`, `sketch.rs:939`, `tree.rs:143`. The conclusion is
+unchanged and the sweep rule is what moved the number. **`sketch.rs:939`
+is the reason the rule says "intra-doc link" rather than "bracket"**: it
+is the reference form, `` [`ProfileVertex`](pncad::profile::ProfileVertex) ``,
+the only one in the crate and invisible to a bracket-shaped grep — the
+same spelling this unit declined to adopt, reaching up to hide from the
+sweep that would have policed it.
+
+**The backstop the ruling names cannot red, and that is measured.**
+`ci.yml:1821-1825` says the skip's lost coverage is re-taken by
+`nightly.yml`'s `rustdoc (viewer, all features)`. That row is
+`cargo doc -p viewer --all-features --no-deps` (`nightly.yml:291-293`)
+and **`nightly.yml` sets no `RUSTDOCFLAGS` at all**. Planting
+`` [`pncad::document::NoSuchItemAnywhere`] `` in `tree.rs` and running
+that exact command gives **one `warning: unresolved link` and exit 0**.
+It re-takes the RENDER and cannot re-take the LINT — enough for the
+feature-axis coverage the skip gives up, since a page that fails to
+build fails the command, and not enough for this class. So the bullet
+names it for what it is instead of citing it as cover, which is what
+the review asked for and the opposite of what the citation would have
+said. The repairs that would make it a real backstop live in
+`nightly.yml` and `scripts/ci-filter.py` — CIW's and S-TCOST's — and
+are named in the row rather than taken here.
+
+**The re-sweep before landing found a fourteenth site, and `main` red.**
+*A sweep is accurate as of your merge base, not your merge.* Re-run
+after merging `origin/main` (#2320, `view/cancel-doors`), the
+path-shaped population is **fourteen**: `session/op.rs:797` names
+`` `pane::create` `` in a production `///` comment, in a file that
+arrived with the merge. Linked with the other thirteen; the red-before
+on the merged tree is **17** distinct sites, not 15.
+
+**Sixteen of those seventeen are this branch's. The seventeenth is
+`main`'s, and it is this row's thesis firing in the wild.**
+`session/op.rs:773` carries `` [`crate::widgets::drag_gesture_ops`] ``
+— renderer-free module, `app`-gated target, spelled as a LINK — so
+`origin/main` is **red on the skip-mode viewer doc pass right now**.
+Measured at `origin/main` in a throwaway worktree with its own target
+dir: `error: unresolved link to `crate::widgets::drag_gesture_ops``,
+exit 1. It never showed on #2320's CI because that diff touched
+`crates/viewer`, so `RUN_VIEWER_TOOLKIT=true` and `ci.yml:1834` took the
+non-skip path — *"the defect fires on someone else's branch, not on the
+branch that writes it"*, which was an argument when the row was filed
+and is now a property of `main`. The next branch to reach `viewer`
+through the closure without seeding the toolkit would have worn it.
+**This PR clears it as a side effect of the ruling**, which is worth
+saying plainly: the merge is not only a docs improvement, it takes a
+standing red off `main`.
+
+## 2026-09-11 — #2332 merged; it cleared a red #2320 put on main
+
+**Ev's rustdoc ruling is landed** (#2332, merge `9664acdfa`): the
+fourteen `app`-gated spans in the renderer-free half are links in the
+house ``[`crate::X`]`` spelling, and `scripts/doc-gate.sh`'s skip-mode
+viewer pass runs `RUSTDOC_LINTS_INERT` — CIW's file, on Ev's direct
+authorisation, announced at the site, in the PR body and as
+`work/ciw/view-made-the-skip-mode-viewer-doc-pass-lint-inert`. Two
+module notes retired, not three. Full code tier, 38 jobs, twelve
+`test (…)`, five `k-lint (gate, …)`, no unsubstituted placeholders,
+`gate ok` success.
+
+**The lane corrected the dispatch six times and every correction
+stood.** `forms.rs:18-20`'s note is about `pub(crate)` items on a
+public module page, not the headless pass, so it stays. There is no
+wasm32 *clippy* row at `-D warnings` — CI's row is `cargo check` and
+`ci.yml:2241-2250` says in terms that it is the one viewer row that
+cannot fail on a warning. Retiring `theme.rs`'s note required linking
+its two spans or the silent disposition returns. The selftest could not
+simply lose two arms without leaving that pass unfirable — the #2106
+shape, in the file whose subject is that shape. **The nightly re-take I
+told it to cite as the backstop cannot red**, measured. And the six
+cross-crate sites I handed it are twelve.
+
+**#2320 landed a red on `main` and its own CI could not show it.**
+`session/op.rs:773` links ``[`crate::widgets::drag_gesture_ops`]`` from
+an ungated module into an `app`-gated one. A `crates/viewer` diff seeds
+the toolkit, so that branch takes the non-skip path and documents the
+crate at `--all-features`, where the link resolves. The skip-mode pass
+— the only one that renders the renderer-free half alone — runs only on
+branches that reach `viewer` through the closure without seeding it.
+FIX's orchestrator hit it from `crates/quantity` (#2335) and filed it
+on our slate (#2340) rather than absorbing it. I verified the clear on
+merged `main` rather than inferring it from the merge:
+`scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit`
+exits 0 at `9664acdfa`.
+
+**Answered on #2340** with three corrections: the repair the item
+proposes is now contradicted by Ev's ruling (the link is correct as
+written and the gate is where the fix belongs); "every code-tier PR"
+generalises one step past the wiring, since a PR seeding `viewer`,
+`pncad` or `bvh` takes the non-skip path and is green; and the window
+was hours, not a week. Its silent-coverage paragraph is a real addition
+and is taken. The sweep it asks for — an ungated module's doc linking a
+gated one, which nothing mechanical reads — is genuinely open and VIEW
+will home it.
+
+**The proxy class is at nine and the ninth is mine, from inside the
+review of the eighth.** I swept for cross-crate links with a
+bracket-backtick pattern and got six; there are twelve, because
+`sketch.rs:939` is the reference form ``[`X`](path)``. The conclusion
+held — all twelve target `pncad`, a toolkit seed — but the population
+was the argument. Writing the class down does not exempt the next
+sweep from it.
+
+**Three rows opened**: `cfg-test-bare-spans-have-no-stated-disposition`,
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`
+(whose `blend.rs:169` names `unit_picker`, a symbol that exists nowhere
+in the workspace — alive because the 64-span sweep's rule was
+path-shaped), and
+`renderer-free-cross-crate-links-are-ungated-off-the-seed-set`. Three
+doc comments that said their first sentence twice were repaired in
+place (`datums.rs:201`, `:273`, `sketch.rs:1015`).
+
+**VIEW stands at 73 open / 73 closed, with nothing waiting on Ev.**
+
+## 2026-09-11 — #2343 merged; the out-of-fence table is not a repoint
+
+**#2343 on main** (merge `a2447044`): the skip-mode CI hole, FIX's third
+face of the silent-coverage class, and the ninth proxy instance. Docs
+tier, 21 jobs, `docs-only ok` and `gate ok` both success.
+
+**A convention defect found while reviewing #2348, and it is the
+orchestrator's rather than a lane's.** Implementer-discipline §6 has
+lanes REPORT another program's shifted citations and the orchestrator
+place them. Two lanes have now reported the same CHROME row with
+different answers — #2320 said `app.rs:1722-1723` → `1750-1751`, #2348
+said `1722` → `1732` — each correct about its own diff and neither
+correct once both land. An out-of-fence table is a statement about one
+diff against one base and expires as soon as another diff touches the
+file. **The table's value is the population it identifies, not the
+numbers beside it**; placing it means re-deriving by subject at placing
+time. Written into `plan.md`.
+
+**With a second half that is sharper**: the table asserts *should read
+X* for citations it never checked against their subjects. CHROME's
+`app-rs-doc-comment-merge-scars.md:24` cites `app.rs:1722-1723` for a
+sentence about `perform_batch`, which is at `app.rs:918` at that
+branch's base and at its head. Shifting that number makes the row worse
+while looking like a correction — the exact thing
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong` names, which
+this program already refuses in fence and had no rule for out of it.
+
+**The proxy class reached ten and eleven in one census, both in #2348's
+lane, and it self-reported all of them.** Its citation pattern required
+a repo-rooted path where the tracker also writes bare filenames and
+line-only continuations; it then applied the correction as a SECOND
+pass over rows the first had already moved, double-shifting fifteen —
+and the content check meant to catch that compares the old file's line
+against the new file's line, so it verifies the shift MAP rather than
+the starting point and returned true on every wrong answer. **That is
+the best find of the session**: a check that cannot fail for the reason
+it was written.
+
+An eleventh, which reached a published PR comment: the resolver paired
+a line number from one citation with a filename token from elsewhere in
+the same row, reporting `.github/workflows/ci.yml:4030` as
+`README.md:4030` — and the correcting comment then named a third wrong
+file. Sent back. The verdict (strike those rows) was right both times;
+the stated reason was false both times, and it was published as a
+verification claim.
+
+## 2026-09-11 — #2340 resolved without a row landing here
+
+FIX reworked #2340 after VIEW's answer and **dropped the row it had
+filed on our slate** — `git diff --name-only 8522bce76^1 8522bce76`
+returns twenty-two files and not one under `work/view/`. That is the
+right outcome: the red was cleared by #2332 before their PR merged, and
+the repair their row proposed (respell the link) is contradicted by
+Ev's ruling that the renderer-free half MAY link into the `app`-gated
+half. **Nothing is owed from VIEW on it.**
+
+The one part of their filing that was not answered by the ruling — the
+sweep, *an ungated module's doc linking a gated one is a class and
+nothing mechanical reads feature gates against intra-doc links* — is
+already homed, and was before they asked: within the crate the ruling
+makes it permitted rather than a defect, and the case that remains
+ungated is the cross-crate one, which is
+`renderer-free-cross-crate-links-are-ungated-off-the-seed-set` (filed
+by #2332's lane, with the measured fact that the nightly re-take cannot
+red). No new row; I said VIEW would home it and VIEW already had.
+
+**Fence record repaired on our own side.** S-TCOST split on 2026-09-11
+(`d6a9b948a2`, *"open S-TINT and move the non-cost half of S-TCOST's
+board to it"*) and both programs now declare `crates/*/tests/*` and
+`crates/test-utils/*`. VIEW's `keep_out` named only S-TCOST, so
+`work.py lint` reported the S-TINT overlap as *"neither `keep_out`
+names the other"* — invisible from both sides, on 54 paths this program
+writes to constantly. It now names S-TINT as well, and says which half
+a VIEW lane actually touches: the integrity half, not the cost half, is
+what a lane adding assertions to `crates/viewer/tests/*` is in. That
+moves the warning to one-sided, which is as far as VIEW can take it
+alone; S-TINT's own `keep_out` is theirs.
+
+## 2026-09-11 — `view/silent-withdrawals`: the two halves of one asymmetry
+
+Two rows, both in `crates/viewer/src/display.rs`, dispatched together
+because they are the two doors that withdraw display state and report
+differently.
+
+**`prune-kills-a-gesture-and-reports-nothing` — CLOSED by fixing.**
+`PruneReport` grew its third field and `prune` stopped throwing the
+fault away at the instant it had it. The field is
+`killed_gesture: Option<Withdrawn>`, an `Option` and not a `Vec`
+because a `DisplayState` holds ONE free-move gesture — which is also
+why the new sentence is the only kind with no plural, and why
+`Display for Withdrawal` now matches an `Option` for its count rather
+than carrying a `many` string its own constructor cannot reach. The
+wording followed #1886 twice over: a killed gesture is not a
+supersession (nothing substituted for it), so it is a third sentence —
+*"free move: the drag in flight was ended — <fault>"*.
+
+**`display-clear-drops-free-move-placements-silently-while-prune-reports-them`
+— CLOSED by ANSWERING.** The item offered a fork and its own
+counter-argument won, but not for the reason the item gave. Costing it
+against the tree rather than against the file moved it: implementing
+the proposal (`clear` reporting through `prune`'s channel) and MEASURING
+it, a reopen of the same file produces an EMPTY report while all three
+kinds of state are taken — ids are minted per `Doc`, so
+`free_move_check` answers `Ok(())` about the incoming document's nodes
+— and `NewDocument` produces `NoSuchNode { node: 0 }`, a true sentence
+about a document the user has never held state on. So the report cannot
+distinguish "nothing went" from "everything went". The silence is kept
+and is now written at `clear`, with a row that reds if it is widened
+back into an oversight. The IN-FLIGHT drag at that same door is left to
+`free-move-drag-dissolved-by-open`, whose fork is a refusal and not a
+report.
+
+**The census bit that cost the most.** The citation sweep's first
+pattern required a repo-rooted path and missed two other spellings the
+tracker actually uses — a BARE filename (`display.rs:861`) and a
+line-only continuation (`` `:1632` ``) — which is this program's proxy
+class again, the tenth instance. Worse, the correction was applied as a
+SECOND pass over rows the first had already moved, double-shifting
+fifteen of them; the content check that was supposed to catch it
+verifies the shift MAP rather than the starting point, so it passed on
+every wrong answer. Redone as one pass from the pre-repoint state. And
+`plan.md`'s two hits are QUOTATIONS of past citations, not pointers at
+the tree: repointing them corrupts the record, so `plan.md` is left
+alone. A shift-repoint cannot tell a pointer from a quotation, which is
+the same class one level up.
+
+Residue filed rather than left in prose:
+`a-fourth-withdrawal-kind-is-forced-at-one-of-its-three-sites` — the
+three kinds are declared on `PruneReport`, re-declared on `OpOutcome`
+and hand-fanned into `app.rs`'s notices, and only the copy between the
+first two is exhaustive.
+
+### The out-of-fence table was wrong, and the corrections were wrong too
+
+Adjudication caught two defects in the table this unit published for
+other programs' rows, and running them down found three more proxy
+failures in the same resolver. Recording all five, because the census
+rule this program keeps re-learning is that **a shift map is not a
+citation check**.
+
+1. **The file token and the line number came from different
+   citations.** The resolver bound a bare `:NNNN` to the last filename
+   it had seen, and its extension list omitted `.yml` — so
+   `.github/workflows/ci.yml:4030` was read as a line number belonging
+   to a `README.md` mentioned elsewhere in the row. Two rows entered
+   the table that hold no `crates/viewer` citation at all.
+2. **The correction to that was wrong in the same way.** Told the rows
+   were misattributed, the lane re-resolved them by the nearest ROOTED
+   path in the row — `tools/README.md`, `demos/README.md` — and
+   published that as *"confirmed by the rooted paths in those rows' own
+   text"*. Same defect, one file further along, and this time inside a
+   verification claim on a PR. The strike verdict was right and the
+   stated reason was false twice over.
+3. **The shift map never asked whether the cited line exists.**
+   `crates/viewer/src/app.rs` is **2019** lines at the merge base and
+   `session.rs` is **2039**; fifteen of the table's entries cite lines
+   above those — `app.rs:5014`, `:4626`, `:3075` — relics of the
+   pre-split file (`app.rs` was 5,696 lines before #1830). Pure
+   arithmetic on a line number produced a confident "should read 5024"
+   for a line that does not exist.
+4. **No entry was checked against its SUBJECT.** Seven more are in
+   range and name something that is somewhere else:
+   `app-rs-doc-comment-merge-scars` cites `perform_batch` at
+   `app.rs:1722-1723` where it sits at `:918` — and that row states
+   outright *"Line numbers are as of PR 1776's head; the function names
+   are the durable anchors"*, so its numbers were never tracking the
+   tree.
+5. **Eight entries are quotations, not pointers.**
+   `drag-tick-row-cites-app-rs-for-a-finding-that-lives-in-forms-rs` is
+   a table OF the wrong `app.rs` numbers beside the right `forms.rs`
+   ones — repointing it edits the evidence — and
+   `wasm-row-warning-debt-…` quotes compiler diagnostics captured at a
+   named SHA.
+
+**Of 31 out-of-fence citations, exactly ONE is a true shift**, and it
+is the row someone had already re-derived by hand.
+
+The standing rule this yields, and it is the orchestrator's to put in
+`plan.md`: an out-of-fence table is a statement about ONE diff against
+ONE base and expires the moment another diff touches the same file —
+#2320 reported the same CHROME row as `1722-1723` → `1750-1751` where
+this unit reported `1722` → `1732`, both right about their own diff and
+neither right once both land. So a repoint is re-derived at PLACING
+time, by subject, and a citation already wrong at the base is disclosed
+rather than moved to a new wrong number.
+
+## 2026-09-11 — #2348 merged; one of thirty-one
+
+**`view/silent-withdrawals` is on main** (#2348, merge `88bacdd2fe`),
+green on the full code tier at `606555b9c8`: 38 check runs, twelve
+`test (…)`, five `k-lint (gate, …)`, `rustfmt + rustdoc (gate) +
+wasm32` and `gate ok` all success, six change-filter skips, no
+placeholders — read from the job list. `prune` reports the killed
+free-move gesture with its cause instead of throwing it away at the
+instant it has it, and `clear`'s silence is now a decision written at
+`clear` rather than an oversight.
+
+**The `clear` fork was settled on a typing fact, not the wording
+argument the item offered, and the lane was right to move it.** A
+`Withdrawn` carries a `DisplayFault` about a document, and the only
+document left to ask at `clear` is the replacement — where the ids mean
+other nodes, because `next_id` is a counter the `Doc` owns
+(`crates/editor-core/src/doc.rs:315`, `:380`). The lane implemented the
+item's own proposal and measured it: reopening the same file reports
+EMPTY while a hide, a placement and a drag in flight are all taken, and
+`NewDocument` reports `NoSuchNode { node: 0 }`. A report that cannot
+tell *nothing went* from *everything went* is worse than the silence.
+
+**The out-of-fence census came back one placeable of thirty-one**, and
+that is the result rather than an embarrassment: fifteen past EOF,
+seven subject-elsewhere, eight quotations. Written into `plan.md` with
+the reason the instrument could not see it — a shift map is arithmetic
+on an integer and cannot be wrong in its own terms.
+
+**Three corrections to my own messages, all the lane's and all
+standing.** `check-ci-mirror-parity.py` was never in its validation
+table, so there was no old result to carry and I said there was. The
+workspace count did NOT move as I predicted — `crates/mesh/src/
+nurbs_cert_fuzz.rs` changed by 71/13 lines and still declares three
+`#[test]`s, so 6848 held, and the lane checked rather than reporting
+the same number twice and hoping. And earlier: its "CI is blocked on
+your credential" was wrong, it was blocked on having nothing real to
+push — which it named as its own worst error of the lane, because it
+had offered a force-push to route around a diagnosis it had not
+checked. It was offered and refused; the merge that was owed on the
+merits was the answer, and it is what fired Actions.
+## 2026-09-11 — `view/gesture-doors`: the two gesture doors, and one fan-out
+
+Two items, both adjacent to what #2348 landed.
+
+**`free-move-drag-dissolved-by-open` — the FREE-MOVE side was wrong.**
+The item asked which of the two drags gets the wrong treatment and
+#2348's `DisplayState::clear` clause had already removed one of the two
+possible answers: a per-instance report cannot be built truthfully at a
+replacement, because a `Withdrawn` carries a `DisplayFault` about a
+document and the only document left to ask is the incoming one. So the
+report half of the item's menu was never available, and the refusal is
+the answer. `SessionOp::permitted_during_free_move` is a SECOND
+exhaustive table rather than a widened first one: the two drags refuse
+different sets, and one predicate could serve both only by refusing the
+union — a commit landing under a probe is pruned and reported, which is
+a better answer than a refusal. The two tables agree on exactly the two
+doors that REPLACE the document.
+
+**`a-fourth-withdrawal-kind-is-forced-…` — both candidates, because
+neither alone is the fix.** `OpOutcome` holds the `PruneReport` (the
+re-declaration and the copy are gone, and with them `from_prune`'s
+destructure — the one site that held and the wrong one), and
+`frame::Withdrawal::all` destructures the report at the RENDERING call,
+with the three constructors made private so nothing outside `frame` can
+fan out by hand. `app.rs`'s three `extend`s are one.
+
+**The defect had a FOURTH instance and it was in a test.**
+`frame_policy.rs`'s hand-written mirror of the `app`-gated loop — the
+one whose own comment warns that a half-mirror passes while the real
+loop drops a kind — listed two producers after #2348 added the third
+beside it. Nobody found it by reading; it fell out of collapsing the
+fan-out and finding a caller that could not be collapsed. A comment
+saying *"this must model every producer"* is not a hold.
+
+**Two operational notes, both costs paid here.**
+
+1. `git checkout -- <file>` on an UNCOMMITTED tree is `git checkout
+   HEAD -- <file>`. A mutation harness that reverted three source files
+   that way discarded every uncommitted edit in them — #2089's clobber
+   in a new shape, and the fix is the same: commit first, or mutate in
+   a throwaway worktree with its own target dir. Nothing was lost
+   because the edits were scripted and re-runnable; that was luck about
+   the method, not a property of the harness.
+2. Adding a tenth `vocabulary!` moves SIX live counts in
+   `crates/viewer/README.md` and three in `src/vocab.rs`, and the
+   README states one HISTORICAL census beside a live one ("Ten `const
+   ALL` tables existed…; nine were of this kind") which must not be
+   bumped with the others. A count that is a claim about the tree at a
+   named moment is not the same count as a claim about the tree.
+
+Residue filed:
+`census-table-in-the-viewer-readme-is-not-its-own-population` — the
+README's non-dump census table says nine and `PruneReport::is_empty`
+(`display.rs:592-599`) is a tenth it does not carry, added by #2348
+after the table was built.
+
+## 2026-09-11 — #2358 merged; a comment that warned about half-mirrors was one
+
+**`view/gesture-doors` is on main** (#2358, merge `6aee1efe96`), green
+on the full code tier at `2b1e69a0`: 38 check runs, twelve `test (…)`,
+five `k-lint (gate, …)`, `rustfmt + rustdoc (gate) + wasm32` and
+`gate ok` all success, six change-filter skips, no placeholders — read
+from the job list. `Open` and `NewDocument` refuse under an in-flight
+free move, and a fourth kind of withdrawal is now E0027 at the call
+that words it.
+
+**The find of this unit is a test that was the thing its own comment
+warned against.** `crates/viewer/tests/frame_policy.rs` carried a
+hand-written mirror of the `app`-gated notice loop whose comment read
+*"it has to model every producer that feeds the notices there — both
+withdrawal channels… A half-mirror would pass while the real loop
+dropped the other."* After #2348 added the third producer beside it, the
+mirror listed two. **The comment named the failure mode exactly and did
+not prevent it**, because a comment is not a hold. Nobody found it by
+reading; it fell out of collapsing the fan-out and meeting a caller that
+could not be collapsed. And #2348 is a PR I reviewed and merged.
+
+**The lane departed from its item on one point and was right.** The item
+said the mid-gesture table's subject widens past the value gesture and
+its name should widen with it. One predicate could serve both drags only
+by refusing the UNION, and the union is wrong in both directions — a
+commit landing under a probe is pruned and REPORTED (`killed_gesture`,
+#2348), which is a better answer than a refusal. So
+`permitted_during_free_move` is a SECOND exhaustive table refusing two
+rows. The README section widened; the name did not.
+
+**Three things the lane asked me to check, and my answers.** The
+`vocabulary!` conversion of `WithdrawalKind` cost six live README counts
+and three in `vocab.rs`: worth it, because it is the house pattern
+rather than a special case — the crate's tenth — and without it the
+reverse direction (a kind with no producer behind it) is held by
+nothing. The re-baselined `a_document_replacement_takes_all_display_
+state_and_reports_none_of_it` is exactly what `CLAUDE.md` asks for: a
+stored bit that changes is not a cost to weigh against making the code
+right; re-baseline and say what moved, which its doc now does. And the
+`git checkout --` clobber is a rule rather than a blocker — see
+`plan.md`, where it now sits, because this is the SECOND lane in a day
+to do it.
+
+**The out-of-fence census came back 0 placeable of 16**, on a
+deliberately different diff from #2348's 1-of-31. Two independent
+measurements, same verdict: those rows are damaged and were damaged
+before either branch existed.
+
+**And #2332's documented cost was paid immediately**, in the direction
+nobody was watching: the skip-mode pass exited 0 over three intra-doc
+links to items this diff had just deleted, while the full workspace pass
+exited 1. Both passes are owed by a viewer lane. In `plan.md`.
+## 2026-09-11 — `view/gesture-identity`: the driving operations name their gesture
+
+`preview-and-commit-carry-no-gesture-identity` closed. Shape 1 of the
+item's three, spelled as the tree spells the two begins rather than as
+the item wrote it, and the free-move quartet taken with it.
+
+**Costing the fork against the tree moved two of the three.** The
+item's shape 1 — `PreviewGesture { node, slot, value }` — has nothing to
+say for a document-parameter drag, so it is either a union payload (a
+second spelling of a target vocabulary `BeginGesture` and
+`BeginParamGesture` already have between them) or one preview and one
+commit per door. The second is what `BeginParamGesture`'s own docs
+argue for, costs no new public type and no translation at any call
+site, and is what landed: 39 operations became 41.
+
+Shape 3 cannot be built where the item puts it. The chrome queues ops
+and `ViewerApp::perform_batch` performs them after the layout walk, and
+a begin and its first preview reach the same batch — `Refusal::rank`'s
+own worked example says so. Nothing in `widgets::drag_gesture_ops` can
+know a refusal that has not happened yet, and the cheapest form that
+works asks the session which gesture is open, which needs the identity
+public anyway and then sites the decision where no other driver of
+`SessionOp` can reach it.
+
+Shape 2 refuses the one recovery the chrome has. A stranded drag's own
+field, dragged again, names the same slot: its begin is refused and its
+preview and release land the number the user dragged it to, against the
+same base document because nothing that moves the document is permitted
+mid-drag. A per-begin token would refuse that and strand the reader
+twice. `the_open_drags_own_field_dragged_again_lands_its_number` holds
+it, and mutation 7 below is what reds it.
+
+**The refusals are spelled apart from the in-flight ones**, and that is
+the tree's answer rather than taste: `permitted_during_value_gesture`
+is a function of the operation alone and cannot answer a question about
+a payload, so folding the mismatch into `GestureInFlight` would make
+`every_op_behaves_as_the_table_says` unable to tell a table answer from
+a payload answer. `Refusal::WrongGesture` and
+`DisplayFault::WrongFreeMove` rank with the bookkeeping refusals: they
+arrive in a batch behind the `GestureInFlight` that refused the drag's
+begin, and that is the sentence with the remedy in it.
+
+**#2358's precedent followed rather than departed from**: no new
+predicate and no third table. Each check sits in the door of the state
+it is about — `DocSession::preview_gesture`/`commit_gesture` and
+`DisplayState::preview_free_move`/`commit_free_move` — which is the
+same argument that gave the two drags two tables.
+
+**The reachability route holds on today's tree**, re-checked rather
+than assumed: `a_drags_own_preview_can_strand_it_and_the_door_closes_it`
+passes at `dba1afd053`, and its strand half is now a helper two rows
+share — the second continues into the drag a reader makes when the
+panel comes back.
+
+**The free-move half is API-reachable only.** No route to a second
+probe under an open one has been traced; that is
+`free-move-in-flight-refusal-has-no-reachable-producer`'s question and
+is not answered here. What changed for that row is its population:
+`DisplayFault` now has two arms with the same standing, not one.
+
+Residue: `the-two-drags-name-their-gestures-in-two-shapes` — the
+identity is a `(node, slot)`, a name, or an instance, and `drag_ops` is
+generic over the difference with nothing holding the three to each
+other.
+
+## 2026-09-11 — #2361 merged; the sharpest defect on the slate is closed
+
+**`view/gesture-identity` is on main** (#2361, merge `a88eedd036`),
+green at `a578aecb`: 38 jobs, twelve `test (…)`, five
+`k-lint (gate, …)`, `gate ok` success, six change-filter skips, no
+placeholders — read from the job list after waiting for `gate ok` to
+post, which it had not when the lane reported. Six gesture-driving
+operations now name the gesture they drive and are refused on a
+mismatch, so a drag on one field can no longer steer — or commit into —
+another.
+
+**Two of the item's three candidate shapes moved once re-derived
+against the tree, and that is the result.** Shape 1 as written cannot
+be spelled: `PreviewGesture { node, slot, value }` has nothing to say
+for a document-parameter drag, so it is either a union payload or one
+preview and one commit per door — the lane took the second, which is
+`BeginParamGesture`'s own stated argument applied to the two operations
+that lacked it. Shape 3 cannot be built where the item puts it: a begin
+and its first preview reach the SAME batch, so at push time there is no
+refusal to react to. Shape 2 refuses the one recovery the chrome has —
+the stranded drag's own field, dragged again, names the same slot and
+lands the number the user dragged it to; a per-begin token strands the
+reader twice.
+
+**A correction to that reasoning's receipt, which the PR body got
+wrong.** The worked example it leans on for rejecting shape 3 —
+*"`BeginGesture` refuses with the affordance and the same frame's
+`PreviewGesture` refuses `NoGesture` on top of it"* — is real and says
+exactly what the argument needs, but it lives on
+`ViewerApp::perform_batch` (`crates/viewer/src/app.rs:913-914`), not on
+`Refusal::rank` as the body claims. A receipt is a citation and gets no
+exemption. The ratified text is clean: the misattribution never left
+the PR body, so this note is the correction rather than a diff.
+
+**A loop closed on the orchestrator's own earlier finding.** I told
+#2348's lane that `work/chrome/app-rs-doc-comment-merge-scars.md:24`'s
+`app.rs:1722-1723` was *"never about its subject"* because
+`perform_batch` is at `app.rs:918`. The staleness verdict was right and
+the located subject was not: that row's subject is the DOC COMMENT on
+`perform_batch`, the two stacked summaries — *"Perform one operation and
+record what it refused."* immediately above *"Perform one frame's whole
+batch of operations"* — and it sits at **`app.rs:906-907`**, pre-existing
+and untouched by any VIEW diff. So the row is live, its citation is
+stale, and the re-derived location is recorded here for whoever places
+it. That is the `plan.md` rule — *an out-of-fence table is a population,
+and placing it means re-deriving by subject at placing time* — executed
+rather than restated.
+
+**The lane reported before CI finished**, offering an all-local
+evidence table with the PR marked open. The evidence was sound and the
+run went green, but a report that says *here is the PR* without a
+`gate ok` is a report about a tree and not about a merge. Dispatches
+say to wait for it.
+
+**VIEW stands at 71 open / 78 closed, nothing waiting on Ev.**
+
+## 2026-09-11 — #2360 merged; the tracker was re-cut under us, and one lane dispatched
+
+**#2360 merged** (`bf6bdca140`), docs-only tier verified from the job
+list: **21 jobs, `docs-only ok` success, `gate ok` success**, the other
+17 skipped by the change filter. Its body was widened to cover #2361
+before the merge, so the three units it ratifies and the two
+corrections it records are all in the description rather than in a
+commit message.
+
+**`main` was re-cut while VIEW was mid-wave.** #2370 and #2371 split
+`work/issues/` and `work/code-quality/` into eleven programs; VIEW's own
+directory came through unchanged, but the slate now has neighbours it
+did not have this morning (`work/door/`, `work/wire/`, `work/suite/`
+among them). The merge into the orchestrator branch was clean. Worth
+recording because a dispatch written against the old layout would cite
+paths that moved — the standing rule about re-deriving item files from
+`main` before dispatching now also means re-deriving which *program*
+owns them.
+
+**A VIEW row arrived from outside.** The FIX orchestrator filed
+`seeded-draft-is-the-commit-path-and-does-not-round-trip` onto this
+slate (found by PR #2366's lane sweeping out of fence for
+fixed-precision renderers, verified and re-framed by FIX before
+filing). It is the sharpest row on the slate: the δ field's seeded
+draft **is** its commit path, so focusing the field and clicking away
+commits a value nobody typed — silently quantising δ to the nearest
+micrometre, or, below 500 nm, producing a refusal about a number the UI
+itself put in the box.
+
+Dispatched as `view/delta-round-trip` with two findings the item does
+not have, both recorded as rules in `plan.md`: that the item's
+seed-an-exact-spelling shape is arithmetically unachievable because the
+lossy step is the unit conversion (~14% of sampled δ fail to
+round-trip even at the shortest round-trip spelling), and that
+`drafts.rs`'s own doc already says `Some` means *as typed* while
+`get_or_insert_with` makes it mean *has focus* — which turns the item's
+stated *preference* into a written contract the code breaks.
+
+**Ev is handing off two rows personally** —
+`work/door/boolean-op-has-a-third-hand-written-complete-list` and
+`work/door/viewer-pathverb-all-hand-written-seventeen`. Both sit in
+DOOR rather than VIEW; neither is to be dispatched from here. The
+dispatch says so explicitly.
+
+**VIEW stands at 72 open / 78 closed, nothing waiting on Ev.**
+
+## 2026-09-11 — `view/delta-round-trip`: a draft is text a user typed
+
+`seeded-draft-is-the-commit-path-and-does-not-round-trip` is **closed**.
+The View pane's δ field seeded `drafts.delta_mm` with a `{:.3}` render
+of the δ in force, and that same field is what `lost_focus` parses and
+commits — so focusing the field and leaving it committed a number
+nobody typed: `0.0` below 500 nm (refused by
+`DisplayTolerance::new`), and a quantisation to the nearest micrometre
+everywhere else, silently.
+
+**The shape taken was the item's third, not its first.** A keystroke is
+now the only thing that makes the draft `Some`; an untouched field has
+nothing to commit. That is not merely the preferred shape — it is the
+one `crates/viewer/src/drafts.rs:33-39` **already documents**, *"the
+View pane's δ field … in millimetres AS TYPED"*, and which the seeding
+made false. The field's whole body moved out of `ViewerBehavior` into a
+free `delta_field` taking the four things it actually reads, so its
+focus lifecycle is testable without building a thirty-field behaviour;
+`pane/viewport.rs`'s `land` is the precedent.
+
+**The item's first shape — seed the exact spelling — was measured
+before it was dropped, and the measurement corrects the dispatch.**
+Seeding the shortest round-tripping spelling of `δ · 1e3` and parsing
+it back through `· 1e-3` returns a different `f64` for 4,155 of 28,600
+sampled δ in [1e-12, 1e-1] m — 14.5%, every one by exactly 1 ULP,
+because the lossy step is the unit conversion and not the format. The
+dispatch said no spelling can close it; that is true of 669 of those
+28,600 (2.3%), which have no `f64` millimetre preimage at all, and for
+the other 97.7% a preimage does exist within 1 ULP of the naive
+product. It is unreachable in practice rather than in arithmetic: a
+budget-chosen δ is `constant / TRIANGLE_BUDGET`
+(`crates/viewer/src/scene.rs:972`), whose exact spelling is seventeen
+significant figures in a 56-point field. The conclusion stands and the
+reason for it is narrower than stated.
+
+**The three siblings were checked, not taken.** `Bounds::wording`
+reaches `pane/properties.rs:702` and `:756` through `ui.weak`,
+`frame::delta_badge` builds a `Badge`, `FittedDelta::wording` is that
+badge's detail; nothing parses any of them back. Render-only, as the
+item says. What the fix leaves behind in the δ field itself — the
+render still reads `0.000` for a sub-micrometre δ, and an
+edit-then-undo commits that reading — is the fourth member of that
+family and has its own file,
+`delta-field-renders-a-sub-micrometre-delta-as-zero`, filed in the same
+PR that discloses it.
+
+**Six rows, driven through a headless `egui::Context`.** Nothing short
+of egui's own focus lifecycle tells a typed field from a visited one,
+so the rows run real `RawInput` against `Context::run_ui` rather than a
+stub for `changed`/`lost_focus`. Re-seeding the draft unconditionally
+makes exactly the two failure rows fail, with `Some(0.0)` and
+`Some(2e-6)` — the item's own two numbers. `egui::Response::changed()`
+was checked rather than assumed: `TextEdit` marks it from
+`text_changed` alone, set only inside the `has_focus` event pass
+(egui 0.36.1, `src/widgets/text_edit/builder.rs:551-589,810-812`), so
+it cannot fire on focus gain or on hover.
+
+## 2026-09-11 — #2382 merged, and the lane corrected a rule I had already written down
+
+**#2382 merged** (`f66047dfbf`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, no unsubstituted placeholders; the six skips are the two
+cache primes, the two interval-backend rows, `step import (freecad)`
+and `python suite` — the last correct by construction, since `viewer`
+sits above the wheel.
+
+The lane took the shape that makes an untouched field
+unrepresentable, and led its argument with the written contract rather
+than with taste: `drafts.rs` documents `delta_mm` as the field *"in
+millimetres as typed"*, so `Some` was already documented to mean
+*typed* while `get_or_insert_with` made it mean *has focus*. It also
+sharpened that doc to say when `Some` **begins**, not only when it
+ends — the half that was missing is the half the defect lived in.
+
+**The correction, and it lands on me.** I dispatched with a finding
+stating that seeding an exact spelling is *"arithmetically
+unachievable by any spelling"*, and wrote that into `plan.md` before
+the lane reported. It is too strong, and the lane said so: the seed
+need not be a spelling of the **product** `δ·1e3` — it can be a
+spelling of a **preimage**, some `m` with `m * 1.0e-3 == δ` exactly.
+The lane measured a preimage existing for 97.66% of sampled δ; I
+re-measured on my own grid and got 97.73%, with 2.27% having no `f64`
+preimage at all over ±64 ULP. So the shape is dead outright only for
+the ~2.3%, and merely expensive — a ULP-neighbourhood search per
+render — for the rest.
+
+My conclusion survived; my reason did not, and the difference matters
+because a rule stated too strongly is a rule that will be believed
+past the point where it is true. `plan.md` now carries the corrected
+statement together with what actually kills the shape, which is the
+lane's own find rather than mine: a budget δ is
+`constant / TRIANGLE_BUDGET`, seventeen significant figures in a
+56-point field. **This is the fourth lane correction this week and the
+fourth that was right.** The general form is now written beside it:
+*"no spelling of X works"* is not *"no seed works"*, and the gap
+between them is where a correction lives.
+
+**Three pieces of residue, all handled the way the rules ask.** The
+`{:.3}` render survives as a render and still reads `0.000` for a
+sub-micrometre δ, with one path that still commits that reading
+(type a character, delete it, leave — the render has become the user's
+own draft); filed as
+`delta-field-renders-a-sub-micrometre-delta-as-zero` with the
+arithmetic carried into the file so nobody re-derives it. The lane's
+`drafts.rs` edit shifted a line
+`four-debug-walks-are-spelled-and-placed-two-ways:26` cites, re-derived
+by subject to `:393`. And while placing that shift the lane found the
+row's framing census stale in ways its own diff did not cause — four
+`Display` impls named where there are five, and *1,819 lines* now
+1,896 — disclosed on the row rather than half-repaired, per this
+program's own rule about a count fixed in one place.
+
+The three render-only siblings were checked rather than taken on the
+citation, and the item's separation held: nothing parses any of them
+back.
+
+**VIEW stands at 72 open / 79 closed, nothing waiting on Ev.**
+
+## 2026-09-11 — `view/free-move-reachability`: the refusal is reachable, and the keyboard is the second hand
+
+`free-move-in-flight-refusal-has-no-reachable-producer` asked whether
+`DisplayFault::FreeMoveInFlight` can be shown to anybody. It can, and
+the answer is a row rather than an argument:
+`crates/viewer/src/widgets.rs`'s
+`a_keyboard_bump_begins_a_second_probe_under_a_held_drag` drives the
+probe field's three `DragValue`s through the real `drag_ops` against a
+headless `egui::Context` and reads the ops back — a pointer press and
+move give `["begin", "preview"]`, and a Tab/ArrowUp pair on a component
+the pointer is not holding gives `["begin", "preview", "commit"]` with
+no commit and no cancel between it and the first begin. The mutation
+the row's own doc comment names as its repair — a typed arm guarded on
+the drag state — turns it red.
+
+**The item's two untraced candidates were the wrong two, and one of
+them is dead structurally.** egui carries `dragged`, `drag_started` and
+`drag_stopped` as a single `Option<Id>` each
+(`egui-0.36.1/src/interaction.rs:24-40`), so no second pointer and no
+touch opens a second drag; multi-touch feeds `MultiTouchInfo`, a
+zoom/rotate aggregate. The hand the search missed is not a pointer at
+all: a `DragValue` enters keyboard-edit mode the frame it takes focus,
+deliberately, for screen readers (`drag_value.rs:462-466`), and egui's
+focus and key handling never consult the pointer. The same blindness
+covers buttons — `Response::clicked` is true from keyboard focus plus
+Space/Enter, or from an AccessKit `Action::Click`, with no pointer
+(`context.rs:1464-1478`, `response.rs:183-184`). **A reachability
+question asked over pointer states is a proxy for one about input**, and
+this program's table gains a twelfth row for it.
+
+**#2358 had already moved the answer and the item predates it.**
+`session.rs:1089-1090` raises the same `DisplayFault::FreeMoveInFlight`
+for every operation `permitted_during_free_move` refuses — `Open` and
+`NewDocument` — so a second `BeginFreeMove` was never the only route,
+and the item's *"every route needs the free-move strand"* was false
+when it was written. #2348's `killed_gesture` cuts the other way and
+closes the strand the item was hunting: `prune` runs on every document
+transition (`session.rs:1611`, `:1994`) with the same predicate that
+takes the field away.
+
+**The honesty inversion does not land on this arm.** Every route above
+has the pointer still holding the drag, so *"finish the free-move
+first"* is followable; and `cancel_doors` draws *"Cancel free-move"*
+enabled exactly while `probing()` is `Some` (`session.rs:660`) anyway.
+What the search did NOT rule out is the selection: `instance_ui` draws
+only for `selection().node()` and no prune covers that, so a `Select`
+under an open probe would strand it. Every `Select` producer in
+`crates/viewer/src/` today is a pointer click and cannot land under the
+same pointer's drag — but the keyboard reaches those controls too. The
+row closed without it, and it is written down rather than left in a
+head.
+
+Two residues, each its own file in the same PR:
+`escape-commits-a-free-move-instead-of-abandoning-it` (egui aborts a
+drag on Escape by clearing `dragged`, so `drag_stopped` fires and the
+chrome commits the probe the user asked to abandon — measured
+`["commit"]`), and
+`a-keyboard-bump-lands-and-closes-the-pointers-own-probe` (all three
+components name one instance, so the typed arm's preview overwrites and
+its commit lands and closes the pointer's own gesture — the user is
+shown a refusal naming a state the same batch destroyed).
+
+## 2026-09-11 — #2388 merged; the twelfth proxy, and the plan's own count was one of them
+
+**#2388 merged** (`dcab0bf2ee`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips (two cache primes, the two interval-backend rows,
+`step import (freecad)`, `python suite`), no unsubstituted
+placeholders. The lane settled its `RUN_VIEWER_TOOLKIT` question by
+**running** `scripts/ci-filter.py` rather than reading `ci.yml`, which
+is the rule as written.
+
+**`DisplayFault::FreeMoveInFlight` is reachable, and the answer is a
+test rather than an argument.** `crates/viewer/src/widgets.rs` now
+carries a row that reproduces the probe field's exact shape — three
+`DragValue`s over one instance, each through the real `drag_ops` with
+the free-move triple — and drives it against a headless
+`egui::Context`: pointer press and move give `["begin", "preview"]`,
+keyboard-only frames answer nothing, and the step the focus reaches
+another component gives `["begin", "preview", "commit"]`. A second
+`BeginFreeMove` under an open one, from the chrome.
+
+**The twelfth proxy instance, and it is the sharpest.** The natural
+sweep for a reachability question is over *pointer* states — can one
+pointer hold two drags, can a click land under a held drag — and that
+sweep is closed, self-consistent, and answers **no**. The property is
+not pointer states; it is **input**. A `DragValue` enters keyboard-edit
+mode the frame it takes focus, deliberately, for screen readers, so the
+keyboard reaches a second component while the pointer still holds the
+first; and `Response::clicked()` is true for a keyboard Space/Enter and
+for an AccessKit `Action::Click` with no pointer anywhere. egui's API is
+*built* to make the three indistinguishable at the widget, which is
+exactly why the pointer-shaped sweep cannot see the other two. The
+dispatch warned against concluding unreachable from a failed search and
+named multi-touch and wasm relayout as the untraced candidates; **both
+of those were wrong** — multi-touch is dead structurally (egui carries
+one `Option<Id>` each for `dragged`/`drag_started`/`drag_stopped`) —
+and the real hand was one neither the item nor I had thought of.
+
+**The item's premise was already false when it was dispatched, and I
+did not catch it.** It said *every* route to the fault needs the
+free-move strand. The fault has a **second producer**: `session.rs:1090`
+raises it for every op `permitted_during_free_move` refuses, which is
+`Open` and `NewDocument` (`op.rs:854`) — added by #2358 four hours
+earlier. I verified the item's three `file:line` citations against main
+before dispatching and they all landed; a premise is not a citation and
+my check did not cover it. `plan.md` now says the dispatch owes a
+re-derivation of the **premise**, not only of the citations.
+
+**And the count in the proxy section was itself a member of the class
+it documents.** The lead-in read *"Eight instances"* over a table of
+nine rows, and then over ten. The table is now declared the population
+of record with the number struck from the prose — this program's
+count-fixed-in-one-place rule applied to the section that tabulates it.
+
+**Two residues filed rather than fixed, both verified here before the
+merge.** `escape-commits-a-free-move-instead-of-abandoning-it`: egui
+aborts a drag on Escape by clearing `dragged`, so `drag_stopped` fires
+and `drag_gesture_ops` (`widgets.rs:95-98`) emits **`CommitFreeMove`** —
+the key every other control spells *abandon* lands the probe. And
+`a-keyboard-bump-lands-and-closes-the-pointers-own-probe`: all three
+components name one instance, so after the second begin is refused the
+same batch's `preview_free_move` passes its instance check
+(`display.rs:778-779`) and `commit_free_move` (`display.rs:806`) lands
+it and closes the gesture — the user is shown a refusal naming a state
+the same batch destroyed. I read both call sites; both hold.
+
+**One hole the lane disclosed rather than let pass.** Its new row's doc
+comment carries two intra-doc links, and rustdoc builds under `cfg(doc)`
+not `cfg(test)`, so **neither doc pass judged them**; it checked both
+targets by hand. That is ground `cfg-test-bare-spans-have-no-stated-
+disposition` and `comment-symbol-names-outside-rustdocs-reach-have-no-
+gate` already own.
+
+**VIEW stands at 71 open / 80 closed, nothing waiting on Ev.**
+
+**A count correction inside the entry about count corrections.** I
+first wrote *73 open* here from arithmetic in my head — previous total,
+minus the row closed, plus the two residues filed. `work.py status`
+said 71. I then miscounted the files by hand and got 72, decided the
+tool and its own item table disagreed, and started reading `work.py`
+for the bug. **There was no bug.** My shell loop globbed
+`work/view/*.md` and `program.md` carries a `status: open` of its own —
+the program's status, not an item's. The tool was right at every step
+and both of my counts were wrong, in two different ways, in the space
+of five minutes. `work.py status` is the count of record; a number
+reached any other way is a guess wearing a number's clothes.
+
+## 2026-09-11 — `view/escape-abandons`: Escape ends a drag as a cancel
+
+**Shape 1, and the argument that settles it is not the one the item
+gave.** The item's fork was *read Escape where the triple is mapped* or
+*ratify that a probe lands whatever it previewed*. Both readings rest on
+whether the chrome has another way to abandon, and it does not: the
+cancel doors are TOOLBAR controls, so pressing one costs the pointer
+release that lands the value. `cancel_doors` is enabled during a live
+pointer drag and unreachable during one. Until this change a held drag
+had no abandon at all, and the one input that can end it other than a
+release — `egui`'s Escape abort — was translated into the commit.
+
+**The gesture triple became a `GestureVocabulary`** with a fourth
+operation (`crates/viewer/src/widgets.rs:38-49`), and
+`drag_gesture_ops` emits that one instead of the commit on a
+`drag_stopped` frame carrying an Escape press (`:125-151`). A struct
+rather than a fourth positional parameter, and not only because clippy
+counts to seven: `commit` and `cancel` are both bare `SessionOp` and
+mean opposite things, so positionally they sit one transposition away
+from a chrome that lands what the user abandoned.
+
+**Three corrections to the item, all from re-deriving its premise
+against the tree rather than reading it.**
+
+- **No `Option`.** The item said the fix *"needs a fourth operation
+  parameter and an `Option` for the vocabularies that have no cancel"*.
+  There are none: all three vocabularies the panel maps carry a cancel,
+  and `gesture_table.rs`'s `every_gesture_cancel_has_a_chrome_door`
+  matches exhaustively over `SessionOp`, so a gesture that joined the
+  enum without one would red there first. The parameter is a
+  `SessionOp`.
+- **The value gesture has the same defect, with the LARGER stake.** Same
+  function, same release arm. A free-move commit lands a display frame
+  no history holds; a value-gesture commit reaches the document and
+  costs an undo step. Measured rather than read: with the Escape branch
+  removed, both new rows report `["commit"]` where `["cancel"]` belongs.
+- **The premise the orchestrator asked me to check held.**
+  `PreviewFreeMove`'s *"the identity is one node rather than a target"*
+  was written BY #2361, in the same diff that gave the value drags their
+  names, and is still true of the tree (`op.rs:309-323` against
+  `:188-206`). It is also not what the fork turns on: the cancel side is
+  where the two gestures agree, because both cancels name nothing.
+
+**Read the key, do not infer it.** `drag_stopped` with no pointer
+release would have been a proxy — a long touch ends a drag with no
+release too (`egui-0.36.1/src/interaction.rs:143-155`) and means a
+context menu, not an abandon. The property is *the user pressed
+Escape*, so the branch asks that.
+
+**Two prose claims the change made false, both amended in the same
+diff.** `crates/viewer/README.md`'s *"There is no key for it… an Escape
+binding is that decision and not a row to add"*, and `input::PRESETS`'
+*"no key denotes an operation anywhere"*. The honest amendment is not
+that the claims survive: the crate now reads exactly one key. What
+survives is the narrower fact — `egui` ends a drag on Escape whatever
+this crate does, so the branch decides which of two things the toolkit
+already did is reported, not which operation a key denotes, and a
+keyboard vocabulary still needs every decision `PRESETS` names.
+
+**The citation census over the bands this diff moved.** Five files
+shifted. Open rows citing into them, by subject rather than by delta:
+two repointed (`the-two-drags-name-their-gestures-in-two-shapes` —
+`op.rs:301-315`→`309-323`, `widgets.rs:57-100`→`78-151`,
+`properties.rs:557-574`→`563-583`, and its *"three ops"* is now a
+four-field value;
+`a-disabled-control-says-why-in-four-shapes` — `properties.rs:208`→`211`
+and `:727`→`736`). **Three were already wrong at the merge base and are
+left alone rather than shifted onto something else**:
+`comment-symbol-names-outside-rustdocs-reach-have-no-gate`'s
+`session/op.rs:828` (the site is deleted, which that row's own note
+already says), `is-instance-collapses-absent-and-wrong-kind`'s
+`properties.rs:336` (`instance_ui` is at `:338` at the base), and
+`a-disabled-control-says-why-in-four-shapes`' `properties.rs:350-355`
+(the `ui.weak(fault.to_string())` is at `:356`; `plan.md` cites a third
+band, `:348-353`, for the same subject). `stale-file-citations-after-
+the-split`'s `op.rs` numbers are QUOTATIONS — a table of what a past
+repoint said — and are not repointed for the same reason.
+
+**Out of fence, reported not edited** (implementer-discipline §6):
+`work/door/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum`
+(`:14`) and `work/door/plan.md` (`:66`) cite
+`crates/viewer/src/pane/properties.rs:159-163`, and
+`work/census/the-prose-word-for-a-kind-has-four-spellings-and-only-
+display-is-censused` (`:36`) cites `:158-161`. **Neither is a true
+shift, and the subject check is what says so**: the inline
+`(Dimension::Length, "Length")` array both rows are about is at
+`:162-167` at my merge base and `:165-170` at my head, so DOOR's band
+names the name field and catches only the array's first element, and
+CENSUS's names the name field alone. Both were wrong before this diff;
+the +1 is real but repointing either band would move a number that was
+never about its subject.
+
+## 2026-09-11 — #2390 merged; Escape abandons, and the lane beat my argument for it
+
+**#2390 merged** (`6c758dab86`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips (two cache primes, the two interval-backend rows,
+`step import (freecad)`, `python suite`), no unsubstituted
+placeholders. The lane settled the CI-scope question by **running**
+`scripts/ci-filter.py`, which returned `SEEDS=viewer` →
+`RUN_VIEWER_TOOLKIT=true` → the non-skip path, confirming from the tool
+that this PR's own CI could not reach the skip-mode doc pass it ran by
+hand.
+
+**Escape now abandons a drag instead of landing it**, at the slot
+field, the parameter field and the free-move probe alike.
+
+**My dispatch argued the fork the weak way and the lane said so.** I
+wrote that the chrome already draws a *"Cancel free-move"* door, so
+Escape should cancel. That is beatable — a door existing does not
+oblige a second route to it. The argument that actually settles it:
+**`cancel_doors` cannot be reached during a live pointer drag at all.**
+They are toolbar controls; pressing one costs the pointer release, and
+the release ends the drag through the *commit* arm. So for the whole
+life of a held drag the doors are enabled and unoperable — they are the
+STRANDED drag's exit, which is what `crates/viewer/README.md` says they
+were built for. Until this change **a drag under the pointer had no
+abandon at all**, and the only non-release input that could end it was
+being reported as a release. Shape 2 would have had to argue that a
+user holding the button has no business abandoning.
+
+**The value gesture had the same defect and the larger stake**, and the
+lane established it by mutation rather than by reading: with the Escape
+branch replaced by an unconditional commit, both new rows go red
+reporting `["commit"]` where `["cancel"]` belongs. The asymmetry runs
+opposite to the guess — a free-move commit lands a display frame no
+history holds, while a **value-gesture commit reaches the document and
+costs an undo step**.
+
+**Three corrections to the item and to me.** (1) The item said the fix
+needs an `Option` for vocabularies with no cancel; there are none, and
+that is structural — `gesture_table.rs`'s
+`every_gesture_cancel_has_a_chrome_door` matches exhaustively over
+`SessionOp`, so a gesture joining the enum without a cancel reds there
+first. The parameter is a plain `SessionOp`. (2) I flagged
+`PreviewFreeMove`'s *"identity is one node rather than a target"* as
+possibly stale after #2361; it is not — **#2361 wrote that sentence**,
+in the same diff that named the value drags, and it is not what the
+fork turns on, because the cancel side is where the two gestures
+AGREE: both cancels name nothing. (3) The reliability worry was the
+wrong way round. Escape is readable; what is unreliable is the proxy
+the lane nearly used — *"`drag_stopped` with no pointer release"* also
+matches a long-touch context menu and means something else entirely.
+**Named the property, then picked the pattern** — the twelve-row table
+applied before the fact rather than after it.
+
+**Ratified crate prose was amended rather than weaselled, and that is
+worth flagging.** `crates/viewer/README.md` said *"There is no key for
+it: this crate binds no key to any operation at all"*, and
+`input::PRESETS` said *"no key denotes an operation anywhere"*. Shape 1
+makes both false, so the lane rewrote them. What survives is narrower
+and is the honest version: `egui` ends the drag on Escape whatever this
+crate does, so the branch decides **which of two things the toolkit
+already did is reported**, not which operation a key denotes —
+*reading is not binding*. I checked `docs/DESIGN.md` before merging:
+it carries no keyboard-binding claim (its "key" hits are map keys and
+escape hatches), so this is VIEW's own text and not an Ev gate.
+
+**The commit/cancel transposition is now unrepresentable.** The triple
+became a named `GestureVocabulary` struct — not for clippy's
+`too_many_arguments`, which does fire at eight, but because `commit`
+and `cancel` are both bare `SessionOp` and mean opposite things: sitting
+positionally adjacent they are one transposition away from a chrome
+that lands what the user abandoned.
+
+**The sibling residue is unaffected**, checked rather than assumed: the
+second probe in `a-keyboard-bump-lands-and-closes-the-pointers-own-probe`
+is opened by the *typed* arm, which Escape does not reach, because on an
+Escape frame `changed()` is false — egui declines to apply the typed
+edit. Its test row now shares a five-frame preamble helper instead of
+carrying its own copy; what it asserts is unchanged and it still passes.
+
+**Out of fence, reported and not edited** — and the lane's reading of
+them is the sharper half. `work/door/dimension-radio-row-…:14`,
+`work/door/plan.md:66` and `work/census/the-prose-word-…:36` all cite
+bands near a `(Dimension::Length, "Length")` array that this diff moved
+by three lines. **Neither is a true shift**: both were pointing at the
+name field rather than at the array, so they were wrong before this
+diff, and repointing them would be moving a number that was never about
+its subject. Three VIEW rows in the same state were likewise left alone
+rather than shifted (`comment-symbol-names-…`'s `op.rs:828`, whose site
+is deleted; `is-instance-collapses-…`'s `properties.rs:336`;
+`a-disabled-control-…`'s `properties.rs:350-355`) — and `plan.md` cites
+a *third* band for that last subject, which is the census-table rule
+earning itself again.
+
+**VIEW stands at 70 open / 81 closed, nothing waiting on Ev.**
+
+## 2026-09-11 — `view/keyboard-bump`: the probe's three boxes become one gesture
+
+`a-keyboard-bump-lands-and-closes-the-pointers-own-probe` **closed,
+fixed at the CHROME.** The fork the item left open was *name the
+component, or the gesture, at the operation* against *one gesture
+mapping for the three components at the chrome*. The chrome side wins,
+and the argument that settles it is not taste:
+
+**The operation side cannot supply an identity the chrome does not
+already hold.** `widgets::drag_ops` is handed the whole vocabulary as
+VALUES before any of it is performed, and the typed arm literally
+builds `vec![Begin, Preview, Commit]` — so no payload in that batch can
+carry a token the begin returned. A client-minted id would work, and
+then the chrome is the thing deciding which drivers are one gesture,
+which is the chrome fix with an extra field on four operations. The
+component is dead outright: the op takes any rigid `Frame`
+(`crates/viewer/src/session/op.rs:321-335`) and three translation boxes
+are one chrome's decomposition of it.
+
+So `widgets::vec3_row_ops` (`crates/viewer/src/widgets.rs:168-211`)
+draws the row, unions the three responses with `egui::Response`'s `|`
+— egui's own documented summary of a row — and calls `drag_ops` once.
+Under the union `dragged()` means *the pointer is holding this gesture*
+rather than *this box*, which is the question the typed arm
+(`changed() && !dragged()`) was already asking and getting a per-box
+answer to. `drag_ops` and `drag_gesture_ops` became generic over the
+gesture's value type for it (`:93-166`); that is forced, not
+decorative, because once the row is one gesture there is no single
+box's number to pass.
+
+**The outcome is better than a refusal, which is worth saying.** The
+keyboard bump on a sibling box is not wrong and does not need
+refusing: the instance has one probe and all three components drive
+it, so the keystroke is another hand on the open gesture. It emits one
+`PreviewFreeMove` and the release still lands everything. The
+per-box mapping turned a legitimate input into a begin the door
+refused and a commit that closed the drag under the pointer.
+
+**#2390's two claims about this item, both re-derived rather than
+taken.** (a) *Escape does not reach the typed arm* — holds, and by
+construction rather than by observation: `DragValue` marks itself
+changed only on `get(..) != old_value`
+(`egui-0.36.1/src/widgets/drag_value.rs:671-673`) and both of its
+write paths are guarded on `!key_pressed(Escape)` (`:540`, `:582`), so
+an Escape frame cannot make `changed()` true and `changed() &&
+!dragged()` cannot fire. (b) *the test row moved to a shared
+five-frame preamble with its assertions unchanged* — holds for the
+row's own two assertions. One word moved inside the preamble that was
+extracted: the opening assertion's message read *"the pointer drag
+opens a probe and holds it open"* and reads *"opens a gesture"* now,
+and a comment about egui needing pointer motion before it calls a drag
+a drag was dropped in the move. Neither changes a predicate.
+
+**`the-two-drags-name-their-gestures-in-two-shapes` is neither closed
+nor mooted nor conflicted.** It asks where the gesture-identity CONCEPT
+lives across six operations in three spellings; this fix adds no
+spelling and removes none. It is strengthened if anything: the probe's
+identity is now *the instance, because the chrome gives it one driver*,
+which is a fact about a convention rather than a type — exactly that
+row's complaint.
+
+**Residue, filed rather than disclosed**:
+`probe-identity-stops-at-the-instance`. The door still cannot refuse a
+second DRIVER on one instance; today's chrome has one, and
+*unreachable from today's chrome* is precisely the claim
+`free-move-in-flight-refusal-has-no-reachable-producer` was filed on
+and that was false twice over. `gesture_table.rs`'s
+`a_drag_on_another_field_cannot_steer_the_open_one` is the value drag's
+row for this property; the probe has no counterpart because there is
+nothing for one to assert.
+
+**`DisplayFault::FreeMoveInFlight` keeps a producer** — `Open` and
+`NewDocument`, the two `false` rows of `permitted_during_free_move`
+(`crates/viewer/src/session/op.rs:875`), raised at
+`crates/viewer/src/session.rs:1089-1091`. The fix removes the keyboard
+route to it and not the fault.
+
+**Sweep**: every chrome site that emits a gesture triple, found by
+grepping `SessionOp::(Begin|Preview|Commit|Cancel)` under
+`crates/viewer/src/` — three, all in `pane/properties.rs`. The
+parameter drag (`:98`) is one widget and one gesture. The probe
+(`:388`) was three widgets and one gesture: fixed. The slot row
+(`:563`) is three widgets and three gestures and is not an instance, on
+two independent grounds — each component is its own `SlotId` so the
+identity is per-field, and it calls `drag_gesture_ops` with no typed
+arm at all, its typed path being `SetSlot`. **Blind spot**: the pattern
+is a literal `SessionOp::` constructor in `src/`, so it cannot see a
+site that builds a gesture op through a helper or a variable, nor one
+outside `crates/viewer/src/`.
+
+**One prose universal corrected.** `crates/viewer/README.md`'s *"A
+driving operation names its own gesture"* section ended *"The subject
+of a driving operation is the field the user has hold of, and naming it
+is what makes the mismatch refusable"* — stated over all six driving
+ops, and false of the probe, whose three boxes were three fields over
+one named subject. The section now carries the probe's asymmetry, what
+makes it enough, and the row that owns what it does not close.
+`SessionOp::PreviewFreeMove`'s *"the identity is one node rather than a
+target"* is KEPT and argued rather than corrected: #2361 wrote it
+deliberately and it is right — one node is the whole identity because
+an instance has one probe.
+
+**Citation census over the bands this diff moved** (`widgets.rs`,
+`pane/properties.rs`, `session/op.rs`, `crates/viewer/README.md`):
+47 rows carry a citation into those four files; mapping every one
+through the diff gives 45 citations that actually move, across 24 rows
+— 46 counting the one written bare, below, which a filename-anchored
+scan cannot see. Six of those 24 rows are open, this item among them.
+
+**Repointed**, subject checked at the base and at the head:
+`a-disabled-control-says-why-in-four-shapes`'
+`pane/properties.rs:736` → `:734` (the `on_disabled_hover_text`
+literal), and `the-two-drags-name-their-gestures-in-two-shapes`' four —
+`op.rs:309-323` → `:321-335`, `widgets.rs:78-151` → `:93-166`,
+`widgets.rs:38-49` → `:46-57` (written bare, which a filename-anchored
+scan does not see), `pane/properties.rs:563-583` → `:561-581`.
+
+**Left alone and disclosed, because the number was never about its
+subject**: `two-hand-written-copies-of-the-g1-gesture-machine`'s
+`widgets.rs:30-52` names `crate::widgets::drag_ops` and points at
+`GestureVocabulary`'s doc and struct — #2390 inserted that struct above
+`drag_ops` and the row has been stale since. `stale-file-citations-
+after-the-split`'s `op.rs:586` calls itself the exhaustive table and
+lands inside `SessionOp::AddChamfer`'s doc comment; it and `:633` are
+QUOTATIONS in a table recording what a past repoint said, which is a
+record rather than a pointer. `comment-symbol-names-outside-rustdocs-
+reach-have-no-gate`'s two `session/op.rs:828` are worked-example sites
+the row's own Note already records as deleted. The eighteen closed rows
+in the population are records, not guards, and are untouched.
+
+**Nothing out of fence.** Every citation this diff moved is in
+`work/view/`.
+
+## 2026-09-11 — #2392 merged; the fix that closes a route and says so
+
+**#2392 merged** (`2040450f88`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips (two cache primes, the two interval-backend rows,
+`step import (freecad)`, `python suite`), no unsubstituted
+placeholders.
+
+**The lane took the chrome side of the fork on a structural argument,
+not a preference.** The operation side *cannot* supply an identity the
+chrome does not already hold: `widgets::drag_ops` is handed the whole
+vocabulary as VALUES before any of it is performed, and the typed arm
+literally builds `vec![Begin, Preview, Commit]` — so no payload in that
+batch can carry a token the begin returned. A client-minted id would
+work, but then the chrome is the thing deciding which drivers are one
+gesture, which is the chrome fix with an extra field on four
+operations. The component flavour is dead outright, because the op
+takes any rigid `Frame` and three translation boxes are one chrome's
+decomposition of it.
+
+So `vec3_row_ops` draws the row, unions the three responses with
+`egui::Response`'s `|` — egui's own summary of a row — and calls
+`drag_ops` **once**. Under the union `dragged()` means *the pointer is
+holding this gesture* rather than *this box*, which is the question the
+typed arm was already asking and getting a per-box answer to. The
+previewed value is composed after all three are drawn, so a component
+changed this frame is in the value this frame previews.
+
+**And the keyboard bump turns out not to be wrong.** The instance has
+one probe and all three components drive it, so the keystroke is
+another hand on the open gesture: one `PreviewFreeMove`, release still
+lands everything. The per-box mapping was turning a legitimate input
+into a refused begin and a commit that closed the drag under the
+pointer. `PreviewFreeMove`'s *"the identity is one node rather than a
+target"* is kept and argued rather than overturned — one node is the
+whole identity **because an instance has one probe**, and what makes
+that enough is that one chrome gesture drives it.
+
+**#2390's two claims about this item both held, one of them more
+strongly than reported.** Escape does not reach the typed arm *by
+construction*: `DragValue` marks itself changed only on
+`get(..) != old_value` and both write paths are guarded on
+`!key_pressed(Escape)`. The shared preamble moved one word and dropped
+one comment; no predicate changed.
+
+**The half the fix does NOT close is filed, not disclosed in prose.**
+`probe-identity-stops-at-the-instance`: closing the reachable route
+leaves `preview_free_move`/`commit_free_move` still unable to refuse a
+second DRIVER on one instance — today's chrome merely has none. That is
+precisely the shape `free-move-in-flight-refusal-has-no-reachable-
+producer` was filed on and wrong about twice, so **"no chrome can reach
+it" is recorded as a property of the chrome, not of the door.** The
+value drag has `gesture_table.rs`'s
+`a_drag_on_another_field_cannot_steer_the_open_one` for this property;
+the probe has no counterpart because there is nothing for one to
+assert.
+
+**A rule for the next dispatch that touches this module**, which the
+lane is right about and I had not seen: the test module **hand-copies**
+the production wiring, so a fix sited in `pane/properties.rs` would
+leave the row asserting a wiring it wrote for itself — green whatever
+`instance_ui` did. That forced the fix into `widgets.rs`, and it is the
+better home anyway. **A row in `widgets.rs`'s test module can only hold
+what `widgets.rs` owns.**
+
+**Mutation receipt**: with `vec3_row_ops` handing `drag_ops` the box
+that *changed* instead of the row, the new row reports
+`["preview", "begin", "preview", "commit"]` — the item's defect exactly
+— and reds; the other four rows stay green under it.
+
+**The lane's own cost, self-reported:** it pushed a one-paragraph
+rewrap of the log after CI had started, which cancelled a 37-job run
+and cost a full re-run. **Batch the cosmetic pass before the first
+push** — the first push is what starts the clock.
+
+**VIEW stands at 70 open / 82 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — `view/possessive-spans`: the picker exists and it is `length_picker`; five possessives become links
+
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`
+closed. Both halves answered in one PR, which is what the row asked for.
+
+**Half 1, `blend.rs`.** `unit_picker` has a referent and it is
+`crate::widgets::length_picker`, *"The creation forms' written-unit
+picker"*. `pane/create.rs` draws it in the same `ui.horizontal` as the
+field `BlendKindChoice::size_label` labels, immediately after
+`unit_field` — so the affordance the sentence asserts exists and this was
+a bad NAME, not a false claim about the chrome. Both halves of the name
+were wrong: module and item. `length_picker`'s own doc carries the same
+clause nearly verbatim (*"free to say metres beside a field written in
+millimetres"*), so the sentence was copied from it and mis-attributed.
+The alternative outcome the brief asked me to watch for — that the chrome
+has no such control and the sentence is asserting an affordance that does
+not exist — did not obtain.
+
+**Half 2, the fork: LINKED, all four.** Ev's 2026-09-11 ruling is what
+made a bare span optional rather than forced, and it settles the spelling
+too: at `origin/main` this crate already links into the `app`-gated half
+nineteen times from the renderer-free half (thirty-three spans crate-wide),
+so *"a possessive span is prose"* would have been a second answer to a
+question already ruled, and the row's own complaint is that one
+relationship is spelled two ways. `ViewerApp::fit_delta_on_scene` is a
+private FIELD and `ViewerApp::remember_theme` a private method; both
+resolve because both host doc passes run `--document-private-items` with
+`rustdoc::private_intra_doc_links` allowed, and `doc-gate.sh`'s selftest
+already pins *a public link to a private sibling*. **The disposition is
+stated once**, in `crates/viewer/README.md`'s *Rustdoc posture* section,
+beside the ruling it follows from and carrying the sweep rule that
+produces its population.
+
+**The wider sweep found a second `unit_picker`.** Dropping the
+module-name requirement — any `` `X` ``'s `` `Y` `` pair on one `///` or
+`//!` line — gives fifteen sites at base where the row's rule saw four
+(`prefs.rs`'s pair is split across two lines, so the two rules together
+see sixteen). Resolving every second span turned up
+`widgets.rs`'s test-module `crate::pane::properties`'s `slot_row_ui`,
+which exists nowhere; it is `slot_value_ui`, the one `properties.rs`
+function that calls `drag_gesture_ops` directly. Also moved: `gpu.rs`'s
+`` `crate::pickindex`'s `OCCLUSION_SLACK_REL` ``, the other end of
+`pickindex.rs`'s deliberate pointer pair — leaving one end a link and the
+other a possessive would re-mint the defect inside the pair.
+
+**Two notes onto `comment-symbol-names-outside-rustdocs-reach-have-no-gate`,
+which are notes and not a diff to the gate.** A gate built to that row's
+spec (`<own-mod>::<ident>` resolves) would still have missed
+`unit_picker`, because `unit_picker` carries no module qualifier at all —
+the qualifier was in a separate span, and was the wrong module. And the
+`slot_row_ui` site is that row's own axis in a shape it does not list: a
+`///` comment inside a `#[cfg(test)] mod` is read by no rustdoc pass this
+repo runs, so a bracket there would be punctuation for a reason
+unrelated to `//` versus `///`.
+
+**One citation in the closed row is left alone and disclosed.** Its
+blind-spot list cites `theme.rs:69-70` and quotes *"`app` maps a
+[`Theme`] onto the chrome"*. `69-70` is a genuine member of the class
+(*"`app` maps this onto the toolkit's own light and dark `Visuals`"*),
+but the quoted words are at `theme.rs:7-8`, where `app` is already
+written `` [`crate::app`] `` and is therefore not an example of a bare
+span. The number names its subject; the quotation is what is wrong, so
+nothing is repointed.
+
+**What the widened rule still cannot see**, stated because the row was
+held to this standard and so is its closure: a module or item named in
+prose with no backtick span at all — `sketch.rs`'s *"(`app`'s drafts say
+so)"* names the `drafts` module in bare words, and the possessive
+pattern matches the `app` half while the thing it is about is unspanned;
+and any name in a `//` comment, which is the open row's subject.
+
+## 2026-09-12 — #2400 merged; the thirteenth proxy is mine and I had been repeating it all session
+
+**#2400 merged** (`4c4a784c20`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips, no `render drift (…)` row posted at all.
+
+**`unit_picker` had a real referent and the sentence was true.**
+`crate::widgets::length_picker` (`crates/viewer/src/widgets.rs:578`),
+*"The creation forms' written-unit picker"* — and
+`pane/create.rs:1099-1108` draws `ui.label(size_label())`, then
+`unit_field`, then `length_picker` in one `ui.horizontal`: the picker
+literally beside the field. So the citation was wrong in **both** halves,
+module and item, and the affordance exists. The giveaway is that
+`length_picker`'s own doc carries the same clause nearly verbatim
+(*"free to say metres beside a field written in millimetres"*), so the
+sentence was copied from it and mis-attributed. The bigger finding I
+told the lane to watch for — a sentence asserting an affordance the
+chrome does not have — did not obtain.
+
+**My `forms.rs` hint was wrong about the file.** That crate's "picker"
+prose is `PathVerb`/`ArcMode` combo pickers, a different control. The
+method I gave (follow the word) was right and the destination was not;
+I had flagged it as a weak hint, so no cost.
+
+**The widened sweep found a SECOND dead name.** `widgets.rs:678` said
+`crate::pane::properties`'s `slot_row_ui`, which exists nowhere; it is
+`slot_value_ui` (`pane/properties.rs:519`), the one function there
+calling `drag_gesture_ops` directly. Both dead names are now fixed and
+`grep -rn slot_row_ui crates/` is empty. The widenings: dropping *"a
+second span must follow"* gives 8 sites; dropping the module-name
+requirement too gives 15; together 16, where the item's rule saw **5**.
+Stated blind spot of the wider rule: a name in prose with **no backtick
+span at all**, and any name in a `//` comment or inside a
+`#[cfg(test)] mod`.
+
+**"Either link them or leave them" was not available for all four.**
+`pickindex.rs:1582` points at `EDGE_CLIP_Z_SHRINK`, a module-scoped
+private `const`. Linking it made `scripts/doc-gate.sh --pr` **exit 1**:
+*no item named EDGE_CLIP_Z_SHRINK in module gpu*. A private **field**
+and a private **method** DO resolve — rustdoc reaches an associated item
+through its type — so the item's stated worry about "a spelling for a
+private field" was a non-issue, and `ViewerApp::fit_delta_on_scene` and
+`::remember_theme` linked fine. A module-scoped private `const` or `fn`
+is a different test: `--document-private-items` decides what rustdoc
+RENDERS, while a path is resolved by ordinary **visibility**, and
+`crate::gpu::EDGE_CLIP_Z_SHRINK` is not a path anyone outside `gpu` may
+write. The lane reproduced it on a three-file scratch crate, so it is a
+language fact and not a tree fact. That pair stays named at both ends,
+normalised to one spelling, with the exception and its measured error
+text in the README clause. The single statement of the disposition lives
+in `crates/viewer/README.md`'s *Rustdoc posture* section beside Ev's
+ruling, with the sweep rule that produces its population.
+
+### The thirteenth proxy instance is mine, and it is the one I was using to verify every merge
+
+**I read `docs-only ok` success as the docs-tier marker.** I wrote, this
+session, *"21 jobs, `docs-only ok` success — the docs-only tier
+exactly"*. That job concludes **success on the full code tier too**:
+#2390, #2392 and #2400 each carry a green `docs-only ok` inside a
+38-job closure-tier run, beside `gate ok`. So its presence is no
+evidence of a tier at all, and the 21-count was carrying the whole
+argument by itself every time. **The reading was never falsified
+because on a docs-only run both facts are true at once** — the proxy
+agreed with itself on every observation it could make, which is the
+class exactly. What makes this one worth the row is that it was the
+instrument, not the object: I was using it to certify the merges in
+which I was also tabulating the class.
+
+Recorded in the table and in the prose beside it, with the verification
+restated: a tier is **21 jobs**, or **38-39 with 12 `test (…)` and 5
+`k-lint (gate, …)`**, plus `gate ok` — never which summarising job
+reports green.
+
+### And a validation command that silently did not validate
+
+`cargo test -p viewer --features app`, which this register and several
+of my dispatches specified, **aborts at the `--lib` adapter red** (no
+Vulkan on the lane boxes), so the **524-row `--test all` suite never
+builds**. A lane following the brief literally reports a green-looking
+`37/1` and never runs the suite its own diff is about. It needs
+`--no-fail-fast`; #2400's lane ran it that way and then told me the
+brief was wrong. Both the command and its expected shape are now in
+`plan.md`.
+
+**Citation left alone and disclosed**, the house rule working: the
+closed row cites `theme.rs:69-70` and quotes *"`app` maps a [`Theme`]
+onto the chrome"*. `69-70` **is** a genuine class member; the quoted
+words are at `theme.rs:7-8`, where `app` is already `` [`crate::app`] ``
+and so is not an example of a bare span. The number names its subject —
+the **quotation** is what is wrong, so nothing was repointed.
+
+**VIEW stands at 69 open / 83 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — the δ render, and the second path that committed it
+
+`delta-field-renders-a-sub-micrometre-delta-as-zero` is **closed**, both
+halves, by two changes with nothing between them.
+
+**The render is chosen by the property, not by a precision.**
+`DisplayTolerance::render_mm` returns the shortest decimal spelling of δ
+in millimetres that fits ten characters and reads back — through the
+`mm * 1.0e-3` the field's own commit path uses — as a δ
+`DisplayTolerance::new` accepts, within four significant figures of this
+one; `{:.3e}` carries the δ no decimal spelling can. So the fix has no
+threshold to go stale against a format string: the candidate is read
+back through the door that refuses zero, and the door is the only judge.
+0.4 µm reads `0.0004`, 1 pm reads `1.000e-9`, and a swept grid from
+`f64`'s smallest subnormal to a kilometre has no render the door would
+refuse.
+
+**The relative tolerance is derived, not chosen.** `{:.3e}` carries four
+significant figures, so it can misread the δ it renders by 5·10⁻⁴ of it.
+That is the number a decimal spelling is held to — a decimal form is
+preferred exactly while it is no less truthful than the form that would
+replace it — so the constant is the fallback's accuracy rather than a
+taste about how a field looks.
+
+**The field is 88 points, and the test says why.** A ten-character
+render needs 73.3 points of text area; 56 points offered 48, so anything
+past six characters was clipped, and a clipped render reads as a
+different δ — the defect the render's own bound exists to prevent.
+`the_field_shows_the_longest_render` measures both numbers through
+egui's font metrics at the widest character a render can use, so the
+width is pinned to the render's bound rather than to a sentence.
+
+**Half B needed no precision at all.** A draft that reads as the render
+commits nothing: the render is the text the box already held, so a field
+typed back to it carries no number the render does not, and since the
+render is a rounding of δ, committing it could only move δ to a coarser
+spelling of itself. The escape hatch is any other spelling of the same
+number, and a row holds it open.
+
+**Filed, not swept:**
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`.
+The badge and the budget sentence hold a `DisplayTolerance` and could
+call the new render today; what stops that being this unit is that both
+render δ inside a SENTENCE, so the change is a wording decision about a
+badge and a status line rather than a control's arithmetic, and
+`display_budget.rs`'s needles would move with it. `Bounds::wording`
+renders a probed length in the user's own unit and cannot use a δ method
+at all — it needs the same rule at its own precision. **And the sweep
+that wrote that row found a member the parent had not named**: the
+camera readout at `pane/view.rs:43`, `distance {:.1} mm (band …)`, where
+`min_distance` is `scene_radius * 0.05` so every part under about a
+millimetre reads `band 0.0–…`. It is in the same function as the δ
+field, and what keeps it out of this fix is the line above it — an
+ANGLE at the same precision, where `0.0°` is a yaw a camera really has.
+The pattern was a precision spec in a format string; what it cannot
+match is a render with no precision spec, a precision passed as a
+variable and a rounding done by hand, all three checked in the item.
+
+**VIEW stands at 69 open / 84 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — #2425 merged; a render that cannot lie, and four corrections to the brief
+
+**#2425 merged** (`99550244d6`), full code tier verified from the job
+list: **38 jobs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, six skips, nothing failed.
+
+**Half A took none of the three shapes the dispatch named.** The render
+is now `DisplayTolerance::render_mm` — the shortest decimal spelling
+that fits, scientific when none does — with the arm chosen by **reading
+the candidate back through the door that refuses zero**, not by a
+magnitude threshold:
+
+    (0..=RENDER_MM_MAX_CHARS).map(|d| format!("{mm:.d$}"))
+        .find(|s| reads_back_as_this_delta(s, mm))
+        .unwrap_or_else(|| format!("{mm:.3e}"))
+
+0.4 µm → `0.0004`, 1.6 µm → `0.0016`, 1 pm → `1.000e-9`. A threshold
+would be a **proxy** for *"the fixed form lies here"* that can drift from
+the format string; the read-back **is** the property, so `0.000` is
+structurally unreachable rather than merely unlikely. The lane also
+measured and rejected *exact-while-it-fits*: that arm depends on the bit
+pattern, so δ = 0.1+0.2 mm renders `3.000e-1` and the field flips
+spelling for ordinary values. Its relative-closeness constant is derived
+rather than chosen — `{:.3e}` carries four significant figures, so a
+decimal form is preferred exactly while it is no less truthful than the
+form that would replace it. **A budget δ's seventeen figures render as
+four** (`0.0003746`), which is why the text stays a render and never a
+commit path.
+
+**Half B took the option I named, on a better argument than mine.** I
+offered "a draft character-identical to the render commits nothing" as
+the *untouched commits nothing* principle extended. The lane's argument
+is stronger: since the render is a **rounding** of δ, committing it can
+only move δ to a coarser spelling of itself, so **there is no δ for
+which committing its own render is the user's intent** — which means the
+cost I flagged (a deliberate re-assert gets silence) is not a cost at
+all, and the escape hatch is any *other* spelling of the same number,
+which still commits. It also declined the broader *"any draft that
+parses to the δ in force is a no-op"*: that is idempotence of the
+request and belongs to `delta_request`'s consumer, not to a field whose
+job is to tell a render from a draft.
+
+### Four corrections, all to the brief rather than to the work
+
+1. **The sibling population was three because I repeated it instead of
+   re-deriving it.** There are **four**, and the fourth is in the file
+   the lane was editing: `pane/view.rs:43` renders `distance {:.1} mm
+   (band {:.1}–{:.1})`, and `Camera::min_distance` is
+   `scene_radius * 0.05`, so any scene under about a millimetre of
+   radius reads `band 0.0–…` — a distance the camera refuses. **I
+   verified this before merging.** This program's own census rule says a
+   table is a population and placing it means re-deriving by subject; a
+   population quoted from the item into the dispatch is that defect one
+   step earlier.
+2. **`plan.md` was carrying a moving number as a fixed expectation.**
+   The `--test all` baseline was written as **524** and `main` is at
+   **527** four merges later, so a lane checking against it would read a
+   six-row gain it had not made. The register now asserts the SHAPE —
+   every `--test all` row passing, `--lib` one row red, that row and no
+   other — and says explicitly not to put the count there. The
+   `--no-fail-fast` half of that rule is right and the lane confirmed it
+   would have missed the suite without it.
+3. **Naming the unit-switching render as a fork option was a trap, not a
+   neutral offer.** The box is labelled `mm display δ` and parses
+   millimetres, and the same brief's Half B says the render is the text
+   an edit starts from — so a µm render is a **1000× wrong commit one
+   keystroke away**. It is not merely less legible than the
+   alternatives; it is the one shape that makes the defect worse. A fork
+   option named in a dispatch inherits the rest of the dispatch, and I
+   had not checked it against the other half.
+4. **"A 56-point field" understated the ceiling by more than it
+   sounds.** `desired_width` is not a character budget: `TextEdit`'s
+   `Margin::symmetric(4, 2)` leaves **48 points of text** at ~7.33 per
+   digit — about six and a half characters — so the old field could not
+   display `0.001667` even before any render change. A fix to the render
+   that left the width alone would have been delivered **clipped**, and a
+   clipped render reads as a different δ. The field is now 88 points,
+   with a row measuring both numbers through egui's own font metrics and
+   going red at 56. **That width change is a scope call the lane flagged
+   for me rather than slipping in**, and it is the right one: Half A
+   undelivered is Half A unfixed.
+
+All four are in `plan.md`.
+
+**The sibling class is filed on VIEW's own slate** as
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`,
+carrying all four members. Filing there is in-fence; the lane reported
+rather than wrote while `work/door/lane-cross-program-filing-two-binding-
+docs-conflict` is open for Ev, which is the conservative side of that
+unresolved ruling.
+
+**VIEW stands at 69 open / 84 closed, nothing waiting on Ev.**
+### 2026-09-12 — the four fixed-precision length renders, through one door
+
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`
+**closed**. The shape chosen was ONE door, not four decisions and not a
+generalisation of `render_mm` off `DisplayTolerance`: two of the four
+sites hold no such value, so a rule living on that type would have been
+spelled twice — once as the method and once by hand at the sites
+without it, which is this program's N-spellings-no-home shape arriving
+while a different defect was being fixed.
+`crates/viewer/src/readout.rs` is the home; `render_mm` is the δ-facing
+door onto it and keeps every caller and every existing row.
+
+The camera readout took the decision the row asked for rather than a
+patch per number: its two ANGLES keep `{:.1}°` and its three DISTANCES
+do not, because `0.0` is a yaw a camera has and is not a distance a
+camera can be at.
+
+**`display_budget.rs` turned out to assert less than the row feared.**
+`a_coarsened_picture_says_so_in_both_numbers` built its needles with
+`format!("{:.3}", …)`, so it held the sentence to a FORMAT rather than
+to the δ — a needle that would have kept passing by accident on one of
+the two numbers (the budget δ's render is a superstring of its own
+`{:.3}` rounding) and failed on the other. The needles are the renders
+now. Nothing anywhere asserted the badge's label text or the camera
+readout's, and `valid_range.rs` asserted only phrases and the unit
+symbol, never a digit.
+
+**What the re-derivation moved: nothing in the population, one thing
+outside it.** The four members held at their cited lines against the
+merge base, each read rather than re-grepped. But the row's own sweep
+pattern — a precision spec in a format string — has a fifth blind spot
+its three stated ones do not cover: a widget that picks the precision
+itself. `egui::DragValue` derives max decimals from its DRAG SPEED, and
+a length field at `forms::FIELD_DRAG_SPEED` shown in millimetres falls
+back to `{:.3}`, the exact spec the δ field was filed against. Filed as
+`a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets`, with
+the eleven-hit census and each non-member's own reason — one of which is
+a length field at speed `0.5` that is excluded only because it lives in
+a `#[cfg(test)]` harness.
+
+Second residue, found by the unit's own new test rather than by reading:
+`the-scientific-arm-rounds-out-of-the-type`. `{:.3e}` rounds, and within
+half a unit in the fourth figure of `f64::MAX` it rounds out of the
+type, so `number(f64::MAX)` reads back as infinity. Pre-existing (worse
+in `render_mm`, where the millimetre multiply overflowed first), kept as
+a stated exception rather than fixed, because the truthful spelling is
+twenty-two characters and `readout::MAX_CHARS` is what `FIELD_WIDTH` is
+measured against. A row pins the exception so it is met rather than
+rediscovered.
+
+**VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — #2444 merged; and the doc-gate commands in this register never existed
+
+**#2444 merged** (`d8988ee461`). Job shape from the list: **42 jobs, 12
+`test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**, three
+`render drift (…)` neutral (passing), `python suite` **green** where a
+local `ci-filter.py` run said `RUN_PNCAD_PY=false` — the hosted filter
+saw a different base. The total has moved 38 → 42 in a day, which is the
+register's own point about carrying a number: **the tier evidence is the
+12 and the 5 and `gate ok`, not the total.**
+
+**One door, not four patches.** A new `crates/viewer/src/readout.rs`
+with `number(value)` — the shortest decimal spelling that reads back as
+the value within the render's own accuracy, scientific otherwise.
+`DisplayTolerance::render_mm` survives as the δ-facing door onto it,
+carrying only the millimetre conversion, so no existing caller moved.
+The lane's three arguments: two of the four sites hold no
+`DisplayTolerance`, so a rule on that type gets written twice — the
+N-spellings-no-home shape arriving while a different defect is fixed;
+it is **not** `render_mm` with δ removed, because δ is strictly positive
+and a probed bound may be zero or negative, so the general rule is *a
+text reads back as the value* and zero renders `0`; and `scene.rs` was
+the cheap home and the wrong one, since `bounds` and `pane::view`
+depending on the scene vocabulary for a text rule is a false edge.
+
+`bounds.rs` overclaimed at **both** ends of one sentence —
+`valid from 0.0000 mm` for a floor found above zero, and `1024.0000`
+for a reach a doubling probe established to one figure. The camera
+readout took the one decision the item asked for: three distances
+through the door, two angles keep `{:.1}°`.
+
+**`display_budget.rs` was holding a sentence to a FORMAT, not to a δ.**
+`a_coarsened_picture_says_so_in_both_numbers` built its needles with
+`format!("{:.3}", …)`, so it would have kept passing by accident on one
+number (the budget δ's render is a superstring of its `{:.3}` rounding)
+and failed on the other (`0.010` is not a substring of `0.01`). Needles
+are the renders now. Nothing anywhere asserted the badge label or the
+camera readout.
+
+**A fifth blind spot the item's three did not cover**, found by the
+lane and filed rather than swept: an `egui::DragValue` derives max
+decimals from its **drag speed** and falls back to the range maximum
+when nothing reads back, so a length field at `FIELD_DRAG_SPEED` in
+millimetres lands on `{:.3}` — the exact spec the δ field was filed
+against. Five production sites. Filed as
+`a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets`,
+with `the-scientific-arm-rounds-out-of-the-type` (the lane's own new
+test found `{:.3e}` rounds past `f64::MAX`; pre-existing, kept as a
+pinned exception with the width-vs-truth trade written down).
+
+### The correction that matters: the doc-gate commands never existed
+
+**This register and every dispatch built on it specified
+`scripts/doc-gate.sh --pr` and
+`scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit`.
+Neither flag exists.** `doc-gate.sh` parses `--print-roots` and
+`--skip-viewer-toolkit` itself and hands the rest to `gate_parse_args`
+(`scripts/gates/lib.sh:55-64`), whose `*)` arm prints a usage line and
+**exits 2**. I ran it: exit 2. The real commands are CI's
+(`ci.yml:1804-1808`) — `--selftest`, then bare, then
+`--skip-viewer-toolkit`.
+
+**Several lanes reported exit 0 for that invocation.** A command that
+cannot run cannot return 0, so those receipts were not measurements.
+The rule's SUBSTANCE is untouched — both passes are owed, the skip pass
+is the only rustdoc on a skip-mode run and the full pass the only one
+that judges links, and that rests on `RUSTDOC_LINTS_INERT` in the
+source rather than on any receipt. **What did not survive is the
+verification chain**, and it was the chain this program built two rules
+and a merged README section on.
+
+So I re-established the fact instead of trusting it: on `main` at
+`d8988ee461`, `scripts/doc-gate.sh` exits **0** and
+`scripts/doc-gate.sh --skip-viewer-toolkit` exits **0**, both run here.
+No bad doc state reached `main` — known now because it was measured.
+
+The general rule is in `plan.md`: **before putting a command in a
+dispatch, run it once.** A flag that does not exist fails loudly and
+instantly; a flag that is never tested is believed for a week, and a
+dispatch is where a wrong command propagates fastest because it is
+copied verbatim into every lane.
+
+**Two smaller corrections, both accepted.** `gate ok` is not a check run
+until the end — it appeared as the 42nd row, after the last
+`test (interval, …)` finished, so a poll that treats its absence as a
+verdict reads a tier off an incomplete list. And this register's stated
+test shape (`--test all` 524/0/1, `--lib` 37/1) was stale again at
+533/0/1 and 41 lib rows; the SHAPE assertion that replaced the count
+yesterday is what held.
+
+**Three VIEW citations were already wrong about their subject** at the
+merge base and were repointed by finding the subject, not by shifting:
+`scene.rs:492` was `.iter()`, `scene.rs:917-919` was a `FittedDelta`
+field rather than `fit_delta`, `scene.rs:410` was a comment rather than
+`build_parts_focused`. One of them, in
+`ui-thread-work-after-the-index-seam`, is a **split-span citation**
+(`crates/viewer/src/\n   scene.rs:917-919`) caught only because the
+census also matched the bare basename — the same split-span blind spot
+I walked into myself today grepping `implementer-discipline.md` §6.
+
+**Four out-of-fence citation shifts are recorded here and NOT applied**,
+which is a deliberate call rather than an omission: `work/chrome/
+mispaired-ids-exempts-the-empty-window.md:12` (`scene.rs:413`→`374`),
+`work/chrome/probe-rows-assert-in-one-direction-only.md` lines 17 and 28
+(`valid_range.rs:405`→`441`), plus `valid_range.rs:342`→`378` and
+`bounds.rs:380`→`399` on that row, and `work/tint/
+loud-skip-marker-is-a-hand-kept-idiom.md:39` (`lib.rs:92-100`→`93-101`).
+The lane verified all of them as true shifts. I checked that the new
+lines exist and stopped there: **repointing another program's row needs
+that row's CLAIM checked against the new line, not merely that a line is
+there** — this program's own rule is that a number can be wrong about
+its subject rather than merely shifted, and discharging that standard
+means reading three other programs' items in context. Getting it wrong
+would plant the exact defect this program keeps tabulating into two
+other slates. Handing them over is the honest move; silently shifting
+them would not be.
+
+**VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**

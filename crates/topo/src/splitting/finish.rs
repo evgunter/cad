@@ -231,13 +231,34 @@ pub(super) fn split_finish<T: Decide>(
     face_fragments: Vec<(FaceKey, FaceKey)>,
     tol: Tol,
 ) -> Result<SplitResult<T>, SplitFinishError> {
-    let mut body = red.body;
+    // **The phase boundary, asserted.** The reduce and join phases
+    // hold their scope on this same body through the one guardless
+    // pair in `splitting` (`split_scratch`), and nothing about a
+    // guardless pair is checked by the compiler — so a close deleted
+    // there shows up here, as a body arriving still inside a scope.
+    // It is a per-BODY depth and this body is the pipeline's own, so
+    // the answer is 0 whatever door the pipeline itself is nested in.
+    debug_assert_eq!(
+        red.body.open_surgery_scopes(),
+        0,
+        "split_finish: the reduced body arrived with {} surgery scope(s) still open — an \
+         earlier phase opened one and did not close it, and every operator run on this \
+         body from here on skips D1's tier-1 postcondition",
+        red.body.open_surgery_scopes(),
+    );
+    // The reassembly is this door's operator sequence: one scope, one
+    // tier-1 sweep over the reassembled body before it is carved into
+    // the two sides. The guard owns the borrow, so a refusal on the
+    // way closes the scope by dropping it.
+    let mut reassembled = red.body;
+    let mut body = reassembled.begin_surgery();
     let solid = single_solid(&body)?;
 
     // No section polygons: the plane did not cut — the whole operand
     // is one side (an ON-touching contact mints no null faces).
     if completed.is_empty() {
-        return whole_body_side(body, &red.sides);
+        body.sweep_and_close();
+        return whole_body_side(reassembled, &red.sides);
     }
     let mut naming = SplitNaming {
         sections: Vec::with_capacity(completed.len() * 2),
@@ -343,8 +364,13 @@ pub(super) fn split_finish<T: Decide>(
     }
 
     // ---- Carve the two independent result bodies. ----
-    let above = carve(&body, solid, &above_shells)?;
-    let below = carve(&body, solid, &below_shells)?;
+    //
+    // The scope closes here, over the reassembled body — the state
+    // every operator above was checked against. `carve` itself is raw
+    // arena deletion and asserted nothing before this unit either.
+    body.sweep_and_close();
+    let above = carve(&reassembled, solid, &above_shells)?;
+    let below = carve(&reassembled, solid, &below_shells)?;
     Ok(SplitResult {
         above: SplitPart::Body(above),
         below: SplitPart::Body(below),

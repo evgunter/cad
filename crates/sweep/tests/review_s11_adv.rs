@@ -16,18 +16,15 @@ use crate::revolve_common;
 use core::f64::consts::PI;
 use profile::RawLoop;
 
+use crate::common::approx::band;
 use geom::Surface;
+use geom_core::Point3;
 use geom_core::Tol;
-use geom_core::{Band, Point3};
 use profile::{ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::props::mass_properties(body, Tol::witness())

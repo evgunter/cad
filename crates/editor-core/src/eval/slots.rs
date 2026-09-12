@@ -1,9 +1,21 @@
-//! Slot evaluation: every expression a node carries, evaluated once
-//! per node in the node's deterministic slot order — the single place
-//! expression failures acquire their (node, slot) context (spec D2;
-//! PR 1's banked `NonFiniteResult` obligation) and the single source
-//! of values for BOTH the content key and the op wiring (they must
-//! never disagree).
+//! Slot evaluation: every expression a node carries, evaluated in the
+//! node's deterministic slot order through ONE door — the single place
+//! expression failures acquire their (node, slot) context (spec D2)
+//! and the single source of values for BOTH the content key and the op
+//! wiring (they must never disagree).
+//!
+//! The door is the one SPELLING of the read, not a count of reads.
+//! `eval_node` asks it twice per node and nothing else asks at all:
+//! once at the evaluation scalar, whose values the op runs on and the
+//! key's lane half holds, and once at the document's nominal, whose
+//! values the key's other half holds (`super::tag::slot`). Those two
+//! lists are every evaluation of a node's expressions there is — an
+//! authored frame's f64 placement is minted from the nominal list
+//! (`super::wire::mint_frame_placement`) and rides the frame's value,
+//! so a profile drawn on that frame READS it rather than asking this
+//! door for the frame's nine slots again. A slot's expression is
+//! looked up and evaluated in exactly one place, and a refusal at
+//! either environment arrives in one shape.
 
 use geom_core::Decide;
 
@@ -27,7 +39,8 @@ pub(crate) type SlotValues<T> = Vec<(SlotId, SlotVal<T>)>;
 /// Profile nodes are EXEMPT (empty result): their program slots
 /// resolve at f64 in `eval_node`'s dedicated stage (LIB-SWITCH §4b —
 /// the C6 f64 pin), never at the lane scalar, and their key
-/// contribution is the resolved program stream, not slot values.
+/// contribution is the resolved program stream, not slot values
+/// (`super::tag::slot` carries what that means for the nominal half).
 pub(crate) fn eval_slots<T: Decide, P: crate::ProfilePayload>(
     node: &Node<P>,
     env: &ParamEnv<T>,

@@ -23,11 +23,48 @@
 //! beside the worked examples; most of the authoring types here are
 //! also in [`crate::prelude`], which draws from this list so there is
 //! ONE curated surface rather than two that can drift.
+//!
+//! **Which list a PAYLOAD owes.** A payload rides with its carrier so
+//! a consumer can match the variant AND name what it caught: that is
+//! the rule the `VerbKind`/`Arity` stanza below states, and it places
+//! every payload whose only home is the refusal holding it. It does
+//! NOT place a payload that belongs to a vocabulary one of the
+//! curated lists already owns — the naming roles are
+//! [`crate::select`]'s, the profile layer's are [`crate::profile`]'s,
+//! and the parameter and measurement vocabularies this module's own
+//! doors author are THIS list's, where [`crate::analysis`] carries
+//! their derived readers — because the lists are ONE surface cut into
+//! rooms rather than self-sufficient exports. So such a payload is
+//! spelled ONCE, on the list that owns its vocabulary, and the
+//! carrier's list points at it. The cost is stated rather than
+//! hidden: a consumer importing this module alone matches the arm and
+//! needs a second `use` to name what it holds — one import, never a
+//! second crate. The cost the other way is the same name on two
+//! lists, which is two things that can drift.
 
 // The recipe and its edits. `Applied` is `apply`'s return (the new
 // document plus its `EditRecord`) — re-exported so a caller can STORE
 // one in a typed field rather than only destructure it.
-pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
+// `ProgramRefusal` rides with `EditError` by the `VerbKind` rule below:
+// it is `EditError::ProfileProgramRefused`'s payload, and nothing else
+// this crate carries answers in it, so without it a consumer can match
+// the variant and read its refusal only out of prose. `AttrKind` rides
+// for the same reason at the appearance arms — it is what
+// `EditError::{RebindAppearanceCollision, AppearanceNotSet}` name, and
+// which of the three display attributes collided is the whole of what
+// those two refusals say beyond the name. Carrying the KIND is not
+// carrying the appearance map: `Attr`, `AttrSet` and the record types
+// stay out, because nothing a consumer of this module holds answers in
+// them. `MetaVersionError` rides for the same rule at the metadata
+// arm: it is the typed shape refusal `EditError::MetaUnversioned`
+// holds, and which of the three ways a stored value breaks the D7
+// producer convention — not a map, no `"v"` entry, a `"v"` that is not
+// an integer — is the whole of what that arm says beyond the name and
+// the key. Carrying the refusal is not carrying the value tree:
+// `MetaValue` and `MetaError` stay out, because the arm names neither.
+pub use editor_core::{
+    Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, MetaVersionError, ProgramRefusal, apply,
+};
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.
@@ -70,7 +107,12 @@ pub use editor_core::{
 // `unparse` is `parse_expr`'s inverse, the text door OUTWARD: the
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
-pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr, unparse};
+// `ExprPath` is here by the payload rule: it is the ADDRESS
+// `EditError::PathOffTree` names, so without it a consumer can match
+// the refusal and cannot say which expression the address ran off.
+pub use editor_core::{
+    Dimension, DimensionError, Expr, ExprPath, ParamEnv, ParseError, parse_expr, unparse,
+};
 
 // The expression READ side: an expression's current value under a
 // document's parameter environment (`Doc::param_env`). A panel that
@@ -150,9 +192,9 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // it is the one payload all three pairing doors carry (DI3), which is
 // why it is spelled for the QUESTION rather than for any one door.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, Mispaired,
-    NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3,
-    UnitVec3Error, ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
+    Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
@@ -189,7 +231,9 @@ pub use editor_core::ContentBits;
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
-pub use editor_core::{Product, ProductError, RootFault, product, product_recorded};
+pub use editor_core::{
+    Product, ProductError, ProductErrorKind, RootFault, product, product_recorded,
+};
 
 // The gather's own witness, and only where `debug_assertions` are on:
 // how many times this thread has gathered a product. A consumer that
@@ -219,11 +263,30 @@ pub use editor_core::{
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
-// solve places (`Member` is its answer).
+// solve places (`Member` is its answer). `UNDER_RECOURSE` and
+// `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
+// own refusals end on.
+/// Why a mate's datum could not form a lever arm, which
+/// [`MateFault::Unleverable`] carries — by the payload rule this list
+/// states at `VerbKind`.
+///
+/// A parallelism verdict is levered over the largest length the mate's
+/// own datum names, and a datum that names one too small decides
+/// nothing: at an arm of `L` the smallest tilt the predicate could call
+/// non-parallel is about ε/L, so a nanometre datum reads every pair as
+/// parallel. WHICH scale was named and WHAT floor it is under —
+/// `extent` and `floor` — is the whole of what the arm says beyond the
+/// name, and a consumer that could match `Unleverable` and not name
+/// this type read those two numbers out of the message prose.
+///
+/// Its only home is the refusal holding it: nothing else on the
+/// curated lists answers in a `LeverRefusal`, so it rides its carrier
+/// here rather than being spelled on a list that owns its vocabulary.
+pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, ClusterMaintenance, MateFault, MateFrame, MatePrimitive, MateRole,
-    MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, member_of,
-    reading_edges, relative_freedom_components, solve_document,
+    Alignment, AxisSense, CONTRADICTORY_RECOURSE, ClusterMaintenance, MateFault, MateFrame,
+    MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,
+    gauge_of, member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
@@ -260,10 +323,14 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // own or a part's — and `CarriedDeclarations` is what an instantiated
 // value carries up. `AssemblyError::CarriedMintRefusal` is the
 // outermost gate's refusal over an inner mate that could not be minted
-// at all.
+// at all. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence the
+// `NoAtRestRecord` arm ends on, carried for the reason
+// `UNDER_RECOURSE` is: a caller asserting that a refusal reaches its
+// recourse must not do it by re-typing the sentence.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
+    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef, Relation, Route, assemble,
+    assemble_gathered,
 };
 
 // Split and inline: the first-class
@@ -294,8 +361,8 @@ pub use editor_core::{
 // pin from disk is `workspace::update_to_store`.
 pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 
-// The advisory-check registry (DISCIPLINES-DESIGN DS6) and its first
-// resident, the connectedness check. `run_checks` REPORTS, never
+// The advisory-check registry (DISCIPLINES-DESIGN DS6) and its
+// residents, the connectedness check among them. `run_checks` REPORTS, never
 // gates (the `mixed_pins` posture: nothing calls it from apply, load,
 // or evaluation); `enforce_checks` is the one refusing path, and the
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
@@ -306,11 +373,34 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // `run_checks_on` is the registry over a `Subject` the caller gathered
 // — the door `run_checks` wraps, for a caller that already holds the
 // document's product.
+// `ChartCoherenceLane` is a BOUND on both registry doors, so it is
+// nameable by necessity: a caller writing its own function generic
+// over the decision lane has to spell it. The trait says which lanes
+// carry a chart-coherence examination — `f64` does, and a lane that
+// does not reports that as a finding rather than as a clean body.
 pub use editor_core::{
-    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
-    ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks, run_checks_on,
-    subject_body,
+    Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
+    ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
+    run_checks_on, subject_body,
 };
+/// The shell door's typed refusal, which two `CheckEvidence` arms
+/// carry — by the payload rule this list states at `VerbKind`.
+///
+/// [`CheckEvidence::Escalated`] and [`CheckEvidence::Unsupported`] are
+/// two different findings about the SAME thing: the component count
+/// for this subject is unknowable, because a shell's orientation read
+/// escalated or because a face of it is outside the flux inventory.
+/// Which shell, and which of the four ways the door refused, is
+/// `source` — and a consumer that could match the arm and not name its
+/// type read that only out of the message prose.
+///
+/// It is `topo`'s rather than the document layer's, like
+/// [`crate::select`]'s `ContactFinding`: the check registry inherits
+/// the props lane's refusal unaltered rather than restating it. Its
+/// own rungs are already reachable — [`crate::prelude`] carries
+/// `BandError` and `Indeterminate`, and the shell key and the mass-
+/// properties refusal are one module hop away at `pncad::topo::…`.
+pub use topo::ShellClassifyError;
 
 // The profile description node type and its document alias.
 pub use editor_core::{

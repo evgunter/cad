@@ -1,5 +1,7 @@
 //! The verb enum itself and its fieldless projection.
 
+use core::fmt;
+
 use geom_core::Real;
 use sweep::{Revolution, RevolveAxis};
 use topo::{BooleanDeclarations, BooleanOp, EdgeKey, FaceKey, SplitPlane};
@@ -144,7 +146,7 @@ pub enum Verb<T: Real> {
     },
 }
 
-/// **The verb vocabulary with the scalar and reference payload
+/// **The kernel's verb vocabulary with the scalar and reference payload
 /// dropped** — the closed set of operation names, addressable where no
 /// [`Verb`] value exists yet.
 ///
@@ -171,7 +173,7 @@ pub enum Verb<T: Real> {
 /// `sweep::blend::BlendKind` is a different thing that looks like this
 /// one: it is the label a blend REFUSAL carries, enumerating the two
 /// blend doors, and it lives in `sweep` because a `sweep` refusal
-/// carries it. It cannot serve here — the verb vocabulary grows past
+/// carries it. It cannot serve here — the kernel's verb vocabulary grows past
 /// the blend pair into ops `sweep` must not name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum VerbKind {
@@ -187,14 +189,11 @@ pub enum VerbKind {
     Boolean(BooleanOp),
     /// [`Verb::Split`].
     Split,
-    /// [`Verb::Shell`].
-    ///
-    /// **A kernel-only verb**: the document layer has no `Node` that
-    /// builds one, so every commitment keyed on this vocabulary has to
-    /// say what it means for a name no document can reach yet, rather
-    /// than skip it (`editor-core`'s content tag is the first —
-    /// `verb_content_tag` answers `None` here and the tag censuses read
-    /// that as closed data).
+    /// [`Verb::Shell`]. It shipped kernel-first, ahead of its document
+    /// node, and every commitment keyed on this vocabulary said what it
+    /// meant for a name no document could reach rather than skipping
+    /// it (`editor-core`'s content tag is an `Option` for that reason);
+    /// `Node::Shell` builds it now.
     Shell,
 }
 
@@ -271,6 +270,34 @@ impl Arity {
     ];
 }
 
+/// The row's own name, which is the word a refusal about a door
+/// writes ([`crate::VerbError::Arity`]).
+///
+/// Written here and not at the refusal, for the same reason
+/// [`Arity::ALL`] is written here: the door vocabulary's words are the
+/// type's to say once, not each consumer's to re-derive. The match is
+/// exhaustive with no wildcard, so a row added to the enum has no word
+/// until someone writes one.
+///
+/// Each row's word IS its variant identifier — these rows are
+/// fieldless and the identifier is what the doors are called — so this
+/// renders what `Debug` renders today, and a reader cannot tell the
+/// two apart from the output alone. What the impl buys is that the
+/// word stops being a property of the derive: `VerbKind` next door is
+/// the same vocabulary one payload later, and its `Debug` writes that
+/// payload into the sentence.
+impl fmt::Display for Arity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::One => "One",
+            Self::Two => "Two",
+            Self::Profile => "Profile",
+            Self::Split => "Split",
+            Self::Shell => "Shell",
+        })
+    }
+}
+
 impl VerbKind {
     /// Every verb in the vocabulary, for censuses that must be total
     /// over it.
@@ -296,6 +323,42 @@ impl VerbKind {
             Self::Split => Arity::Split,
             Self::Shell => Arity::Shell,
         }
+    }
+}
+
+/// The verb's own name, which is the word a refusal about a verb
+/// writes ([`crate::VerbError::Arity`]).
+///
+/// Beside [`VerbKind::ALL`] because it is the same census read for a
+/// different purpose: `ALL` says what the vocabulary holds, this says
+/// what each member is called. The match is exhaustive with no
+/// wildcard — over the vocabulary AND over the boolean's op, since
+/// each op is its own verb — so a verb the enum gains has no word
+/// until someone writes one, and the words cannot fall behind the
+/// vocabulary the way a lookup table could. What they CAN do is
+/// collide, and `ALL` is what guards that
+/// (`the_vocabulary_says_each_verb_by_one_unshared_name`).
+///
+/// A fieldless verb's word is its variant identifier: these are the
+/// doors' own names and the identifier is what a caller who reached
+/// one is told. **The boolean rows are where that stops being
+/// `Debug`**: the kernel's production doors there are `union`,
+/// `intersect` and `subtract`, three verbs sharing one payload shape,
+/// so each says its op — `Boolean(Union)` is the enum's coordinate for
+/// the verb and names a door that does not exist.
+impl fmt::Display for VerbKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Fillet => "Fillet",
+            Self::Chamfer => "Chamfer",
+            Self::Extrude => "Extrude",
+            Self::Revolve => "Revolve",
+            Self::Boolean(BooleanOp::Union) => "Union",
+            Self::Boolean(BooleanOp::Intersect) => "Intersect",
+            Self::Boolean(BooleanOp::Subtract) => "Subtract",
+            Self::Split => "Split",
+            Self::Shell => "Shell",
+        })
     }
 }
 
@@ -354,9 +417,12 @@ mod all_census {
     /// **[`VerbKind::ALL`] is the WHOLE vocabulary**, pinned against a
     /// compile-time visit rather than reviewed.
     ///
-    /// The precedent this list cites (`profile::Verb::ALL`) is
-    /// macro-generated and cannot drift; this one is hand-written, so it
-    /// needs the guard the macro would otherwise have been. The match
+    /// The precedent this list cites, `profile::Verb::ALL`, is the
+    /// SKETCH program's `Verb` — spelled with its crate, as every
+    /// reader of either `Verb` spells it (the crate doc's convention)
+    /// — and is macro-generated, so it cannot drift; this one is
+    /// hand-written, so it needs the guard the macro would otherwise
+    /// have been. The match
     /// below is EXHAUSTIVE — over the vocabulary AND over the boolean's
     /// op, since each op is its own row — so a variant added to either
     /// enum makes this file fail to compile until it is visited here,
@@ -393,5 +459,97 @@ mod all_census {
             "VerbKind::ALL has drifted from the vocabulary — it holds {} rows, the vocabulary has {rows}",
             VerbKind::ALL.len()
         );
+    }
+
+    /// **Every verb says itself by one word no other verb says**,
+    /// anchored on [`VerbKind::ALL`] so a verb the vocabulary gains
+    /// arrives pinned.
+    ///
+    /// The `Display` arms are an exhaustive match, so they cannot fall
+    /// BEHIND the vocabulary — a verb without a word does not compile.
+    /// What a hand-written word can still do is collide with another
+    /// row's (a literal copied onto a new row), and then the refusal
+    /// naming it cannot say which verb it refused. `ALL` is the census
+    /// that sees the collision.
+    ///
+    /// The second half is what tells the word apart from `Debug` at
+    /// run time. A fieldless verb's word IS its variant identifier, by
+    /// intent, so for those rows the two renderings agree and this
+    /// file could not tell which one ran. The boolean rows can:
+    /// `VerbKind::Boolean(BooleanOp::Union)` debugs as `Boolean(Union)`
+    /// — the enum's coordinate for the verb, naming a `Boolean` door
+    /// the kernel does not have — and says `Union`, the production
+    /// door's own name. A `Display` deleted, forwarded to `Debug`, or
+    /// written to spell the payload reds here.
+    #[test]
+    fn the_vocabulary_says_each_verb_by_one_unshared_name() {
+        let mut said: Vec<(String, VerbKind)> = Vec::new();
+        for kind in VerbKind::ALL {
+            let word = kind.to_string();
+            let shared = said.iter().find(|(w, _)| *w == word).map(|(_, o)| *o);
+            assert!(
+                shared.is_none(),
+                "{kind:?} shares its word \"{word}\" with {shared:?} — a refusal naming \
+                 that word cannot say which verb it refused"
+            );
+            said.push((word.clone(), *kind));
+            let carries_an_op = match kind {
+                VerbKind::Fillet
+                | VerbKind::Chamfer
+                | VerbKind::Extrude
+                | VerbKind::Revolve
+                | VerbKind::Split
+                | VerbKind::Shell => false,
+                VerbKind::Boolean(_) => true,
+            };
+            if carries_an_op {
+                assert!(
+                    !word.contains('('),
+                    "{kind:?} says \"{word}\", which spells the enum's coordinate for the \
+                     verb; the word is the production door's own name (union, intersect, \
+                     subtract)"
+                );
+            } else {
+                assert_eq!(
+                    word,
+                    format!("{kind:?}"),
+                    "{kind:?} says \"{word}\"; a fieldless verb's word is the door's own \
+                     name, which is the identifier"
+                );
+            }
+        }
+    }
+
+    /// **Every door row says itself by one word no other row says**,
+    /// anchored on [`Arity::ALL`] for the vocabulary census's reason.
+    ///
+    /// Each row's word is its variant identifier, so this row cannot
+    /// tell the door's `Display` from its `Debug`: delete the impl and
+    /// the file stays green. What it does catch is a word that stops
+    /// being the row's — a mistyped arm, or two arms swapped, which is
+    /// how a refusal comes to name the wrong door — and that is the
+    /// runtime value it is written against. The rendering the two
+    /// traits agree on is not the reason the impl exists; `VerbKind`
+    /// next door is this vocabulary one payload later, and its `Debug`
+    /// writes that payload into the sentence.
+    #[test]
+    fn the_door_vocabulary_says_each_row_by_one_unshared_name() {
+        let mut said: Vec<(String, Arity)> = Vec::new();
+        for row in Arity::ALL {
+            let word = row.to_string();
+            let shared = said.iter().find(|(w, _)| *w == word).map(|(_, o)| *o);
+            assert!(
+                shared.is_none(),
+                "{row:?} shares its word \"{word}\" with {shared:?} — a refusal naming \
+                 that word cannot say which door it means"
+            );
+            said.push((word.clone(), *row));
+            assert_eq!(
+                word,
+                format!("{row:?}"),
+                "{row:?} says \"{word}\"; a door row's word is the door's own name, which \
+                 is the identifier"
+            );
+        }
     }
 }

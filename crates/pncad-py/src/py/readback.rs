@@ -51,9 +51,10 @@ fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
 /// face's or edge's, so a plane face's origin need not lie inside the
 /// face. `axis` is the carrier's principal direction (a plane's
 /// normal, a line's direction), and it is the CHART's direction, NOT
-/// corrected by the face's orientation sense: the sense is a separate
-/// fact, and folding it in silently would make two questions share
-/// one answer.
+/// corrected by the face's orientation sense: the sense rides beside
+/// it as [`Self::sense`], and folding it in silently would make two
+/// questions share one answer. The outward normal is `sense · axis`,
+/// formed by the reader.
 ///
 /// `u_ref` is the in-frame reference direction where the carrier's
 /// convention fixes one, and `None` where it fixes none — a line has
@@ -99,11 +100,28 @@ impl Pose {
         self.0.v_ref().map(direction)
     }
 
+    /// **The face's orientation sense**: `True` when the face's
+    /// outward normal is `+axis`, `False` when it is `-axis`.
+    ///
+    /// The second fact [`Self::axis`] deliberately does not fold in.
+    /// The axis stays the CHART's and the outward normal is formed by
+    /// the reader as `sense · axis` — a sign SELECTED from a stored
+    /// bool, never computed from a number, so no tolerance enters.
+    ///
+    /// An EDGE has no orientation sense, so `Evaluation.edge_frame`
+    /// answers `True` here — the sign that leaves `axis` exactly as
+    /// the chart stores it — and the field says nothing about the
+    /// edge.
+    #[getter]
+    fn sense(&self) -> bool {
+        self.0.sense
+    }
+
     fn __repr__(&self) -> String {
         let o = self.0.origin;
         let a = self.0.axis;
         format!(
-            "Pose(origin=({}, {}, {}) m, axis=({}, {}, {}), u_ref={})",
+            "Pose(origin=({}, {}, {}) m, axis=({}, {}, {}), u_ref={}, sense={})",
             o.x,
             o.y,
             o.z,
@@ -113,7 +131,8 @@ impl Pose {
             match self.0.u_ref {
                 Some(u) => format!("({}, {}, {})", u.x, u.y, u.z),
                 None => "None".to_string(),
-            }
+            },
+            if self.0.sense { "True" } else { "False" }
         )
     }
 }
@@ -163,6 +182,19 @@ impl Denotation {
 
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`]: a denotation IS the pair
+    /// `(tied, candidates)`, the comparison reads both and so does
+    /// this, so two denotations that compare equal hash equal.
+    ///
+    /// It is a key because a caller tallies by it — how many names in
+    /// this evaluation are ties, and how wide — and a tally is a dict.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (self.tied(), self.candidates()).hash(&mut h);
+        h.finish()
     }
 }
 

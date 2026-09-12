@@ -156,3 +156,47 @@ fn min_max_same_dimension_only() {
         }
     );
 }
+
+/// **[`Dimension::ALL`] holds each dimension once, and a dimension
+/// added to the lattice cannot reach a release without someone reading
+/// this row** — the idiom `BooleanOp::ALL` (`crates/topo/src/boolean`)
+/// and `CheckId::ALL` (`dsc_checks::the_registry_order_is_every_check`)
+/// are held to.
+///
+/// **What is forced**: the match below is exhaustive with no wildcard,
+/// so a dimension added to the enum fails this file until it is
+/// visited here. And the no-repeats half is what makes the count a
+/// census rather than a length: with every entry distinct, a `len`
+/// equal to `dims` means `ALL` holds each of them exactly once.
+///
+/// **What is NOT forced, measured**: `dims` itself. Every arm names the
+/// same total so that visiting means re-deciding it — but nothing
+/// checks that number against the enum, and the arm an author adds is
+/// the arm they copied. A fifth variant with the arm `Mass => 4`
+/// compiles and passes GREEN with `Mass` absent from `ALL`. The row
+/// forces the visit, not the edit. That is the idiom's hole and not
+/// this row's alone — it is inherited from the censuses cited above —
+/// so it is filed as
+/// `work/door/all-census-idiom-forces-the-visit-not-the-update` rather
+/// than patched here in one of four places.
+#[test]
+fn all_is_every_dimension() {
+    let dims = match Dimension::Length {
+        Dimension::Length => 4,
+        Dimension::Angle => 4,
+        Dimension::Count => 4,
+        Dimension::Scalar => 4,
+    };
+    for (i, dimension) in Dimension::ALL.iter().enumerate() {
+        assert!(
+            !Dimension::ALL[..i].contains(dimension),
+            "{dimension:?} appears twice in Dimension::ALL"
+        );
+    }
+    assert_eq!(
+        Dimension::ALL.len(),
+        dims,
+        "Dimension::ALL has drifted from the declaration — it holds {} dimensions, the enum has {dims}",
+        Dimension::ALL.len()
+    );
+}

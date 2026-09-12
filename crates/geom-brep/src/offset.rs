@@ -105,6 +105,36 @@ use geom_core::{Band, Indeterminate, Margin, Sign};
 use crate::dihedral::decide;
 use crate::intersect::SurfaceKind;
 
+/// Which nappe of the double cone a face's material lies on.
+///
+/// [`ConeOffset`]'s action is the pushforward along the continuous
+/// extension of the OPENING nappe's normal field, so a distance stated
+/// along a FACE's own outward chart normal is that action's `d` on the
+/// opening nappe and its negation on the mirror one. The fact belongs
+/// to the face; this type is the vocabulary its one decider
+/// (`topo::offset_nappe::face_nappe`) and every reader share, so that
+/// no consumer re-reads the nappe from a point of its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Nappe {
+    /// `v > 0`: the nappe the axis opens along, whose own chart normal
+    /// IS the action's normal field.
+    Opening,
+    /// `v < 0`: the nappe below the apex, whose own chart normal is the
+    /// action's negated.
+    Mirror,
+}
+
+impl Nappe {
+    /// A face-outward quantity restated in [`ConeOffset`]'s convention:
+    /// itself on [`Nappe::Opening`], negated on [`Nappe::Mirror`].
+    pub fn turn<T: geom_core::Real>(self, d: T) -> T {
+        match self {
+            Self::Opening => d,
+            Self::Mirror => -d,
+        }
+    }
+}
+
 /// **The cone offset's action, in one place.** The mint below and every
 /// consumer that has to move a curve, a point or a parameter WITH the
 /// minted cone read the action from here, so the apex slide, the
@@ -128,14 +158,14 @@ use crate::intersect::SurfaceKind;
 /// therefore moves `−d` along its OWN chart normal — the same locus the
 /// mint produces, read from the same side.
 ///
-/// **Consumers owe the turn, and one of them does not pay it.**
-/// `topo::offset_axial::nappe_signed` reads the nappe from the face's
-/// own corners and turns a face-outward distance before it reaches this
-/// action; `topo::replace_face::mint_offset` does not (#1199, with both
-/// review arms' evidence that nothing wrong ships from it today). The
-/// SWEEP that closes it must include [`ConeOffset::displacement`]:
-/// its `copysign` on the radial term is a second, separate reading of
-/// the same nappe question.
+/// **Consumers owe the turn, and it has ONE home.** A face-outward
+/// distance is this action's `d` on the opening nappe and its negation
+/// on the mirror one, so it must be turned before it reaches the mint.
+/// Which nappe a FACE lies on is a fact only the face has:
+/// `topo::offset_nappe::face_nappe` decides it from the face's own
+/// corner stations, and every reader — both offset doors, the
+/// apex-window gate and [`ConeOffset::displacement`] — turns by that
+/// one answer ([`Nappe::turn`]).
 #[derive(Clone, Copy, Debug)]
 pub struct ConeOffset<T: geom_core::Real> {
     apex: geom_core::Point3<T>,
@@ -173,24 +203,23 @@ impl<T: geom_core::Real> ConeOffset<T> {
     }
 
     /// The displacement the action applies to `p`, a point of the BASE
-    /// cone: `d·n₊(u)` at `p`'s own azimuth.
+    /// cone lying on `nappe`: `d·n₊(u)` at `p`'s own azimuth.
     ///
-    /// `radial(u)` is recovered from `p` — which needs `p`'s nappe,
-    /// because the geometric radial direction at `v < 0` is
-    /// `−radial(u)`. The nappe is `p`'s axial coordinate's sign
-    /// (`h = v·cos α`, and `cos α > 0` on the stored convention), so
-    /// the whole recovery is `copysign` on the RADIAL term — never on
-    /// the axial one, which carries `−sin α` for both nappes.
+    /// `radial(u)` is the CHART radial, recovered from `p` by rejecting
+    /// the axis and turning the result onto the chart's side — the
+    /// geometric radial at `v < 0` is `−radial(u)`. The turn lands on
+    /// the RADIAL term alone; the axial one carries `−sin α` on both
+    /// nappes. The nappe is the FACE's, passed in, because a nappe read
+    /// per point is a second authority over a fact the face already
+    /// settled.
     ///
     /// At the apex itself `radial(u)` is undetermined (every azimuth
     /// maps there) and the recovery poisons, which is the honest
     /// answer: the apex has no tangent plane to push along.
-    pub fn displacement(&self, p: geom_core::Point3<T>) -> geom_core::Vec3<T> {
+    pub fn displacement(&self, nappe: Nappe, p: geom_core::Point3<T>) -> geom_core::Vec3<T> {
         let (sin_a, cos_a) = self.half_angle.sin_cos();
-        let w = p - self.apex;
-        let h = w.dot(self.axis);
-        let radial = w.reject_from(self.axis).normalize();
-        (radial * cos_a.copysign(h) - self.axis * sin_a) * self.d
+        let radial = (p - self.apex).reject_from(self.axis).normalize();
+        (radial * nappe.turn(cos_a) - self.axis * sin_a) * self.d
     }
 }
 

@@ -164,7 +164,7 @@ fn interval_offset_charts_together_partial_wedge() {
 }
 
 /// **The cone frustum at `T = Interval`** — the only fixture here whose
-/// corner reaches `offset_axial_nappe` and `offset_axial_side`. The
+/// corner reaches `offset_nappe` and `offset_axial_side`. The
 /// generator's branch is chosen from the corner's own side of the apex
 /// and the caller's distance is turned over for the mirror nappe, both
 /// DECIDED; at this scalar an ambiguous side escalates rather than

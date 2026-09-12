@@ -1,5 +1,7 @@
-//! Sweep operations: solids from validated 2-D profiles (M2 PR 4:
-//! [`fn@extrude`]; PR 5 adds revolve).
+//! Sweep operations: solids from validated 2-D profiles —
+//! [`fn@extrude`], [`fn@revolve`], [`loft_body`], [`sweep_body`] (path
+//! sweep), [`fn@skin`], [`tube_along_arc`], and the blend family
+//! ([`mod@fillet`], [`mod@chamfer`], [`mod@blend`]).
 //!
 //! This crate sits on top of the whole M2 stack: it consumes the
 //! `profile` crate's [`profile::ValidatedProfile`] (the only accepted
@@ -88,13 +90,14 @@
 //!   every rim of a normal extrusion is definitely transverse, so the
 //!   upgrade is the only arm reached — matching tier 3's
 //!   prefer-intrinsic enforcement, under which definitely-transverse
-//!   edges must carry `Intersection` at rest. That is a K-conditional
-//!   fact, not a geometric identity: the direction gates bound the
-//!   cap–wall angle by `sin θ ≥ K/√(K² + 1)` against a `Smooth`
-//!   ceiling of `1/K`, and the two only close above `K* ≈ 1.272`.
-//!   Below it a rim can classify smooth, and the verb refuses
-//!   ([`ExtrudeError::SmoothCapRim`]) rather than hand back a body
-//!   tier 3 rejects. The argument is at `extrude::upgrade_rim`'s arm.
+//!   edges must carry `Intersection` at rest. It is a fact about the
+//!   run's K rather than a geometric identity, because the wedge's
+//!   lever is the rim CHORD: below `K = √φ ≈ 1.272` a chord the
+//!   profile door admits, times a tilt the direction gates admit,
+//!   reads under ε. A definitely-smooth rim then keeps the
+//!   conventional description — an image at rest in the wall's chart —
+//!   and the body reaches the at-rest gate, which refuses it as
+//!   `SliverDihedral`. Indeterminate is [`ExtrudeError::SliverRim`].
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share

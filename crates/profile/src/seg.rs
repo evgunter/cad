@@ -89,6 +89,74 @@ pub(crate) enum SegIssue {
     Escalated(Indeterminate),
 }
 
+/// The chord frame of the segment a → b: its length, chord vector,
+/// unit direction, midpoint and left unit normal — computed ONCE, in
+/// one spelling, for every expression written on it: the segment's
+/// own predicates ([`build_seg`]), the arc carrier ([`arc_carrier`]),
+/// and the validated form's lift, which rebuilds a carried arc's
+/// carrier at the target scalar from the same frame.
+pub(crate) struct ChordFrame<T: Real> {
+    /// |b − a|.
+    pub len: T,
+    /// b − a.
+    pub chord: Vec2<T>,
+    /// (b − a) / |b − a|.
+    pub unit: Vec2<T>,
+    /// The chord's midpoint.
+    pub mid: Point2<T>,
+    /// The chord's left unit normal (the apex side for a positive
+    /// bulge is −normal).
+    pub normal: Vec2<T>,
+}
+
+impl<T: Real> ChordFrame<T> {
+    /// The frame of a → b. Total: a zero-length chord yields a poisoned
+    /// unit and normal, which the `vertex_separation` gate in
+    /// [`build_seg`] refuses before anything reads them.
+    pub(crate) fn of(a: Point2<T>, b: Point2<T>) -> Self {
+        let len = a.distance(b);
+        let chord = b - a;
+        let unit = chord / len;
+        let mid = a.lerp(b, T::from_f64(0.5));
+        let normal = perp(unit);
+        Self {
+            len,
+            chord,
+            unit,
+            mid,
+            normal,
+        }
+    }
+}
+
+/// [`arc_carrier`]'s answer.
+pub(crate) struct ArcCarrier<T: Real> {
+    /// The carrier circle's center.
+    pub center: Point2<T>,
+    /// The carrier circle's radius (positive).
+    pub radius: T,
+}
+
+/// The carrier of the arc on `frame` with `bulge`: the center at
+/// apothem L·(1 − b²)/(4b) along the frame's normal from its midpoint,
+/// the radius |L·(1 + b²)/(4b)|. Pure arithmetic over the segment's
+/// stored values — no predicate runs here — and the ONE spelling of
+/// it: [`build_seg`] mints a classified segment's carrier through this,
+/// and the validated form's lift rebuilds a carried arc's carrier
+/// through it, so the carrier at any scalar is one expression of the
+/// endpoints and bulge at that scalar (at a certified scalar, its own
+/// enclosure).
+pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrier<T> {
+    let b2 = bulge.powi(2);
+    let four_bulge = T::from_f64(4.0) * bulge;
+    let apothem = frame.len * (T::one() - b2) / four_bulge;
+    let signed_radius = frame.len * (T::one() + b2) / four_bulge;
+    ArcCarrier {
+        center: frame.mid + frame.normal * apothem,
+        radius: signed_radius.abs(),
+    }
+}
+
 /// Builds and classifies a segment.
 ///
 /// Predicates fired, in order:
@@ -120,13 +188,12 @@ pub(crate) fn build_seg<T: Decide>(
     bulge: T,
     band: Band,
 ) -> Result<Seg<T>, SegIssue> {
-    let len = a.distance(b);
+    let frame = ChordFrame::of(a, b);
+    let len = frame.len;
     match decide("vertex_separation", Margin::of(len), band).map_err(SegIssue::Escalated)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SegIssue::Degenerate),
     }
-    let chord = b - a;
-    let unit = chord / len;
     let half = T::from_f64(0.5);
     let sagitta = len * bulge * half;
     let kind = match decide(
@@ -138,15 +205,8 @@ pub(crate) fn build_seg<T: Decide>(
     {
         Sign::Zero => SegKind::Line,
         turn => {
-            let mid = a.lerp(b, half);
-            let n = perp(unit);
-            let b2 = bulge.powi(2);
-            let four_bulge = T::from_f64(4.0) * bulge;
-            let apothem = len * (T::one() - b2) / four_bulge;
-            let signed_radius = len * (T::one() + b2) / four_bulge;
-            let center = mid + n * apothem;
-            let apex = mid - n * sagitta;
-            let radius = signed_radius.abs();
+            let ArcCarrier { center, radius } = arc_carrier(&frame, bulge);
+            let apex = frame.mid - frame.normal * sagitta;
             let span_chord = a.distance(apex);
             match decide(
                 "arc_diameter_clearance",
@@ -171,9 +231,9 @@ pub(crate) fn build_seg<T: Decide>(
         a,
         b,
         bulge,
-        chord,
+        chord: frame.chord,
         len,
-        unit,
+        unit: frame.unit,
         kind,
     })
 }

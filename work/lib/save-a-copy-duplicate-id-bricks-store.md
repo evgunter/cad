@@ -2,8 +2,9 @@
 id: save-a-copy-duplicate-id-bricks-store
 kind: issue
 title: Save-a-copy beside the original bricks the workspace store (DuplicateId for the whole directory)
-status: open
+status: closed
 opened: 2026-08-28
+closed: 2026-09-08
 github: 1117
 refs: [1113]
 ---
@@ -78,3 +79,40 @@ same content under a fresh id, an explicit fork. The library half
 is LIB's unit; the viewer spelling of the second act (`SessionOp`) is a
 rider handed to the GUI programs after it lands. Dispatchable as a LIB
 unit; the ruling is recorded here and at ASSEMBLY-DESIGN A4's clause.
+
+## Closed (LIB-SAVEFORK, 2026-09-08)
+
+Ruling (A) is built. Two doors on `Workspace`
+(`crates/pncad/src/workspace.rs`), bound on Python's `Workspace` under
+the same names:
+
+- **`save_at(doc, target, tol) -> PathBuf`** — the ordinary save at a
+  path, identity KEPT. Before any write it reads the scan: the id
+  claimed at a DIFFERENT path refuses typed; claimed at `target` it is
+  a resave; unclaimed it is a create at the caller's name (unlike
+  `create`, which forces `{id}.pncad`). `target` is a `*.pncad` file
+  directly in the store root — a different root is a different store,
+  which this door does not copy between.
+- **`save_as_new_document(doc, tol) -> (DocumentId, PathBuf)`** — the
+  fork. Fresh random id at `{newid}.pncad`, written through `create`'s
+  validator; the original untouched, so every inbound `DocRef` pinning
+  the old id still resolves to it. The fork's content pin EQUALS the
+  original's: the pin's preimage is the serde form with the `id` key
+  removed, so a copy under a fresh identity is detectably the same
+  content. The two save FILES differ, in the `id:` header and the
+  snapshot's own id.
+
+**The arm decision: a NEW arm**, `WorkspaceError::SaveWouldDuplicateId
+{ id, existing, requested }`, not `DuplicateId` reused — the recourse
+differs. The scan's `DuplicateId` reports two files that already exist
+and is fixed by deleting one; the save door's reports a write that has
+NOT happened and is fixed by choosing an act (resave in place, or
+fork). A second new arm, `SaveTargetNotInStore { path }`, refuses a
+target that is not a save file of this store. Both are matched
+exhaustively at `resolve_fault`, `workspace_err` and the tag map.
+
+**Does NOT cover**: the viewer half — `SessionOp::Save` is unchanged
+(LIB's `keep_out` fences `crates/viewer`) and the hand-off is
+`work/view/session-save-is-two-acts.md`; any change to how ids are
+minted or to `DocRef`/pins; a "save with warning" shape (the ruling is
+refuse typed); copying a document ACROSS stores.

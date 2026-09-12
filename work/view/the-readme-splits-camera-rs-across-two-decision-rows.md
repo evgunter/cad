@@ -22,8 +22,8 @@ is the file:
   transform, which is projection algebra rather than a mark)"*.
 
 A reader of the G1 row gets a three-item inventory of a module that has
-four free `pub fn`s (`apply` `:746`, `fold_recorded` `:817`, `fold`
-`:852`, `cursor_projection` `:882`), a `Folded` struct, three error
+four free `pub fn`s (`apply` `:750`, `fold_recorded` `:821`, `fold`
+`:856`, `cursor_projection` `:886`), a `Folded` struct, three error
 enums and twenty-odd `Camera` doors; a reader of the GQ7 row gets a
 member with no file path beside four entries that are all file paths
 (`src/pickindex.rs`, `src/marks.rs`, `src/pickcache.rs`,

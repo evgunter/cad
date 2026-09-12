@@ -29,6 +29,10 @@ use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
 
+#[path = "common/rim_select.rs"]
+mod rim_select;
+use rim_select::{Seeds, rim_at};
+
 const GLOBE: f64 = 0.44;
 const TOP: f64 = 0.40;
 const MOUTH: f64 = 0.36;
@@ -37,12 +41,23 @@ const LIP_DROP: f64 = 0.16;
 const NECK_R: f64 = 0.052;
 const NECK_HALF_ANGLE: f64 = 70.0 * core::f64::consts::PI / 180.0;
 
-fn lily_lantern(tol: Tol) -> Body<f64> {
+/// The lantern, and its four transverse rims as `(radius, station)` —
+/// the throat, the shoulder, the mouth and the lip. The rims come back
+/// beside the body because they are the meridian's own vertices: a
+/// carrier radius and station are profile-intrinsic, so deriving them
+/// twice is two places for the fixture to say different things.
+fn lily_lantern(tol: Tol) -> (Body<f64>, [(f64, f64); 4]) {
     let r_top = (GLOBE.powi(2) - TOP.powi(2)).sqrt();
     let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
     let shoulder = (r_top - NECK_R) / NECK_HALF_ANGLE.tan();
     let t_mouth = shoulder + TOP + MOUTH;
     let t_end = t_mouth + LIP_DROP;
+    let rims = [
+        (NECK_R, 0.0),
+        (r_top, shoulder),
+        (r_mouth, t_mouth),
+        (LIP_R, t_end),
+    ];
     let meridian: ProfileLoop<f64> = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(NECK_R, 0.0), tol)
@@ -66,7 +81,7 @@ fn lily_lantern(tol: Tol) -> Body<f64> {
         .expect("axis seam")
         .into();
     let profile = validated(SketchPlane::xy(), vec![meridian], tol).expect("meridian validates");
-    revolve(
+    let lantern = revolve(
         &profile,
         RevolveAxis {
             origin: p2(0.0, 0.0),
@@ -76,44 +91,22 @@ fn lily_lantern(tol: Tol) -> Body<f64> {
         tol,
     )
     .expect("the lantern revolves")
-    .body
+    .body;
+    (lantern, rims)
 }
 
-/// **The rim at carrier radius `r`.** The scan finds ONE arc — a
-/// circular edge at that radius whose two supports are DISTINCT
-/// surfaces, so a chart seam is never the seed — and
-/// `query::rim_of` hands back the rim it belongs to.
-///
-/// The `5e-4` is this probe's inherited slack and not a property of the
-/// rims: both reviewers measured the lily's rims bit-exact at their
-/// analytic radii, so the loose window admits nothing the exact one
-/// would miss here. It stays because narrowing it is a sweep over four
-/// disagreeing seed-finder tolerances across this tree, which is issue
-/// `rim-seed-finders-disagree-on-at-this-radius` and not this PR.
-fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
-    let face_of = |he| {
-        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
-            .unwrap()
-            .face
-    };
-    let seed = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                Curve3::Circle { radius, .. } if (radius - r).abs() < 5e-4 => Some(k),
-                _ => None,
-            }
-        })
-        .find(|k| {
-            let ed = body.get_edge(*k).unwrap();
-            let (a, b) = (face_of(ed.he_plus), face_of(ed.he_minus));
-            a != b && body.get_face(a).unwrap().surface != body.get_face(b).unwrap().surface
-        });
-    seed.map_or_else(Vec::new, |seed| {
-        pncad::prelude::query::rim_of(body, seed)
-            .unwrap_or_else(|e| panic!("the rim at radius {r} is one rim, got {e}"))
-    })
+/// The stored radius of an edge's carrier circle — a read-back off the
+/// body, which is what makes a claim about it a claim about geometry.
+fn carrier_radius(body: &Body<f64>, edge: EdgeKey) -> f64 {
+    let e = body.get_edge(edge).expect("the edge");
+    let c = body
+        .get_curve_geom(e.curve)
+        .and_then(|g| g.certified())
+        .expect("a revolved rim carries a certified carrier");
+    match *c.carrier() {
+        Curve3::Circle { radius, .. } => radius,
+        ref other => panic!("a latitude rim is a circle, got {other:?}"),
+    }
 }
 
 /// Wall 6 as authored: every edge, one call — the battery refuses the
@@ -121,7 +114,7 @@ fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
 #[test]
 fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
     let tol = Tol::witness();
-    let lant = lily_lantern(tol);
+    let (lant, _) = lily_lantern(tol);
     let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
     match fillet_edges(&lant, &all, 0.02, tol).map_err(|r| r.error) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
@@ -141,14 +134,13 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
 #[test]
 fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
     let tol = Tol::witness();
-    let lant = lily_lantern(tol);
-    let r_top = (GLOBE.powi(2) - TOP.powi(2)).sqrt();
-    for (name, rim_r) in [
-        ("the lip rim", LIP_R),      // ~0.090
-        ("the shoulder rim", r_top), // ~0.183
-        ("the throat rim", NECK_R),  // ~0.052
+    let (lant, [throat, shoulder, _, lip]) = lily_lantern(tol);
+    for (name, (rim_r, rim_y)) in [
+        ("the lip rim", lip),           // ~0.090
+        ("the shoulder rim", shoulder), // ~0.183
+        ("the throat rim", throat),     // ~0.052
     ] {
-        let arcs = rims_of_radius(&lant, rim_r);
+        let arcs = rim_at(&lant, rim_r, rim_y, Seeds::TwoSided);
         assert_eq!(arcs.len(), 2, "{name} is seam-split into two arcs");
         let out = fillet_edges(&lant, &arcs, 0.02, tol)
             .unwrap_or_else(|e| panic!("{name} fillets whole at r = 0.02, got {e:?}"));
@@ -167,11 +159,19 @@ fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
 #[test]
 fn t3_the_mouth_rim_carves_and_adds_material() {
     let tol = Tol::witness();
-    let lant = lily_lantern(tol);
-    let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
-    assert!((r_mouth - 0.253).abs() < 5e-4, "the PR's fourth radius");
-    let arcs = rims_of_radius(&lant, r_mouth);
+    let (lant, rims) = lily_lantern(tol);
+    let (r_mouth, y_mouth) = rims[2];
+    let arcs = rim_at(&lant, r_mouth, y_mouth, Seeds::TwoSided);
     assert_eq!(arcs.len(), 2, "the mouth rim is seam-split too");
+    // A separate claim, with its own window, and taken off the BODY: the
+    // arc the scan selected really carries the ~0.253 radius this row is
+    // named for, to the three digits the name states. Red if the fixture
+    // ever mints its mouth somewhere else.
+    let stored = carrier_radius(&lant, arcs[0]);
+    assert!(
+        (stored - 0.253).abs() < 5e-4,
+        "the mouth arc's stored radius is the PR's fourth radius, got {stored}"
+    );
     let v0 = pncad::topo::mass_properties(&lant, tol)
         .expect("mass properties")
         .volume;
@@ -200,9 +200,9 @@ fn t3_the_mouth_rim_carves_and_adds_material() {
 #[test]
 fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
     let tol = Tol::witness();
-    let lant = lily_lantern(tol);
-    let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
-    let arcs = rims_of_radius(&lant, r_mouth);
+    let (lant, rims) = lily_lantern(tol);
+    let (r_mouth, y_mouth) = rims[2];
+    let arcs = rim_at(&lant, r_mouth, y_mouth, Seeds::TwoSided);
     assert_eq!(arcs.len(), 2);
     match fillet_edges(&lant, &arcs[..1], 0.02, tol).map_err(|r| r.error) {
         Err(BlendError::UnsupportedCorner { corner, .. }) => {

@@ -2,8 +2,9 @@
 id: resolution-failure-arms-are-unmatchable-under-resolution
 kind: issue
 title: ResolveError's three arms are unmatchable under Resolution's carrier
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-08
 refs: [LIB-B-RESOLVE]
 ---
 
@@ -123,3 +124,38 @@ That is a strictly smaller carriage than the one GUI-2 tried and put
 back. It is a curation judgement, not a binding one — it joins the
 queue `DanglingRef` and `MeshPickError` are already in. A binding unit
 cannot make it; this one did not try.
+
+## Closed
+
+LIB-CUR5, under LB17's rule. `ResolveError`, `ResolutionFailure` and
+`ResolveIndeterminate` are carried into `crates/pncad/src/select.rs`
+beside `Resolution` — WITHOUT `Diagnosis`, `Tombstone`, `TieWitness`,
+`RecipeEditRef` or `Resolved`, which stay in `NOT_CARRIED` with the
+telemetry and the naming interior. `tags.rs` gains `resolve_error_tag`
+(`vanished` / `ambiguous` / `node_gone`) and
+`resolve_indeterminate_tag` (`target_failed` / `target_poisoned` /
+`target_not_evaluated`), both by the arms' own names, and the Python
+`Resolution` gains `variant` beside `status`: one attribute for both
+vocabularies, because `status` already says which one it is drawn
+from and two attributes would make a caller branch before reading.
+
+The stanza's counter-argument is answered where it was made. `all.rs`'s
+instrumentation family no longer says "a door carried for a consumer
+that does not exist" of these three — it says the reading held for one
+consumer and there are two, that a Rust panel has the payload one
+field away and a Python caller holds a string, and it keeps the
+sentence for what stayed: the diagnosis, the tombstone, the tie
+witness and the edit reference, which neither consumer reads.
+
+`resolution_status_tags_are_stable` gains per-arm pins where the
+fixture reaches the arm — `node_gone` on the deleted node,
+`target_not_evaluated` on the canceled run — plus literal pins on all
+three indeterminate arms, which are constructible. `test_resolve.py`
+pins five of the six from the Python side.
+
+**What this does NOT cover.** `ambiguous` is asserted by no test on
+either side of the boundary: an N2 tie needs a tie-marked table and no
+door on either surface authors one. Its word cannot silently move (the
+match is exhaustive, the inventory pins the literal), but nothing
+asserts that a real tie arrives under it, and the pin's own docstring
+says so.
