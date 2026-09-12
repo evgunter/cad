@@ -75,6 +75,53 @@ and a transform moves one. The alternatives weighed and rejected are in
    `assembly-gate-refuses-vanished-on-a-mate-read-below-a-pattern`
    (MSOLVE-1's review, NOTE-4). Dispatches from main after MSOLVE-3.
 
+9. **`MSOLVE-6`** — the lever is the mated parts' own extent, read
+   from each part's evaluated body through one reach trait; the edit
+   door takes the reach (Ev's ruling (a) with the replay refinement on
+   `[ev]` PR 2118: the log records the maintenance, replay never
+   solves). Spec `docs/MSOLVE-6-SPEC.md` with its amendment. PR 2116,
+   in review 2026-09-12. Closes `mate-lever-needs-the-parts-extent`
+   and `reconcile-solves-with-no-resolver`.
+
+**Routed onto this slate while the orchestrator was idle
+(2026-09-08 … 09-12), triaged 2026-09-12, in the order they run:**
+
+10. **`MSOLVE-7` — `member.rs` residue** (one lane, three items):
+    `part-over-a-nested-pattern-reads-the-flat-index-at-check-reference`
+    (EVAL-6: a `Part(k)` over a nested pattern's `Instances` selects
+    the flat body `j·M + i`; `check_reference` reads `k` as the
+    structural copy — a false refusal for `k ≠ j` and, until EVAL-6's
+    seam landed, a silently wrong copy for `k = j`; the check's own
+    account of the index space is owed, with the four-case row),
+    `axis-datum-names-the-pattern-where-the-evaluation-names-the-transform`
+    (the recipe road sites a dangling transform input at the pattern
+    where the evaluation sites it at the transform; a sited refusal
+    naming the transform), and
+    `mate-solve-rebuilds-the-nominal-environment-per-check` (build
+    `param_env` once per `solve_document`, pass it down — the same
+    shape EVAL-9/10 gave the evaluator). Spec after MSOLVE-6 merges;
+    the walk and the check are the files MSOLVE-2 and -6 just left.
+11. **`MSOLVE-8` — `levered-clash-margins-hide-their-arm`**: three
+    coset clash margins reach `Contradictory` with `lever: None`, and
+    the socket is typed radians while a sine, a Frobenius departure
+    and a reach are pure numbers. The decision the item names (a
+    second arm in the sentence for dimensionless residuals, a typed
+    unit, or a small-angle argument) is this program's; sequenced after
+    MSOLVE-6 because the arm those margins would carry is the one it
+    just changed. Small.
+12. **`MSOLVE-9` — `mate-frames-resolve-from-a-face-at-evaluation`**:
+    Ev's ruling (F) on `[ev]` PR 2256 — `MateFrame` gains a `FromFace
+    { face, reference }` arm resolved at evaluation through
+    `topo::readback::face_pose`; the solve runs over resolved frames.
+    A design unit: it revises A11's inputs sentence (DESIGN.md wording
+    drafted by this program and discussed with Ev before ratifying)
+    and reaches every consumer of `MateFrame`. Spec last, on top of
+    MSOLVE-6's reach road (the same `PartCache` answers both the
+    extent and the face pose). LIB's façade and Python half follow it.
+
+The exit walk waits on 10–12: the program closes when the lever, the
+member residue, the margins' arm and the face-resolved frame are in.
+
 ## Territory
 
 Ev, in chat, 2026-09-05: touch whatever the units need and resolve

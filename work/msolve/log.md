@@ -427,3 +427,15 @@ frame arm under Ev's ruling (F) on PR 2256; three levered clash
 margins with their arm invisible; the flat-index `Part` over a nested
 pattern at `check_reference`; `axis_datum`'s seat; the per-check
 nominal environment) — triaged after this unit's review.
+
+## The routed items triaged (2026-09-12)
+
+Five items reached this slate from EVAL, LIB and FIX while the
+orchestrator idled. Triaged into three units after MSOLVE-6, in
+`plan.md`: MSOLVE-7 gathers the three `member.rs` findings (the
+nested-pattern flat index at `check_reference`, `axis_datum`'s seat,
+the per-check nominal environment); MSOLVE-8 is the three levered
+clash margins with their arm invisible, with the radians-vs-pure-number
+decision the item names; MSOLVE-9 is the `FromFace` mate-frame arm
+under Ev's ruling (F) on PR 2256, last, on MSOLVE-6's reach road. The
+exit walk moves behind them.
