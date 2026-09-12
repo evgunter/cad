@@ -7,6 +7,7 @@ opened: 2026-09-02
 github: 1587
 refs: [1585, 868, 723, 1571]
 branch: fix/chart-coherence-check
+pr: 2408
 ---
 
 ## From GitHub issue 1587
