@@ -29,12 +29,13 @@ use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{DisplayFault, DisplayView};
-use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer};
+use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
 use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
 use viewer::pickindex::{self, IdMap, PickIndex};
+use viewer::prefs::{Absent, PrefsStore};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
 use viewer::session::{
@@ -314,6 +315,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         predicted: 1_000,
         requested_cost: Some(9_000_000),
     };
+    let keeps_nothing = Absent.unusable().expect("this store keeps nothing");
 
     // Every badge, and what ends it. The three seam reads first —
     // these are the facts this ruling moved off the line.
@@ -365,6 +367,11 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             frame::Subject::Display,
             "the budget's δ ends when the picture is drawn at another",
         ),
+        (
+            frame::prefs_badge(Some(&keeps_nothing)),
+            frame::Subject::Preferences,
+            "a store that keeps nothing ends when the file is written",
+        ),
     ] {
         assert_eq!(
             badge.expect("this state badges").subject(),
@@ -375,8 +382,9 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
 
     // **The two axes are independent, and here is each of the four
     // corners that this crate populates.** A subject never decided a
-    // channel: `Camera` and `Display` each carry a badge AND a line
-    // message, so neither answer can be read off the other.
+    // channel: `Camera`, `Display` and `Preferences` each carry a
+    // badge AND a line message, so neither answer can be read off the
+    // other.
     let refused_fold = frame::fold_status(&viewer::camera::Folded {
         camera,
         applied: Vec::new(),
@@ -404,6 +412,16 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         "and one seam does not speak with two voices: the click it \
          refused is the line's, the build it refused is the toolbar's, \
          and the subject is the seam's"
+    );
+
+    assert_eq!(
+        frame::store_refusal(&keeps_nothing.refusal()).subject(),
+        frame::prefs_badge(Some(&keeps_nothing))
+            .expect("a store that keeps nothing badges")
+            .subject(),
+        "and the preferences subject is the third: a write that failed \
+         is the line's, a store that can never be written is the \
+         toolbar's"
     );
 
     // The silence of each new member, so the `None` is a row like the
@@ -562,6 +580,58 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
     );
 }
 
+/// **The two populations `crates/viewer/README.md` certifies, counted
+/// from the sources rather than by hand.**
+///
+/// Both are universals with a sweep rule written at the claim, and a
+/// rule with a hand-written number beside it is a measurement: §Q6
+/// says it owes a guard, a scheduled re-measure, or a written reason
+/// it can have neither. The completeness ARGUMENT — `Badge`'s fields
+/// and constructors private to `frame`, `ViewerApp::store` private to
+/// `app` — says the population is closed; it says nothing about the
+/// count staying right, and the store count shipped WRONG (it said
+/// four, counting `store.load()` on the local binding in the
+/// constructor, which is not a read of the field). This row is that
+/// guard.
+///
+/// **It runs the stated rule, not a proxy for it.** The badge rule
+/// ranges over what a function RETURNS, so the scan is over return
+/// types and takes multi-line headers (the #2055 lesson); the store
+/// rule ranges over reads of the FIELD, so the scan is over
+/// `self.store`, which is the only spelling a field read has.
+#[test]
+fn the_readme_counts_its_two_populations_correctly() {
+    let dir = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"));
+    let readme = std::fs::read_to_string(dir.join("README.md")).expect("the crate README");
+
+    // Every `frame` door that yields a badge, by return type. `Badge`
+    // has no public constructor, so this is the whole family.
+    let frame = test_utils::source::code_only(
+        &std::fs::read_to_string(dir.join("src/frame.rs")).expect("frame.rs"),
+    );
+    let badge_doors = frame.matches("-> Option<Badge>").count()
+        + frame.matches("-> Badge").count()
+        + frame.matches("-> Vec<Badge>").count()
+        + frame.matches("-> [Badge").count();
+    assert_eq!(badge_doors, 8, "the badge family");
+    assert!(
+        readme.contains("`frame` function returning `Option<Badge>`** — eight"),
+        "the README states the badge population as a word and it must be the counted one"
+    );
+
+    // Every read of `ViewerApp`'s store field. The field is private to
+    // `app`, so this file is the whole population.
+    let app = test_utils::source::code_only(
+        &std::fs::read_to_string(dir.join("src/app.rs")).expect("app.rs"),
+    );
+    let store_reads = app.matches("self.store").count();
+    assert_eq!(store_reads, 3, "reads of ViewerApp::store");
+    assert!(
+        readme.contains("only `PrefsStore` value — three"),
+        "and the README states that population as a word too"
+    );
+}
+
 /// **Every badge's silence is a row now**, which is the whole reason
 /// the family became a vocabulary: the checks badge's "only when there
 /// are findings" rule used to be an `&&` inside a `ui` closure, where
@@ -596,6 +666,11 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
     );
     assert_eq!(frame::delta_badge(None), None, "the user's own δ");
     assert_eq!(frame::product_badge(None), None);
+    assert_eq!(
+        frame::prefs_badge(None),
+        None,
+        "a store that keeps preferences says nothing about keeping them"
+    );
 }
 
 /// The tone split is the actionable-or-not rule, stated by a value
@@ -640,6 +715,31 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         "a fit with nothing to say is the second half of this badge's \
          `None`, and it used to be a second condition at the call site"
     );
+
+    // A store that keeps nothing is the family's purest ADVISORY: the
+    // theme applies on screen either way and nothing a reader can do
+    // inside the session gives the store somewhere to write. It is
+    // also the row that holds the label to the store's own words
+    // rather than to prose the chrome composes about them.
+    let keeps_nothing = Absent.unusable().expect("this store keeps nothing");
+    let kept = frame::prefs_badge(Some(&keeps_nothing)).expect("this state badges");
+    assert_eq!(
+        kept.tone(),
+        frame::Tone::Advisory,
+        "there is nothing to act on: {}",
+        kept.label()
+    );
+    assert_eq!(
+        kept.label(),
+        format!("preferences: {keeps_nothing}"),
+        "the badge names itself and renders the store's own words"
+    );
+    assert!(
+        kept.label().contains(&keeps_nothing.because),
+        "the store's reason reaches the reader: {}",
+        kept.label()
+    );
+    assert_eq!(kept.detail(), None, "a label, and the label says it all");
 }
 
 /// The checks badge is a BUTTON, and that is ratified rather than
@@ -705,6 +805,10 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
         ),
         ("product", frame::product_badge(Some(&collision))),
         ("δ", frame::delta_badge(Some(&budget))),
+        (
+            "preferences",
+            frame::prefs_badge(Some(&Absent.unusable().expect("this store keeps nothing"))),
+        ),
     ] {
         let badge = badge.unwrap_or_else(|| panic!("the {which} badge is drawn for this input"));
         assert_eq!(
@@ -749,38 +853,6 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
         !ChooserBackend::Absent.usable(),
         "the one arm the chrome disables the dialogs over"
     );
-}
-
-#[test]
-fn an_empty_dialog_is_loud_only_under_a_confidently_absent_backend() {
-    use frame::ChooserBackend;
-    // Confident absence: the loud arm, naming the remedy and the
-    // dialog-free workaround. (The chrome disables the controls before
-    // any click can reach this; the policy stays honest regardless.)
-    let StatusUpdate::Show(message) = frame::dialog_status(ChooserBackend::Absent, false) else {
-        panic!("an empty-handed dialog with no backend reaches the status line");
-    };
-    assert_eq!(message.text(), frame::NO_CHOOSER_BACKEND);
-    assert!(message.text().contains("zenity"));
-    assert!(message.text().contains("xdg-desktop-portal"));
-    assert!(message.text().contains("command line"));
-    // A plausibly-present backend reads `None` as a genuine cancel,
-    // which should not nag.
-    for backend in [
-        ChooserBackend::ZenityPresent,
-        ChooserBackend::PortalPossible,
-    ] {
-        assert_eq!(frame::dialog_status(backend, false), StatusUpdate::Keep);
-    }
-    // A chosen path is never this policy's business: the Open/Save
-    // batch it feeds owns the line through `batch_status`.
-    for backend in [
-        ChooserBackend::ZenityPresent,
-        ChooserBackend::PortalPossible,
-        ChooserBackend::Absent,
-    ] {
-        assert_eq!(frame::dialog_status(backend, true), StatusUpdate::Keep);
-    }
 }
 
 #[test]
@@ -1485,6 +1557,7 @@ fn an_answer_for_a_superseded_generation_is_discarded_not_installed() {
     let landing = cache.land(IndexDone {
         generation: stale.generation(),
         delta: delta(),
+        memo: MemoReport::default(),
         index: Ok(stale),
     });
     assert_eq!(landing, IndexLanding::Stale);
@@ -1518,6 +1591,7 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
     let landing = cache.land(IndexDone {
         generation,
         delta: delta(),
+        memo: MemoReport::default(),
         index: Ok(coarse),
     });
     assert_eq!(
@@ -1901,9 +1975,12 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
             instance: bench.post_b,
         },
         SessionOp::PreviewFreeMove {
+            instance: bench.post_b,
             frame: Frame::translation([0.04, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove {
+            instance: bench.post_b,
+        },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -1922,10 +1999,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     };
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -1946,21 +2023,22 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         "and names the mate that landed, which is what the line then reads"
     );
 
-    // What the chrome does with it, in `perform_batch`'s order. This
-    // is a HAND-WRITTEN MIRROR of app-gated code no row can reach, so
-    // it has to model every producer that feeds the notices there —
-    // both withdrawal channels, not just the one this row provokes. A
-    // half-mirror would pass while the real loop dropped the other.
-    let notices: Vec<frame::Message> = frame::Withdrawal::superseded(&outcome.superseded)
-        .into_iter()
-        .chain(frame::Withdrawal::dropped_hide(&outcome.dropped_hides))
+    // What the chrome does with it, in `perform_batch`'s order. The
+    // app-gated loop no row can reach is now ONE call, and this is
+    // that call rather than a hand-written mirror of it — which is the
+    // point: the mirror stood here listing two of the three producers
+    // after a third was added beside it, and a half-mirror passes
+    // while the real loop drops a kind. There is no list here to fall
+    // behind any more.
+    let notices: Vec<frame::Message> = frame::Withdrawal::all(&outcome.withdrawn)
         .map(|withdrawal| withdrawal.notice())
         .collect();
     assert_eq!(
         notices.len(),
         1,
-        "a mate landing on a probed instance withdraws a placement and no \
-         hide, so the second producer is silent here rather than absent"
+        "a mate landing on a probed instance withdraws a placement and \
+         neither of the other two kinds, so they are silent here rather \
+         than absent"
     );
     let update = frame::frame_status(
         &notices,

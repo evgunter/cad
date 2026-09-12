@@ -20,7 +20,7 @@ can lie about it.
 
 THE DIFFERENCE IS OVER THE `ignored` FLAG, NOT OVER THE TEST NAMES, and that
 is the one thing to get right here. `cargo nextest list` reports EVERY test
-including the ignored ones — verified against the pinned 0.9.140:
+including the ignored ones — verified against cargo-nextest 0.9.140:
 
     gate build     demoted -> {"ignored": true,  "filter-match": {... "ignored"}}
     --cfg build    demoted -> {"ignored": false, "filter-match": {"status": "matches"}}

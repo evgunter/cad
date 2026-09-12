@@ -2,7 +2,7 @@
 id: no-public-census-or-genus-query
 kind: unit
 title: API gap — no public census/genus query, so the Euler-Poincare identity is hand-written about 13 times
-status: spec
+status: dispatched
 opened: 2026-08-20
 github: 758
 refs: [S79]
@@ -74,8 +74,8 @@ in `topo` (`euler_kill.rs`, `seqgen.rs`, `fixtures.rs`, four `tests/`
 files), `sweep`'s tests (ten files), and all three demo crates. Two
 already disagree on the shell term: `seqgen.rs`'s `Ledger` counts
 SOLIDS as `s` while `review_m1_pr3.rs`'s `genus_inputs` counts SHELLS —
-the identity `v − e + f − r = 2(s − h)` wants shells, and `S69`'s lane
-is fixing the ledger this week. That is the cost the row names,
+the identity `v − e + f − r = 2(s − h)` wants shells; `S69` (PR 2014,
+merged) moved the ledger onto shells. That is the cost the row names,
 realised: thirteen chances to get `r` or `s` wrong became one actual
 wrong `s` in the instrument that checks the operators.
 

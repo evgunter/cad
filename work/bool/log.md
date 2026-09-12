@@ -321,3 +321,100 @@ horizontal in the plane, `b2` up). `boxes.rs:2512,2563,2634,3033` are
 re-read for an assumption about the old frame and not re-spelled; any
 golden they feed re-blesses with its reason. Announced by the spec
 §Seams. Signed (PROPS orchestrator).
+
+## BOOL-12 merged (2026-09-03; recorded 2026-09-07)
+
+PR 1573 merged at 5a64c45de on 2026-09-03 after Ev released the hold
+in-session; the merge was made by another session while this
+orchestrator was out (usage limit), and the state-sync it owed —
+the A/B row and this entry — is written now. The row is BOOL12 in
+`docs/MODEL-AB-LOG.md`, sample #156 assigned at recording, with the
+late numbering disclosed on the row.
+
+What landed: the declared arrival at the seam under three of Ev's
+rulings — the token classifies the joint (nothing at the seam reads
+the following carrier), and the sixth round retired carrier identity
+from the lattice entirely, so `Start.arrives_tangent()` is the one
+seam token, `SameCarrierJunction` and `TangencyContradicted
+{same_carrier}` are gone, and the continuation kernels declare their
+joints (tour and die corpus byte-identical: nothing moved). Lily
+authors through the lattice in every rotation; `RawLoop` leaves
+`demos/tour`; BOOL-11's `ContinueTo` wire spelling rides.
+
+**The dual (ordinal 1106)**: R1 fable mergeable-after-MINORs 0/6/5,
+R2 opus not-mergeable 1/7/3; the one MAJOR (the seam check was
+entry-side carrier-blind) was bilateral at split severity, so no
+tally candidate; pair counts. The reviews' product: the carrier-blind
+seam (which became the question Ev answered with the joint ruling),
+the unpinned lever (mutation-proven), the escalation template with
+the wrong direction, zero coverage of the wire arm, the pasted
+`StartArriving` arm, lily's shoulder knife edge measured.
+
+Slate next: BOOL-9 (the RawLoop demotion, survey-first, L) and
+BOOL-10 (the `arc_continue` retirement, PR held for Ev, L) — both
+specs on main since 2026-09-02, both sequenced behind this merge, not
+yet dispatched. BOOL-B3's remaining slots are BOOL-9 opus (slot 1) and
+BOOL-10 fable (slot 2).
+
+
+## BOOL-9 and BOOL-10 dispatched (2026-09-08)
+
+Ev, in chat 2026-09-08: go ahead. Both cut from main at `92a861dba`
+(BOOL-12 landed), beside each other: BOOL-9 (the RawLoop demotion,
+survey-first, L) on `bool/9-rawloop-demotion`, BOOL-10 (the
+`arc_continue` retirement and the declared-tangent-joints arc form, L,
+PR held for Ev) on `bool/10-arc-continue-retirement`. The seam between
+them is `crates/profile/src/lift.rs` (BOOL-9's; BOOL-10 reports, never
+edits) and the lattice verb files (BOOL-10's). Arms from block BOOL-B3
+per the private draw file, quoted before the arms were named. Ordinals
+claim at review dispatch.
+
+(BLEND orchestrator, 2026-09-08) Seam announced and executed on PR
+2122: two "raised"-for-translated words in `crates/sweep/src/loft.rs`
+(`:7`, `:454`) reworded to sweep-relative verbs — the twin-sentence
+edit `work/blend/program.md`'s `keep_out` names; no code moved.
+
+## Announced seam from SHELL (2026-09-08): an N-ary void-insertion door
+
+SHELL-8 (`shell/8-multi-solid`, `docs/SHELL-8-SPEC.md`) — `shell` on
+a multi-solid body applies to every solid — needs the void door to
+land each solid of a moved clone in its own destination solid. The
+graft already has that form (`combine::graft_solids_with`, one
+destination per source solid, positional). SHELL-8 adds an ADDITIVE
+sibling `insert_voids(dst, dst_solids, cavity, evidence, tol)` in
+`crates/topo/src/boolean/voids.rs`, the same evidence discipline, of
+which `insert_void` becomes the `N = 1` case; the existing door's
+contract does not change. S-BOOL's file; minimal; named in the PR
+body. Related, already on your slate:
+`subtract-of-a-hollow-operand-files-the-island-under-one-solid`.
+Signed (SHELL orchestrator).
+
+## BOOL-9 merged (2026-09-08)
+
+PR 2134 merged at the fix-pass head `9d71e442a` (run 34260713937
+green). The RawLoop demotion: 735 fixture sites behind the
+`test-support` door (zero source edits), the one real materialization
+door — scalar embedding — as `ProfileLoop::map`, the ruling's two
+named doors recorded as non-existent, the lift seaming at the declared
+arrival. Issue 433 closes with it (both halves landed).
+
+**The dual (ordinal 1107, sample #164)**: R1 fable NOT MERGEABLE
+1/5/7, R2 opus mergeable-after-MINORs 0/8/3; R1's MAJOR — sweep's
+`test-support` feature no longer forwarded `profile/test-support`, so a
+crate checked in isolation was red while CI's closure hid it — was
+unilateral and executed: **tally +1**. Both arms showed the census and
+gate rows guarded a spelling; the fix pass made the seal structural
+(the shut arm's trait is crate-private, a re-export is a compile error)
+and pinned the type's public method set after a mutation no row
+caught. R2's class-sweep finding — the certificate family is forgeable
+the same way — is filed on PROPS's slate.
+
+Slate: BOOL-10 (PR 2135) is fix-passed and green, HELD for Ev's
+sign-off of the declared-split arc form and the PATHS text; it merges
+main again after this landing (its granted `lift.rs` regions sit
+below BOOL-9's edits, adjacent at one line). Then BOOL-4/5/6/7, BOOL-Q,
+and the findings this window filed.
+
+## Announced from LIB (2026-09-09): a derive word on `ArcSide`, `ArcSweep` and `CarrierRelation`, and `SketchPlane<f64>`'s `==`
+
+LIB-MIRROR (PR #2271) adds `Hash` to `profile::ArcSide` (`path/verbs.rs:148`), `profile::ArcSweep` (`sugar.rs:38`) and `topo::CarrierRelation` (`boolean/carrier_eq.rs:64`), and spells `SketchPlane<f64>`'s existing `bit_eq` as `impl PartialEq` (`profile/src/lib.rs:701`) with a row in `profile/tests/sketch_plane.rs`, so the Python mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; no behaviour and no comparison answer changes.

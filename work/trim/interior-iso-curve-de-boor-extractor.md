@@ -1,11 +1,14 @@
 ---
 id: interior-iso-curve-de-boor-extractor
-kind: issue
+kind: unit
 title: Interior iso-curves have no certified route - the de Boor collapse extractor P-2 reached
-status: open
+status: closed
 opened: 2026-08-29
 github: 1195
 refs: [498]
+branch: trim/1-de-boor-extractor
+closed: 2026-09-07
+pr: 2095
 ---
 
 ## From GitHub issue 1195
@@ -82,3 +85,14 @@ not a widening of existing arms, and it was deliberately left out of P-2's scope
 ## Home
 
 Named PCURVE exit-walk residue; that program is closed, and `pcurve_cache` is fenced out of both S-BOOL and S-CERT as Track Q ground, so it lands unowned under `work/issues/`.
+
+## Closed (2026-09-07)
+
+PR #2095 merged (ordinal 2501, sample #153): the de Boor collapse
+extractor, the interior route in the seam class, the wall–seam arm's
+measured-foot fall-back. The P-2 body's cache set completes and it
+validates at rest — the half of #498's acceptance criterion 1 that P-2
+did not claim. Residues: `non-separable-rational-interior-column`
+(filed by the lane); TRIM-2's opening measurement is re-cut (the crease
+gate fires before its six sites on the P-2 fixture — recorded in that
+item).

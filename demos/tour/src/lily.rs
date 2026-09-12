@@ -161,7 +161,7 @@ use pncad::topo::{Body, BooleanError, Operand, TransformError};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{p2, p3, v2, v3, validated};
+use pncad::authoring::{p2, p3, polygon, v2, v3, validated};
 use pncad::geom_core::Tol;
 
 // ---------------------------------------------------------------
@@ -399,11 +399,7 @@ fn lantern<S: Scalar>(
     // flower axis (into the flower), u the in-plane radial — the
     // flower axis turned a quarter turn in the plant's own plane,
     // i.e. crossed with ŷ.
-    let plane = SketchPlane::from_frame(
-        attach.map(S::from_f64),
-        dir.cross(Vec3::unit_y()).map(S::from_f64),
-        dir.map(S::from_f64),
-    );
+    let plane = SketchPlane::from_frame(attach, dir.cross(Vec3::unit_y()), dir).map(S::from_f64);
     revolve(
         &validated(
             plane,
@@ -620,11 +616,7 @@ fn bud<S: Scalar>(
         let u = start.reject_from(a).normalize();
         // All three share the ATTACHMENT: the tilt splays their
         // tips, not their bellies.
-        let plane = SketchPlane::from_frame(
-            attach.map(S::from_f64),
-            u.map(S::from_f64),
-            a.map(S::from_f64),
-        );
+        let plane = SketchPlane::from_frame(attach, u, a).map(S::from_f64);
         revolve(
             &validated(
                 plane,
@@ -666,23 +658,11 @@ struct Kite {
 /// to zero, and measures the roll as the angle between the two. A
 /// re-typed copy of these numbers would let the two drift and the
 /// measurement would quietly stop meaning anything.
-const LEAF_A_BASE: Point3<f64> = Point3 {
-    x: 0.04,
-    y: 0.05,
-    z: 0.03,
-};
+const LEAF_A_BASE: Point3<f64> = Point3::new(0.04, 0.05, 0.03);
 /// See [`LEAF_A_BASE`].
-const LEAF_A_DIR: Vec3<f64> = Vec3 {
-    x: -0.72,
-    y: 0.52,
-    z: 0.16,
-};
+const LEAF_A_DIR: Vec3<f64> = Vec3::new(-0.72, 0.52, 0.16);
 /// See [`LEAF_A_BASE`].
-const LEAF_A_UP: Vec3<f64> = Vec3 {
-    x: 0.0,
-    y: 0.0,
-    z: 1.0,
-};
+const LEAF_A_UP: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
 /// See [`LEAF_A_BASE`].
 const LEAF_A_LEN: f64 = 5.10;
 /// See [`LEAF_A_BASE`]. Negative: the blade arches OVER, which is what
@@ -791,18 +771,21 @@ fn leaf<S: Scalar>(
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
     // The skinning lane's own door is `f64` (`sweep_body` takes an
     // `Affine3<f64>`), so this frame is not lifted at all.
-    let place = SketchPlane::from_frame(base, u, v).placement;
+    let place = Affine3::from_frame(base, u, v);
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
-    let loops: Vec<ProfileLoop<f64>> = vec![crate::paths::path_polygon(
-        &[
-            (-0.5 * section.width, 0.0),
-            (0.0, -section.keel),
-            (0.5 * section.width, 0.0),
-            (0.0, section.ridge),
-        ],
-        tol,
-    )];
+    let loops: Vec<ProfileLoop<f64>> = vec![
+        polygon(
+            &[
+                (-0.5 * section.width, 0.0),
+                (0.0, -section.keel),
+                (0.5 * section.width, 0.0),
+                (0.0, section.ridge),
+            ],
+            tol,
+        )
+        .expect("the leaf kite"),
+    ];
     sweep_body::<S>(&loops, place, &path, LEAF_STATIONS, LEAF_V_DEGREE, tol)
         .expect("the leaf sweeps along its spine")
         .body
@@ -1124,7 +1107,7 @@ fn try_lofted_blade<S: Scalar>(
         let uu = u * ct + vk * st;
         let vv = vk * ct - u * st;
         sections.push(plan.at(s).outline(tol));
-        places.push(SketchPlane::from_frame(p, uu, vv).placement);
+        places.push(Affine3::from_frame(p, uu, vv));
     }
     loft_body::<S>(&sections, &places, LEAF_V_DEGREE, tol)
 }
@@ -3072,9 +3055,11 @@ mod review_probes {
     /// stored, not which torus they describe, so the tessellator sees
     /// the same surface and splits it the same way. The two SWEPT
     /// blade rows are the other half of the finding: a swept skin over
-    /// a 4-vertex section costs three orders of magnitude less than a
-    /// torus tube at the same δ, because the torus lane spends its
-    /// budget on the RING and not on the tube.
+    /// a 4-vertex section and a torus tube at the same δ cost within a
+    /// factor of two of each other (828 against 454 at 2e-3), because
+    /// `mesh::sizing::torus_grid_steps` sizes the tube's direction by
+    /// the tube's radius and the ring's by the ring's — a torus spends
+    /// the chord budget per curvature, not per feature size.
     ///
     /// The LOFTED bodies are deliberately absent from this table. A
     /// loft's wall count and knot structure follow the section list
@@ -3088,9 +3073,9 @@ mod review_probes {
         use pncad::mesh::validate::{signed_volume, triangle_count};
         let ps = pieces();
         let table = [
-            ("lily_stem", 5e-3, 31_612usize),
-            ("lily_stem", 2e-3, 76_436),
-            ("lily_arch", 2e-3, 136_076),
+            ("lily_stem", 5e-3, 392usize),
+            ("lily_stem", 2e-3, 828),
+            ("lily_arch", 2e-3, 2_960),
             ("lily_lantern", 5e-3, 1_084),
             ("lily_lantern", 2e-3, 2_560),
             // RE-DERIVED, not preserved (issue 1006's Q2 ruling): the

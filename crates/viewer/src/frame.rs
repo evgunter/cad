@@ -3,7 +3,7 @@
 //!
 //! # Why these live here and not in the frame loop
 //!
-//! Three decisions used to sit inside `app::ViewerBehavior::viewport_ui`
+//! Three decisions used to sit inside [`crate::app::ViewerBehavior::viewport_ui`]
 //! and `ViewerApp::perform_batch`: when a batch of operations clears the
 //! status line, when the id pass is asked a question, and when the two
 //! picking paths are reported as disagreeing. All three are invariants,
@@ -82,7 +82,7 @@
 //!
 //! That is not the same as saying nobody keeps a badge alive. The
 //! state a badge reads may itself be bookkept by hand: `ViewerApp`
-//! clears `scene_fault` where a rebuild lands and `pane::viewport`
+//! clears `scene_fault` where a rebuild lands and [`crate::pane::viewport`]
 //! clears `projection_fault` where a matrix forms, which is the same
 //! work spelled as an assignment about the SEAM instead of a verdict
 //! about the chrome. [`index_badge`] needs none, because the pick
@@ -99,8 +99,8 @@
 //! # The line: news, ranked
 //!
 //! Every sentence on the line is something that HAPPENED — an action
-//! the document refused, a pick a tool declined, a dialog that could
-//! not open — and which of a frame's news SHOULD win is
+//! the document refused, a pick a tool declined, a placement a later
+//! edit withdrew — and which of a frame's news SHOULD win is
 //! [`frame_status`]'s ranking. What stops it being the news is an
 //! event about its subject: a camera verdict goes on the next camera
 //! event, what the cursor said on the next cursor move, and what the
@@ -169,14 +169,15 @@ use pncad::prelude::StableName;
 
 use crate::camera::CameraError;
 use crate::camera::Folded;
-use crate::display::{DisplayFault, Withdrawn};
+use crate::display::{DisplayFault, PruneReport, Withdrawn};
 use crate::generation::Generation;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{IdMap, PickError, PickIndex, PickIndexError};
-use crate::prefs::StoreError;
+use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
+use crate::vocab::vocabulary;
 
 /// **What something the chrome shows is ABOUT** — carried by a
 /// [`Message`] on the line and by a [`Badge`] on the toolbar alike.
@@ -213,7 +214,7 @@ pub enum Subject {
     /// needs no issuer: it is read from the camera, so a camera that
     /// projects is a camera whose badge is gone. This `Expire` never
     /// reached the projection sentence in any case, because both
-    /// `land` calls run earlier in the same `pane::viewport::viewport_ui`
+    /// `land` calls run earlier in the same [`crate::app::ViewerBehavior::viewport_ui`]
     /// that writes it.
     Camera,
     /// **The cursor and what lies under it** — retired by the next
@@ -256,6 +257,12 @@ pub enum Subject {
     ///
     /// **No [`StatusUpdate::Expire`] issuer**, for [`Self::Display`]'s
     /// reason.
+    ///
+    /// Like [`Self::Camera`] and [`Self::Display`] it wears both
+    /// channels, and for the same reason: a write that was attempted
+    /// and failed is an outcome ([`store_refusal`]), while a store
+    /// that can never be written at all is a read of held state that
+    /// no write ever retires ([`prefs_badge`]).
     Preferences,
 }
 
@@ -317,9 +324,22 @@ impl Message {
     }
 }
 
+/// **The message's own words, and only those.**
+///
+/// Destructured rather than field-read, so a field added to
+/// [`Message`] is E0027 here and its author has to decide whether the
+/// line says it. `subject` is the standing decision that it does not:
+/// the subject ROUTES the message — it is what retires it
+/// ([`StatusUpdate::Expire`]) and what a joined rank-2 line takes as
+/// its own subject, so one recurring event can retire the joined
+/// sentence. It does not RANK: [`frame_status`] ranks by SOURCE — a
+/// refusal, else the frame's notices, else the batch's own verdict —
+/// and no rank reads a subject. A line that printed its own routing
+/// would be saying to the user what the chrome says to itself.
 impl core::fmt::Display for Message {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.text)
+        let Self { subject: _, text } = self;
+        f.write_str(text)
     }
 }
 
@@ -359,12 +379,15 @@ pub enum StatusUpdate {
 /// spelled as a decision, and `Expire` is a RETIREMENT, which must
 /// reach the field directly because a notice cannot un-say anything.
 ///
-/// **This is the door for a policy that may or may not have
-/// something to say** — [`fold_status`] and [`dialog_status`] are both
-/// that shape. A writer that already knows it has a [`Message`] pushes
-/// onto `notices` itself; a writer that assigns the field has no way
-/// to say "I have nothing to add", which is the defect [`apply`]'s
-/// docs describe and this door removes for the policies.
+/// **This is the door for a policy that may or may not have something
+/// to say**, and [`fold_status`] is the only one there is: its refusal
+/// is news and its clean arm retires the camera sentence. Read off
+/// `deliver`'s callers rather than off the shape — there is one
+/// production call site, [`crate::pane::viewport::land`]. A writer that already
+/// knows it has a [`Message`] pushes onto `notices` itself; a writer
+/// that assigns the field has no way to say "I have nothing to add",
+/// which is the defect [`apply`]'s docs describe and this door removes
+/// for the policies.
 ///
 /// **Every arm is written out**, and a wildcard for the three
 /// non-`Show` ones would defeat the whole door: it would route a
@@ -529,7 +552,7 @@ pub fn frame_status(
 /// document transition, so `Document` was the only subject on the
 /// list. The sweep that routed every writer through the ranking put
 /// four more on it: [`Subject::Camera`] ([`fold_status`]'s refused
-/// fold, delivered at `pane::viewport::land`), [`Subject::Cursor`]
+/// fold, delivered at [`crate::pane::viewport::land`]), [`Subject::Cursor`]
 /// ([`Disagreement::notice`]), [`Subject::Display`] (the pick index's
 /// refused click and the δ field's two doors, through
 /// [`PICK_INDEX_SEAM`] and [`SCENE_SEAM`]) and [`Subject::Preferences`]
@@ -560,15 +583,16 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// **What an accepted edit WITHDREW from the display state**, as a
 /// notice for [`frame_status`]'s rank 2.
 ///
-/// # One value, not two functions
+/// # One value, not a function per kind
 ///
-/// A supersession and a dropped hide are the same class of fact —
-/// display state an accepted edit took away, each carrying the
-/// [`DisplayFault`] the prune withdrew it on — and they were two free
-/// functions composing prose that differed in four format literals.
+/// A supersession, a dropped hide and a killed gesture are the same
+/// class of fact — display state an accepted edit took away, each
+/// carrying the [`DisplayFault`] the prune withdrew it on — and the
+/// first two were free functions composing prose that differed in four
+/// format literals.
 /// They are a typed value with a `Display` here, which is the shape
-/// the crate's other notices already have (`tools::ToolNotice`,
-/// `prefs::Notice`) and the shape `tree::RowStatus` is the model for:
+/// the crate's other notices already have ([`crate::tools::ToolNotice`],
+/// [`crate::prefs::Notice`]) and the shape [`crate::tree::RowStatus`] is the model for:
 /// the payload stays separate from its rendering, and the count-and-join
 /// scaffolding is written once.
 ///
@@ -601,7 +625,7 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 ///
 /// A refusal in the same frame outranks it and it is then not shown,
 /// which rank 1 already says. The two cannot come from one operation:
-/// a refused op returns before the prune that fills these lists.
+/// a refused op returns before the prune that fills the report.
 ///
 /// # The cause is the fault's own sentence
 ///
@@ -616,7 +640,8 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// alone names something the tree no longer draws without saying that
 /// is why.
 ///
-/// The frame around the faults counts and does not name: every fault
+/// The frame around the faults counts where there is anything to count,
+/// and never names: every fault
 /// [`crate::display::DisplayState::prune`] can put here names its own
 /// SUBJECT — the four arms `free_move_check` and `display_check`
 /// answer with — so naming the id again in the preamble would say it
@@ -631,7 +656,7 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// established at `prune` and stated here.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Withdrawal<'a> {
-    /// Which of the two this is.
+    /// Which of the three this is.
     pub kind: WithdrawalKind,
     /// What went. **Never empty** — the constructors are the only
     /// door and each answers `None` for an empty set, so the
@@ -639,57 +664,138 @@ pub struct Withdrawal<'a> {
     withdrawn: &'a [Withdrawn],
 }
 
-/// Which display state an accepted edit took away.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WithdrawalKind {
-    /// **A SUBSTITUTION.** The user's hand placement answered "where
-    /// does this part go", and the mate that landed answers it better,
-    /// so the probe steps aside and the picture keeps the part.
-    ///
-    /// [`crate::session::OpOutcome::superseded`] names the instances
-    /// whose COMMITTED free-move placement an operation's document
-    /// transition discarded — the G3 supersession, reported by the
-    /// session rather than inferred (`display::DisplayState::prune` is
-    /// where it happens, and `display::free_move_check` is the
-    /// condition). A killed in-flight gesture is NOT in that list, so
-    /// it is not this channel's to report; the next gesture op refuses
-    /// typed instead.
-    ///
-    /// What it leaves behind is the instance drawn at its landed
-    /// placement, which the picture already says; a badge would keep
-    /// saying it about a document the user has moved on from, and
-    /// nobody consults a toolbar to learn where a part ended up.
-    Superseded,
-    /// **Not superseded by anything.** The user asked for an instance
-    /// not to be DRAWN, and the document did not answer that question
-    /// differently — it made the question unaskable. Nothing takes the
-    /// hide's place.
-    ///
-    /// **What happened to the PICTURE is in the sentence.** The two
-    /// arms leave the drawing in opposite states, and that is the part
-    /// a user needs: on a **fuse** the instance is drawn AGAIN —
-    /// material they took out of the picture is back in it, which is
-    /// exactly the state reported as a bug against hiding — and on a
-    /// **delete** the instance went, and nothing reappears. A preamble
-    /// naming neither is true and useless; a preamble naming one is
-    /// false half the time. So the consequence is said when the
-    /// frame's withdrawals AGREE on it, and dropped when they do not,
-    /// leaving the faults to say the rest. That is not this module
-    /// writing prose about someone else's failure: the fault renders
-    /// itself, unaltered, and what the chrome adds is the chrome's own
-    /// subject — what the drawn scene now shows.
-    DroppedHide,
+vocabulary! {
+    /// Which display state an accepted edit took away.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum WithdrawalKind {
+        /// **A SUBSTITUTION.** The user's hand placement answered "where
+        /// does this part go", and the mate that landed answers it better,
+        /// so the probe steps aside and the picture keeps the part.
+        ///
+        /// [`crate::display::PruneReport::superseded`], carried to the
+        /// chrome on [`crate::session::OpOutcome::withdrawn`], names the
+        /// instances whose COMMITTED free-move placement an operation's document
+        /// transition discarded — the G3 supersession, reported by the
+        /// session rather than inferred ([`crate::display::DisplayState::prune`] is
+        /// where it happens, and [`crate::display::free_move_check`] is the
+        /// condition). A killed in-flight gesture is NOT in that list, so
+        /// it is not this channel's to report; the next gesture op refuses
+        /// typed instead.
+        ///
+        /// What it leaves behind is the instance drawn at its landed
+        /// placement, which the picture already says; a badge would keep
+        /// saying it about a document the user has moved on from, and
+        /// nobody consults a toolbar to learn where a part ended up.
+        Superseded,
+        /// **Not superseded by anything.** The user asked for an instance
+        /// not to be DRAWN, and the document did not answer that question
+        /// differently — it made the question unaskable. Nothing takes the
+        /// hide's place.
+        ///
+        /// **What happened to the PICTURE is in the sentence.** The two
+        /// arms leave the drawing in opposite states, and that is the part
+        /// a user needs: on a **fuse** the instance is drawn AGAIN —
+        /// material they took out of the picture is back in it, which is
+        /// exactly the state reported as a bug against hiding — and on a
+        /// **delete** the instance went, and nothing reappears. A preamble
+        /// naming neither is true and useless; a preamble naming one is
+        /// false half the time. So the consequence is said when the
+        /// frame's withdrawals AGREE on it, and dropped when they do not,
+        /// leaving the faults to say the rest. That is not this module
+        /// writing prose about someone else's failure: the fault renders
+        /// itself, unaltered, and what the chrome adds is the chrome's own
+        /// subject — what the drawn scene now shows.
+        DroppedHide,
+        /// **Neither of the above, and the only one the user's hand was
+        /// on.** A drag was in flight and the document stopped admitting
+        /// the instance under it, so the gesture ended where it stood.
+        ///
+        /// Nothing substituted for it: the placement it would have landed
+        /// was never asked of the document, so this is not a
+        /// supersession — and no hide was involved, so it is not that
+        /// either. What it leaves behind is the instance drawn where the
+        /// document puts it, and a hand that was steering something a
+        /// moment ago.
+        ///
+        /// **Exactly one, never a set.** A session holds one free-move
+        /// gesture, so this kind has no plural to word — which is why the
+        /// rendering below counts the other two and not this one, and why
+        /// this kind's producer takes an `Option` rather than a slice.
+        KilledGesture,
+    }
+
+    /// Every kind of withdrawal, in the order [`Withdrawal::all`]
+    /// produces them — the roster
+    /// `every_withdrawal_kind_has_a_producer` holds that fan-out
+    /// against, so a kind cannot join this enum without a report field
+    /// that reaches it. That row is its only reader: the chrome words
+    /// each kind through this type's `Display` and never scans the
+    /// list.
+    pub const ALL;
 }
 
 impl<'a> Withdrawal<'a> {
+    /// **Every withdrawal a prune reported**, in the report's own
+    /// field order — the ONE door from a [`PruneReport`] to the
+    /// sentences the chrome shows, and the only one outside this
+    /// module.
+    ///
+    /// **Destructured rather than field-read**, so a fourth kind of
+    /// withdrawal is E0027 *here*, at the call that words it. That is
+    /// the site the omission actually happens at: the copy onto
+    /// [`crate::session::OpOutcome`] was already exhaustive and the
+    /// fan-out was not, so a fourth field reached the chrome's channel
+    /// and was never worded — twice, once per kind added.
+    ///
+    /// The three producers below are PRIVATE for the same reason. A
+    /// caller that could reach one could fan out by hand again, which
+    /// is a list of kinds nothing holds to the report's; a caller that
+    /// can only reach this one gets the report's list or a compile
+    /// error. The reverse direction — a [`WithdrawalKind`] with no
+    /// report field behind it — is held by
+    /// `every_withdrawal_kind_has_a_producer` against
+    /// [`WithdrawalKind::ALL`].
+    ///
+    /// Empty kinds are absent rather than silent entries, which is
+    /// [`Withdrawal::of`]'s decision and not this one's: a frame that
+    /// withdrew nothing yields nothing to say.
+    pub fn all(report: &'a PruneReport) -> impl Iterator<Item = Self> {
+        let PruneReport {
+            superseded,
+            dropped_hides,
+            killed_gesture,
+        } = report;
+        [
+            Self::superseded(superseded),
+            Self::dropped_hide(dropped_hides),
+            Self::killed_gesture(killed_gesture.as_ref()),
+        ]
+        .into_iter()
+        .flatten()
+    }
+
     /// The frame's supersessions, or `None` when it superseded nothing.
-    pub fn superseded(withdrawn: &'a [Withdrawn]) -> Option<Self> {
+    fn superseded(withdrawn: &'a [Withdrawn]) -> Option<Self> {
         Self::of(WithdrawalKind::Superseded, withdrawn)
     }
 
     /// The frame's dropped hides, or `None` when it dropped none.
-    pub fn dropped_hide(withdrawn: &'a [Withdrawn]) -> Option<Self> {
+    fn dropped_hide(withdrawn: &'a [Withdrawn]) -> Option<Self> {
         Self::of(WithdrawalKind::DroppedHide, withdrawn)
+    }
+
+    /// The gesture the frame killed, or `None` when it killed none.
+    ///
+    /// **An `Option`, not a slice**, because there is at most one
+    /// gesture to kill ([`WithdrawalKind::KilledGesture`]). It becomes
+    /// the one-element slice the rendering shares with the other two
+    /// kinds, so the cause is rendered by its own `Display` here
+    /// exactly as it is there.
+    fn killed_gesture(killed: Option<&'a Withdrawn>) -> Option<Self> {
+        Self::of(
+            WithdrawalKind::KilledGesture,
+            killed.map_or(&[][..], core::slice::from_ref),
+        )
     }
 
     /// The `None` decision, in one place: an empty set is silence.
@@ -703,21 +809,32 @@ impl<'a> Withdrawal<'a> {
     }
 }
 
+/// **Destructured rather than field-read**, so a field added to
+/// [`Withdrawal`] is E0027 here rather than joining a value whose
+/// whole job is to word itself and going unworded.
 impl core::fmt::Display for Withdrawal<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let withdrawn = self.withdrawn;
+        let &Self {
+            kind: which,
+            withdrawn,
+        } = self;
         let fused = |w: &Withdrawn| matches!(w.cause, DisplayFault::FusedGeometry { .. });
-        let (kind, one, many, consequence) = match self.kind {
+        // The two kinds that are over a SET word themselves by
+        // counting it. The third is over the one gesture that can be
+        // in flight, so it has no plural and is NOT given one: a
+        // `many` string its own constructor cannot reach is prose
+        // nothing can ever print.
+        let (kind, one, many, consequence) = match which {
             WithdrawalKind::Superseded => (
                 "free move",
                 "a committed placement was discarded",
-                "committed placements were discarded",
+                Some("committed placements were discarded"),
                 "",
             ),
             WithdrawalKind::DroppedHide => (
                 "hide",
                 "a hide was dropped",
-                "hides were dropped",
+                Some("hides were dropped"),
                 if withdrawn.iter().all(fused) {
                     " and the hidden geometry is drawn again"
                 } else if withdrawn.iter().any(fused) {
@@ -726,10 +843,14 @@ impl core::fmt::Display for Withdrawal<'_> {
                     " with the instance it was on"
                 },
             ),
+            WithdrawalKind::KilledGesture => {
+                ("free move", "the drag in flight was ended", None, "")
+            }
         };
-        match withdrawn.len() {
-            1 => write!(f, "{kind}: {one}{consequence} — ")?,
-            count => write!(f, "{kind}: {count} {many}{consequence} — ")?,
+        let count = withdrawn.len();
+        match many.filter(|_| count > 1) {
+            Some(many) => write!(f, "{kind}: {count} {many}{consequence} — ")?,
+            None => write!(f, "{kind}: {one}{consequence} — ")?,
         }
         // Each cause rendered by its own `Display`, in the order the
         // prune found them, joined with [`NOTICE_SEPARATOR`] rather
@@ -1159,7 +1280,7 @@ pub fn pick_refusal(error: &PickError) -> Message {
 /// retired by the next act the document accepts.
 ///
 /// **The one door here that a type does not pin**, because its twelve
-/// sites render through `tools::ToolKind::says`, `tools::ToolNotice`
+/// sites render through [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`]
 /// and the typed forms vocabulary, and arrive as text. What it buys is
 /// that all twelve share one decision: changing the subject of one
 /// changes the subject of all twelve, and a row can see it.
@@ -1246,13 +1367,22 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
 /// ([`crate::scene::FittedDelta`] absent) and a fit with nothing to
 /// say (`wording` absent, which is a fit that did not move δ). The
 /// second was a second condition at the call site.
+///
+/// **The δ is rendered, not formatted**
+/// ([`crate::scene::DisplayTolerance::render_mm`]). The badge's whole
+/// sentence is which δ the picture is at, and the δ it announces is the
+/// budget's own choice — `constant / TRIANGLE_BUDGET`, a quotient with
+/// no short spelling — so a fixed `{:.3}` read `δ 0.000 mm chosen` for
+/// every body whose cost constant is under a triangle·millimetre. A
+/// label wide enough for the render is the price, and a badge is a
+/// label rather than a fixed-width field.
 pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
     let fitted = fitted?;
     let wording = fitted.wording()?;
     Some(
         Badge::read(
             Subject::Display,
-            format!("δ {:.3} mm chosen", fitted.delta.get() * 1.0e3),
+            format!("δ {} mm chosen", fitted.delta.render_mm()),
             Tone::Advisory,
         )
         .detailed(wording),
@@ -1398,6 +1528,41 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
             CameraError::SUBJECT,
             format!("projection: {error}"),
             Tone::Actionable,
+        )
+    })
+}
+
+/// **What the chrome badges about a store that keeps nothing**, and
+/// `None` while preferences are kept.
+///
+/// **A badge, by the provenance rule**, and by the same argument Ev
+/// ruled on for the absent file chooser: the store's usability is
+/// settled when the store is built and true for the whole run, so the
+/// sentence exists on a frame where nobody acted. That is a read of
+/// held state a reader consults, and a whole-run environmental fact
+/// has no correct sentence on a line that carries one frame's news.
+/// What DOES belong on the line is [`store_refusal`] — a write that
+/// was attempted and failed, which is an outcome and which a store
+/// that keeps nothing never produces.
+///
+/// [`Subject::Preferences`], the settings and the file they are kept
+/// in: the event that would make this the wrong answer is a write of
+/// that file, and a store this badge is drawn for is one no write ever
+/// reaches. It is [`Tone::Advisory`] and the tone is the whole of the
+/// judgement here — the theme still applies on screen, nothing in the
+/// session can give the store somewhere to write, and so there is
+/// nothing for a reader to act on. It is a [`Affordance::Read`] label
+/// for the same reason: there is no window of findings behind it.
+///
+/// The words are [`Unusable`]'s own, rendered unaltered; the
+/// "preferences: " opening is this badge naming itself, as its
+/// siblings do.
+pub fn prefs_badge(unusable: Option<&Unusable>) -> Option<Badge> {
+    unusable.map(|unusable| {
+        Badge::read(
+            Subject::Preferences,
+            format!("preferences: {unusable}"),
+            Tone::Advisory,
         )
     })
 }
@@ -1700,7 +1865,7 @@ pub fn prefs_path_in(
 /// Whether this process runs inside WSL, read off the environment
 /// markers WSL itself sets for every process (`WSL_DISTRO_NAME`,
 /// `WSL_INTEROP`). Either suffices; both are checked because WSL1
-/// and WSL2 differ in which they guarantee. Consumed by `app::run`,
+/// and WSL2 differ in which they guarantee. Consumed by [`crate::app::run`],
 /// which prefers the X11 backend under WSL (WSLg's Wayland RAIL shell
 /// breaks horizontal resizing — #1097, confirmed).
 ///
@@ -1713,34 +1878,18 @@ pub fn running_under_wsl() -> bool {
     std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some()
 }
 
-/// What the disabled dialog controls say, and what the status line
-/// says should a dialog somehow be attempted anyway: the confident
-/// half of the #1097 finding, with the dialog-free workaround.
+/// **What the disabled dialog controls say**, and the only thing that
+/// says it: the confident half of the #1097 finding, with the
+/// dialog-free workaround.
+///
+/// A missing backend is held state, so the disabled control carrying
+/// this as its `on_disabled_hover_text` is the read and there is no
+/// status-line route beside it. The argument, its sweep rule and Ev's
+/// ruling live in `crates/viewer/README.md`, under *"A missing
+/// file-chooser backend is not on the line at all"*.
 pub const NO_CHOOSER_BACKEND: &str = "no file chooser backend — install zenity or \
      xdg-desktop-portal; a document path can also be passed on the \
      command line";
-
-/// The status line after a file dialog returns.
-///
-/// A chosen path leaves the line alone — the `Open`/`Save` batch it
-/// feeds owns the verdict through [`batch_status`]. An empty-handed
-/// dialog under a plausibly-present backend is read as a genuine
-/// cancel and stays QUIET (a cancel should not nag); under
-/// [`ChooserBackend::Absent`] it is the loud arm — belt to the
-/// chrome's braces, which should have disabled the control before any
-/// click could reach here.
-pub fn dialog_status(backend: ChooserBackend, chose: bool) -> StatusUpdate {
-    match (chose, backend.usable()) {
-        (true, _) | (false, true) => StatusUpdate::Keep,
-        // The document the user asked for is the subject: they aimed
-        // Open or Save at it and this is what came back, so the next
-        // act the document accepts is what makes it stale.
-        (false, false) => StatusUpdate::Show(Message::new(
-            Subject::Document,
-            NO_CHOOSER_BACKEND.to_owned(),
-        )),
-    }
-}
 
 /// Whether a folded event stream actually moved the camera.
 ///
@@ -1752,7 +1901,7 @@ pub fn dialog_status(backend: ChooserBackend, chose: bool) -> StatusUpdate {
 /// the pointer was inside the viewport. [`fold_status`] closed that at
 /// the other end, so the guard is now near-redundant behaviourally —
 /// it saves one call and a `Camera` copy. It is kept because
-/// `pane::viewport::land` is documented as the one place a camera MOVE
+/// [`crate::pane::viewport::land`] is documented as the one place a camera MOVE
 /// becomes application state, and calling it on frames where nothing
 /// moved makes that sentence false and hands any writer later added to
 /// it per-frame behaviour nobody asked for.
@@ -1860,7 +2009,14 @@ impl core::fmt::Display for Disagreement {
     /// The path rides as `Debug` because `RoleSeg` has no `Display` in
     /// this workspace — the one rendering here that is not prose, and
     /// it is a derivation, not a sentence.
+    ///
+    /// Destructured rather than field-read, which is what holds the
+    /// paragraph above to the value: the argument is that BOTH halves
+    /// are load-bearing, and a third field added to
+    /// [`Disagreement`] and left out of this sentence would falsify it
+    /// silently. In the pattern it is E0027 instead.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { from_gpu, from_ray } = self;
         let show = |name: &Option<StableName>| match name {
             Some(name) => format!("{name} ({:?})", name.path),
             None => "nothing".to_owned(),
@@ -1868,8 +2024,8 @@ impl core::fmt::Display for Disagreement {
         write!(
             f,
             "picking paths disagree at the cursor: id buffer {}, ray {}",
-            show(&self.from_gpu),
-            show(&self.from_ray)
+            show(from_gpu),
+            show(from_ray)
         )
     }
 }
@@ -2138,12 +2294,23 @@ mod tests {
         assert_eq!(status, None, "and sweeps the line whatever it held");
 
         // `Keep` is the absence of news spelled as a decision: neither
-        // route is taken.
-        let mut notices = Vec::new();
+        // route is taken, and a `deliver` call that answers `Keep` is a
+        // no-op on BOTH sides. `notices` starts non-empty so the
+        // assertion can fail for a `Keep` that sweeps the frame's news
+        // as well as for one that adds to it — an empty vector cannot
+        // tell "did not push" from "cleared what was there".
+        let mut notices = vec![Message::new(
+            Subject::Document,
+            "news from earlier this frame",
+        )];
         let mut status = Some(held.clone());
+        let before = notices.clone();
         deliver(&mut notices, &mut status, StatusUpdate::Keep);
-        assert!(notices.is_empty());
-        assert_eq!(status, Some(held));
+        assert_eq!(
+            notices, before,
+            "a Keep neither adds to the frame nor sweeps it"
+        );
+        assert_eq!(status, Some(held), "and leaves the field exactly as it was");
     }
 
     /// A fold the camera refused: a dolly by zero, which is not a
@@ -2508,5 +2675,101 @@ mod tests {
 
         // Silence has exactly one meaning here: nothing was discarded.
         assert_eq!(superseded_text(&[]), None);
+    }
+
+    #[test]
+    fn a_killed_gesture_is_its_own_sentence_and_has_no_plural() {
+        let killed = constrained(3, &[5]);
+        let notice = Withdrawal::killed_gesture(Some(&killed))
+            .expect("a drag the document ended is news")
+            .to_string();
+        assert_eq!(
+            notice,
+            format!("free move: the drag in flight was ended — {}", killed.cause),
+            "the drag the user's hand was on, and the fault that ended it \
+             rendered by its own `Display` — the same shape the other two \
+             kinds use, and a sentence neither of them can say"
+        );
+        assert_ne!(
+            notice,
+            superseded_text(core::slice::from_ref(&killed)).expect("news"),
+            "NOT the supersession's sentence: nothing substituted for a \
+             placement the document was never asked for, so the two must \
+             not read alike when both are on one line"
+        );
+
+        // The plural this kind has no way to reach is also the plural it
+        // is given no words for: one gesture is in flight at a time, so
+        // `Option` is the whole domain and a set-shaped door would be a
+        // count no caller could produce.
+        assert_eq!(Withdrawal::killed_gesture(None), None);
+        assert_eq!(
+            Withdrawal::killed_gesture(Some(&killed))
+                .expect("news")
+                .notice()
+                .subject(),
+            Subject::Document,
+            "a killed gesture is about the document that ended it, so the \
+             next act the document accepts is what retires it — the same \
+             retirement as its two siblings, which is what lets one line \
+             carry all three"
+        );
+    }
+
+    /// **The fan-out is the report's list, in both directions.**
+    ///
+    /// One direction is the compiler's and is not asserted here: a
+    /// fourth field on `PruneReport` is E0027 inside `Withdrawal::all`,
+    /// which is the call that words it.
+    ///
+    /// This row holds the OTHER direction, which no compile error
+    /// reaches — a `WithdrawalKind` that `all` never produces. The
+    /// chrome's only door to a withdrawal is `all`, so a kind absent
+    /// from it is a sentence the crate can spell and nothing can ever
+    /// say. Asserting against `WithdrawalKind::ALL` rather than against
+    /// a written list of three is what makes a FOURTH variant red here
+    /// instead of quietly agreeing: `ALL` is projected from the enum's
+    /// own declaration.
+    ///
+    /// Where it goes red: drop any arm from `all` (the kind's entry
+    /// disappears), reorder them (the order is the report's field
+    /// order and the chrome shows them in it), or add a variant to
+    /// `WithdrawalKind` with no report field behind it.
+    #[test]
+    fn every_withdrawal_kind_has_a_producer() {
+        let report = PruneReport {
+            superseded: vec![constrained(7, &[9])],
+            dropped_hides: vec![constrained(11, &[9])],
+            killed_gesture: Some(constrained(3, &[5])),
+        };
+        let produced: Vec<WithdrawalKind> = Withdrawal::all(&report)
+            .map(|withdrawal| withdrawal.kind)
+            .collect();
+        assert_eq!(
+            produced,
+            WithdrawalKind::ALL,
+            "a report carrying every kind fans out to every kind, in the \
+             order the report declares them"
+        );
+
+        // And each kind words itself apart: the notices are what the
+        // user reads off one line, so two kinds rendering alike would
+        // make the fan-out complete and useless.
+        let mut sentences: Vec<String> = Withdrawal::all(&report)
+            .map(|withdrawal| withdrawal.notice().text().to_string())
+            .collect();
+        assert_eq!(sentences.len(), WithdrawalKind::ALL.len());
+        sentences.sort();
+        sentences.dedup();
+        assert_eq!(
+            sentences.len(),
+            WithdrawalKind::ALL.len(),
+            "no two kinds say the same thing"
+        );
+
+        // An empty report is silence, not three empty sentences —
+        // `Withdrawal::of`'s decision, executed through the one door
+        // rather than asserted of each constructor.
+        assert_eq!(Withdrawal::all(&PruneReport::default()).count(), 0);
     }
 }

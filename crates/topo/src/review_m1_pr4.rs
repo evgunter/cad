@@ -1307,10 +1307,14 @@ fn kef_rejects_a_corrupt_edge_bijection() {
 //    amended by the D2 addendum, which retired the garbage-out half).
 //    These rows also run in debug, where the errors are
 //    precondition-caught, on every code-tier run. The release side is the
-//    `corrupt input (release profile)` job, which runs once a night in
-//    .github/workflows/nightly.yml (and on every local gate) rather than
-//    per PR: the argument that a persistence-detector may sit on a cadence
-//    is at the job. It greps that job name out of this comment, so a
+//    `corrupt input (release profile)` job in .github/workflows/ci.yml,
+//    which runs on every code-tier run too and is the ONLY lane that runs
+//    it: that job pins `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`,
+//    and nothing else in the tree does. `local-scripts/ci-local.sh`'s
+//    `topo_release` row names this test but sets no such override, so
+//    against the root `[profile.release]`'s `debug-assertions = true` it
+//    is a third run of the DEBUG behaviour, not a local mirror of the
+//    release side. It greps that job name out of this comment, so a
 //    rename is loud rather than quietly falsifying this sentence.
 // =====================================================================
 
@@ -1431,7 +1435,9 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
         "mekr_empty_target",
         "mekr_both_empty",
         "kfmrh",
+        "kfmrh_fuse",
         "mfkrh",
+        "movefac",
         "ring_move",
         "split_edge",
         "split_edge_strut",
@@ -1513,7 +1519,9 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Mekr(MekrSite::EmptyTarget { .. }) => "mekr_empty_target",
                 OpChoice::Mekr(MekrSite::BothEmpty { .. }) => "mekr_both_empty",
                 OpChoice::Kfmrh(..) => "kfmrh",
+                OpChoice::KfmrhFuse(..) => "kfmrh_fuse",
                 OpChoice::Mfkrh(_) => "mfkrh",
+                OpChoice::Movefac(_) => "movefac",
                 OpChoice::Kev(_) => "kev",
                 OpChoice::Kef(_) => "kef",
                 OpChoice::Kvfs(_) => "kvfs",

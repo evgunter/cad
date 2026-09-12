@@ -52,6 +52,15 @@
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod common;
+// `editor-core`'s corpus test tree and the fixture helpers it names,
+// reached through the `corpus` and `fixture` symlinks beside this file
+// (the corpus reads its committed tour document relative to THIS
+// crate's manifest, which is what the links are for). Helper trees
+// like `common`: plain `mod`, no `#[path]`, so the aggregation census
+// below does not count them as suites. Each carries its own inner
+// `allow`s for the items this binary does not reach.
+mod corpus;
+mod fixture;
 
 #[path = "assembly_display.rs"]
 mod assembly_display;
@@ -71,6 +80,8 @@ mod combine_ops;
 mod creation_ops;
 #[path = "datum_draw.rs"]
 mod datum_draw;
+#[path = "debug_dumps.rs"]
+mod debug_dumps;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
@@ -89,6 +100,8 @@ mod focus_highlight;
 mod frame_policy;
 #[path = "gesture_table.rs"]
 mod gesture_table;
+#[path = "index_memo.rs"]
+mod index_memo;
 #[path = "input_mapping.rs"]
 mod input_mapping;
 #[path = "instance_authoring.rs"]

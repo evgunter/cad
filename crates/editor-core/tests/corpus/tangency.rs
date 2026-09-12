@@ -7,13 +7,17 @@
 //! which #101 refuses `UndeclaredTangency` until the recipe states
 //! it).
 //!
-//! Note the two REFUSAL doors this document sits between: leaving the
-//! bracket's joints undeclared refuses `UndeclaredTangency`, and
-//! declaring a same-carrier continuation (two collinear straights)
-//! refuses `TangencyContradicted { same_carrier: true }` — declaring
-//! identity is not declaring tangency. Both are pinned in
-//! `profile/tests/declared_tangency.rs`; the corpus carries only the
-//! legal middle.
+//! Note the REFUSAL door this document sits beside: leaving the
+//! bracket's joints undeclared refuses `UndeclaredTangency`. It is
+//! pinned in `profile/tests/declared_tangency.rs`; the corpus carries
+//! the legal side.
+//!
+//! An earlier version of this note named a second door — declaring a
+//! same-carrier continuation, said to refuse
+//! `TangencyContradicted { same_carrier: true }`. That arm is retired
+//! (Ev, in-chat, 2026-09-02: every zero-turn joint is a declared
+//! tangent joint), and the refusal it named no longer exists in any
+//! form, so nothing pins it and nothing should.
 //!
 //! Vocabulary: Profile (arc-bearing, fillet-constructed and
 //! hand-declared), Extrude, `InsertNode`, `SetParam`.

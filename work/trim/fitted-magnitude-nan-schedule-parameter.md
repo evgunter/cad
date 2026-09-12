@@ -2,9 +2,10 @@
 id: fitted-magnitude-nan-schedule-parameter
 kind: issue
 title: error payloads - FittedMagnitude::LastFootDistance carries t = NaN where there is no schedule parameter
-status: open
+status: closed
 opened: 2026-09-04
 refs: [931, 925, 934]
+closed: 2026-09-04
 ---
 
 ## The finding
@@ -90,3 +91,14 @@ FILLET-E3 did not touch the file: its brief scopes it to
 `crates/sweep/src/blend/*` and names `geom-brep` explicitly out of
 scope. What E3 owes it is the citation above and this home, not the
 edit.
+
+## Closed
+
+Closed by TRIM-1 (`trim/1-de-boor-extractor`), the second option: a
+sibling variant `FittedMagnitude::EndpointFootDistance { last_distance }`
+with its own Display arm (no `at t = …` clause), minted at
+`chart_foot_lane`. That door is the one the wall–seam derivation arm
+now calls for every interior seam column, so the refusal it renders
+became reachable from a seam derivation in the same PR.
+`LastFootDistance` keeps its schedule parameter at its two schedule
+sites.

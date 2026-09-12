@@ -20,8 +20,8 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::pappus::{pappus_volume, sector, segment, triangle};
-use sweep::test_support::{one_edge_rim, revolved_about_y};
-use topo::{Body, EdgeKey, validate_geometric};
+use sweep::test_support::{one_edge_rim_at, revolved_about_y};
+use topo::{Body, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -33,35 +33,6 @@ fn body_of(verts: Vec<ProfileVertex<f64>>) -> Body<f64> {
 
 fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
     ProfileVertex::new(Point2::new(x, y), bulge)
-}
-
-/// Closed latitude rims of radius `r` (1e-9), with their axial station.
-fn closed_rims(body: &Body<f64>, r: f64) -> Vec<(EdgeKey, f64)> {
-    body.edges()
-        .filter_map(|(k, e)| {
-            let start = body.get_half_edge(e.he_plus)?.start;
-            if Some(start) != body.half_edge_end(e.he_plus) {
-                return None;
-            }
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                Curve3::Circle { radius, center, .. } if (radius - r).abs() < 1e-9 => {
-                    Some((k, center.y))
-                }
-                _ => None,
-            }
-        })
-        .collect()
-}
-
-fn closed_rim_at(body: &Body<f64>, r: f64, y: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = closed_rims(body, r)
-        .into_iter()
-        .filter(|(_, cy)| (cy - y).abs() < 1e-9)
-        .map(|(k, _)| k)
-        .collect();
-    assert_eq!(hits.len(), 1, "one closed rim of radius {r} at y = {y}");
-    one_edge_rim(body, hits[0])
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64, f64) {
@@ -117,7 +88,7 @@ fn high_bud() -> Body<f64> {
 #[test]
 fn a_sphere_cone_seam_at_a_second_latitude_fillets_to_its_hand_torus() {
     let source = high_bud();
-    let mouth = closed_rim_at(&source, 0.6, 0.8);
+    let mouth = one_edge_rim_at(&source, 0.6, 0.8);
     let out = fillet_edges(&source, &[mouth], R1, tol())
         .unwrap_or_else(|e| panic!("the 2:1 pucker's sphere-cone seam fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
@@ -141,7 +112,7 @@ fn a_sphere_cone_seam_at_a_second_latitude_fillets_to_its_hand_torus() {
         (sphere_trim.0, sphere_trim.1, "sphere"),
         (cone_trim.0, cone_trim.1, "cone"),
     ] {
-        let e = closed_rim_at(&out.body, want_r, want_y);
+        let e = one_edge_rim_at(&out.body, want_r, want_y);
         let c = out
             .body
             .get_curve_geom(out.body.get_edge(e).unwrap().curve)
@@ -178,7 +149,7 @@ fn the_cylinder_plane_arm_carves_both_material_configurations() {
     // negation (R + r). Both ball centres sit at y = 0.5 − r.
     for (rim_r, want_major, which) in [(1.0, 1.0 - r, "drum"), (0.2, 0.2 + r, "bore")] {
         let source = washer();
-        let rim = closed_rim_at(&source, rim_r, 0.5);
+        let rim = one_edge_rim_at(&source, rim_r, 0.5);
         let out = fillet_edges(&source, &[rim], r, tol())
             .unwrap_or_else(|e| panic!("{which} rim fillets, got {e:?}"));
         validate_geometric(&out.body, tol())
@@ -211,7 +182,7 @@ fn double_cone() -> Body<f64> {
 fn a_cone_cone_rim_fillets_to_the_hand_crossing() {
     let r = 0.03;
     let source = double_cone();
-    let rim = closed_rim_at(&source, 0.7, 0.3);
+    let rim = one_edge_rim_at(&source, 0.7, 0.3);
     let out = fillet_edges(&source, &[rim], r, tol())
         .unwrap_or_else(|e| panic!("the cone-cone rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
@@ -257,7 +228,7 @@ fn capped_drum() -> Body<f64> {
 fn a_cylinder_sphere_rim_fillets_to_r_minus_r_exactly() {
     let r = 0.05;
     let source = capped_drum();
-    let rim = closed_rim_at(&source, 0.8, 0.6);
+    let rim = one_edge_rim_at(&source, 0.8, 0.6);
     let out = fillet_edges(&source, &[rim], r, tol())
         .unwrap_or_else(|e| panic!("the cylinder-sphere rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
@@ -331,7 +302,7 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
     sphere_centres.sort_by(f64::total_cmp);
     assert_eq!(sphere_centres.len(), 2, "two sphere walls");
     assert!((sphere_centres[0]).abs() < 1e-12 && (sphere_centres[1] - 1.2).abs() < 1e-12);
-    let waist = closed_rim_at(&source, 0.8, 0.6);
+    let waist = one_edge_rim_at(&source, 0.8, 0.6);
     let v0 = topo::mass_properties(&source, tol())
         .expect("mass properties")
         .volume;
@@ -415,7 +386,7 @@ fn bitdump_dome_annulus() {
         Revolution::Full,
         tol(),
     );
-    let rim = sweep::test_support::closed_plane_sphere_rim(&source, 1.0);
+    let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
     let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(text, "band={:?}", out.band_faces);

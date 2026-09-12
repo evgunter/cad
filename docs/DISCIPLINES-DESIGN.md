@@ -134,11 +134,14 @@ collinear segments classify as `JointClass::SameCarrier` — not
 tangency — and an **undeclared** same-carrier joint *passes*
 `validate` today (a straight run subdivided at an interior vertex is
 well-formed loop data, the shape STEP import and raw authored loops
-routinely produce). What refuses is (a) the **declared-tangent**
-same-carrier joint (`TangencyContradicted { same_carrier: true }` —
-identity misdeclared as tangency, a category error the verify table
-catches: tangency is a relation between distinct carriers), and
-(b) the PATHS **authoring lattice's** zero-turn junction check
+routinely produce). A **declared** same-carrier joint passes too, since the sixth
+Q1 round (Ev, in-chat, 2026-09-02: every zero-turn joint is a declared
+tangent joint — identity is a fact about the carriers, tangency a fact
+about the directions, and the directions agree there). This paragraph
+used to name `TangencyContradicted { same_carrier: true }` as a refusal
+here; that arm is retired, and BOOL-8/BOOL-11/BOOL-12 gave the lattice
+the continuation verbs that declare such joints by construction. What
+refuses is the PATHS **authoring lattice's** zero-turn junction check
 (§4 invariant 1 — an authoring-act gate, "what did you mean by this
 corner?", with the post-fillet continuation exempt because it
 extends the leg rather than minting a collinear neighbor). Nothing

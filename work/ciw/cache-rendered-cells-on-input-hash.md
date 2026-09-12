@@ -6,7 +6,7 @@ status: parked
 opened: 2026-08-18
 github: 603
 refs: [598]
-blocked_on: [rust-cache-never-restores-across-branches]
+blocked_on: [actions-cache-budget-under-a-hash-key]
 ---
 
 ## From GitHub issue 603
@@ -96,8 +96,17 @@ building it now:
 stops being the binding constraint (an eviction policy, a smaller
 working set, a paid tier), or it is measured and found to hold a
 render-cells entry for long enough. Both are
-`work/tcost/rust-cache-never-restores-across-branches`, which is why
-this item is blocked on it rather than on a date.
+`work/tcost/actions-cache-budget-under-a-hash-key`, which is why this
+item is blocked on it rather than on a date.
+
+**Re-parked 2026-09-12 (by S-TCOST, at the close of the row this was
+previously parked on).** `rust-cache-never-restores-across-branches`
+closed: TCOST-B3's primer landed and every sampled build job now
+restores. That does NOT answer this row's question — the primer works by
+REFRESHING a shared key on every main push, where a render-cells entry is
+written once under an input hash and must SURVIVE. The budget half was
+split out to the row named above and this `blocked_on` follows it. No
+other part of this item changed.
 
 The correctness design in the sketch above needs no revision and should
 be reused as-is when it unparks — keying on the inputs plus the runner

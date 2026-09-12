@@ -94,12 +94,15 @@ layer whose types it serves (`topo/src/query.rs`):
   `SEL_DATUM_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an
   honest `Margin` door and a typed indeterminate in band. Datum-node
   resolution — `RecipeNodeId` → `DatumValue` — stays in `editor-core`'s
-  `prepare`. Two further doors here are deliberately not selection
-  questions and say so: `is_finite_length` (whether it belongs at this
-  seat is an open question filed against the seat's owner) and
-  `decide_unit_direction`, the workspace's one `Margin::norm3`
-  decide-then-normalize body, reached under two ratified funnel names by
-  the datum constructor and the evaluation layer's direction door.
+  `prepare`. One further door here is deliberately not a selection
+  question and says so: `decide_unit_direction`, the workspace's one
+  `Margin::norm3` decide-then-normalize body, reached under two
+  ratified funnel names by the datum constructor and the evaluation
+  layer's direction door. The finiteness question it asks first is
+  `geom-core`'s `is_finite_length`, a statement about a scalar that
+  lives beside `Real`/`is_poison` and `Vec3::normalize`'s own overflow
+  note rather than at this seat — every crate with directions has to be
+  able to ask it, including the ones below this one.
 - **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** is a
   fourth EXACT door: the rim an arc belongs to, whole
   (FILLET-RIM, retired into `docs/DOC-LEDGER.md`). It reads stored tags
@@ -152,6 +155,10 @@ needs one (`Band::new`, `Band::angular_at`, at the geometry layer).
 §1 is independent of §§2–3 and prejudges neither.
 
 ## 2. One verb vocabulary
+
+(The kernel's. `profile::Verb`, the sketch program's, is a different
+vocabulary; the naming convention between the two is stated at both
+crates' module docs.)
 
 **V1 — the per-verb declaration is closed and kernel-side.** `Verb<T>`
 (`verbs/src/verb.rs`) holds an operation's parameters as data: `Fillet`
@@ -208,6 +215,17 @@ keeping it is a decision someone may revisit, not a defect.
 `tests/run_door.rs` asserts `Arity::ALL` and the door matrix name one
 set.
 
+**A name is the vocabulary's to say, not a rendering each consumer
+picks.** `VerbKind` and `Arity` each carry a `Display` beside their
+`ALL`, written as an exhaustive match so a row the enum gains has no
+word until someone writes one, and the refusal renders through it. A
+fieldless row's word is its variant identifier — that is what the
+doors are called — and the boolean's three rows say their production
+door (`Union`, `Intersect`, `Subtract`) rather than the enum's
+coordinate for the verb. The censuses beside `ALL` hold the words
+apart: two rows saying the same word makes a refusal ambiguous about
+what it refused.
+
 **V2 — commitments are exhaustive matches to stable tags, held by their
 owners.** Every commitment a verb has is an exhaustive match over the
 one canonical vocabulary, living in the crate that owns it and looking
@@ -221,9 +239,10 @@ the boolean's three ops, 7 split — pinned digit for digit by
 is a compile-guided visit and not a re-spelling of saved files. **A verb
 in the vocabulary need not be one the document can author, and the
 commitment states that rather than skipping it:** `verb_content_tag` is
-an `Option<u8>` answering `None` for the shell, which has no `Node`, so
-the censuses stay total over `VerbKind::ALL` while measuring only the
-rows really in the tag space. `document_verb_tag` is the narrow door for
+an `Option<u8>`, `None` for a kernel-only verb, so the censuses stay
+total over `VerbKind::ALL` while measuring only the rows really in the
+tag space (the shell answered `None` until `Node::Shell` landed; every
+verb has a node today). `document_verb_tag` is the narrow door for
 the verbs a `Node` builds and is loud on the kernel-only answer: a
 silently wrong content tag is how a memo serves another node's
 geometry.

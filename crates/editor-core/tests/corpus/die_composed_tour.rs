@@ -91,7 +91,7 @@
 use std::path::Path;
 
 use editor_core::{
-    Axis3, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, header_document_id,
+    Axis3, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, load, save,
 };
 use geom_core::Tol;
 
@@ -133,21 +133,47 @@ fn edits() -> Vec<DocEdit<ProfileProgram>> {
             path.display()
         )
     });
-    // The header goes through the persistence layer's own parser, so
-    // the id line is validated by the code that writes it rather than
-    // by a second reader here.
-    let id = header_document_id(&text)
-        .unwrap_or_else(|e| panic!("the tour die document's header refuses: {e:?} — {recourse}"));
+    // The whole file goes through the persistence layer's own loader,
+    // so the id line, the schema and the log are read by the code that
+    // writes them rather than by a second reader here. That loader
+    // also reconciles the file's recorded ε against the process's, and
+    // this corpus runs at every CI ε row; the log is ε-independent
+    // bytes, so the ε line is re-stamped to the process's own first,
+    // the way the viewer's fixture rows re-stamp theirs.
+    let tol = Tol::witness();
+    let loaded = load(&restamped_at_process_epsilon(&text), tol)
+        .unwrap_or_else(|e| panic!("the tour die document refuses to load: {e:?} — {recourse}"));
     assert_eq!(
-        id,
-        ProfileDoc::empty_derived(DOC_LABEL, Tol::witness()).id(),
+        loaded.doc.id(),
+        ProfileDoc::empty_derived(DOC_LABEL, tol).id(),
         "the committed document is not the tour's `{DOC_LABEL}` document — {recourse}"
     );
-    let (_, body) = text.split_once('\n').expect("an id line");
-    let mut value: serde_json::Value = serde_json::from_str(body)
-        .unwrap_or_else(|e| panic!("the tour die document's body refuses: {e} — {recourse}"));
-    serde_json::from_value(value["edits"].take())
-        .unwrap_or_else(|e| panic!("the tour die document's edit log refuses: {e} — {recourse}"))
+    loaded.edits
+}
+
+/// `text` with its one `"epsilon":` line replaced by the line the
+/// persistence layer writes for the process's own ε.
+fn restamped_at_process_epsilon(text: &str) -> String {
+    let tol = Tol::witness();
+    let probe: ProfileDoc = ProfileDoc::empty_derived("tour-corpus-epsilon-probe", tol);
+    let probe_text = save(&probe, &[], tol).expect("an empty document saves");
+    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
+    let wanted = probe_text
+        .lines()
+        .find(|line| is_epsilon(line))
+        .expect("a saved document records its ε");
+    assert_eq!(
+        text.lines().filter(|l| is_epsilon(l)).count(),
+        1,
+        "the tour die document carries exactly one ε line"
+    );
+    let mut out: String = text
+        .lines()
+        .map(|line| if is_epsilon(line) { wanted } else { line })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    out.push('\n');
+    out
 }
 
 /// The first `Transform` in the log — the +Z face's single pip, which

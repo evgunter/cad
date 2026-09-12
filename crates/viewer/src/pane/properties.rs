@@ -12,7 +12,9 @@ use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing};
-use crate::widgets::{delete_button, drag_gesture_ops, drag_ops};
+use crate::widgets::{
+    GestureVocabulary, delete_button, drag_gesture_ops, drag_ops, number_field, vec3_row_ops,
+};
 
 impl ViewerBehavior<'_> {
     /// The property panel.
@@ -77,7 +79,7 @@ impl ViewerBehavior<'_> {
                     let field = FieldWriting::of(row.dimension, row.unit);
                     let mut value = field.shown(row.value.as_f64());
                     ui.horizontal(|ui| {
-                        let widget = ui.add(egui::DragValue::new(&mut value).speed(field.tick));
+                        let widget = ui.add(number_field(&mut value, field.tick));
                         // **A LABEL, where a slot row has a picker.**
                         // Not "the way a slot row says it": a slot's
                         // unit is said by a `ComboBox` that CHANGES it
@@ -98,9 +100,15 @@ impl ViewerBehavior<'_> {
                         drag_ops(
                             &widget,
                             field.authored(value),
-                            SessionOp::BeginParamGesture { name: name.clone() },
-                            |value| SessionOp::PreviewGesture { value },
-                            SessionOp::CommitGesture,
+                            GestureVocabulary {
+                                begin: SessionOp::BeginParamGesture { name: name.clone() },
+                                preview: |value| SessionOp::PreviewParamGesture {
+                                    name: name.clone(),
+                                    value,
+                                },
+                                commit: SessionOp::CommitParamGesture { name: name.clone() },
+                                cancel: SessionOp::CancelGesture,
+                            },
                             |value| {
                                 vec![SessionOp::SetParam {
                                     name: name.clone(),
@@ -156,13 +164,22 @@ impl ViewerBehavior<'_> {
                     .hint_text("name")
                     .desired_width(90.0),
             );
-            for (dimension, label) in [
-                (Dimension::Length, "Length"),
-                (Dimension::Angle, "Angle"),
-                (Dimension::Count, "Count"),
-                (Dimension::Scalar, "Scalar"),
-            ] {
-                ui.radio_value(&mut self.drafts.new_param_dimension, Some(dimension), label);
+            // One button per dimension the KERNEL has, in its order
+            // and under its own word for it: the form offers the
+            // vocabulary and writes no copy of it — neither the
+            // membership, which is `Dimension::ALL`, nor the words,
+            // which are the `Display` that `editor_core::expr` calls
+            // the one home of the dimension-in-prose rule. A fifth
+            // dimension therefore arrives in this row with no edit
+            // here, and it arrives as the noun a person would say
+            // rather than as a capitalised variant identifier, which
+            // is what these four buttons used to read as.
+            for dimension in Dimension::ALL {
+                ui.radio_value(
+                    &mut self.drafts.new_param_dimension,
+                    Some(dimension),
+                    dimension.to_string(),
+                );
             }
             // The form authors in the canonical unit — a new
             // parameter's declaration names that notation
@@ -178,7 +195,7 @@ impl ViewerBehavior<'_> {
                 .map_or(FIELD_DRAG_SPEED, |dimension| {
                     FieldWriting::of(dimension, None).tick
                 });
-            ui.add(egui::DragValue::new(&mut self.drafts.new_param_value).speed(speed));
+            ui.add(number_field(&mut self.drafts.new_param_value, speed));
         });
         let name = self.drafts.new_param_name.trim();
         let existing = if name.is_empty() {
@@ -370,37 +387,40 @@ impl ViewerBehavior<'_> {
                 // one widget→gesture mapping (`drag_ops`) so the typed-
                 // input arm exists here too: typing a value performs a
                 // one-shot begin/preview/commit, exactly one committed
-                // display value. Each component's preview composes the
+                // display value. The instance has ONE probe and all
+                // three components drive it, so the row is one gesture
+                // and `vec3_row_ops` maps it once — its docs carry what
+                // a triple per box costs. Each preview composes the
                 // FULL frame from all three, so dragging x does not
                 // zero y and z. The chrome offers the translation
                 // components; the op vocabulary takes any rigid frame.
+                let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
                 ui.horizontal(|ui| {
-                    for axis in 0..3 {
-                        let mut value = mm[axis];
-                        let widget = ui.add(egui::DragValue::new(&mut value).speed(field.tick));
-                        mm[axis] = value;
-                        let frame_of =
-                            |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
-                        drag_ops(
-                            &widget,
-                            value,
-                            SessionOp::BeginFreeMove { instance: node },
-                            |_| SessionOp::PreviewFreeMove {
+                    vec3_row_ops(
+                        ui,
+                        field.tick,
+                        &mut mm,
+                        GestureVocabulary {
+                            begin: SessionOp::BeginFreeMove { instance: node },
+                            preview: |mm| SessionOp::PreviewFreeMove {
+                                instance: node,
                                 frame: frame_of(mm),
                             },
-                            SessionOp::CommitFreeMove,
-                            |_| {
-                                vec![
-                                    SessionOp::BeginFreeMove { instance: node },
-                                    SessionOp::PreviewFreeMove {
-                                        frame: frame_of(mm),
-                                    },
-                                    SessionOp::CommitFreeMove,
-                                ]
-                            },
-                            self.ops,
-                        );
-                    }
+                            commit: SessionOp::CommitFreeMove { instance: node },
+                            cancel: SessionOp::CancelFreeMove,
+                        },
+                        |mm| {
+                            vec![
+                                SessionOp::BeginFreeMove { instance: node },
+                                SessionOp::PreviewFreeMove {
+                                    instance: node,
+                                    frame: frame_of(mm),
+                                },
+                                SessionOp::CommitFreeMove { instance: node },
+                            ]
+                        },
+                        self.ops,
+                    );
                 });
             }
         }
@@ -409,7 +429,7 @@ impl ViewerBehavior<'_> {
     /// One PANEL ROW: a scalar slot on its own, or a 3-vector's three
     /// components on one line.
     ///
-    /// The grouping is `props::SlotGroup`'s and the vocabulary's (see
+    /// The grouping is [`crate::props::SlotGroup`]'s and the vocabulary's (see
     /// its docs); this function only lays it out. What the two arms
     /// share — the value field (numbers AND expressions, one widget),
     /// the gesture mapping, the driven affordance, the range probe —
@@ -482,7 +502,7 @@ impl ViewerBehavior<'_> {
     /// field whose text is not necessarily a number: a parser that
     /// answers `None` rejects the text and leaves the value alone,
     /// which is exactly what an expression needs. So what a user typed
-    /// is read once, by `props::field_edit`, and takes one of two
+    /// is read once, by [`crate::props::field_edit`], and takes one of two
     /// doors: a bare number through `SessionOp::SetSlot`, anything
     /// else — an operator, a parameter, a unit — through
     /// `SessionOp::SetSlotExpression`. The panel parses nothing.
@@ -529,8 +549,7 @@ impl ViewerBehavior<'_> {
         // The parser runs inside `ui.add`, so what it read comes back
         // out through a cell rather than a return value.
         let typed: core::cell::RefCell<Option<props::FieldEdit>> = core::cell::RefCell::new(None);
-        let mut widget = egui::DragValue::new(&mut number)
-            .speed(field.tick)
+        let mut widget = number_field(&mut number, field.tick)
             .update_while_editing(false)
             .custom_parser(|text| match props::field_edit(text) {
                 props::FieldEdit::Number(value) => {
@@ -552,12 +571,22 @@ impl ViewerBehavior<'_> {
         drag_gesture_ops(
             &widget,
             field.authored(number),
-            SessionOp::BeginGesture {
-                node,
-                slot: row.slot,
+            GestureVocabulary {
+                begin: SessionOp::BeginGesture {
+                    node,
+                    slot: row.slot,
+                },
+                preview: |value| SessionOp::PreviewGesture {
+                    node,
+                    slot: row.slot,
+                    value,
+                },
+                commit: SessionOp::CommitGesture {
+                    node,
+                    slot: row.slot,
+                },
+                cancel: SessionOp::CancelGesture,
             },
-            |value| SessionOp::PreviewGesture { value },
-            SessionOp::CommitGesture,
             self.ops,
         );
         // **Text that says what the slot already says is not an

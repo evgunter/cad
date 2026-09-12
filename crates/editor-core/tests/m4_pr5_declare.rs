@@ -26,14 +26,21 @@ use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, wall};
 use geom_core::Tol;
 use topo::validate_pseudomanifold;
 
+/// Evaluates, and holds every table the run produced to the N3
+/// flatness rule on the way out. A tripwire over this suite's merged
+/// rows, not the guard: the mint refuses a nested constituent before
+/// a table is published, and the rows that carry the rule are
+/// `docm8_flat_merged`'s (the corpus walk and the mint-site rows).
 fn run(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    editor_core::evaluate(
+    let ev = editor_core::evaluate(
         doc,
         None,
         &editor_core::CancelToken::new(),
         &editor_core::EvalOptions::default(),
         Tol::witness(),
-    )
+    );
+    fixture::assert_no_nested_merged(&ev);
+    ev
 }
 
 /// An axis-aligned block on the xy plane at height z0, extruded dz.
@@ -123,8 +130,8 @@ fn kiss_vertex_names(
         ),
     );
     (
-        vname(u, RoleSeg::FromA(Box::new(va))),
-        vname(u, RoleSeg::FromB(Box::new(vb))),
+        vname(u, RoleSeg::FromA(va.into())),
+        vname(u, RoleSeg::FromB(vb.into())),
     )
 }
 
@@ -299,7 +306,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     // start cap lies in the SAME plane (z = 0.5) — declared.
     let floor1 = fname(
         s1,
-        RoleSeg::FromB(Box::new(fname(b1, RoleSeg::Cap(CapEnd::Start)))),
+        RoleSeg::FromB(fname(b1, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
     let (doc, decl) = insert(
@@ -339,7 +346,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         doc: &doc,
         eval: &ev,
     };
-    let wrapped_floor1 = fname(s2, RoleSeg::FromA(Box::new(floor1)));
+    let wrapped_floor1 = fname(s2, RoleSeg::FromA(floor1.into()));
     let merged_row: StableName = ev
         .value(s2)
         .unwrap()
@@ -530,7 +537,8 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
         .count();
     assert!(
         pure_seam_vertices >= 2,
-        "expected the pure-seam-vertex naming arm to fire (single-line          seam vertices), got {pure_seam_vertices}"
+        "expected the pure-seam-vertex naming arm to fire (single-line \
+         seam vertices), got {pure_seam_vertices}"
     );
 }
 
@@ -724,7 +732,7 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
     );
     let floor2 = fname(
         s1,
-        RoleSeg::FromB(Box::new(fname(b2, RoleSeg::Cap(CapEnd::Start)))),
+        RoleSeg::FromB(fname(b2, RoleSeg::Cap(CapEnd::Start)).into()),
     );
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, decl) = insert(

@@ -20,14 +20,14 @@ Found by the style review of #2089.
 > zero-scale dolly). Those are **refused typed** by [`apply`], never
 > clamped and never silently dropped
 
-and the file keeps it well past `apply`: `Camera::new` (`:362-369`),
-`Camera::fitted` (`:426`), `Camera::projection_matrix` (`:603`) and
-`Camera::ray_through` (`:682-685`, plus the length guard at `:724`)
+and the file keeps it well past `apply`: `Camera::new` (`:397-404`),
+`Camera::fitted` (`:461`), `Camera::projection_matrix` (`:638`) and
+`Camera::ray_through` (`:717-720`, plus the length guard at `:759`)
 all call `finite(…)` before doing arithmetic, and `ray_through`
 explicitly refuses rather than "hand back a poisoned ray as if it were
 an answer".
 
-`cursor_projection` (`camera.rs:882-896`) checks nothing. A NaN cursor
+`cursor_projection` (`camera.rs:914-928`) checks nothing. A NaN cursor
 poisons the returned matrix, `viewport_px = [0.0, 0.0]` returns a
 degenerate one, and both come back as an answer. That was consistent
 where it lived before — `marks` is total by construction, a mark is a

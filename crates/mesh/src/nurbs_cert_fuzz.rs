@@ -91,7 +91,13 @@ fn split_steps_stay_on_the_ellipse_and_inside_the_cap() {
 fn r1_random_rational_soundness_sweep() {
     let mut rng = fuzz::start("nurbs_cert::r1_random_rational_soundness");
     fn mk(r: &mut fuzz::Rng, p: usize) -> KnotVector {
-        let spans = 1 + r.below(2);
+        // Single-span at degree 1, for the reason `cert10`'s generator
+        // states: a degree-1 direction admits no interior knot, so a
+        // knotted one is refused by `nurbs_face_bound` and the trial is
+        // thrown away. Measured 2026-09-11 before this line: 32% of
+        // this sweep's trials, every one of them a `pu == 1` or
+        // `pv == 1` draw.
+        let spans = if p >= 2 { 1 + r.below(2) } else { 1 };
         let mut k = vec![0.0; p + 1];
         for i in 1..spans {
             #[allow(clippy::cast_precision_loss)]
@@ -101,12 +107,14 @@ fn r1_random_rational_soundness_sweep() {
         KnotVector::clamped(k, p).unwrap()
     }
     let mut worst = 0.0f64;
+    let mut compared = 0usize;
     // TRIALS are breadth; the 61x61 `sample_worst` grid below is the
     // per-trial falsification power and is deliberately NOT reduced —
     // it IS the domination check. With a varying seed, breadth is
     // what successive runs supply for free, so the trial count is the
     // honest lever here and the grid is not.
-    for trial in 0..fuzz::scaled(60) {
+    let trials = fuzz::scaled(60);
+    for trial in 0..trials {
         let pu = 1 + rng.below(3);
         let pv = 1 + rng.below(3);
         let kv_u = mk(&mut rng, pu);
@@ -126,6 +134,7 @@ fn r1_random_rational_soundness_sweep() {
         let Ok(b) = nurbs_face_bound(&s, FaceKey::default()) else {
             continue;
         };
+        compared += 1;
         let (wuu, wuv, wvv) = sample_worst(&s, 60);
         let r = (wuu / b.muu).max(wuv / b.muv).max(wvv / b.mvv);
         worst = worst.max(r);
@@ -139,7 +148,21 @@ fn r1_random_rational_soundness_sweep() {
             fuzz::replay()
         );
     }
-    println!("random sweep: worst truth/bound {worst:.6}");
+    println!("random sweep: worst truth/bound {worst:.6} over {compared} trials");
+    // The breadth this row's floor is written against is the breadth it
+    // ACTUALLY ran. A discarded trial lowers `worst` silently, so the
+    // adversarial floor below would be satisfied by a smaller sweep than
+    // the one the trial count promises — the same silence that let
+    // `cert10`'s floor drift, in the shape a max takes rather than a
+    // count.
+    assert_eq!(
+        compared,
+        trials,
+        "{} of {trials} trials produced no bound, so this sweep is narrower than \
+         its floor assumes — {}",
+        trials - compared,
+        fuzz::replay()
+    );
     // COVERAGE FLOOR: the sweep must keep producing cases where the
     // bound is genuinely tight, otherwise a slack bound would pass by
     // never being challenged. Verified to hold at the shipped trial
@@ -174,14 +197,21 @@ fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
     /// `check_direction` still admits, which is exactly the case a
     /// multiplicity-1 generator never reaches.
     fn mk(r: &mut fuzz::Rng, p: usize) -> KnotVector {
-        let spans = 1 + r.below(4);
+        // A DEGREE-1 DIRECTION IS DRAWN SINGLE-SPAN, because it admits
+        // no interior knot at all (`check_direction`'s Degree1Crease).
+        // The old spelling said that in a comment and then drew one
+        // anyway — `m` fell to 1 at `p == 1` instead of to 0 — so every
+        // net with a knotted degree-1 direction was refused by
+        // `whole_net_bound` and dropped by the `continue` below.
+        // Measured 2026-09-11: that was 44% of all trials (every skip
+        // this sweep took), and the floor below counted them as if they
+        // had been compared.
+        let spans = if p >= 2 { 1 + r.below(4) } else { 1 };
         let mut k = vec![0.0; p + 1];
         for i in 1..spans {
             #[allow(clippy::cast_precision_loss)]
             let t = i as f64 / spans as f64;
-            // 1 ..= p - 1 (a degree-1 direction admits no interior
-            // knot at all — `check_direction`'s Degree1Crease).
-            let m = if p >= 2 { 1 + r.below(p - 1) } else { 1 };
+            let m = 1 + r.below(p - 1); // 1 ..= p - 1; p >= 2 here
             for _ in 0..m {
                 k.push(t);
             }
@@ -190,6 +220,7 @@ fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
         KnotVector::clamped(k, p).unwrap()
     }
     let mut strict = 0usize;
+    let mut compared = 0usize;
     let mut saw_high_mult = false;
     let trials = fuzz::scaled(60);
     for _ in 0..trials {
@@ -215,6 +246,7 @@ fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
         let (Some(whole), Some(fold)) = (whole_net_bound(&s), fold_bound(&s)) else {
             continue;
         };
+        compared += 1;
         for (what, f, w) in [
             ("muu", fold.muu, whole.muu),
             ("muv", fold.muv, whole.muv),
@@ -233,26 +265,52 @@ fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
             }
         }
     }
-    // COVERAGE FLOOR, both halves. An inequality nothing ever
-    // makes strict is a tautology; and a sweep that never leaves
+    // COVERAGE FLOOR, three halves now. An inequality nothing ever
+    // makes strict is a tautology; a sweep that never leaves
     // multiplicity 1 never challenges the coverage premise the
-    // inequality rests on. If a run trips either, RAISE the trial
-    // count — never lower the floor.
+    // inequality rests on; and a sweep that DISCARDS most of its own
+    // draws is not the sweep its floor is written against.
+    //
+    // THE DISCARD IS THE ONE THAT BIT. Every `continue` above is a
+    // trial that contributes nothing to `strict` while still counting
+    // toward `trials`, so the floor silently tightened as the discard
+    // rate rose — and nothing measured that rate. At 44% discarded the
+    // floor was asking for 60 strict comparisons out of the ~165 that
+    // actually ran while reporting 300, and a bad draw crossed it
+    // (`0xdcc78227f392d565`: 24 trials compared, 59 strict, reported as
+    // "of 300"). Both are fixed here: the generator no longer draws
+    // nets the bounds refuse, and `compared` is asserted rather than
+    // assumed, so a future drift reds loudly instead of shrinking the
+    // sample in silence.
+    assert_eq!(
+        compared,
+        trials,
+        "{} of {trials} trials produced no bound, so this sweep measured less than \
+         it claims: the generator draws nets `whole_net_bound` or `fold_bound` \
+         refuses, and the floor below is written against the full count — {}",
+        trials - compared,
+        fuzz::replay()
+    );
     assert!(
         saw_high_mult,
         "the sweep never drew an interior multiplicity >= 2, so the fold's window \
          coverage went unchallenged where it is tight — {}",
         fuzz::replay()
     );
+    // The denominator is `compared * 5`, the comparisons this run
+    // PERFORMED — never `trials * 5`, which is what it would have
+    // performed had nothing been discarded. They are equal only
+    // because the assert above makes them so; spelling it from
+    // `compared` keeps the number true if that ever changes.
     assert!(
         strict > trials,
         "the sweep must keep producing STRICT gaps: {strict} strict of {} \
          comparisons — {}",
-        trials * 5,
+        compared * 5,
         fuzz::replay()
     );
     println!(
         "cert10 fold-vs-whole-net: {strict} strict of {} comparisons",
-        trials * 5
+        compared * 5
     );
 }

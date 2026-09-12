@@ -160,6 +160,10 @@ fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     );
 }
 
+/// Deliberately NOT `common::cap_rims::face_edges`: a different walk —
+/// the OUTER loop only, and a non-cycle boundary is a panic rather than
+/// a skip, because a blend face has no rings and a wire boundary here
+/// is a bug.
 fn face_edges(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
     let outer = body.get_face(face).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {

@@ -2,9 +2,10 @@
 id: mate-fault-accessors-wildcard-into-silence
 kind: issue
 title: Ten MateFault accessors in pncad-py wildcard into None, so a new fault arm that names a mate is silently invisible
-status: open
+status: closed
 opened: 2026-09-04
 refs: [blamed-mates-lost-its-exhaustive-arm]
+closed: 2026-09-08
 ---
 
 Split out of `work/view/blamed-mates-lost-its-exhaustive-arm.md`, whose
@@ -79,3 +80,38 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Closed (2026-09-08, LIB-PROJ)
+
+`crates/pncad-py/src/py/mate.rs` holds **no wildcard match at all**:
+`grep -n "_ =>" crates/pncad-py/src/py/mate.rs` answers nothing.
+
+**The seventeen `MateFault` accessors read off one record.** The
+flattening is `crates/pncad-py/src/mate_payload.rs` — the
+`edit_payload.rs` shape, sited outside `py/` for the reason that
+module states, so the drift alarm compiles on the default no-Python
+row rather than only under `--features python`. Its match over
+`MateFault` is exhaustive with no wildcard, names all thirteen arms,
+and says at each arm what it carries and what it does not. Seventeen
+per-accessor matches would have named those thirteen arms seventeen
+times and charged a new kernel arm seventeen edits; one record charges
+it one. Measured: an arm added to `MateFault` kernel-side fails the
+build at `crates/pncad-py/src/mate_payload.rs:178` on
+`cargo check -p pncad-py` with no features.
+
+**`Unleverable` answers `mate` and nothing else**, which is the answer
+this item asked for first. It names one mate, so `mate` is `Some`; its
+`refusal` is a `LeverRefusal`, a nested refusal of a type the façade
+does not re-export, so it crosses as prose like the other nested
+refusals and is filed as
+`mate-fault-arms-carry-payload-that-does-not-cross` rather than
+guessed at here.
+
+Three more wildcards in the same file went with them, same class and
+same file: `MatePrimitive::offset`, `Subgroup`'s three accessors, and
+`ClusterMaintenance`'s seven. Those are few arms over few accessors,
+so they became exhaustive matches in place rather than records — a
+record there would have added a layer without removing a match.
+
+The `#[non_exhaustive]` question is untouched and is still DOCM's.
+Nothing in `crates/editor-core/` was edited.

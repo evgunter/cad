@@ -388,6 +388,11 @@ fn each_door_refuses_the_undeclared_arity() {
 /// **The door refusal's sentence, pinned byte for byte.**
 ///
 /// It is the one refusal string this door owns rather than forwards.
+/// The names in it are the two vocabularies' own `Display`, so what
+/// this row pins is the grammar around them plus the words those
+/// impls say; `verb.rs`'s censuses pin the words against the
+/// vocabularies themselves.
+///
 /// It is written in the doors' own NAMES and nothing else — no reading
 /// of what a row means enters it — because it moved in two consecutive
 /// units while it was written in the vocabulary of the moment ("N
@@ -461,6 +466,24 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
     assert_eq!(
         err.to_string(),
         "the Fillet verb was run through the Shell door; the door that answers it is One"
+    );
+
+    // The boolean's rows are the ones whose word is not the variant
+    // identifier: the kernel's production doors there are `union`,
+    // `intersect` and `subtract`, so the sentence names the OP. They
+    // are also the rows that tell this pin apart from the rendering it
+    // replaces — a sentence written through `Debug` says
+    // `Boolean(Subtract)`, which is the enum's coordinate for the verb
+    // and names a `Boolean` door no caller can reach.
+    let err = Verb::Boolean {
+        op: BooleanOp::Subtract,
+        declare: BooleanDeclarations::none(),
+    }
+    .run(&cube, tol())
+    .expect_err("a boolean takes two operands, not one");
+    assert_eq!(
+        err.to_string(),
+        "the Subtract verb was run through the One door; the door that answers it is Two"
     );
 }
 

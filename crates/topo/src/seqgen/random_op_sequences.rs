@@ -45,8 +45,8 @@ use super::tests::{RoundtripTally, run_properties};
 /// teardown to empty arenas + empty provenance maps.
 ///
 /// How much of property (c) ran is checked, and the check is
-/// per-step: the two documented irreversible-by-one-op subcases
-/// live in [`roundtrip`]'s `Kev`/`Kef` arms only, so a selection on
+/// per-step: every documented no-re-make subcase lives
+/// in an arm `OpChoice::may_skip_roundtrip` names, so a selection on
 /// any other choice must execute, and `run_properties` asserts
 /// exactly that as each step happens. **That per-step assertion is
 /// the whole of the bar.**
@@ -72,12 +72,21 @@ use super::tests::{RoundtripTally, run_properties};
 /// 331/325/6/43, 333/328/5/51 and 351/345/6/47 for
 /// selected/executed/skipped/skippable — a threshold would have
 /// pinned that spread, not a property.
+///
+/// **The case count rides `CAD_FUZZ_EFFORT`** through
+/// [`test_utils::fuzz::scaled`], like every other count in the tree
+/// (`memories/test-suite-cost.md`): 48 is the smoke level a gated run
+/// should cost, and depth is one env var away rather than an edit.
+/// The vector LENGTH is deliberately left alone — it sets the shape of
+/// a body the walk reaches, not how many bodies it draws, and scaling
+/// it would buy depth by changing what is sampled.
 #[test]
 fn random_op_sequences_hold_all_properties() {
     let tally = std::cell::Cell::new(RoundtripTally::default());
+    let cases = u32::try_from(test_utils::fuzz::scaled(48)).unwrap_or(u32::MAX);
     proptest!(
         ProptestConfig {
-            cases: 48,
+            cases,
             ..ProptestConfig::default()
         },
         |(decisions in proptest::collection::vec(
