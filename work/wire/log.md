@@ -1161,3 +1161,85 @@ The standing rule from `memories/agent-lane-operations.md` is that this
 is done **when a review returns**, and both times today it was done when
 a lane ran out of space instead. Worth doing at each seam rather than at
 each crisis.
+
+## PR 2435's review, and a process gap it exposed in the orchestrator (2026-09-12)
+
+**APPROVE-WITH-FIXES, 0 MAJOR / 2 MINOR / 3 NOTE**, ten style findings,
+all eight style questions exercised. **All three load-bearing claims
+survived**, and the reviewer went past argument on each: it established
+that `op_env.lane.nominal` is *literally the same `&ParamEnv<f64>`* for
+a frame and every profile drawn on it — not merely an equal one — and it
+mutated `eval_node` to serve a prior's placement, finding that **row 2
+is the only row in the whole target that catches it**. The memo guard
+the unit wrote is the only thing standing between this change and a
+silent stale placement.
+
+**The two MINORs are one seam, and the fix pass treats them as one.**
+The carry is `Option<SketchPlane<f64>>` where `None` means *derived* —
+an overloaded encoding that fails in both directions:
+
+- **S2**: the recipe-kind fork sits behind a catch-all `else`, so a
+  future `Datum` variant producing `DatumValue::Frame` would pass the
+  payload door, carry `None`, and **silently place profiles at the
+  lane** — where the deleted `frame_kind` refused loudly. A fail-loud
+  regression.
+- **MINOR 2**: because `None` is spoken for, a frame whose **nominal**
+  axes refuse has nowhere to go but failing the node, so `AxisInPlane`,
+  the mate solve, measures and the viewer all become
+  `Poisoned { through: frame }` though none wanted the nominal
+  placement. `likely`, reachable in the E6 subdivision, no fixture
+  built.
+
+Directed: determine reachability, and replace the `Option` with an
+explicit exhaustively-matched carry **regardless**, since S2 stands
+alone. If MINOR 2 is reachable, that type is also where a nominal
+refusal goes so it is raised at the profile that needed it.
+
+**MINOR 1 is a lesson about how a false absolute survives a check.**
+*"No decision is added anywhere"* is false for a frame no profile is
+drawn on: old `2 + 2N`, new `4`, so a **cost** at N = 0 (measured, 4
+against main's 2). It survived because the unit checked the one-profile
+case, where `2+75 = 4+73` — **exactly the case where a wrong absolute
+still balances.**
+
+**NOTE 3**: the PR called a breaking API change additive. `NodeValue`
+has no `#[non_exhaustive]`, and the proof is inside the PR itself —
+`m4_pr4_resolve.rs` had to change because a new public field breaks
+out-of-crate struct literals.
+
+**S4 is the sharpest test finding this program has had.** A mutant
+placing with the raw authored `v` instead of the Gram-Schmidt residual
+**survives the entire `editor-core` test target**, because
+`fixture::plane_of` *asserts* its fixture's `u`/`v` are unit and
+perpendicular — so orthonormalization is the identity on every row, and
+the unit's bit-equality row only proves nine literals were copied. The
+reviewer wrote and ran the closing row; it is being adopted with
+authorship kept.
+
+That is now **five of eight merged-or-merging units whose central test
+claim was corrected by an instrument rather than a reading** — mutation
+twice, a built fixture, the ε matrix, and now a fixture's own asserted
+precondition hiding the thing under test.
+
+**Filed**: `the-is-this-a-frame-door-was-deleted-and-its-classification-dispersed`
+— verified against `origin/main` before filing, because it is an
+accusation about a deletion, and `frame_kind`'s doc there says exactly
+what the reviewer quoted. A class with **seven more sites** over other
+kinds; S7 is recorded on it rather than given a row of its own.
+
+### The process gap: filed rows are invisible to lanes until the orchestrator branch merges
+
+The review flagged the `section_of` hit as **unscheduled**. It is not —
+`section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made`
+was filed before the review was dispatched. The reviewer could not see
+it because it lives on `wire/orchestrator`, which has not reached `main`
+since PR 2386.
+
+That is the orchestrator's gap, not the reviewer's, and it has a real
+cost: **a lane reporting a finding cannot tell whether the orchestrator
+already filed it**, which is the exact confusion
+`docs/prompts/implementer-discipline.md` §6 says the orchestrator exists
+to prevent — *"you cannot tell whether the item already exists… the
+orchestrator could."* That only holds if the orchestrator's filings are
+visible. **Merge the orchestrator branch at every seam from here**, not
+when it happens to be convenient.
