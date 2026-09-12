@@ -24,27 +24,10 @@
 //! going quietly vacuous at one of them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{arc_section, stacked};
+use crate::common::{arc_section, quad_verdicts, stacked, strip_section};
 use geom_core::Tol;
-use geom_core::k_stats::Bracket;
 use sweep::loft_body;
 use topo::Body;
-
-/// The number of quadrature-lane classifications recorded while `run`
-/// executed — the rounds a call actually paid for, counted rather than
-/// timed. NOT `common::`: `tcost_k3_certificate` keeps its own copy
-/// because it is the door-count row and this is the level row, and the
-/// two suites are read separately.
-fn quad_verdicts(run: impl FnOnce()) -> usize {
-    let bracket = Bracket::open();
-    run();
-    bracket
-        .finish()
-        .verdicts
-        .iter()
-        .filter(|v| v.predicate.starts_with("props_quad"))
-        .count()
-}
 
 /// A three-station arc loft at scale `s` — rational walls, so every
 /// wall face is a certified quadrature and none of them is a closed
@@ -88,6 +71,112 @@ fn roster() -> Vec<(String, Body<f64>)> {
         .iter()
         .map(|k| (format!("arc loft @ {k:e}·eps"), arc_loft(k * eps)))
         .collect()
+}
+
+/// The thin strip lofted TWO stations high at scale `s`, its rectangle
+/// `delta` thick — the body whose sign can be UNDECIDED.
+///
+/// Two stations at v-degree 1, not three at degree 2: the disposition
+/// this row pins is identical either way (measured at all three ε) and
+/// the cheaper body is half the build, which is where this row's cost
+/// actually is.
+fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
+    loft_body::<f64>(
+        &[
+            strip_section(s, delta, reversed),
+            strip_section(s, delta, reversed),
+        ],
+        &stacked(&[0.0, 1.0], s),
+        1,
+        Tol::witness(),
+    )
+    .ok()
+    .map(|l| l.body)
+}
+
+/// **UNDECIDED IS NOT A PASS** — the hole an early exit opens, and the
+/// reason this unit's loop returns a VERDICT rather than a stopping
+/// condition.
+///
+/// Check 7 refuses only on a definite disagreement, so an undecided
+/// enclosure at the reporting target is a pass — the body's volume WAS
+/// measured and simply sits inside the band, which is what `main`
+/// does too. An undecided enclosure with the SCHEDULE RUN OUT is a
+/// different thing: nothing was measured, the enclosure straddles
+/// zero, and passing it admits an inside-out body on the strength of
+/// a quadrature that never finished. That is the false ACCEPTANCE
+/// mirroring the false refusal this unit removed.
+///
+/// **The invariant, in one line:** a body tier 3 ADMITS while a
+/// target-level reading of it is REFUSED must have had its sign
+/// decided — `volume_lo > 0`. Nothing else is asserted about which
+/// bodies land where, because that is the fixture's property and not
+/// the kernel's.
+///
+/// **The fixture** is `common::strip_section`'s thin curved strip:
+/// two large rational walls whose fluxes nearly cancel, so the volume
+/// is `≈ 2·s·delta` per unit height while the enclosure width is the
+/// walls' own. At `s = 1e12·ε` the schedule is exhausted after round 0
+/// at every ε — the family's disposition is a function of `delta/s`
+/// alone, which is why two thicknesses pin the same two arms at every
+/// ε row rather than going vacuous at one of them. Both traversal
+/// senses are built: the reversed strip is the inside-out twin, and
+/// an undecided sign cannot tell it from the upright one, which is
+/// the whole reason an undecided sign may not pass.
+///
+/// A body that settles at a LATER round and passes is the roster row
+/// below, whose `strictly_early` requirement is exactly that.
+#[test]
+fn an_undecided_sign_with_the_schedule_run_out_refuses() {
+    let tol = Tol::witness();
+    let s = 1.0e12 * tol.get().eps;
+    let (mut admitted, mut refused) = (0usize, 0usize);
+    for rel in [1e-1, 1e-3] {
+        for reversed in [false, true] {
+            let label = format!("strip rel={rel:e} reversed={reversed}");
+            let body = strip_loft(s, rel * s, reversed)
+                .unwrap_or_else(|| panic!("{label}: the strip lofts at every ε row"));
+            let gated = topo::validate_geometric_certificate(&body, tol);
+            let plain = topo::validate_geometric(&body, tol);
+            assert_eq!(
+                gated.is_ok(),
+                plain.is_ok(),
+                "{label}: the two tier-3 doors are one function"
+            );
+            let Ok(cert) = gated else {
+                let errors = plain.expect_err("the doors agree");
+                assert!(
+                    errors
+                        .iter()
+                        .any(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. })),
+                    "{label}: an undecided sign with the schedule run out is CHECK 7's \
+                     refusal, the same one the reporting door makes: {errors:?}"
+                );
+                refused += 1;
+                continue;
+            };
+            let e = cert.enclosure();
+            if let Some(outstanding) = cert.target_refusal() {
+                assert!(
+                    e.volume_lo > 0.0,
+                    "{label}: tier 3 admitted a body whose number is refused \
+                     ({outstanding:?}) and whose volume enclosure [{}, {}] does not \
+                     exclude zero — an undecided sign is not a pass",
+                    e.volume_lo,
+                    e.volume_hi
+                );
+                admitted += 1;
+            }
+        }
+    }
+    assert_eq!(
+        (admitted, refused),
+        (2, 2),
+        "STRIP: the family must straddle the decision — two thicknesses admitted on a \
+         decided sign with the number still refused (the false refusal this unit \
+         removed), two refused on an undecided one (the false acceptance it must not \
+         open), and each in both traversal senses"
+    );
 }
 
 /// **THE LEVEL / AGREEMENT / REUSE** — one walk of the roster, because

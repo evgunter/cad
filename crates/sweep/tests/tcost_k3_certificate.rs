@@ -80,8 +80,7 @@ test_utils::gated_to![
     "crates/sweep/tests/common/",
 ];
 
-use crate::common::{arc_section, stacked};
-use geom_core::k_stats::Bracket;
+use crate::common::{arc_section, quad_verdicts, stacked};
 use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
@@ -178,26 +177,6 @@ fn flip_all(body: &Body<f64>) -> Body<f64> {
     keys.iter().fold(body.clone(), |b, &k| {
         b.flipped_face_sense_for_tests(k).expect("live face key")
     })
-}
-
-/// The number of quadrature-lane classifications recorded while
-/// `run` executed — the certificate COUNTER.
-///
-/// The verdict log is the kernel's own recording channel
-/// (`geom_core::k_stats`), on at every scalar and written by the one
-/// classification funnel, so this counts the decisions a certified
-/// quadrature actually makes rather than timing it. One certificate
-/// over one body at one band contributes a fixed number of
-/// `props_quad_*` verdicts; two contribute twice that.
-fn quad_verdicts(run: impl FnOnce()) -> usize {
-    let bracket = Bracket::open();
-    run();
-    bracket
-        .finish()
-        .verdicts
-        .iter()
-        .filter(|v| v.predicate.starts_with("props_quad"))
-        .count()
 }
 
 /// The four fields, as raw bits — the identity currency. `volume` and

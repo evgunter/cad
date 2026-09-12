@@ -2829,9 +2829,32 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
     // complete, which is where the enclosure's sign stops being in
     // doubt, and continuable from there by a caller who wants the
     // number.
-    let certificate =
-        crate::props::sign_certified(body, band, tol, |e| plus_v_decide(e, band).is_settled());
-    let errors = plus_v_invariant(&certificate, band);
+    //
+    // ONE decision, too, and that is load-bearing rather than tidy:
+    // the walk stops on the verdict it returns, so no second reading
+    // of a different round's enclosure can disagree with the round it
+    // stopped at, and the check's predicates are metered once per
+    // round rather than twice.
+    let settled = crate::props::sign_certified(
+        body,
+        band,
+        tol,
+        |e| match plus_v_decide(e, band) {
+            PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
+            PlusVOutcome::Refuse => Some(PlusVVerdict::Refuse),
+            PlusVOutcome::Undecided => None,
+        },
+        |refusal| plus_v_at_target(PlusVOutcome::Undecided, refusal),
+    );
+    let (errors, certificate) = match settled {
+        Ok((verdict, certificate)) => (plus_v_errors(&verdict), Ok(certificate)),
+        Err(source) => (
+            vec![ValidationError::VolumeUncomputable {
+                source: source.clone(),
+            }],
+            Err(source),
+        ),
+    };
     if errors.is_empty() {
         Ok(certificate_of_a_clean_verdict(Some(certificate)))
     } else {
@@ -3027,11 +3050,31 @@ pub(crate) enum PlusVOutcome {
     Undecided,
 }
 
-impl PlusVOutcome {
-    /// Whether the check is finished with this enclosure.
-    pub(crate) fn is_settled(self) -> bool {
-        !matches!(self, Self::Undecided)
-    }
+/// **Check 7's whole verdict**, which is what a sign-level walk stops
+/// on — never [`PlusVOutcome`], which is a reading of ONE enclosure and
+/// has an arm that decides nothing.
+///
+/// The difference is the bug this shape exists to make unwritable. An
+/// undecided enclosure is a reason to refine, and at the reporting
+/// target it is a PASS — but only for a body the quadrature could
+/// actually have measured. A body whose sign never became definite AND
+/// whose schedule ran out has not been validated at all, and passing
+/// it is the false ACCEPTANCE that mirrors the false refusal this unit
+/// removed. So the walk's return type carries no undecided arm: the
+/// enclosure reading that yields one is turned into a verdict at the
+/// moment the schedule ends, with the outstanding refusal in hand.
+#[derive(Clone, Debug)]
+pub(crate) enum PlusVVerdict {
+    /// The invariant holds.
+    Pass,
+    /// The volume is definitely negative: orientation corruption.
+    Refuse,
+    /// Check 7 could not be made: the sign was still undecided when
+    /// the certified quadrature ran out of schedule, so the body's
+    /// volume is neither measurable nor sign-certifiable at this ε.
+    /// The payload is the refusal a target-level reading earns, which
+    /// is the refusal the reporting door makes on the same body.
+    Uncomputable(crate::props::MassPropsError),
 }
 
 fn plus_v_decide<T: geom_core::Decide>(
@@ -3060,42 +3103,49 @@ fn plus_v_decide<T: geom_core::Decide>(
 /// derived — the +V global orientation invariant's whole decision, in
 /// one place, so the lane-dispatched and the certified derivations are
 /// two ways of getting the argument and not two copies of the check.
-fn plus_v_invariant<T: geom_core::Decide, E: PlusVSubject<T>>(
-    subject: &Result<E, crate::props::MassPropsError>,
+fn plus_v_invariant<T: geom_core::Decide>(
+    subject: &Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
     band: Band,
 ) -> Vec<ValidationError> {
     match subject {
-        Ok(subject) => match plus_v_decide(subject.enclosure(), band) {
-            PlusVOutcome::Refuse => vec![ValidationError::NegativeVolume],
-            PlusVOutcome::Pass | PlusVOutcome::Undecided => Vec::new(),
-        },
+        Ok(subject) => plus_v_errors(&plus_v_at_target(
+            plus_v_decide(subject.enclosure(), band),
+            None,
+        )),
         Err(source) => vec![ValidationError::VolumeUncomputable {
             source: source.clone(),
         }],
     }
 }
 
-/// What check 7 can be applied to: anything that yields the volume
-/// bracket and its lever. Two implementors, and the split is the
-/// unit's whole point — a certificate refined to the reporting target
-/// carries a number, one refined only until the sign was certain does
-/// not, and the check reads neither.
-pub(crate) trait PlusVSubject<T: geom_core::Decide> {
-    /// The volume bracket and the V/A lever.
-    fn enclosure(&self) -> crate::props::VolumeEnclosure<T>;
-}
-
-impl<T: geom_core::Decide> PlusVSubject<T> for crate::props::MassProperties<T> {
-    fn enclosure(&self) -> crate::props::VolumeEnclosure<T> {
-        crate::props::MassProperties::enclosure(self)
+/// **What an enclosure reading means once there is nothing left to
+/// refine** — the one place the undecided arm is resolved, shared by
+/// the lane-dispatched derivation (which reads only the target-level
+/// enclosure, so `refusal` is `None` and its walk already refused for
+/// it) and by the sign-level walk's `last_word`.
+fn plus_v_at_target(
+    outcome: PlusVOutcome,
+    refusal: Option<crate::props::MassPropsError>,
+) -> PlusVVerdict {
+    match (outcome, refusal) {
+        (PlusVOutcome::Refuse, _) => PlusVVerdict::Refuse,
+        // Undecided with the schedule run out is NOT a pass: the
+        // quadrature never produced an enclosure tight enough to
+        // decide, and the body is exactly as unvalidatable as the
+        // reporting door says it is.
+        (PlusVOutcome::Undecided, Some(source)) => PlusVVerdict::Uncomputable(source),
+        (PlusVOutcome::Pass | PlusVOutcome::Undecided, _) => PlusVVerdict::Pass,
     }
 }
 
-impl<T: geom_core::Decide + geom_core::CertifiedBounds> PlusVSubject<T>
-    for crate::props::SignCertificate<'_, T>
-{
-    fn enclosure(&self) -> crate::props::VolumeEnclosure<T> {
-        crate::props::SignCertificate::enclosure(self)
+/// Check 7's verdict as the tier's error vector.
+fn plus_v_errors(verdict: &PlusVVerdict) -> Vec<ValidationError> {
+    match verdict {
+        PlusVVerdict::Pass => Vec::new(),
+        PlusVVerdict::Refuse => vec![ValidationError::NegativeVolume],
+        PlusVVerdict::Uncomputable(source) => vec![ValidationError::VolumeUncomputable {
+            source: source.clone(),
+        }],
     }
 }
 

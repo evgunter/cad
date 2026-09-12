@@ -192,6 +192,62 @@ pub fn sup_dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
         .max((a.z - b.z).abs())
 }
 
+/// **The certified quadrature's rounds, counted rather than timed** —
+/// the number of `props_quad_*` classifications the kernel's one
+/// recording funnel made while `run` executed. One certificate over
+/// one body at one band contributes a fixed number of them; two
+/// contribute twice that, and a caller that stopped early contributes
+/// fewer.
+///
+/// Here rather than in a suite because three suites count the same
+/// thing (`tcost_k3_certificate`, `sign_certified_plus_v`, and
+/// `step-import`'s import-path row across the crate boundary), and a
+/// counter that drifts between them is two different instruments
+/// reporting one number. The routing rule above does not have a slot
+/// for an instrument; this is the slot.
+pub fn quad_verdicts(run: impl FnOnce()) -> usize {
+    let bracket = geom_core::k_stats::Bracket::open();
+    run();
+    bracket
+        .finish()
+        .verdicts
+        .iter()
+        .filter(|v| v.predicate.starts_with("props_quad"))
+        .count()
+}
+
+/// A thin curved STRIP section: a rectangle `[-s, s] × [0, delta]`
+/// whose two long sides are quarter-circle bulges in OPPOSITE
+/// directions, so the loft's two big rational walls contribute fluxes
+/// that nearly cancel and the body's volume is `≈ 2·s·delta` per unit
+/// height — arbitrarily small against the enclosure width the walls
+/// themselves carry.
+///
+/// That is what makes it the fixture for an UNDECIDED sign: at a small
+/// enough `delta/s` the round-0 enclosure straddles zero, and at a
+/// large enough `s` the schedule has already run out. `reversed`
+/// builds the same strip traversed the other way, which is the
+/// inside-out twin — the body an orientation check exists to catch.
+pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
+    // tan(π/8): a quarter-circle bulge-out, as `arc_section` uses.
+    let b = 0.414_213_562_373_095_1;
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
+    if reversed {
+        return vec![ProfileLoop::new(vec![
+            v(-s, 0.0, 0.0),
+            v(-s, delta, b),
+            v(s, delta, 0.0),
+            v(s, 0.0, -b),
+        ])];
+    }
+    vec![ProfileLoop::new(vec![
+        v(-s, 0.0, b),
+        v(s, 0.0, 0.0),
+        v(s, delta, -b),
+        v(-s, delta, 0.0),
+    ])]
+}
+
 /// Loft placements: the given heights, each scaled by `s`, as pure
 /// `+z` translations — the stacking that makes a loft of identical
 /// sections reproduce the EXTRUSION of that section exactly.

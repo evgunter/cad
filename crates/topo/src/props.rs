@@ -72,6 +72,37 @@ impl<T: Real> MassProperties<T> {
     /// This certificate's volume BRACKET and the lever check 7 meters
     /// it against — the reading a decision about the volume's SIGN is
     /// entitled to make of a certified quadrature.
+    ///
+    /// # The ends are RECONSTRUCTED, and what that costs
+    ///
+    /// The stored form is a midpoint and a half-width
+    /// (`quad_lane::mid_pad`), so neither end here is the ring
+    /// interval's own endpoint: each is two `f64` roundings away from
+    /// it (the halving that built the pair, and this arithmetic). The
+    /// LOWER end is the one that now decides an ACCEPTANCE — check 7
+    /// passes on a definitely-positive `volume_lo` — so a
+    /// reconstruction that landed above the true lower end would err
+    /// toward admitting, which is the direction that matters and the
+    /// direction that did not exist before that exit did.
+    ///
+    /// **The band absorbs it, with the numbers.** The reconstruction
+    /// error is at most a few ulps of the midpoint's magnitude, so at
+    /// most `|volume|·2⁻⁵²`. The passing exit requires
+    /// `volume_lo / surface_area ≥ K·ε` (the band's escalation
+    /// threshold), and `volume ≤ volume_lo + 2·volume_pad`, so the
+    /// error can only reach that threshold on a body whose bracket
+    /// half-width, metered on the same lever, is at least `K·ε·2⁵¹` —
+    /// of order `10⁷` metres of mean boundary displacement at
+    /// `ε = 10⁻⁹`. A face that wide refuses at
+    /// `props_quad_face_extent` or carries a poisoned enclosure long
+    /// before it reaches here. (The same shape of argument, with the
+    /// same conclusion, is written out at `geom-brep`'s
+    /// `last_round_width_lo`.)
+    ///
+    /// The UPPER end's arithmetic is untouched and deliberately so:
+    /// it is the end the +V refusal has always read, its rounding is
+    /// the rounding that refusal has always carried, and nudging it
+    /// would move a margin the reporting door's telemetry pins.
     #[must_use]
     pub fn enclosure(&self) -> VolumeEnclosure<T> {
         VolumeEnclosure {
@@ -309,18 +340,30 @@ fn certified_hook<T: Decide + geom_core::CertifiedBounds>(
 /// reporting door, naming the first such face in arena order at the
 /// round it happens. A face that refuses on BUDGET is different — it
 /// has an enclosure, and the sum keeps it — so the refusal rides on
-/// the certificate and is reported only if a caller asks for a
-/// number.
+/// the certificate, and whether it is REPORTED is the caller's
+/// decision, taken by `last_word` below.
+///
+/// **The verdict is decided once, inside the loop.** `settle` is the
+/// only reading of the enclosure, and the round it accepts is the
+/// round the certificate stops at; `last_word` is asked exactly when
+/// `settle` never accepted — the schedule ran to the reporting target
+/// or every face ran out of rounds — and is handed the outstanding
+/// target refusal, which is the whole of what distinguishes "the sign
+/// is undecided and the body IS measurable" from "the sign is
+/// undecided and the quadrature ran out". A verdict comes back
+/// unconditionally, so there is no undecided state for a caller to
+/// forget: the type has no arm for one.
 ///
 /// # Errors
 ///
 /// [`MassPropsError`], as [`mass_properties`].
-pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds>(
+pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
-    settled: impl Fn(VolumeEnclosure<T>) -> bool,
-) -> Result<SignCertificate<'b, T>, MassPropsError> {
+    settle: impl Fn(VolumeEnclosure<T>) -> Option<V>,
+    last_word: impl Fn(Option<MassPropsError>) -> V,
+) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
     let mut runs = Vec::with_capacity(body.faces.len());
     for (face_key, _) in body.faces.iter() {
         runs.push(face_flux(
@@ -335,14 +378,32 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds>(
     let mut round = 0usize;
     loop {
         let (props, refused) = fold_runs(&runs);
-        if settled(props.enclosure()) || !runs.iter().any(|r| r.open_at == Some(round)) {
-            return Ok(SignCertificate {
-                body,
-                band,
-                tol,
-                runs,
-                refused,
-            });
+        let exhausted = !runs.iter().any(|r| r.open_at == Some(round));
+        let verdict = match settle(props.enclosure()) {
+            Some(verdict) => Some(verdict),
+            // The schedule has nothing further to offer and `settle`
+            // did not accept: the caller says what that means, with
+            // the refusal a target-level reading of this body earns
+            // in hand.
+            None if exhausted => Some(last_word(refused.as_ref().map(|(face, source)| {
+                MassPropsError::Face {
+                    face: *face,
+                    source: source.clone(),
+                }
+            }))),
+            None => None,
+        };
+        if let Some(verdict) = verdict {
+            return Ok((
+                verdict,
+                SignCertificate {
+                    body,
+                    band,
+                    tol,
+                    runs,
+                    refused,
+                },
+            ));
         }
         round += 1;
         for run in &mut runs {
@@ -406,37 +467,57 @@ impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
     /// **The number, continued from here** — the same quadrature run
     /// on to the reporting target, reusing every round already taken.
     ///
-    /// The result is bit-identical to [`crate::mass_properties`] on
-    /// the same body at the same `tol`, and its piece evaluations are
-    /// the same evaluations: a face left open at round `k` resumes at
-    /// `k + 1`, a face that already met the target is not touched, and
-    /// a face whose schedule ended is the refusal this returns.
+    /// The `Ok` result is bit-identical to [`crate::mass_properties`]
+    /// on the same body at the same `tol`, and its piece evaluations
+    /// are the same evaluations: a face left open at round `k` resumes
+    /// at `k + 1`, a face that already met the target is not touched,
+    /// and the sum is over the same terms in the same arena order.
+    ///
+    /// **The `Err` is the same refusal too, and that is a property of
+    /// THIS loop rather than of the arithmetic.** The reporting walk
+    /// visits faces in arena order and stops at the first one whose
+    /// lane refuses, so the face it names is the first refusing face
+    /// and not merely a refusing one. The sign-level walk cannot work
+    /// that way — it needs every face's enclosure to have a sum at all,
+    /// so it carries budget refusals as data and keeps going — and a
+    /// continuation that folded those at the end would let a later
+    /// face's HARD refusal (a degenerate lever, an unsupported chart, a
+    /// poisoned bracket) preempt an earlier face's budget one. So the
+    /// continuation walks faces in arena order and returns at the
+    /// first refusal it reaches, resumed or already outstanding, which
+    /// is the reporting walk's own rule.
+    ///
+    /// **What it COSTS to keep that rule**: a face after the first
+    /// refusing one is not resumed, exactly as the reporting walk
+    /// never runs it. The rounds this certificate already paid for it
+    /// are not re-run either — they are simply not continued.
     ///
     /// # Errors
     ///
     /// [`MassPropsError`], as [`crate::mass_properties`].
     pub fn refine_to_target(mut self) -> Result<MassProperties<T>, MassPropsError> {
-        while let Some(round) = self.runs.iter().filter_map(|r| r.open_at).min() {
-            for run in &mut self.runs {
-                if run.open_at == Some(round) {
-                    *run = face_flux(
-                        self.body,
-                        run.face,
-                        self.band,
-                        &certified_hook::<T>,
-                        self.tol,
-                        RoundWindow {
-                            first: round + 1,
-                            last: usize::MAX,
-                        },
-                    )?;
-                }
+        for i in 0..self.runs.len() {
+            if let Some(round) = self.runs[i].open_at {
+                self.runs[i] = face_flux(
+                    self.body,
+                    self.runs[i].face,
+                    self.band,
+                    &certified_hook::<T>,
+                    self.tol,
+                    RoundWindow {
+                        first: round + 1,
+                        last: usize::MAX,
+                    },
+                )?;
+            }
+            if let Some(source) = self.runs[i].refusal.clone() {
+                return Err(MassPropsError::Face {
+                    face: self.runs[i].face,
+                    source,
+                });
             }
         }
-        match fold_runs(&self.runs) {
-            (_, Some((face, source))) => Err(MassPropsError::Face { face, source }),
-            (props, None) => Ok(props),
-        }
+        Ok(fold_runs(&self.runs).0)
     }
 
     /// The refusal a target-level reading of this body earns, if any —
