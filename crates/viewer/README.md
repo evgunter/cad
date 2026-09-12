@@ -1742,6 +1742,33 @@ not there to link to. That is the cost and it is accepted: a
 `cfg(not(feature))` configuration is allowed to render badly (Ev,
 2026-09-11).
 
+**The ruling settles the SPELLING as well as the legality: a doc comment
+that names an `app`-gated ITEM links it, whatever the grammar of the
+sentence around it.** Until that date a bare span was the only legal
+spelling, so this crate acquired two for one relationship — a reference
+written as one path became `` [`crate::app::FieldWriting`] ``, while the
+same reference written as a possessive stayed `` `app` ``'s
+`` `remember_theme` ``. A possessive is not a prose exception: its
+second span names an item, so it takes the link too. **The sweep rule
+that produces the population** is every `///` or `//!` line under `src/`
+carrying a backtick span whose content is an `app`-gated module name
+(`app`, `drafts`, `forms`, `gpu`, `pane`, `widgets`, with or without a
+`.rs` suffix) immediately followed by a possessive — *whether or not a
+second span follows it*, which is the widening that matters, because the
+rule every earlier sweep here used (*whole span content is
+`<mod>::<path>`*) cannot see this shape at all. Two things the rule
+still does not reach, stated because a sweep whose blind spot is
+unstated is not a negative result: a span naming one of those modules as
+a CONCEPT rather than as a namespace (`sketch.rs`'s *"The forms' own
+default is `app`'s, not this"*), which has no item to point at; and a
+possessive whose first span is a type, a trait or another crate, which
+is the same grammar over a different population. Some targets are
+PRIVATE — a field, a private method and a const in a private module are
+among them — and resolve anyway because both host passes run
+`--document-private-items` with `rustdoc::private_intra_doc_links`
+allowed, the decision `scripts/doc-gate.sh`'s header argues and its own
+selftest pins.
+
 **A browser pass, if one is ever run, allows that one lint.** None is
 run today, and the feature axis is better off here than this one:
 doc-gate's pass 3 at least COMPILES the half it widens to, where

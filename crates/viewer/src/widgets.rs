@@ -675,7 +675,7 @@ mod tests {
         FreeMove,
         /// The value gesture's document triple over a vector slot's
         /// three components, through [`drag_gesture_ops`] directly —
-        /// `crate::pane::properties`'s `slot_row_ui`, which reads its
+        /// `crate::pane::properties`'s `slot_value_ui`, which reads its
         /// own text and so does not want the typed arm.
         Slot,
     }
