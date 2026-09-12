@@ -1003,36 +1003,32 @@ impl FittedDelta {
 /// the planar over-count, whose sign is stated at
 /// [`FittedDelta::predicted`]). Rungs are a doubling apart, so the
 /// whole ladder costs within a small factor of its last rung:
-/// [`FittedDelta::probe_triangles`] is that total, and over the corpus
-/// at the application's δ and a decade finer it is at most
-/// `TRIANGLE_BUDGET / 4` (`tests/display_budget.rs`).
-///
-/// What a probe cost BEFORE this ladder, on the same corpus, was
-/// `TRIANGLE_BUDGET · δ_fitted / (PROBE_FACTOR · δ_requested)` — a
-/// number with the requested δ in the denominator, and so no bound at
-/// all: `hollow_tube_ring` at 0.01 mm probed 1_452_960 triangles to
-/// size a 1_002_536-triangle picture, 1.8 s of it on the UI thread.
+/// [`FittedDelta::probe_triangles`] is that total,
+/// `tests/display_budget.rs` holds every document it is asked about to
+/// `TRIANGLE_BUDGET / 4`, and the largest measured on the curved
+/// gallery and tube documents is 177_654 — 1.4 ×
+/// `TRIANGLE_BUDGET / PROBE_FACTOR`.
 ///
 /// **What that costs on a document the budget does not bind**: the
-/// rungs above the last one, which the last one dominates but does not
-/// swamp — the fit tessellates 1.2–1.7× what a single probe at
-/// `PROBE_FACTOR` × the request would, and lands on exactly the δ and
-/// the predicted cost that single probe would have (the last rung IS
-/// that probe, so `C` is read off the same mesh). An all-planar body
-/// pays two tessellations of a mesh that never subdivides: `checks`
-/// and `heatsink` are 24 and 72 triangles at every δ.
+/// rungs above the last one. The last rung is a probe at
+/// [`PROBE_FACTOR`] × the request, so the δ committed and the cost
+/// predicted for it are read off exactly the mesh a single probe there
+/// reads them off; what the rungs above it add is 12–40% more
+/// triangles on the curved gallery documents (26_058 → 29_824 on the
+/// tour's die at 0.1 mm). An all-planar body pays one extra
+/// tessellation of a mesh that never subdivides: `checks` and
+/// `heatsink` are 24 and 72 triangles at every δ.
 ///
 /// # Why the probe is not on the index worker instead
 ///
-/// The other shape available here was to leave the probe as it was and
-/// move it onto the worker that builds the pick index, which already
-/// holds the body, so `Open` keeps repainting while it runs. That
-/// moves the wait without removing it: the picture cannot be built
-/// until δ is chosen, so a probe larger than the picture still delays
-/// the first picture by more than the picture itself costs, and the
-/// seam would gain a stage whose cost is unbounded in the requested δ.
-/// The two are independent — a bounded probe can still move off the UI
-/// thread afterwards, and it is a cheaper thing to move.
+/// The other place this could run is the worker that builds the pick
+/// index, which already holds the body — `Open` would keep repainting
+/// through it. That moves the wait without removing it: the picture
+/// cannot be built until δ is chosen, so a probe larger than the
+/// picture delays the first picture by more than the picture itself
+/// costs, and the seam gains a stage whose cost is unbounded in the
+/// requested δ. The two are independent — a bounded probe can still
+/// move off the UI thread, and is a cheaper thing to move.
 ///
 /// # The count is the picture's, not an estimate of it
 ///
