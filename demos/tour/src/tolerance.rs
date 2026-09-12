@@ -528,7 +528,10 @@ fn print_divergence(report: &Stackup, bound: f64, linear_worst: f64, decided: &D
             // SMALLER than the run's escalation threshold, so no bound
             // placed inside it can be decided either way.
             let gap = three_sigma - report.worst_case.lo;
-            let escalate = 10.0 * tol.eps();
+            // The run's own escalation threshold, K·ε — the caption
+            // below reports it as such, so it follows `CAD_AMBIGUITY_K`
+            // rather than the default K a literal 10 would pin it to.
+            let escalate = tol.k() * tol.eps();
             println!(
                 "     the certified answer and the RSS's disagree over a window {gap:e} m \
                  wide (the certified worst case reaches that much further under). THE \
@@ -638,13 +641,15 @@ mod tests {
         assert_eq!(
             decided,
             Decided::Holds,
-            "the straddle is inside the coincidence band, so the assertion node HOLDS —              and the caption must say what the node says"
+            "the straddle is inside the coincidence band, so the assertion node HOLDS — \
+             and the caption must say what the node says"
         );
         // The margin the caption calls sub-band really is sub-band.
         let margin = report.worst_case.lo - bound;
         assert!(
             margin < 0.0 && margin.abs() < tol.eps(),
-            "the caption says the enclosure reaches under the bound by less than eps:              margin {margin:e}, eps {:e}",
+            "the caption says the enclosure reaches under the bound by less than eps: \
+             margin {margin:e}, eps {:e}",
             tol.eps()
         );
         // And the DIVERGENCE window the caption sizes: the certified
@@ -663,9 +668,10 @@ mod tests {
             "the certified worst case must reach further under than 3σ"
         );
         assert!(
-            gap < 10.0 * tol.eps(),
-            "the caption says the whole divergence is inside the escalation threshold:              window {gap:e} against {:e}",
-            10.0 * tol.eps()
+            gap < tol.k() * tol.eps(),
+            "the caption says the whole divergence is inside the escalation threshold: \
+             window {gap:e} against {:e}",
+            tol.k() * tol.eps()
         );
         // The MC lane's number, which the caption now READS rather than
         // hardcodes: it must exist and be a fraction.

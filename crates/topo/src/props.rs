@@ -183,17 +183,24 @@ impl fmt::Display for MassPropsError {
             Self::RingOnCurvedFace { face } => {
                 write!(
                     f,
-                    "mass properties: curved face {face:?} carries interior rings"
+                    "mass properties: curved face {face:?} carries interior rings — curved \
+                     patches are swept UV rectangles and no construction produces one, so \
+                     report this rather than repairing a body"
                 )
             }
             Self::Corrupt { what } => {
-                write!(f, "mass properties: corrupt body ({what})")
+                write!(
+                    f,
+                    "mass properties: corrupt body ({what}) — the structural validators own \
+                     this diagnosis: read the tier-1/tier-2 report and repair what it names"
+                )
             }
             Self::NullScaffoldEdge { edge } => {
                 write!(
                     f,
                     "mass properties: edge {edge:?} is null-edge scaffolding \
-                     (mid-surgery body; tier 2 refuses null entities at rest)"
+                     (mid-surgery body; tier 2 refuses null entities at rest) — finish or \
+                     revert the surgery and ask again at rest"
                 )
             }
         }
@@ -2124,7 +2131,9 @@ mod quad_lane {
                 let r = RingInterval::from_certified(trv_pos());
                 assert!(
                     r.is_poison(),
-                    "a domain-violated scalar crossed into the ring as {r:?} —                  the bracket door does not read decorations, so the                  quadrature lane certifies a flux built from it"
+                    "a domain-violated scalar crossed into the ring as {r:?} — \
+                     the bracket door does not read decorations, so the \
+                     quadrature lane certifies a flux built from it"
                 );
                 // Non-vacuity: a certified scalar crosses with its endpoints.
                 let ok = RingInterval::from_certified(Interval::from_bounds(1.0, 4.0).sqrt());
@@ -2176,6 +2185,66 @@ mod quad_lane {
                     assert!(!r.is_poison(), "{tag} poisoned a certified coefficient");
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod recourse_tests {
+    use super::*;
+    use geom_brep::props::PropsError;
+
+    /// **The recourse claim for the carrier tier 3 renders whole.**
+    /// `ValidationError::VolumeUncomputable { source }` contributes no
+    /// prose of its own, so whatever this enum fails to say is simply
+    /// absent from the message a user reads. Three arms said nothing
+    /// past the condition (`RingOnCurvedFace`, `Corrupt`,
+    /// `NullScaffoldEdge`); the other two delegate, and this row is
+    /// **transitive over them** — `Band` passes only while
+    /// `geom_core::BandError` names a recourse and `Face` only while
+    /// `geom_brep::PropsError` does, which is the assumption the
+    /// wrapper makes, here made to fail loudly instead of silently.
+    ///
+    /// **A floor, not a proof** (the terms `topo`'s
+    /// `every_chart_region_arm_names_a_recourse` states): a vocabulary
+    /// check cannot tell a recourse from a sentence containing a verb.
+    /// Payloads below carry no verb of their own.
+    #[test]
+    fn every_mass_props_error_arm_names_a_recourse() {
+        const RECOURSE_VERBS: &[&str] = &[
+            "lower", "raise", "name", "classify", "state", "declare", "move", "loosen", "simplify",
+            "report", "re-cut", "re-mint", "repair", "finish", "revert", "read",
+        ];
+        let arms = [
+            MassPropsError::Band {
+                error: BandError::Empty {
+                    zero: 1e-8,
+                    escalate: 1e-9,
+                },
+            },
+            MassPropsError::Face {
+                face: FaceKey::default(),
+                source: PropsError::NappeSpanning,
+            },
+            MassPropsError::RingOnCurvedFace {
+                face: FaceKey::default(),
+            },
+            MassPropsError::Corrupt {
+                what: "a loop of the face",
+            },
+            MassPropsError::NullScaffoldEdge {
+                edge: crate::entity::EdgeKey::default(),
+            },
+        ];
+        assert_eq!(arms.len(), 5, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
+                "no recourse in: {msg}"
+            );
         }
     }
 }

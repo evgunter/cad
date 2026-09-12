@@ -59,7 +59,10 @@ cutting partners' outward-oriented carrier planes, or `Qualifier::OrderAlong {
 rank, of }`, the `name_frag_order_along` rank along the parent's oriented
 carrier. Both run through `k_stats`, so fragment identity changes only at a
 recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
-silent pick. Where nothing covariant discriminates (congruent candidates,
+silent pick, and an ambient tolerance that forms no classification band at all
+refuses (`NamingError::Band`) carrying the band constructor's own diagnostic —
+the overflow and the collapse want opposite repairs, so the refusal says which
+one it caught. Where nothing covariant discriminates (congruent candidates,
 overlapping extents, a section line crossing one operand face twice) the table
 records one `Entry::Tied` row: naming a tie succeeds, referencing it is
 `ResolveError::Ambiguous`, and the only repair is a recorded user choice. Ties

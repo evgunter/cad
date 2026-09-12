@@ -216,9 +216,10 @@ concurrency:
 # (`build`, `build-interval`), each `cargo nextest archive` + artifact
 # upload, and thin RUN jobs that download the archive and only execute.
 #
-# cargo-nextest is the archive/run vehicle, PINNED here (single source of
-# truth for the version): 0.9.140, published 2026-07-05 — ~4 weeks old at
-# adoption (2026-08-03), past the 2-week dependency-age rule; a dev/CI
+# cargo-nextest is the archive/run vehicle, PINNED at this workflow's
+# `env:` block (the single source of truth for the version). The adoption
+# record: 0.9.140, published 2026-07-05 — ~4 weeks old at adoption
+# (2026-08-03), past the 2-week dependency-age rule; a dev/CI
 # tool only, never in any shipped build graph. Install is the official
 # get.nexte.st prebuilt at the pinned URL — no third-party action — via
 # the in-repo composite `.github/actions/install-nextest`, which caches
@@ -344,7 +345,7 @@ env:
 
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
-# rustup's toolchain-file override then auto-installs the pinned 1.97.0 with
+# rustup's toolchain-file override then auto-installs the pinned channel with
 # its components on the first cargo invocation. The pinned compiler (D9 / L2)
 # has a single source of truth — the toolchain file.
 #
@@ -525,7 +526,7 @@ jobs:
         run: rm -rf local-scripts .claude
       - name: classify the change set
         id: classify
-        # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned 1.97.0
+        # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned toolchain's
         # download: the script only runs `cargo metadata --no-deps`, which
         # parses the workspace manifests and neither builds nor resolves the
         # registry, so the compiler version is irrelevant — and if a future
@@ -1118,6 +1119,25 @@ jobs:
       # a scratch tree with `-o Dir::*` and touches no system file.
       - name: apt preamble selftest (the narrowed update survives a bad index)
         run: scripts/apt-install.sh --selftest
+      # AND THE DOOR IS THE ONLY DOOR. The row above proves the wrapper
+      # works; this one proves it is what every apt call site uses. The two
+      # are independent: a step spelling `sudo apt-get update && sudo
+      # apt-get install -y foo` inline reds every branch during a stranger's
+      # bad hour, indistinguishable from a real red, and nothing else in
+      # this tree can see it:
+      # `check-ci-mirror-parity.py` reads workflows for INVOCATIONS of
+      # `scripts/` and `demos/`, so a step that invokes no script is outside
+      # its claims 1-4 by construction; its claim 9 is about jobs, not steps;
+      # and no shell linter runs in this gate at all.
+      #
+      # Sited here for the reason every row above is: its inputs are every
+      # workflow file, every composite action and every tracked shell script
+      # — `local-scripts/` among them, a tree that classifies TIER=docs and
+      # that every hosted job but this one deletes at checkout.
+      - name: install wrappers (a wrapped idiom is spelled only through its wrapper)
+        run: |
+          python3 scripts/check-install-wrappers.py --selftest
+          python3 scripts/check-install-wrappers.py
       # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
       # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
       # the same reason as every row above. Stdlib python and git; the
@@ -1463,6 +1483,16 @@ jobs:
       # nightly runs main, and main is reached through this gate, so a
       # second copy at 03:00 would re-prove a tree this row already proved.
       #
+      # THAT LAST SENTENCE IS CONTESTED BY THE ROW BELOW, and a reader of this
+      # file alone would otherwise get two rules with no sign that one is
+      # disputed. The criterion emitter's selftest keeps a nightly copy
+      # BECAUSE nightly.yml's jobs also run on a `workflow_dispatch` ref — an
+      # arbitrary SHA no gate row can have proved — and that is equally true
+      # of the opt-level job, which takes the same input. So either this lane
+      # is missing a row or that one has a spare;
+      # `work/ciw/calibrator-record-writes-without-its-selftest` holds the
+      # question and neither row waits on it.
+      #
       # SITED IN THIS JOB and not in `mirror`, by `check-run-jobs.py`'s
       # argument above: the script's inputs are `scripts/*.py`, which
       # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
@@ -1470,6 +1500,37 @@ jobs:
       # No toolchain and no cargo — stdlib python against its own fixtures.
       - name: opt-level calibrator selftest (the guard over an append-only history)
         run: python3 scripts/opt-level-calibrate.py --selftest
+      # THE CRITERION HISTORY EMITTER'S OWN TESTS, sited here for the reason
+      # the row above is: the selftest is a fixture battery over the script's
+      # own code paths, so the only change that can break it is a change to
+      # `scripts/criterion-emit.py` — a `scripts/*.py` path, which
+      # `scripts/ci-filter.py` does not classify as TIER=docs, so the change
+      # set that can break it is exactly the change set this job runs on.
+      # WHAT IT ACTUALLY HOLDS, stated at the coverage it has rather than at
+      # the coverage a reader would assume, because that number was measured:
+      # a battery of 20 single-token mutations of the script kills 9 of them.
+      # Held: the roster pin in all three of its shapes (a row renamed, added,
+      # or dropped), `collect` reading `new/` and not criterion's previous
+      # `base/`, the sample count, RUSTFLAGS, and the cpuinfo parser in both
+      # directions — a known cpuinfo parsed, and an absent one degrading to
+      # null without costing the rest of the block. NOT held: the VALUE of
+      # most collected fields, because the fixture writes one scalar into five
+      # of them, so a field dropped from the emitted block or a reader that
+      # swapped two passes this row.
+      # `work/ciw/criterion-selftest-fixture-is-one-scalar-in-five-fields`
+      # carries the measurement, the table and the repair.
+      #
+      # THE LANE IS HOSTED-ONLY AND THIS ROW IS NOT. Only a runner may commit
+      # a measurement (`local-scripts/ci-local.sh` says why at its own key),
+      # but the guard over the writer is a stdlib-python fixture battery that
+      # runs anywhere, so it belongs in both halves like every other selftest
+      # out here. No toolchain, no cargo, no benchmark build.
+      #
+      # nightly.yml KEEPS ITS OWN COPY and that is not a duplicate of this
+      # row: that job also runs on a dispatched `ref`, an arbitrary SHA this
+      # gate never saw. The argument is written at that row.
+      - name: criterion history emitter selftest (the guard over an append-only history)
+        run: python3 scripts/criterion-emit.py --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: it is what lets the wasm32 guard below run the interval
       # leg ONLY, and it is what made this lane a stand-in for the default
@@ -1510,7 +1571,7 @@ jobs:
         run: |
           scripts/gates/bit-identity-consumer.sh --selftest
           scripts/gates/bit-identity-consumer.sh
-      - name: bit-identity debug-only guard (topo/source.rs)
+      - name: bit-identity debug-only guard (the subject list)
         run: |
           scripts/gates/bit-identity-debug-only.sh --selftest
           scripts/gates/bit-identity-debug-only.sh
@@ -2130,7 +2191,7 @@ jobs:
       #
       # Target install goes through `rustup target add` rather than the
       # toolchain action's `targets:` input on purpose: rust-toolchain.toml
-      # pins 1.97.0, and `rustup` resolves that directory override, so the
+      # pins the channel, and `rustup` resolves that directory override, so the
       # std artifacts land on the toolchain cargo will actually use.
       #
       # `!cancelled()` on both, for this job's stated reason: a formatting
@@ -2192,30 +2253,32 @@ jobs:
       # skipped case is a break that is simultaneously wasm-specific,
       # outside the seed set, and outside a row that just compiled the
       # same crate for the same target. That is not a hole this row is
-      # deferring to a nightly; it is the empty set at this dependency
-      # shape, and it stops being empty the day `viewer` grows an edge
-      # on a crate the workspace row excludes.
+      # deferring to a nightly; it is the empty set for a BREAK at this
+      # dependency shape, and it stops being empty the day `viewer` grows
+      # an edge on a crate the workspace row excludes. FOR A LINT IT IS
+      # NOT EMPTY NOW: the row it leans on denies nothing, so a lint in a
+      # non-seed crate's wasm arm is caught here alone and the axis can
+      # take it away — a property of that row's spelling, held with the
+      # crates it excludes in
+      # `work/ciw/kernel-wasm-row-denies-no-warnings.md`.
       #
-      # WHAT IT COSTS WHEN IT FIRES: one `cargo check` over the toolkit
-      # graph at a SECOND target. Nothing in this job shares artefacts
-      # with it — the rows above are host-target — so it is a cold
-      # metadata build of eframe + wgpu + naga for wasm32 every time it
-      # runs, and `rust-cache` carries the registry but not that graph's
-      # artefacts across runs.
-      #
-      # MEASURED, hosted (ubuntu-latest, 2 vCPU), on this row's own
-      # introducing PR: THE STEP is 55-57 s across four runs. Locally,
-      # 61 s from an empty CARGO_TARGET_DIR on 4 vCPU.
-      #
-      # NO JOB-LEVEL DELTA IS QUOTED, and that is a finding rather than
-      # an omission. Across the same four runs this job ran 307 s, 342 s
-      # and 360 s, and the 307 s reading is the one WITH the row — 35 s
-      # BELOW the no-row reading. `rustdoc (gate)` alone moved 106-126 s
-      # between those runs, so a before/after pair on this job measures
-      # that noise and not this step. Anyone wanting the billed cost has
-      # to take it against a distribution, not a pair; the row above's
-      # comment makes the same point about its own straddling baseline
-      # and is worth reading before quoting any figure here.
+      # WHAT IT COSTS, AND WHY NOTHING HERE IS A BUDGET. One lint pass
+      # over the toolkit graph at a SECOND target; no other row in this
+      # job shares artefacts with it, since they are all host-target.
+      # BIMODAL across runs — `rust-cache` restores this target's
+      # artefacts often enough that both a cold build and a restore are
+      # common — so neither mode is the figure. MEASURED, hosted
+      # (ubuntu-latest, the 4 vCPU public-repo runner this file's header
+      # derives from the provenance step): 17, 43, 43 and 55 s over four
+      # consecutive pushes to one branch, runs 34559116872, 34556713442,
+      # 34560366278, 34557952266. Locally, from an empty
+      # CARGO_TARGET_DIR on 4 vCPU, 65 s — so the 17 s cannot be a cold
+      # build. A JOB-level delta is not quotable at all: this job's own
+      # baseline swings wider than the step (`rustdoc (gate)` alone
+      # moved 106-126 s across four readings), so a before/after pair
+      # measures that noise. Take a cost from here against a
+      # distribution, never a pair, and RE-TAKE IT with the step's own
+      # command below.
       #
       # It buys nothing when the axis is false, which is why it is on
       # the axis rather than beside the row above.
@@ -2251,22 +2314,39 @@ jobs:
       # repo sets none today, so scoping costs nothing and a future entry
       # is not quietly dropped. Same spelling as serve-wasm.sh's build.
       #
-      # `check`, NOT `-D warnings`, AND THAT IS A DEBT WITH A FILE. This
-      # crate's wasm build carries two dead-code warnings today —
-      # `WINDOW_TITLE` and `ViewerApp::deliver_status`, whose users are
-      # all `cfg(not(target_family = "wasm"))` — so denying warnings here
-      # would red on those before it ever reached a real break, and
-      # fixing them is the crate owners' call, not a guard's. It leaves
-      # this as the ONE viewer row in this workflow that cannot fail on a
-      # warning, which is not a resting state:
-      # `work/view/viewer-items-unreferenced-at-wasm32.md` holds the flip,
-      # and this row becomes `-D warnings` when that item closes.
+      # `-D warnings`, THROUGH CLIPPY: the deny every other viewer row
+      # carries — `clippy (viewer app feature - eframe + wgpu)` in this
+      # same job is the host-target sibling — at the one target nothing
+      # else lints. THE VERDICT IS WIDER THAN `viewer`, which is why the
+      # name says so: `-p` scopes what is BUILT, and cargo caps lints on
+      # registry crates only, so every workspace crate in the graph is
+      # denied here too, clippy's own lints included; the crate named in
+      # a red log is the one to go to.
+      # `RUSTFLAGS='-Dwarnings …' cargo check` denies the same set minus
+      # clippy's lints, at the same cost, which is why this is the
+      # spelling. RE-TAKE THAT against the step below and
       #
-      # Mirror: local-scripts/ci-local.sh's `wasm32 check (viewer app)`.
-      - name: wasm32 check (viewer app feature - the browser entry point)
+      #   RUSTFLAGS='-Dwarnings --cfg getrandom_backend="wasm_js"' \
+      #     cargo check -p viewer --features app \
+      #       --target wasm32-unknown-unknown
+      #
+      # planting a `dead_code` item, and then a clippy-only lint, in a
+      # path dependency such as `editor-core`: the first reds both, the
+      # second reds this row alone.
+      #
+      # NO `--all-targets`, and that is not the sibling row's spelling
+      # dropped by accident. Two independent causes, either alone
+      # sufficient: `crates/viewer`'s tests and examples import
+      # `ThreadEvaluator` and `prefs::file`, which `src/lib.rs` and
+      # `src/prefs.rs` gate on `cfg(not(target_family = "wasm"))`, so
+      # building them here ends in E0432 for a reason that has nothing to
+      # do with lints.
+      #
+      # Mirror: local-scripts/ci-local.sh's `wasm32 clippy (viewer app + deps)`.
+      - name: wasm32 clippy (viewer app feature + its workspace deps - the browser entry point)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
         run: |
-          RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check -p viewer --features app --target wasm32-unknown-unknown
+          RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo clippy -p viewer --features app --target wasm32-unknown-unknown -- -D warnings
 
   clippy:
     name: clippy
@@ -2715,7 +2795,10 @@ jobs:
     #   billed                  ~137m  ->  ~72m    (-65 min)
     #
     # The compile penalty is WORSE hosted than locally (4.58x vs 3.24x) —
-    # 2 vCPU parallelises opt-2 codegen badly — and the execution win is
+    # the 2-vCPU runner these were taken on parallelised opt-2 codegen
+    # badly, and nothing has re-taken them on the 4-vCPU public-repo
+    # runner that replaced it, so the RATIO is the stale half here — and
+    # the execution win is
     # much BETTER (7.1x vs the 2.29x measured locally, which was taken on
     # a box with an express-lane job running alongside it and is therefore
     # pessimistic). Both errors happened to point the same way; the trade
@@ -2831,7 +2914,12 @@ jobs:
     #
     # THE HONEST CAVEAT, AND IT IS THE SAME ONE THIS NOTE HAS MADE TWICE
     # ALREADY: that sweep was taken on a 4-core AVX-512 guest, the same class
-    # as the census box and NOT this 2-vCPU runner. A ratio does not transfer
+    # as the census box and NOT the 2-vCPU runner the figures above came from.
+    # (That runner is gone — this repo went public and the standard runner is
+    # 4 vCPU / 16 GB, per this file's header. The caveat did not go with it:
+    # nothing below has been re-taken on the runner of today, so the sweep and
+    # the gate figures are still two machines apart, just different ones.)
+    # A ratio does not transfer
     # between machines — the figures above are themselves a demonstration
     # (3.24x local against 4.58x hosted; 2.29x local against 7.1x hosted). So
     # this flip is made on evidence from a box the calibration lane explicitly
@@ -3087,7 +3175,7 @@ jobs:
       # `default` leg — see the matrix comment on why not `env:`).
       #
       # `--no-fail-fast`, AND THE RUN SAYS SO (#1128). nextest's default is
-      # fail-fast — measured against the pinned 0.9.140, not inferred. The
+      # fail-fast — measured against cargo-nextest 0.9.140, not inferred. The
       # measurement, reproducible as written: a six-test crate with two
       # planted failures, run `--test-threads 1`, reports
       # `Cancelling due to test failure`, `1/6 tests run: 0 passed, 1 failed`

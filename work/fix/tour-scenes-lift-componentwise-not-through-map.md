@@ -2,8 +2,11 @@
 id: tour-scenes-lift-componentwise-not-through-map
 kind: issue
 title: The tour's other scenes lift f64 literals componentwise (az, letterforms, bool_bodies, cutaway, curvedcut, twopeg, paths, bossplate, bodies) — lily.rs is the worked example of the layer rule; demos/tour/Cargo.lock is stale on main
-status: open
+status: closed
 opened: 2026-09-05
+branch: fix/tour-scenes-lift
+pr: 2341
+closed: 2026-09-11
 ---
 
 
@@ -52,3 +55,43 @@ unchanged; the `track: X` key leaves with the directory, since it is a
 code-quality-only field and the row is no longer waiting on a Track X
 lane. `demos/tour/Cargo.lock`'s staleness is already resolved above and
 is not part of this unit; the `--locked` gap it names stays CIW's.
+
+## What landed
+
+The sweep, re-measured on the merge base rather than taken from the
+filing. The population is **31 componentwise constructor lifts in 9
+files**, not the 26 in 8 the title lists: the filing's grep was
+single-line, so it missed every `Point3`/`Vec3`/`Point2`/`Vec2::new`
+rustfmt had broken across lines — three more in `twopeg.rs`, one more
+each in `bossplate.rs` and `curvedcut.rs`, and the whole of
+`crosslap.rs`. `paths.rs` does not exist and never did; the title's
+list is wrong about it.
+
+All 31 now go through `pncad::authoring`'s `p2`/`v2`/`p3`/`v3`, which
+are the same expression the sites spelled by hand. `curvedcut.rs` also
+carried a surviving per-scene `p2` closure of the kind
+`crates/pncad/src/authoring.rs`'s header says were deleted; it is gone
+in favour of the seam's own.
+
+`lily.rs`'s three counts: the two `SketchPlane::from_frame(..).placement`
+sites are `Affine3::from_frame` directly; the two frame lifts at the
+`from_frame` boundary are `SketchPlane::from_frame(..).map(S::from_f64)`
+— the frame lifted once as a value, which is what this file's own layer
+rule says an already-composed `f64` frame does; and the three
+`LEAF_A_*` struct literals are `Point3::new`/`Vec3::new`, which are
+`const fn` (`crates/geom-core/src/linalg/point.rs:152`,
+`vec.rs:144`).
+
+`main.rs`'s crate doc now states the layer rule and points at `lily`'s
+full statement of it, because the rule holds corpus-wide and a reader
+of `az.rs` had no pointer to it.
+
+Nothing moved: the release render's whole output tree is byte-identical
+to the merge base's (every STL, STEP, `scenes.json` and `uv/` chart),
+and so is the k-probe sweep's 1 590 255-sample CSV.
+
+Not fixed, and why: `diechamfer.rs:100` still reads points into tuples.
+`Point3<f64>` has no `PartialOrd`, so there is no key to sort a point
+set by, and `Vec3` has no sup-norm door for the Chebyshev gap
+`feet_agreement` measures. Both are library gaps; the site stays until
+one of them closes.

@@ -553,9 +553,14 @@ set -euo pipefail
 
 GATE_SCAN_NOUN="cargo root"
 RUSTDOC_LINTS="-D warnings -A rustdoc::private_intra_doc_links"
-# Pass 3's lints: the same set, less the one lint that pass cannot
-# judge. See the `not(feature)` section in the header for the measured
-# false-positive population this drops and the blind spot it leaves.
+# The lint set for the two passes that render a configuration in which a
+# link's target may legitimately be absent: the same set, less the one
+# lint neither can judge. Pass 3 (a `not(feature)` half, linking into the
+# feature half) and the `--skip-viewer-toolkit` viewer pass (the
+# renderer-free half, linking into the `app`-gated half) are the same
+# shape in opposite directions. See the `not(feature)` section in the
+# header for pass 3's measured false-positive population and the blind
+# spot it leaves, and the viewer pass's own site for the viewer half.
 RUSTDOC_LINTS_INERT="$RUSTDOC_LINTS -A rustdoc::broken_intra_doc_links"
 
 # Physical path of a file, without depending on `realpath`: cargo
@@ -898,7 +903,27 @@ gate() {
         "${scope_no_viewer[@]}" --all-features || rc=1
     fi
     if [ "$wants_viewer" = true ]; then
-      doc_pass "the viewer pass at DEFAULT features — its renderer-free modules are gated on every run; only the app-feature modules are skipped" \
+      # THE LINK LINT IS INERT ON THIS PASS, AND ONLY ON THIS PASS.
+      # Ev's ruling, in chat 2026-09-11: the renderer-free half MAY link
+      # into the `app`-gated half. Those links resolve wherever `app` is
+      # compiled and nowhere else, so at DEFAULT features every one of
+      # them is an unresolved-link error about an item that is absent by
+      # design rather than by mistake — the lint would be reporting the
+      # feature, not a defect. `RUSTDOC_LINTS_INERT` is the same
+      # instrument pass 3 uses for the same reason on the feature axis.
+      #
+      # WHAT THAT COSTS, stated rather than left to be found: a
+      # genuinely broken link in this crate's renderer-free half — to a
+      # renamed or deleted item — is no longer caught HERE. It is caught
+      # by the --all-features viewer pass in the `else` arm below, which
+      # is the arm any change filter seeding `viewer` takes, so the
+      # author of such a link still reds. What is lost is the second
+      # reading on a branch that reaches `viewer` through the closure
+      # without touching it, and such a branch cannot write one. Every
+      # other rustdoc lint still fires here, which is what the
+      # `--selftest` arm on this pass now pins.
+      doc_pass_with "$RUSTDOC_LINTS_INERT" \
+        "the viewer pass at DEFAULT features — its renderer-free modules are gated on every run; only the app-feature modules are skipped" \
         -p viewer || rc=1
     fi
   else
@@ -1362,6 +1387,20 @@ plant_broken_link_in_viewer_member() {
     >> "$1/crates/viewer/src/lib.rs"
 }
 
+# THE SKIP-MODE VIEWER PASS'S REMAINING WORK, made visible. That pass
+# runs `RUSTDOC_LINTS_INERT`, so the arm above no longer fires under
+# `--skip-viewer-toolkit` — by Ev's 2026-09-11 ruling, and deliberately.
+# Without this plant the pass would have NO arm that fires in skip mode
+# at all, and a pass whose only evidence is a PASSES arm is exactly the
+# "silently never fires" shape #2106 found: deleting the pass outright
+# would then leave every case here green. A bare URL is the cheapest
+# rustdoc lint that is not about a link target, so it fires identically
+# at default features and at --all-features.
+plant_bare_url_in_viewer_member() {
+  printf '\n/// See https://example.invalid/spec.\npub fn documented() {}\n' \
+    >> "$1/crates/viewer/src/lib.rs"
+}
+
 gate_selftest_prints_roots() {
   local tmp out want
   tmp=$(mktemp -d)
@@ -1525,12 +1564,27 @@ gate_selftest() {
   # `-p` selection it cannot be spelled with `--exclude`, which is the
   # arm that matters on a PR run — where the closure names viewer and the
   # seeds do not buy the toolkit.
+  #
+  # BOTH DIRECTIONS ON THE LINK LINT, because skip mode is the one mode
+  # where `viewer`'s links are not read: the PASSES arm is Ev's ruling
+  # in the harness rather than in prose, and the FIRES arm beside it is
+  # what keeps that from being a pass over a pass that never ran.
   GATE_SELFTEST_ARGS=(--skip-viewer-toolkit)
-  gate_selftest_case "$want" plant_broken_link_in_viewer_member
+  gate_selftest_case "$want" plant_bare_url_in_viewer_member
+  gate_selftest_passes "a link into the app-gated half, which the skip-mode viewer pass renders at DEFAULT features and is ruled not to judge" \
+    plant_broken_link_in_viewer_member
   GATE_SELFTEST_ARGS=()
   GATE_SELFTEST_ARGS=(--pr --skip-viewer-toolkit --scope "-p clean -p viewer")
-  gate_selftest_case "$want" plant_broken_link_in_viewer_member
+  gate_selftest_case "$want" plant_bare_url_in_viewer_member
+  gate_selftest_passes "the same link under --pr --scope, where the all-features invocation does not name viewer either" \
+    plant_broken_link_in_viewer_member
   gate_selftest_case "$want" plant_broken_link_in_member
+  GATE_SELFTEST_ARGS=()
+  # THE CONTROL FOR THE TWO PASSES ARMS ABOVE: the same planted link, in
+  # the mode the change filter takes whenever a diff seeds `viewer`. It
+  # fires there, so the link lint is dropped on one pass and not lost.
+  GATE_SELFTEST_ARGS=(--pr --scope "-p clean -p viewer")
+  gate_selftest_case "$want" plant_broken_link_in_viewer_member
   GATE_SELFTEST_ARGS=()
 
   # THE SCOPE PARSER REFUSES rather than falling back, and says so.
@@ -1546,7 +1600,7 @@ gate_selftest() {
   gate_selftest_rejects "an empty --scope, which silently widened to --workspace" \
     "empty selection" --pr --scope ""
 
-  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), an untracked worktree checkout, and a broken link behind not(debug_assertions) — the profile axis no rustdoc invocation reaches; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, behind cfg(debug_assertions) (the control for the arm above), and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails; and, per MODE: --pr still fires on the workspace pass and deliberately does NOT read the excluded roots or the not(feature) halves (nightly.yml re-takes both), prints exactly one root for the cache, honours a --scope selection in both directions, documents `viewer` at DEFAULT features under --skip-viewer-toolkit with and without an explicit selection, and REFUSES a malformed or EMPTY scope instead of falling back to one nobody asked for\n' \
+  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), an untracked worktree checkout, and a broken link behind not(debug_assertions) — the profile axis no rustdoc invocation reaches; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, behind cfg(debug_assertions) (the control for the arm above), and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails; and, per MODE: --pr still fires on the workspace pass and deliberately does NOT read the excluded roots or the not(feature) halves (nightly.yml re-takes both), prints exactly one root for the cache, honours a --scope selection in both directions, documents `viewer` at DEFAULT features under --skip-viewer-toolkit with and without an explicit selection — firing there on a lint that is not about a link target, and deliberately NOT on a link into the app-gated half, which the non-skip mode beside it still fires on — and REFUSES a malformed or EMPTY scope instead of falling back to one nobody asked for\n' \
     "$(gate_name)"
 }
 

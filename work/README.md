@@ -24,9 +24,6 @@ work/
     plan.md            the plan (narrative; present state only)
     log.md             the log (append-only narrative; its tail is
                        the program's story, never its slate)
-    process-observations.md
-                       code-quality only: the C1–C27 observations
-                       (narrative, unparsed)
     <ID>.md            one file per item: unit, issue or ruling
 ```
 
@@ -56,7 +53,8 @@ needs_ev: true             # a question for Ev is open on an [ev] PR
 opened: 2026-09-02
 closed:                    # date; required once status is closed
 refs: [S330, 1588]         # related items or numbers, no semantics
-track: R                   # code-quality only: the track letter
+track: R                   # historical: the code-quality track letter,
+                           # on the rows that still carry one
 github: 1601               # migrated GitHub issue number, if any
 ---
 ```
@@ -66,7 +64,10 @@ Program headers carry, in addition: `area` (`kernel`, `api`, `gui`,
 (the away-channel role tag), `ab_band` (the A/B ordinal band, claimed
 in `docs/MODEL-AB-LOG.md`), `paths` (territory globs), `keep_out`
 (prose pointers, one string each), and `blocks` (id blocks a program
-allocates from, code-quality only).
+allocates from). **No open program carries `blocks`, and none should**:
+an item's id comes from its name, not from a per-track number block.
+The block scheme belonged to the 2026-08 findings register and left the
+tree with it (`docs/DOC-LEDGER.md`, sweep 11).
 
 Unknown keys are lint errors. Add a key by adding it to the script's
 schema in the same PR that first uses it.
@@ -109,13 +110,18 @@ only closed items.
   ownership from nowhere else — so a program claiming another's item
   MOVES the file into its own directory in the PR that claims it,
   keeping the id, and sets `parent:` to the unit that carries it. This
-  is what `work/code-quality/` is for: findings wait there until a
-  program claims them, and a claim empties that row out of it. A
-  `keep_out` clause saying a claimed row stays where it was is the
-  thing to delete.
+  is how a finding reaches its owner. `work/code-quality/` used to be
+  where one waited for a claim; it left the tracker on 2026-09-11
+  (`docs/DOC-LEDGER.md`, sweep 11) once all 110 of its live rows had
+  gone to the eleven programs opened for them, so **a finding now goes
+  straight onto the slate of the program whose ground it lands on**, and
+  `work/issues/` is the last resort it always was. A `keep_out` clause
+  saying a claimed row stays where it was is the thing to delete.
 - **Ids are stable.** An item keeps its id for life; a program keeps
-  its directory for as long as it is open. Migrated code-quality rows
-  keep the row ids they were cited by (`D102`, `S330`, `C15`).
+  its directory for as long as it is open. The rows migrated from the
+  2026-08 findings register keep the ids they were cited by (`D102`,
+  `S330`, `C15`) wherever they now live; nothing mints new ones in that
+  shape.
 - **A closed program's directory is deleted.** `work/` tracks work
   still to be done, not work that has been done, so once a program
   closes — its exit walk ratified, or Ev's ruling that it needs none —
@@ -166,10 +172,48 @@ only closed items.
   cannot un-park another program's rows in the same PR, so a closing
   PR can red `main` for rows it does not own. The answer is to fix the
   stale rows, not to soften the check.
+
+  **A number reaches the rule too, and only ever as a warning.** Ints
+  in `blocked_on` are PR or issue numbers that the tracker does not
+  resolve against GitHub — but a migrated issue carries its number on
+  the item that replaced it (`github:`), and that mapping is in the
+  tree. A number matching exactly one such item is read as that item,
+  and if it is closed the row is named. It is a **warning** in both
+  shapes above, never the error, because the author wrote a number and
+  the tracker matched it: a naming is a claim about a row, a match is
+  an inference about one, and an inference does not get to red `main`
+  for a program that cannot see it. A number matching no `github:`, or
+  two, stays unchecked as every int did before. The fix a warning asks
+  for is to name the item instead of the number, after which the rule
+  reads it directly and the error applies.
 - **Territory is a glob list** on the program, and every glob matches
   at least one tracked path. `scripts/work.py territory --base main`
   reads a branch's prefix and its diff and names every path another
-  program owns. It warns; it does not block.
+  program owns, **and every path the branch's own program claims that
+  another open program claims too** — those read differently ("owned
+  by X" against "also claimed by X; a double claim, not a crossing")
+  because they are different facts. It warns; it does not block.
+- **Two open programs may claim one path only if BOTH `keep_out`s name
+  the other.** An overlap written on both sides is a handoff a lane can
+  announce; an overlap written on one side or neither is a live
+  conflict, and the program that was there first is the one that cannot
+  see it. `lint` measures this at rest — every open program's globs
+  against `git ls-files` — and names each unrecorded pair with the
+  count of paths it shares.
+
+  This is a **warning today and an error when the tree can carry one.**
+  Most pairs are unrecorded at any moment, the bulk of them the
+  `*/tests/*` family where S-TCOST's and S-TINT's territory is every
+  crate's tests by design, and one-file-one-item means no single program
+  may write the missing clauses. An error would red `main` the day it
+  landed for rows its author may not edit. **No count is stated here —
+  `work.py lint` prints the current one**, and it moves: the figure grew
+  by nine pairs in the ninety minutes between this PR opening and its
+  first merge-forward, when S-TCOST split and S-TINT took half its
+  territory.
+  The flip, and the question of whether the `*/tests/*` seam is written
+  once per program or taught to the check once, is
+  `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md`.
 - **No plan or log outside `work/`.** `docs/*-PLAN.md` and
   `docs/*-LOG.md` are lint errors, so a session writing to the old
   path fails loudly. (`docs/MODEL-AB-LOG.md` is an experiment log, not

@@ -376,22 +376,22 @@ const ISO_RECTANGLE_PREDICATE: &str = "props_rim_level";
 
 /// The seam carrier's residual is DECIDEDLY outside the band.
 const SEAM_HALFPLANE_DEFINITE: &str =
-    "SeamHalfplane residual at sample 0 definitely exceeds the tolerance band";
+    "the out-of-halfplane component at sample 0 definitely exceeds the tolerance band";
 /// The same residual, IN the band: escalate-never-guess, by name.
-const SEAM_HALFPLANE_ESCALATED: &str =
-    "SeamHalfplane at sample 0 escalated: predicate 'carrier_in_seam_halfplane' indeterminate";
+const SEAM_HALFPLANE_ESCALATED: &str = "the out-of-halfplane component at sample 0 escalated: predicate 'carrier_in_seam_halfplane' \
+     indeterminate";
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which.
 const TANGENT_PLANES_COINCIDE: &str = "tangent planes coincide at interior sample 1 — the Intersection transversality \
      precondition fails";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
-const PARAM_SPAN_ESCALATED: &str =
-    "ParamSpan (not a sampled check) escalated: predicate 'interval_span_forward' indeterminate";
+const PARAM_SPAN_ESCALATED: &str = "the stored interval's span (not a sampled check) escalated: predicate \
+     'interval_span_forward' indeterminate";
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
-const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: EndpointStart residual at sample 0 \
-     definitely exceeds";
+const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: the start-endpoint residual at \
+     sample 0 definitely exceeds";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`

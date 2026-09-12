@@ -343,6 +343,9 @@ fn with_frame(base: MateFaultPayload, error: &FrameError) -> MateFaultPayload {
             indeterminate: Some(diag),
             ..
         } => with_escalation(base, diag),
+        // Neither format arm carries a classification: both refused
+        // before any margin reached the funnel.
+        FrameError::NonFiniteLength { .. } | FrameError::UnderflowedLength { .. } => base,
         FrameError::Band(inner) => with_band(base, inner),
     }
 }

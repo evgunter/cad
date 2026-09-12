@@ -23,7 +23,7 @@ use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 use pncad::select::ContactClass;
 
-use crate::display::Withdrawn;
+use crate::display::PruneReport;
 use crate::props::SlotValue;
 use crate::session::author::{DatumSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
@@ -174,16 +174,75 @@ pub enum SessionOp {
         /// The parameter.
         name: ParamName,
     },
-    /// Move the in-flight gesture. Emits a preview edit against
+    /// Move the in-flight SLOT gesture. Emits a preview edit against
     /// scratch state; commits nothing.
+    ///
+    /// **It names the slot it is dragging**, and is refused
+    /// [`Refusal::WrongGesture`] when that is not the slot the open
+    /// gesture was begun on. The subject of a driving operation is the
+    /// field the user has hold of, never whichever gesture happens to
+    /// be open: a second drag's [`SessionOp::BeginGesture`] is refused
+    /// [`Refusal::GestureInFlight`], and this payload is what refuses
+    /// its preview and its commit with it, so a drag that could not
+    /// open cannot steer the one that did.
     PreviewGesture {
+        /// The node whose slot the gesture is dragging.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
         /// The value under the pointer.
         value: f64,
     },
-    /// Release: commit exactly one edit carrying the gesture's last
-    /// previewed value.
-    CommitGesture,
-    /// Abandon the gesture, leaving the document untouched.
+    /// Release: commit exactly one edit carrying the slot gesture's
+    /// last previewed value. Names its slot for
+    /// [`SessionOp::PreviewGesture`]'s reason, and refuses the same
+    /// way — the commit is the half of the pair that reaches the
+    /// document.
+    CommitGesture {
+        /// The node whose slot the gesture is dragging.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+    },
+    /// [`SessionOp::PreviewGesture`] for a DOCUMENT PARAMETER drag —
+    /// the gesture [`SessionOp::BeginParamGesture`] opens.
+    ///
+    /// A second door rather than one preview naming either target, for
+    /// [`SessionOp::BeginParamGesture`]'s own reason: the two targets
+    /// are addressed differently, and an operation that names its
+    /// gesture names it the way its begin did — one spelling per
+    /// target, so a caller repeats the words it already wrote rather
+    /// than translating them into a second vocabulary.
+    PreviewParamGesture {
+        /// The parameter the gesture is dragging.
+        name: ParamName,
+        /// The value under the pointer.
+        value: f64,
+    },
+    /// Release: commit exactly one edit carrying the parameter
+    /// gesture's last previewed value.
+    CommitParamGesture {
+        /// The parameter the gesture is dragging.
+        name: ParamName,
+    },
+    /// Abandon whichever value gesture is open, leaving the document
+    /// untouched.
+    ///
+    /// **The one value-gesture operation that names no target, and
+    /// deliberately.** It is the chrome's cancel door
+    /// ([`super::DocSession::cancel_doors`]), whose subject is the
+    /// session's state rather than a field: a drag whose field is no
+    /// longer drawn is exactly what it exists to close, so a target it
+    /// had to name would be one the caller can no longer read off the
+    /// panel.
+    ///
+    /// The field emits it too, when `egui` aborts the drag on Escape
+    /// ([`crate::widgets::drag_gesture_ops`]), and that emitter DOES
+    /// know its field — it is the widget the drag was on. It names it
+    /// no more than the door does, because the target would have to be
+    /// an `Option` for the emitter that cannot have one, and an
+    /// operation that names its gesture only sometimes cannot be
+    /// refused for naming the wrong one.
     CancelGesture,
     /// Step the cursor toward the root.
     Undo,
@@ -241,16 +300,43 @@ pub enum SessionOp {
     },
     /// Stream the probe's display frame. Each preview REPLACES the
     /// last; nothing enters the document.
+    ///
+    /// **It names the instance it is probing**, and is refused
+    /// [`crate::display::DisplayFault::WrongFreeMove`] when that is
+    /// not the instance the open probe was begun on — the value
+    /// gesture's rule ([`SessionOp::PreviewGesture`]) on the other
+    /// drag, where the identity is one node rather than a target.
+    ///
+    /// **One node is the whole identity because an instance has one
+    /// probe**, and what that buys depends on the chrome driving it
+    /// from one gesture. The panel draws the probe as three millimetre
+    /// boxes; mapped a triple per box they are three gestures over one
+    /// probe, and this payload cannot separate them — both name the
+    /// same instance, so the second box's preview overwrites the
+    /// first's frame and its commit lands it and CLOSES the probe the
+    /// pointer is still holding. So the row is mapped once
+    /// ([`crate::widgets::vec3_row_ops`]). A second DRIVER on one
+    /// instance is still outside what this payload can refuse;
+    /// `work/view/probe-identity-stops-at-the-instance.md` owns that.
     PreviewFreeMove {
+        /// The instance being probed.
+        instance: RecipeNodeId,
         /// The display frame composed over the instance's drawn
         /// placement.
         frame: Frame,
     },
     /// Land the probe: the last previewed frame becomes the
     /// instance's committed display value. NO history holds it — the
-    /// plan's undo note governs document state only.
-    CommitFreeMove,
-    /// Abandon the probe, restoring the committed picture.
+    /// plan's undo note governs document state only. Names its
+    /// instance for [`SessionOp::PreviewFreeMove`]'s reason.
+    CommitFreeMove {
+        /// The instance being probed.
+        instance: RecipeNodeId,
+    },
+    /// Abandon whichever probe is open, restoring the committed
+    /// picture. Names no instance, for [`SessionOp::CancelGesture`]'s
+    /// reason: it is the other cancel door, and the other thing an
+    /// Escape on the field emits.
     CancelFreeMove,
     /// Commit **exactly one** `DocEdit` adding a mate node — the mate
     /// tool's single committed edit. Everything before it (the two
@@ -556,9 +642,12 @@ impl SessionOp {
     /// **It is not a statement about the free-move gesture.** That is
     /// a second, independent drag living on the display state
     /// ([`crate::display::DisplayState::begin_free_move`]), with its own in-flight
-    /// refusal. The two can be open at once, and the four `*FreeMove`
-    /// rows below are what permits it. An operation this returns
-    /// `true` for is permitted mid-value-gesture and nothing more.
+    /// refusal and its own table
+    /// ([`SessionOp::permitted_during_free_move`], which carries why
+    /// the two cannot be one). The two can be open at once, and the
+    /// four `*FreeMove` rows below are what permits it. An operation
+    /// this returns `true` for is permitted mid-value-gesture and
+    /// nothing more.
     ///
     /// # Why the two drags may overlap, and until when
     ///
@@ -597,9 +686,9 @@ impl SessionOp {
     /// - every committed edit prunes the display state against the new
     ///   document — a prune that DISCARDS committed probes and kills
     ///   an in-flight free-move whose instance stopped being eligible,
-    ///   without reporting the kill in [`OpOutcome::superseded`]
-    ///   (recorded as current behaviour, not endorsed:
-    ///   `crates/viewer/tests/review_gui4_r1.rs`).
+    ///   reporting the first in [`PruneReport::superseded`] and the
+    ///   second in [`PruneReport::killed_gesture`], each with the
+    ///   fault that decided it, on [`OpOutcome::withdrawn`].
     ///
     /// **The identity that makes all three the same answer**: a value
     /// gesture's edits are `SetParam` and `SetStructuralParam`, which
@@ -637,8 +726,16 @@ impl SessionOp {
     /// Three shapes of `true` sit in the table:
     ///
     /// - the ops that DRIVE the gesture ([`SessionOp::PreviewGesture`],
-    ///   [`SessionOp::CommitGesture`], [`SessionOp::CancelGesture`]),
-    ///   which a guard would deadlock;
+    ///   [`SessionOp::CommitGesture`],
+    ///   [`SessionOp::PreviewParamGesture`],
+    ///   [`SessionOp::CommitParamGesture`],
+    ///   [`SessionOp::CancelGesture`]), which a guard would deadlock.
+    ///   **Permitted here is not unconditional**: the four that name a
+    ///   target are refused [`Refusal::WrongGesture`] from inside their
+    ///   own arms when the target is not the open gesture's. That is a
+    ///   question about a payload and this table is a function of the
+    ///   operation alone, so it is answered where the gesture's state
+    ///   is and not by a row here;
     /// - layer-3 moves that touch neither the document nor the history
     ///   ([`SessionOp::Select`], [`SessionOp::Hover`], the free-move
     ///   family, [`SessionOp::SetInstanceHidden`]) and the evaluation
@@ -668,7 +765,9 @@ impl SessionOp {
             Self::Select(_)
             | Self::Hover(_)
             | Self::PreviewGesture { .. }
-            | Self::CommitGesture
+            | Self::CommitGesture { .. }
+            | Self::PreviewParamGesture { .. }
+            | Self::CommitParamGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
             | Self::Reevaluate
@@ -676,7 +775,7 @@ impl SessionOp {
             | Self::SetInstanceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
-            | Self::CommitFreeMove
+            | Self::CommitFreeMove { .. }
             | Self::CancelFreeMove => true,
             Self::DeleteNode { .. }
             | Self::SetSlot { .. }
@@ -706,6 +805,115 @@ impl SessionOp {
             | Self::AddInstance { .. } => false,
         }
     }
+
+    /// Whether this operation is permitted while a **free-move
+    /// gesture** is in flight — the probe drag
+    /// [`SessionOp::BeginFreeMove`] opens on
+    /// [`crate::display::DisplayState`], the other of the session's
+    /// two independent drags.
+    ///
+    /// # Why there are two tables and not one
+    ///
+    /// The two drags refuse DIFFERENT sets, so one predicate could
+    /// only answer for both by refusing the union — and the union is
+    /// wrong in both directions. A value gesture refuses every
+    /// operation that moves the document, because it previews against
+    /// a snapshot of it. A free move does not: a commit that lands
+    /// under a probe is pruned against the new document and REPORTED
+    /// ([`crate::display::PruneReport`]), which is a better answer
+    /// than a refusal — the user learns the mate took their placement
+    /// instead of being told to finish a drag they can finish for
+    /// nothing.
+    ///
+    /// So this table refuses exactly the two doors a prune cannot
+    /// answer for: [`SessionOp::Open`] and [`SessionOp::NewDocument`]
+    /// **replace** the document rather than moving it, and
+    /// `DocSession::clear_for_new_document` then drops the whole
+    /// display state — the in-flight drag with it, under the pointer
+    /// still holding it. That is the half-acted state the value
+    /// gesture's table refuses for, applied to the other drag for the
+    /// same reason.
+    ///
+    /// **And a report is not available here as the alternative**, which
+    /// is what settles the fork rather than taste. A withdrawal names
+    /// an instance and carries a [`crate::display::DisplayFault`] about
+    /// a document; at a replacement the only document left to ask is
+    /// the incoming one, where a [`pncad::document::RecipeNodeId`]
+    /// minted by the outgoing document's counter means something else
+    /// or nothing. [`crate::display::DisplayState::clear`] states that
+    /// argument in full. A door that can neither report truthfully nor
+    /// act without destroying a gesture refuses.
+    ///
+    /// # What is NOT in this table
+    ///
+    /// The `*FreeMove` quartet is `true` here, and three of the four
+    /// have to be: a begin, a preview, a commit and a cancel are how a
+    /// drag is driven and ended, and refusing one would strand the
+    /// gesture this refusal exists to protect.
+    /// [`SessionOp::BeginFreeMove`] is the exception, and it is `true`
+    /// because it is already answered one layer down —
+    /// [`crate::display::DisplayState::begin_free_move`] refuses
+    /// [`crate::display::DisplayFault::FreeMoveInFlight`] off its own
+    /// state, with the same refusal this check raises. A second `false`
+    /// row would be a second spelling of one answer.
+    ///
+    /// [`SessionOp::PreviewFreeMove`] and [`SessionOp::CommitFreeMove`]
+    /// are `true` here and still refused
+    /// [`crate::display::DisplayFault::WrongFreeMove`] when they name
+    /// an instance that is not the one being probed — the value
+    /// gesture's rule, answered the same way and for the same reason:
+    /// the question is about a payload against a state, and this table
+    /// is a function of the operation alone.
+    ///
+    /// [`SessionOp::Save`] is `true`, as it is in the value table and
+    /// for a narrower reason: a save writes the committed history and
+    /// a free-move probe enters no history at all, so there is nothing
+    /// of the drag for a save to write or to lose.
+    #[must_use]
+    pub fn permitted_during_free_move(&self) -> bool {
+        match self {
+            Self::Open(_) | Self::NewDocument { .. } => false,
+            Self::Select(_)
+            | Self::Hover(_)
+            | Self::PreviewGesture { .. }
+            | Self::CommitGesture { .. }
+            | Self::PreviewParamGesture { .. }
+            | Self::CommitParamGesture { .. }
+            | Self::CancelGesture
+            | Self::CancelEvaluation
+            | Self::Reevaluate
+            | Self::Save(_)
+            | Self::SetInstanceHidden { .. }
+            | Self::BeginFreeMove { .. }
+            | Self::PreviewFreeMove { .. }
+            | Self::CommitFreeMove { .. }
+            | Self::CancelFreeMove
+            | Self::DeleteNode { .. }
+            | Self::SetSlot { .. }
+            | Self::ProbeBounds { .. }
+            | Self::SetSlotUnit { .. }
+            | Self::SetSlotExpression { .. }
+            | Self::SetParam { .. }
+            | Self::CreateParam { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginParamGesture { .. }
+            | Self::Undo
+            | Self::Redo
+            | Self::AddMate { .. }
+            | Self::AddDatum { .. }
+            | Self::AddProfile { .. }
+            | Self::AddExtrude { .. }
+            | Self::AddRevolve { .. }
+            | Self::AddBoolean { .. }
+            | Self::AddSplit { .. }
+            | Self::AddTransform { .. }
+            | Self::AddPattern { .. }
+            | Self::AddPlacedUnion { .. }
+            | Self::AddFillet { .. }
+            | Self::AddChamfer { .. }
+            | Self::AddInstance { .. } => true,
+        }
+    }
 }
 
 /// What an operation did.
@@ -718,49 +926,47 @@ pub struct OpOutcome {
     pub previewed: Vec<DocEdit<ProfileProgram>>,
     /// Why nothing (or nothing more) happened.
     pub refusal: Option<Refusal>,
-    /// Instances whose free-move probe was **discarded** by this
-    /// operation's document transition — the G3 supersession, reported
-    /// rather than inferred: a mate landing on a probed instance
-    /// removes its probe here, and the instance is drawn at its
-    /// solved placement from the next landed evaluation on.
+    /// What this operation's document transition WITHDREW from the
+    /// display state — the prune's own report, carried rather than
+    /// copied out field by field.
     ///
-    /// Each entry carries the [`crate::display::DisplayFault`] that
-    /// discarded it, straight from the predicate that decided
-    /// ([`crate::display::free_move_check`]), so the chrome can say WHY the
-    /// placement went — the mates to delete, the fuse, or the
-    /// instance being gone — instead of naming an id and stopping.
+    /// **The three kinds and the argument for wording them apart are
+    /// [`PruneReport`]'s**, stated once where the prune fills them in.
+    /// They were re-declared here for a while, with the same element
+    /// types and the same reasons written twice; what that bought was
+    /// a second place a fourth kind had to be added, and what it cost
+    /// is that neither copy was the place the kind is RENDERED. The
+    /// rendering door is [`crate::frame::Withdrawal::all`], which
+    /// destructures this report, so a fourth kind now reds at the
+    /// sentence that has to word it.
     ///
-    /// **Only COMMITTED probes.** A gesture in flight when the
-    /// transition lands dies too and is not named here — recorded as
-    /// current behaviour and explicitly not endorsed
-    /// (`crates/viewer/tests/review_gui4_r1.rs`), which is the same
-    /// rule [`SessionOp::permitted_during_value_gesture`] states from
-    /// the other side. A caller learns of the death from
-    /// `DisplayState::probing` and from the typed refusal the next
-    /// gesture op gives it.
-    ///
-    /// The chrome renders this through
-    /// [`crate::frame::Withdrawal::superseded`].
-    pub superseded: Vec<Withdrawn>,
-    /// Instances whose HIDE this operation's document transition
-    /// dropped, each with the [`crate::display::display_check`] fault that
-    /// dropped it.
-    ///
-    /// **Not a supersession, and a separate field for that reason.**
-    /// A probe is superseded — the document answers the placement
-    /// question better than the hand placement did. A hide is not
-    /// answered better by anything: it stops being expressible, and
-    /// where the cause is a fuse the instance the user took out of the
-    /// picture is back in it. `crate::display::PruneReport` carries
-    /// the argument; the chrome renders this through
-    /// [`crate::frame::Withdrawal::dropped_hide`].
-    pub dropped_hides: Vec<Withdrawn>,
+    /// Empty on every operation that moved no document — a refusal, a
+    /// selection, a hover — because there was no transition to prune
+    /// against.
+    pub withdrawn: PruneReport,
 }
 
 impl OpOutcome {
     pub(super) fn refused(refusal: Refusal) -> Self {
         Self {
             refusal: Some(refusal),
+            ..Self::default()
+        }
+    }
+
+    /// Every withdrawal a prune reported, on the outcome that carries
+    /// it to the chrome.
+    ///
+    /// **Nothing is copied out.** This used to destructure the report
+    /// into three fields of the same names, so that a fourth kind was
+    /// E0027 at the COPY; the copy is gone and with it the second
+    /// declaration, and the exhaustiveness sits at
+    /// [`crate::frame::Withdrawal::all`] instead — the call that has
+    /// to word the kind, which is where a missed one was actually
+    /// reaching the user unworded.
+    pub(super) fn from_prune(withdrawn: PruneReport) -> Self {
+        Self {
+            withdrawn,
             ..Self::default()
         }
     }
@@ -794,7 +1000,7 @@ impl OpOutcome {
 /// button — to `on_disabled_hover_text`, which is the shape
 /// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
 /// reason-elsewhere.md` is open about. The one this follows is
-/// `pane::create`'s catalogue entry: *carrying the op's own refusal —
+/// [`crate::pane::create`]'s catalogue entry: *carrying the op's own refusal —
 /// read off the entry, not minted here*. So [`CancelDoor::blocked`] is
 /// a [`Refusal`] and not a sentence, and the disabled control's words
 /// are the refused operation's own.

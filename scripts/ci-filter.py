@@ -1650,6 +1650,18 @@ _ALL_RS_MOD_RE = re.compile(r"^\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;"
 # path cannot contain anything else; a path that does is not silently emitted
 # as a malformed filterset, it fails open (below).
 _MODULE_PATH_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$")
+# A suite's dependency on a SIBLING module of its own test binary. `crate::`
+# and `super::` are the two spellings that reach one; a `use` of the crate
+# under test goes through its package name and is not this.
+_USE_SIBLING_RE = re.compile(
+    r"^[ \t]*(?:pub[ \t]+)?use[ \t]+(?:crate|super)[ \t]*::[ \t]*(\{|[A-Za-z_][A-Za-z0-9_]*)",
+    re.M,
+)
+_IDENT_HEAD_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)")
+# An attribute or a doc line, which may sit BETWEEN a `#[path]` and the `mod`
+# it decorates — `crates/mesh/src/lib.rs` writes `#[allow(...)]` there — and
+# must not break the pair for a reader looking for one.
+_ATTRIBUTE_LINE_RE = re.compile(r"^\s*(?:#!?\[|///|//!)")
 _BINARY_ID_RE = re.compile(r"^[A-Za-z0-9_-]+(?:::[A-Za-z0-9_-]+)?$")
 
 # A diff touching one of these empties the whole filter: they are the inputs
@@ -1783,6 +1795,207 @@ def _all_rs_modules(root: str, crate_dir: str) -> dict[str, str]:
         if line.strip():
             pending = None
     return out
+
+
+def _src_path_mounts(root: str) -> dict[str, str]:
+    """Mounted file -> `"<mounting file>:<line>"`, over `crates/*/src`.
+
+    `_suite_term`'s `src/` arm assumes THE MODULE PATH IS THE FILE PATH, and
+    that is false for a `#[cfg(test)]` module mounted from a sibling with
+    `#[path]`: `crates/topo/src/boolean/r1_probes.rs` is
+    `boolean::solid_contain::r1_probes::`, not `boolean::r1_probes::`. A term
+    built from the file path would match no test at all — and a term matching
+    nothing EXCLUDES nothing, so the suite runs on every pull request while
+    reading, in the file, as a gate. It is also the one direction
+    `--gated-set` cannot catch: the nightly runs what it derives, so such a
+    term quietly SHRINKS the re-take instead of reddening it, and the tree
+    reports two green gates over a suite that is neither gated nor re-taken.
+
+    So a marker on a mounted file is refused, by name, here. Resolving the
+    mount instead was weighed and is the larger fix: a mount can nest, and the
+    module path depends on where the mounting `mod` sits in its own file's
+    module tree, so a reader that resolves one level and stops derives a wrong
+    prefix and goes back to selecting nothing — this defect one level deeper.
+    Refusing is exact; deriving would have to be right.
+
+    INTERVENING ATTRIBUTES ARE THE LIVE SHAPE, not a hypothetical:
+    `crates/mesh/src/lib.rs` writes `#[cfg(test)]`, `#[path = "..."]`,
+    `#[allow(...)]`, then `mod`. A reader that required the two to be adjacent
+    would miss it and report a clean tree.
+    """
+    out: dict[str, str] = {}
+    crates = os.path.join(root, "crates")
+    for crate_dir in sorted(os.listdir(crates)):
+        base = os.path.join(crates, crate_dir, "src")
+        for dirpath, dirs, names in os.walk(base):
+            dirs.sort()
+            for name in sorted(names):
+                if not name.endswith(".rs"):
+                    continue
+                full = os.path.join(dirpath, name)
+                here = os.path.relpath(full, root).replace(os.sep, "/")
+                with open(full, encoding="utf-8", errors="replace") as fh:
+                    lines = _gated_code_only(fh.read()).splitlines()
+                pending: tuple[str, int] | None = None
+                for lineno, line in enumerate(lines, 1):
+                    found = _ALL_RS_PATH_RE.search(line)
+                    if found:
+                        pending = (found.group(1), lineno)
+                        continue
+                    if pending is not None and _ATTRIBUTE_LINE_RE.match(line):
+                        continue
+                    mod = _ALL_RS_MOD_RE.match(line)
+                    if mod and pending is not None:
+                        target = os.path.normpath(os.path.join(dirpath, pending[0]))
+                        rel = os.path.relpath(target, root).replace(os.sep, "/")
+                        out.setdefault(rel, f"{here}:{pending[1]}")
+                    if line.strip():
+                        pending = None
+    return out
+
+
+def _tests_sibling_files(root: str, crate_dir: str) -> dict[str, str]:
+    """Module name -> the `tests/`-relative file `tests/all.rs` mounts it from.
+
+    `_all_rs_modules` READS THE OTHER HALF OF THIS FILE and cannot stand in for
+    it. It records `#[path = "..."] mod x;` pairs, because a suite's test-id
+    prefix is not derivable from its filename; the HELPER modules are declared
+    as a bare `mod common;` with no attribute at all, and are invisible to it.
+    That is not a quirk of one crate — it is how every helper tree in the repo
+    is mounted, and reusing the term reader here would have made this check
+    resolve nothing and pass every tree, silently and in green.
+
+    So: the `#[path]` pairs, plus the bare `mod x;` declarations resolved by
+    Rust's own rule — `x/mod.rs` first, then `x.rs`. A name that resolves to
+    neither is left out rather than guessed at.
+    """
+    out = {mod: inner for inner, mod in _all_rs_modules(root, crate_dir).items()}
+    tests_dir = os.path.join(root, "crates", crate_dir, "tests")
+    try:
+        with open(os.path.join(tests_dir, "all.rs"), encoding="utf-8", errors="replace") as fh:
+            lines = _gated_code_only(fh.read()).splitlines()
+    except OSError:
+        return out
+    attributed = False
+    for line in lines:
+        if _ALL_RS_PATH_RE.search(line):
+            attributed = True
+            continue
+        mod = _ALL_RS_MOD_RE.match(line)
+        if mod:
+            name = mod.group(1)
+            if not attributed and name not in out:
+                for candidate in (f"{name}/mod.rs", f"{name}.rs"):
+                    if os.path.isfile(os.path.join(tests_dir, candidate)):
+                        out[name] = candidate
+                        break
+            attributed = False
+            continue
+        if line.strip():
+            attributed = False
+    return out
+
+
+def _sibling_module_heads(text: str) -> set[str]:
+    """The head identifiers of every `use crate::<h>` / `use super::<h>` in `text`.
+
+    The HEAD is the whole question: `use crate::common::bodies::brick` depends
+    on the `common` module, and which item it reaches inside it is a fact about
+    Rust and not about the change filter. A brace list is split on its TOP-LEVEL
+    commas only — `use crate::{common::{a, b}, corpus}` is `common` and `corpus`
+    and never `a` — because an over-matched head that happened to collide with a
+    real module name would demand a path the suite does not depend on, and that
+    reds a correct tree. This check may only ever be wrong in the direction of
+    missing an import.
+    """
+    heads: set[str] = set()
+    for match in _USE_SIBLING_RE.finditer(text):
+        if match.group(1) != "{":
+            heads.add(match.group(1))
+            continue
+        start = text.index("{", match.start())
+        depth = 0
+        end = None
+        for i in range(start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        if end is None:
+            continue
+        depth = 0
+        entry: list[str] = []
+        for ch in text[start + 1 : end] + ",":
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+            if ch == "," and depth == 0:
+                found = _IDENT_HEAD_RE.match("".join(entry).strip())
+                if found:
+                    heads.add(found.group(1))
+                entry = []
+            else:
+                entry.append(ch)
+    return heads
+
+
+def _unnamed_helper_imports(root: str, suite: "GatedSuite") -> list[str]:
+    """The sibling helper modules `suite` imports and its marker does not name.
+
+    THE CONVERSE OF THE PATH CHECK, and the hole it closes is silent and green.
+    A marker's own file is an implicit member of its path set; a sibling helper
+    module is NOT. A suite that writes `use crate::common;` takes its fixtures,
+    its bodies and often its tolerance from that directory — so a pull request
+    editing `crates/<c>/tests/common/mod.rs` seeds the crate, and the filter
+    then SKIPS every gated suite whose set omits it, on the one diff most
+    likely to have broken them. Nothing reds, and the notice line reads exactly
+    like a correct skip.
+
+    That is not hypothetical. TCOST-9 swept all 54 markers in the tree for this
+    and found TEN — seven of them written under TCOST-1's review and three
+    under its own, whose stated bar in both cases WAS the path set. Every
+    author made the same omission. The ten were widened by hand; this is the
+    arm that stops the eleventh.
+
+    `tests/` shape only. A `src/` marker's `use crate::<m>` names a crate
+    SOURCE module, where whether the suite is specific to it is the ordinary
+    path-set judgement a reviewer makes and not a fact this script can derive.
+    """
+    parts = suite.path.split("/")
+    if len(parts) < 4 or parts[2] != "tests":
+        return []
+    crate_dir = parts[1]
+    file_of = _tests_sibling_files(root, crate_dir)
+    try:
+        with open(os.path.join(root, suite.path), encoding="utf-8", errors="replace") as fh:
+            text = _gated_code_only(fh.read())
+    except OSError:
+        return []
+    missing: list[str] = []
+    for head in sorted(_sibling_module_heads(text)):
+        inner = file_of.get(head)
+        if inner is None:
+            # Not a module `tests/all.rs` mounts, so not a sibling of this
+            # suite at all — a re-export through the crate's own lib, or a
+            # name this reader cannot resolve. Silence is the safe answer.
+            continue
+        resolved = f"crates/{crate_dir}/tests/{inner}"
+        if resolved == suite.path:
+            continue
+        # THE SAME MATCH `selected_by` MAKES, and it has to be: a check that
+        # accepted a spelling the filter would not honour would pass a marker
+        # that still skips on the diff it must run for.
+        covered = any(
+            resolved.startswith(want) if want.endswith("/") else want == resolved
+            for want in suite.paths
+        )
+        if not covered:
+            missing.append(f"`use crate::{head};` -> {resolved}")
+    return missing
 
 
 def _suite_term(root: str, rel: str, dir_of: dict[str, str] | None) -> tuple[str | None, str | None]:
@@ -2052,6 +2265,7 @@ def gated_check(root: str) -> int:
                     "one that does"
                 )
 
+    mounts = _src_path_mounts(root)
     suites = _scan_gated(root, dir_of)
     for suite in suites:
         if suite.problem is not None:
@@ -2067,6 +2281,28 @@ def gated_check(root: str) -> int:
                 "The term it derives selects nothing, so the marker gates nothing and "
                 "says otherwise"
             )
+        # A MARKER ON A `#[path]`-MOUNTED FILE. Its term is derived from the
+        # file path and the compiler's module path is the MOUNTING module's,
+        # so the term selects nothing — the suite runs on every run while
+        # reading as gated, and drops out of the nightly re-take silently.
+        if suite.path in mounts:
+            problems.append(
+                f"{suite.path}: carries a marker and is `#[path]`-mounted from "
+                f"{mounts[suite.path]}, so its module path is the MOUNTING module's "
+                "and the term derived from this file's path selects no test. Move the "
+                "gated rows to a file whose path matches its module path, and mark that"
+            )
+
+        # A HELPER THE SUITE IMPORTS AND THE MARKER DOES NOT NAME. Everything
+        # above asks whether what the marker SAYS resolves; this asks the
+        # converse — whether what the suite DEPENDS ON is said — for the one
+        # dependency the tree makes mechanically checkable.
+        for missing in _unnamed_helper_imports(root, suite):
+            problems.append(
+                f"{suite.path}: imports {missing}, which its marker does not name. "
+                "A diff editing that helper would SKIP this suite — its fixtures "
+                "change and it does not run"
+            )
 
     if problems:
         for p in problems:
@@ -2077,6 +2313,11 @@ def gated_check(root: str) -> int:
             "and is never listed. Fix the path, or delete the marker deliberately — an "
             "unresolvable one leaves the suite running on every pull request while "
             "reading as gated, and reds the nightly's ungated re-take.\n"
+            "\nAn UNNAMED HELPER IMPORT is the other direction and fails the other "
+            "way: the suite is skipped on the diff that moved its fixtures, silently "
+            "and in green. Add the helper's directory to the marker with a trailing "
+            "`/` — `crates/<crate>/tests/common/` — which is what makes it match "
+            "everything under it.\n"
         )
         raise SystemExit(
             "error: {} problem(s) in {} gated-suite marker(s)".format(len(problems), len(suites))

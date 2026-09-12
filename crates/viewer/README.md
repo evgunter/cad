@@ -419,14 +419,27 @@ could only fire with the session already half-replaced. `path` and
 document, and are the part of the two doors that genuinely differs:
 `Open` sets both, `NewDocument` clears both.
 
-**That table governs value gestures only.** The free-move drag
-`DisplayState` owns is a different value with a different owner, and
-no door refuses a replacement while one is open: `clear`ing the
-display discards an in-flight free move with no refusal and no report,
-which is the walk applying to one gesture kind the opposite of what it
-says about the other. The behaviour is older than the block above and
-has its own item
-(`work/view/free-move-drag-dissolved-by-open.md`).
+**That table governs value gestures only, and there is a second.** The
+free-move drag `DisplayState` owns is a different value with a
+different owner, so it has its own row list
+(`SessionOp::permitted_during_free_move`) rather than a widened one:
+the two drags refuse different sets, and one table could serve both
+only by refusing the union. A value gesture refuses every operation
+that moves the document, because it previews against a snapshot of it;
+a free move does not, because a commit landing under a probe is pruned
+against the new document and REPORTED, which is a better answer than a
+refusal.
+
+**What the two tables agree on is exactly these two doors.** `Open` and
+`NewDocument` REPLACE the document rather than moving it, and
+`clear_for_new_document` then drops the whole display state — so a
+prune has nothing to report against and the drag would go under the
+pointer holding it. Both are refused while either drag is open, and
+neither is ever dissolved in silence
+(`no_operation_dissolves_an_in_flight_free_move_in_silence`). The
+free-move refusal is `DisplayFault::FreeMoveInFlight` — *"finish the
+free-move first"*, which names a door the user has — and not
+`Refusal::GestureInFlight`, which names the other drag.
 
 **The dump is held to the same declaration.** This paragraph is the one
 home for the rule; the four walks that follow it state their own `_`
@@ -505,7 +518,7 @@ whose correctness argument is that its list IS the value's fields —
 crate destructures the value instead of listing its fields by hand, so
 the list cannot fall behind the declaration; which trait the census
 sits in decides only what a missed field COSTS, and the sharpest cost
-is not a dump's. Eight of these are not dumps:
+is not a dump's. Nine of these are not dumps:
 
 | census | costs, if it misses a field |
 |---|---|
@@ -515,6 +528,7 @@ is not a dump's. Eight of these are not dumps:
 | `Display for StoreError` | a store's failure carries a fact the sentence does not say |
 | `Display for Message` | **nothing, by design** — this account is deliberately partial, and that is exactly why the tie is worth having: it makes the NEXT field's omission a decision someone made rather than one nobody noticed |
 | `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
+| `Withdrawal::all` | a KIND of withdrawal reaches the chrome's notices and is never worded — the fan-out from a `PruneReport` that three hand-written `extend` calls in `app`-gated code used to do, where no row could execute it |
 | `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
 | `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
 
@@ -553,11 +567,15 @@ rendering either would change what the chrome says — and both carry
 the argument for the drop, `MateToolEvent`'s at its impl (the payload
 stays typed and full in the value; the sentence is what a person
 reads) and `CameraOp`'s at the arm. That is the property this rule is
-after: an omission that is a decision someone made. The rule matched
-two more sites that are not instances, and the distinction is the same
-one: `frame.rs`'s `matches!(w.cause, DisplayFault::FusedGeometry { .. })`
-is a variant test on another type, and its `count =>` arm is a
-catch-all over `withdrawn.len()`, not over the subject.
+after: an omission that is a decision someone made. The rule matches
+one more site that is not an instance, and the distinction is the
+usual one: `frame.rs`'s
+`matches!(w.cause, DisplayFault::FusedGeometry { .. })` is a variant
+test on another type rather than a pattern over the subject. The arm
+that words a withdrawal's count beside it matches an `Option`
+exhaustively — the two kinds that are over a SET carry a plural and the
+kind that is over the one gesture in flight carries `None` — so a
+plural no constructor can reach is never worded.
 
 **What was swept for the writing hat, and what it could not see.**
 Every `fn` under `src/` naming two or more distinct `self.<field>`
@@ -585,7 +603,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while the two `const` tables mirror an enum in another crate, cannot be projected from a declaration that is not here, and say so. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build them, and the two that spend them — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
 
@@ -954,25 +972,99 @@ own.
 The mid-gesture policy is one exhaustive value,
 `SessionOp::permitted_during_value_gesture`, checked once in `perform`
 before dispatch: 26 operations refuse while a value gesture is open and
-13 are permitted. A fortieth operation cannot be added without
+15 are permitted. A forty-second operation cannot be added without
 answering for it, and the whole policy is readable in one place rather
 than inferred from every dispatch target.
 
 It says nothing about the free-move gesture, which is a different value
-with a different owner (`display::DisplayState`) and carries its own
-in-flight refusal. The name carries that limit: a predicate reading as
-a general guarantee would be a table that looks complete and is not.
-The two fields are spelled apart for the same reason — `DocSession`
-holds `gesture` and `DisplayState` holds `free_move` — so a reader who
-greps `self.gesture` gets one concept back. What the table's four
-`*FreeMove` rows permit, and the identity that makes the overlap sound,
-is stated at `permitted_during_value_gesture` itself, scoped to the
-tree DI5 has not yet changed.
+with a different owner (`display::DisplayState`) and has a table of its
+own, `SessionOp::permitted_during_free_move`. The name carries that
+limit: a predicate reading as a general guarantee would be a table that
+looks complete and is not. The two fields are spelled apart for the
+same reason — `DocSession` holds `gesture` and `DisplayState` holds
+`free_move` — so a reader who greps `self.gesture` gets one concept
+back. What the value table's four `*FreeMove` rows permit, and the
+identity that makes the overlap sound, is stated at
+`permitted_during_value_gesture` itself, scoped to the tree DI5 has not
+yet changed.
+
+**The second table refuses two rows and has a name for them**:
+`Open` and `NewDocument`, the operations that REPLACE the document
+rather than move it. The asymmetry with the first table is the point —
+a commit that lands under a probe is pruned and reported, and only a
+replacement drops the display state whole with no document left to
+report against (`DisplayState::clear` carries that argument). So the
+free-move table is checked against the property rather than against a
+second copy of 41 rows (`replaces_the_document`, in
+`tests/gesture_table.rs`), and `perform` consults both tables in turn,
+value gesture first.
+
+`BeginFreeMove` is permitted by both tables and refused anyway, one
+layer down: `DisplayState::begin_free_move` answers a second begin off
+its own state with the same `FreeMoveInFlight`. A row in the table
+would be a second spelling of one answer, and the test that exercises
+the doors says so rather than smoothing it over.
 
 The table records behaviour rather than deciding it — `save` is
 permitted mid-gesture and `open` is refused, which is what the code did
 before the table existed. Whether that asymmetry is right is a separate
 question with its own item.
+
+### A driving operation names its own gesture
+
+`PreviewGesture`, `CommitGesture`, `PreviewParamGesture`,
+`CommitParamGesture`, `PreviewFreeMove` and `CommitFreeMove` each carry
+the target they are driving, and each is refused when that is not the
+gesture in flight — `Refusal::WrongGesture` for the value drag,
+`DisplayFault::WrongFreeMove` for the probe, raised where the gesture's
+own state lives.
+
+The chrome emits a drag as a triple (`widgets::drag_gesture_ops`) and a
+second drag's BEGIN is the only member of it the mid-gesture tables
+refuse: the other two drive the gesture and a table that refused them
+would leave every drag with no way to end. So without the target in the
+payload, a field whose begin was refused still previews and still
+commits — into whichever gesture happens to be open, with the new
+field's number. The subject of a driving operation is the field the
+user has hold of, and naming it is what makes the mismatch refusable.
+
+**The probe's target is coarser than a field, and the chrome is what
+makes that enough.** `PreviewFreeMove` names an instance because an
+instance has exactly one probe — not one of the three millimetre boxes
+the panel draws for it. Mapped a triple per box those boxes are three
+gestures over one probe and the payload cannot separate them, both
+naming the same instance: the second box's begin is refused
+`FreeMoveInFlight`, its preview then overwrites the first's frame, and
+its commit lands it and CLOSES the probe the pointer is still holding —
+a refusal describing a state its own batch destroyed. The keyboard is
+what reaches that second box while the pointer holds the first, because
+a `DragValue` enters edit mode the frame it takes focus. So the row is
+mapped ONCE, as a row (`widgets::vec3_row_ops`), and a keystroke on a
+sibling box is another hand on the open gesture rather than a second
+gesture. What the payload still cannot refuse is a second DRIVER on one
+instance, of which this chrome has one;
+`work/view/probe-identity-stops-at-the-instance.md` owns that.
+
+**The two cancels are the exception and name nothing**: their subject
+is the session's state, because the state they exist for is a drag
+whose field is no longer drawn (the cancel-door section below).
+
+**A target, not a token.** A gesture could be named by a handle its
+begin mints, and the difference shows on the one drag the chrome can
+reach here: the field of a stranded drag, dragged again. Its begin is
+refused — one drag at a time — and its preview and its release name the
+same slot, so they land the number the user dragged it to and end the
+drag. A token minted per begin would refuse them and strand the reader a
+second time. The identity that matters is *which field*, and nothing
+that moves the document is permitted mid-drag, so the second drag's base
+document is the first's.
+
+**The table says what it says.** `permitted_during_value_gesture` is a
+function of the operation alone, so it cannot answer a question about a
+payload; the name check lives in `DocSession::preview_gesture` /
+`commit_gesture` and `DisplayState::preview_free_move` /
+`commit_free_move`, and the refusals are spelled apart from
+`GestureInFlight` so the table's answer stays readable from the outcome.
 
 ### Every gesture has a cancel door
 
@@ -1027,10 +1119,34 @@ performs each door's operation with no gesture open and compares both
 the rendering and the variant. Nothing structural stops a future door
 composing its own sentence; that row is what would red.
 
-**There is no key for it**: this crate binds no key to any operation at
-all (`input::PRESETS` states what a keyboard vocabulary would have to
-decide first), so an Escape binding is that decision and not a row to
-add.
+**The door cannot be reached during a live pointer drag**, which is the
+half of the defect it does not answer: it is a toolbar control, and
+pressing a toolbar button costs the pointer release that lands the
+value. Enabled and unreachable is the state a drag under the pointer
+leaves it in, so the door is the STRANDED drag's exit and not the held
+drag's.
+
+**The held drag's exit is Escape, and it is read rather than bound.**
+`egui` aborts a drag on Escape and on nothing else, by clearing the
+dragged widget — so the abort arrives at `widgets::drag_gesture_ops` as
+an ordinary `drag_stopped` frame, and the chrome that does not read the
+key reports an abandonment as a release. That branch is the whole of
+what this crate reads a key for: which of the two things the toolkit
+already did is being reported. It decides no key→operation vocabulary
+(`input::PRESETS` states what one would have to decide first), and it
+is read directly from the key rather than inferred from the absence of
+a pointer release, because a long touch also ends a drag with no
+release and means something else.
+
+A drag has two ends and they mean opposite things, so the emitted
+operation is a parameter of the mapping beside the commit — and a
+`SessionOp` rather than an `Option`, because every gesture vocabulary
+has a cancel and `every_gesture_cancel_has_a_chrome_door` is the
+exhaustive match that keeps it so. Both drags the panel maps run
+through that one function, so both ends are the same rule at the slot
+field, the parameter field and the free-move probe; the stake is
+largest at the first two, where a commit reaches the document and costs
+an undo step.
 
 ### One open tool, not seven optional ones
 
@@ -1063,15 +1179,20 @@ copy would be the hand-written list again with nothing forcing it.
 
 ### Closed vocabularies are declared once
 
-**Nine** enums here are closed vocabularies: a fixed set of choices the
+**Ten** enums here are closed vocabularies: a fixed set of choices the
 chrome offers, which something walks in order — a radio row, a combo's
 options, a suite's sweep. Each carried a hand-written `const ALL`
 beside it, and that second copy of the membership was free to fall
 behind the first: adding a variant compiled, the radio row silently
 lost a button, and every sweep keyed on the list quietly narrowed.
-(Ten `const ALL` tables existed under `src/`; nine were of this kind.
-The number is stated twice here because this program's counts have
-gone wrong before, and both figures are the same census.)
+(At the conversion, ten `const ALL` tables existed under `src/` and
+nine were of this kind. The tenth vocabulary is `frame::WithdrawalKind`
+and it is not one of those ten: it carried no membership list at all
+until the fan-out from a `PruneReport` needed holding to it, and the
+list it got was projected rather than written. Both censuses are stated
+because this program's counts have gone wrong before — one is the tree
+at the conversion, the other is the vocabularies today, and nothing
+makes them the same number.)
 
 **The enum and its `ALL` are now one declaration.** `src/vocab.rs`'s
 `vocabulary!` takes one list of variants and expands it into both, so a
@@ -1099,7 +1220,7 @@ the same list as a match, so the closed face of a combo is served
 without a second ordered reading.
 
 **The sweep that produces the population** is a walk of every loop over
-a vocabulary's `ALL` — one of the nine declared by `vocabulary!`, so a
+a vocabulary's `ALL` — one of the ten declared by `vocabulary!`, so a
 loop over `Theme::ALL` or `pncad`'s `Axis3::ALL` is outside it — read
 for what the loop asks each entry for. It reads `src/` **and**
 `tests/`, because the discriminator is about the words and a word read
@@ -1107,8 +1228,8 @@ in a suite is still a word read off the table; a sweep scoped to `src/`
 would have nothing to discriminate on the two vocabularies it rules
 bare, and the first tests-only word-walk would arrive unseen.
 
-**Seven of the nine are walked under `src/`, and all seven ask for the
-word.** Each binds `(value, label)` and puts that label on the control
+**Seven of the ten are walked under `src/` for their words, and all
+seven ask for one.** Each binds `(value, label)` and puts that label on the control
 it draws: `pane::create`'s datum row (`:309`), profile row (`:409`),
 path-verb combo (`:727`), pattern-rule row (`:989`), pattern-output row
 (`:995`) and blend-kind row (`:1093`), and `widgets::arc_fields`' mode
@@ -1118,7 +1239,15 @@ because a table walk reads them. `PathVerb` and `ArcMode` additionally
 declare `fn label;` under their `ALL`, for a combo's closed face; the
 other five are never asked for one value's word and carry no accessor.
 
-**`ToolKind` and `Seat` are the remaining two, and are BARE**, because
+**`ToolKind`, `Seat` and `WithdrawalKind` are the remaining three, and
+are BARE.** `WithdrawalKind` is walked under `src/` and is bare anyway,
+which is the discriminator doing its job rather than an exception to
+it: `frame`'s own `every_withdrawal_kind_has_a_producer` compares the
+KINDS `Withdrawal::all` produced against the list, and reads no word
+off it. A withdrawal's sentence is composed by `Withdrawal`'s `Display`
+from the kind and the faults under it — a count, a consequence clause
+and each cause's own `Display` — so the words were never table data to
+begin with. The other two are bare because
 no loop under `src/` walks their lists at all: a kind's word appears
 inside a sentence `tools` composes, and a seat's inside the refusal
 sentences `seats` and `session::refuse` write — wording read against
@@ -1146,12 +1275,12 @@ un-converting the enum. `src/vocab.rs`'s own doc carries both, and the
 rustfmt cost below.
 
 **rustfmt does not reach inside the invocation**, so the variants and
-variant docs of all nine are formatted by hand. Demonstrated rather
+variant docs of all ten are formatted by hand. Demonstrated rather
 than assumed, and not fixable by making the body parse: `src/vocab.rs`
 records the experiment and
 `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
 
-Three kinds of list stay hand-written, and each is a different answer
+Two kinds of list stay hand-written, and each is a different answer
 rather than an exception:
 
 - **A registry of struct constants** (`Theme::ALL`) is not an
@@ -1162,9 +1291,13 @@ rather than an exception:
   two of five `Subject`s, each tool's seat list names its own seats,
   and `MATE_PRIMITIVES` offers three of four mate primitives because
   the fourth exists to be refused. Each says why in its own doc.
-- **A mirror of an enum declared in another crate** (`BOOLEAN_OPS`)
-  cannot be projected from a declaration that is not here. That is the
-  neighbouring MIRROR question and has its own tracker item.
+
+A list that mirrors a vocabulary ANOTHER crate owns is not a third
+kind, and the boolean form is why: a mirror claiming completeness has
+an answer one crate over, where the owner publishes its own `ALL`
+beside the declaration and this crate maps over it, writing only the
+words a button needs at an exhaustive match. What stays here is the
+partial case above, which wants no such list.
 
 **A gate holds this, and the table below is its allowlist.**
 `scripts/gates/viewer-vocab-declared-once.sh` scans `crates/viewer/src`
@@ -1174,10 +1307,10 @@ entries, which is the same list under a different word — and reds on
 one the table does not carry. `static` opens an item in both arms, for
 the same reason the second shape exists. A converted vocabulary is not
 a hit: `vocabulary!`'s `pub const ALL;` declares no array literal, so
-the nine are quiet without an entry. What the gate reads is this
+the ten are quiet without an entry. What the gate reads is this
 section rather than a list of its own: the ROWS below are the
 allowlist, and the KINDS they may claim are the bullets of the
-three-kinds list above — the list the sentence *"Three kinds of list
+two-kinds list above — the list the sentence *"Two kinds of list
 stay hand-written"* announces, and no other. That sentence is matched
 only where it OPENS a paragraph, so quoting it in prose, as this one
 just did, is a mention and not a second announcement. Both halves are
@@ -1201,7 +1334,7 @@ list to a renderer and to the gate, and at four spaces it is the
 bullet's own nested content, or the paragraph's, or a code block.
 
 The gate pins the announcing sentence and carries the NUMBER of bullets
-as its own constant, and it refuses those two to disagree — so a fourth
+as its own constant, and it refuses those two to disagree — so a third
 kind is an amendment argued here, rewording that sentence's number word
 and adding a bullet, AND an edit to that file moving both of its copies
 of the count, not a new word in a table cell.
@@ -1238,7 +1371,6 @@ is what covers it.
 
 | List | Module | Kind |
 |---|---|---|
-| `BOOLEAN_OPS` | `forms` | A mirror of an enum declared in another crate |
 | `MATE_PRIMITIVES` | `forms` | A deliberately partial list |
 | `SUBJECTS_WITH_AN_EXPIRY_ISSUER` | `frame` | A deliberately partial list |
 | `Theme::ALL` | `theme` | A registry of struct constants |
@@ -1246,7 +1378,7 @@ is what covers it.
 **This table is the roster**, not a summary of one. `Module` is the
 module the `const` is declared in, `List` is how it is written there
 (an associated constant carries its type, `Theme::ALL`), and `Kind` is
-the bullet of the three-kinds list above that ratifies it, word for
+the bullet of the two-kinds list above that ratifies it, word for
 word.
 
 The type in `List` is for a reader, not for the gate: what the gate
@@ -1534,7 +1666,7 @@ setting only the flag fails the build, which is why the feature is
 declared here so the flag is all a builder has to remember
 (`local-scripts/serve-wasm.sh`). The browser lane itself is deferred.
 
-### Rustdoc posture: the host pass is the gate
+### Rustdoc posture: the host all-features pass is the link gate
 
 **At the browser target every link into host-only code is unresolvable
 BY CONSTRUCTION, so a lint that cannot tell that from a broken link is
@@ -1548,10 +1680,108 @@ answer for the same reason, and the reason is not that the browser docs
 do not matter: it is that the lint cannot tell *this link is broken*
 from *this link's target is in the other half*.
 
-**So the gate is the HOST pass**, at `-D warnings`, which CI runs. It
-holds every page it renders — including the case no by-construction
-argument covers: a link that resolves at NEITHER target is broken on a
-host page and reds there.
+**So the link gate is the host pass at `--all-features`**, at
+`-D warnings`, which CI runs. It holds every page it renders —
+including the case no by-construction argument covers: a link that
+resolves at NEITHER target is broken on a host page and reds there.
+
+**There are TWO host passes, and only one of them judges links.**
+`scripts/doc-gate.sh` documents this crate a second time at DEFAULT
+features on any run whose change filter did not seed the toolkit
+(`--skip-viewer-toolkit`), and that pass renders the renderer-free half
+ALONE: `app`, `drafts`, `forms`, `gpu`, `pane` and `widgets` are not
+compiled there, so a link into any of them is unresolvable by
+construction — the same shape as the feature and target axes above, in
+a third place. **Ev ruled on 2026-09-11 that the renderer-free half MAY
+link into the `app`-gated half**, and that pass runs
+`RUSTDOC_LINTS_INERT` accordingly, stated at its site. What is checked
+where, exhaustively:
+
+- **At `--all-features`** — every link in this crate, both halves. A
+  branch whose diff touches `crates/viewer` takes this pass, because
+  `scripts/ci-filter.py` seeds `RUN_VIEWER_TOOLKIT` off that diff, so
+  whoever writes a broken link reds on their own branch.
+- **At DEFAULT features** — every rustdoc lint EXCEPT
+  `broken_intra_doc_links`. The renderer-free half's prose is held to
+  all of the rest on every run, which is what that pass is still for.
+- **Nowhere** — a link in the renderer-free half broken by its TARGET
+  moving. Writing a link means diffing `crates/viewer`, which seeds the
+  toolkit; but a link also breaks when the item it points at is renamed
+  or deleted, and that happens on someone else's branch.
+  `cargo_scope` is the dependent closure while `run_viewer_toolkit` is
+  keyed on the SEEDS (`ci.yml:1833-1836`), so a branch seeded elsewhere
+  takes skip mode **with `viewer` in scope** — and the
+  default-features pass, link lint inert, is then the only rustdoc
+  reading this crate.
+
+  **That case is empty today by a contingency, not by construction, and
+  the contingency is the thing to write down.** Every cross-crate link
+  in the renderer-free half targets `pncad` — twelve sites:
+  `blend.rs:425`, `display.rs:262`, `docio.rs:85`, `marks.rs:297`,
+  `matetool.rs:33`, `:54`, `:153`, `:220`, `parts.rs:11`,
+  `props.rs:652`, `sketch.rs:939`, `tree.rs:143` — and `pncad` is itself
+  a toolkit seed (`scripts/ci-filter.py:1428`,
+  `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad", "bvh"}`). So every branch
+  that can break one of these links seeds the toolkit and takes the
+  all-features pass. **A first link into any crate outside that set —
+  `editor-core`, `topo`, anything — opens the hole, and nothing reds
+  when it does.** The ruling's second clause, `nightly.yml:291-293`'s
+  `rustdoc (viewer, all features)`, does not close it: that row is
+  `cargo doc -p viewer --all-features --no-deps` with no `RUSTDOCFLAGS`
+  anywhere in the file, so a broken link there is a warning and the step
+  exits 0 — measured, by planting one. It re-takes the RENDER, not the
+  lint. The sweep rule this bullet owes is *the renderer-free half's
+  cross-crate link targets, against `VIEWER_TOOLKIT_SEEDS`*, and
+  `work/view/renderer-free-cross-crate-links-are-ungated-off-the-seed-set.md`
+  owns it.
+
+Someone who runs `cargo doc` on this crate without `app` — the reader
+the renderer-free half exists for — meets one of those links as the
+literal text `[crate::app::…]`, brackets and all, because the target is
+not there to link to. That is the cost and it is accepted: a
+`cfg(not(feature))` configuration is allowed to render badly (Ev,
+2026-09-11).
+
+**The ruling settles the SPELLING as well as the legality: a doc comment
+that names an `app`-gated ITEM links it, whatever the grammar of the
+sentence around it.** Until that date a bare span was the only legal
+spelling, so this crate acquired two for one relationship — a reference
+written as one path became `` [`crate::app::FieldWriting`] ``, while the
+same reference written as a possessive stayed `` `app` ``'s
+`` `remember_theme` ``. A possessive is not a prose exception: its
+second span names an item, so it takes the link too. **The sweep rule
+that produces the population** is every `///` or `//!` line under `src/`
+carrying a backtick span whose content is an `app`-gated module name
+(`app`, `drafts`, `forms`, `gpu`, `pane`, `widgets`, with or without a
+`.rs` suffix) immediately followed by a possessive — *whether or not a
+second span follows it*, which is the widening that matters, because the
+rule every earlier sweep here used (*whole span content is
+`<mod>::<path>`*) cannot see this shape at all. Two things the rule
+still does not reach, stated because a sweep whose blind spot is
+unstated is not a negative result: a span naming one of those modules as
+a CONCEPT rather than as a namespace (`sketch.rs`'s *"The forms' own
+default is `app`'s, not this"*), which has no item to point at; and a
+possessive whose first span is a type, a trait or another crate, which
+is the same grammar over a different population.
+
+**A PRIVATE target links, but only if it is nameable, and the two are
+not the same test.** A private FIELD and a private METHOD resolve
+(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_theme` are
+both linked and both private), because rustdoc resolves an associated
+item through its type and both host passes run
+`--document-private-items` with `rustdoc::private_intra_doc_links`
+allowed — the decision `scripts/doc-gate.sh`'s header argues and its own
+selftest pins. **A module-scoped private `const` or `fn` does not**, and
+`--document-private-items` does not change that: the flag decides what
+rustdoc RENDERS, while a path is resolved by ordinary visibility, and
+`crate::gpu::EDGE_CLIP_Z_SHRINK` is not a path anyone outside `gpu` may
+write. Measured by planting it: the all-features pass errors
+*"no item named `EDGE_CLIP_Z_SHRINK` in module `gpu`"*. So
+`pickindex.rs`'s and `gpu.rs`'s deliberate pointer pair over their two
+slack constants stays NAMED at both ends — the one population this
+section's linking rule cannot reach, and the reason is visibility rather
+than a feature gate. Widen the target to `pub(crate)` first if a link is
+wanted, or leave it named; do not reach for `#[allow]`.
 
 **A browser pass, if one is ever run, allows that one lint.** None is
 run today, and the feature axis is better off here than this one:
@@ -1585,13 +1815,13 @@ drifted citation to show for it, and this crate has spent four such
 findings in a day.
 
 **The one shape that is a DEFECT rather than a cost, and how to decide
-it without an attribute grep.** Ask whether the host pass renders a page
-for the item the doc comment sits on — the same `cargo doc` without
+it without an attribute grep.** Ask whether the host all-features pass
+renders a page for the item the doc comment sits on — the same `cargo doc` without
 `--target`, then look for the page under `doc/viewer/`; it is there or
 it is not:
 
-- **It does** — the host pass holds that link, and a browser-pass error
-  on it is by construction. Permitted.
+- **It does** — the host all-features pass holds that link, and a
+  browser-pass error on it is by construction. Permitted.
 - **It does not** — the item is absent at the host, so the browser pass
   is that link's ONLY reader and it has to resolve there. A bracket
   resolving at neither target spells a checked claim nothing anywhere
@@ -1605,9 +1835,10 @@ on the item, because the two come apart inside this very file:
 comments carry no `cfg` of their own, so an attribute test reads them as
 unconditional and reaches the wrong bullet. It is not a test on the
 LINKED item's `cfg` either, and it needs no special case for the `app`
-feature: `mod app` is `cfg(feature = "app")`, and the host pass
+feature: `mod app` is `cfg(feature = "app")`, the host all-features pass
 documents this crate WITH that feature, so its page exists and its links
-are held.
+are held — and the default-features pass beside it judges no link at
+all, so there is no second answer for this test to disagree with.
 
 ## Banked post-v1
 

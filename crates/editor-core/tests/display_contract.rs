@@ -20,6 +20,7 @@ use editor_core::{
     RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId,
     SnapshotError, StableName, StepArg,
 };
+use geom_core::BandError;
 
 /// Asserts the F6 shape over one rendering: the wanted content is
 /// present, no variant identifier leaks, no Debug punctuation, and the
@@ -261,9 +262,16 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             },
             vec!["distance is a distance", "dimension angle"],
         ),
+        // The F6 shape only; the arm's REACHABILITY and the payload
+        // it must forward are pinned through the real doors in
+        // `wire_band_cause`, which is where a `BandError` can be
+        // obtained from `Band::linear` rather than written down.
         (
-            SelectRefusal::Band,
-            vec!["ambiguity band", "ambient tolerance"],
+            SelectRefusal::Band(BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            }),
+            vec!["ambiguity band", "ambient tolerance", "strictly below"],
         ),
     ];
     for (err, wants) in cases {

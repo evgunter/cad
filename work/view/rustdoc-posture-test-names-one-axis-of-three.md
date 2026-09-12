@@ -2,9 +2,11 @@
 id: rustdoc-posture-test-names-one-axis-of-three
 kind: issue
 title: the posture ruling says "the host pass" and doc-gate runs two of them, so a link can pass the ruling's test and red the gate
-status: open
+status: closed
 opened: 2026-09-10
-needs_ev: true
+closed: 2026-09-11
+pr: 2332
+branch: view/link-thirteen
 ---
 
 Found by `doc-comments-name-symbols-that-do-not-exist` while applying
@@ -234,3 +236,113 @@ what makes it a codification rather than a change.
 retired in the same pass, since the reason those notes give would no
 longer hold.
 
+
+## Closed (2026-09-11)
+
+**Ev ruled: link the thirteen, and make the link lint inert on the
+skip-mode viewer pass.** Done here. What follows records the ruling as
+carried out, including the two places it differs from the plan this
+file drafted above — both differences are corrections to this file, not
+departures from the ruling.
+
+### What was done
+
+- **The thirteen are links**, in the house spelling ``[`crate::X`]``.
+  Re-derived at `6891829ee` by the rule this file's companion states —
+  every unbracketed backtick span in a `///` or `//!` line under
+  `crates/viewer/src` whose whole content is `<mod>::<path>` with
+  `<mod>` an `app`-gated module — and the list had not moved:
+  `frame.rs:6`, `:85`, `:216`, `:385`, `:554`, `:1766`, `:1802`;
+  `pickindex.rs:12`, `:13`; `props.rs:40`; `tree.rs:278`;
+  `vocab.rs:50` ×2. The three inside `#[cfg(test)]` were left alone.
+- **`scripts/doc-gate.sh`'s skip-mode viewer pass runs
+  `RUSTDOC_LINTS_INERT`**, with Ev's ruling cited at the site and the
+  coverage it drops stated there rather than left to be found. CIW owns
+  that file; the change is announced on their slate as
+  `view-made-the-skip-mode-viewer-doc-pass-lint-inert`.
+- **Two module notes retired**, not three. `theme.rs:9-12` and
+  `vocab.rs:51-52` said a link into the gated half breaks the headless
+  pass; that is no longer true and they are gone, with `theme.rs`'s two
+  bare module spans (`app`, `gpu`) linked in the same edit. **This file
+  was wrong about `forms.rs:18-20`**: that note's reason is
+  `pub(crate)` items on a public module page, not the headless pass —
+  the companion row read it correctly and this one did not. It is still
+  true and it stays.
+- **`crates/viewer/README.md`'s posture section** now says there are two
+  host passes and which one is the link gate; the heading lost the word
+  this row was filed about. #1330's recorded reason lives there now,
+  in the DEFAULT-features bullet.
+
+### The two corrections to the plan above
+
+**The pass is NOT dominated and was NOT deleted.** *"What the tool
+change actually costs"* argues the default-features viewer pass renders
+a strict subset of `--all-features` and so becomes dead weight. The two
+viewer passes are the `if` and the `else` of one branch
+(`scripts/doc-gate.sh:890-907` at `6891829ee`) and **never run on the
+same invocation**: under `--skip-viewer-toolkit` the all-features
+invocation does not name `viewer` at all, so on a skip-mode run the
+default-features pass is the only rustdoc that reads this crate. It
+still carries every lint that is not about a link target. Deleting it
+would have removed the crate's only doc gate on exactly the runs it was
+built for.
+
+**The spelling is the house one, not the reference form.** The table
+above recommends ``[`X`](crate::X)`` to keep default-features prose
+reading as it does today. Ev, on the residue: *"totally fine for
+`cfg(not(feature))` stuff to work badly — we already assume that
+several places."* So the leaked brackets are accepted, the 1022-site
+house spelling holds, and the crate does not grow a second link form
+whose rule lives only in a closed tracker row.
+
+### The evidence, with the commands
+
+Red before the gate change, with the links in place; green after. Both
+at `--pr --scope '-p viewer' --skip-viewer-toolkit`.
+
+- **Before**: exit 1, `rustdoc rejected the viewer pass at DEFAULT
+  features`, 15 distinct sites — the thirteen plus `theme.rs:7` and
+  `:8`, the two spans linked when that note retired.
+- **After**: exit 0.
+- `--pr --scope '-p viewer'` (the non-skip path CI actually takes on
+  any viewer diff): exit 0, all thirteen resolve.
+- `--selftest`: exit 0, with both directions on the link lint pinned —
+  a bare URL in the fixture's `viewer` member still fires in skip mode,
+  a planted broken link there deliberately does not, and the same
+  planted link fires in non-skip mode as the control.
+
+**This PR's own CI cannot exercise the change it makes**, which is why
+the local runs are recorded here: `scripts/ci-filter.py --files` over a
+diff touching `crates/viewer` sets `RUN_VIEWER_TOOLKIT=true`, so
+`ci.yml:1834` takes the non-skip path and the skip-mode pass never runs.
+
+### The re-sweep before landing found a fourteenth, and `main` red
+
+A sweep is accurate as of its merge base, not its merge. Re-run after
+merging `origin/main` (#2320, `view/cancel-doors`), the population is
+**fourteen**, not thirteen: `session/op.rs:797` names
+`` `pane::create` `` in a production `///` comment, and that file
+arrived with the merge. Linked with the rest.
+
+**And the merge brought a live instance of this row's whole thesis.**
+`session/op.rs:773` carries `` [`crate::widgets::drag_gesture_ops`] ``
+— a renderer-free module linking into an `app`-gated one, as a LINK —
+so **`origin/main` is red on the skip-mode viewer pass today**:
+
+```
+$ scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit
+error: unresolved link to `crate::widgets::drag_gesture_ops`
+ERROR: doc-gate: rustdoc rejected the viewer pass at DEFAULT features
+exit 1
+```
+
+Taken at `origin/main` in a throwaway worktree with its own target dir.
+It never appeared on #2320's CI for exactly the reason this row was
+filed: that PR's diff touched `crates/viewer`, so
+`RUN_VIEWER_TOOLKIT=true` and `ci.yml:1834` took the non-skip path. The
+red is waiting for the next branch that reaches `viewer` through the
+dependency closure without seeding the toolkit — a stranger's branch,
+which is the argument *"why it is worth Ev's eye rather than a lane's
+edit"* made in the abstract and is now a fact about `main`. **This PR
+clears it**, as a side effect of the ruling rather than as a fix aimed
+at it.

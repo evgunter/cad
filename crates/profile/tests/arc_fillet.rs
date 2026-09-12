@@ -877,6 +877,87 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
     }
 }
 
+/// **An arrival carrier whose radius underflowed out of the format.**
+/// The anchor sits `1e-200` from its centre: the displacement is a
+/// perfectly good `(0, 1e-200)` naming a perfectly good tangent, but its
+/// components square below `f64`'s subnormal floor, so `norm_squared`
+/// flushes and the radius is EXACTLY zero.
+///
+/// Measured at the merge base, this refused
+/// `PathError::DegenerateArcCenter { radius: 0.0 }`, with the sentence
+/// "the authored centre is within tolerance of an endpoint (radius 0
+/// m)" — **bit-identical, payload and prose, to the row above**, which
+/// authors the centre AS the anchor. Two different facts about the
+/// input and one indistinguishable refusal, whose recourse (move the
+/// anchor off the centre, or lower the tolerance) cannot work: the
+/// squared norm is zero at every ε.
+///
+/// It now refuses [`PathError::UnderflowedDirection`], which carries the
+/// displacement's components rather than the zero they measured to, and
+/// offers the only recourse that reaches it.
+#[test]
+fn an_underflowed_arrival_carrier_is_refused_by_its_own_name() {
+    let underflowed = Open
+        .at(p2(0.0, 0.0))
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(2.0, 0.0),
+                winding: ArcSweep::Ccw,
+                // Exact in binary: 2.0 - 2.0 = 0 and 1e-200 - 0 = 1e-200,
+                // so the displacement really is (0, 1e-200).
+                p: p2(2.0, 1e-200),
+            },
+            Tol::witness(),
+        )
+        .expect_err("an underflowed arrival carrier refuses");
+    match underflowed {
+        // The payload is the direction the format lost, not the zero it
+        // measured to: that is what makes the two rows distinguishable.
+        PathError::UnderflowedDirection { dx, dy } => assert_eq!((dx, dy), (0.0, 1e-200)),
+        other => panic!("expected UnderflowedDirection, got {other:?}"),
+    }
+    let msg = underflowed.to_string();
+    assert!(msg.contains("underflowed out of the format"), "{msg}");
+    assert!(
+        msg.contains("scale that geometry into the session's range"),
+        "{msg}"
+    );
+    // Neither the wrong cause nor the recourse that cannot work.
+    assert!(
+        !msg.contains("the authored centre is within tolerance of an endpoint"),
+        "{msg}"
+    );
+    assert!(!msg.contains("within tolerance of zero"), "{msg}");
+    // And the components survive the shortening: a rendering that
+    // printed `(0, 0)` here would report the very collapse the arm
+    // exists to deny.
+    assert!(msg.contains("1e-200"), "{msg}");
+
+    // The row above still refuses the other way: a carrier whose centre
+    // IS its anchor really has no radius, and it keeps its own arm.
+    let zero = Open
+        .at(p2(0.0, 0.0))
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(2.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0, 0.0),
+            },
+            Tol::witness(),
+        )
+        .expect_err("a zero-radius arrival carrier refuses");
+    assert!(
+        matches!(zero, PathError::DegenerateArcCenter { .. }),
+        "{zero:?}"
+    );
+}
+
 // ------------------------ the definitely / exactly / in-band predicate trios
 //
 // The exact-order predicates (`fillet_leg_fit`, `fillet_leg_reach`) have

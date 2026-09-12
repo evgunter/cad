@@ -1,68 +1,97 @@
 ---
 id: free-move-in-flight-refusal-has-no-reachable-producer
 kind: issue
-title: DisplayFault::FreeMoveInFlight cannot be shown to a user: every route to it needs the free-move strand nothing has traced
-status: open
+title: "DisplayFault::FreeMoveInFlight is reachable: the keyboard is the second hand, and #2358 added a second producer"
+status: closed
 opened: 2026-09-11
-refs: [gesture-drags-have-no-cancel-door]
+closed: 2026-09-11
+refs: [gesture-drags-have-no-cancel-door, escape-commits-a-free-move-instead-of-abandoning-it, a-keyboard-bump-lands-and-closes-the-pointers-own-probe]
 ---
 
 
-Found by the cancel-door unit (2026-09-11), which was dispatched
-against `gesture-drags-have-no-cancel-door`'s sharpest claim and found
-that claim's subject one door over from where the item puts it.
+## Answered: it is reachable, and the answer is a row
 
-## What the item said and what the tree says
+`crates/viewer/src/widgets.rs`'s
+`a_keyboard_bump_begins_a_second_probe_under_a_held_drag` drives the
+probe field's three `DragValue`s through the real [`drag_ops`] against a
+headless `egui::Context` and reads the operations back. A pointer press
+and a move open a probe (`["begin", "preview"]`); every frame after it
+carries keyboard events only, and a Tab/ArrowUp pair on a component the
+pointer is not holding emits `["begin", "preview", "commit"]` with no
+commit and no cancel between it and the first begin. That second
+`BeginFreeMove` is performed under an open probe, which is exactly what
+`DisplayState::begin_free_move` refuses
+(`crates/viewer/src/display.rs:746-748`), and the refusal renders as
+*"finish the free-move first"* (`display.rs:224`).
 
-`gesture-drags-have-no-cancel-door` hangs its honesty argument on
-`DisplayFault::FreeMoveInFlight`, which renders as **"finish the
-free-move first"** (`crates/viewer/src/display.rs:215`) — *"an
-instruction the user cannot follow, because the gesture it names has no
-pointer behind it and no door to close it."* The shape is right. The
-sentence is the wrong one, because **no route in today's chrome shows
-it to anybody.**
+The structural fact the row rests on is egui's, not this crate's:
 
-`DisplayState::begin_free_move` raises it only when a free-move is
-already in flight (`display.rs:708-710`). The probe's field is three
-`DragValue`s on the selected instance (`pane/properties.rs:377-402`),
-each pushing `BeginFreeMove` on `drag_started`; one pointer cannot hold
-two of them, and the typed arm emits begin/preview/commit in one batch.
-Selecting another instance needs a click, which releases the drag and
-commits it first. So reaching a second `BeginFreeMove` under an open
-one needs the probe to be STRANDED — and the strand traced by the
-cancel-door unit is the VALUE drag's, off `slot_rows` emptying for a
-dead standing. The probe's field is drawn off the shown document
-(`display::is_instance`, `display::free_move_check`), not off the landed
-evaluation, and a document change while a probe is in flight is pruned
-rather than stranded (`display.rs:821-827`), so that trace does not
-carry over.
+- **One pointer is one drag, and that is not a limit a search could
+  have missed.** `egui-0.36.1/src/interaction.rs:24-40` carries
+  `dragged`, `drag_started` and `drag_stopped` as a single
+  `Option<Id>` each, and `interact` maintains exactly one of each per
+  frame. So the item's *second pointer (egui multi-touch)* candidate
+  is dead structurally: multi-touch feeds `MultiTouchInfo`, which is a
+  zoom/rotate aggregate and never a second widget drag.
+- **The keyboard is the second hand, and it is not a pointer at all.**
+  `egui-0.36.1/src/widgets/drag_value.rs:462-466` puts a `DragValue`
+  into edit mode the frame it takes focus — deliberately, "for screen
+  readers" — and answers ArrowUp/ArrowDown there. Nothing in egui's
+  focus or key handling consults the pointer, and `interact` aborts a
+  drag on Escape alone (`interaction.rs:137-141`). So Tab and ArrowUp
+  reach a component while the pointer holds another, and
+  `drag_ops`' typed arm (`crates/viewer/src/widgets.rs:69-73`) spells
+  that as a whole begin/preview/commit.
 
-The honesty inversion the item describes is real and it lands on
-`Refusal::GestureInFlight` — **"finish the drag first"**
-(`crates/viewer/src/session/refuse.rs:427`) — which the same unit
-traced to a state with no pointer behind the drag. That half is closed
-by the cancel doors.
+## And the item's premise was already incomplete
 
-## What is open
+`DisplayFault::FreeMoveInFlight` has a **second producer** that needs no
+second `BeginFreeMove` at all: `crates/viewer/src/session.rs:1089-1090`
+raises `Refusal::Display(DisplayFault::FreeMoveInFlight)` for every
+operation `SessionOp::permitted_during_free_move`
+(`crates/viewer/src/session/op.rs:852`) answers `false` for, which is
+`Open` and `NewDocument` (`op.rs:854`). That arrived with #2358, after
+the trace this item was written from.
 
-1. **Is the free-move strand reachable at all?** Candidates nobody has
-   traced: a second pointer (egui multi-touch), and an OS- or
-   browser-driven relayout that removes the field without a click. If
-   one of them is real, `FreeMoveInFlight` becomes reachable and this
-   row closes as answered.
-2. **If it is not**, the crate carries a `DisplayFault` arm no chrome
-   can produce, which is the shape
-   `opoutcome-superseded-has-no-production-reader` and
-   `generation-get-has-no-reader` were filed as — with the difference
-   that this one is a REFUSAL, so deleting it means deciding that
-   `begin_free_move` cannot be called twice rather than that it must
-   not be.
+It is reachable by the same second hand, and by a wider one: egui gives
+any click-sensing widget a click with no pointer, from keyboard focus
+plus Space/Enter or from an AccessKit `Action::Click` request
+(`egui-0.36.1/src/context.rs:1464-1478`, read by `Response::clicked`
+at `response.rs:183-184`). So the toolbar's New…/Create and Open…
+controls are activable while a free-move drag is held.
 
-Not the cancel-door unit's to settle: the door is owed either way (the
-operation had no emitter), and which way this goes changes the door not
-at all.
+## What this does NOT land
 
-## Home
+`gesture-drags-have-no-cancel-door`'s honesty argument does not reach
+this arm. On every route above the probe has a pointer behind it — the
+user is holding the drag — so *"finish the free-move first"* is an
+instruction they can follow by releasing the button. And the door
+exists anyway: `DocSession::cancel_doors` draws *"Cancel free-move"*
+enabled exactly while `DisplayState::probing` is `Some`
+(`crates/viewer/src/session.rs:660`).
 
-VIEW's: `crates/viewer/src/display.rs`,
-`crates/viewer/src/pane/properties.rs`.
+The stranded case the item asked about — a probe open with no pointer
+behind it — was NOT found, and the search that did not find it is
+worth recording rather than repeating: `prune` runs on every document
+transition (`session.rs:1611` and `session.rs:1994`) and kills a
+gesture whose instance stopped passing `free_move_check`, which is the
+same predicate that replaces the field with `ui.weak(fault)` in
+`instance_ui`; and `Open`/`NewDocument`, the two doors that would drop
+the display state whole, are refused under a probe. The hole left is
+the SELECTION, which no prune covers: `instance_ui` is drawn only for
+`selection().node()`, so a `Select` performed under an open probe would
+take the field away with the drag still live. Every `SessionOp::Select`
+producer in `crates/viewer/src/` today is a pointer click
+(`pickindex.rs:1551`, `pane/features.rs:60` and `:109`,
+`pane/properties.rs:127`, `:200`, `:685`, `app.rs:1112`) and a click
+cannot land while the same pointer holds a drag — but a keyboard- or
+AccessKit-activated one could, by the mechanism above. Nothing turns on
+it for this row, which is closed either way.
+
+## Closed
+
+Reachable. No deletion question arises: the guard fires.
+
+Residue, each its own file: `escape-commits-a-free-move-instead-of-
+abandoning-it` and `a-keyboard-bump-lands-and-closes-the-pointers-own-
+probe`.

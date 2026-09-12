@@ -582,6 +582,154 @@ pub trait Real:
     }
 }
 
+/// **Is `x` a finite number at this scalar?** — asked through the
+/// value channel every [`Real`] has, with no bracket read and no
+/// threshold invented.
+///
+/// A finite value less itself is exactly zero; `∞ − ∞` and `NaN − NaN`
+/// are the scalar's poison ([`Real::is_poison`]). So the
+/// self-difference IS the question, which is why the equal-operands
+/// lint is allowed here and nowhere near it. An enclosure answers YES
+/// however wide it is (a finite interval's self-difference is a finite
+/// interval around zero, and an enclosure whose upper end overflowed
+/// still contains its truth) — the honest scope: this catches the
+/// point scalars, which is where an infinite length turns into a
+/// definite wrong answer.
+///
+/// **It is a statement about a SCALAR, and it sits at the bottom
+/// because every crate that has directions has to be able to ask it.**
+/// The arithmetic whose failure mode it names is
+/// [`Vec3::normalize`](crate::Vec3::normalize)'s, which is the
+/// neighbour to read it beside: components beyond ~1e154 overflow the
+/// norm to ∞, the ∞ length reads maximally DEFINITE to
+/// [`Decide`](crate::Decide), and the division collapses the direction
+/// to the zero vector. A home in
+/// a geometry crate above this one puts the single spelling out of
+/// reach of the crates below it — `profile` depends on this crate
+/// alone — and a rule with two spellings is two rules.
+///
+/// **Every decide-then-normalize direction door in the workspace asks
+/// this first**, and the claim is the enumeration, not a generality:
+///
+/// - `topo::query::decide_unit_direction` — the one
+///   [`Margin::norm3`](crate::Margin::norm3) spelling, behind the
+///   datum door and the evaluation layer's `unit()`;
+/// - this crate's own [`linalg::frame`](crate::linalg::frame)
+///   `definitely_positive`, the one funnel its four normalizing sites
+///   share;
+/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+/// - `topo`'s `sector_shape`, which asks it of each bounding chord
+///   separately because its arm is their `min` and [`Real::min`]
+///   propagates `NaN` but not infinity, so a `min` hides an
+///   OVERFLOWED chord behind a finite one;
+/// - `profile`'s two 2-D director doors (`unit_from_components`,
+///   `arc_fillet::carrier_tangent`).
+///
+/// Each refuses with its own typed arm, naming the recourse its own
+/// caller can reach: the question is one question, but what a caller
+/// can DO about an overflowed direction differs by door — a spelled
+/// component pair is divided through for free, a derived displacement
+/// is not.
+///
+/// **This roster is hand-kept and nothing enforces it.** It is a
+/// five-door cross-crate claim living in a leaf crate that cannot see
+/// four of them, so it is exactly as current as the last person to
+/// edit it. Treat it as a reading aid, not as a census; the census
+/// that is checked is `docs/K-REPORT.md`'s, and it is about decided
+/// names rather than about this question.
+///
+/// **The declined half of the family: normalize-without-deciding.**
+/// A site that normalizes a vector whose length it never decides at
+/// all is a different shape — there is no sign question in front of
+/// it to put this one before — and closing it is not this predicate's
+/// job as things stand. Known instances, and the count is a floor
+/// rather than a total because nothing sweeps for them:
+/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
+/// normalized OUTPUT) and `geom-brep`'s `enters::enters_material`,
+/// which decides a caller-supplied arm and then normalizes a `dir`
+/// whose own length is never asked about — a `pub` door. Filed as
+/// `work/fix/normalize-without-the-length-question-two-more-sites`.
+pub fn is_finite_length<T: Real>(x: T) -> bool {
+    #[allow(clippy::eq_op)]
+    let residual = x - x;
+    !residual.is_poison()
+}
+
+/// **Did this length UNDERFLOW to zero?** — the other end of
+/// [`is_finite_length`]'s arithmetic, asked through the same value
+/// channel, with no bracket read and no threshold invented.
+///
+/// `len` is a vector's computed norm and `witness` the largest
+/// absolute value among the components it was computed from. **That
+/// pairing is the contract**, and it is what makes the two divisions
+/// below a decision: the norm is never smaller than the largest
+/// component and never larger than `√n` times it, so `len / witness`
+/// and `witness / len` are both bounded ratios — unless `len` came
+/// out exactly zero. Then `witness / len` is `±∞` if the vector has
+/// any nonzero component, and the scalar's poison (`0/0`) if it does
+/// not, which is exactly the two cases this question separates:
+///
+/// - **the length underflowed** — components below ~1e-162 at `f64`
+///   square to zero, so `norm_squared` and the norm are exactly zero
+///   for a vector that has a perfectly good direction. Dividing by
+///   that norm blows the direction up to `±∞`
+///   ([`Vec3::normalize`](crate::Vec3::normalize)'s underflow note);
+/// - **the vector is the zero vector**, which really does name no
+///   direction.
+///
+/// No tolerance separates them and no tolerance recovers the first:
+/// the squared norm is zero at every ε, so a door that decides the
+/// length's sign answers `Zero` either way. The only recourse for an
+/// underflowed direction is the overflow end's — scale the geometry
+/// into the session's range — which is why the two are different
+/// facts about the input and get different refusals.
+///
+/// **Ask it AFTER [`is_finite_length`], never instead of it.** A
+/// poisoned or overflowed length makes both ratios non-finite for
+/// reasons that have nothing to do with underflow, so this question
+/// is only meaningful once the length is known to be a finite number.
+///
+/// **The witness is derived, never invented**:
+/// [`Vec2::norm_witness`](crate::Vec2::norm_witness) and
+/// [`Vec3::norm_witness`](crate::Vec3::norm_witness) are the two
+/// doors that spell it, and a caller that reaches past them is making
+/// a claim this signature cannot check.
+///
+/// **Which doors ask it**, and the claim is the enumeration rather
+/// than a generality — hand-kept, like its sibling's roster, and
+/// exactly as current as the last person to edit it:
+///
+/// - `topo::query::decide_unit_direction`, behind the datum door and
+///   the evaluation layer's `unit()`;
+/// - this crate's own [`linalg::frame`](crate::linalg::frame)
+///   `definitely_positive`, the one funnel its four normalizing sites
+///   share;
+/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+/// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
+///   arm — the arm is the two chords' `min`, which has no witness of
+///   its own and which an underflowed chord always wins, so asking the
+///   arm would refuse without ever naming the cause.
+/// - `profile`'s `path::arc_fillet::carrier_tangent`, of the anchor's
+///   displacement from the arc centre.
+///
+/// `profile`'s OTHER 2-D director door, `unit_from_components`, asks
+/// [`is_finite_length`] and deliberately not this: the pair it refuses
+/// is SPELLED by the caller rather than derived, so its existing
+/// `ZeroDirection` sentence is true of an underflowed pair and its
+/// recourse — scale the components up, which costs nothing because only
+/// their ratio is read — is already the one that works. A new arm there
+/// would separate two inputs that want the same answer.
+///
+/// **It bites at the point scalars, exactly as the finiteness
+/// question does.** At an interval scalar a norm whose lower end
+/// underflowed still ENCLOSES the true length — `[0, 3.1e-162]` for a
+/// `1e-180` component, not `[0, 0]` — so `witness / len` is an
+/// unbounded enclosure rather than poison, the answer is `false`, and
+/// the enclosure lane goes on deciding against the band as before.
+pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
+    is_finite_length(len / witness) && !is_finite_length(witness / len)
+}
+
 /// Bracket extraction off a scalar — deliberately a separate trait, never
 /// folded into [`Real`], and **not** the certification door.
 ///
@@ -1523,6 +1671,74 @@ impl Real for f64 {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// The finiteness predicate answers the VALUE channel at every
+    /// scalar, and the interval arm is the one that would be wrong if
+    /// the self-difference were replaced by a bracket read: an
+    /// enclosure whose upper end overflowed still contains its truth,
+    /// so it is finite-as-a-value and only poison is not.
+    #[test]
+    fn is_finite_length_reads_the_value_channel() {
+        for x in [0.0, 1.0, -1e300, f64::MAX, f64::MIN_POSITIVE] {
+            assert!(is_finite_length(x), "{x} is a finite number");
+        }
+        for x in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(!is_finite_length(x), "{x} is not a finite number");
+        }
+        // The dual scalar answers about its VALUE: a finite value with
+        // any tangent is finite, a poisoned value is not.
+        assert!(is_finite_length(crate::Dual64::variable(3.0)));
+        assert!(!is_finite_length(crate::Dual64::constant(f64::INFINITY)));
+        // The overflow the predicate exists to catch, executed: the
+        // norm of a 1e200 component is not a number a direction can be
+        // divided by.
+        assert!(!is_finite_length(
+            crate::Vec3::new(1e200_f64, 0.0, 0.0).norm()
+        ));
+    }
+
+    /// The underflow predicate separates the two ways a norm comes
+    /// out zero, and the rows that matter are the ones a length
+    /// comparison alone cannot tell apart: a direction whose squared
+    /// norm fell out of the format, and the zero vector.
+    ///
+    /// The witness is always the largest |component|, which is the
+    /// pairing the predicate's contract names.
+    #[test]
+    fn is_underflowed_length_separates_underflow_from_the_zero_vector() {
+        fn ask(v: crate::Vec3<f64>) -> bool {
+            let w = Real::max(Real::max(v.x.abs(), v.y.abs()), v.z.abs());
+            is_underflowed_length(v.norm(), w)
+        }
+        // Underflowed: a direction, no length. The last two are
+        // SUBNORMAL components, where a predicate that tested
+        // `< f64::MIN_POSITIVE` instead of the value channel would
+        // have to choose a threshold.
+        for v in [
+            crate::Vec3::new(1e-180_f64, 0.0, 0.0),
+            crate::Vec3::new(1e-180_f64, 1e-180, 1e-180),
+            crate::Vec3::new(0.0, -1e-200_f64, 0.0),
+            crate::Vec3::new(1e-320_f64, 0.0, 0.0),
+            crate::Vec3::new(f64::from_bits(1), 0.0, 0.0),
+        ] {
+            assert!(ask(v), "{v:?} has a direction and an underflowed norm");
+            // …and the normalization it would otherwise be handed is
+            // exactly the blown-up one the refusal exists to prevent.
+            assert!(!v.normalize().norm().is_finite());
+        }
+        // Not underflowed: the zero vector really has no direction,
+        // and every length that is merely SMALL is still a length —
+        // 1e-30 squares to 1e-60, which the format holds.
+        for v in [
+            crate::Vec3::new(0.0_f64, 0.0, 0.0),
+            crate::Vec3::new(1e-30_f64, 0.0, 0.0),
+            crate::Vec3::new(1e-160_f64, 1e-170, 0.0),
+            crate::Vec3::new(1.0_f64, 2.0, 3.0),
+            crate::Vec3::new(1e200_f64, 0.0, 0.0),
+        ] {
+            assert!(!ask(v), "{v:?} did not underflow");
+        }
+    }
 
     // f64 has *inherent* sin/min/... (std) that shadow the trait methods on
     // method-call syntax, so tests invoke the trait explicitly (`Real::sin`)

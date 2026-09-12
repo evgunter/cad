@@ -157,9 +157,10 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     for op in [
         SessionOp::BeginFreeMove { instance: shelf_i },
         SessionOp::PreviewFreeMove {
+            instance: shelf_i,
             frame: pncad::document::Frame::translation([0.0, 0.0, 0.02]),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove { instance: shelf_i },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -175,10 +176,10 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(

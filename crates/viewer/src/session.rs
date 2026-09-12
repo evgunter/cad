@@ -144,6 +144,17 @@ impl GestureTarget {
         SlotValue::of(self.dimension(), value)
     }
 
+    /// What an operation has to name to drive this gesture.
+    fn name(&self) -> GestureName {
+        match self {
+            Self::Slot { node, slot, .. } => GestureName::Slot {
+                node: *node,
+                slot: *slot,
+            },
+            Self::Param { name, .. } => GestureName::Param(name.clone()),
+        }
+    }
+
     /// The edit that writes `value` into this target.
     ///
     /// A parameter's edit is the VALUE door, so the parameter's
@@ -155,6 +166,25 @@ impl GestureTarget {
             Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
         }
     }
+}
+
+/// **Which gesture an operation NAMES** — the subject half of
+/// [`GestureTarget`], without the facts the begin looked up.
+///
+/// A gesture's target carries the display unit or the declared
+/// dimension its begin read off the base document; an operation
+/// arriving from the chrome carries neither and has no business
+/// asserting them. So the comparison that decides whether a preview
+/// belongs to the open gesture is over this, and
+/// [`GestureTarget::name`] is the one place a target becomes one —
+/// exhaustive over the target's arms, so a third kind of gesture
+/// target cannot skip the question.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum GestureName {
+    /// A node's slot.
+    Slot { node: RecipeNodeId, slot: SlotId },
+    /// A document parameter.
+    Param(ParamName),
 }
 
 /// A gesture in flight: layer-3 state only.
@@ -241,12 +271,15 @@ pub struct DocSession {
 ///   and why nothing here re-checks it: a check inside this function
 ///   could only fire with the session already half-replaced.
 ///
-///   **The table governs VALUE gestures only.** The free-move drag
-///   [`DisplayState`] owns is a different value with a different
-///   owner, no door refuses either replacement while one is open, and
-///   the `display.clear()` below discards it with no refusal and no
-///   report. That is what the walk does today, not a policy this
-///   value decides: `work/view/free-move-drag-dissolved-by-open.md`.
+///   **That table governs VALUE gestures only, and there is a
+///   second.** The free-move drag [`DisplayState`] owns is a
+///   different value with a different owner, so it gets its own row
+///   list ([`SessionOp::permitted_during_free_move`]) rather than a
+///   widened one — the two drags refuse different sets, and a single
+///   table could only serve both by refusing the union. What the two
+///   agree on is exactly these two doors: a replacement drops the
+///   display state whole, so both are refused while either drag is
+///   open, and neither is ever dissolved under the pointer.
 /// - `path` and `resolver` are facts about the backing FILE rather
 ///   than about the document, and are the part of the two doors that
 ///   genuinely differs: `Open` sets both, `NewDocument` clears both.
@@ -1028,17 +1061,33 @@ impl DocSession {
 
     /// Perform one operation.
     ///
-    /// The mid-gesture policy is applied ONCE, here, off
-    /// [`SessionOp::permitted_during_value_gesture`] — no arm below
-    /// carries a guard against the VALUE gesture of its own, so the set
-    /// of operations a slot or parameter drag refuses is the table and
-    /// only the table. The free-move arms do carry a guard, against
-    /// their own gesture: they delegate to [`DisplayState`], which
-    /// refuses [`crate::display::DisplayFault::FreeMoveInFlight`] off the free-move
-    /// state this check never reads.
+    /// **The mid-drag policy is applied here and nowhere else**, as
+    /// two tables — one per gesture, because the session has two
+    /// independent drags that refuse different sets
+    /// ([`SessionOp::permitted_during_free_move`] carries the argument
+    /// for why they cannot be one). No arm below carries a guard
+    /// against either drag of its own, so the set of operations a drag
+    /// refuses is its table and only its table.
+    ///
+    /// The order is the value gesture first. Both drags can be open at
+    /// once, and when both refuse the same operation the value
+    /// gesture's refusal is the one shown — *"finish the drag first"*
+    /// names the drag whose preview the operation would have landed
+    /// against, which is the nearer of the two answers.
+    ///
+    /// One arm still guards from its own state rather than from a
+    /// table: the `*FreeMove` quartet delegates to [`DisplayState`],
+    /// which refuses
+    /// [`crate::display::DisplayFault::FreeMoveInFlight`] when a
+    /// second begin arrives under an open drag. That is the same
+    /// refusal the second table raises, one layer down, and the table
+    /// leaves the row to it rather than spelling one answer twice.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
         if self.gesture.is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if self.display.probing().is_some() && !op.permitted_during_free_move() {
+            return OpOutcome::refused(Refusal::Display(DisplayFault::FreeMoveInFlight));
         }
         match op {
             SessionOp::Select(selection) => {
@@ -1060,8 +1109,18 @@ impl DocSession {
             SessionOp::CreateParam { name, value } => self.create_param(name, value),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
             SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
-            SessionOp::PreviewGesture { value } => self.preview_gesture(value),
-            SessionOp::CommitGesture => self.commit_gesture(),
+            SessionOp::PreviewGesture { node, slot, value } => {
+                self.preview_gesture(&GestureName::Slot { node, slot }, value)
+            }
+            SessionOp::CommitGesture { node, slot } => {
+                self.commit_gesture(&GestureName::Slot { node, slot })
+            }
+            SessionOp::PreviewParamGesture { name, value } => {
+                self.preview_gesture(&GestureName::Param(name), value)
+            }
+            SessionOp::CommitParamGesture { name } => {
+                self.commit_gesture(&GestureName::Param(name))
+            }
             SessionOp::CancelGesture => {
                 let had = self.gesture.take().is_some();
                 // Same rule as a no-move commit: only a gesture that
@@ -1104,14 +1163,18 @@ impl DocSession {
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
             }
-            SessionOp::PreviewFreeMove { frame } => match self.display.preview_free_move(frame) {
-                Ok(()) => OpOutcome::default(),
-                Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
-            },
-            SessionOp::CommitFreeMove => match self.display.commit_free_move() {
-                Ok(()) => OpOutcome::default(),
-                Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
-            },
+            SessionOp::PreviewFreeMove { instance, frame } => {
+                match self.display.preview_free_move(instance, frame) {
+                    Ok(()) => OpOutcome::default(),
+                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+                }
+            }
+            SessionOp::CommitFreeMove { instance } => {
+                match self.display.commit_free_move(instance) {
+                    Ok(()) => OpOutcome::default(),
+                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+                }
+            }
             SessionOp::CancelFreeMove => match self.display.cancel_free_move() {
                 Ok(()) => OpOutcome::default(),
                 Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
@@ -1440,10 +1503,23 @@ impl DocSession {
         OpOutcome::default()
     }
 
-    fn preview_gesture(&mut self, value: f64) -> OpOutcome {
+    /// Move the gesture `named` names.
+    ///
+    /// **The name is checked before the value is used**, so a drag on
+    /// a field that could not open its own gesture previews nothing
+    /// rather than previewing its number into the open gesture's slot.
+    /// The refusal is [`Refusal::WrongGesture`] and not
+    /// [`Refusal::GestureInFlight`]: the operation IS permitted while
+    /// a drag is open (`permitted_during_value_gesture`, which every
+    /// driving operation has to be), and what it is not is about this
+    /// drag.
+    fn preview_gesture(&mut self, named: &GestureName, value: f64) -> OpOutcome {
         let Some(gesture) = self.gesture.as_mut() else {
             return OpOutcome::refused(Refusal::NoGesture);
         };
+        if gesture.target.name() != *named {
+            return OpOutcome::refused(Refusal::WrongGesture);
+        }
         let slot_value = gesture.target.value_of(value);
         let edit = match gesture.target.edit(slot_value) {
             Ok(edit) => edit,
@@ -1468,7 +1544,8 @@ impl DocSession {
                 // either.
                 assert!(
                     applied.record.minted.is_none(),
-                    "a value gesture's preview minted a node, which the display                      layer's admission tests are not re-run against"
+                    "a value gesture's preview minted a node, which the display \
+                     layer's admission tests are not re-run against"
                 );
                 gesture.value = Some(slot_value);
                 self.derived.scratch = Some(applied.doc);
@@ -1482,9 +1559,19 @@ impl DocSession {
         }
     }
 
-    fn commit_gesture(&mut self) -> OpOutcome {
-        let Some(gesture) = self.gesture.take() else {
-            return OpOutcome::refused(Refusal::NoGesture);
+    /// Land the gesture `named` names.
+    ///
+    /// **The name is checked before the gesture is taken**, so a
+    /// refused commit leaves the drag it does not name open — the
+    /// release event of one field is not a release of another, and a
+    /// gesture that ends here would end with nobody having let go of
+    /// it.
+    fn commit_gesture(&mut self, named: &GestureName) -> OpOutcome {
+        let Some(gesture) = self.gesture.take_if(|open| open.target.name() == *named) else {
+            return OpOutcome::refused(match self.gesture {
+                Some(_) => Refusal::WrongGesture,
+                None => Refusal::NoGesture,
+            });
         };
         let previewed = self.derived.scratch.take().is_some();
         // A gesture that never moved commits nothing: one undo step
@@ -1523,19 +1610,16 @@ impl DocSession {
         // over one discards the probe it constrains.
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
-        OpOutcome {
-            superseded: pruned.superseded,
-            dropped_hides: pruned.dropped_hides,
-            ..OpOutcome::default()
-        }
+        OpOutcome::from_prune(pruned)
     }
 
-    /// Refused mid-gesture — the table's answer
-    /// ([`SessionOp::permitted_during_value_gesture`]), shared with
-    /// [`SessionOp::NewDocument`]: both replace the document a drag is
-    /// previewing against, and a gesture silently dissolved under the
-    /// pointer is the kind of half-acted state that refusal exists to
-    /// prevent.
+    /// Refused mid-gesture by BOTH tables
+    /// ([`SessionOp::permitted_during_value_gesture`] and
+    /// [`SessionOp::permitted_during_free_move`]), shared with
+    /// [`SessionOp::NewDocument`]: both doors replace the document a
+    /// drag is previewing against and drop the display state whole, and
+    /// a gesture silently dissolved under the pointer is the kind of
+    /// half-acted state that refusal exists to prevent.
     fn open(&mut self, path: &Path) -> OpOutcome {
         match docio::open(path, self.tol) {
             Ok(history) => {
@@ -1614,19 +1698,26 @@ impl DocSession {
     /// ([`Derived`]'s own docs carry that and the other two
     /// exclusions).
     ///
-    /// **Nothing is checked here, and that is the point.** Two things
-    /// hold on entry and neither is this function's to enforce: no
-    /// value gesture is open, because `perform` refused both doors
-    /// while one was (the table's guarantee, a different guarantee
-    /// from the one below), and `scratch` is already `None`, because a
-    /// preview never outlives the gesture that wrote it (`Derived`'s
-    /// own invariant, which is what makes clearing it below a no-op
-    /// rather than half a dissolved drag). A check placed here could
-    /// only fire after a caller had already written `history` and the
-    /// file-shaped fields, which is the half-replaced session the
-    /// refusal exists to prevent — so the precondition lives at
-    /// `perform`, where refusing costs a `Refusal` and nothing has
-    /// moved yet.
+    /// **Nothing is checked here, and that is the point.** Three
+    /// things hold on entry and none is this function's to enforce:
+    /// **no value gesture is open** and **no free-move gesture is in
+    /// flight**, because `perform` refused both doors while either was
+    /// (the two tables' guarantee, a different guarantee from the one
+    /// below), and `scratch` is already `None`, because a preview never
+    /// outlives the gesture that wrote it (`Derived`'s own invariant,
+    /// which is what makes clearing it below a no-op rather than half
+    /// a dissolved drag). A check placed here could only fire after a
+    /// caller had already written `history` and the file-shaped
+    /// fields, which is the half-replaced session the refusal exists to
+    /// prevent — so the precondition lives at `perform`, where refusing
+    /// costs a `Refusal` and nothing has moved yet.
+    ///
+    /// The free-move half of that is newer than the rest of this walk
+    /// and was the one asymmetry in it: the drag was dissolved here,
+    /// silently, by the same `display.clear()` below, while the value
+    /// drag one field over was protected by a refusal at the door. The
+    /// two are the same state under a pointer and now get the same
+    /// answer ([`SessionOp::permitted_during_free_move`]).
     fn clear_for_new_document(&mut self) {
         self.derived = Derived::none();
         self.display.clear();
@@ -1904,9 +1995,7 @@ impl DocSession {
         self.request_eval();
         OpOutcome {
             committed: edits,
-            superseded: pruned.superseded,
-            dropped_hides: pruned.dropped_hides,
-            ..OpOutcome::default()
+            ..OpOutcome::from_prune(pruned)
         }
     }
 

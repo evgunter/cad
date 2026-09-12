@@ -1,7 +1,7 @@
 //! **One declaration per closed vocabulary, and every list projected
 //! from it.**
 //!
-//! **Nine** enums in this crate are *closed vocabularies*: a fixed set
+//! **Ten** enums in this crate are *closed vocabularies*: a fixed set
 //! of choices the chrome offers, which something has to be able to
 //! walk in order — a radio row, a combo's options, a suite's sweep.
 //! Each of them used to carry a hand-written `const ALL` beside the
@@ -46,13 +46,15 @@
 //!
 //! # What it does not cover
 //!
-//! A table mirroring an enum declared in ANOTHER crate
-//! (`forms::BOOLEAN_OPS`, `forms::MATE_PRIMITIVES` — plain code spans
-//! and not links, because `forms` is behind the `app` feature and a
-//! link to it does not resolve in a default-feature build) cannot use
-//! this, because the declaration it would have to be projected from is
-//! not here. That is the neighbouring MIRROR question and has its own
-//! tracker item; it is not a hole in this one.
+//! A list mirroring an enum declared in ANOTHER crate cannot use this,
+//! because the declaration it would have to be projected from is not
+//! here. The answer for a list that claims completeness is the same
+//! construction one crate over — the kernel publishes its own `ALL`
+//! beside its declaration and the form maps over it, which is what the
+//! boolean operations do — and the answer for one that claims none
+//! ([`crate::forms::MATE_PRIMITIVES`]) is neither: forcing a
+//! deliberately partial list would force the wrong thing. Either way
+//! it is not a hole in this one.
 //!
 //! A DELIBERATELY PARTIAL list is not a vocabulary either
 //! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names two of five
@@ -63,9 +65,9 @@
 //! # What this costs: rustfmt stops at the invocation
 //!
 //! **`rustfmt` does not reach inside a `macro_rules!` invocation in
-//! item position**, so the nine enums declared through
+//! item position**, so the ten enums declared through
 //! [`vocabulary!`] — every variant and every variant doc of
-//! `PathVerb` (17), `Seat` (9), `ToolKind` (7), `ArcMode` (6) and five
+//! `PathVerb` (17), `Seat` (9), `ToolKind` (7), `ArcMode` (6) and six
 //! more — are no longer mechanically formatted. Indentation in these
 //! blocks is kept by hand.
 //!
@@ -92,7 +94,7 @@
 //!
 //! **No explicit discriminants.** The labelled arm spends `= …` on the
 //! variant's word, so `Mate = 3` and `#[repr(u8)]` numbering are not
-//! available to these nine enums without un-converting them. **This is
+//! available to these ten enums without un-converting them. **This is
 //! a one-way door** and is the reason to state it here: an enum that
 //! later needs a wire number has to leave the macro to get one.
 //!

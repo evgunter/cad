@@ -41,6 +41,7 @@ is the board and `work/README.md` its contract.
 | `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
+| `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: `ParamSource` carries stored scalar fields only. Axis-shaped declarations invalidated structurally by placement-chain comparison, so no numerical check decides whether a rotation happened; absence of provenance refuses |
 | `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
 | `docs/DOCM-REFERENCES-DESIGN.md` | Ratified; running as DOCM | What a recipe reference may be, DM1–DM6: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers` (DM4 shipped; DM1–DM3 in spec) |
@@ -838,7 +839,7 @@ topology change is stated, not emergent.
   *spent, never resumable*, so a caller that discards the `Err` and
   keeps the body can fire a later postcondition from API misuse rather
   than a kernel bug. That state class is the open ruling **S14**
-  (`work/code-quality/S14.md`), Ev's; row 0 below reframes it (stage
+  (`work/pipe/S14.md`), Ev's; row 0 below reframes it (stage
   into a fresh body and commit on success, the shape
   `merge_coplanar_faces` already uses) without answering it.
 - Essentially no unsafe Rust outside vetted dependencies.
@@ -1399,7 +1400,7 @@ the project publishes with one still in the shipped state.
   runs every row-5 postcondition. That is the right posture for a
   kernel nobody depends on yet; deleting the stanza is a real reduction
   in what a release build checks, so it is a decision to take at
-  publish rather than a chore (**S65**, `work/code-quality/S65.md`, is
+  publish rather than a chore (**S65**, `work/pred/S65.md`, is
   the worked example).
 - **The name (Q9).**
 - **Post-publish schema discipline for the verb tags** (VERB-SEAT-DESIGN

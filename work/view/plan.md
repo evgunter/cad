@@ -205,8 +205,12 @@ stands in for the property the claim is about, rather than being it.**
 This is the defect class this program hit most often, and it looks
 complete from the inside every time — a proxy agrees with itself over
 the population it can see, so nothing in the sweep reports the members
-it cannot. Eight instances, each a different proxy for a different
-property:
+it cannot. **The table below is the population of record — do not
+restate its size in prose.** The count has been wrong here twice
+already (it read *"Eight instances"* over nine rows, and then over
+ten), which is this program's own count-fixed-in-one-place hazard
+landing on the very section that tabulates it. Each row is a different
+proxy for a different property:
 
 | the sweep ranged over | the claim was about |
 |---|---|
@@ -218,6 +222,9 @@ property:
 | the NAME `store` (#2293) | the FIELD `ViewerApp::store` |
 | "the host pass" (#2304) | doc-gate, which runs two |
 | `add_enabled` + `on_disabled_hover_text` (#2320) | a control's DISPOSITION |
+| a bracket-backtick grep (#2332) | an intra-doc link, which has two spellings |
+| pointer states (#2388) | INPUT — a keyboard and an AccessKit action are hands too |
+| `docs-only ok` success (mine, #2400) | the TIER — that job is green in both |
 
 The last is the orchestrator's own: I handed a lane a sweep over the two
 call names, and `pane/properties.rs:348-353` shows a typed ineligibility
@@ -228,6 +235,81 @@ both and corrected me. **The check is to name the property first and the
 pattern second, then ask what a member could look like that the pattern
 cannot match** — which is a different question from whether the pattern
 finds what it finds.
+
+**The ninth arrived inside the review of the eighth, and it was mine
+too.** Reviewing #2332 I swept the renderer-free half for cross-crate
+links to test an exhaustiveness claim, got six sites, and handed the
+lane six. There are twelve: `sketch.rs:939` is
+``[`ProfileVertex`](pncad::profile::ProfileVertex)``, the reference
+form, and a bracket-backtick pattern cannot see it. The property is *an
+intra-doc link into another crate*; my pattern was *a span shaped like
+`` [`x::y`] ``*. The conclusion did not move — all twelve target
+`pncad`, which is in `VIEWER_TOOLKIT_SEEDS` — but the population did,
+and the population was the whole argument. Writing the class down does
+not exempt the next sweep from it.
+
+**The twelfth is the sharpest, and it is the one a reachability
+question walks into by default.** #2388 asked whether
+`DisplayFault::FreeMoveInFlight` can be produced by any chrome route.
+The natural sweep is over *pointer* states — can one pointer hold two
+drags, can a click land under a held drag — and that sweep is closed
+and self-consistent and answers **no**. The property is not pointer
+states; it is **input**. A `DragValue` enters keyboard-edit mode the
+frame it takes focus, deliberately, for screen readers
+(`egui-0.36.1/src/drag_value.rs:462-466`), so the keyboard reaches a
+second component while the pointer still holds the first — and
+`Response::clicked()` is true for a keyboard Space/Enter and for an
+AccessKit `Action::Click` with no pointer anywhere
+(`context.rs:1464-1478`). egui's API is *built* to make the three
+indistinguishable at the widget, which is exactly why a pointer-shaped
+sweep cannot see the other two.
+
+Note what this instance does NOT look like: the sweep was not sloppy,
+and no wider grep over the same population would have found it. The
+missing member was in a different population. **A reachability claim is
+a claim about what a USER can cause, and the set of things a user can
+cause is larger than the set of gestures the code names.** When the
+answer is about to be "unreachable", enumerate the input modalities
+before the code paths.
+
+**The same unit also falsified the item's premise outright**, which is
+the second lesson: `free-move-in-flight-refusal-has-no-reachable-
+producer` said *every* route needs the free-move strand, and by the
+time it was dispatched the fault had a **second producer** —
+`session.rs:1090` raises it for every op `permitted_during_free_move`
+refuses, which is `Open` and `NewDocument` (`op.rs:854`), added by
+#2358 four hours earlier. A row's premise ages against the tree exactly
+like a citation does, and the dispatch that says *re-derive the
+citations* has to say *re-derive the premise* too.
+
+**The thirteenth is mine and I had been repeating it in every report
+this session.** I read `docs-only ok` **success** as the docs-tier
+marker — *"21 jobs, `docs-only ok` success, the docs-only tier
+exactly"*. It concludes **success on the full code tier too**: #2390,
+#2392 and #2400 each carry a green `docs-only ok` inside a 38-job
+closure-tier run, alongside `gate ok`. So its presence is no evidence
+of a tier at all. The only evidence is the one already written down two
+rules above — **the COUNT, and `gate ok`** — which is exactly what this
+register says about an unsubstituted matrix placeholder, applied to a
+job name instead of a job name's contents. The reading was never
+falsified because on a docs-only run both facts are true at once, so
+the proxy agreed with itself every time.
+
+Verify a tier by: **21 jobs** (docs-only) or **38-39 with 12 `test (…)`
+and 5 `k-lint (gate, …)`** (full code), plus `gate ok` success. Never by
+which summarising job reports green.
+
+**A viewer test command needs `--no-fail-fast` or it silently does not
+run the suite.** `cargo test -p viewer --features app` — which this
+register and several dispatches specified — aborts at the `--lib`
+adapter red (`gpu::tests::every_pass_builds_on_a_real_device`, no Vulkan
+on the lane boxes), so the **524-row `--test all` suite never builds**.
+A lane following that command literally reports a green-looking `37/1`
+and never runs the suite its own diff is about. The command is
+`cargo test -p viewer --features app --no-fail-fast`, and the expected
+shape is `--test all` 524/0/1 plus `--lib` 37/1 with that one adapter
+row red. Found by #2400's lane, which ran it correctly and then said the
+brief was wrong.
 
 **Settle a CI-scope question by RUNNING the filter, not by reading a
 manifest.** The same review reported `prose_census` as possibly sited
@@ -422,6 +504,17 @@ that had accounted for the other five. A reviewer who runs the stated
 rule catches this in one command; a reviewer who reads the sentence
 does not.
 
+**`git checkout -- <file>` is `git checkout HEAD -- <file>`, and two
+lanes in a row have destroyed their own uncommitted work with it.** Both
+were reverting a planted mutation, and both discarded every uncommitted
+edit in the file along with it — #2089's clobber in a new shape, twice
+in one day. Neither lost anything, because in both cases the edits were
+scripted and re-runnable; that is luck about the method rather than a
+property of the harness, and the second lane said so in exactly those
+words. **So: commit before you mutate.** A mutation harness that reverts
+by `git checkout` is only safe against a committed tree, and a receipt
+taken before the commit is a receipt about a tree nobody can reproduce.
+
 **A base worktree needs its OWN target dir, not the lane's.** The rule
 above says export `CARGO_TARGET_DIR` everywhere; #2148's lane did, and
 exported the SAME one in the throwaway base worktree it made to measure
@@ -476,6 +569,59 @@ general item absorbing damage particular branches did, which is how
 `stale-file-citations-after-the-split` reached four classes without
 fixing one.
 
+**An out-of-fence citation table is a statement about ONE diff against
+ONE base, and it expires the moment another diff touches the same
+file.** Implementer-discipline §6 has lanes report another program's
+shifted citations rather than edit them, and the orchestrator places
+them. Two lanes have now reported the same CHROME row —
+`app-rs-doc-comment-merge-scars`, `app.rs:1722-1723` — with different
+answers: #2320 said `1750-1751` (its own `app.rs` band moved +28) and
+#2348 said `1732` (+10). Each is right about its own diff and neither
+is right once both have landed; the true position is the sum, and only
+if nothing else lands first. **So a table is never applied as written:
+placing it means re-deriving at placing time, by subject.** The table's
+value is the POPULATION it identifies — which rows were damaged — not
+the numbers beside it.
+
+**And an out-of-fence entry owes the subject check the in-fence rule
+already demands.** In fence this program leaves a citation that was
+wrong at the merge base alone and discloses it, rather than repointing
+it onto something else
+(`citation-repoint-shifted-a-number-the-lane-knew-was-wrong`). Out of
+fence there was no counterpart, so #2348's table told CHROME that
+`app.rs:1722` *"should read 1732"* for a sentence about
+`perform_batch` — which is at `app.rs:918` at that branch's base and at
+its head both. The number was never about its subject, and shifting it
+makes the row worse while looking like a correction, on this program's
+authority rather than the other program's. An out-of-fence table splits
+in two: entries whose citation names its subject at the old number, and
+entries that do not — the second group disclosed as already stale and
+never presented as a repoint.
+
+**And the measured answer, once #2348's lane actually ran the subject
+check over its own table: of 31 out-of-fence citations, ONE was a true
+shift.** Fifteen cite past the end of the file — relics of the
+pre-split 5,696-line `app.rs` against a 2029-line one — seven are in
+range with the subject elsewhere, and eight are quotations, rows whose
+text prints a citation as an EXAMPLE of a convention or quotes a
+diagnostic captured at a named sha. The arithmetic was confident on all
+thirty-one, because **a shift map is arithmetic on an integer and
+cannot be wrong in its own terms**: no diff can move a line that is not
+in the file, and nothing in `base[i]` vs `head[i + shift]` asks whether
+`i` exists. The cheapest check that catches the largest class is `wc
+-l`. Every out-of-fence table this program has emitted is suspect in
+the same way, #2320's included.
+
+**The resolver failure mode, which is the same proxy class one level
+down**: #2348's census mapped a line number belonging to one citation
+onto a filename token found elsewhere in the same row, so
+`.github/workflows/ci.yml:4030` was reported as `README.md:4030`. The
+lane's own correction then mapped it onto a third wrong file. The check
+is that the file token and the line number must come from the SAME
+citation, not merely from the same row — and `README.md` is the most
+ambiguous filename in this repo, with a root one of 84 lines, a viewer
+one of 1676, and `tools/`, `demos/` and more besides.
+
 **An unsubstituted matrix placeholder in a job name means the matrix
 never expanded, so that row is not the row it appears to be.** #2282's
 lane read a run as green on sixteen successes including the three
@@ -491,6 +637,64 @@ stays pending precisely when a narrowed matrix would otherwise read as a
 pass. `neutral` is a passing conclusion, not a failure —
 `render drift (…)` is a check run posted by the rebaseline action and
 designed to be neutral (`ci.yml:4964-4976`).
+
+**A `crates/viewer` diff's own CI structurally cannot read the
+skip-mode viewer doc pass, and #2320 landed a red on `main` through
+that hole while I watched its CI go green.** `run_viewer_toolkit` is
+keyed on the SEEDS — `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad",
+"bvh"}` (`scripts/ci-filter.py:1428`) — while `cargo_scope` is the
+dependent closure. So any branch touching this crate takes the
+**non-skip** path and documents `viewer` at `--all-features`, where a
+link into the `app`-gated half resolves; the skip-mode pass, which
+renders the renderer-free half ALONE, runs only on branches that reach
+`viewer` through the closure without seeding the toolkit — that is,
+never on the branch that writes the link. #2320 added
+`session/op.rs:773`, ``[`crate::widgets::drag_gesture_ops`]`` from an
+ungated module into an `app`-gated one, was green on its own 39-job
+code tier, and left `main` red for every later branch seeded elsewhere.
+FIX's orchestrator found it from `crates/quantity` (#2335, #2340) and
+filed it rather than absorbing it. #2332 cleared it under Ev's ruling.
+
+**So: a VIEW diff that touches a doc comment in the renderer-free half
+owes `scripts/doc-gate.sh --pr --scope '-p viewer'
+--skip-viewer-toolkit` LOCALLY**, and the green it gets from CI is not
+that. The dispatch that found this said it about its own PR — *this
+PR's own CI cannot exercise the change it makes* — and the same
+sentence is true of every viewer diff, not only the one changing the
+gate. Green on a branch is a statement about the branch's tier, and a
+tier is a claim about what ran.
+
+**FIX's third face of the silent-coverage class, worth having beside
+the two already in `memories/agent-lane-operations.md`**: not a green
+job name over a skipped step, and not a run queued with zero jobs, but
+**a sequence of green `main` pushes none of which executed the step at
+all**. A red reachable only from a code-tier change stays invisible for
+as long as the repo happens to be landing docs. `main` being green is
+not evidence the step ran — on `main` any more than on a branch.
+
+**And the skip's named backstop cannot red.** `ci.yml:1821-1825` says
+what the skip stops documenting is re-taken by `nightly.yml`'s
+`rustdoc (viewer, all features)`. That row is `cargo doc -p viewer
+--all-features --no-deps` (`nightly.yml:291-293`) and `nightly.yml`
+sets no `RUSTDOCFLAGS` anywhere, so a planted broken link gives one
+warning and exit 0. It re-takes the RENDER, not the LINT —
+enough for a page that fails to build, not for a link that fails to
+resolve. `renderer-free-cross-crate-links-are-ungated-off-the-seed-set`
+owns the repair.
+
+**And the cost #2332 wrote down was paid on the very next viewer diff,
+in the direction nobody was watching.** That change made the skip-mode
+viewer pass stop judging link TARGETS, and the stated cost was that a
+genuinely broken link in the renderer-free half would no longer red
+there. #2358 collapsed `OpOutcome`'s three fields and left three
+intra-doc links to items it had just deleted:
+`doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit` **exited 0
+over them** while the full workspace pass exited 1. So the two passes
+are not redundant in either direction — the skip pass is the only
+rustdoc on a skip-mode run, and the full pass is the only one that
+judges links — and a viewer lane owes BOTH, not whichever one its
+branch happens to take. Running only the skip-mode command because it
+is the one CI cannot reach is the mirror of the #2320 mistake.
 
 **Running the crate's own suite is not running the suite, and the two
 runs are not nested.** #2293 reported 511/0/1 from `cargo test -p viewer
@@ -687,6 +891,54 @@ tense's opposite. The countermeasures for the citation half are items
 citations-after-the-split`, open); for the log half there is none, and
 the only instrument is a successor reading `git log` before believing
 the tail. Dispatches are written accordingly.
+
+### Two rules from the delta round-trip dispatch (2026-09-11)
+
+**A round trip that crosses a unit conversion is not closed by
+tightening a precision — and the reason is narrower than it first
+looks.** `crates/viewer/src/pane/view.rs`'s δ field seeded its draft
+with `format!("{in_force:.3}")` where `in_force = delta * 1.0e3`, and
+that same draft was what `lost_focus` parsed and committed — so the
+seed had to round-trip. The obvious reading is that `{:.3}` is too
+coarse and a better format string fixes it. It does not: seeding the
+**shortest round-trip spelling of the product** and parsing it back
+through `* 1.0e-3` still returns a different `f64` for ~14% of sampled
+δ (measured twice, on two grids: 3,983/28,600 and 4,155/28,600 by the
+lane), every one exactly 1 ULP.
+
+**I first wrote that as "unachievable by any spelling", and the lane
+corrected me.** The seed need not be a spelling of the *product*; it
+can be a spelling of a **preimage** — some millimetre value `m` with
+`m * 1.0e-3 == delta` exactly. Such a preimage exists for **97.7%** of
+those δ, always within a ULP or so of the naive product (the lane
+measured 97.66%; I re-measured 97.73% on my own grid, and 2.27% with
+no `f64` preimage at all over ±64 ULP). So the exact-seed shape is dead
+outright only for the ~2.3% where multiplication by `1e-3` is not
+surjective, and merely *expensive* — a ULP-neighbourhood search per
+render — for the rest. The conclusion held; the stated reason did not.
+What actually kills the shape is practical and was the lane's own
+find: a budget δ is `constant / TRIANGLE_BUDGET`
+(`crates/viewer/src/scene.rs`), seventeen significant figures in a
+56-point field.
+
+Generalises twice over. Before tightening a precision to fix a round
+trip, check whether the round trip crosses an operation that is lossy
+at every precision. And when ruling a fix shape out, rule out the shape
+as the reader would actually build it — *"no spelling of X works"* is
+not *"no seed works"*, and the gap between them is where a correction
+lives.
+
+**When the type's own doc already states the invariant, satisfying it
+is not a preference.** `crates/viewer/src/drafts.rs:33-37` documents
+`delta_mm` as the field *"in millimetres **as typed**. `None` whenever
+it does not"* — `Some` is documented to mean *typed*. `view.rs:81`'s
+`get_or_insert_with` makes `Some` mean *the field has focus*. The item
+filed against this called the make-untouched-unrepresentable shape the
+*preferred* one on taste grounds; it is in fact the one that makes the
+code match a written contract that is currently false, which is a
+different and much stronger argument. Generalises: when weighing fix
+shapes, read the doc comment on the **type** as well as the one on the
+function — a contract stated there converts a preference into a defect.
 
 ## Exit shape
 
