@@ -120,14 +120,38 @@
 //! parameter; here it is answered by
 //! [`geom_core::spline::compose::patch`].
 //!
-//! **The small-`|d|` denominator, and the limit that remains.** The
-//! normal component divides `|X|` by `w̃²·(‖E‖ + |d|)`. Bounding that
-//! below by `2|d|` alone is both loose and brittle: once `dist`
-//! reaches `|d|` the cell collapses to `+∞`, so a micron-scale offset
-//! on a metre-scale patch certified as `inf`. The composite therefore
-//! carries `Ẽ` and takes a DIRECT mignitude lower bound on `‖E‖` —
-//! the same inf-side shape meter 1 uses on the cross product — which
-//! makes the small-`|d|` case finite and tightens every other row.
+//! **The small-`|d|` denominator.** The normal component divides
+//! `|X|` by `w̃²·(‖E‖ + |d|)`. Bounding that below by `2|d|` alone is
+//! both loose and brittle: once `dist` reaches `|d|` the cell
+//! collapses to `+∞`, so a micron-scale offset on a metre-scale patch
+//! certifies as `inf`. The composite therefore carries `Ẽ` and bounds
+//! `‖E‖` below DIRECTLY, which makes the small-`|d|` case finite and
+//! tightens every other row.
+//!
+//! It bounds it two ways and takes the larger. The first is the
+//! componentwise mignitude assembly on `Ẽ`'s cell hulls — the same
+//! inf-side shape meter 1 uses on the cross product. The second reads
+//! the three components TOGETHER, through the sign witness the
+//! composite already carries: `|E·n| ≤ ‖E‖` for any `E`, and with
+//! `n = m/‖m‖`,
+//!
+//! ```text
+//! ‖E‖ ≥ |E·n| = |E·m| / ‖m‖ = |D| / (w̃ · ‖M̃‖)
+//! ```
+//!
+//! — `mig(D)` from below over the cell (positive on every cell that
+//! passes the witness, since the witness is `D` definite) against the
+//! sup of `M̃`'s three cell hulls from above. The two disagree by
+//! orders of magnitude exactly where a good fit lives: `E ≈ d·n`, so
+//! every component of `E` straddles zero as the normal rotates across
+//! the cell and the componentwise assembly collapses, while the
+//! projection reads `‖E‖ ≈ |d|`. On the quarter cylinder at
+//! `d = 1e-6` the sup cell's two readings are `1.58e-8` and
+//! `5.61e-7`, and the cell's bound is `1.71e-5` rather than
+//! `3.22e-4`.
+//!
+//! The `τ²/‖E‖` term takes the same floor, or `|d| − dist` when that
+//! is larger — three lower bounds on one norm, whose max is one too.
 //!
 //! **Recentring, and what it did and did not buy.** Every net above
 //! is built against one origin — the base control net's bbox midpoint
@@ -140,16 +164,9 @@
 //! metre patch a kilometre from the origin certified as `inf` and now
 //! certifies at the same `3.2e-4` the patch gives at the origin.
 //!
-//! It did NOT make the bound scale with `|d|`, and the reason is not
-//! the one that motivated the recentring. At the origin the small-`d`
-//! sup is 96% its `τ²/‖E‖` term, and that term is large because the
-//! lower bound on `‖E‖` is assembled from the componentwise
-//! mignitudes of `Ẽ`'s cell hulls: on a patch whose normal rotates
-//! across the cell each component straddles zero, so the assembly
-//! reads `1.6e-8` where `‖E‖ ≈ |d| = 1e-6`. A lower bound that saw
-//! the components together rather than one at a time is what would
-//! move this row; it is not a rounding problem and recentring cannot
-//! reach it.
+//! What it does not reach is the floor on `‖E‖`: that one is not a
+//! rounding problem at any origin, and it is answered above by the
+//! projection through the sign witness rather than by recentring.
 //!
 //! **Where the regularity floor enters.** `τ` and `D` both divide by
 //! `‖m‖`, and `X`'s reading divides by `w̃²`. Both weight hulls are
@@ -327,6 +344,11 @@ impl OffsetLimb {
 /// input that any face refuses is refused — the admission set of the
 /// door is unchanged by which face speaks — and the split exists so
 /// the caller learns which knob the refusal is about.
+///
+/// The admission set is a function of the bound, so a tighter bound
+/// moves requests OUT of these faces and never into them, and every
+/// request that crosses over is certified by the same decomposition
+/// that refused it: no addendum is owed for a face row that moves.
 #[derive(Clone, Debug, PartialEq)]
 pub enum OffsetFitError {
     /// A door meter refused: the patch's normal is not certifiably
@@ -408,20 +430,21 @@ pub enum OffsetFitError {
     ///   constant of this loop — neither the budget nor the cap is
     ///   worth raising. What decides it is the limb's floors against
     ///   the request's own `|d|`: the regularity floor the door meters
-    ///   certify and the componentwise mignitude bound on `‖E‖`. The
-    ///   caller's move is there, not at the budget. Every instance in
-    ///   the shipped corpus and in a 518-request search over five
-    ///   bases stopped on the cap; a round-budget stop with no finite
-    ///   bound is reachable by the same test and has no row.
+    ///   certify and the floor on `‖E‖` — the larger of the
+    ///   componentwise mignitude assembly and the projection through
+    ///   the sign witness. The caller's move is there, not at the
+    ///   budget. Every instance the shipped corpus reaches stops on
+    ///   the cap; a round-budget stop with no finite bound is
+    ///   reachable by the same test and has no row.
     /// - **`last_finite: Some(b)` — a coarser grid reached the finite
     ///   bound `b` and a finer one lost it.** The bound was there and
     ///   the schedule moved off it, so the schedule is the lever and
     ///   `b` is the number the caller can size against. Structurally
     ///   reachable — the stall guard keeps refining after a finite
     ///   round is followed by a non-finite one, since an infinite
-    ///   bound is never a stall — and no fixture reaches it: the same
-    ///   518-request search saw no finite round followed by a
-    ///   non-finite one.
+    ///   bound is never a stall — and no fixture reaches it: no
+    ///   request in the shipped corpus produces a finite round
+    ///   followed by a non-finite one.
     ///
     /// Classification: the enum's, above.
     BoundNotFinite {
@@ -1555,7 +1578,10 @@ enum Refine {
 /// across two independent review lanes plus this unit's own seven
 /// fixtures (bumpy, cylinder both signs, sphere both signs, near-reach
 /// sphere, a 1000:1 thin patch, extreme weights at 0.05 and 8.0), over
-/// tolerances from 1e-6 to 1e-15. None stalled.
+/// tolerances from 1e-6 to 1e-15. None stalled. The [`fit_offset_at`]
+/// instrument does not reach it either — `budget_faces`' corpus is
+/// the standing count, and every refusal it produces is the budget,
+/// the cap or the not-finite face.
 ///
 /// **That is a property of the predicate's shape, not of the fixtures.**
 /// The test is `hull_sup < prev_sup` with no epsilon, so ANY decrease
@@ -1734,6 +1760,12 @@ struct Composite {
     /// divide by a DIRECT lower bound on `‖E‖` (module docs, "the
     /// small-`|d|` denominator") instead of by `2|d|`.
     e: [PatchSpans; 3],
+    /// `M̃ = w³·m`, the base's own homogeneous normal, channel by
+    /// channel. `Y` and `D` are formed from it and it is kept past
+    /// them, because the lower bound on `‖E‖` reads `D` against a
+    /// certified upper bound on `‖M̃‖` (module docs, "the
+    /// small-`|d|` denominator").
+    m: [PatchSpans; 3],
     breaks_u: Vec<f64>,
     breaks_v: Vec<f64>,
 }
@@ -2017,6 +2049,7 @@ impl Composite {
         let x = dot_spans(&e, &e).sub(&wt.mul(&wt).scale(RingInterval::point(d).sqr()));
         let y = cross_spans(&e, &m_tilde);
         let dd = dot_spans(&e, &m_tilde);
+        let m = m_tilde;
         let (bu, bv) = x.breaks();
         let (breaks_u, breaks_v) = (bu.to_vec(), bv.to_vec());
         Ok(Self {
@@ -2026,6 +2059,7 @@ impl Composite {
             w,
             wt,
             e,
+            m,
             breaks_u,
             breaks_v,
         })
@@ -2076,7 +2110,7 @@ impl Composite {
             return f64::INFINITY;
         }
         let abs_d = RingInterval::point(d.abs());
-        // A DIRECT lower bound on `‖E‖`, from `E = Ẽ/w` and the
+        // A DIRECT lower bound on `‖E‖`, from `E = Ẽ/w̃` and the
         // mignitude assembly on `Ẽ`'s own cell hulls — the same
         // inf-side shape meter 1 uses on the cross product. This is
         // what keeps the normal component's denominator honest when
@@ -2084,10 +2118,43 @@ impl Composite {
         // `|‖E‖² − d²|`, and falling back on `2|d|` for it both
         // loses accuracy and, once `dist` reaches `|d|`, collapses
         // the cell to `+∞` for no geometric reason.
+        //
+        // It reads the components ONE AT A TIME, so it collapses
+        // wherever every component of `E` straddles zero — which is
+        // what a rotating normal does to `E ≈ d·n` across a cell.
         let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        let e_lo_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        let e_mig_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        // The same quantity read through the SIGN WITNESS, which sees
+        // the three components together: `|E·n| ≤ ‖E‖` for any `E`,
+        // and with `n = m/‖m‖`, `M̃ = w³·m` and `D = w̃·w³·(E·m)`,
+        //
+        // ```text
+        // ‖E‖ ≥ |E·n| = |E·m|/‖m‖ = |D| / (w̃·‖M̃‖).
+        // ```
+        //
+        // `mig(D)` is positive on every cell that reaches here — the
+        // witness above is what proves it — and `‖M̃‖` is bounded
+        // above by the sup of its three cell hulls, the shape `y_mag`
+        // uses. Where `E ∥ n` this reads `‖E‖ ≈ |d|` and the
+        // componentwise assembly reads nothing.
+        let m_sq = self.m[0].cell_hull(su, sv).mag().powi(2)
+            + self.m[1].cell_hull(su, sv).mag().powi(2)
+            + self.m[2].cell_hull(su, sv).mag().powi(2);
+        let m_sup = sqrt_up(m_sq);
+        let e_proj_iv = if m_sup > 0.0 && m_sup.is_finite() {
+            RingInterval::point(mig(dh)) / (RingInterval::point(m_sup) * wt)
+        } else {
+            RingInterval::zero()
+        };
+        // The max of two sound lower bounds is a sound lower bound;
+        // only the low end of the winner is ever read.
+        let e_lo_iv = if e_proj_iv.lo() > e_mig_iv.lo() {
+            e_proj_iv
+        } else {
+            e_mig_iv
+        };
         // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
         let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
         let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
@@ -2099,7 +2166,9 @@ impl Composite {
         let y_mag = RingInterval::from_bounds(0.0, sqrt_up(y_sq));
         let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
         // `‖E‖` from below once more, for the `τ²/‖E‖` term: the
-        // direct bound, or `|d| − dist` when that is larger.
+        // better of the two hull bounds above, or `|d| − dist` when
+        // that is larger. The three are lower bounds on the same
+        // norm, so their max is one too.
         let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
             return f64::INFINITY;
@@ -2113,16 +2182,129 @@ impl Composite {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{Refine, directional_mark, stall_verdict};
+    use super::{Composite, Refine, directional_mark, stall_verdict};
+    use crate::offset_meters::{mig, sqrt_down, sqrt_up};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Tol, ring_interval::RingInterval};
 
-    /// CERT-7 R2 probe (local only): reproduce the PR body's per-cell
-    /// decomposition of the micron row's sup cell — dist, tau,
-    /// tau^2/||E||, and the mignitude floor on ||E|| (issue 1320's
-    /// digits).
-    #[test]
-    fn r2_probe_micron_sup_cell_decomposition() {
-        use geom_core::spline::KnotVector;
-        use geom_core::{Band, Point3, Tol};
+    /// One cell's certificate, split into the terms the module doc
+    /// names, with the lower bound on `‖E‖` selectable: `Witness`
+    /// takes the max the shipped [`Composite::cell_bound`] takes,
+    /// `Componentwise` takes the mignitude assembly alone. The two
+    /// differ in exactly one expression, which is what makes the
+    /// pair a measurement of that expression.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum ELow {
+        Componentwise,
+        Witness,
+    }
+
+    /// `(dist, tau, tau²/‖E‖, e_lo, bound)` at one cell.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    fn decompose(
+        comp: &Composite,
+        su: usize,
+        sv: usize,
+        floor: f64,
+        d: f64,
+        mode: ELow,
+    ) -> (f64, f64, f64, f64, f64) {
+        let unproved = (
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::INFINITY,
+            0.0,
+            f64::INFINITY,
+        );
+        let w = comp.w.cell_hull(su, sv);
+        let wt = comp.wt.cell_hull(su, sv);
+        let dh = comp.dd.cell_hull(su, sv);
+        if !(w.lo() > 0.0)
+            || !(wt.lo() > 0.0)
+            || !(if d > 0.0 {
+                dh.lo() > 0.0
+            } else {
+                dh.hi() < 0.0
+            })
+        {
+            return unproved;
+        }
+        let abs_d = RingInterval::point(d.abs());
+        let e_mig_sq = RingInterval::point(mig(comp.e[0].cell_hull(su, sv))).sqr()
+            + RingInterval::point(mig(comp.e[1].cell_hull(su, sv))).sqr()
+            + RingInterval::point(mig(comp.e[2].cell_hull(su, sv))).sqr();
+        let e_mig_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        let m_sq = comp.m[0].cell_hull(su, sv).mag().powi(2)
+            + comp.m[1].cell_hull(su, sv).mag().powi(2)
+            + comp.m[2].cell_hull(su, sv).mag().powi(2);
+        let m_sup = sqrt_up(m_sq);
+        let e_proj_iv = RingInterval::point(mig(dh)) / (RingInterval::point(m_sup) * wt);
+        let e_lo_iv = if mode == ELow::Witness && e_proj_iv.lo() > e_mig_iv.lo() {
+            e_proj_iv
+        } else {
+            e_mig_iv
+        };
+        let x_mag = RingInterval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
+        let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
+        let y_sq = comp.y[0].cell_hull(su, sv).mag().powi(2)
+            + comp.y[1].cell_hull(su, sv).mag().powi(2)
+            + comp.y[2].cell_hull(su, sv).mag().powi(2);
+        let y_mag = RingInterval::from_bounds(0.0, sqrt_up(y_sq));
+        let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
+        let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
+        if !(e_floor > 0.0) {
+            return unproved;
+        }
+        let t3 = (tau_iv.sqr() / RingInterval::point(e_floor)).hi();
+        (
+            dist_iv.hi(),
+            tau_iv.hi(),
+            t3,
+            e_lo_iv.lo(),
+            (dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor)).hi(),
+        )
+    }
+
+    /// The sup over a composite's cells under one `‖E‖` mode, with
+    /// the cell that carries it.
+    fn sup_cell(comp: &Composite, floor: f64, d: f64, mode: ELow) -> (usize, usize, f64) {
+        let (nu, nv) = comp.x.cell_counts();
+        let mut sup = (0usize, 0usize, 0.0f64);
+        for su in 0..nu {
+            for sv in 0..nv {
+                let b = decompose(comp, su, sv, floor, d, mode).4;
+                if b > sup.2 {
+                    sup = (su, sv, b);
+                }
+            }
+        }
+        sup
+    }
+
+    /// Every cell of a composite, under both readings: the witness
+    /// reading is a MAX over the componentwise one, so no cell's
+    /// bound may rise. Returns the worst (largest) ratio old/new.
+    fn no_cell_loosens(comp: &Composite, floor: f64, d: f64) -> f64 {
+        let (nu, nv) = comp.x.cell_counts();
+        let mut worst = 0.0f64;
+        for su in 0..nu {
+            for sv in 0..nv {
+                let old = decompose(comp, su, sv, floor, d, ELow::Componentwise).4;
+                let new = decompose(comp, su, sv, floor, d, ELow::Witness).4;
+                assert!(
+                    new <= old,
+                    "cell ({su},{sv}) loosened: {new:e} against {old:e}"
+                );
+                if old.is_finite() && new > 0.0 {
+                    worst = worst.max(old / new);
+                }
+            }
+        }
+        worst
+    }
+
+    /// The rational quarter cylinder the micron row fits.
+    fn quarter_cylinder() -> geom::NurbsSurface<f64> {
         let s = (core::f64::consts::FRAC_PI_2 * 0.5).cos();
         let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let kv1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -2134,54 +2316,113 @@ mod tests {
             Point3::new(0.0, 1.0, 0.0),
             Point3::new(0.0, 1.0, 1.0),
         ];
-        let base =
-            geom::NurbsSurface::new(kv2, kv1, control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap();
+        geom::NurbsSurface::new(kv2, kv1, control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap()
+    }
+
+    /// Four significant digits, which is what these rows pin.
+    fn near(x: f64, want: f64) -> bool {
+        (x - want).abs() <= want.abs() * 5e-4
+    }
+
+    /// **The floor on `‖E‖` reads the components together.**
+    ///
+    /// At `d = 1e-6` on the quarter cylinder `E ≈ d·n` and the normal
+    /// rotates across every cell, so each component of `Ẽ` straddles
+    /// zero and the componentwise mignitude assembly reads `1.58e-8`
+    /// where `‖E‖ ≈ 1e-6`. The projection through the sign witness,
+    /// `|D|/(w̃·‖M̃‖)`, reads the same cell at `5.61e-7` — within a
+    /// factor of two of `|d|` — and the `τ²/‖E‖` term that carried
+    /// 96% of the cell's bound falls with it.
+    ///
+    /// The row measures the two readings on ONE composite, so the
+    /// only thing that differs between them is the expression under
+    /// test.
+    #[test]
+    fn the_sign_witness_floors_norm_e_where_the_components_straddle_zero() {
+        let base = quarter_cylinder();
         let d = 1e-6;
         let band = Band::linear(Tol::witness()).unwrap();
-        let (fit, cert) = super::fit_offset_at(&base, d, 1e-3, band).unwrap();
         let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
-        let comp = super::Composite::build(&base, &fit, d).unwrap();
-        let (nu, nv) = comp.x.cell_counts();
-        let mut sup = (0usize, 0usize, 0.0f64);
-        for su in 0..nu {
-            for sv in 0..nv {
-                let b = comp.cell_bound(su, sv, reg.floor, d);
-                if b > sup.2 {
-                    sup = (su, sv, b);
-                }
-            }
+
+        // The seed grid carries no bound at all under either reading:
+        // its fit is too coarse for the sign witness. The floor is
+        // therefore measured from the first grid that carries one.
+        let (us, vs) = super::seed_params(&base);
+        let seed = super::interpolate_offset_grid(&base, d, &us, &vs).unwrap();
+        let comp0 = Composite::build(&base, &seed, d).unwrap();
+        for mode in [ELow::Componentwise, ELow::Witness] {
+            assert!(
+                sup_cell(&comp0, reg.floor, d, mode).2.is_infinite(),
+                "the seed grid's sup is finite — the sign witness now passes there"
+            );
         }
-        let (su, sv) = (sup.0, sup.1);
-        // Re-run the assembly with the parts split (mirrors cell_bound).
-        use geom_core::ring_interval::RingInterval;
-        let w = comp.w.cell_hull(su, sv);
-        let wt = comp.wt.cell_hull(su, sv);
-        let abs_d = RingInterval::point(d.abs());
-        let e_mig_sq = RingInterval::point(crate::offset_meters::mig(comp.e[0].cell_hull(su, sv)))
-            .sqr()
-            + RingInterval::point(crate::offset_meters::mig(comp.e[1].cell_hull(su, sv))).sqr()
-            + RingInterval::point(crate::offset_meters::mig(comp.e[2].cell_hull(su, sv))).sqr();
-        let e_lo_iv = RingInterval::point(crate::offset_meters::sqrt_down(e_mig_sq.lo())) / wt;
-        let x_mag = RingInterval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
-        let y_sq = comp.y[0].cell_hull(su, sv).mag().powi(2)
-            + comp.y[1].cell_hull(su, sv).mag().powi(2)
-            + comp.y[2].cell_hull(su, sv).mag().powi(2);
-        let y_mag = RingInterval::from_bounds(0.0, crate::offset_meters::sqrt_up(y_sq));
-        let tau_iv = y_mag / (RingInterval::point(reg.floor) * wt * w.powi(3));
-        let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
-        let t3 = (tau_iv.sqr() / RingInterval::point(e_floor)).hi();
-        eprintln!(
-            "R2 decomposition: hull_sup={:.4e} sup_cell=({su},{sv}) bound={:.4e} \
-             dist={:.4e} tau={:.4e} tau2/E={:.4e} e_lo={:.4e} share={:.1}%",
-            cert.hull_sup,
-            sup.2,
-            dist_iv.hi(),
-            tau_iv.hi(),
-            t3,
-            e_lo_iv.lo(),
-            100.0 * t3 / sup.2
+
+        // The first grid that carries a finite bound, which is also
+        // the grid a `1e-3` request certifies at.
+        let (fit, cert) = super::fit_offset_at(&base, d, 1e-3, band).unwrap();
+        assert_eq!((cert.rounds, cert.cells), (4, 308));
+        let comp = Composite::build(&base, &fit, d).unwrap();
+        let (su, sv, sup) = sup_cell(&comp, reg.floor, d, ELow::Witness);
+        assert_eq!((su, sv), (21, 12));
+        assert!(near(sup, 1.7072e-5), "sup cell bound is {sup:e}");
+        assert!(
+            near(cert.hull_sup, sup),
+            "the certificate carries another cell's bound"
         );
+        let (dist, tau, t3, e_lo, _) = decompose(&comp, su, sv, reg.floor, d, ELow::Witness);
+        assert!(
+            e_lo > d * 0.5 && e_lo < d * 2.0,
+            "the floor on ‖E‖ reads {e_lo:e} where ‖E‖ ≈ {d:e}"
+        );
+        assert!(near(e_lo, 5.6056e-7), "floor is {e_lo:e}");
+        assert!(near(dist, 6.1032e-6) && near(tau, 2.2152e-6) && near(t3, 8.7536e-6));
+
+        // The same cell read componentwise: the collapsed floor, and
+        // the `τ²/‖E‖` term it inflates. `τ` is untouched — it divides
+        // by the regularity floor, not by `‖E‖`.
+        let (dist_c, tau_c, t3_c, e_mig, sup_c) =
+            decompose(&comp, su, sv, reg.floor, d, ELow::Componentwise);
+        assert!(near(e_mig, 1.5798e-8), "componentwise floor is {e_mig:e}");
+        assert!(near(sup_c, 3.2219e-4) && near(dist_c, 9.3763e-6) && near(t3_c, 3.1059e-4));
+        assert!(near(tau_c, tau), "τ moved: {tau_c:e} against {tau:e}");
+        assert!(
+            t3_c > 0.96 * sup_c,
+            "the componentwise reading's sup is not its τ²/‖E‖ term"
+        );
+        assert!(
+            near(sup_c / sup, 18.872),
+            "the bound moved by {}",
+            sup_c / sup
+        );
+
+        // No cell anywhere on this grid loosens: the reading is a max
+        // over the one it replaces, and the row measures that rather
+        // than resting on the argument.
+        let worst = no_cell_loosens(&comp, reg.floor, d);
+        assert!(near(worst, 18.872), "the widest cell gain is {worst}");
+
+        // One round finer — the grid the `1e-9` request stops on at
+        // the sample cap. The cells are small enough that the
+        // componentwise assembly no longer collapses (`7.80e-7`), so
+        // the witness reading adds 1%, and the sup is carried by `τ`,
+        // which this bound does not reach.
+        let (fit5, cert5) = super::fit_offset_at(&base, d, sup.next_down(), band).unwrap();
+        assert_eq!((cert5.rounds, cert5.cells), (5, 364));
+        let comp5 = Composite::build(&base, &fit5, d).unwrap();
+        let (su5, sv5, sup5) = sup_cell(&comp5, reg.floor, d, ELow::Witness);
+        assert_eq!((su5, sv5), (21, 12));
+        let (dist5, tau5, t35, e_lo5, _) = decompose(&comp5, su5, sv5, reg.floor, d, ELow::Witness);
+        assert!(near(sup5, 3.7544e-7), "cap-grid sup is {sup5:e}");
+        assert!(near(e_lo5, 8.3071e-7) && near(dist5, 1.2216e-7) && near(t35, 4.7996e-8));
+        assert!(
+            tau5 > dist5 && tau5 > t35,
+            "τ = {tau5:e} no longer carries the cap grid's sup"
+        );
+        let (.., e_mig5, sup5_c) = decompose(&comp5, su5, sv5, reg.floor, d, ELow::Componentwise);
+        assert!(near(e_mig5, 7.7991e-7), "componentwise floor is {e_mig5:e}");
+        assert!(near(sup5_c, 3.7912e-7) && near(sup5_c / sup5, 1.0098));
+        let worst5 = no_cell_loosens(&comp5, reg.floor, d);
+        assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }
 
     /// The guard is silent while the bound is still `+∞`: an

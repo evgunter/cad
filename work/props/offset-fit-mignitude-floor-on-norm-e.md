@@ -2,8 +2,10 @@
 id: offset-fit-mignitude-floor-on-norm-e
 kind: issue
 title: offset_fit small-|d| certificates are floored by the componentwise mignitude lower bound on ‖E‖, not by rounding
-status: open
+status: review
 opened: 2026-08-31
+branch: props/mignitude-floor
+pr: 2469
 github: 1320
 refs: [1008, 1319]
 ---
