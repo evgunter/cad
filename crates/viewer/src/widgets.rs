@@ -65,7 +65,7 @@ use crate::sketch::{ArcSpec, PathStep, PathTarget};
 /// steps through is the text it steps through today, and the question
 /// of what a gesture means when its number stops matching its tick is
 /// one this rule never asks.
-pub(crate) fn field_text(value: f64, decimals: core::ops::RangeInclusive<usize>) -> String {
+pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>) -> String {
     let spelling = egui::emath::format_with_decimals_in_range(value, decimals);
     if readout::reads_back(&spelling, value) {
         spelling
@@ -77,7 +77,7 @@ pub(crate) fn field_text(value: f64, decimals: core::ops::RangeInclusive<usize>)
 /// **Every numeric field in the chrome**, dragged at `speed` per pixel.
 ///
 /// One constructor rather than an `egui::DragValue::new` at each site,
-/// because [`field_text`] is one decision about all of them rather than
+/// because [`number_text`] is one decision about all of them rather than
 /// a patch to the length ones. The property is that a field's text
 /// names the value it holds, and that property has no dimension in it:
 /// a dimensionless field reading `0.00` over 1.6e-5 and an angle field
@@ -95,7 +95,7 @@ pub(crate) fn number_field<Num: egui::emath::Numeric>(
 ) -> egui::DragValue<'_> {
     egui::DragValue::new(value)
         .speed(speed)
-        .custom_formatter(field_text)
+        .custom_formatter(number_text)
 }
 
 /// **One gesture vocabulary**: the four operations a drag on one field
@@ -1094,7 +1094,7 @@ mod tests {
 
 /// **What a numeric field says, and what saying it commits.**
 ///
-/// [`super::field_text`] is a render, so the rows over it are a table;
+/// [`super::number_text`] is a render, so the rows over it are a table;
 /// the row that matters is not, because the defect is that the render
 /// is ALSO the text a click-in and a click-away hands back to the
 /// document, and only driving the real widget says whether it is.
@@ -1103,7 +1103,7 @@ mod field_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{field_text, number_field};
+    use super::{number_field, number_text};
     use eframe::egui;
 
     /// The decimal range a length field shown in millimetres is handed:
@@ -1134,11 +1134,38 @@ mod field_tests {
             )]
             let value = tenths as f64 / 10.0;
             assert_eq!(
-                field_text(value, MM),
+                number_text(value, MM),
                 egui::emath::format_with_decimals_in_range(value, MM),
                 "a drag lands on {value}, where this rule must say nothing new"
             );
             tenths += 1;
+        }
+    }
+
+    /// **And nothing at or above one display unit renders differently
+    /// either**, which is the bound on how much of the chrome this
+    /// rule can reach at all.
+    ///
+    /// Derived rather than chosen: the widest spelling the millimetre
+    /// range offers is `{:.3}`, whose error is at most 5·10⁻⁴ in
+    /// ABSOLUTE terms, so it clears `crate::readout::REL_TOLERANCE` —
+    /// which is 5·10⁻⁴ RELATIVE — for every value of magnitude at
+    /// least one. A field showing millimetres therefore keeps egui's
+    /// text for every length from a millimetre up, and the band this
+    /// changes is the sub-millimetre one the item was filed about.
+    #[test]
+    fn nothing_at_or_above_one_display_unit_renders_differently() {
+        let mut value = 1.0_f64;
+        while value < 1.0e9 {
+            for signed in [value, -value] {
+                assert_eq!(
+                    number_text(signed, MM),
+                    egui::emath::format_with_decimals_in_range(signed, MM),
+                    "{signed} is at or above one millimetre, where the widest \
+                     spelling in the range already reads back"
+                );
+            }
+            value *= 1.000_7;
         }
     }
 
@@ -1155,7 +1182,7 @@ mod field_tests {
             (0.0625, "0.0625"),
             (1.0e-9, "1.000e-9"),
         ] {
-            assert_eq!(field_text(value, MM), text, "the field's text for {value}");
+            assert_eq!(number_text(value, MM), text, "the field's text for {value}");
             assert_ne!(
                 text,
                 egui::emath::format_with_decimals_in_range(value, MM),
@@ -1168,7 +1195,7 @@ mod field_tests {
     /// refuses a rendered zero must not refuse a real one.
     #[test]
     fn a_field_holding_zero_says_zero() {
-        assert_eq!(field_text(0.0, MM), "0.0");
+        assert_eq!(number_text(0.0, MM), "0.0");
     }
 
     /// **An integer field is untouched, and by construction.**
@@ -1177,7 +1204,7 @@ mod field_tests {
     #[test]
     fn an_integer_field_is_spelled_the_way_it_always_was() {
         for value in [3.0_f64, -12.0, 0.0, 1.0e9] {
-            assert_eq!(field_text(value, 0..=0), format!("{value:.0}"));
+            assert_eq!(number_text(value, 0..=0), format!("{value:.0}"));
         }
     }
 

@@ -44,7 +44,7 @@ it.
 ## Why it is not urgent, stated so it is not overstated
 
 **The one caller does not care today.** `PropertiesPane::instance_ui`
-(`crates/viewer/src/pane/properties.rs:336`) early-returns for a
+(`crates/viewer/src/pane/properties.rs:338`) early-returns for a
 `false`, drawing no per-instance section — and drawing nothing is the
 right answer for both an absent node and a datum. So there is no live
 defect. The reviewer's confidence was `sure` on the door's shape and

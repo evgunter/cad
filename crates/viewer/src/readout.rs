@@ -32,7 +32,7 @@
 //! hand, wherever the type is absent. It is one function over the
 //! value, [`crate::scene::DisplayTolerance::render_mm`] is the δ-facing
 //! door onto it (the millimetre conversion, and nothing else), and
-//! `crate::widgets::field_text` is the fields' door.
+//! `crate::widgets::number_text` is the fields' door.
 //!
 //! # What it is not
 //!
@@ -44,7 +44,7 @@
 //! `egui::DragValue` seeds its keyboard edit with the text it last
 //! showed and writes the parse back when it loses focus, so what a
 //! field renders is what clicking into it and away again commits —
-//! which is why `crate::widgets::field_text` exists and why
+//! which is why `crate::widgets::number_text` exists and why
 //! [`REL_TOLERANCE`] bounds that commit as well as that render. The
 //! number a value moves to on purpose is one a user types, never one
 //! the chrome echoed at them.
