@@ -30,9 +30,9 @@ This program claims **no paths**. `crates/geom-core/src/*` and
 `crates/geom/src/*` are PROPS' territory and most of `H5` sits inside
 them; `interval-transcendentals/` is in no program's `paths` at all.
 Every unit is announced to PROPS, and a row reaching unowned ground
-draws that fence in the PR that reaches it — the `geom-brep` seam rule
-from `work/code-quality/plan.md`, which this program inherits rather than
-restates.
+draws that fence in the PR that reaches it. **A row's work reaching an
+unowned path is not a licence to edit it; it is a fence that has not
+been drawn**, and the PR that reaches the path draws it.
 
 ## The slate
 

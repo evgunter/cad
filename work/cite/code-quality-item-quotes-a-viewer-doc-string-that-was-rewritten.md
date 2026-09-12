@@ -30,8 +30,12 @@ So the quoted string is no longer anywhere in the tree.
 **Where the replacement sentence actually lives, re-derived 2026-09-11,
 and the citation this row carried for it was itself wrong.** The row as
 filed said *"`crates/viewer/src/forms.rs:190` says 'a verb with no word
-does not parse'"*, and all three parts of that miss. `forms.rs:190` is
-blank. The line above it, `:189`, is `pub(crate) const ALL;` — and that
+does not parse'"*, and all three parts of that miss. `forms.rs:190` did
+not hold the const the row put there; at the time of writing the const
+was one line above, and by the time this PR merged `forms.rs` had moved
+twice more on `main` and it was one of five such lines further down
+again. **Read every `forms.rs` number in this row as of the SHA beside
+it and none of them as current** — that
 exact line occurs **five** times in the file (`:49`, `:105`, `:128`,
 `:189`, `:296`,
 `grep -n "pub(crate) const ALL;" crates/viewer/src/forms.rs`), so a bare
@@ -135,8 +139,11 @@ inside a row about line-number claims:
   invocations in `forms.rs`. There are **five** —
   `grep -n "^vocabulary! {" crates/viewer/src/forms.rs` prints `:36`,
   `:73`, `:108`, `:131`, `:267` — and fourth of five is right.
-- It said `forms.rs:190` is `pub(crate) const ALL;`. It is not:
-  `:190` is blank and the const is `:189`
+- It said `forms.rs:190` is `pub(crate) const ALL;`. It was not, at the
+  base where that was checked: `:190` was blank and the const was `:189`
+  (and after `main`'s `5045203` and `77631b4` the const is `:199` and
+  `PathVerb` is `:155` — the number has now been wrong in three
+  different ways in four days, which is the argument, not an aside)
   (`sed -n '189,190p' crates/viewer/src/forms.rs`), and the same line
   occurs five times in the file, so the number identified nothing even
   when it was one off. The paragraph above now names the const by the

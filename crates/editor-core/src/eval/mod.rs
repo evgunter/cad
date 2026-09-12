@@ -419,10 +419,10 @@ pub enum ValuePayload<T: Decide> {
 }
 
 /// **The family words** — the vocabulary a typed operand mismatch
-/// speaks ([`NodeErrorKind::WrongOperand`]'s `found`), written once.
-/// Three readers say them: [`ValuePayload::kind_name`] over a value,
-/// [`node_value_kind`] over a node, and the one-body door's refusal
-/// of an `Instances` operand.
+/// speaks ([`NodeErrorKind::WrongOperand`]'s `found` and `expected`),
+/// written once. [`ValuePayload::kind_name`] says them over a value,
+/// [`node_value_kind`] over a node, and `eval::wire`'s operand doors
+/// say them in the refusals they build.
 pub(crate) mod family {
     pub(crate) const DATUM: &str = "datum";
     pub(crate) const PROFILE: &str = "profile";

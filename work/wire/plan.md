@@ -73,8 +73,10 @@ grep and a citation.
 Then the lift pair in one sequence — `profile-has-no-scalar-lift-door`
 mints the door, `profile-embed-lift-has-two-homes-anchor-and-loft`
 retires the second home against it — because staffing them apart mints
-the door twice, which is exactly the trap `plan.md`'s ordering rule 5
-names.
+the door twice, which is the standing trap on work of this shape:
+**the fix mints a fresh instance of the defect it closes**, and naming
+that in your own PR body does not prevent it. Only a reader who did not
+write the fix has ever caught it.
 
 `frame-f64-placement-…` and `D364` follow. `S195` and `S40` are the H
 tail: `S195` is four mirrored vocabularies and the one-census-or-four

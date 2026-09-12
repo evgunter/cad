@@ -132,3 +132,46 @@ programs reading the marked sections (`code-quality-item-quotes-…` on
 DOOR, `d107-…` on TOPO, `loud-skip-marker-…` on TINT), plus
 `d321-row-number-reissued` and
 `no-local-script-builds-all-four-cargo-workspaces`, neither started.
+
+## Merged main; the merge ran the experiment for us (2026-09-12)
+
+`main` moved under this branch: sweep 11 (`docs/DOC-LEDGER.md`,
+2026-09-11) swept `work/code-quality/` out of the tree, and the DOOR
+orchestrator wrote its own re-derivation of
+`viewer-pathverb-all-hand-written-seventeen` the same day this program
+repaired that row's citations. Two conflicts, both resolved by keeping
+the other side's new information rather than ours:
+
+- **`work/cite/plan.md`** — took main's `d321-row-number-reissued` cell
+  (**M→overtaken**: both halves lost their target at sweep 11, so there
+  is no numbering ledger to write a retired-id rule in and no live
+  `SMELL-*-LOG.md` to disambiguate) and main's wording for the `D107`
+  order sentence. Kept our corrected paths for the three routings.
+- **`work/door/viewer-pathverb-…`** — kept BOTH sections with a merge
+  note. They do not overlap: DOOR rules on what the row claims, CITE
+  only on what it points at, and DOOR's section answers two of the
+  questions CITE's deferred to it.
+
+**Three re-derivations of ours went stale in the merge, and the pattern
+is the point.** `forms.rs` moved twice on main (`5045203`, `77631b4`),
+so `PathVerb` went `:145` → `:155` and its `const ALL` `:189` → `:199`.
+DOOR's section cites both by number and neither survives — `:199` now
+lands on `pub(crate) const ALL;`, plausible and wrong. **CITE's repair of
+the same file dropped the numbers and was untouched.** Two programs, one
+file, one day, one citing by number and one by name: the merge ran the
+convention's experiment without being asked. Recorded in the plan and in
+the DOOR row.
+
+`C-namespace` re-derived against the swept tree: the seven collisions are
+now **none**, because `process-observations.md` — the sole home of the
+`C1`–`C27` observations — left with the directory, and the ledger says
+the register's numbering scheme is *retired, not relocated*. The ruling
+is unchanged and better supported: the bounded-and-shrinking argument
+resolved itself within a day.
+
+Our own illustrative `forms.rs` numbers are now anchored to the SHAs they
+were taken at rather than repointed, per the convention's third
+never-repointed shape.
+
+`work.py lint`: ok, 0 problems, **21** warnings — down from 23, since
+code-quality's territory overlaps left with its directory.

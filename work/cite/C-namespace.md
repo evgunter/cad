@@ -22,9 +22,10 @@ scans, which does not grow — and each of the seven colliding schedule
 rows is an open work item that is deleted when it closes. So the
 ambiguity has an end date that arrives on its own, and a prefix rule
 would govern only rows that may never be allocated. The standing
-instruction in `work/code-quality/plan.md`'s *How the numbering works* —
-*"Read a citation by the file it names, never by its letter"* — is the
-whole disposition.
+instruction the register carried — *"Read a citation by the file it
+names, never by its letter"* — is the whole disposition. Its home,
+`work/code-quality/plan.md`, left the tree at sweep 11 and resolves
+through `docs/DOC-LEDGER.md`.
 
 ## Question (as asked)
 
@@ -47,31 +48,41 @@ rows take, not a renumbering.
 The question is unchanged and still Ev's. Two things about the *gates*
 above moved, and both make the ruling easier rather than harder.
 
-**The collision is wider than the row's instance list, and its two sides
-are now cleanly separated by kind.** The row names `C15` and `C17`. At
-head `C17` has no schedule row, and **seven** numbers do collide — every
-one of them a `C<N>.md` item file scattered across six programs by the
-2026-09-11 cut, against a same-numbered observation in the single
-narrative file `work/code-quality/process-observations.md`:
+**The collision is wider than the row's instance list, and the
+2026-09-11 sweep then dissolved half of it.** The row names `C15` and
+`C17`. Re-derived at the opening of this program there were **seven**
+live pairs. Re-derived again after sweep 11 there are **none**, because
+one side of every pair left the tree:
 
-| `C<N>` | the schedule row | the process observation |
-| --- | --- | --- |
-| `C3` | `work/mesh/C3.md` — split `props/quad.rs`'s quadrature engines | C3. Deferrals must land in a register that executes |
-| `C6` | `work/docm/C6.md` — collapse the W2f remainder of S4 | C6. Some of these were ratified before they were written |
-| `C13` | `work/code-quality/C13.md` — give epsilon a type | C13. Half-fixes read as whole fixes… |
-| `C14` | `work/code-quality/C14.md` — STEP writer's Part 21 header | C14. Pins guard the invariant as it was reachable *then* |
-| `C15` | `work/instr/C15.md` — the budget gate's face identity | C15. A sweep's result is worth nothing without… |
-| `C18` | `work/tint/C18.md` — H12's three enumeration residues | C18. Two of my dispatch briefs were wrong… |
-| `C23` | `work/mesh/C23.md` — `RATIONAL_CERT_SPLITS` | C23. The A1 rule has not taken yet |
+`work/code-quality/` was swept on 2026-09-11 and its
+`process-observations.md` — the sole home of the `C1`–`C27`
+observations — went to the archive with it, recoverable at the SHA
+`docs/DOC-LEDGER.md` names. The ledger states the disposition in terms
+that answer this row directly: **"The register's numbering scheme is
+retired, not relocated."** Two of the seven colliding schedule rows
+(`C13`, `C14`) went the same way.
 
-**Why the cut helps.** Before it, both sides lived under
-`work/code-quality/` and "read a citation by the file it names" was a
-weak instruction, because the two files sat together. Now the schedule
-rows are `C<N>.md` **item files** that `work.py` parses, resolves
-references against, and puts on the board, while the observations are
-`## C<N>` **headings inside one unparsed narrative file**. The two sides
-are no longer symmetric, which is what a prefix ruling wants: the cheap
-side to re-letter is the one nothing cites by id and nothing parses.
+So what is left is five `C<N>` item files, each now the only live
+holder of its number:
+
+| `C<N>` | the schedule row |
+| --- | --- |
+| `C3` | `work/mesh/C3.md` — split `props/quad.rs`'s quadrature engines |
+| `C6` | `work/docm/C6.md` — collapse the W2f remainder of S4 |
+| `C15` | `work/instr/C15.md` — the budget gate's face identity |
+| `C18` | `work/tint/C18.md` — H12's three enumeration residues |
+| `C23` | `work/mesh/C23.md` — `RATIONAL_CERT_SPLITS` |
+
+**This does not change the ruling; it is why the ruling was right.** Ev
+declined a prefix on the grounds that the items are temporary and the
+context is clear. Within a day the other side of the collision was
+retired by an unrelated sweep, which is the bounded-and-shrinking
+argument arriving faster than anyone predicted. A prefix would have
+governed a namespace that no longer has two occupants.
+
+A citation to a `C<N>` observation in older prose still resolves — to
+the archive, through `docs/DOC-LEDGER.md`, which is what the ledger is
+for.
 
 Stated for the ruling, not deciding it: ids are stable for life, so the
 sentence picks the prefix **new** rows take on one side, and the seven

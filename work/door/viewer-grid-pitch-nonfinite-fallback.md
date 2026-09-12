@@ -4,7 +4,7 @@ kind: issue
 title: grid_pitch's non-finite early exit substitutes the worst value its caller could receive
 status: open
 opened: 2026-09-03
-refs: [D64]
+refs: [1643]
 ---
 
 
@@ -61,9 +61,11 @@ a poison value (`RingInterval::poison`, `Self::nai`, `Aabb::poison`,
 a fuzz filter (18). Every one of those is the fail-loud direction and
 most carry an argument at the site. This is the residue.
 
-**What that pattern could NOT match**, stated because §C's `C15` asks
-it of every sweep and because the load-bearing claim below depends on
-it:
+**What that pattern could NOT match**, stated because the reviewer
+brief asks it of every sweep a PR body reports
+(`docs/prompts/reviewer-style-lane.md` §Q1, *"when the PR body reports a
+sweep, ask what its pattern could not match"*) and because the
+load-bearing claim below depends on it:
 
 - **Multi-line conditions.** The matcher is line-oriented, so a guard
   whose `||` chain wraps across a newline (`if !a.is_finite()` on one
@@ -112,3 +114,9 @@ is a dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## Refs at code-quality's sweep (2026-09-11)
+
+`work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
+and its closed rows went with it. `D64` is now cited by its closing PR
+1643.

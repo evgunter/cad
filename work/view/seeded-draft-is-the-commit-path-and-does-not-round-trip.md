@@ -2,9 +2,10 @@
 id: seeded-draft-is-the-commit-path-and-does-not-round-trip
 kind: issue
 title: the delta field seeds its draft with {:.3}, and that draft IS the commit path: focus-and-leave quantises delta to the nearest micrometre, or refuses a value the user never typed
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2366]
+closed: 2026-09-11
 ---
 
 
@@ -95,3 +96,28 @@ or about a δ **already** refused by it
 (`status-line-writers-bypass-the-ranking:50`) — none is this.
 
 FIX does not claim this row; re-home or re-cut it freely.
+
+## Closed
+
+Fixed by making the draft mean what
+`crates/viewer/src/drafts.rs:33-39` already says it means — *the View
+pane's δ field, in millimetres AS TYPED*. A keystroke is now the only
+thing that makes `delta_mm` `Some`; a field that was focused and left
+holds no draft, so it commits nothing and refuses nothing. The two
+failures above are held by rows in `crates/viewer/src/pane/view.rs`'s
+own test module, which drives the field's focus lifecycle through a
+headless `egui::Context`: seeding the draft unconditionally again makes
+them fail with `Some(0.0)` and `Some(2e-6)`, the two numbers this item
+names.
+
+The `{:.3}` render stays, and is now only a render. What it still
+costs — a δ below 500 nm reading `0.000` in the field, and an
+edit-then-undo committing that reading — is filed as
+`delta-field-renders-a-sub-micrometre-delta-as-zero`, on this slate,
+with the arithmetic for why a more precise seed is not the answer.
+
+The three siblings were checked rather than taken on the citation:
+`Bounds::wording` reaches `pane/properties.rs:702` and `:756` through
+`ui.weak`, `frame::delta_badge` builds a `Badge`, and
+`FittedDelta::wording` is that badge's detail. Nothing parses any of
+them back. Render-only, as this item says.

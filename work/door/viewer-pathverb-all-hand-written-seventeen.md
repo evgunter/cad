@@ -170,3 +170,79 @@ comment and is left verbatim, including its `app.rs:489`: editing a
 quoted historical comment would make the record say something its author
 did not. Its `CircleSplit` claim still holds — `grep -rn "CircleSplit"
 crates/viewer/src` returns nothing.
+
+---
+
+**Merge note (2026-09-12).** The two sections below were written the
+same day by different programs and landed in one merge: DOOR's own
+re-derivation of the row's premise, and CITE's repair of the row's
+citations. They agree on the tree and do not overlap in what they
+change — DOOR rules on what the row CLAIMS, CITE only on what it POINTS
+AT — so both are kept. Where CITE's section defers a question to DOOR,
+DOOR's section below answers two of them: the hand-list half is closed
+in the tree, and the seventeen are deliberate as a *viewer* vocabulary.
+
+**One thing the merge itself demonstrated, and it belongs in this file
+of all files.** DOOR's section cites `forms.rs:145` for `PathVerb` and
+`forms.rs:199` for `PathVerb::of`. Both were right when written and
+neither resolves now: `crates/viewer/src/forms.rs` moved twice on `main`
+within a day (`5045203`, `77631b4`), so `PathVerb` is at `:155` and
+`:199` is now `pub(crate) const ALL;` — a landing that looks plausible
+and is wrong, which is the dangerous shape. The names in the same
+sentences all still resolve. Nothing is repointed here, because the next
+edit moves them again; read DOOR's numbers as of the SHA it was written
+at and its names as current.
+
+---
+
+## Half of the premise is stale (2026-09-11, the DOOR orchestrator)
+
+Read against the tree at the program's opening. **The tree moved under
+this row and the title now names a defect that is gone.**
+
+`PathVerb` no longer lives at `crates/viewer/src/app.rs:514` and no
+longer carries a hand-written list. It is declared at
+`crates/viewer/src/forms.rs:145` through `crates/viewer/src/vocab.rs`'s
+`vocabulary!` macro (VIEW's `const ALL` unit, PR 2046), which
+**projects** `PathVerb::ALL` from the declaration — so there is no
+`const ALL: [Self; 17]`, no literal count in an array type, and no way
+for a variant of the viewer's own enum to miss the menu. That is the
+half this row's title is about, and it is closed.
+
+**The half that survives is the one the row actually cares about, and
+it survives whole.** `PathVerb::of` (`forms.rs:199`) is an exhaustive
+match, but its subject is `crates/viewer/src/sketch.rs:147`'s
+`PathStep` — **the viewer's own type**, not the kernel's. So the
+projection and the exhaustive match hold the viewer to itself, and
+nothing in the tree relates either to `profile`'s `Verb`, which
+`transition_table!` (`crates/profile/src/path/program.rs:509`) declares
+and projects `Verb::ALL` from. `CircleSplit`
+(`program.rs:1686`) still has no viewer spelling at all, exactly as the
+2026-09-01 comment recorded.
+
+Two consequences for whoever takes it:
+
+- **The row's fix option 1 is now the larger of the two, not the
+  smaller.** Keying the menu on `profile::Verb::ALL` means replacing
+  the viewer's own `PathStep`/`PathVerb` pair with the kernel
+  vocabulary, which is a much bigger change than it was when
+  `PathVerb::ALL` was a hand-list. Option 2 — the census, a match on
+  `profile::Verb` mapping each kernel verb to a `PathVerb` or to a
+  written "not offered in the GUI, because …" — is the cheaper one now
+  and is also the one the class's other rows want.
+- **This is an instance of a class, not a lone row.** It is the same
+  defect as `hand-maintained-mirrors-of-a-kernel-enum-are-unforced` and
+  `dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum`, both
+  claimed onto this program's slate on the same day: a kernel
+  vocabulary mirrored in a chrome where no compiler sees the mirror.
+  The difference is that those two mirror an enum that can be projected
+  once `topo`/`editor-core` publishes an `ALL`, and this one mirrors a
+  vocabulary the GUI **legitimately narrows** — which is why its answer
+  is a census and theirs is a projection.
+
+The class estimate stands at **M**, and for the reason the cut gave
+(picking a shape needs a call on whether the seventeen are deliberate)
+— but the call is now better informed: the seventeen are deliberate as
+a *viewer* vocabulary, since a projection already forces them; what is
+undecided is only whether each kernel verb the GUI omits is omitted on
+purpose.
