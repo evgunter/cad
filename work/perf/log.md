@@ -1013,3 +1013,19 @@ Measured on main's tour: 45 → 25 s at four threads; the spout's gate
 is serial by construction — filed. State-sync rode the PR; merged at
 `e7c2542f7` (PR 2452). Lane reclaimed. PERF-7's implementer is
 released to compose the tessellator's lanes through the same door.
+
+## 2026-09-12 — the display probe merged
+
+Fix pass landed both MAJORs and the MINORs (head `c642cd349`, CI run
+34723377373 green): the invariant is stated per probe and pinned on
+all 56 table rows (`largest_probe`, corpus max 121 272 against the
+`TRIANGLE_BUDGET / PROBE_FACTOR` placement); a flat-count stop sends
+an all-planar body to the request's rung after two equal readings
+(26 predictions moved to the drawn count, no δ moved); the law's
+error is stated two-sided at both sites and the VIEW item re-scoped
+to whether the budget is a cap; a refusal at a coarse rung falls back
+to the request-priced rung (held by rows over an injected probe
+door); `Vec3::norm` for the diagonal; a `ProbeStop` enum names the
+ladder's exits. The state-sync added the item from this branch,
+closed; merged at `4e87db966` (PR 2464). Every side unit of the plan
+is landed. Lane reclaimed.

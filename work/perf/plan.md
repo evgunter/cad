@@ -127,7 +127,6 @@ in `work/perf/` or the program named.
 
 | Cost center | Where | Measured | Kind | Ref |
 |---|---|---|---|---|
-| Display budget's probe can exceed the picture it sizes | `viewer/src/scene.rs:952` | 0.2–4.1 s frozen on open | stop | `fit-delta-probe-can-exceed-the-picture-it-sizes` |
 | `assemble`'s aggregate tier-3′ census | `editor-core/src/product.rs:650` | n^1.96 in solids; 1.3 s at 161 | faster | `assemble-aggregate-census-is-quadratic-in-solids` |
 | Gate then measure pays two certified quadratures | `demos/tour/src/main.rs:402,423`; the Python pair | ~half of the tour's 2.2–2.7 s of mass props | stop | `gate-then-measure-pays-two-quadratures` |
 | Tier 3's +V check refines to the reporting target | `topo/src/validate.rs` (`validate_geometric_certified`), `geom-brep/src/props/quad.rs:113` | a false refusal at ε = 1e-12, not CPU | stop | `tier3-plus-v-needs-a-sign-and-pays-for-a-precision` |
@@ -557,7 +556,15 @@ demo-only and test-only units record no A/B row.
 
 **Beside the block, low-risk (single review, no row):**
 
-- The display budget's probe never larger than the picture (viewer).
+- The display budget's probe never larger than the picture (viewer) —
+  landed (PR 2464): `fit_delta` walks a ladder down from the body's
+  extent with each rung priced at `TRIANGLE_BUDGET / PROBE_FACTOR`;
+  no single probe out-tessellates the picture (pinned on all 56 table
+  rows); the probe is flat in the requested δ once the budget binds
+  (`tube_ring` at 1e-6: 15.6 s → 0.15 s); a request-independent δ
+  (main's answer depended on the request); a flat-count stop for
+  all-planar bodies; a refusal at a coarse rung falls back rather
+  than leaving the document un-budgeted.
 - Gate-then-measure takes the certificate it already computed (tour,
   Python surface) — landed (PR 2440, Ev's ruling): every `run_body`
   arm hands its measurement back from the gate it ran; the ribbon
