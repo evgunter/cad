@@ -2,8 +2,10 @@
 id: step-adopt-let-ok-iso-discards
 kind: issue
 title: step-import adopt.rs takes let Ok(iso) at two recognizer sites - S394's undecided half (EXCH's file)
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-12
+branch: door/step-adopt-iso-discards
 refs: [S394, 2095]
 ---
 
@@ -42,3 +44,98 @@ is a dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## Closed (2026-09-12, `door/step-adopt-iso-discards`)
+
+**Both sites are faults, not answers. Both convert.** The decision was
+taken per site as the row asks; the answers came out the same, and the
+reason is the door's own doc rather than a reading of the two call
+sites.
+
+### The door decides it
+
+`geom_brep::boundary_iso_u` / `boundary_iso_v` are control-net COPIES —
+no arithmetic — and their `# Errors` sections say so outright:
+*"[`SplineError`] — unreachable for a surface that already validated
+(the row's counts match `knots_v` by the surface's own construction),
+surfaced rather than swallowed (D4 ¶2)"*
+(`crates/geom-brep/src/nurbs_iso.rs:47-52`, `:66-70`).
+
+So the refusal carries no information about the shape a recognizer is
+asking after. It says one thing only: the stored surface's control net
+disagrees with the knot vector it is indexed by — which
+`geom::NurbsSurface::new` refuses at construction
+(`crates/geom/src/surfaces/nurbs.rs:509`, `crates/geom/src/net.rs:89`),
+so no body this reader assembles can be in that state. Reading it as
+"not this shape" converts an impossible kernel fault into a routine
+negative.
+
+The rest of the tree already reads it that way and says so at each
+site: `sweep::LoftError::SeamStructure` carries it
+(`crates/sweep/src/loft.rs:138-149`, `:523`),
+`PcurveCertifyError::ChartRow` carries it three times
+(`crates/geom-brep/src/pcurve_cache.rs:3564`, `:3959`, `:4091` — S394's
+own conversions), and `editor-core`'s nesting row pins that the payload
+survives into the rendered message
+(`crates/editor-core/tests/lib_doors_node_result.rs:314-323`, `:404`).
+`adopt.rs`'s two were the outliers.
+
+### `:711` — the `IsoCurve` candidate rung
+
+The `&&`-chain reads as one question but is four. Three of its
+conditions ARE the rung's negatives — the carrier is not NURBS, the
+wall is not a described NURBS chart, the column does not match the
+carrier bitwise — and each of those leaves the candidate list unchanged
+and lets the ladder try the next rung. The extraction is not a
+condition at all; it is how the rung gets the thing it compares. The
+orchestrator's hypothesis (`:711` may be a legitimate negative) is
+**contradicted**: the site's legitimate negatives are the other three
+conditions, and folding a fourth, different claim in beside them is
+what made it look like one.
+
+What the swallow cost: the withheld candidate never appears in
+`StepImportError::Adoption`'s `attempts`, which is deliberately
+structured data for a remedy flow. A corrupt wall would surface as a
+ladder that quietly ran one rung short.
+
+`iso_curve_candidates` now returns `Result<(), SplineError>` and the
+caller attaches the edge id.
+
+### `:877` — the ARC-rim residual gate
+
+Here the `continue` is not even fail-safe in reporting: with both ends
+skipped, `best` stays `f64::INFINITY` and the gate returns a refusal
+that renders as *"deviates from the rim's circle by up to inf m"*. The
+column IS the locus the rim claims to be, so a column that will not
+extract leaves the gate with nothing to meter — and charging that to
+the rim as a deviation misattributes a wall's broken structure to the
+file's arc. The hypothesis is right here, by a different mechanism than
+"a skipped candidate changes the answer": the gate cannot admit a bad
+body by skipping, but it names the wrong subject.
+
+`arc_rim_on_wall_boundary`'s `Err` is now `ArcRimRefusal`, a private
+two-arm enum — `Residual(f64)`, the gate's own verdict, and
+`ChartRow(SplineError)`, the structural fault — dispatched at the call
+site.
+
+### The refusal
+
+One new arm, `StepImportError::WallColumnStructure { id, source }`,
+serves both: same subject (the `EDGE_CURVE` being adopted), same
+payload. Tag `wall_column_structure` through `pncad-py`.
+
+### Class correction
+
+The row's dispatch class **E** stands. It is two sites in one file plus
+an enum arm; the ripple (a tag arm, a tag census row, a `.pyi` line) is
+compiler- and test-forced, not a design question.
+
+### Residue
+
+`work/exch/arc-rim-gate-reports-a-degenerate-carrier-as-an-infinite-residual.md`
+— the same gate's OTHER `f64::INFINITY`, for a degenerate `CIRCLE`
+carrier, is still dressed as a residual. Measured (a zero-radius and a
+negative-radius `CIRCLE` on `cylinder.step`): both refuse through the
+ladder before reaching this gate, so it is a diagnostics defect and not
+a soundness hole. Not widened into here; `crates/step-import/*` is
+EXCH's ground and one PR is one row.

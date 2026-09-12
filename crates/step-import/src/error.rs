@@ -226,6 +226,31 @@ pub enum StepImportError {
         /// outside the rim's parameter range, whichever is larger.
         residual: f64,
     },
+    /// A described NURBS wall's own boundary column would not re-wrap
+    /// as a curve while an edge was being adopted against it: the
+    /// stored surface's control net disagrees with the knot vector it
+    /// is indexed by, which no surface that passed
+    /// `geom::NurbsSurface::new` can do. Unreachable from any body
+    /// this reader assembles, and surfaced rather than swallowed (D4
+    /// ¶2, and [`geom_brep::boundary_iso_u`]'s own `# Errors`
+    /// contract): the payload says WHICH structural invariant the wall
+    /// broke, and a discarded one would leave a kernel-bug report
+    /// saying only that a kernel bug happened.
+    ///
+    /// It is **not** a "this edge is not that shape" answer. The
+    /// recognizers state their negatives some other way — a wall that
+    /// is not a described NURBS, a column the parsed carrier does not
+    /// match bitwise, a rim whose metered deviation exceeds the
+    /// ambient tolerance — and each of those returns a candidate list
+    /// or a residual, never this.
+    WallColumnStructure {
+        /// The `EDGE_CURVE` entity instance being adopted.
+        id: u64,
+        /// The extraction door's refusal, carried rather than
+        /// discarded: which count or weight the wall's stored net
+        /// broke.
+        source: geom_core::spline::SplineError,
+    },
     /// D7's typed ambiguity at ε_in (stage-1 surface recognition,
     /// ruling #256): a face that cannot import WITHOUT promotion (a
     /// multi-bound curved face — the trim-ring class) sits on a NURBS
@@ -404,6 +429,13 @@ impl fmt::Display for StepImportError {
                  {residual:e} m (ambient tolerance exceeded). On a rational wall this \
                  residual gate is the rim's only certification, so the file is refused \
                  rather than adopted wrong"
+            ),
+            Self::WallColumnStructure { id, source } => write!(
+                f,
+                "step import: edge #{id}: an adjacent NURBS wall's own boundary column \
+                 will not re-wrap as a curve — {source}. No validated surface can be in \
+                 that state, so the file is refused rather than adopted against a wall \
+                 whose stored structure is corrupt"
             ),
             Self::RecognitionAmbiguous {
                 id,

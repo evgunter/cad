@@ -1539,6 +1539,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Assembly { .. } => "assembly",
         StepImportError::Adoption { .. } => "adoption",
         StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
+        StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Placement { .. } => "placement",
