@@ -4573,6 +4573,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_entity",
             "unsupported_unit",
             "vertex_without_point",
+            "wall_column_structure",
             "wrong_entity_type",
         ],
         delegates: &[],

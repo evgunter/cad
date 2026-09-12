@@ -280,11 +280,11 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
     BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
     CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair,
-    ContactRecords, CurveContact, FaceContainment, FacePairDeclaration, NullEdgePairRecord,
-    Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy,
-    SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
+    ContactRecords, ContainError, CurveContact, FaceContainment, FacePairDeclaration,
+    NullEdgePairRecord, Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc,
+    PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment,
+    SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment,
+    VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
     boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
     flush_pair_relation, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
     point_in_solid, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
@@ -367,7 +367,7 @@ pub use splitting::{
     SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
     plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
-pub use transform::{TransformError, transform_rigid};
+pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
     StaleDeclaration, ValidationError, contact_marks, contact_marks_certified,

@@ -432,7 +432,11 @@ margin sources, exactly the pressure source Finding 4 anticipated:
   `pm_census_span_gap`, `pm_census_bound_end`,
   `pm_census_bound_vertex`, `pm_census_confirm_vv`,
   `pm_census_confirm_vf`, plus the `pm_census_containment`
-  escalation tag; the census also drives the existing
+  escalation tag — **since RETIRED**, and the count above is M3's
+  crop as it stood rather than a live inventory: that tag decided
+  nothing and stood in for a cause the point-in-face door already
+  had, so the census carries the door's typed refusal now and the
+  name is gone from the tree. The census also drives the existing
   `bool_contact_*` names through `contfp`.
 - **10 `split_*`** (split reduction/classification/join):
   `split_bisector_side`, `split_edge_param_interior`,

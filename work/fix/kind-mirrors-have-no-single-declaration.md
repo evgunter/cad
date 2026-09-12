@@ -2,7 +2,7 @@
 id: kind-mirrors-have-no-single-declaration
 kind: issue
 title: a fieldless kind enum is a hand-mirror of its error enum, and only a source-scan row sees the phantom direction
-status: open
+status: spec
 opened: 2026-09-04
 ---
 
@@ -195,3 +195,56 @@ Not a decision. A unit, with a worked in-tree example to port:
 `#[doc]` but nothing else. Whether `#[non_exhaustive]`, `cfg` and
 derive attributes on the enum need `$(#[$m:meta])*` passthrough is the
 first thing to establish, on the largest pair, before migrating four.
+
+## The scale check, answered (2026-09-12, `fix/error-kinds-scale-check`)
+
+**Feasible, for three of the four pairs.** The spec is
+`docs/FIX-ERRKINDS-SPEC.md`; it wants Ev's eyes before a lane takes it.
+Answered by a standalone `macro_rules!` prototype type-checked under the
+pinned toolchain and then discarded — no migration, no kernel edit.
+
+**The counts above are stale.** Re-derived at `0aa691375`:
+`BooleanError` **43** arms (not 41), `PathError` **31** (not 28),
+`ProductError` 10, `Attr` 3.
+
+**The specific worry resolves.** No pair carries `#[non_exhaustive]` or
+`cfg`, on the enum or on any variant; no variant in any of the eight
+enums carries a non-doc attribute. `$(#[$m:meta])*` passthrough is
+needed anyway, because the two halves of a pair never share a derive
+list. Payloads nesting other crates' error types — the risk this row
+names — are `$ty` and cost nothing. Two grammar spellings are forced,
+each a compile error first: generics must be bracketed
+(`$(< $($g:tt)* >)?` is a local ambiguity, which is why
+`transition_table!` brackets its own) and bounds must move to a
+bracketed `where` group (an impl self-type refuses bounds, E0229, and
+`macro_rules!` cannot strip them). `Self::$name { .. }` matches
+named-field, tuple and **unit** arms alike, so one projection body
+covers the whole table.
+
+**"Closable by a derive and by nothing else" is FALSE**, as this row's
+later paragraph says. Demonstrated, not argued: the prototype closes the
+pairing direction with `macro_rules!`, no dependency, no proc-macro.
+
+**The `scripts/gates/README.md` clause was read.** Its proc-macro
+rejection is of a mechanism for ENFORCING an invariant everywhere by
+opt-in annotation, where omission is invisible; generation is the
+opposite case on that axis, and `macro_rules!` is not a proc-macro. The
+distinction holds. **"No design question for Ev" does not follow from
+it** — the spec's §6 names five choices (the macro's home crate, the
+tree's single `#[macro_export]` precedent being dev-only, 87 public
+variant declarations leaving rustfmt's care, a non-Rust generics
+spelling, and rewritten public rustdoc) that arrive whichever way that
+clause reads.
+
+**`Attr`/`AttrKind` comes off this row's migration list.** It is not an
+error pair — it is the appearance store's persisted key/value pair,
+serde-derived with `#[serde(deny_unknown_fields)]` and `Ord` on both
+halves. And this row's measurement about it is false in both halves: the
+cited grep returns **3** hits at this merge base
+(`crates/pncad-py/src/tags.rs`, ~:300-302), and it could not have seen
+`AttrKind::noun()` (`crates/editor-core/src/appearance.rs`, ~:111) at
+any count, because that exhaustive match is written in the `Self::`
+spelling the pattern cannot match. Both predate 2026-09-11. `AttrKind`'s
+phantom direction is guarded twice over; only its pairing direction is
+open, across 3 arms. If anyone still wants it after the three land it
+gets its own row, owing a serde round-trip pin.

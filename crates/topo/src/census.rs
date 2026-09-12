@@ -54,10 +54,12 @@
 //! carries [`ValidationError::CensusUnsupported::cause`]: usually a
 //! lane's inventory limit, but the same arm reports a chart-region
 //! search that ran out of budget, a body whose pcurve caches are
-//! absent, and — through [`CensusUnsupportedCause::FaceUnboundable`]
-//! — a face the bounding sweep could not read at all, because its
-//! outer loop is empty or its boundary does not resolve. Four
-//! recourses, one variant, and the cause is which.
+//! absent, a face the bounding sweep could not read at all (through
+//! [`CensusUnsupportedCause::FaceUnboundable`] — its outer loop is
+//! empty or its boundary does not resolve), and a face whose region
+//! the point-in-face door cannot express or walk (through
+//! [`CensusUnsupportedCause::Containment`]). Five recourses, one
+//! variant, and the cause is which.
 //!
 //! **Sense-invariant** (M5 S10 audit), with ONE named exception.
 //! Every use of a face's plane `normal` in the COINCIDENCE sweeps is
@@ -819,17 +821,33 @@ fn contain<T: Decide>(
             None
         }
         // An arc-bearing loop the polygon walk cannot express, an
-        // exhausted ray schedule, unwalkable topology: the census asks
-        // the same question through the same door and gets the same
-        // honest nothing (issue #1076). Listed rather than wildcarded,
-        // so a new `ContainError` arm is classified here deliberately.
+        // exhausted ray schedule, unwalkable topology: three refusals
+        // that metred no margin, CARRIED rather than replaced. An
+        // escalation is what a predicate says when it measured and
+        // could not decide, so minting one for a door that measured
+        // nothing put a fabricated quantity in the field a reader
+        // judges the call by — and named a predicate that decides
+        // nothing anywhere in the tree.
+        //
+        // The subject is the FACE, which is the one entity every
+        // caller of this helper shares: the second entity is a vertex
+        // at one call site, an edge midpoint at another and a
+        // plane-crossing point at a third, while the refusal is always
+        // about whether THIS face's region can be read at all.
+        //
+        // Listed rather than wildcarded, because this arm is one half
+        // of the `Escalated`/`Unsupported` discrimination
+        // `editor_core::attribute` classifies: a new `ContainError`
+        // arm must be routed here deliberately rather than default
+        // into the wrong half.
         Err(
-            ContainError::ArcLoopUnsupported { .. }
+            e @ (ContainError::ArcLoopUnsupported { .. }
             | ContainError::RayExhausted
-            | ContainError::Corrupt,
+            | ContainError::Corrupt),
         ) => {
-            errors.push(ValidationError::CensusEscalated {
-                cause: invalid(band, "pm_census_containment"),
+            errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Face(f.key)),
+                cause: CensusUnsupportedCause::Containment(e),
             });
             None
         }

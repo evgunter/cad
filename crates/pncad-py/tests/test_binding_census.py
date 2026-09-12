@@ -3004,6 +3004,7 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Assembly": "StepImportError.variant",
     "StepImportError::Adoption": "StepImportError.variant",
     "StepImportError::RimOffWallBoundary": "StepImportError.variant",
+    "StepImportError::WallColumnStructure": "StepImportError.variant",
     "StepImportError::RecognitionAmbiguous": "StepImportError.variant",
     "StepImportError::Pcurves": "StepImportError.variant",
     "StepImportError::Placement": "StepImportError.variant",
