@@ -18,6 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -84,25 +85,6 @@ fn plane_chart_at_z(body: &Body<f64>, z: f64) -> Vec<FaceKey> {
         })
         .map(|(k, _)| k)
         .collect()
-}
-
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings_of(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
-}
-
-fn genus_of(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    let chi = v - e + f - rings_of(body) as i64;
-    assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
-    body.shells().count() as i64 - chi / 2
 }
 
 /// The whole-body coherence bar: tier 3, meshes at two budgets, and a

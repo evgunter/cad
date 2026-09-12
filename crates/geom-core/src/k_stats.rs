@@ -211,13 +211,17 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 /// it is the one thing this funnel must never do in a run that decides
 /// anything: it lets a document be driven AS IF a named identity
 /// residual were discharged, so "what would bound this document next"
-/// is a measurement instead of a guess. It walks the two-hole plate
+/// is a measurement instead of a guess. It walked the two-hole plate
 /// from `7.812e2 · ε` to `2.630e8 · ε` — four identity residuals, of
-/// which the first three are worth 2× between them and the fourth is
-/// worth 1.68·10⁵×, and then a REAL assertion margin. That shape is
-/// the finding that says what the next unit is: a per-identity door
-/// can only ever be on the 2× side of that cliff
-/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+/// which the first three were worth 2× between them and the fourth
+/// 1.68·10⁵×, and then a REAL assertion margin
+/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`); with the
+/// form-level algebra (rule D with A1's `atan2` fold for the chart's
+/// phase) all four are discharged and the shipped tier sits AT the
+/// walk's end — 0.2368, 0.2630, 0.2631 of the real study at the three
+/// ε rows with nothing passed, and passing any residual moves it by
+/// nothing (`m10_9_r2_probes_interval::r2_evidence_plate_ceiling_with_identities_passed`).
+/// The dial stays: it is how the NEXT document's walk is measured.
 ///
 /// Process-global and empty by default. An evidence row sets it, reads
 /// its ceiling, and clears it; it is never set in a gating run, and
