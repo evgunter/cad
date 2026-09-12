@@ -4177,6 +4177,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_retrims_arc_first_side",
             "seam_tangent",
             "underdetermined_leg",
+            "underflowed_direction",
             "zero_direction",
         ],
         delegates: &[],

@@ -877,23 +877,26 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
     }
 }
 
-/// **THE MEASUREMENT, against the gate-less tree.** An arrival carrier
-/// whose anchor sits `1e-200` from its centre: the displacement is a
+/// **An arrival carrier whose radius underflowed out of the format.**
+/// The anchor sits `1e-200` from its centre: the displacement is a
 /// perfectly good `(0, 1e-200)` naming a perfectly good tangent, but its
 /// components square below `f64`'s subnormal floor, so `norm_squared`
 /// flushes and the radius is EXACTLY zero.
 ///
-/// This row exists to execute what today's refusal is before it is
-/// changed, rather than to argue it: the payload is `radius: 0.0` and
-/// the sentence is the zero-radius one — **bit-identical to the row
-/// above**, which authors the centre AS the anchor. Two different facts
-/// about the input, one indistinguishable refusal, and the recourse it
-/// offers (move the anchor off the centre, or lower the tolerance)
-/// cannot work: the squared norm is zero at every ε.
+/// Measured at the merge base, this refused
+/// `PathError::DegenerateArcCenter { radius: 0.0 }`, with the sentence
+/// "the authored centre is within tolerance of an endpoint (radius 0
+/// m)" — **bit-identical, payload and prose, to the row above**, which
+/// authors the centre AS the anchor. Two different facts about the
+/// input and one indistinguishable refusal, whose recourse (move the
+/// anchor off the centre, or lower the tolerance) cannot work: the
+/// squared norm is zero at every ε.
 ///
-/// It is replaced in the same branch by the underflow arm's row.
+/// It now refuses [`PathError::UnderflowedDirection`], which carries the
+/// displacement's components rather than the zero they measured to, and
+/// offers the only recourse that reaches it.
 #[test]
-fn an_underflowed_arrival_carrier_is_reported_as_a_zero_radius() {
+fn an_underflowed_arrival_carrier_is_refused_by_its_own_name() {
     let underflowed = Open
         .at(p2(0.0, 0.0))
         .toward(2.0, 0.0, Tol::witness())
@@ -911,15 +914,48 @@ fn an_underflowed_arrival_carrier_is_reported_as_a_zero_radius() {
         )
         .expect_err("an underflowed arrival carrier refuses");
     match underflowed {
-        PathError::DegenerateArcCenter { radius } => assert_eq!(radius, 0.0),
-        other => panic!("expected DegenerateArcCenter, got {other:?}"),
+        // The payload is the direction the format lost, not the zero it
+        // measured to: that is what makes the two rows distinguishable.
+        PathError::UnderflowedDirection { dx, dy } => assert_eq!((dx, dy), (0.0, 1e-200)),
+        other => panic!("expected UnderflowedDirection, got {other:?}"),
     }
     let msg = underflowed.to_string();
+    assert!(msg.contains("underflowed out of the format"), "{msg}");
     assert!(
-        msg.contains("the authored centre is within tolerance of an endpoint"),
+        msg.contains("scale that geometry into the session's range"),
         "{msg}"
     );
-    assert!(msg.contains("radius 0 m"), "{msg}");
+    // Neither the wrong cause nor the recourse that cannot work.
+    assert!(
+        !msg.contains("the authored centre is within tolerance of an endpoint"),
+        "{msg}"
+    );
+    assert!(!msg.contains("within tolerance of zero"), "{msg}");
+    // And the components survive the shortening: a rendering that
+    // printed `(0, 0)` here would report the very collapse the arm
+    // exists to deny.
+    assert!(msg.contains("1e-200"), "{msg}");
+
+    // The row above still refuses the other way: a carrier whose centre
+    // IS its anchor really has no radius, and it keeps its own arm.
+    let zero = Open
+        .at(p2(0.0, 0.0))
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(2.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0, 0.0),
+            },
+            Tol::witness(),
+        )
+        .expect_err("a zero-radius arrival carrier refuses");
+    assert!(
+        matches!(zero, PathError::DegenerateArcCenter { .. }),
+        "{zero:?}"
+    );
 }
 
 // ------------------------ the definitely / exactly / in-band predicate trios

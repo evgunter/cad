@@ -1162,6 +1162,36 @@ pub enum PathError<T: Real> {
         /// The refused y component.
         dy: T,
     },
+    /// A vector a direction is derived from has a length that
+    /// **underflowed out of the format**: its components are small
+    /// enough (below ~1e-162 at `f64`) that their squares are not
+    /// representable, so `norm_squared` flushes to zero and the norm
+    /// measures exactly zero for a vector that names a direction
+    /// perfectly well.
+    ///
+    /// The underflow end of [`PathError::NonFiniteDirection`]'s
+    /// question, and distinct from [`PathError::ZeroDirection`] for the
+    /// reason its overflow sibling is: this vector is not zero, so a
+    /// refusal that says its norm is "within tolerance of zero" names
+    /// the wrong cause, and no tolerance lever reaches it — the squared
+    /// norm is zero at every ε.
+    ///
+    /// **One door raises it today**: the arc carrier's tangent, whose
+    /// vector is the anchor's displacement from the centre.
+    /// [`PartialPath::toward`]'s components director deliberately does
+    /// NOT — a pair spelled `(1e-200, 0)` is refused
+    /// [`PathError::ZeroDirection`], whose sentence ("within tolerance
+    /// of zero") is true of it and whose recourse ("scaling them up
+    /// costs nothing") is already the one that works, because the
+    /// caller holds the numbers. So the recourse named below leads with
+    /// the free one and names the geometry only where the components
+    /// are derived rather than spelled.
+    UnderflowedDirection {
+        /// The refused x component.
+        dx: T,
+        /// The refused y component.
+        dy: T,
+    },
     /// A `Via` mode's through-point is within ε_input of the CHORD LINE:
     /// the three points name no arc. On the chord the construction
     /// degenerates to the straight segment; off the far end it
@@ -1314,6 +1344,8 @@ pub enum PathErrorKind {
     ZeroDirection,
     /// [`PathError::NonFiniteDirection`].
     NonFiniteDirection,
+    /// [`PathError::UnderflowedDirection`].
+    UnderflowedDirection,
     /// [`PathError::ArcViaCollinear`].
     ArcViaCollinear,
     /// [`PathError::DegenerateArcChord`].
@@ -1364,6 +1396,7 @@ impl<T: Real> PathError<T> {
             Self::ArcContinueOffCarrier { .. } => PathErrorKind::ArcContinueOffCarrier,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
             Self::NonFiniteDirection { .. } => PathErrorKind::NonFiniteDirection,
+            Self::UnderflowedDirection { .. } => PathErrorKind::UnderflowedDirection,
             Self::ArcViaCollinear { .. } => PathErrorKind::ArcViaCollinear,
             Self::DegenerateArcChord { .. } => PathErrorKind::DegenerateArcChord,
             Self::ArcCenterNotEquidistant { .. } => PathErrorKind::ArcCenterNotEquidistant,
@@ -1687,6 +1720,18 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  ratio of the components is read, so divide them through by a common \
                  factor \u{2014} or, where they are derived from authored geometry rather \
                  than spelled, scale that geometry into the session's range",
+                dx = num(dx),
+                dy = num(dy)
+            ),
+            Self::UnderflowedDirection { dx, dy } => write!(
+                f,
+                "a direction derived from ({dx}, {dy}) has a length that underflowed out \
+                 of the format \u{2014} its components are too small for their squares to \
+                 be represented, so the length measures exactly zero while the direction \
+                 itself is perfectly good; no tolerance reaches this, and only the ratio \
+                 of the components is read, so multiply them through by a common factor \
+                 \u{2014} or, where they are derived from authored geometry rather than \
+                 spelled, scale that geometry into the session's range",
                 dx = num(dx),
                 dy = num(dy)
             ),
@@ -4310,6 +4355,95 @@ mod tests {
             }
             .kind(),
             PathErrorKind::NonFiniteDirection
+        );
+    }
+
+    /// **The underflow end of the same two doors, which they answer
+    /// DIFFERENTLY — deliberately.** Components below ~1e-162 square to
+    /// zero, so the norm is exactly zero and the classifier answers
+    /// `Zero` definitely at both.
+    ///
+    /// The arc carrier's tangent refuses
+    /// [`PathError::UnderflowedDirection`]: its vector is DERIVED (the
+    /// anchor's displacement from the centre), the caller does not hold
+    /// those components, and its old refusal —
+    /// `DegenerateArcCenter { radius: 0 }`, "the authored centre is
+    /// within tolerance of an endpoint" — named a coincidence that is
+    /// not there and a tolerance lever that cannot reach it.
+    ///
+    /// The components director does NOT, and this row is the pin on
+    /// that decision rather than an omission. Its pair is SPELLED by the
+    /// caller, so `ZeroDirection`'s sentence ("whose norm is within
+    /// tolerance of zero") is true of it and its recourse ("scaling them
+    /// up costs nothing") is already the only one that works. A second
+    /// arm here would split two inputs that want the same answer. A lane
+    /// adding one for symmetry breaks this row, which is the point.
+    #[test]
+    fn the_two_director_doors_split_at_the_underflow_end() {
+        let tol = Tol::witness();
+        let band = linear_band::<f64>(tol).expect("the linear band");
+        for (dx, dy) in [(1e-200, 0.0), (0.0, 1e-200), (1e-200, 1e-200)] {
+            // The premise: the norm flushed to zero, and the direction
+            // survives in the witness the question is asked against.
+            let v = Vec2::new(dx, dy);
+            assert_eq!(v.norm_squared().sqrt(), 0.0, "({dx}, {dy})");
+            assert_ne!(v.norm_witness(), 0.0, "({dx}, {dy})");
+
+            let got = arc_fillet::carrier_tangent(
+                Point2::new(dx, dy),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            );
+            assert!(
+                matches!(got, Err(PathError::UnderflowedDirection { .. })),
+                "carrier anchor ({dx}, {dy}): {got:?}"
+            );
+            assert!(
+                matches!(
+                    unit_from_components::<f64>(dx, dy, tol),
+                    Err(PathError::ZeroDirection { .. })
+                ),
+                "components ({dx}, {dy}) keep the zero-direction arm"
+            );
+        }
+        // A finite pair still climbs at both doors: the rows above
+        // cannot be passing because everything refuses.
+        assert!(unit_from_components::<f64>(3.0, 4.0, tol).is_ok());
+        assert!(
+            arc_fillet::carrier_tangent(
+                Point2::new(3.0, 4.0),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            )
+            .is_ok()
+        );
+        // The sentence names the end of the format it is, and a
+        // recourse that can work — not a coincidence at this tolerance.
+        let s = PathError::UnderflowedDirection {
+            dx: 0.0_f64,
+            dy: 1e-200,
+        }
+        .to_string();
+        assert!(s.contains("underflowed out of the format"), "{s}");
+        assert!(s.contains("multiply them through by a common factor"), "{s}");
+        assert!(
+            s.contains("scale that geometry into the session's range"),
+            "{s}"
+        );
+        assert!(!s.contains("within tolerance of zero"), "{s}");
+        assert!(!s.contains("no finite length"), "{s}");
+        // The component the format lost is RENDERED, never the zero it
+        // measured to.
+        assert!(s.contains("1e-200"), "{s}");
+        assert_eq!(
+            PathError::UnderflowedDirection {
+                dx: 0.0_f64,
+                dy: 1e-200
+            }
+            .kind(),
+            PathErrorKind::UnderflowedDirection
         );
     }
 
