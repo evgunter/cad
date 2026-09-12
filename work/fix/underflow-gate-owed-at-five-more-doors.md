@@ -4,6 +4,7 @@ kind: issue
 title: five more decide-then-normalize doors owe the underflow gate, and one of them renders an underflowed component as 0
 status: open
 branch: fix/underflow-gate-doors
+pr: 2401
 opened: 2026-09-11
 ---
 
