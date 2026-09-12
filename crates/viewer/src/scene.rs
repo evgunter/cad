@@ -85,6 +85,74 @@ impl DisplayTolerance {
         self.0
     }
 
+    /// How far [`DisplayTolerance::render_mm`]'s text may read from the
+    /// δ it renders, as a fraction of it.
+    ///
+    /// **Not a taste: it is the scientific form's own worst case.** Four
+    /// significant figures can misread the δ they render by half a unit
+    /// in the fourth — 5·10⁻⁴ of it — so a decimal spelling is preferred
+    /// exactly while it is no less truthful than the form that would
+    /// replace it. The constant is that form's accuracy rather than a
+    /// number chosen for how a field looks.
+    pub const RENDER_REL_TOLERANCE: f64 = 5.0e-4;
+
+    /// The longest text [`DisplayTolerance::render_mm`] returns, in
+    /// characters.
+    ///
+    /// The scientific arm's worst case, which is `f64`'s smallest
+    /// subnormal: a four-figure mantissa, `e`, a sign and three
+    /// exponent digits — `4.941e-324`. The decimal arm is held to the
+    /// same bound, so anything wide enough for ten characters can show
+    /// every δ this type can hold.
+    pub const RENDER_MM_MAX_CHARS: usize = 10;
+
+    /// This δ in millimetres, as text a person reads.
+    ///
+    /// **The shortest decimal spelling that reads back as this δ, and a
+    /// scientific one when no decimal spelling does.** A millimetre
+    /// length wants to read as a decimal and does wherever it can
+    /// (`0.05`, `0.0016`, `0.0003746`); below that a decimal spelling
+    /// either misreads the δ or does not fit, and the scientific form
+    /// carries it (`1.000e-9`).
+    ///
+    /// **What the choice is made on is the property, not a magnitude.**
+    /// A spelling is used when it fits
+    /// [`DisplayTolerance::RENDER_MM_MAX_CHARS`] and reads back —
+    /// through the millimetre conversion the δ field's own commit path
+    /// uses — as a δ [`DisplayTolerance::new`] accepts, within
+    /// [`DisplayTolerance::RENDER_REL_TOLERANCE`] of this one. So there
+    /// is no threshold here to go stale against the format, and in
+    /// particular no δ renders as `0.000`: a text that reads as zero is
+    /// refused by the same door that refuses the value.
+    ///
+    /// **What it is not is exact.** Four significant figures is what a
+    /// ten-character bound buys, and a δ the triangle budget chose is
+    /// `constant / TRIANGLE_BUDGET` — seventeen. The other thirteen
+    /// figures are shown nowhere, which is why this render is a render
+    /// and never a commit path: the number a δ moves to is the one a
+    /// user types, never one the chrome echoed at them.
+    pub fn render_mm(self) -> String {
+        let mm = self.0 * 1.0e3;
+        // Decimal counts past the character bound cannot fit whatever
+        // they spell, so the bound is what ends the search; the range
+        // only has to reach past the last count that could.
+        (0..=Self::RENDER_MM_MAX_CHARS)
+            .map(|decimals| format!("{mm:.decimals$}"))
+            .find(|spelling| Self::reads_back_as_this_delta(spelling, mm))
+            .unwrap_or_else(|| format!("{mm:.3e}"))
+    }
+
+    /// Whether `spelling` fits, and reads as a δ this type accepts
+    /// within [`DisplayTolerance::RENDER_REL_TOLERANCE`] of `mm`
+    /// millimetres.
+    fn reads_back_as_this_delta(spelling: &str, mm: f64) -> bool {
+        spelling.chars().count() <= Self::RENDER_MM_MAX_CHARS
+            && spelling.parse::<f64>().is_ok_and(|read| {
+                Self::new(read * 1.0e-3).is_ok()
+                    && (read - mm).abs() <= Self::RENDER_REL_TOLERANCE * mm
+            })
+    }
+
     /// This tolerance scaled by `factor` — the coarsen/refine step the
     /// chrome offers.
     ///
