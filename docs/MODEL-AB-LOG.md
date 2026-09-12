@@ -5193,3 +5193,11 @@ Slots by dispatch order, the three door rows the plan runs before `H5`:
   risk).
 - slot 2 — `sweep-test-rebuilds-validated-net-for-v-reversal` (a
   v-reversal door on `NurbsSurface`) — **S / structural**.
+
+### Block SCALAR-B1 — the draw (2026-09-12)
+
+Draw: `/dev/urandom` byte **69** (< 252), 69 mod 3 = 0 ⇒ fable position
+0. Slots by dispatch order: **slot 0 D290 = FABLE, slot 1 S393 = OPUS,
+slot 2 v-reversal net = OPUS.** Remote 4-vCPU / 15 GB box, about three
+concurrent lanes, private target dirs, no build mutex script (the box
+is per-session); the same on every arm.
