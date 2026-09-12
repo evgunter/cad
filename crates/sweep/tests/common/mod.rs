@@ -105,31 +105,27 @@ pub mod cone_nappe;
 pub mod oracles;
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
+use geom_core::linalg::frame::path_start_frame;
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::RawLoop;
 use sweep::{ProfileLoop, ProfileVertex, Section};
 
-/// The placement a path sweep starts from: the plane through the
-/// path's start point whose normal is the start TANGENT, with the
-/// in-plane axes built off whichever world axis is least parallel to
-/// it. `sweep::sweep_places` carries this frame along the path by
-/// minimal rotation, so a section placed here stays normal to the
-/// path — the recipe every path-swept fixture in this corpus starts
-/// from, and the one the tour's sweep cells narrate.
+/// The placement a path sweep starts from, read off the path's start:
+/// `geom_core::linalg::frame::path_start_frame`, the kernel's own
+/// door for it. The frame's local +Z is the start TANGENT, so the
+/// local XY plane is the plane the profile is drawn in, and the roll
+/// comes from the door's reference ladder (world +Z, then world +X)
+/// under the tolerance band. `sweep::sweep_places` carries this frame
+/// along the path by minimal rotation, so a section placed here stays
+/// normal to the path.
+///
+/// The door returns a typed refusal for a path whose start tangent
+/// fixes no frame; a fixture whose path is that degenerate is a fixture
+/// bug, so this unwraps with the refusal in the message.
 pub fn normal_start_place(path: &NurbsCurve3<f64>) -> Affine3<f64> {
     let (lo, _) = path.domain();
-    let d = path.deriv(lo);
-    let n = d / d.norm();
-    let helper = if n.z.abs() < 0.9 {
-        Vec3::new(0.0, 0.0, 1.0)
-    } else {
-        Vec3::new(1.0, 0.0, 0.0)
-    };
-    let u = helper.cross(n);
-    let u = u / u.norm();
-    let v = n.cross(u);
-    let p = path.eval(lo);
-    Affine3::from_parts(Mat3::from_cols(u, v, n), Vec3::new(p.x, p.y, p.z))
+    path_start_frame(path.eval(lo), path.deriv(lo), Tol::witness())
+        .unwrap_or_else(|e| panic!("the path's start tangent must fix a frame: {e:?}"))
 }
 
 /// A closed four-line quad section (one loop, four vertices) — the

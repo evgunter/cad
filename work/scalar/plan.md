@@ -41,7 +41,7 @@ been drawn**, and the PR that reaches the path draws it.
 | item | class | what it is | where the work lands |
 | --- | --- | --- | --- |
 | `D290` | **M** | Fix is stated but needs a new KnotVector rescale op in geom-core | `crates/geom-brep/src/edge_nurbs.rs` (`on_carrier_domain`), `crates/geom-core/src/spline.rs` (KnotVector rescale door) |
-| `S393` | **M** | Small diff once the door's home, name and roll question are decided | new door in `crates/geom/src/curves/nurbs.rs` or beside `crates/sweep/src/skin.rs`; callers `crates/sweep/tests/common/mod.rs`, `demos/tour/src/skinned.rs` |
+| `S393` | **E** | The door already exists (`geom_core::linalg::frame::path_start_frame`, public and bound into Python), so there is no home, name or roll question to decide: the hand copies go onto it | new door in `crates/geom/src/curves/nurbs.rs` or beside `crates/sweep/src/skin.rs`; callers `crates/sweep/tests/common/mod.rs`, `demos/tour/src/skinned.rs` |
 | `curve3-eval-and-deriv-at-one-t-run-two-basis-passes` | **M** | Whole-curve order-1 jet door: `Curve3::eval` + `deriv` at one `t` run two span locations and two basis passes on the `Nurbs` arm; no `ders1` exists above the span level | new door on `NurbsCurve3` in `crates/geom/src/curves/nurbs.rs` and an exhaustive arm set on `Curve3` in `crates/geom/src/curves.rs`; seven production pair sites listed in the row |
 | `sweep-test-rebuilds-validated-net-for-v-reversal` | **M** | Fixing the test needs a new geom door or a validated-parts admission decided | `crates/sweep/tests/review_probes_m8_4.rs`, plus a new v-reversal or `from_validated_parts` door in `crates/geom/src/surfaces/nurbs.rs` |
 | `D6` | **H** | Ruling schedules a newtype sweep; `sense_sign` spans ~100 sites, many crates | — |

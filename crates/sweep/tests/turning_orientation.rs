@@ -35,6 +35,13 @@
 //!   has torsion too but holds it CONSTANT with the curvature; here
 //!   both vary continuously and no arc is anywhere in the path.
 //!
+//! One row here is not about a turning chart at all: the START frame
+//! every path-swept fixture in this crate sweeps from is the kernel's
+//! (`geom_core::linalg::frame::path_start_frame`), and it is that
+//! door's reference LADDER, not a hard cone, that decides the
+//! inflecting duct's roll — the duct departs along `+z`. The ladder
+//! row lives beside the fixture it decides.
+//!
 //! Each row carries an anti-vacuity condition on the shape (a chart
 //! that does not turn makes the claim above free) and, where the
 //! shape has one, a HANDEDNESS pin: the roll's sign, the reversal's
@@ -247,11 +254,11 @@ fn spine_chords(lofted: &Lofted<f64>, steps: usize) -> Vec<Vec3<f64>> {
 ///
 /// ANTI-VACUITY, and it is the whole reason this shape is not the
 /// elbow twice: the chart's roll must change HAND. The path is planar
-/// (the world `x = 0` plane), so each half's turn is signed about `x`,
-/// and the two halves must carry opposite signs, each reaching nine
-/// tenths of the quarter turn its arc subtends. An end-to-end reading
-/// cannot see this at all — the tangent starts and finishes at `+z`,
-/// exactly as on a straight path.
+/// (the world `x = 0` plane), so every step of the spine's turn is
+/// signed about `x`, and the steps of each sign must sum to nine
+/// tenths of the quarter turn one arc subtends — one arc's worth each
+/// way. An end-to-end reading cannot see this at all — the tangent
+/// starts and finishes at `+z`, exactly as on a straight path.
 ///
 /// The signs are read off wall NORMALS, which a flipped `sense` would
 /// negate uniformly — so this condition survives such a flip and says
@@ -264,20 +271,30 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
 
     let plane_normal = Vec3::new(1.0, 0.0, 0.0);
     let spine = spine_chords(&swept, SPINE_STEPS);
-    let signed_turn = |half: &[Vec3<f64>]| -> f64 {
-        half.windows(2)
-            .map(|w| signed_angle_about(plane_normal, w[0], w[1]))
-            .sum()
-    };
-    let mid = spine.len() / 2;
-    let (first, second) = (signed_turn(&spine[..=mid]), signed_turn(&spine[mid..]));
+    // The two arcs are separated by the SIGN of the turn, not by the
+    // halfway index of the surface's own `v`: where `v = 0.5` falls on
+    // the path is the skin's parameterization talking (`loft_geometry`
+    // takes the whole surface's v from the FIRST STRIP, so a section
+    // rolled about its own normal re-parameterizes the body), and this
+    // row is about the shape. Summing the negative increments and the
+    // positive ones apart asks the question directly and is invariant
+    // to where the split index lands.
+    let (turned_one_way, turned_the_other) = spine.windows(2).fold((0.0, 0.0), |(neg, pos), w| {
+        let d = signed_angle_about(plane_normal, w[0], w[1]);
+        if d < 0.0 {
+            (neg + d, pos)
+        } else {
+            (neg, pos + d)
+        }
+    });
     let bar = 0.9 * FRAC_PI_2;
     assert!(
-        first <= -bar && second >= bar,
-        "the two halves of the path must turn the section plane OPPOSITE ways, \
-         by at least {bar} rad each: measured {first} then {second} — a path \
-         that turned one way throughout is the elbow row retyped, and an \
-         end-to-end reading of this one cannot tell it from a straight tube"
+        turned_one_way <= -bar && turned_the_other >= bar,
+        "the path must turn the section plane BOTH ways, by at least {bar} rad \
+         each way: measured {turned_one_way} one way and {turned_the_other} the \
+         other — a path that turned one way throughout reads ~0 on one of them, \
+         is the elbow row retyped, and an end-to-end reading of this one cannot \
+         tell it from a straight tube"
     );
 
     // The fixed-chord index cannot answer here and says so: its level
@@ -321,4 +338,97 @@ fn a_torsion_bearing_path_sweep_faces_out_along_the_twist() {
     let oracle = |q| loft_contains(&swept, q);
     assert_walls_face_out(&swept, &oracle, &along_v(), PROBE_DELTA, 4);
     assert_caps_face_out(&swept, &oracle, PROBE_DELTA);
+}
+
+/// **A start tangent that leans on world +Z still rolls off world +Z.**
+///
+/// The start placement these fixtures sweep from is the kernel's
+/// (`geom_core::linalg::frame::path_start_frame`, through
+/// [`normal_start_place`]), and its roll comes from a reference LADDER
+/// — world +Z, then world +X — where each rung is taken on a decided
+/// off-axis margin under the tolerance band. The case that separates a
+/// ladder from a hard cone is a tangent LEANING on the first rung
+/// without being on it: `|ẑ · t̂| = 0.95` is far inside the 0.9 cone a
+/// caller-side recipe would have switched at, and nowhere near the
+/// band.
+///
+/// The row is this suite's because its own [`inflecting_path`] is such
+/// a tangent — it departs along `+z` — so which rung the ladder takes
+/// decides the body every row above sweeps. That membership is
+/// asserted here rather than assumed: a fixture that drifted out of
+/// the lean would make this row free.
+#[test]
+fn a_start_tangent_leaning_on_world_z_takes_the_first_rung_anyway() {
+    let cos = 0.95f64;
+    // Both off-axis components nonzero, so the two rungs give frames
+    // that are not each other's reflection and the row can tell them
+    // apart at all.
+    let off = ((1.0 - cos * cos) / 2.0).sqrt();
+    let dir = Vec3::new(off, off, cos);
+    let base = Point3::new(1.5, -2.25, 3.125);
+    // A straight path, so its start tangent IS `dir` and the frame is
+    // read through the same door every fixture above goes through.
+    #[allow(clippy::cast_precision_loss)]
+    let path = NurbsCurve3::<f64>::interpolate(
+        &(0..=4).map(|k| base + dir * (k as f64)).collect::<Vec<_>>(),
+        3,
+    )
+    .expect("a straight path interpolates");
+    let place = normal_start_place(&path);
+    let (lo, _) = path.domain();
+
+    let (x, y, z) = (place.linear.c0, place.linear.c1, place.linear.c2);
+    let tangent = path.deriv(lo) / path.deriv(lo).norm();
+    assert!(
+        (z - tangent).norm() < 1e-15,
+        "the frame's local +Z is the unit start tangent: {z:?} against {tangent:?}"
+    );
+    let start = path.eval(lo);
+    assert!(
+        (place.translation - Vec3::new(start.x, start.y, start.z)).norm() < 1e-15,
+        "the frame sits at the path's start"
+    );
+    assert!(
+        z.z.abs() >= 0.9 && z.z.abs() < 1.0,
+        "the hypothesis: this tangent leans on +z by {} — inside the cone a \
+         caller-side recipe switches at, and not along the axis",
+        z.z.abs()
+    );
+
+    // The ladder's FIRST rung: x̂ is world +Z crossed into the tangent.
+    let first = Vec3::new(0.0, 0.0, 1.0).cross(z);
+    let first = first / first.norm();
+    assert!(
+        (x - first).norm() < 1e-15,
+        "the roll must come off world +Z: {x:?} against {first:?}"
+    );
+    // …and not off world +X, which is a visibly different frame here.
+    let second = Vec3::new(1.0, 0.0, 0.0).cross(z);
+    let second = second / second.norm();
+    assert!(
+        (x - second).norm() > 0.5,
+        "the two rungs must be far apart on this tangent, or the row cannot \
+         tell which one was taken: {x:?} against {second:?}"
+    );
+
+    // Right-handed and orthonormal, which is what the roll choice is
+    // free to be wrong about without any of the above noticing.
+    assert!(
+        (x.cross(y) - z).norm() < 1e-15
+            && (x.norm() - 1.0).abs() < 1e-15
+            && (y.norm() - 1.0).abs() < 1e-15
+            && x.dot(y).abs() < 1e-15,
+        "the placement is a right-handed orthonormal frame"
+    );
+
+    // The fixture this suite actually sweeps is in the same case.
+    let s = inflecting_path();
+    let (slo, _) = s.domain();
+    let st = s.deriv(slo) / s.deriv(slo).norm();
+    assert!(
+        st.z.abs() >= 0.9 && st.z.abs() < 1.0,
+        "the inflecting duct departs along +z, leaning by {} — the rows above \
+         sweep the body this ladder choice decides",
+        st.z.abs()
+    );
 }
