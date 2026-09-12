@@ -1183,9 +1183,9 @@ pub(crate) fn mint_frame_placement(
 /// # Errors
 ///
 /// [`NodeErrorKind::WrongOperand`] when the reference does not name a
-/// frame — the door every operand's kind is checked at, answering in
-/// the vocabulary [`frame_plane_lane`] uses — the nominal read's own
-/// direction refusal where the frame carried one
+/// frame — through [`operand`], so this reader asks the question the
+/// one way it is asked and names the frame with the one phrase —
+/// the nominal read's own direction refusal where the frame carried one
 /// ([`FramePlacement::Unreadable`], raised HERE because this is the
 /// reader that needed it), and [`NodeErrorKind::MissingInput`] for a
 /// reference with no value.
@@ -1229,7 +1229,7 @@ pub(crate) fn profile_plane_f64<T: Decide>(
 /// # Errors
 ///
 /// [`NodeErrorKind::WrongOperand`] when the landed value is not a
-/// frame — the kind door, at the lane where the value is read.
+/// frame, through [`frame_value`].
 pub(crate) fn frame_plane_lane<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,

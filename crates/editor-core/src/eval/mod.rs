@@ -518,15 +518,15 @@ pub(crate) mod family {
 ///
 /// # The three shapes, and how each is composed
 ///
-/// - **Narrower than a family** ([`DATUM_FRAME`], [`DATUM_AXIS`],
-///   [`DATUM_PLANE`]): a variant WITHIN a family. The family word is
+/// - **Narrower than a family** ([`phrase::DATUM_FRAME`], [`phrase::DATUM_AXIS`],
+///   [`phrase::DATUM_PLANE`]): a variant WITHIN a family. The family word is
 ///   still in the phrase — and is exactly the word `found:` answers
 ///   beside it — so it is composed from `family_word!` rather than
 ///   respelled.
-/// - **Wider than a family** ([`BODY_OR_INSTANCES`]): two families and
+/// - **Wider than a family** ([`phrase::BODY_OR_INSTANCES`]): two families and
 ///   the conjunction between them, and nothing else; both words are
 ///   composed.
-/// - **A whole sentence** ([`AXIS_IN_SKETCH_FRAME`]): a seat no family
+/// - **A whole sentence** ([`phrase::AXIS_IN_SKETCH_FRAME`]): a seat no family
 ///   word names, so there is nothing to compose and the const is the
 ///   literal. It is here for the rule above — one home per phrase —
 ///   rather than for a vocabulary it shares.
