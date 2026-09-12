@@ -85,6 +85,35 @@ impl DisplayTolerance {
         self.0
     }
 
+    /// This δ in millimetres, as text a person reads.
+    ///
+    /// **The δ-facing door onto [`crate::readout::number`]**, which is
+    /// the crate's one rule for a number a person reads: the shortest
+    /// decimal spelling that reads back as this value, and a scientific
+    /// one when no decimal spelling does. What this method adds is the
+    /// millimetre conversion the δ field's own commit path uses, and
+    /// nothing else.
+    ///
+    /// **No δ renders as `0.000`.** The rule refuses it without knowing
+    /// anything about δ: a text reading zero is a hundred percent away
+    /// from a strictly positive value, and the render's accuracy bound
+    /// ([`crate::readout::REL_TOLERANCE`]) is five parts in ten
+    /// thousand. So the thing that used to be a second predicate here —
+    /// that the text read back as a δ [`DisplayTolerance::new`] accepts
+    /// — is implied by the first for every δ this type can hold, and
+    /// `no_delta_renders_as_a_number_a_delta_cannot_be` is where that
+    /// implication is checked rather than restated.
+    ///
+    /// **What it is not is exact.** Four significant figures is what a
+    /// ten-character bound buys, and a δ the triangle budget chose is
+    /// `constant / TRIANGLE_BUDGET` — seventeen. The other thirteen
+    /// figures are shown nowhere, which is why this render is a render
+    /// and never a commit path: the number a δ moves to is the one a
+    /// user types, never one the chrome echoed at them.
+    pub fn render_mm(self) -> String {
+        crate::readout::number(self.0 * 1.0e3)
+    }
+
     /// This tolerance scaled by `factor` — the coarsen/refine step the
     /// chrome offers.
     ///
@@ -771,13 +800,14 @@ pub fn scene_of_body(
 /// # Why there is a budget at all
 ///
 /// δ is a chord tolerance in metres, and nothing about an absolute
-/// length knows how big a model is or how curved. The application
-/// starts at 0.1 mm, which is a fine picture of the startup plate and
-/// a 4·10⁶-triangle picture of the tour's `hollowring` (a torus of
-/// R = 0.30 m) — 13 s of tessellation and index build with the window
-/// frozen, still showing the previous document, which is what "Open
-/// does nothing" looked like. A budget is what stops an absolute δ
-/// from asking for a picture nobody can wait for.
+/// length knows how big a model is or how curved: the same 0.1 mm the
+/// application starts at is a small picture of the startup plate and
+/// a 1.6·10⁵-triangle picture of the tour's `hollowring`
+/// (a torus of R = 0.30 m), and a body a few times larger or a δ a
+/// decade finer asks for millions — seconds of tessellation and index
+/// build with the window frozen, still showing the previous document,
+/// which reads as "Open does nothing". A budget is what stops an
+/// absolute δ from asking for a picture nobody can wait for.
 ///
 /// # Why one million
 ///
@@ -789,20 +819,24 @@ pub fn scene_of_body(
 ///   triangle per pixel for a body filling the pane: past it the
 ///   tessellation is finer than the display can resolve, and the
 ///   detail is paid for and thrown away.
-/// - **The corpus, by eye.** At this budget both curved gallery
-///   documents draw at δ ≈ 0.2–0.4 mm. Measured on the tour's own
-///   scenes, the fillet corners of `diefillet` read clean there and
-///   visibly band one doubling coarser, so it is also the first
-///   budget that keeps the demo documents looking right.
+/// - **The corpus, by eye.** Measured on the tour's own scenes, the
+///   fillet corners of `diefillet` read clean at δ ≈ 0.2–0.4 mm — the
+///   δ this budget lands a curved gallery document on when it binds —
+///   and visibly band one doubling coarser, so it is also the first
+///   budget that keeps the demo documents looking right when it does
+///   bind. It does not bind either gallery document at the starting
+///   0.1 mm (`tests/display_budget.rs` holds the ring's side of that,
+///   and asks the budget's own rows at 0.01 mm, where it does).
 ///
 /// **The consequence worth stating**: if this number ever has to be
 /// RAISED to make something look right, the fault is upstream in the
 /// sizing, not here — a budget cannot buy detail the tessellator is
-/// spending elsewhere. The ring's 4·10⁶ triangles at 0.1 mm are about
-/// 65× what the per-direction sagitta asks for
-/// (`mesh::sizing::torus_grid_step` sizes both chart directions off
-/// one conservative step); that is TESS-BUDGET's question, and this
-/// constant is a safety net under it, never its answer.
+/// spending elsewhere. The ring at 0.1 mm is ~1.6·10⁵ triangles, which
+/// is `mesh::sizing::torus_grid_steps`' doubly-curved chord bound spent
+/// with no slack in its constant (2.9× the per-direction sagitta, and
+/// that factor is proved necessary, not chosen); what remains is
+/// TESS-BUDGET's question, and this constant is a safety net under it,
+/// never its answer.
 pub const TRIANGLE_BUDGET: usize = 1_000_000;
 
 /// How much coarser than the requested δ the cost probe runs.
@@ -865,12 +899,23 @@ impl FittedDelta {
     /// question a reader has the moment they see a δ they did not
     /// choose, and a chosen default that read as a clamp would be
     /// worse than no default at all.
+    ///
+    /// **Both δ are rendered, not formatted.** A sentence whose whole
+    /// job is to name the two δ in play is the last place a number may
+    /// read as one δ cannot be, and a fixed `{:.3}` over millimetres
+    /// carried both as `0.000` below half a micrometre
+    /// ([`DisplayTolerance::render_mm`]). What that costs is that the
+    /// sentence is as wide as the δ are awkward — a budget δ reads
+    /// `0.0003746` where it used to read `0.000`, and a δ of a few
+    /// picometres reads `4.000e-9` — which is the right trade for a
+    /// status line, where a long true number is readable and a short
+    /// false one is not.
     pub fn wording(&self) -> Option<String> {
         let requested = self.requested_cost?;
-        let opened = self.delta.get() * 1.0e3;
-        let asked = self.requested.get() * 1.0e3;
+        let opened = self.delta.render_mm();
+        let asked = self.requested.render_mm();
         Some(format!(
-            "opened at δ = {opened:.3} mm: {asked:.3} mm needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. A finer δ typed in the View pane is still honoured — this is a starting point, not a cap"
+            "opened at δ = {opened} mm: {asked} mm needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. A finer δ typed in the View pane is still honoured — this is a starting point, not a cap"
         ))
     }
 }
@@ -879,11 +924,11 @@ impl FittedDelta {
 /// finest coarser one predicted to fit [`TRIANGLE_BUDGET`].
 ///
 /// **A default, not a clamp.** The caller applies this once per
-/// document that arrives (`app`'s `fit_delta_on_scene`); from there δ
-/// is whatever the user types in the View pane, however fine, and
-/// nothing re-reads it. A budget that bound every rebuild would
-/// disable that field on exactly the documents someone would want it
-/// for.
+/// document that arrives
+/// ([`crate::app::ViewerApp::fit_delta_on_scene`]); from there δ is
+/// whatever the user types in the View pane, however fine, and nothing
+/// re-reads it. A budget that bound every rebuild would disable that
+/// field on exactly the documents someone would want it for.
 ///
 /// # The method: predict, do not ladder
 ///
@@ -906,8 +951,10 @@ impl FittedDelta {
 /// whose SIGN is the safe one: the law describes curved faces, planar
 /// ones stop subdividing and are therefore over-counted from a coarse
 /// probe, so the fit errs coarse ([`FittedDelta::predicted`] carries
-/// the measurements). Drawn against a 10⁶ budget the two curved
-/// gallery documents land at 998 576 and 974 526 triangles.
+/// the measurements). Drawn against a 10⁶ budget from a request it
+/// binds, the gallery ring lands within a few percent under it
+/// (`tests/display_budget.rs` asserts the drawn count against the
+/// budget at a 0.01 mm request, with that margin).
 ///
 /// # What it costs, and what it costs on a document that fits
 ///

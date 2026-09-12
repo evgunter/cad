@@ -505,6 +505,197 @@ fn non_finite_pattern_direction_refuses_at_the_direction_door() {
     }
 }
 
+/// **A linear pattern's direction whose LENGTH underflowed refuses as
+/// an underflow, not as a zero length** — the other end of the
+/// arithmetic the row above pins.
+///
+/// Components of 1e-180 are finite VALUES and the expression layer
+/// passes them; their SQUARES are not representable, so
+/// `norm_squared` and the norm are exactly zero and the length
+/// decides `Zero` definitely — at every ε, because no tolerance makes
+/// an unrepresentable square nonzero. The direction is perfectly
+/// good; "the pattern direction has zero length", which is what this
+/// document used to be told, is the one thing about it that is false,
+/// and it sends a user to check a direction that is fine.
+///
+/// The pinned claim is therefore the SENTENCE and not just that a
+/// refusal happened: the row has to tell *refused for underflow* from
+/// *refused at all*, and the arm it must not be is the one it used to
+/// be.
+#[test]
+fn an_underflowed_pattern_direction_refuses_as_underflow_not_as_zero_length() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1e-180), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::UnderflowedDirection {
+                        role: "pattern direction"
+                    }
+                ),
+                "expected the underflow refusal, got {:?}",
+                e.kind
+            );
+            let said = e.kind.to_string();
+            assert!(
+                said.starts_with("the pattern direction underflowed to zero length"),
+                "the refusal names the direction and what happened to its \
+                 length: {said}"
+            );
+            assert!(
+                said.contains("scale the geometry into the session's range"),
+                "and the recourse that works — the overflow arm's: {said}"
+            );
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// **The datum door, the same fact** — executed rather than assumed.
+///
+/// Both doors call one body, which is a reason to expect the same
+/// answer and not a measurement of it; the datum road was never run
+/// with an underflowed direction before this row.
+#[test]
+fn an_underflowed_datum_axis_refuses_as_underflow_not_as_zero_length() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(-1e-200), scl(0.0)],
+        }),
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&axis) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::UnderflowedDirection {
+                        role: "datum axis direction"
+                    }
+                ),
+                "expected the underflow refusal, got {:?}",
+                e.kind
+            );
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// **The zero arm keeps its meaning**, which is the half of this
+/// change a gate that over-fired would break silently.
+///
+/// A direction that really is zero, and one that is merely smaller
+/// than the band and whose square the format holds perfectly well,
+/// are both `DegenerateDirection` — the first because it names no
+/// direction, the second because the tolerance says so and a smaller
+/// ε would change the answer. Neither is an underflow.
+#[test]
+fn a_zero_and_a_merely_small_pattern_direction_keep_the_zero_refusal() {
+    for component in [0.0, 1e-30] {
+        let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+        let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+        let (doc, pat) = insert(
+            doc,
+            Node::Pattern {
+                input: cube,
+                count: editor_core::Expr::count(3),
+                kind: PatternKind::Linear {
+                    direction: [scl(component), scl(0.0), scl(0.0)],
+                    spacing: len(2.0),
+                },
+            },
+        );
+        let ev = run(&doc);
+        let Some(NodeResult::Failed(e)) = ev.nodes.get(&pat) else {
+            panic!("expected a refusal for the {component:e} direction");
+        };
+        assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::DegenerateDirection {
+                    role: "pattern direction"
+                }
+            ),
+            "{component:e} is a decided-zero length, not an underflowed one: \
+             got {:?}",
+            e.kind
+        );
+    }
+}
+
+/// **The same underflowed document at the ENCLOSURE scalar**, whose
+/// answer is different and deliberately so.
+///
+/// The gate is asked through the value channel with no bracket read,
+/// so it bites at the point scalars. At the interval scalar a
+/// `1e-180` component squares to `[0, 1e-323]` rather than to zero,
+/// the norm enclosure still contains the true length, and nothing
+/// underflowed out of the format — so the door goes on deciding
+/// against the band, which for this input answers zero. Pinning that
+/// is what separates a point-scalar gate from one that started
+/// reading brackets.
+#[cfg(feature = "interval")]
+#[test]
+fn an_underflowed_pattern_direction_still_decides_zero_at_the_interval_scalar() {
+    use geom_core::Interval;
+
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1e-180), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::DegenerateDirection {
+                    role: "pattern direction"
+                }
+            ),
+            "the enclosure lane decides against the band as before, got {:?}",
+            e.kind
+        ),
+        Some(NodeResult::Ok(v)) => panic!(
+            "the enclosure lane admitted a 1e-180 pattern direction and \
+             produced {}",
+            v.payload.kind_name()
+        ),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
 /// **A transform's rotation axis, same fact, its own door** — and its
 /// own test, because two asserts in one function only ever surface
 /// the first failure.
@@ -562,10 +753,11 @@ fn non_finite_transform_axis_refuses_at_the_direction_door() {
 /// mapping that sent two kernel arms to one `NodeErrorKind`, or that
 /// dropped the role, would leave every one of them green.
 ///
-/// So all three arms are walked here in one place, and the role word
+/// So all four arms are walked here in one place, and the role word
 /// travels with each: a length that is not a finite number, a length
-/// decided to zero, and a length that lands in the ambiguity band.
-/// The third is not reachable by a large or a zero vector at all — it
+/// that underflowed out of the format, a length decided to zero, and
+/// a length that lands in the ambiguity band.
+/// The last is not reachable by a large or a zero vector at all — it
 /// needs a length strictly inside (ε, K·ε), and it is built from the
 /// run's OWN ε and K (their geometric mean) so that the row means the
 /// same thing at every ε the matrix runs.
@@ -574,9 +766,10 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
     let eps = Tol::witness().eps();
     let in_band = eps * Tol::witness().k().sqrt();
 
-    // A pattern direction, the three arms.
+    // A pattern direction, the four arms.
     for (component, expected) in [
         (1e200, "non-finite"),
+        (1e-180, "underflowed"),
         (0.0, "degenerate"),
         (in_band, "escalated"),
     ] {
@@ -599,6 +792,7 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
         };
         match (&e.kind, expected) {
             (NodeErrorKind::NonFiniteDirection { role }, "non-finite")
+            | (NodeErrorKind::UnderflowedDirection { role }, "underflowed")
             | (NodeErrorKind::DegenerateDirection { role }, "degenerate") => {
                 assert_eq!(*role, "pattern direction", "the role word travels");
             }
@@ -657,7 +851,11 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
     // arms and its role word have to be exercised from both ends —
     // and the datum road reaches it through the kernel TYPE's
     // constructor, which is a different call.
-    for (component, expected) in [(1e200, "non-finite"), (0.0, "degenerate")] {
+    for (component, expected) in [
+        (1e200, "non-finite"),
+        (1e-180, "underflowed"),
+        (0.0, "degenerate"),
+    ] {
         let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
         let (doc, axis) = insert(
             doc,
@@ -672,6 +870,7 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
         };
         match (&e.kind, expected) {
             (NodeErrorKind::NonFiniteDirection { role }, "non-finite")
+            | (NodeErrorKind::UnderflowedDirection { role }, "underflowed")
             | (NodeErrorKind::DegenerateDirection { role }, "degenerate") => {
                 assert_eq!(*role, "datum axis direction", "the role word travels");
             }

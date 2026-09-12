@@ -11,8 +11,8 @@ use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::PatternOutputChoice;
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, BOOLEAN_OPS, COUNT_DRAG_SPEED, DatumKind, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PathVerb, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKind, FIELD_DRAG_SPEED, MATE_PRIMITIVES, PathVerb,
+    PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
 };
 use crate::frame;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
@@ -730,7 +730,7 @@ impl ViewerBehavior<'_> {
                         // candidate verb, which is cheap but not free,
                         // and a closed combo has nobody to show it to.
                         let mut chain = self.drafts.profile_path.clone();
-                        for option in PathVerb::ALL {
+                        for (option, label) in PathVerb::ALL {
                             chain[index] = option.fresh();
                             let refusal = sketch::admits_at(&chain, index, notation, tol).err();
                             // `add_enabled` on the widget itself, not
@@ -741,7 +741,7 @@ impl ViewerBehavior<'_> {
                             // response shows nothing.
                             let row = ui.add_enabled(
                                 refusal.is_none(),
-                                egui::Button::selectable(option == verb, option.label()),
+                                egui::Button::selectable(option == verb, label),
                             );
                             match refusal {
                                 Some((state, _refused)) => {
@@ -751,7 +751,7 @@ impl ViewerBehavior<'_> {
                                     // reader is looking at.
                                     row.on_disabled_hover_text(format!(
                                         "{} is not well-typed here — the tip is {}",
-                                        option.label(),
+                                        label,
                                         sketch::tip_state_words(state),
                                     ));
                                 }
@@ -895,8 +895,10 @@ impl ViewerBehavior<'_> {
         ]));
         ui.horizontal(|ui| {
             ui.label("operation");
-            for (op, label) in BOOLEAN_OPS {
-                ui.radio_value(&mut self.drafts.boolean_op, op, label);
+            // One button per operation the KERNEL has, in its order:
+            // the form offers the vocabulary, never a copy of it.
+            for &op in BooleanOp::ALL {
+                ui.radio_value(&mut self.drafts.boolean_op, op, boolean_op_label(op));
             }
         });
         if self.drafts.boolean_op == BooleanOp::Subtract {
@@ -1136,14 +1138,16 @@ impl ViewerBehavior<'_> {
         let Some(((target, eval), index)) = ready else {
             ui.add_enabled(false, egui::Button::new("Select all edges"))
                 .on_disabled_hover_text(
-                    "click an edge or a face of the body first, and let it evaluate —                      a feature picked in the tree does not say which body",
+                    "click an edge or a face of the body first, and let it evaluate — \
+                     a feature picked in the tree does not say which body",
                 );
             return;
         };
         let clicked = ui
             .button("Select all edges")
             .on_hover_text(
-                "every edge of this body as it stands now, stored as a frozen set —                  whether the kernel can BLEND that set is its own answer, on the node's badge",
+                "every edge of this body as it stands now, stored as a frozen set — \
+                 whether the kernel can BLEND that set is its own answer, on the node's badge",
             )
             .clicked();
         if !clicked {

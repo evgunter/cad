@@ -115,11 +115,12 @@ fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: part_node,
                 path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
-            }),
+            }
+            .into(),
         }],
     }
 }
@@ -1494,14 +1495,15 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         kind: EntityKind::Face,
         node: ids[1],
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: PART_BODY,
                 path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef {
                     loop_index: 7,
                     segment: 7,
                 })],
-            }),
+            }
+            .into(),
         }],
     };
     let Node::Mate {

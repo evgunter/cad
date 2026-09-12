@@ -120,6 +120,16 @@ mod docm8_flat_merged;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "eval10_section_reads_the_nominal.rs"]
+mod eval10_section_reads_the_nominal;
+#[path = "eval4_accept_funnel.rs"]
+mod eval4_accept_funnel;
+#[path = "eval6_placers_over_instances.rs"]
+mod eval6_placers_over_instances;
+#[path = "eval6_placers_over_instances_interval.rs"]
+mod eval6_placers_over_instances_interval;
+#[path = "eval9_nominal_in_the_key.rs"]
+mod eval9_nominal_in_the_key;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
@@ -141,6 +151,12 @@ mod lib_g16_blend_messages;
 mod lib_g16_chamfer_node;
 #[path = "lib_g16_corpus_name_digests.rs"]
 mod lib_g16_corpus_name_digests;
+#[path = "lib_g17_r1_probes.rs"]
+mod lib_g17_r1_probes;
+#[path = "lib_g17_r2_probes.rs"]
+mod lib_g17_r2_probes;
+#[path = "lib_g17_shell_node.rs"]
+mod lib_g17_shell_node;
 #[path = "lib_placedunion.rs"]
 mod lib_placedunion;
 #[path = "lib_sel1_geoselect.rs"]
@@ -202,6 +218,8 @@ mod m10_5_r1_probes_interval;
 mod m10_5_r2_probes_interval;
 #[path = "m10_6_ci_rows_interval.rs"]
 mod m10_6_ci_rows_interval;
+#[path = "m10_6_mc_draws.rs"]
+mod m10_6_mc_draws;
 #[path = "m10_6_min_clearance_interval.rs"]
 mod m10_6_min_clearance_interval;
 #[path = "m10_6_r1_probes_interval.rs"]
@@ -340,6 +358,10 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "perf2_name_keying_differential.rs"]
+mod perf2_name_keying_differential;
+#[path = "pinned_lift_validates_once.rs"]
+mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
@@ -468,3 +490,9 @@ mod kstats_bracket_rows;
 
 #[path = "m10_9_r1_probes_interval.rs"]
 mod m10_9_r1_probes_interval;
+#[path = "wire_band_cause.rs"]
+mod wire_band_cause;
+#[path = "wire_frame_placement_carry.rs"]
+mod wire_frame_placement_carry;
+#[path = "wire_product_gather_tie.rs"]
+mod wire_product_gather_tie;

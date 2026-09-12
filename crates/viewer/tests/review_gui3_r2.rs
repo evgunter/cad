@@ -467,7 +467,11 @@ fn a_drag_of_any_length_commits_exactly_one_edit_and_one_undo_step() {
         let mut last = 0.0;
         for _ in 0..steps {
             last = rng.range(0.001, 0.05);
-            let outcome = session.perform(SessionOp::PreviewGesture { value: last });
+            let outcome = session.perform(SessionOp::PreviewGesture {
+                node: extrude,
+                slot: SlotId::Distance,
+                value: last,
+            });
             assert!(
                 outcome.committed.is_empty(),
                 "a preview committed ({})",
@@ -481,7 +485,10 @@ fn a_drag_of_any_length_commits_exactly_one_edit_and_one_undo_step() {
                 fuzz::replay()
             );
         }
-        let outcome = session.perform(SessionOp::CommitGesture);
+        let outcome = session.perform(SessionOp::CommitGesture {
+            node: extrude,
+            slot: SlotId::Distance,
+        });
         assert_eq!(
             outcome.committed.len(),
             1,
@@ -519,7 +526,11 @@ fn a_save_taken_mid_gesture_writes_the_committed_document_not_the_preview() {
         node: extrude,
         slot: SlotId::Distance,
     });
-    session.perform(SessionOp::PreviewGesture { value: 0.042 });
+    session.perform(SessionOp::PreviewGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: 0.042,
+    });
     assert_eq!(
         distance_of(session.doc(), extrude),
         SlotValue::Continuous(0.042),

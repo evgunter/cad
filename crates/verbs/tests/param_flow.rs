@@ -167,7 +167,7 @@ fn the_fillets_flow_names_families_the_record_mints() {
     );
 
     let dome = sweep::test_support::dome(1.0, tol());
-    let rim = sweep::test_support::closed_plane_sphere_rim(&dome, 1.0);
+    let rim = sweep::test_support::one_edge_rim_at(&dome, 1.0, 0.0);
     let closed = record(
         &Verb::Fillet {
             edges: vec![rim],

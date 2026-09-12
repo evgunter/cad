@@ -11,12 +11,15 @@
 //! The five enums declare themselves and their `ALL` in one
 //! declaration through the crate's `vocabulary!` macro
 //! (`crates/viewer/src/vocab.rs`), so no list on this page can fall
-//! behind the enum beside it. What no compiler holds is the mirror
-//! itself: whether `PathVerb` still names every `PathStep` is forced
-//! by `PathVerb::of`'s exhaustive match, and whether `BOOLEAN_OPS`
-//! still names every `topo::BooleanOp` is forced by nothing — that is
-//! the MIRROR question, and it has its own tracker item. (Code spans
-//! rather than links: everything on this page is `pub(crate)`, so an
+//! behind the enum beside it. A vocabulary the KERNEL owns is held the
+//! same way from the other end — the boolean operations are drawn from
+//! `topo::BooleanOp::ALL` and only their labels are written here, at an
+//! exhaustive match. What no compiler holds is the mirror itself:
+//! whether `PathVerb` still names every `PathStep` is forced by
+//! `PathVerb::of`'s exhaustive match, while a DELIBERATELY PARTIAL
+//! list (`MATE_PRIMITIVES`, `DatumKind`) claims no completeness and is
+//! held to nothing — each says so at its own site. (Code spans rather
+//! than links: everything on this page is `pub(crate)`, so an
 //! intra-doc link from a public module page does not resolve.)
 //!
 //! [`FieldWriting`] and the drag speeds are the same kind of decision
@@ -49,26 +52,33 @@ vocabulary! {
     pub(crate) const ALL;
 }
 
-/// The boolean operations the form offers, with their labels — the
-/// KERNEL's enum and its own words, so the button a user reads and the
-/// operation the node carries cannot drift into two vocabularies.
+/// The button a boolean operation is offered under — the KERNEL's enum
+/// and its own words, so what a user reads and what the node carries
+/// cannot drift into two vocabularies.
 ///
-/// **The one table here that stays hand-written**, and the reason is
-/// where the enum lives: [`BooleanOp`] is declared in `topo`, so this
-/// list cannot be projected from its declaration the way every
-/// [`crate::vocab::vocabulary`] list on this page is. It lists all
-/// three of that enum's variants today and nothing forces it to keep
-/// doing so — a fourth operation in `topo` would leave this table
-/// three long and this form three buttons wide, silently. That is the
-/// MIRROR question, tracked as
-/// `work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced`;
-/// it is not the same defect as a table that could have been projected
-/// and was not.
-pub(crate) const BOOLEAN_OPS: [(BooleanOp, &str); 3] = [
-    (BooleanOp::Union, "union"),
-    (BooleanOp::Subtract, "subtract"),
-    (BooleanOp::Intersect, "intersect"),
-];
+/// **A match, not a table**, and that is the whole of what holds this
+/// form to the kernel: [`BooleanOp`] is declared in `topo`, so no list
+/// written here can be projected from the declaration the way every
+/// [`crate::vocab::vocabulary`] list on this page is — but the
+/// declaration publishes `BooleanOp::ALL`, and the form draws one
+/// button per entry of it. A fourth operation therefore arrives in
+/// this form with no MEMBERSHIP edit here — it gets its button from
+/// the kernel's list — and it cannot arrive silently either, because
+/// it has no word until this match is given one, which is a compile
+/// error and not a missing button.
+///
+/// **The order is `ALL`'s**, which is the kernel's declaration order,
+/// and the type's own doc says that order carries no meaning. The form
+/// claims none for it either: it is the one order that cannot fall out
+/// of step with the vocabulary, which is worth more here than an
+/// arrangement a reader would have to maintain by hand.
+pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
+    match op {
+        BooleanOp::Union => "union",
+        BooleanOp::Intersect => "intersect",
+        BooleanOp::Subtract => "subtract",
+    }
+}
 
 vocabulary! {
     /// The add-datum form's kind choice — one form, and **four of
@@ -81,7 +91,7 @@ vocabulary! {
     /// it needs a frame PICK before it has coordinates, which is not
     /// what this form collects. So the mirror is deliberately partial
     /// in one direction — every kind here lowers to a spec
-    /// (`pane::create`'s match is exhaustive over this enum), and not
+    /// ([`crate::pane::create`]'s match is exhaustive over this enum), and not
     /// every spec has a kind here.
     ///
     /// **Declared in FORM order**, which is the order [`DatumKind::ALL`]
@@ -144,80 +154,58 @@ vocabulary! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum PathVerb {
         /// Bind the tip's position.
-        At,
+        At = "at",
         /// Bind the tip's outgoing direction, absolutely.
-        Angle,
+        Angle = "angle",
         /// Bind it by exact components.
-        Toward,
+        Toward = "toward",
         /// Leave along the incoming tangent.
-        Tangent,
+        Tangent = "tangent",
         /// Leave along its reverse.
-        Cusp,
+        Cusp = "cusp",
         /// Leave at an angle from it.
-        Turn,
+        Turn = "turn",
         /// A straight leg of a stated length.
-        Line,
+        Line = "line",
         /// A straight leg to a target.
-        LineTo,
+        LineTo = "line_to",
         /// A sharp arc leg.
-        ArcTo,
+        ArcTo = "arc_to",
         /// An arc leg leaving along the bound direction.
-        TangentArcTo,
+        TangentArcTo = "tangent_arc_to",
         /// A structural vertex on the incoming carrier.
-        ArcContinue,
+        ArcContinue = "arc_continue",
         /// Round the corner: line in, line out.
-        Fillet,
+        Fillet = "fillet",
         /// Round it with an arc on the arrival side.
-        FilletArc,
+        FilletArc = "fillet_arc",
         /// Round it with an arc on the incoming side.
-        ArcFillet,
+        ArcFillet = "arc_fillet",
         /// Round it with an arc on both.
-        ArcFilletArc,
+        ArcFilletArc = "arc_fillet_arc",
         /// The anchor a fillet's arrival side is aimed at.
-        FarEndTo,
+        FarEndTo = "to (far end)",
         /// The seam fillet's close.
-        CloseTo,
+        CloseTo = "to Start (close)",
     }
 
-    /// Every verb, in the algebra's own order — the "add step" menu
-    /// and the row combo's options. Labels come from
-    /// [`PathVerb::label`], so this list carries the ORDER and
-    /// nothing else.
+    /// Every verb with the word the chrome shows for it, in the
+    /// algebra's own order — the "add step" menu and the row combo's
+    /// options, which draw an option per entry and read the word off
+    /// the entry. No row can check this list: the type is `pub(crate)`
+    /// behind the `app` feature, so no integration test sees it — the
+    /// coverage gap #1385 names, and the reason the membership has to
+    /// be held by the projection rather than by a test.
     pub(crate) const ALL;
+
+    /// This verb's word, for the one place a verb is asked on its own:
+    /// the combo's closed face, which names the verb of the step the
+    /// row is showing. The same literal the list above carries, so the
+    /// closed face and the options it opens on cannot disagree.
+    pub(crate) fn label;
 }
 
 impl PathVerb {
-    /// This verb's label — a match rather than a search through
-    /// [`PathVerb::ALL`], so a verb with no label is a compile error
-    /// rather than a `?` on somebody's screen. (Whether a verb reaches
-    /// the MENU is no longer a question anything has to answer:
-    /// [`PathVerb::ALL`] is projected from the declaration above, so
-    /// there is no list for a verb to be missing from. That matters
-    /// here because no row could have checked it — the type is
-    /// `pub(crate)` behind the `app` feature, so no integration test
-    /// can see it, which is the coverage gap issue #1385 names.)
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            Self::At => "at",
-            Self::Angle => "angle",
-            Self::Toward => "toward",
-            Self::Tangent => "tangent",
-            Self::Cusp => "cusp",
-            Self::Turn => "turn",
-            Self::Line => "line",
-            Self::LineTo => "line_to",
-            Self::ArcTo => "arc_to",
-            Self::TangentArcTo => "tangent_arc_to",
-            Self::ArcContinue => "arc_continue",
-            Self::Fillet => "fillet",
-            Self::FilletArc => "fillet_arc",
-            Self::ArcFillet => "arc_fillet",
-            Self::ArcFilletArc => "arc_fillet_arc",
-            Self::FarEndTo => "to (far end)",
-            Self::CloseTo => "to Start (close)",
-        }
-    }
-
     /// Which verb a step names.
     pub(crate) fn of(step: &PathStep) -> Self {
         match step {
@@ -299,37 +287,30 @@ vocabulary! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum ArcMode {
         /// The carrier's radius and the side its centre is on.
-        Radius,
+        Radius = "radius",
         /// The endpoint and an authored bulge.
-        Bulge,
+        Bulge = "bulge",
         /// A point the arc passes through, and the endpoint.
-        Via,
+        Via = "via",
         /// The carrier centre, the travel sense, and the endpoint.
-        Center,
+        Center = "centre",
         /// The carrier and how far round it to go.
-        Sweep,
+        Sweep = "sweep",
         /// The carrier and the distance travelled along it.
-        ArcLen,
+        ArcLen = "arc length",
     }
 
-    /// Every mode, in the vocabulary's own order — the picker's
-    /// options.
+    /// Every mode with the word the picker shows for it, in the
+    /// vocabulary's own order — the picker's options, one per entry,
+    /// each reading its word off the entry.
     pub(crate) const ALL;
+
+    /// This mode's word, for the one place a mode is asked on its own:
+    /// the picker's closed face, which names the mode the spec is in.
+    pub(crate) fn label;
 }
 
 impl ArcMode {
-    /// This mode's label.
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            Self::Radius => "radius",
-            Self::Bulge => "bulge",
-            Self::Via => "via",
-            Self::Center => "centre",
-            Self::Sweep => "sweep",
-            Self::ArcLen => "arc length",
-        }
-    }
-
     /// Which mode a spec is in.
     pub(crate) fn of(spec: &ArcSpec) -> Self {
         match spec {
@@ -441,11 +422,11 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// two a user drags to move the same kind of number. It is not the
 /// creation forms' answer: those hold canonical drafts and pick their
 /// tick from the four constants by hand at each field
-/// (`widgets::named_field` and its callers). The RULE has one home,
+/// ([`crate::widgets::named_field`] and its callers). The RULE has one home,
 /// this module, which holds the four constants and [`drag_tick`]
 /// beside this type; what is still open is those hand-picked call
-/// sites, which sit in `widgets`, `pane::create` and
-/// `pane::properties` (`work/chrome/drag-tick-has-three-homes.md`).
+/// sites, which sit in `widgets`, [`crate::pane::create`] and
+/// [`crate::pane::properties`] (`work/chrome/drag-tick-has-three-homes.md`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldWriting {
     /// The unit the field shows and authors in — [`props::rendering_unit`]'s
@@ -505,9 +486,14 @@ impl FieldWriting {
 /// the kernel represents so it can REFUSE it, and a form offering it
 /// would be offering a refusal. Completeness is exactly what this list
 /// does not claim, so a mechanism that forced it would be forcing the
-/// wrong thing. It shares [`BOOLEAN_OPS`]'s other half all the same —
-/// a kernel enum mirrored where no compiler can see the mirror — and
-/// rides the same item.
+/// wrong thing — mapping this form over a published `ALL` the way the
+/// boolean buttons are mapped is precisely the wrong fix here.
+///
+/// What it still has no answer for is the OTHER half: a primitive the
+/// panel SHOULD offer would not appear here and nothing would say so.
+/// A partial mirror wants to be told its enum grew, not to be
+/// regenerated from it; that is
+/// `work/door/mate-primitives-is-a-partial-mirror-with-no-growth-alarm`.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
     (MatePrimitive::FrameCoincidence, "frame coincidence"),
     (MatePrimitive::Coaxial, "coaxial"),

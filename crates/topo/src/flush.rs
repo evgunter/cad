@@ -132,7 +132,7 @@ use crate::entity::FaceKey;
 use crate::query::all_faces;
 
 /// Which rung of the verify ladder decided a finding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FlushRung {
     /// Rung 1: both descriptions carry the same recipe source (N6) —
     /// syntactic identity, zero numerics.

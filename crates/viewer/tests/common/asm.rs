@@ -204,7 +204,7 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
         kind: local.kind,
         node: instance,
         path: vec![pncad::select::RoleSeg::InPart {
-            of: Box::new(local.clone()),
+            of: local.clone().into(),
         }],
     }
 }

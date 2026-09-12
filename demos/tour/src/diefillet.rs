@@ -38,7 +38,7 @@
 // carries two units and a dimensionless axis in the same recipe.
 //
 // It also shows the OTHER authoring door. `ring` types its numbers in
-// the unit it means (`WrittenLength::in_unit(300.0, MM)`); every length
+// the unit it means (`Expr::length_in(300.0, MM)`); every length
 // here is DERIVED from the die's geometry, already in canonical metres,
 // and only its notation is being chosen — which is `canonical_in`, and
 // is exactly the shape a GUI form has, where the draft is canonical
@@ -51,8 +51,7 @@ use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
     EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind,
-    SurfaceKindSet, ValuePayload, WrittenAngle, WrittenLength, all_edges, apply, evaluate,
-    select_where,
+    SurfaceKindSet, ValuePayload, WrittenLength, all_edges, apply, evaluate, select_where,
 };
 use pncad::topo::Body;
 
@@ -80,7 +79,7 @@ fn len(v: f64) -> Expr {
 /// An angle the face table states IN DEGREES — a quarter turn is `90`,
 /// and the recipe says so.
 fn ang(degrees: f64) -> Expr {
-    Expr::written_angle(WrittenAngle::in_unit(degrees, DEG)).expect("an angle")
+    Expr::angle_in(degrees, DEG).expect("an angle")
 }
 fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("a scalar")
@@ -650,7 +649,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("diefillet", [0.80, 0.72, 0.55], blank)],
+            bodies: vec![
+                SceneBody::plain("diefillet", [0.80, 0.72, 0.55], blank).named(&ev, die.blank),
+            ],
         },
         Stop {
             name: "diepips",
@@ -678,7 +679,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped)],
+            bodies: vec![
+                SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped).named(&ev, die.pipped),
+            ],
         },
         Stop {
             name: "diecomposed",
@@ -709,11 +712,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 azim: -50.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain(
-                "diecomposed",
-                [0.85, 0.63, 0.46],
-                composed,
-            )],
+            bodies: vec![
+                SceneBody::plain("diecomposed", [0.85, 0.63, 0.46], composed)
+                    .named(&ev, die.composed),
+            ],
         },
     ]
 }

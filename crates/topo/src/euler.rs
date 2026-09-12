@@ -61,29 +61,57 @@
 //!   [`Provenance::Mef`]).
 //! - **Debug postconditions** (D1's ratified clause): under
 //!   `cfg(debug_assertions)`, each successful op asserts that the arena
-//!   count deltas match the `ArenaDelta` it declares and that the whole
-//!   body still passes tier-1 [`crate::validate::validate`]. On
-//!   tier-1-valid input
+//!   count deltas match the `ArenaDelta` it declares, and the whole
+//!   body is re-derived against tier-1
+//!   [`crate::validate::validate`] **once per public door** — at the
+//!   end of the door, over the state the caller will see (Ev's ruling
+//!   on `work/perf/d1-per-op-tier1-sweep-price`, PR 2305). The delta
+//!   check is O(1) and is the op's own declared contract, so it runs
+//!   at every call; the sweep is O(body), and a door running n
+//!   operators pays it once rather than n times. Which of the two an
+//!   op is depends on where it is called: **an operator a consumer
+//!   calls directly is itself a door and sweeps at its end**, and one
+//!   called inside a composing door's surgery scope
+//!   ([`crate::surgery`]) does not, because that door has undertaken
+//!   to. On tier-1-valid input
 //!   a firing postcondition is a kernel bug by definition (the per-call
 //!   instance of the ch. 9 soundness theorem failing against our
 //!   transcription). Raw insertion is crate-internal since PR 5's
 //!   builder demotion, so a body is reachable only through the public
 //!   mutation paths, and the property those paths owe is that each
-//!   **preserves tier 1**: the Euler operators with their chord/line
-//!   sugar, and the non-operator structural mutators
+//!   **preserves tier 1, checked at every observable boundary**: the
+//!   Euler operators with their chord/line sugar, and the non-operator
+//!   structural mutators
 //!   ([`Body::ring_move`], [`Body::split_edge`], [`Body::movefac`],
 //!   [`Body::merge_coplanar_faces`]) declare the same debug
-//!   postcondition or are composed of operators that do; the
-//!   attach/metadata setters re-certify under their own tier-1
+//!   postcondition, or open a surgery scope and close it with the
+//!   sweep, or are composed of doors that do; the
+//!   attach/metadata setters re-certify under the same tier-1
 //!   assertion ([`Body::set_face_surface`], [`Body::set_edge_curve`])
 //!   or write fields tier 1 does not constrain. **The closure property
 //!   is the claim; a count of the doors is not** — an enumeration
 //!   frozen into this sentence is what rots as doors are added, and
 //!   `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
 //!   checks the property against the real surface rather than against
-//!   this list. `ring_move`'s case is the least obvious of the
-//!   asserting doors: it re-glues the per-shell component partition,
-//!   and the separating-curve argument lives in its docs.
+//!   this list, both spellings included, and a scope opened and never
+//!   closed fails there by name. `ring_move`'s case is the least
+//!   obvious of the asserting doors: it re-glues the per-shell
+//!   component partition, and the separating-curve argument lives in
+//!   its docs.
+//!
+//!   **Localizing a door-level failure.** A door-level panic names the
+//!   door, not the operator inside it that broke tier 1. Rebuild with
+//!   `--features topo/per-op-postcondition` and the sweep runs after
+//!   every operator again — surgery scopes ignored — so the message
+//!   names the operator. Opt-in, never default-on.
+//!
+//!   **One class is the scalpel's alone.** A corruption an operator
+//!   introduces and a later operator in the SAME door repairs never
+//!   reaches the door's close, because the state the door hands back
+//!   is sound. The door-level check is a claim about that state and
+//!   not about every state the door passed through; the per-operator
+//!   sweep is a claim about both, and it is the only thing that sees
+//!   this one.
 //!
 //!   **The exception, and it is a real one.**
 //!   [`crate::instance`]'s grafts are a **raw transplant**, not an
@@ -753,6 +781,33 @@ pub enum EulerOpError {
         /// The second face, in a different solid.
         f2: FaceKey,
     },
+    /// [`Body::move_shells_to_new_solid`]'s list is empty: a solid
+    /// with no shells is not a solid (tier 1's arity floor), so there
+    /// is nothing to mint.
+    NoShellsNamed,
+    /// [`Body::move_shells_to_new_solid`]'s list names one shell
+    /// twice — a caller desync, refused rather than resolved by list
+    /// order.
+    ShellRepeated {
+        /// The shell named more than once.
+        shell: ShellKey,
+    },
+    /// [`Body::move_shells_to_new_solid`]'s shells do not all belong
+    /// to one solid: the op re-partitions ONE solid's shells, and a
+    /// list spanning two has no single source solid to split from.
+    ShellsAcrossSolids {
+        /// The first shell, in the solid the op would split.
+        shell: ShellKey,
+        /// A later shell, in a different solid.
+        other: ShellKey,
+    },
+    /// [`Body::move_shells_to_new_solid`] would move EVERY shell of
+    /// its source solid, leaving it with none — tier 1's arity floor
+    /// again, on the solid that stays behind.
+    SolidWouldEmpty {
+        /// The solid that would be left without shells.
+        solid: SolidKey,
+    },
 }
 
 impl fmt::Display for EulerOpError {
@@ -903,6 +958,26 @@ impl fmt::Display for EulerOpError {
                  (cross-solid fusion is the boolean combine step, not an \
                  Euler surgery)"
             ),
+            Self::NoShellsNamed => write!(
+                f,
+                "move_shells_to_new_solid: no shells named, and a solid with no \
+                 shells is not a solid"
+            ),
+            Self::ShellRepeated { shell } => write!(
+                f,
+                "move_shells_to_new_solid: shell {shell:?} is named more than once \
+                 (caller desync)"
+            ),
+            Self::ShellsAcrossSolids { shell, other } => write!(
+                f,
+                "move_shells_to_new_solid: shells {shell:?} and {other:?} lie in \
+                 different solids (the op re-partitions one solid's shells)"
+            ),
+            Self::SolidWouldEmpty { solid } => write!(
+                f,
+                "move_shells_to_new_solid: moving every shell of solid {solid:?} \
+                 would leave it with none"
+            ),
         }
     }
 }
@@ -984,6 +1059,17 @@ pub(crate) fn every_euler_op_error_once()
             },
         },
         EulerOpError::CrossSolid { f1: fc, f2: fc },
+        EulerOpError::NoShellsNamed,
+        EulerOpError::ShellRepeated {
+            shell: ShellKey::default(),
+        },
+        EulerOpError::ShellsAcrossSolids {
+            shell: ShellKey::default(),
+            other: ShellKey::default(),
+        },
+        EulerOpError::SolidWouldEmpty {
+            solid: SolidKey::default(),
+        },
     ];
     for (i, kind) in EulerOpErrorKind::iter().enumerate() {
         assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
@@ -1057,7 +1143,11 @@ impl EulerOpError {
             | Self::NullScaffoldCurve { .. }
             | Self::SplitParamNotInterior { .. }
             | Self::SplitParamEscalated { .. }
-            | Self::CrossSolid { .. } => false,
+            | Self::CrossSolid { .. }
+            | Self::NoShellsNamed
+            | Self::ShellRepeated { .. }
+            | Self::ShellsAcrossSolids { .. }
+            | Self::SolidWouldEmpty { .. } => false,
         }
     }
 }
@@ -2315,7 +2405,17 @@ impl<T: Decide> Body<T> {
     /// operator, the arena deltas must match the [`ArenaDelta`] the op
     /// declares — a different quantity from its Euler vector, which is
     /// prose here and a `seqgen` ledger entry there — and the body must
-    /// be tier-1 valid. On tier-1-valid input a failure
+    /// be tier-1 valid.
+    ///
+    /// **The delta check is unconditional; the tier-1 sweep is the
+    /// door's.** The delta is O(1) and is this operator's own declared
+    /// contract, so it runs at every call. The sweep re-derives the
+    /// whole body, and inside an open surgery scope
+    /// ([`crate::surgery`]) it is the composing door that runs it, once,
+    /// over the state the caller will see. An operator a consumer calls
+    /// directly is itself a door and sweeps here.
+    ///
+    /// On tier-1-valid input a failure
     /// here is a kernel bug (a per-call violation of the ch. 9
     /// soundness theorem by our transcription) — and with the raw
     /// builder `pub(crate)` since PR 5, every publicly-constructible
@@ -2341,11 +2441,7 @@ impl<T: Decide> Body<T> {
             "{op} postcondition: arena deltas do not match the op's declared \
              arena delta (kernel bug)",
         );
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "{op} postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        self.assert_tier1_postcondition(op);
     }
 }
 

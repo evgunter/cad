@@ -9,7 +9,10 @@
 //! (span and apex margins — a vertex check alone cannot see an arc
 //! bulging across the axis).
 
-use geom_core::{Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{
+    Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3, is_finite_length,
+    is_underflowed_length,
+};
 use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
@@ -42,16 +45,77 @@ pub(super) struct AxisFrame<T: Real> {
 impl<T: Decide> AxisFrame<T> {
     /// Classifies the axis direction and builds the frame.
     ///
+    /// **Finiteness before sign.** An axis direction past
+    /// `Vec2::normalize`'s ~1e154 overflow band has an infinite norm,
+    /// which is maximally DEFINITE to the classifier: deciding the
+    /// sign first answers `Positive`, `normalize` then divides by ∞,
+    /// and the frame is built with `dir_sk = (0, 0)` — every radial
+    /// coordinate zero, every axial coordinate zero, out of a decided
+    /// path. So the length is asked whether it is a NUMBER first.
+    ///
+    /// **Underflow before sign, too.** The other end of the format is
+    /// the same failure and it is silent: an axis direction below
+    /// `Vec2::normalize`'s ~1e-162 underflow band squares to zero, so
+    /// the norm is EXACTLY zero and the classifier answers `Zero`
+    /// definitely — at which point the refusal says the axis is a
+    /// sliver or a coincidence and offers `COINCIDENCE_RECOURSE`, a
+    /// band for a quantity no band reaches. The axis has a direction;
+    /// what it does not have is a length this format can hold, and the
+    /// recourse is the overflow end's. `is_underflowed_length` is asked
+    /// against the largest `|component|` of `axis.dir`
+    /// (`Vec2::norm_witness`), which is the pairing that predicate's
+    /// contract requires, and it is asked SECOND because an overflowed
+    /// or poisoned length makes its two ratios non-finite for an
+    /// unrelated reason.
+    ///
+    /// **Point-scalar gates.** Both ask through the value channel, and
+    /// at `T = Interval` neither bites: `Interval::is_poison` is
+    /// `is_nai() || is_empty()`, and `[1e200, ∞] − [1e200, ∞]` is
+    /// `[−∞, ∞]`, which answers finite; and a norm whose lower end
+    /// underflowed still ENCLOSES the true length, so the underflow
+    /// ratio is an unbounded enclosure rather than poison and the
+    /// question answers `false`. So these gates bite at `f64` and
+    /// `Probe` and wave an enclosure through to the sign decision
+    /// below. No live caller builds this frame at `Interval` today; see
+    /// `geom_core::is_finite_length` for the general statement.
+    ///
+    /// **The length is evaluated twice**, by `axis.dir.norm()` here
+    /// (bound once for both gates) and again inside
+    /// `Margin::norm2(axis.dir)` below, which is
+    /// `Self(v.norm())` verbatim — so the two are bit-identical and
+    /// the gate cannot disagree with the decision it guards. It is
+    /// spelled this way, rather than binding the norm once and
+    /// switching to `Margin::of`, because `norm2` is the dimensional
+    /// door this site is supposed to come through and changing which
+    /// door a decided quantity uses is not a cosmetic edit. The other
+    /// four doors in this family bind once; this one is the exception
+    /// and the reason is here rather than in a reviewer's head.
+    ///
+    /// **K consequence.** The refusal precedes the funnel, so a
+    /// non-finite axis contributes no `revolve_axis_direction` sample.
+    /// The sample it used to contribute was a `+∞` margin recorded as
+    /// a definite `Positive`.
+    ///
     /// # Errors
     ///
+    /// [`RevolveError::NonFiniteAxis`] on a direction whose length is
+    /// not a finite number; [`RevolveError::UnderflowedAxis`] on one
+    /// whose length underflowed out of the format;
     /// [`RevolveError::DegenerateAxis`] on a definitely-zero (or
     /// coincident-with-zero) direction; [`RevolveError::AxisEscalated`]
-    /// on a sliver/poisoned length.
+    /// on a sliver length.
     pub(super) fn build(
         place: Affine3<T>,
         axis: &RevolveAxis<T>,
         band: Band,
     ) -> Result<Self, RevolveError> {
+        let len = axis.dir.norm();
+        if !is_finite_length(len) {
+            return Err(RevolveError::NonFiniteAxis);
+        }
+        if is_underflowed_length(len, axis.dir.norm_witness()) {
+            return Err(RevolveError::UnderflowedAxis);
+        }
         match decide("revolve_axis_direction", Margin::norm2(axis.dir), band)
             .map_err(|source| RevolveError::AxisEscalated { source })?
         {

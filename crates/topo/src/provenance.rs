@@ -127,6 +127,13 @@ pub enum Provenance {
         /// The shell that was partitioned.
         shell: crate::entity::ShellKey,
     },
+    /// Created by
+    /// [`Body::move_shells_to_new_solid`](crate::Body::move_shells_to_new_solid):
+    /// a new solid minted to own shells moved out of another.
+    MoveShells {
+        /// The solid the shells were moved out of.
+        solid: crate::entity::SolidKey,
+    },
 }
 
 /// A split lineage that never reaches a root: chasing `SplitEdge`

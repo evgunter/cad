@@ -10,7 +10,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::Vec2;
 use pncad::prelude::{Open, Start, Via, query};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::chamfer::chamfer_edges;
@@ -18,13 +17,13 @@ use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{p2, validated};
+use pncad::authoring::{p2, polygon, v2, validated};
 use pncad::geom_core::Tol;
 
 fn axis_y<S: Scalar>() -> RevolveAxis<S> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(S::from_f64(0.0), S::from_f64(1.0)),
+        dir: v2(0.0, 1.0),
     }
 }
 
@@ -97,11 +96,11 @@ pub fn bracket<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
 
 /// Rectangular plate with two circular holes: a genus-2 extrusion.
 pub fn plate<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
-    // Outer rectangle algebra-authored at LIB-U2 PR-2, the hole circles
-    // at LIB-G1 (see `circle`) — per-loop wholesale, never mixed within
-    // a loop.
+    // Per-loop wholesale, never mixed within a loop: the outer
+    // rectangle through the polygon door, the hole circles through
+    // `circle`.
     let outer =
-        crate::paths::path_polygon(&[(-3.0, -1.5), (3.0, -1.5), (3.0, 1.5), (-3.0, 1.5)], tol);
+        polygon(&[(-3.0, -1.5), (3.0, -1.5), (3.0, 1.5), (-3.0, 1.5)], tol).expect("plate outline");
     let holes = vec![circle(-1.5, 0.0, 0.7, tol), circle(1.5, 0.0, 0.7, tol)];
     let mut loops = vec![outer];
     loops.extend(holes);
@@ -261,8 +260,7 @@ pub fn sheave<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
 /// annular rims, and four cylinder bands. A more interesting partial
 /// revolve than the old plain rectangle, still boolean-free.
 pub fn chute<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
-    // C-channel polygon: algebra-authored (LIB-U2 PR-2).
-    let lp = crate::paths::path_polygon(
+    let lp = polygon(
         &[
             (1.0, 0.0),
             (1.75, 0.0),
@@ -274,7 +272,8 @@ pub fn chute<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
             (1.0, 0.625),
         ],
         tol,
-    );
+    )
+    .expect("the C-channel section");
     let body: pncad::topo::Body<S> = revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
         axis_y(),

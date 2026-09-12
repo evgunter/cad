@@ -35,9 +35,10 @@ WHAT IS NOT COVERED, stated rather than implied. The `ambiguous` arm
 (an N2 tie) and a NON-EMPTY `offers` list (a merged name for a retired
 constituent, a collapsed over-tie group's survivor) are not
 constructed here: no door on this Python surface authors a tie row or
-a merge, so there is no honest way to reach them from this side. They
-would cross as `failed` with different prose, which is the whole of
-what `Resolution` distinguishes anyway.
+a merge, so there is no honest way to reach them from this side. The
+other five arms of `variant` ARE reached below, one test apiece, and
+`ambiguous` is the one word in that vocabulary no test on either side
+of the boundary provokes.
 
 NOTHING HERE READS INSIDE A NAME. Every name is opaque text, compared
 with other opaque texts and never parsed.
@@ -47,9 +48,11 @@ import unittest
 
 from pncad import (
     BooleanOp,
+    CancelToken,
     Doc,
     DocEdit,
     EntityKind,
+    Expr,
     Node,
     NodePick,
     PncadError,
@@ -66,6 +69,19 @@ DELTA = 0.5 * m / 1000.0
 #: Every state `Resolution.status` is allowed to take.
 STATES = frozenset({"resolved", "failed", "indeterminate"})
 
+#: Every arm `Resolution.variant` is allowed to take — the two
+#: kernel vocabularies underneath the two non-resolved states.
+VARIANTS = frozenset(
+    {
+        "vanished",
+        "ambiguous",
+        "node_gone",
+        "target_failed",
+        "target_poisoned",
+        "target_not_evaluated",
+    }
+)
+
 
 def square(doc, side=1.0, at=(0.0, 0.0)):
     """A `side`-metre square on the sketch plane, corner at `at`."""
@@ -73,10 +89,10 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
     return doc.insert(
         Node.polygon(
             [
-                ((x + 0.0) * m, (y + 0.0) * m),
-                ((x + side) * m, (y + 0.0) * m),
-                ((x + side) * m, (y + side) * m),
-                ((x + 0.0) * m, (y + side) * m),
+                (Expr.length_in(x + 0.0, m), Expr.length_in(y + 0.0, m)),
+                (Expr.length_in(x + side, m), Expr.length_in(y + 0.0, m)),
+                (Expr.length_in(x + side, m), Expr.length_in(y + side, m)),
+                (Expr.length_in(x + 0.0, m), Expr.length_in(y + side, m)),
             ],
             plane=doc.sketch_frame(),
         )
@@ -85,7 +101,7 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
 
 def unit_cube(doc, at=(0.0, 0.0)):
     """A 1 m cube on the ground plane — z from 0 to 1."""
-    return doc.insert(Node.extrude(square(doc, at=at), 1.0 * m))
+    return doc.insert(Node.extrude(square(doc, at=at), Expr.length_in(1.0, m)))
 
 
 class TestAResolvedVerdict(unittest.TestCase):
@@ -180,7 +196,15 @@ class TestEvaluationWideVersusNodeScoped(unittest.TestCase):
         self.doc = Doc()
         self.cube = unit_cube(self.doc)
         self.moved = self.doc.insert(
-            Node.transform(self.cube, (3 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 0 * deg)
+            Node.transform(self.cube, (
+                Expr.length_in(3, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.angle_in(0, deg))
         )
         self.other = unit_cube(self.doc, at=(9.0, 9.0))
         self.ev = evaluate(self.doc)
@@ -222,9 +246,9 @@ class TestEvaluationWideVersusNodeScoped(unittest.TestCase):
 def plate(doc, corners):
     """A 0.1 m-thick plate over `corners`, on the sketch plane."""
     profile = doc.insert(
-        Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame())
+        Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame())
     )
-    return profile, doc.insert(Node.extrude(profile, 0.1 * m))
+    return profile, doc.insert(Node.extrude(profile, Expr.length_in(0.1, m)))
 
 
 SQUARE = ((0.0, 0.0), (1.0, 0.0), (1.0, 0.5), (0.0, 0.5))
@@ -251,6 +275,10 @@ class TestAFailedVerdict(unittest.TestCase):
             with self.subTest(name=name):
                 verdict = after.resolve(name)
                 self.assertEqual(verdict.status, "failed")
+                # The arm, which is the word a repair branches on:
+                # there is nothing to refine here, so the rebind is
+                # onto a different feature entirely.
+                self.assertEqual(verdict.variant, "node_gone")
                 self.assertIn("no longer in the document", verdict.detail)
                 # Nothing structural offers itself for a node that is
                 # simply gone, and the empty list is the answer — not
@@ -284,6 +312,10 @@ class TestAFailedVerdict(unittest.TestCase):
 
         verdict = after.resolve(vanished[0])
         self.assertEqual(verdict.status, "failed")
+        # ...and it is the OTHER failure: the node still evaluates and
+        # the name is gone from its table, which is a different repair
+        # from a node that left the document.
+        self.assertEqual(verdict.variant, "vanished")
         self.assertIn("no longer resolves in this evaluation", verdict.detail)
         self.assertIsInstance(verdict.offers, list)
 
@@ -308,21 +340,33 @@ def blank(radius):
     cube = unit_cube(doc)
     edges = evaluate(doc).all_edges(cube)
     assert len(edges) == 12
-    blended = doc.insert(Node.fillet(cube, radius * m, edges))
+    blended = doc.insert(Node.fillet(cube, Expr.length_in(radius, m), edges))
     peg = doc.insert(
         Node.extrude(
             doc.insert(
                 Node.polygon(
-                    [(0.6 * m, 0.3 * m), (1.4 * m, 0.3 * m),
-                     (1.4 * m, 0.7 * m), (0.6 * m, 0.7 * m)],
+                    [
+                        (Expr.length_in(0.6, m), Expr.length_in(0.3, m)),
+                        (Expr.length_in(1.4, m), Expr.length_in(0.3, m)),
+                        (Expr.length_in(1.4, m), Expr.length_in(0.7, m)),
+                        (Expr.length_in(0.6, m), Expr.length_in(0.7, m)),
+                    ],
                     plane=doc.sketch_frame(),
                 )
             ),
-            0.4 * m,
+            Expr.length_in(0.4, m),
         )
     )
     lifted = doc.insert(
-        Node.transform(peg, (0 * m, 0 * m, 0.3 * m), (0.0, 0.0, 1.0), 0 * deg)
+        Node.transform(peg, (
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+            Expr.length_in(0.3, m),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        ), Expr.angle_in(0, deg))
     )
     fused = doc.insert(Node.boolean(BooleanOp.Union, blended, lifted))
     return doc, blended, fused
@@ -385,6 +429,8 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
             with self.subTest(name=name):
                 verdict = self.broken.resolve(name)
                 self.assertEqual(verdict.status, "indeterminate")
+                # The arm says which node to look at: this one's own.
+                self.assertEqual(verdict.variant, "target_failed")
                 self.assertIn("failed this evaluation", verdict.detail)
                 # Not a rebind candidate: there is nothing to rebind to
                 # and nothing to suggest.
@@ -403,8 +449,37 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
             with self.subTest(name=name):
                 verdict = self.broken.resolve(name)
                 self.assertEqual(verdict.status, "indeterminate")
+                # ...and here it says to look one node further up,
+                # which is the whole difference between the two arms
+                # of one state.
+                self.assertEqual(verdict.variant, "target_poisoned")
                 self.assertIn("poisoned by the failure at node", verdict.detail)
                 self.assertIn("the repair is upstream", verdict.detail)
+
+    def test_a_run_that_never_reached_the_node_is_the_third_arm(self):
+        """The state's third way in, and the only one where nothing at
+        all is wrong: a canceled run holds the completed PREFIX, so a
+        name whose minting node is past it is unanswerable this run and
+        answers again on the next.
+
+        Different arm, same state and the same recourse shape — which
+        is why `variant` is worth reading beside `status`: "the node
+        failed" and "the run stopped short" send a reader to
+        different places."""
+        stopped = CancelToken()
+        stopped.cancel()
+        partial = evaluate(self.good_doc, cancel=stopped)
+        self.assertTrue(partial.canceled)
+
+        for name in self.good.all_faces(self.good_blend):
+            with self.subTest(name=name):
+                verdict = partial.resolve(name)
+                self.assertEqual(verdict.status, "indeterminate")
+                self.assertEqual(verdict.variant, "target_not_evaluated")
+                self.assertIsNone(verdict.offers)
+                # And it is not a claim about the document: the same
+                # name resolves on the run that finished.
+                self.assertEqual(self.good.resolve(name).status, "resolved")
 
     def test_indeterminate_carries_no_location(self):
         """There is no location to carry: the run produced no value for
@@ -458,9 +533,26 @@ class TestTheVerdictSurface(unittest.TestCase):
         not carry it, so `getattr` never raises and a caller never has
         to branch on `status` before reading."""
         for state, verdict in self.verdicts.items():
-            for attribute in ("status", "node", "body", "kind", "detail", "offers"):
+            for attribute in (
+                "status",
+                "variant",
+                "node",
+                "body",
+                "kind",
+                "detail",
+                "offers",
+            ):
                 with self.subTest(state=state, attribute=attribute):
                     getattr(verdict, attribute)
+
+    def test_the_variant_is_the_arm_and_none_only_where_there_is_none(self):
+        """A second vocabulary beside `status`, drawn from the state's
+        own arms — and `None` exactly on `resolved`, the state with
+        nothing underneath it to say."""
+        self.assertIsNone(self.verdicts["resolved"].variant)
+        for state in ("failed", "indeterminate"):
+            with self.subTest(state=state):
+                self.assertIn(self.verdicts[state].variant, VARIANTS)
 
     def test_offers_distinguishes_empty_from_inapplicable(self):
         """A list on `failed` — empty when nothing structural offers

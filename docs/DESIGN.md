@@ -37,15 +37,17 @@ is the board and `work/README.md` its contract.
 | `docs/LIBRARY-DESIGN.md` | Ratified (#229); program open | Usable-as-a-library L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, the authoring-ergonomics unit ladder |
 | `docs/DISCIPLINES-DESIGN.md` | WIP, provisionally accepted | Disciplines/checks registry DS1–DS9: identification criterion, severity invariant, the four grades, the recording dial, out-of-tree checks; residents live in `editor_core::checks` |
 | `docs/PCURVE-UNIFY-DESIGN.md` | Ratified (#514); executed | Pcurve unification: the conventional edge variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record. P-2 residue stays open |
-| `docs/RECIPE-DOORS-DESIGN.md` | Ratified (D2–D5) | Recipe doors for the surgery verbs: `Node::Chamfer` is `Node::Fillet`'s twin; `Node::Tube` and `Node::HollowTube` (wall REQUIRED on the hollow kind, `Option` nowhere in the recipe vocabulary); shell's door (D5) is not built — `ShellNaming` exists in `topo`, `Node::Shell` does not |
+| `docs/RECIPE-DOORS-DESIGN.md` | Ratified (D2–D5) | Recipe doors for the surgery verbs: `Node::Chamfer` is `Node::Fillet`'s twin; `Node::Tube` and `Node::HollowTube` (wall REQUIRED on the hollow kind, `Option` nowhere in the recipe vocabulary); `Node::Shell { target, thickness, open }` (D5) with `open` ORDERED — the first designated face carries its chart's rim — resolved through the N5 ladder to the seat's `Verb::Shell` |
 | `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
+| `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: `ParamSource` carries stored scalar fields only. Axis-shaped declarations invalidated structurally by placement-chain comparison, so no numerical check decides whether a rotation happened; absence of provenance refuses |
 | `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
 | `docs/DOCM-REFERENCES-DESIGN.md` | Ratified; running as DOCM | What a recipe reference may be, DM1–DM6: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers` (DM4 shipped; DM1–DM3 in spec) |
 | `docs/DOCM-IDENTITY-DESIGN.md` | Ratified; running as DOCM | A held value names the world it came from, DI1–DI5: history-branch validity of node ids, the memo as a pure function of the document, `Evaluation` carries its document's identity, forking is its own act |
 | `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and the greps-vs-lints evaluation `S13` commissioned — `dylint`, `clippy::disallowed_*`, a proc-macro and a `syn` binary against the four grep gates. The four stay greps and the compound-bound-through-alias gap stays registered where it is disclosed. **The first design page outside `crates/<crate>/README.md`**: it sits beside the code it governs, which for these invariants is `scripts/gates/` and not a crate |
+| `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, clauses `CC1`–`CC5`: where a check owed on what a file says belongs, and in which voice it speaks. The subject is the **reading boundary** — Ev's scope ruling at ratification — of which the cross-column admission is the largest instance: `tess-lint` and `k-lint` both police a CSV column by column, and a property spanning two columns has no entry to live in; the class had eight instances in the tree and no statement. `CC1` (the check goes at the reading boundary and only there) and `CC5` (the harness voice, and the owed-test forwarded to `tess_lint::Report` and on to its module docs — the forwarding is what licenses a citation across cargo roots) are stated over readings generally; `CC2`, `CC3` and `CC4` are labelled as the per-column admissions table's own and do not generalise past it, `CC4` being that a producer-side entailment is **not** a disposition — this page once stated its opposite, and the row proving it wrong is now a test. **The second design page outside `crates/<crate>/README.md`**, and the first governing two sibling crates rather than one directory of scripts |
 | `docs/KERNEL-VERBS.md` | Reference register | The modeling verbs the kernel does not yet have, each with prerequisites, and the "present today" inventory. The register never schedules |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (K = 10 permanent) |
 | `work/perf/plan.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
@@ -108,9 +110,26 @@ over a scalar type `T` (default `f64`); topology stays concrete (Q1).
   closed set of primitives that provably preserve the Euler–Poincaré
   invariant. Each operator debug-asserts its postcondition — a per-call
   instance of the soundness theorem, never a semantic gate on
-  intermediate states. "Exclusively" is realized: the operator set is
-  the only public construction path; raw insertion is crate-internal
-  test scaffolding.
+  intermediate states. The postcondition has two halves and they are
+  paid at different rates: the operator's declared arena delta is O(1)
+  and is checked at **every call**, while the whole-body tier-1
+  re-derivation is O(body) and is checked **once per public door**, at
+  the door's end, over the state the caller will see
+  (`work/perf/d1-per-op-tier1-sweep-price`, Ev, PR 2305). An operator a
+  consumer calls directly is itself a door and sweeps there; one inside
+  a composing door's surgery scope leaves the sweep to that door. The
+  guarantee is unchanged — every public mutation path preserves tier 1,
+  checked at every observable boundary — and an opt-in
+  `topo/per-op-postcondition` feature restores the per-operator sweep
+  to name the operator behind a door-level failure. **One class needs
+  the scalpel rather than merely benefiting from it**: a corruption an
+  operator introduces and a later operator in the same door repairs is
+  invisible at the door, because the state the door hands back is
+  sound. The door-level check is a claim about that state, not about
+  every state the door passed through, and the ruling's "caught one
+  door later" is exactly that trade. "Exclusively" is
+  realized: the operator set is the only public construction path; raw
+  insertion is crate-internal test scaffolding.
 - **A `Body` is never authoritative.** It is the materialized evaluation
   of a construction (an operator sequence; above the kernel, a recipe)
   at some scalar `T`, coherent iff bit-identical replay reproduces it
@@ -176,7 +195,9 @@ layer is dropped; arena keys are the stable O(1) handles. The uniform
 per-op contract: **atomic** (typed-error preconditions fully resolve
 before an infallible mutation phase; a failed op consumes no key
 slots), **deterministic minting order** (documented per op — D9
-lineage replay), and a **debug-asserted tier-1 postcondition**.
+lineage replay), and a **debug-asserted postcondition** — the declared
+arena delta at every call, the whole-body tier-1 re-derivation once per
+public door (D1).
 Association convention: **the given/first half-edge's side is the new
 or affected thing** — `mef`'s `he1` side becomes the new face's outer
 loop, `kemr`'s `he1` side becomes the ring, `kef` kills the given
@@ -793,19 +814,32 @@ topology change is stated, not emergent.
   a supported outcome. The two halves are separate rules over disjoint
   state classes. Every traversal is bounded: never a hang.
   The closure property behind the first half: every public mutation
-  path preserves tier 1 — the Euler operators by the soundness theorem,
-  the non-operator structural mutators by declaring the same debug
-  postcondition or by being composed of operators that do, the
-  attach/metadata setters by re-certifying under their own tier-1
-  assertion. The claim is that property, not a count of doors;
+  path preserves tier 1, **checked at every observable boundary** —
+  the Euler operators by the soundness theorem, the non-operator
+  structural mutators by declaring the same debug postcondition, or by
+  opening a surgery scope and closing it with that check, or by being
+  composed of doors that do; the attach/metadata setters by
+  re-certifying under the same assertion. Where the check runs is the
+  door rather than the operator (D1, and
+  `work/perf/d1-per-op-tier1-sweep-price`, Ev, PR 2305); what is
+  checked is unchanged. The claim is that property, not a count of
+  doors;
   `topo`'s `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
-  checks it against the real surface. **The one door outside the
+  checks it against the real surface, both spellings. **What holds a
+  scope closed is the borrow, not that walk**: a scope opened through
+  the RAII guard is released only by a close or a drop, and both
+  decrement. The walk adds a lexical read on top — a `pub fn … &mut
+  self` door of `topo/src` that opens a scope and closes nothing reds
+  by name — and the two sites where a borrow forbids the guard are
+  held instead by a runtime depth read at the next phase boundary. The
+  reach of each, and what none of them sees, is
+  `work/perf/door-scopes-outside-topo-are-unguarded`. **The one door outside the
   property is `instance`'s graft**, a raw transplant: a `JoinDesync`
   raised mid-transplant leaves the destination partially written and
   *spent, never resumable*, so a caller that discards the `Err` and
   keeps the body can fire a later postcondition from API misuse rather
   than a kernel bug. That state class is the open ruling **S14**
-  (`work/code-quality/S14.md`), Ev's; row 0 below reframes it (stage
+  (`work/pipe/S14.md`), Ev's; row 0 below reframes it (stage
   into a fresh body and commit on success, the shape
   `merge_coplanar_faces` already uses) without answering it.
 - Essentially no unsafe Rust outside vetted dependencies.
@@ -1070,7 +1104,8 @@ these. All are shipped in `editor-core` except where noted:
 
 - **Incremental recompute**: memoized per-node evaluation keyed on
   128-bit content/naming keys (op kind, structural params, evaluated
-  expression bits, upstream keys, ambient ε/K, witness), evaluation
+  expression bits beside each slot's f64 nominal, upstream keys,
+  ambient ε/K, witness), evaluation
   epochs, deterministic level-parallel scheduling; a targeted mid-DAG
   edit recomputes only its downstream cone (pinned on the corpus
   documents). Remaining: partial re-tessellation, and a resident cache
@@ -1368,7 +1403,7 @@ the project publishes with one still in the shipped state.
   runs every row-5 postcondition. That is the right posture for a
   kernel nobody depends on yet; deleting the stanza is a real reduction
   in what a release build checks, so it is a decision to take at
-  publish rather than a chore (**S65**, `work/code-quality/S65.md`, is
+  publish rather than a chore (**S65**, `work/pred/S65.md`, is
   the worked example).
 - **The name (Q9).**
 - **Post-publish schema discipline for the verb tags** (VERB-SEAT-DESIGN

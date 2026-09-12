@@ -57,9 +57,11 @@ bottom half of it.
 which saves the document-authored scenes as `.pncad` files the viewer
 opens; and `checks.rs`, the advisory-check registry run as narration.
 The tour reaches the kernel through `pncad` and **nothing else**,
-which is the façade's acceptance evidence — with one stated exception
-in its `Cargo.toml`: a direct `profile` edge for the raw-loop door
-`lily.rs`'s section loops need and the lattice has no verb for.
+which is the façade's acceptance evidence: its `Cargo.toml` names one
+kernel edge, `pncad` itself. Its polygons are said through the
+façade's `authoring::polygon` door, which lowers a coordinate table to
+the PATHS lattice and so classifies every corner at authoring; raw
+`ProfileLoop` construction is off the presented surface entirely.
 
 | scene(s) | module | demonstrates | pins |
 |---|---|---|---|
@@ -80,7 +82,6 @@ in its `Cargo.toml`: a direct `profile` edge for the raw-loop door
 | `heatsink5/7/9` | `heatsink.rs` | The recipe layer via `pncad::document`: one document, structural-param edits, downstream-only recompute, stable `Instance(i)` names | **Named gap F4**: a Boolean node cannot consume a Pattern node's `Instances` payload, so the union step honestly lives outside the document |
 | `bench` | `assembly.rs` | The assembly stop: two part documents in a `Workspace`, instances of them in two assembly documents — a mated stand whose placements are SOLVED from its mates, and a flat-pack layout that patterns a part — through `assemble`, `split`/`inline` and `update_to_store`. `docs/guide/assembly.md` is the prose | The stand's posts are seated FLUSH with the shelf's ends and the A5 gate certifies; the layout is disjoint and passes outright. Live library findings are commented at the site that meets each: #944 (no mate frame from a selected face), #945 (mates and patterns do not compose), #946, #947 |
 | — | `booleans.rs` | The detect/declare doors: `topo::flush::find_flush_candidates` reporting findings, `declare_all` turning them into the `BooleanDeclarations` `union_with`/`intersect_with` take | Detection reports, it never classifies: the findings pass through the scene's hands as values and the op verifies every declaration it is handed |
-| — | `paths.rs` | The shared `path_polygon` helper — the tour's polygons said through the PATHS algebra | Since LIB-RETTAIL it is the ONLY way the tour says a polygon: raw `ProfileLoop` construction is off the presented surface, and the one place the tour still needs the raw door — `lily.rs`'s section loops — is a named exception in its `Cargo.toml` |
 | — | `probe.rs` | The K-telemetry sweep (`cargo run -- k-probe out.csv`) | One process per ε row |
 
 One deliberate exception worth knowing: the `bracket` scene is retired
@@ -117,7 +118,7 @@ joined-path composition lane.)
 | `heatsink` | Carries **both** shapes of "many fins": a `Pattern` whose payload is `Instances`, and the explicit Transform+Union chain | Why both exist: a Boolean cannot consume an `Instances` payload. Fin bases sit 1/16 inside the base — flush would be an undeclared coincidence |
 | `slots` | Crossing slots: boolean-of-boolean, with coplanar floors declared by name | Exact pins `6.5` / `32.0` |
 | `islands` (×3) | The #93 doubly-nested island chain in general position, at two depths | `105` pins the exact `22.4375` that pre-#93 main silently returned as `22.5` — a fail-loud violation caught by an exact pin |
-| `tangency` | Fillet-constructor-declared tangency beside hand-declared tangency | Sits between two doors: `UndeclaredTangency` and `TangencyContradicted { same_carrier: true }` |
+| `tangency` | Fillet-constructor-declared tangency beside hand-declared tangency | Sits beside the `UndeclaredTangency` door (the second door this row used to name, `TangencyContradicted { same_carrier: true }`, was retired 2026-09-02: every zero-turn joint is a declared tangent joint) |
 | `sink` | `kitchen_sink`: every v1 node kind and all 14 `DocEdit` kinds in one document | Its `SetTolerance` re-records the *ambient* ε — pinning any other value would refuse to load in every CI ε row but one |
 | `cut_cylinder` | The first curved cut: an extruded disc split by a tilted datum plane | Section edges carry the exact `Ellipse` carrier |
 | `boss` | The first transverse curved boolean; the union seam minted as exact `Circle` arcs on both operands | No mass pin — the value is π-transcendental, and the corpus does not fake exactness |
@@ -135,7 +136,7 @@ joined-path composition lane.)
 | `tests/test_quantities.py` | `25 * mm`, canonical units, and the typed `DimensionError` family |
 | `tests/test_stubs.py` | The stubs cannot drift: `pncad.pyi` is parsed and compared name-for-name against the compiled module |
 | `tests/test_mesh.py` | The mesh door: tessellation budgets and their refusals, the mesh read-back, watertightness decided on shared indices, the mesh-vs-exact cross-check on planar, boolean and curved bodies, and STL. `docs/guide/meshing.md` is the prose |
-| `tests/test_workspace.py` | The store: the header-only scan and its refusals, identity vs content pin (`sha256(canonical_bytes(doc)) == content_pin(doc).hex`), `resolve`'s Cargo.lock semantics, and the two write doors |
-| `tests/test_assembly_eval.py` | The document seam from the outside: `evaluate(doc, resolver=store)` over the tour's own committed assembly corpus, the memo's `prior=` counters, and the memo-before-the-gates contract |
+| `tests/test_workspace.py` | The store: the header-only scan and its refusals, identity vs content pin (`sha256(canonical_bytes(doc)) == content_pin(doc).hex`), `resolve`'s Cargo.lock semantics, the write doors, and the two acts a save is |
+| `tests/test_assembly_eval.py` | The document seam from the outside: `evaluate(doc, resolver=store)` over the tour's own bench scene — authored by `tests/bench_scene.py`, written into a temp store and read back through the resolver — the memo's `prior=` counters, the memo-before-the-gates contract, and the source guard holding that scene to `demos/tour/src/assembly.rs` |
 | `tests/test_assembly_author.py` | The authoring half — the tour's bench written from nothing: instances, placement clusters and their gauge, mates, the solve, the gather, the at-rest gate, split/inline and the pin-update door. `docs/guide/assembly.md` is the prose |
 | `tests/test_guide.py` | Executes every Python block in this guide, read straight from the Markdown |

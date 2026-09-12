@@ -268,8 +268,21 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     (NIST09, 1e-6, "file", Pass(1, 1, 158, 454, 300)),
     (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
-    // The AMBIENT sweep only, at this file's own ε_in: two cells at the
-    // rational-flux stall, one at the ladder's `#389` gap.
+    // The AMBIENT sweep only, at this file's own ε_in: three cells, all
+    // at the ladder's `#389` gap.
+    //
+    // They used to be the RATIONAL FLUX STALL at the two fine bands and
+    // the convergence predicate's ESCALATION at the coarse one — the
+    // gate refusing this file's rational cylinder wall for missing the
+    // reporting target `1024·ε`, or declining to call a width that
+    // landed ~1% under it. Both were the gate chasing a PRECISION.
+    // Tier 3's check 7 reads a SIGN, and this file's volume enclosure
+    // excludes zero at round 0 at every band, so the gate is finished
+    // before either is reached and the import goes on to meet the
+    // `#389` ladder gap both of them masked (filed:
+    // `work/exch/step-import-degree-one-line-promotion.md`, which
+    // names this edge). The gap is unchanged; what moved is the things
+    // in front of it.
     //
     // It was nine cells until the 2026-08-13 test-time audit — the six
     // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
@@ -280,13 +293,9 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // promoted). That measurement is now RECORDED here rather than
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
-    (DM1, 1e-9, "file", Refused(RATIONAL_FLUX_STALL)),
-    // The coarse band reaches the GATE now and escalates there: the
-    // enclosure lands ~1% under the loose `1024·ε` target, inside the
-    // convergence predicate's ambiguity band. That masks — it does not
-    // fix — the `#389` ladder gap that used to be this cell.
-    (DM1, 1e-6, "file", Refused(QUAD_CONVERGED_ESCALATED)),
-    (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
+    (DM1, 1e-9, "file", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-6, "file", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-12, "file", Refused(LADDER_NO_DESCRIPTION)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). The near-pole feature is
@@ -334,26 +343,27 @@ const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward
 /// verdict, so a regression that moves the refusal to another door
 /// fails these cells.
 const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero at sample 1";
-/// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
-/// the exact-B-rep volume of a RATIONAL cylinder wall to target. The
-/// quadrature converges there — it quarters cleanly per refinement
-/// round — and what it runs out of is the FIXED round budget, inside a
-/// factor of two. Named specifically so the gate's preamble (which a
-/// tier-1/2 regression would also match) cannot stand in.
-const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure cannot reach the";
-/// dm1's coarse-band sub-reason: the convergence predicate declines to
-/// decide, by name, so a regression that turned this into a silent
-/// answer (or into a different door) fails the cell.
-const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeterminate";
-/// dm1's coarse-band sub-reason: the ladder's own refusal on edge
-/// `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline that stays NURBS
-/// and is offered zero candidates.
-/// dm1's `#389` polyline gap. **No cell reaches it any more**: it was
-/// the coarse band's first refusal until the patch-flux enclosure
-/// tightened enough to escalate ahead of it. Kept, not deleted — the
-/// gap is real, unfixed, and would become reachable again the moment
-/// anything at the gate moves.
+/// dm1's former coarse-band sub-reason: the convergence predicate
+/// declines to decide, by name. **No cell reaches it any more** — the
+/// gate stops on a definite SIGN before the round whose width lands in
+/// the predicate's ambiguity band. Kept, not deleted, for the reason
+/// the gap constant below was kept and then needed: an escalation is a
+/// real outcome of this lane and would become reachable again the
+/// moment anything at the gate moves.
 #[allow(dead_code)]
+const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeterminate";
+/// dm1's `#389` polyline gap: the D7 ladder's own refusal on a
+/// two-point degree-1 `QUASI_UNIFORM_CURVE` polyline that stays NURBS
+/// and is offered ZERO candidates. A GAP, not a refusal — nothing in
+/// the ladder reaches a degree-1 open carrier — and filed as
+/// `work/exch/step-import-degree-one-line-promotion.md`. Named
+/// specifically so the gate's preamble (which a tier-1/2 regression
+/// would also match) cannot stand in.
+///
+/// It was the coarse band's first refusal, then nothing reached it for
+/// as long as the at-rest gate refused this file ahead of it, and it
+/// is now every band's cell. Kept through the interval where no cell
+/// reached it, which is why it is here to be used.
 const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
@@ -366,22 +376,22 @@ const ISO_RECTANGLE_PREDICATE: &str = "props_rim_level";
 
 /// The seam carrier's residual is DECIDEDLY outside the band.
 const SEAM_HALFPLANE_DEFINITE: &str =
-    "SeamHalfplane residual at sample 0 definitely exceeds the tolerance band";
+    "the out-of-halfplane component at sample 0 definitely exceeds the tolerance band";
 /// The same residual, IN the band: escalate-never-guess, by name.
-const SEAM_HALFPLANE_ESCALATED: &str =
-    "SeamHalfplane at sample 0 escalated: predicate 'carrier_in_seam_halfplane' indeterminate";
+const SEAM_HALFPLANE_ESCALATED: &str = "the out-of-halfplane component at sample 0 escalated: predicate 'carrier_in_seam_halfplane' \
+     indeterminate";
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which.
 const TANGENT_PLANES_COINCIDE: &str = "tangent planes coincide at interior sample 1 — the Intersection transversality \
      precondition fails";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
-const PARAM_SPAN_ESCALATED: &str =
-    "ParamSpan (not a sampled check) escalated: predicate 'interval_span_forward' indeterminate";
+const PARAM_SPAN_ESCALATED: &str = "the stored interval's span (not a sampled check) escalated: predicate \
+     'interval_span_forward' indeterminate";
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
-const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: EndpointStart residual at sample 0 \
-     definitely exceeds";
+const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: the start-endpoint residual at \
+     sample 0 definitely exceeds";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`

@@ -42,11 +42,12 @@ fn a_mate_bearing_document_round_trips() {
         kind: EntityKind::Face,
         node,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(1),
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
-            }),
+            }
+            .into(),
         }],
     };
     let f = MateFrame {

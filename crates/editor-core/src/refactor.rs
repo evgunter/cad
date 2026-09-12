@@ -5,8 +5,9 @@
 //! part document and leaves an [`Node::InstantiatePart`] of it behind;
 //! [`inline`] is the inverse — it splices a referenced document's
 //! recipe into the host and deletes the instance. Both are PURE
-//! functions returning new document values plus the ordinary recorded
-//! [`DocEdit`]s that produce them — the input documents are untouched,
+//! functions returning new document values, the ordinary recorded
+//! [`DocEdit`]s that produce them, and the cluster-record maintenance
+//! those edits performed — the input documents are untouched,
 //! so undo is this layer's undo everywhere else: keeping the prior
 //! value. There is no compound edit arm; atomicity is purity (no
 //! partially-refactored document is ever observable).
@@ -102,7 +103,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::doc::Doc;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::names::{Qualifier, RoleSeg, StableName, name_free_seg};
+use crate::mate::ClusterMaintenance;
+use crate::names::{NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure, ResolveFault};
 use crate::persist::{PersistError, content_pin};
@@ -299,7 +301,9 @@ impl core::fmt::Display for SplitError {
                 };
                 write!(
                     f,
-                    "split: the cut severs mate {}'s {} reference from the node it is read at                      (node {} — node {cut} is cut, node {kept} is kept); widen the cut, or                      re-author the mate at a node on its own side",
+                    "split: the cut severs mate {}'s {} reference from the node it is read at \
+                     (node {} — node {cut} is cut, node {kept} is kept); widen the cut, or \
+                     re-author the mate at a node on its own side",
                     mate.0,
                     side.name(),
                     operand.0
@@ -521,9 +525,10 @@ impl core::fmt::Display for InlineError {
 
 impl core::error::Error for InlineError {}
 
-/// What [`split`] produced: the two documents and the recorded edits
+/// What [`split`] produced: the two documents, the recorded edits
 /// that produce each (the part's from the empty document under the
-/// caller's id, the remainder's from the input document). Undo of the
+/// caller's id, the remainder's from the input document), and the
+/// cluster-record maintenance each edit list performed. Undo of the
 /// refactoring is the caller keeping the input value — the input is
 /// untouched.
 #[derive(Debug, Clone)]
@@ -535,9 +540,29 @@ pub struct SplitOutcome {
     pub part: ProfileDoc,
     /// The recorded edits producing `remainder` from the input.
     pub remainder_edits: Vec<DocEdit<ProfileProgram>>,
+    /// The cluster-record maintenance `remainder_edits` performed, in
+    /// edit order: what the A11 registry did as the cut's names
+    /// re-anchored onto the instance (a kept mate that welded nothing
+    /// while its far end was a local body welds the instance to its
+    /// near end once the name is instance-qualified — a join) and as
+    /// the cut nodes left (a cut cluster's mates and members going is
+    /// its splits and drops). An accepted edit travels whole, so the
+    /// outcome carries what its edits DID beside what they produced: a
+    /// caller holding a document with the maintenance of its last
+    /// accepted edit swaps `remainder` and this in together.
+    pub remainder_maintenance: Vec<ClusterMaintenance>,
     /// The recorded edits producing `part` from
     /// `Doc::empty(part_id)`.
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
+    /// The cluster-record maintenance `part_edits` performed, in edit
+    /// order. The part is built by inserting the cut nodes, and a cut
+    /// mate welds its two members as it lands, so a multi-member
+    /// cluster cut whole re-forms in the part as one join per mate
+    /// that welded two clusters still separate when it landed. That
+    /// insert is the one part-side edit that moves a mate graph: the
+    /// tolerance, parameter, witness, placement and root edits
+    /// reconcile nothing.
+    pub part_maintenance: Vec<ClusterMaintenance>,
     /// The remainder's new instantiate node.
     pub instance: RecipeNodeId,
     /// Cut-node ids → their part-document ids (minted in document
@@ -547,16 +572,71 @@ pub struct SplitOutcome {
 
 /// What [`inline`] produced: the host with the referenced document's
 /// recipe spliced in and the instance gone, plus the recorded edits
-/// that produce it. Undo is the caller keeping the input value.
+/// that produce it and the cluster-record maintenance they performed.
+/// Undo is the caller keeping the input value.
 #[derive(Debug, Clone)]
 pub struct InlineOutcome {
     /// The host document after the splice.
     pub doc: ProfileDoc,
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
+    /// The cluster-record maintenance `edits` performed, in edit
+    /// order: the part's mates weld their spliced members as they
+    /// land, a wrapped name's re-anchoring moves what the instance
+    /// welded onto the spliced node (a split, where the spliced node
+    /// is no member), and the instance's delete drops or re-keys its
+    /// cluster's row. An accepted edit travels whole; a caller holding
+    /// a document with the maintenance of its last accepted edit swaps
+    /// `doc` and this in together.
+    pub maintenance: Vec<ClusterMaintenance>,
     /// Part-document node ids → their host ids (minted in the part's
     /// document order).
     pub node_map: NodeMap,
+}
+
+/// A document under reconstruction by recorded edits: the value so
+/// far, the edits that produce it, and the cluster-record maintenance
+/// those edits performed. The ONE place a refactoring takes an
+/// accepted edit up, which is what keeps each [`apply`] result's
+/// document and maintenance together — the record's minted id goes
+/// back to the caller, and its `structural` bit is a fact of the edit
+/// already in the list — so an outcome built from one reports what
+/// its edits did, never only what they produced.
+struct Recording {
+    doc: ProfileDoc,
+    edits: Vec<DocEdit<ProfileProgram>>,
+    maintenance: Vec<ClusterMaintenance>,
+}
+
+impl Recording {
+    fn start(doc: ProfileDoc) -> Self {
+        Self {
+            doc,
+            edits: Vec::new(),
+            maintenance: Vec::new(),
+        }
+    }
+
+    /// Apply one edit and record it: the new document replaces the
+    /// held one, the edit joins the list, and the maintenance the edit
+    /// performed is appended in edit order. Returns the id the edit
+    /// minted, if any.
+    ///
+    /// # Errors
+    ///
+    /// The edit's own refusal; nothing is recorded on that arm.
+    fn apply(
+        &mut self,
+        edit: DocEdit<ProfileProgram>,
+        tol: Tol,
+        reach: &dyn crate::mate::MateReach,
+    ) -> Result<Option<RecipeNodeId>, EditError> {
+        let applied = apply(&self.doc, &edit, tol, reach)?;
+        self.doc = applied.doc;
+        self.maintenance.extend(applied.maintenance);
+        self.edits.push(edit);
+        Ok(applied.record.minted)
+    }
 }
 
 // ---- Name and node remapping ----
@@ -601,7 +681,7 @@ fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNode
 #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
 fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
     use RoleSeg as R;
-    let one = |n: &StableName| remap_name(n, map).map(Box::new);
+    let one = |n: &StableName| remap_name(n, map).map(NameRef::new);
     let set = |v: &[StableName]| -> Result<Vec<StableName>, RecipeNodeId> {
         let mut out = v
             .iter()
@@ -684,6 +764,12 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
         R::BandCross(n) => R::BandCross(one(n)?),
         R::BandCut(n) => R::BandCut(one(n)?),
         R::BandSlit(n) => R::BandSlit(one(n)?),
+        R::Inner(n) => R::Inner(one(n)?),
+        R::Rim(n) => R::Rim(one(n)?),
+        R::HoleRim { of, hole } => R::HoleRim {
+            of: one(of)?,
+            hole: *hole,
+        },
         // The document seam: the argument names ANOTHER document's
         // nodes and crosses verbatim.
         R::InPart { of } => R::InPart { of: of.clone() },
@@ -861,6 +947,18 @@ fn remap_node(
             id(*target)?,
             distance.clone(),
             selection.iter().map(nm).collect::<Result<_, _>>()?,
+        ),
+        // Through the construction door, which keeps the designation
+        // order and drops only a repeat: a remap never re-sorts an
+        // ordered payload.
+        Node::Shell {
+            target,
+            thickness,
+            open,
+        } => Node::shell(
+            id(*target)?,
+            thickness.clone(),
+            open.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         Node::Split { target, tool } => Node::Split {
             target: id(*target)?,
@@ -1239,30 +1337,21 @@ pub fn split(
         resolver: resolver.cloned(),
         ..crate::eval::EvalOptions::default()
     };
-    let reach = crate::eval::mate_reach::<f64>(&part_opts, tol);
-    let mut part = Doc::empty(part_id, tol);
-    let mut part_edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
-    let part_apply = |part: &mut ProfileDoc,
-                      edits: &mut Vec<DocEdit<ProfileProgram>>,
-                      edit: DocEdit<ProfileProgram>|
-     -> Result<(), SplitError> {
-        *part = apply(part, &edit, tol, &reach)
-            .map_err(|error| SplitError::PartEdit {
-                error: Box::new(error),
-            })?
-            .doc;
-        edits.push(edit);
-        Ok(())
-    };
+    let part_reach = crate::eval::mate_reach::<f64>(&part_opts, tol);
+    let mut part = Recording::start(Doc::empty(part_id, tol));
+    let part_apply =
+        |part: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), SplitError> {
+            part.apply(edit, tol, &part_reach)
+                .map(|_| ())
+                .map_err(|error| SplitError::PartEdit {
+                    error: Box::new(error),
+                })
+        };
     // The recorded ε carries over iff it differs from what the empty
     // document adopts (the committed process ε — the only value a
     // document this process can evaluate records anyway).
-    if doc.epsilon().to_bits() != part.epsilon().to_bits() {
-        part_apply(
-            &mut part,
-            &mut part_edits,
-            DocEdit::SetTolerance { eps: doc.epsilon() },
-        )?;
+    if doc.epsilon().to_bits() != part.doc.epsilon().to_bits() {
+        part_apply(&mut part, DocEdit::SetTolerance { eps: doc.epsilon() })?;
     }
     for param in cut_refs.keys() {
         // The reference was validated against this table, so the
@@ -1270,7 +1359,6 @@ pub fn split(
         if let Some(value) = doc.params().get(param) {
             part_apply(
                 &mut part,
-                &mut part_edits,
                 DocEdit::SetDocParam {
                     name: param.clone(),
                     value: value.clone(),
@@ -1286,7 +1374,7 @@ pub fn split(
             },
             RemapMiss::Name(name) => SplitError::PartNameReachesRemainder { node: old, name },
         })?;
-        part_apply(&mut part, &mut part_edits, DocEdit::InsertNode { node })?;
+        part_apply(&mut part, DocEdit::InsertNode { node })?;
     }
     // Witness DATA copies VERBATIM while node ids remap: sound because
     // a witness datum is sketch-self-relative — it selects among the
@@ -1298,7 +1386,6 @@ pub fn split(
         if let Some(witness) = doc.witness(old) {
             part_apply(
                 &mut part,
-                &mut part_edits,
                 DocEdit::ReWitness {
                     node: new,
                     witness: witness.clone(),
@@ -1317,7 +1404,6 @@ pub fn split(
             {
                 part_apply(
                     &mut part,
-                    &mut part_edits,
                     DocEdit::SetPlacement {
                         node: new,
                         frame: *frame,
@@ -1333,14 +1419,10 @@ pub fn split(
         .iter()
         .filter_map(|r| node_map.get(r).copied())
         .collect();
-    if part.roots() != part_roots {
-        part_apply(
-            &mut part,
-            &mut part_edits,
-            DocEdit::SetRoots { roots: part_roots },
-        )?;
+    if part.doc.roots() != part_roots {
+        part_apply(&mut part, DocEdit::SetRoots { roots: part_roots })?;
     }
-    let pin = content_pin(&part, tol).map_err(|error| SplitError::Pin {
+    let pin = content_pin(&part.doc, tol).map_err(|error| SplitError::Pin {
         error: Box::new(error),
     })?;
 
@@ -1441,7 +1523,7 @@ pub fn split(
     }
 
     // ---- The remainder, as recorded edits from the input ----
-    let mut remainder = doc.clone();
+    let mut remainder = Recording::start(doc.clone());
     // **The remainder's reach knows the part this split is minting.**
     // Rebinding a mate's heads onto the new instance one name at a time
     // passes through documents where that mate stands on the new part,
@@ -1453,30 +1535,25 @@ pub fn split(
     // every other, and an absent resolver refuses those typed.
     let carving: std::sync::Arc<dyn PartResolver> = std::sync::Arc::new(WithPart {
         doc_ref: DocRef { id: part_id, pin },
-        part: part.clone(),
+        part: part.doc.clone(),
         inner: resolver.cloned(),
     });
     let rem_opts = crate::eval::EvalOptions {
         resolver: Some(carving),
         ..crate::eval::EvalOptions::default()
     };
-    let reach = crate::eval::mate_reach::<f64>(&rem_opts, tol);
-    let mut remainder_edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
-    let rem_apply = |remainder: &mut ProfileDoc,
-                     edits: &mut Vec<DocEdit<ProfileProgram>>,
+    let rem_reach = crate::eval::mate_reach::<f64>(&rem_opts, tol);
+    let rem_apply = |remainder: &mut Recording,
                      edit: DocEdit<ProfileProgram>|
      -> Result<Option<RecipeNodeId>, SplitError> {
-        let applied =
-            apply(remainder, &edit, tol, &reach).map_err(|error| SplitError::RemainderEdit {
+        remainder
+            .apply(edit, tol, &rem_reach)
+            .map_err(|error| SplitError::RemainderEdit {
                 error: Box::new(error),
-            })?;
-        *remainder = applied.doc;
-        edits.push(edit);
-        Ok(applied.record.minted)
+            })
     };
     let minted = rem_apply(
         &mut remainder,
-        &mut remainder_edits,
         DocEdit::InsertNode {
             node: Node::instantiate_part_with(
                 DocRef { id: part_id, pin },
@@ -1499,11 +1576,12 @@ pub fn split(
         let to = StableName {
             kind: from.kind,
             node: instance,
-            path: vec![RoleSeg::InPart { of: Box::new(of) }],
+            path: vec![RoleSeg::InPart {
+                of: NameRef::new(of),
+            }],
         };
         rem_apply(
             &mut remainder,
-            &mut remainder_edits,
             DocEdit::Rebind {
                 from: from.clone(),
                 to,
@@ -1514,11 +1592,7 @@ pub fn split(
     // no delete dangles a live reference.
     for &old in doc.order().iter().rev() {
         if cut.contains(&old) {
-            rem_apply(
-                &mut remainder,
-                &mut remainder_edits,
-                DocEdit::DeleteNode { id: old },
-            )?;
+            rem_apply(&mut remainder, DocEdit::DeleteNode { id: old })?;
         }
     }
     if let Some(old_instance) = hoisted {
@@ -1526,7 +1600,6 @@ pub fn split(
         if !frame.is_identity_bits() {
             rem_apply(
                 &mut remainder,
-                &mut remainder_edits,
                 DocEdit::SetPlacement {
                     node: instance,
                     frame,
@@ -1536,7 +1609,9 @@ pub fn split(
     }
     // A10 on the remainder: the instance takes the FIRST cut root's
     // list position (the cut material's product order collapses onto
-    // the instance); automatic maintenance appended it instead.
+    // the instance); A10's automatic root-list bookkeeping appended it
+    // instead — the list's own move, not one of the A11 cluster-record
+    // acts the outcome's `maintenance` fields hold.
     let mut desired: Vec<RecipeNodeId> = Vec::new();
     let mut placed = false;
     for &r in doc.roots() {
@@ -1549,18 +1624,16 @@ pub fn split(
             desired.push(r);
         }
     }
-    if remainder.roots() != desired {
-        rem_apply(
-            &mut remainder,
-            &mut remainder_edits,
-            DocEdit::SetRoots { roots: desired },
-        )?;
+    if remainder.doc.roots() != desired {
+        rem_apply(&mut remainder, DocEdit::SetRoots { roots: desired })?;
     }
     Ok(SplitOutcome {
-        remainder,
-        part,
-        remainder_edits,
-        part_edits,
+        remainder: remainder.doc,
+        part: part.doc,
+        remainder_edits: remainder.edits,
+        remainder_maintenance: remainder.maintenance,
+        part_edits: part.edits,
+        part_maintenance: part.maintenance,
         instance,
         node_map,
     })
@@ -1690,20 +1763,16 @@ pub fn inline(
         .map(|(i, &old)| (old, RecipeNodeId(doc.next_id + i as u64)))
         .collect();
 
-    let mut current = doc.clone();
-    let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
-    let step = |current: &mut ProfileDoc,
-                edits: &mut Vec<DocEdit<ProfileProgram>>,
-                edit: DocEdit<ProfileProgram>|
-     -> Result<(), InlineError> {
-        *current = apply(current, &edit, tol, &reach)
-            .map_err(|error| InlineError::Edit {
-                error: Box::new(error),
-            })?
-            .doc;
-        edits.push(edit);
-        Ok(())
-    };
+    let mut current = Recording::start(doc.clone());
+    let step =
+        |current: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), InlineError> {
+            current
+                .apply(edit, tol, &reach)
+                .map(|_| ())
+                .map_err(|error| InlineError::Edit {
+                    error: Box::new(error),
+                })
+        };
     // Parameters merge only when they already agree bit for bit; a
     // disagreeing shared name refuses (no silent pick).
     for (name, value) in part.params() {
@@ -1716,7 +1785,6 @@ pub fn inline(
             }
             None => step(
                 &mut current,
-                &mut edits,
                 DocEdit::SetDocParam {
                     name: name.clone(),
                     value: value.clone(),
@@ -1732,7 +1800,7 @@ pub fn inline(
             },
             RemapMiss::Name(name) => InlineError::StrandedPartName { name },
         })?;
-        step(&mut current, &mut edits, DocEdit::InsertNode { node })?;
+        step(&mut current, DocEdit::InsertNode { node })?;
     }
     // Witness data copies VERBATIM while ids remap — the same
     // invariant as split's copy: a witness datum is sketch-self-
@@ -1742,7 +1810,6 @@ pub fn inline(
         if let Some(witness) = part.witness(old) {
             step(
                 &mut current,
-                &mut edits,
                 DocEdit::ReWitness {
                     node: new,
                     witness: witness.clone(),
@@ -1764,7 +1831,6 @@ pub fn inline(
         {
             step(
                 &mut current,
-                &mut edits,
                 DocEdit::SetPlacement {
                     node: new,
                     frame: composed,
@@ -1782,7 +1848,6 @@ pub fn inline(
         for attr in record.attrs.values() {
             step(
                 &mut current,
-                &mut edits,
                 DocEdit::SetAppearance {
                     name: key.clone(),
                     attr: attr.clone(),
@@ -1792,7 +1857,6 @@ pub fn inline(
         for (meta_key, value) in &record.metadata {
             step(
                 &mut current,
-                &mut edits,
                 DocEdit::SetAppearanceMeta {
                     name: key.clone(),
                     key: meta_key.clone(),
@@ -1811,11 +1875,11 @@ pub fn inline(
                 name: Box::new(from.clone()),
             });
         };
-        let to = remap_name(of, &node_map)
-            .map_err(|_| InlineError::StrandedPartName { name: of.clone() })?;
+        let to = remap_name(of, &node_map).map_err(|_| InlineError::StrandedPartName {
+            name: Box::new((**of).clone()),
+        })?;
         step(
             &mut current,
-            &mut edits,
             DocEdit::Rebind {
                 from: from.clone(),
                 to,
@@ -1833,11 +1897,7 @@ pub fn inline(
             name: Box::new(inner.clone()),
         })?;
     }
-    step(
-        &mut current,
-        &mut edits,
-        DocEdit::DeleteNode { id: instance },
-    )?;
+    step(&mut current, DocEdit::DeleteNode { id: instance })?;
     // A10: the spliced roots take the instance's list position, in the
     // part's own root order.
     let mut desired: Vec<RecipeNodeId> = Vec::new();
@@ -1848,16 +1908,13 @@ pub fn inline(
             desired.push(r);
         }
     }
-    if current.roots() != desired {
-        step(
-            &mut current,
-            &mut edits,
-            DocEdit::SetRoots { roots: desired },
-        )?;
+    if current.doc.roots() != desired {
+        step(&mut current, DocEdit::SetRoots { roots: desired })?;
     }
     Ok(InlineOutcome {
-        doc: current,
-        edits,
+        doc: current.doc,
+        edits: current.edits,
+        maintenance: current.maintenance,
         node_map,
     })
 }

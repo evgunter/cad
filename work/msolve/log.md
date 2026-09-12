@@ -398,3 +398,7 @@ cleaner ignoring churn (the edit door taking the reach, with the log
 carrying the maintenance's frames so replay never solves — the
 orchestrator's honest answer reversed its own (h) lean). The spec
 gained its amendment section; the lane resumes on PR 2116.
+
+## Announced from LIB (2026-09-09): a derive word on `MateSide`, `AxisSense` and `MateRole`
+
+LIB-MIRROR (PR #2271) adds `Hash` to `MateSide` (`mate.rs:84`), `AxisSense` (`mate.rs:144`) and `MateRole` (`mate/solve.rs:43`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; no solver behaviour and no serde spelling changes.

@@ -305,41 +305,101 @@ class TestDisplayFormatter(unittest.TestCase):
             (1 * rad).format(mm)
 
     def test_signed_zero_displays_apart_while_comparing_equal(self):
-        """A pin on a relationship, not a preference — see the banked
-        item `the-quantity-boundary-compares-and-hashes-as-if-poison-
-        and-signed-zero-cannot-arrive`.
+        """A pin on a relationship, not a preference.
 
-        `format` is the door that is RIGHT here: its pin is about the
-        exact bits, and `-0.0` and `0.0` are different bits. `==` is
-        looser and `__hash__` disagrees with `==` — which is the
-        defect, recorded rather than fixed in this unit, and pinned as
-        it stands so a fix goes red instead of silent.
+        `format`'s pin is about the exact BITS, and `-0.0` and `0.0`
+        are different bits, so the two display apart. `==` is the
+        newtype's derived IEEE equality, under which they are one
+        value. Both are right, and they can disagree because neither
+        of them is a hash: the class does not hash at all.
         """
         below, above = -0.0 * m, 0.0 * m
         self.assertEqual(below, above)
         self.assertEqual(below.format(m), "-0 m")
         self.assertEqual(above.format(m), "0 m")
         self.assertEqual(reads_back_as("-0 m").hex(), (-0.0).hex())
-        # The data-model violation, as it stands today.
-        self.assertNotEqual(hash(below), hash(above))
 
-    def test_comparing_a_non_finite_quantity_raises_today(self):
-        """Also pinned as it stands, and also banked, not fixed.
+    def test_a_quantity_is_not_a_key(self):
+        """The Rust newtypes derive no `Hash`, and the classes mirror
+        the derives: `__hash__` is `None`, so Python itself refuses a
+        `set` member or a `dict` key. `WrittenLength` / `WrittenAngle`
+        are the authored records that key (`test_notation.py`)."""
+        self.assertIsNone(Length.__hash__)
+        self.assertIsNone(Angle.__hash__)
+        for value in (1 * m, 90 * deg):
+            with self.assertRaises(TypeError):
+                hash(value)
+            with self.assertRaises(TypeError):
+                {value}  # noqa: B018
+            with self.assertRaises(TypeError):
+                {value: "keyed"}  # noqa: B018
 
-        `==` goes through the same `partial_cmp` the orderings do, so
-        two NaN lengths RAISE where a bare `float` answers `False`.
-        The comment at that arm used to claim it was unreachable; this
-        is the counter-example, and the pin means whoever fixes it has
-        to come here and say so.
+    def test_a_non_finite_quantity_compares_as_ieee(self):
+        """The six operators, on the canonical floats, exactly as the
+        newtype's derived `PartialEq`/`PartialOrd` answer them.
+
+        Nothing raises: the newtypes refuse no float, and the doors
+        where a value enters recipe data are what refuse non-finite,
+        so this boundary does not re-decide it. NaN is unordered — it
+        answers `False` to five relations and `True` to `!=` — while
+        `±inf` orders normally, because IEEE says so and the derive is
+        IEEE.
         """
-        poison = float("nan") * mm
-        with self.assertRaises(ValueError):
-            poison == poison  # noqa: B015
-        with self.assertRaises(ValueError):
-            poison < (1 * m)  # noqa: B015
-        # A bare float, for contrast — the answer the quantity does
-        # not give.
+        nan, one = float("nan") * mm, 1 * mm
+        self.assertFalse(nan == nan)
+        self.assertTrue(nan != nan)
+        self.assertFalse(nan < one)
+        self.assertFalse(nan <= one)
+        self.assertFalse(nan > one)
+        self.assertFalse(nan >= one)
+        # The same six with the NaN on the right, since the operand it
+        # sits on is not what decides the answer.
+        self.assertFalse(one == nan)
+        self.assertTrue(one != nan)
+        self.assertFalse(one < nan)
+        self.assertFalse(one <= nan)
+        self.assertFalse(one > nan)
+        self.assertFalse(one >= nan)
+        # A bare float, for contrast — the answer the quantity now
+        # gives too.
         self.assertFalse(float("nan") == float("nan"))
+
+        # The infinities are ORDERED values, and the same six say so.
+        up, down = float("inf") * mm, float("-inf") * mm
+        self.assertTrue(up == up)
+        self.assertFalse(up != up)
+        self.assertTrue(down < one < up)
+        self.assertTrue(down <= down)
+        self.assertTrue(up >= one)
+        self.assertFalse(up < up)
+        self.assertTrue(down != up)
+
+    def test_the_angle_surface_compares_the_same_way(self):
+        """The comparison lives in one macro; this is the second type
+        it is spliced into."""
+        nan_angle, quarter = float("nan") * rad, 90 * deg
+        self.assertFalse(nan_angle == nan_angle)
+        self.assertTrue(nan_angle != nan_angle)
+        self.assertFalse(nan_angle < quarter)
+        self.assertFalse(nan_angle >= quarter)
+        self.assertEqual(-0.0 * rad, 0.0 * rad)
+
+    def test_comparing_against_another_dimension_still_refuses(self):
+        """IEEE answers the question "which of these two lengths is
+        bigger". It has nothing to say about a length against an
+        angle, and that stays a typed refusal rather than becoming
+        `False`.
+        """
+        with self.assertRaises(DimensionError) as caught:
+            (1 * m) < (1 * rad)  # noqa: B015
+        self.assertEqual(caught.exception.op, "<=>")
+        with self.assertRaises(DimensionError):
+            (1 * m) == (1 * rad)  # noqa: B015
+        with self.assertRaises(DimensionError) as caught:
+            (1 * m) < 1.0  # noqa: B015
+        self.assertEqual(caught.exception.right, "scalar")
+        with self.assertRaises(TypeError):
+            (1 * m) < "banana"  # noqa: B015
 
 
 class TestCount(unittest.TestCase):

@@ -276,8 +276,8 @@ let seam = StableName {
     kind: EntityKind::Edge,
     node,
     path: vec![RoleSeg::Seam {
-        a: Box::new(face(vec![RoleSeg::Cap(CapEnd::End)])),
-        b: Box::new(face(vec![RoleSeg::Band(ProfileEdgeRef { loop_index: 0, segment: 0 })])),
+        a: face(vec![RoleSeg::Cap(CapEnd::End)]).into(),
+        b: face(vec![RoleSeg::Band(ProfileEdgeRef { loop_index: 0, segment: 0 })]).into(),
     }],
 };
 
@@ -488,7 +488,11 @@ let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(
 let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
 assert_eq!(findings.len(), 1);
 assert_eq!(findings[0].class, ContactClass::Rest);
-let (doc, decl) = declare_all(&doc, &findings, tol).expect("declarable");
+let (applied, decl) = declare_all(&doc, &findings, tol).expect("declarable");
+// `applied` is the accepted edit whole: the document, and the
+// cluster-record maintenance the insert performed. A caller that keeps
+// a mirror of that record takes both together; this one keeps none.
+let doc = applied.doc;
 let (doc, uni) = insert(
     &doc,
     Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Some(decl) },
