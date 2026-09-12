@@ -766,3 +766,20 @@ continuable by reference). State-sync closed the item; merged at
 baseline with `scripts/tess_budget_sweep.sh`, run the tour at three
 ε (the spout's SIGN-level line at 1e-12), un-draft, hosted run green
 including `k-lint (gate, release-default)`; I merge on its report.
+
+## 2026-09-12 — Ev's teapot PR merged
+
+PR 2306 (`demos/teapot-round-spout`) merged at `f2a4adf2f` on Ev's
+standing request, once the kernel fix (PERF-6) and the ribbon (PR
+2440) were on main. The lane merged main by merge commit, took main's
+side of the baseline and the tess-lint tests, re-cut the baseline with
+`scripts/tess_budget_sweep.sh` (every moved row the spout's: 18 → 10
+rows, 9 922 → 71 586 triangles — a round spout costs 7× a faceted one;
+two census alarms return to their pre-octagon shape for the same
+reason), and retired five narration sites that asserted the tier-3
+refusal as live. Tour exit 0 at three ε; at 1e-12 the spout's ribbon
+prints the SIGN-level bracket. Hosted run 34694562127 fully green
+including `k-lint (gate, release-default)`. The lane also dropped the
+now-false `[BLOCKED]` title prefix and rewrote Ev's PR body around
+the same argument — flagged to Ev with the offer to restore it.
+Lane reclaimed; no PERF lane is running.
