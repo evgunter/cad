@@ -689,6 +689,34 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 /// reasons that have nothing to do with underflow, so this question
 /// is only meaningful once the length is known to be a finite number.
 ///
+/// **The witness is derived, never invented**:
+/// [`Vec2::norm_witness`](crate::Vec2::norm_witness) and
+/// [`Vec3::norm_witness`](crate::Vec3::norm_witness) are the two
+/// doors that spell it, and a caller that reaches past them is making
+/// a claim this signature cannot check.
+///
+/// **Which doors ask it**, and the claim is the enumeration rather
+/// than a generality — hand-kept, like its sibling's roster, and
+/// exactly as current as the last person to edit it:
+///
+/// - `topo::query::decide_unit_direction`, behind the datum door and
+///   the evaluation layer's `unit()`;
+/// - this crate's own [`linalg::frame`](crate::linalg::frame)
+///   `definitely_positive`, the one funnel its four normalizing sites
+///   share;
+/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+/// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
+///   arm — the arm is the two chords' `min`, which has no witness of
+///   its own and which an underflowed chord always wins, so asking the
+///   arm would refuse without ever naming the cause.
+///
+/// `profile`'s two 2-D director doors ask
+/// [`is_finite_length`] and not this: `unit_from_components` already
+/// renders an underflowed direction's components and already offers
+/// scale as the recourse, and `arc_fillet::carrier_tangent` wants a
+/// `PathError` arm that does not exist yet. Both are tracked on the
+/// FIX slate.
+///
 /// **It bites at the point scalars, exactly as the finiteness
 /// question does.** At an interval scalar a norm whose lower end
 /// underflowed still ENCLOSES the true length — `[0, 3.1e-162]` for a
