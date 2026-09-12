@@ -2916,6 +2916,7 @@ MEMBERS_BOUND_AS = {
     "PathError::ArcContinueOffCarrier": "PathError.variant",
     "PathError::ZeroDirection": "PathError.variant",
     "PathError::NonFiniteDirection": "PathError.variant",
+    "PathError::UnderflowedDirection": "PathError.variant",
     "PathError::ArcViaCollinear": "PathError.variant",
     "PathError::DegenerateArcChord": "PathError.variant",
     "PathError::ArcCenterNotEquidistant": "PathError.variant",

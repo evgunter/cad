@@ -4427,7 +4427,10 @@ mod tests {
         }
         .to_string();
         assert!(s.contains("underflowed out of the format"), "{s}");
-        assert!(s.contains("multiply them through by a common factor"), "{s}");
+        assert!(
+            s.contains("multiply them through by a common factor"),
+            "{s}"
+        );
         assert!(
             s.contains("scale that geometry into the session's range"),
             "{s}"
