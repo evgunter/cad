@@ -603,14 +603,6 @@ step_import() {
 # compile is the whole cost (93 s on a cold hosted cache). The guards
 # after the run are the point: a name filter that matches nothing exits
 # 0, so an empty selection must fail rather than pass quietly.
-# THE HOSTED HALF OF THIS ROW IS THE NIGHTLY, NOT THE GATE (2026-09-03).
-# `release-corruption` moved to .github/workflows/nightly.yml and runs there
-# ungated once a day; the per-row argument that it may sit on a cadence is at
-# the job. This row keeps its per-change gate (`RUN_TOPO_RELEASE`, which no
-# hosted job reads any more) because nothing bills a local gate by the minute
-# and scoping it costs nothing here. So on a local gate these suites still run
-# against the tree in front of you, which is the whole reason the demotion is
-# affordable.
 # HOSTED MIRROR: release-corruption / corrupt-input suites, release profile
 topo_release() {
   local log rc passed
@@ -650,20 +642,13 @@ topo_release() {
 # ci-local's exclusive hold that acquisition is a no-op
 # (BUILD_SLOT_HELD).
 #
-# UNCONDITIONAL HERE, SEED-GATED HOSTED, and it is the same asymmetry the
-# viewer toolkit rows below carry, for the same reason. The hosted job
-# runs only when the change filter's SEEDS intersect the members a BUILD
-# OF THE WHEEL compiles — `pncad-py`'s non-dev dependency closure, so all
-# but `viewer` (above the wheel) and `test-utils` (a dev edge no wheel
-# build follows). This half is billed in one
-# developer's wall clock, on a run
-# they chose to make, and it is already the lane that runs every point of
-# every dimension: skipping work here would buy nothing
-# and would leave the local gate proving strictly less than the hosted
-# one, which is the opposite of this file's contract. So `RUN_PNCAD_PY`
-# is deliberately not consulted, exactly as `RUN_VIEWER_TOOLKIT` is not.
+# UNCONDITIONAL HERE, AS IT IS HOSTED: the suite runs on every code-tier
+# run of either half. `RUN_PNCAD_PY` is deliberately not consulted,
+# exactly as `RUN_VIEWER_TOOLKIT` is not — this half is the lane that
+# runs every point of every dimension, so a key that narrowed it would
+# leave the local gate proving strictly less than the hosted one, which
+# is the opposite of this file's contract.
 # HOSTED MIRROR: python-suite / run the Python suite (unittest discover)
-# HOSTED MIRROR: python-suite-nightly / run the Python suite (unittest discover)
 python_suite() {
   crates/pncad-py/run-python-tests.sh
 }
@@ -1335,7 +1320,6 @@ run_row "scalpel (per-op postcondition)" \
 # probes for an interpreter and fails loudly without one — which is
 # strictly less than the `python suite` row below already requires.
 # HOSTED MIRROR: python-suite / clippy (pncad-py, python feature)
-# HOSTED MIRROR: python-suite-nightly / clippy (pncad-py, python feature)
 run_row "clippy (pncad-py, python)"    cargo clippy -p pncad-py --features python --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here
 # — it is a tree-wide ratchet over a derived root set, not a per-closure
@@ -1352,18 +1336,7 @@ run_row "clippy (pncad-py, python)"    cargo clippy -p pncad-py --features pytho
 # clippy note above): this row documents viewer under --all-features
 # like everything else.
 #
-# NO `--pr`, AND NO `--scope`, FOR THE SAME REASON. Hosted, the `fmt`
-# job runs the WORKSPACE pass alone and scopes it to the change closure;
-# the cargo roots the workspace excludes (derived, never counted here —
-# `scripts/doc-gate.sh --print-roots`) and the
-# --no-default-features re-read of every root with a not(feature) half
-# are nightly.yml's `rustdoc (gate, every root)`, ungated, once a day.
-# This half runs all three passes over every root on every invocation,
-# which is the same asymmetry the toolkit rows above have and the same
-# argument: hosted is billed by the minute per PR and this is billed in
-# one developer's wall clock on a run they chose to make, so the local
-# gate stays a strict superset of any hosted one.
-# HOSTED MIRROR: rustdoc-roots / rustdoc (gate, every root)
+# HOSTED MIRROR: fmt / rustdoc (gate)
 rustdoc_gate() {
   scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
 }

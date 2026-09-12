@@ -2004,3 +2004,35 @@ it. The two kernel units (`tcost-area-pad-lever`,
 rows that WILL take full reviews — both rest on bit-identical
 certificates and refusal classes that only a digest can check, which is
 the risk shape §Review names.
+
+## C1, C2 and C3 are back on the gate, and the nightly is three jobs lighter (2026-09-12)
+
+The three demotions were bought with **billed minutes** and nothing else,
+on the day the repository went public and standard-runner minutes became
+free. The re-cost that row asked for is taken: none of the three is
+anywhere near the pole — each hangs off `filter` in parallel while the
+`build` -> `test` chain sets the run's length — so the price they were
+paying, attribution, was being paid for nothing.
+
+All three are restored and **all three nightly counterparts deleted**,
+each read against the ci.yml job that now covers it. C1's nightly copy
+covered only nights with no `topo`-closure merge; C2's ran exactly the
+command `fmt` now runs, with the viewer half already re-taken by
+`viewer-toolkit`; C3's existed for two seeds the key missed, both of
+which the gate now runs.
+
+**The deletions reached further than the three jobs, and that is the
+part worth remembering.** A demotion leaves MECHANISM behind — a mode, a
+filter key, a mirror marker, a count in a comment, a suite header naming
+the workflow it lives in. `scripts/doc-gate.sh` had grown a `--pr` mode
+and a `--scope` parser whose every sentence described a nightly job;
+`local-scripts/ci-local.sh` carried three `HOSTED MIRROR` markers naming
+jobs about to stop existing; three `crates/topo` suite headers said
+"once a night". Restoring the job is the small half. Grepping for what
+the job's ABSENCE had been written into is the rest, and the marker
+check, the roster gate and the gate's own `--selftest` are what proved
+it complete.
+
+`--pr` was deleted; `RUN_PNCAD_PY` was kept as reporting, with its own
+file (`run-pncad-py-is-computed-and-gates-nothing`) carrying the argument
+for treating the two differently.

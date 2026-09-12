@@ -515,6 +515,17 @@ growths above are the larger target and are nobody's row yet.
 
 ### 2026-09-03 — the rustdoc gate's other two passes demoted to the nightly
 
+> **RESTORED 2026-09-12, and the reason this entry could not see it.** The
+> job is back on the pull-request gate. Everything below is an accurate
+> reading of what the demotion moved and what it saved, in **billed
+> minutes** — the currency this whole document is denominated in, and the
+> one that stopped existing on 2026-09-03 when `evgunter/cad` went public
+> and standard-runner minutes became free. The demotion was decided on a
+> number that had no buyer by the time it merged. The restoration's own
+> figures are on its pull request, taken from its own runs; **no figure
+> below may be quoted forward** (`work/ciw/plan.md` §The 2026-09-04
+> re-read).
+
 S-TCOST unit C2, Ev's approval in chat the same day, and it is F6's own
 subject read one step further. F6 made the six excluded roots cheap by
 caching them; the addendum above then recorded that the entry's −1 had
@@ -1358,6 +1369,17 @@ is a broken rig and fails.
 
 ### 2026-09-03 — `corrupt input (release profile)` demoted to the nightly
 
+> **RESTORED 2026-09-12, and the reason this entry could not see it.** The
+> job is back on the pull-request gate. Everything below is an accurate
+> reading of what the demotion moved and what it saved, in **billed
+> minutes** — the currency this whole document is denominated in, and the
+> one that stopped existing on 2026-09-03 when `evgunter/cad` went public
+> and standard-runner minutes became free. The demotion was decided on a
+> number that had no buyer by the time it merged. The restoration's own
+> figures are on its pull request, taken from its own runs; **no figure
+> below may be quoted forward** (`work/ciw/plan.md` §The 2026-09-04
+> re-read).
+
 S-TCOST unit C1, Ev's approval in chat the same day. The job moved out of
 `ci.yml` into `nightly.yml` verbatim — its steps, its non-empty-selection
 count guard and its five `... ok` name greps plus the two suite-header
@@ -1658,6 +1680,17 @@ red on this step alone, with the real census step green in the same
 run, is a re-run and not a diagnosis.
 
 ## 2026-09-03 — the python suite becomes seed-keyed
+
+> **RESTORED 2026-09-12, and the reason this entry could not see it.** The
+> job is back on the pull-request gate. Everything below is an accurate
+> reading of what the demotion moved and what it saved, in **billed
+> minutes** — the currency this whole document is denominated in, and the
+> one that stopped existing on 2026-09-03 when `evgunter/cad` went public
+> and standard-runner minutes became free. The demotion was decided on a
+> number that had no buyer by the time it merged. The restoration's own
+> figures are on its pull request, taken from its own runs; **no figure
+> below may be quoted forward** (`work/ciw/plan.md` §The 2026-09-04
+> re-read).
 
 S-TCOST unit C3, Ev's approval in chat the same day. `python suite
 (wheel + guide + north-star)` was gated on `pncad-py` being in the
@@ -2315,6 +2348,13 @@ most. The counterfactual is arithmetic, not a measurement: no run of the drawn
 shape exists on this tree to subtract. Nothing re-takes any of this.
 
 ## 2026-09-06 — the python suite's seed key widened to the wheel's graph (CIW unit 2)
+
+> **SUPERSEDED 2026-09-12: the axis is gone, not re-keyed.** The python
+> suite runs on every code-tier run, so `RUN_PNCAD_PY` gates nothing and is
+> reporting only. The widening below was right about what the three-name
+> set got wrong, and that reading stands; what it does not survive is the
+> premise it shares with the 2026-09-03 entry — that the axis was worth
+> having at all once a seed key buys no wall clock.
 
 The 2026-09-03 entry above records this axis becoming seed-keyed on
 `{pncad-py, pncad, editor-core}`. That set is withdrawn. The key is still

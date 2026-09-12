@@ -2,8 +2,10 @@
 id: nightly-demotions-c1-c3-were-bought-with-billed-minutes
 kind: issue
 title: TCOST-C1/C2/C3 moved three checks off the PR gate for billed minutes alone: re-cost them or revert
-status: open
+status: closed
 opened: 2026-09-11
+closed: 2026-09-12
+refs: [run-pncad-py-is-computed-and-gates-nothing]
 ---
 
 
@@ -155,3 +157,56 @@ last-job-end, and queue time moves between them. **It changes nothing
 here** — the conclusion is a ratio, and 106 s is under an eighth of the
 run on either denominator. Whoever restores these takes the before/after
 from their own PR's runs rather than from this table.
+
+## Closed 2026-09-12 (branch `tcost/c1-c3-restore`)
+
+All three are back on the pull-request gate, and **all three nightly
+counterparts are deleted** — each was read against the ci.yml job that
+now covers it rather than guessed at:
+
+- **C1 — `corrupt input (release profile)`** is a `ci.yml` job again,
+  gated on `run_topo_release` (`topo` in the change closure), which the
+  `filter` job publishes again. The nightly copy's only coverage beyond
+  that was nights on which no `topo`-closure PR merged; 89 of the last
+  128 first-parent merges hold `topo`, so the gate finds it within a
+  merge or two **with attribution**, which is the whole thing the
+  demotion gave up. Deleted.
+- **C2 — the rustdoc gate** runs whole in `fmt` again: all three passes
+  over every cargo root, pass 1 unscoped. `nightly.yml`'s
+  `rustdoc (gate, every root)` ran exactly `doc-gate.sh --selftest` then
+  `doc-gate.sh`, which is now what `fmt` runs; the one difference is
+  `viewer` at `--all-features`, which `fmt` skips when the seeds do not
+  buy the toolkit and which `nightly.yml`'s `viewer-toolkit` job already
+  re-takes ungated in its `rustdoc (viewer, all features)` step. Strictly
+  duplicate. Deleted.
+- **C3 — `python suite (wheel + guide + north-star)`** runs on every
+  code-tier run: the `if:` is `run_build` and there is no seed key. The
+  nightly re-take existed, by its own header, for exactly two seeds that
+  the key missed (`viewer`, above the wheel; `test-utils`, a dev edge).
+  Both run the suite now. Strictly duplicate. Deleted.
+
+`record`'s `needs:` list drops all three in the same commit.
+
+**Ask 3, and it went further than the three comments.** The demotion
+notes are gone with the demotions. What replaced them argues from wall
+clock: each of these jobs hangs off `filter` in parallel beside the
+serial `build` -> `test` chain that sets a run's length, so it returns a
+contributor zero seconds. `docs/CI-MINUTES-2026-08.md`'s three entries
+are annotated in place rather than edited — the document is a dated
+ledger and already carries `SUPERSEDED` headers — each saying the reading
+below it is denominated in a currency that stopped existing on
+2026-09-03 and that no figure in it may be quoted forward.
+
+**Two mechanisms outlived their demotions, and they were decided
+differently.** `scripts/doc-gate.sh`'s `--pr`/`--scope` mode had no
+caller once the gate ran whole and was DELETED, with its selftest arms;
+`scripts/ci-filter.py`'s `RUN_PNCAD_PY` is kept as reporting and gates
+nothing, which has its own file —
+`work/tcost/run-pncad-py-is-computed-and-gates-nothing` — with the
+argument for the asymmetry.
+
+**Not this program's, found on the way.**
+`work/ciw/facade-guards-defer-to-rustdoc-json` builds on
+`rustdoc (gate, every root)` existing as its analogue, and
+`work/ciw/python-suite-zero-test-guard-three-copies` counts three copies
+of a guard that is now two. Both are CIW's; reported, not edited.
