@@ -714,7 +714,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{GestureVocabulary, drag_gesture_ops, vec3_row_ops};
+    use super::{GestureVocabulary, drag_gesture_ops, number_field, vec3_row_ops};
     use crate::session::SessionOp;
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
@@ -1087,6 +1087,180 @@ mod tests {
                 released.iter().map(kind).collect::<Vec<_>>(),
                 ["commit"],
                 "a released drag lands what it previewed"
+            );
+        }
+    }
+}
+
+/// **What a numeric field says, and what saying it commits.**
+///
+/// [`super::field_text`] is a render, so the rows over it are a table;
+/// the row that matters is not, because the defect is that the render
+/// is ALSO the text a click-in and a click-away hands back to the
+/// document, and only driving the real widget says whether it is.
+#[cfg(test)]
+mod field_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::{field_text, number_field};
+    use eframe::egui;
+
+    /// The decimal range a length field shown in millimetres is handed:
+    /// `FIELD_DRAG_SPEED` written in millimetres is 0.5, one point per
+    /// pixel makes `auto_decimals` `ceil(log10(1.0 / 0.5))`, and egui
+    /// adds two. Derived here rather than asserted off the widget
+    /// because these rows are about the RULE over a range, and the
+    /// widget's own arithmetic is pinned by
+    /// [`a_field_shows_what_the_widget_shows_wherever_that_reads_back`].
+    const MM: core::ops::RangeInclusive<usize> = 1..=3;
+
+    /// **A value the widget's own spelling names is spelled its way.**
+    ///
+    /// This half is what keeps the change invisible to a drag, so it is
+    /// asserted as sameness rather than as a table of strings: for
+    /// every value a drag can commit, the two renders agree. The
+    /// population is the drag's, not a grid of pretty numbers — egui
+    /// rounds what a drag commits to `auto_decimals`, so a value a drag
+    /// produces is `{:.1}`-exact in millimetres by construction.
+    #[test]
+    fn a_field_shows_what_the_widget_shows_wherever_that_reads_back() {
+        let mut tenths = -200_000_i64;
+        while tenths <= 200_000 {
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the grid is the drag's own landing set, \
+                          and every member is exact in f64"
+            )]
+            let value = tenths as f64 / 10.0;
+            assert_eq!(
+                field_text(value, MM),
+                egui::emath::format_with_decimals_in_range(value, MM),
+                "a drag lands on {value}, where this rule must say nothing new"
+            );
+            tenths += 1;
+        }
+    }
+
+    /// **A value no spelling in the range names is spelled truthfully
+    /// instead**, which is the defect: the widget returns its widest
+    /// spelling anyway, and the widest spelling of 40 nm in millimetres
+    /// is `0.000`.
+    #[test]
+    fn a_value_the_range_cannot_name_gets_a_text_that_names_it() {
+        for (value, text) in [
+            (1.6e-3_f64, "0.0016"),
+            (4.0e-5, "0.00004"),
+            (-4.0e-5, "-0.00004"),
+            (0.0625, "0.0625"),
+            (1.0e-9, "1.000e-9"),
+        ] {
+            assert_eq!(field_text(value, MM), text, "the field's text for {value}");
+            assert_ne!(
+                text,
+                egui::emath::format_with_decimals_in_range(value, MM),
+                "{value} is only a row here because the widget misreads it"
+            );
+        }
+    }
+
+    /// **Zero is a number a field really holds**, and the rule that
+    /// refuses a rendered zero must not refuse a real one.
+    #[test]
+    fn a_field_holding_zero_says_zero() {
+        assert_eq!(field_text(0.0, MM), "0.0");
+    }
+
+    /// **An integer field is untouched, and by construction.**
+    /// `DragValue::new` gives an integral value one `max_decimals(0)`,
+    /// so the range is `0..=0` and the only spelling is the exact one.
+    #[test]
+    fn an_integer_field_is_spelled_the_way_it_always_was() {
+        for value in [3.0_f64, -12.0, 0.0, 1.0e9] {
+            assert_eq!(field_text(value, 0..=0), format!("{value:.0}"));
+        }
+    }
+
+    /// One field, laid out and driven by events, so the rule below is
+    /// read off the widget rather than off the function under it.
+    struct Field {
+        ctx: egui::Context,
+        value: f64,
+        rect: egui::Rect,
+    }
+
+    impl Field {
+        fn new(value: f64) -> Self {
+            Self {
+                ctx: egui::Context::default(),
+                value,
+                rect: egui::Rect::NOTHING,
+            }
+        }
+
+        fn frame(&mut self, events: Vec<egui::Event>) {
+            let ctx = self.ctx.clone();
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let value = &mut self.value;
+            let rect = &mut self.rect;
+            let mut output = ctx.run_ui(input, |ui| {
+                *rect = ui.add(number_field(value, 0.5)).rect;
+            });
+            output.textures_delta.clear();
+        }
+
+        fn click(&mut self, at: egui::Pos2) {
+            self.frame(vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ]);
+        }
+    }
+
+    /// **The rule this whole door exists for.** A `DragValue` seeds its
+    /// keyboard edit with the text it last showed and writes the parse
+    /// back when it loses focus, so a field's render is what clicking
+    /// into it and clicking away again COMMITS. Held over the values
+    /// the widget's own spelling cannot name, because those are the
+    /// ones it used to commit as something else — 40 nm as zero.
+    #[test]
+    fn clicking_into_a_field_and_away_again_leaves_the_value_alone() {
+        for start in [4.0e-5_f64, 1.6e-3, 12.0, -4.0e-5, 0.0, 1024.5] {
+            let mut field = Field::new(start);
+            // Two frames: egui interacts against the PREVIOUS frame's
+            // widget rects, so nothing is hittable until one has been
+            // laid out.
+            field.frame(Vec::new());
+            field.frame(Vec::new());
+            let target = field.rect.center();
+            field.click(target);
+            field.frame(Vec::new());
+            field.click(egui::pos2(700.0, 500.0));
+            field.frame(Vec::new());
+            field.frame(Vec::new());
+            assert_eq!(
+                field.value, start,
+                "clicking into a field holding {start} and away again committed \
+                 {} — the text it showed was not the value it held",
+                field.value
             );
         }
     }
