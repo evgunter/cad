@@ -3716,6 +3716,26 @@ class Body:
     def validate(self) -> None: ...
     def validate_closed(self) -> None: ...
     def validate_geometric(self) -> None: ...
+    def validate_geometric_measured(self) -> MassProperties:
+        """Tier 3 and the number its own +V check computed, in ONE
+        certified quadrature.
+
+        `validate_geometric()` then `mass_properties()` measures the
+        same body twice — check 7 IS a certified quadrature and the
+        reporting door starts another from round 0. This door keeps
+        the certificate the gate decided the sign on and continues
+        that quadrature to the reporting target, so it answers the
+        pair's second call bit for bit at one quadrature's cost.
+
+        It can refuse where `validate_geometric()` alone passes: the
+        reporting target scales with eps while the refinement
+        schedule's floor is a property of the part, so a body whose
+        volume SIGN is definite may have no volume NUMBER at this
+        eps. Tier 3 admits such a body and the measurement raises
+        `ValidationError` with `reason == "mass_properties_failed"`,
+        exactly as `mass_properties()` does — carrying, there and
+        only there, the sign-level bracket the gate did certify as
+        `volume_lo`, `volume_hi` and `surface_area`."""
     def validate_pseudomanifold(self) -> None:
         """Tier 3′, the ladder's fourth rung: tier 3's whole local
         battery PLUS the global coincidence census tier 3 defers,
