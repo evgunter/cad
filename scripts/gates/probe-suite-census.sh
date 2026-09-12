@@ -150,7 +150,7 @@ GATE_SCAN_NOUN="probe-gated test suite"
 # `<crate>:<suites>` — the crates whose probe coverage was argued for,
 # and the suite count each had when it was. Not the type-check loop's
 # crate list: that is derived. This is the floor beneath it.
-CENSUS_FLOOR=(editor-core:2 geom-brep:4 geom-core:1 profile:4 sweep:1 topo:5)
+CENSUS_FLOOR=(editor-core:2 geom-brep:4 geom-core:1 profile:4 sweep:2 topo:5)
 
 # THE EXECUTED SET, AND WHY IT NEEDS A FLOOR OF ITS OWN. `CENSUS_FLOOR`
 # above is a floor on what COMPILES, and compiling is not running: a
@@ -206,6 +206,7 @@ RUN_FLOOR=(
   plain:profile:scalar_channels_probe:4
   plain:profile:validate_ok_probe:1
   plain:sweep:k_report:0
+  plain:sweep:mass_props_are_thread_count_invariant:4
   plain:sweep:review_chamfer_r1_probes:7
   plain:sweep:review_fillet_e1_probes:4
   plain:topo:probe_census:1

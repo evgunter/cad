@@ -418,6 +418,9 @@ mod m8_3_rational_volume;
 #[path = "reporting_door_bit_digest.rs"]
 mod reporting_door_bit_digest;
 
+#[path = "mass_props_are_thread_count_invariant.rs"]
+mod mass_props_are_thread_count_invariant;
+
 #[path = "sign_certified_plus_v.rs"]
 mod sign_certified_plus_v;
 

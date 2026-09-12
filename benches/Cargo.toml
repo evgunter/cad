@@ -73,6 +73,12 @@ pncad = { path = "../crates/pncad" }
 # is the committed JSON history, and gnuplot is not on the runner anyway.
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false }
+# Explicit thread pools for the mass-property rows: `topo::props` decides
+# faces in a rayon indexed parallel map, and `RAYON_NUM_THREADS`
+# configures the global pool once per process, so it cannot give one
+# binary a 1-thread row and a 4-thread row. Same version the workspace
+# pins.
+rayon = "1.11"
 
 [[bench]]
 name = "kernel"

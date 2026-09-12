@@ -2,9 +2,10 @@
 id: mass-properties-are-serial-per-face
 kind: issue
 title: mass properties and the sign walk visit faces one at a time, and the K-funnel records per thread
-status: open
+status: closed
 opened: 2026-09-12
 parent: PERF-8
+closed: 2026-09-12
 ---
 
 
