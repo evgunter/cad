@@ -5183,3 +5183,41 @@ in both briefs, neither reviewer sees the other's report; the same
 shared-box note applies to both arms (four lanes on the box, per-crate
 builds asked of both). Block PERF-B3's draw record stays branch-side
 until the block concludes.
+
+## PERF-7 review ordinal fixed at dispatch (2026-09-12)
+
+PERF-7 (`work/perf/PERF-7.md`, PR #2448 open — frozen head `c26d3220f`;
+block PERF-B3 slot 0): **ordinal 3407** (PERF band). Protocol v6 dual:
+draw = `/dev/urandom` byte **79**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**.
+Method as for the earlier PERF units: concurrent same-head on frozen
+`c26d3220f`, briefs stored with sha256 before dispatch (caf1594b3a6dc2bb… r1 /
+54b9fa2003ad40ea… r2 — identical modulo lane names, verified by diff), isolation
+in both briefs, neither reviewer sees the other's report; the same
+shared-box note applies to both arms (up to eight lanes on the box at
+once, per-crate builds asked of both). Block PERF-B3's draw record
+stays branch-side until the block concludes.
+
+## PERF-8 review ordinal fixed at dispatch (2026-09-12)
+
+PERF-8 (`work/perf/PERF-8.md`, PR #2452 open — frozen head `4357cfd71`;
+block PERF-B3 slot 1): **ordinal 3408** (PERF band). Protocol v6 dual:
+draw = `/dev/urandom` byte **244**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method as for the earlier PERF units: concurrent same-head on frozen
+`4357cfd71`, briefs stored with sha256 before dispatch (e8572a604f622838… r1 /
+b2efebdc3a45e726… r2 — identical modulo lane names, verified by diff), isolation
+in both briefs, neither reviewer sees the other's report; the same
+shared-box note applies to both arms (the dispatch waited ~40 min for
+disk behind PERF-9's reviewers — a method note on both arms equally).
+Block PERF-B3's draw record stays branch-side until the block concludes.
+
+## D290 review ordinal fixed at dispatch (2026-09-12)
+
+D290 (SCALAR; PR #2461 open — frozen head `aad3c387a`): **ordinal
+4100** (SCALAR band; the band's first claim). Protocol v6 dual: draw =
+`/dev/urandom` byte **111**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**,
+concurrent on the frozen head, read-side isolation (v6 item 5), briefs
+identical and stored before either ran. Pre-draw difficulty
+**S / structural** (recorded branch-side at the block draw). Impl phase:
+~222k tokens (harness), ~46 min wall; impl CI **34717389869** GREEN on
+the head (twelve `test` jobs, five `k-lint (gate, …)`, nothing
+narrowed). Sample number at merge, in main's merge order. Row at merge.
