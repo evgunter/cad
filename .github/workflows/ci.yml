@@ -1,3 +1,4 @@
+# S-TCOST shard-count probe branch (N=2): measurement only, never merged.
 name: CI
 
 on:
