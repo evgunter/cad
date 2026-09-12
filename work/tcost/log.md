@@ -2022,3 +2022,53 @@ provenance class the CIW item separated out and declined —
 `docs/MODEL-AB-LOG.md`'s banding entry and three tracker items, none of
 them ours — and they wait on the ledger's rename note rather than on a
 re-point.
+
+## The shard count is measured, and it stays at 2 (2026-09-12)
+
+`nextest-shard-count-needs-remeasure` closed on twelve hosted code-tier
+runs — N = 2 (control), 3, 4 and 6, three full runs each, four probe
+branches off one commit differing only in the shard literal, all four
+counts running in the same wave so a wave's runner weather is shared.
+Every run id is on the row. The probe PRs (#2428-#2431) were measurement
+only and are closed with their branches deleted; the landed diff is the
+row's verdict, two rewritten argument blocks in `ci.yml` and one
+corrected citation in `scripts/ci-filter.py`.
+
+**The re-opening was right about the currency and wrong about the
+answer**, and the thing that decided it is the one clause the re-opening
+explicitly declined to re-open: *"no single test binds any N up to 4."*
+It does now.
+`editor-core::all r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`
+runs **346-660 s by itself** at ε = 1e-12 — 85-96 % of the leg that
+carries it — and that leg is the last job to finish on all 30 runs read,
+at every count. Five of the six matrix rows cut cleanly with more shards
+(f64 82 s → 54 s, interval ε = default 182 s → 115 s, N=2 → N=4); the
+sixth does not respond to the count at all, and it is the one that sets
+what a contributor waits for. Cutting a 78 s leg beside a 554 s one is
+not a cut.
+
+**Filed with it**: `one-test-is-the-whole-ci-critical-path`, parked on
+the M10-3 row. It is the same family as the symbolic-tier regression
+already diagnosed there — the chamber replay and the band/uniform drives
+are the second and fourth heaviest rows in the same readings — but a
+different suite, four times larger, and newly shown to be **ε-gated**:
+the row builds its guide at `guide(2.0 - 1.0e-11)`, so it is the whole
+critical path at ε = 1e-12 and under 20 s at the other two. Nothing had
+looked at it per-ε before.
+
+**Three method notes worth keeping.** The conservation check was done at
+the level of test IDs, not counts: every test is named in its leg's log,
+so the shards' name SETS were compared directly and came back identical
+at every N (`missing 0, extra 0`; 6 948 f64 and 7 669 interval). The
+per-leg fixed cost is **15.9 s median over 270 legs** and is flat in the
+count — 15 s in August, 15.6 s on 09-03, unmoved. And run WALL is the
+weakest of the three instruments here: running four probe runs at once
+pushed job queue times from a 2 s median to 108 s, which is visible in
+the run walls and absent from the leg walls, because a leg's wall starts
+when its runner does.
+
+**Reported, not filed** (`ci.yml` carries several more billed-minute
+arguments outside this knob; the orchestrator places them): the block
+that decides THIS knob is rewritten on wall clock, per
+`work/ciw/plan.md` §The 2026-09-04 re-read, and none of the others was
+swept.
