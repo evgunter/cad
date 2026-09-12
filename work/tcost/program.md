@@ -17,7 +17,7 @@ levers Ev named (CI red history, per-test timing history, gating file-specific
 suites to their files, merging tests that share initialization, deleting
 covered tests, simpler objects), plus build-side levers. Three read-only
 censuses cut the units, largest share first; every unit's PR states its
-before/after from hosted runs. Test-only units get a batched Opus style
-review and no A/B row; kernel-logic units run the standard v6 dual from band
-1400–1499. Charter, rulings, review split and levers: `work/tcost/plan.md`;
-narrative in `work/tcost/log.md`.
+before/after from hosted runs. The A/B protocol is off for this program
+(Ev, in-chat 2026-09-12): a unit gets a style review, and a full review
+where its risk of being WRONG argues for one. Charter, rulings, review
+track and levers: `work/tcost/plan.md`; narrative in `work/tcost/log.md`.
