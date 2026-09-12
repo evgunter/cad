@@ -72,6 +72,7 @@ use super::value::{Body, Evaluation};
 pub(crate) enum CheckId {
     Connectedness,
     Separation,
+    ChartCoherence,
 }
 
 /// The certified/heuristic label (DS6): honesty of language and a
@@ -120,6 +121,7 @@ fn check_id(check: d::CheckId) -> CheckId {
     match check {
         d::CheckId::Connectedness => CheckId::Connectedness,
         d::CheckId::Separation => CheckId::Separation,
+        d::CheckId::ChartCoherence => CheckId::ChartCoherence,
     }
 }
 
@@ -157,6 +159,7 @@ impl CheckId {
         match self {
             Self::Connectedness => d::CheckId::Connectedness,
             Self::Separation => d::CheckId::Separation,
+            Self::ChartCoherence => d::CheckId::ChartCoherence,
         }
     }
 }
@@ -207,8 +210,9 @@ pub(crate) struct ChecksConfig(pub(crate) d::ChecksConfig);
 
 #[pymethods]
 impl ChecksConfig {
-    /// The DS6 defaults are the no-argument form: both residents at
-    /// `Warn`, nothing expected, nothing refused.
+    /// The DS6 defaults are the no-argument form: the two residents
+    /// of the default pass at `Warn`, the chart-coherence examination
+    /// `Off`, nothing expected, nothing refused.
     ///
     /// `expected_components` is a list of `(root, output_ix,
     /// expected)` triples — the connectedness resident's
@@ -222,11 +226,12 @@ impl ChecksConfig {
     /// would report "checked and fine" about a number the caller did
     /// not state.
     #[new]
-    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, separation = Advisory::Warn))]
+    #[pyo3(signature = (connectedness = Severity::Warn, expected_components = None, separation = Advisory::Warn, chart_coherence = Advisory::Off))]
     fn new(
         connectedness: Severity,
         expected_components: Option<Vec<(NodeId, u32, u32)>>,
         separation: Advisory,
+        chart_coherence: Advisory,
     ) -> PyResult<Self> {
         let mut expected: BTreeMap<(d::RecipeNodeId, u32), u32> = BTreeMap::new();
         for (root, output_ix, count) in expected_components.unwrap_or_default() {
@@ -241,6 +246,7 @@ impl ChecksConfig {
             connectedness: connectedness.to_kernel(),
             expected_components: expected,
             separation: separation.to_kernel(),
+            chart_coherence: chart_coherence.to_kernel(),
         }))
     }
 
@@ -255,6 +261,16 @@ impl ChecksConfig {
     #[getter]
     fn separation(&self) -> Advisory {
         Advisory::from_kernel(self.0.separation)
+    }
+
+    /// The chart-coherence resident's knob — an `Advisory`, so
+    /// `Error` is not spellable here either, and `Off` by default:
+    /// the resident reads every face of every rest body and reports a
+    /// trimmed face's loops as out of its reach, so it is asked for
+    /// rather than paid for on every run.
+    #[getter]
+    fn chart_coherence(&self) -> Advisory {
+        Advisory::from_kernel(self.0.chart_coherence)
     }
 
     /// The stated expectations, ascending by subject.
@@ -279,10 +295,12 @@ impl ChecksConfig {
 
     fn __repr__(&self) -> String {
         format!(
-            "ChecksConfig(connectedness={:?}, expected_components={}, separation={:?})",
+            "ChecksConfig(connectedness={:?}, expected_components={}, separation={:?}, \
+             chart_coherence={:?})",
             self.0.connectedness,
             self.0.expected_components.len(),
-            self.0.separation
+            self.0.separation,
+            self.0.chart_coherence
         )
     }
 }
@@ -292,9 +310,10 @@ impl ChecksConfig {
 ///
 /// Every payload attribute is present on every arm, `None` where the
 /// arm does not carry it: `actual`, `expected`, `other_root`,
-/// `other_output`, `reason`, `inner_variant`.
+/// `other_output`, `reason`, `inner_variant`, `boolean_variant`,
+/// `chart_variant`, `metres`, `gap`, `lever`, `eps`.
 ///
-/// The six read off ONE record, [`crate::check_payload`], whose
+/// They read off ONE record, [`crate::check_payload`], whose
 /// match over the kernel enum is exhaustive with no wildcard: an
 /// evidence arm added there is a compile error rather than a finding
 /// every accessor here silently answers `None` about.
@@ -356,6 +375,75 @@ impl CheckEvidence {
         self.payload().inner_variant
     }
 
+    /// Which kernel boolean refusal made separation unavailable, as a
+    /// branchable word, on `separation_unavailable` alone — the
+    /// `topo::BooleanErrorKind` vocabulary an evaluation refusal
+    /// already publishes as `EvaluationError.inner_kind`. `reason` is
+    /// that refusal's sentence; this is the part a caller matches on,
+    /// so which refusal it was is read rather than grepped out of the
+    /// prose.
+    ///
+    /// Its own word, not `inner_variant`'s: the shell and boolean
+    /// alphabets share spellings (`band`, `escalated`), so one
+    /// attribute carrying either would be a word a caller could only
+    /// read after branching on `variant`.
+    #[getter]
+    fn boolean_variant(&self) -> Option<&'static str> {
+        self.payload().boolean_variant
+    }
+
+    /// The chart-coherence arm's own inner word: which condition was
+    /// measured on `chart_coherence` (`meridian_closure`,
+    /// `rim_continuation`, `meridian_continuation`), and why a loop
+    /// was out of reach on `chart_coherence_unexamined` (`corrupt`,
+    /// `null_scaffold_edge`, `non_iso_carrier`).
+    ///
+    /// One attribute for two alphabets, which `boolean_variant`
+    /// refuses — and for that field's own stated reason, which does
+    /// not reach here: these two alphabets share no spelling, so the
+    /// word answers a caller that has not branched on `variant`, and
+    /// answers it correctly.
+    ///
+    /// **An unexamined loop is not a skipped check.**
+    /// `ChecksReport.skipped` lists checks a CONFIGURATION turned off;
+    /// these words name loops the DATA put out of reach, on a check
+    /// that ran.
+    #[getter]
+    fn chart_variant(&self) -> Option<&'static str> {
+        self.payload().chart_variant
+    }
+
+    /// The chart-coherence measurement as a length in metres, on
+    /// `chart_coherence` alone — `gap * lever`, the only unit the band
+    /// is in and the one the finding is judged in.
+    #[getter]
+    fn metres(&self) -> Option<f64> {
+        self.payload().metres
+    }
+
+    /// That measurement's disagreement in the chart's own units, on
+    /// `chart_coherence`: radians of u, or v's units by surface kind.
+    #[getter]
+    fn gap(&self) -> Option<f64> {
+        self.payload().gap
+    }
+
+    /// That measurement's lever arm in metres per chart unit, on
+    /// `chart_coherence`. Zero on a chart axis, where an azimuth
+    /// carries no length.
+    #[getter]
+    fn lever(&self) -> Option<f64> {
+        self.payload().lever
+    }
+
+    /// The band this measurement was judged against, on
+    /// `chart_coherence`. It rides the finding rather than the report:
+    /// `metres` read without it is a number without a claim.
+    #[getter]
+    fn eps(&self) -> Option<f64> {
+        self.payload().eps
+    }
+
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -372,7 +460,7 @@ impl CheckEvidence {
     /// matching the enum itself, so the arm table is written once —
     /// exhaustively, with no wildcard, in `crate::check_payload` — and
     /// an arm added kernel-side is a compile error there instead of
-    /// six attributes silently answering `None`.
+    /// every attribute silently answering `None`.
     fn payload(&self) -> crate::check_payload::CheckEvidencePayload<'_> {
         crate::check_payload::check_payload(&self.0)
     }

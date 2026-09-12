@@ -37,6 +37,10 @@ fn split_seam_donut(fracs: &[f64]) -> (Body<f64>, topo::EdgeKey, Vec<topo::EdgeK
         .certified()
         .unwrap()
         .clone();
+    assert!(
+        matches!(curve.carrier(), Curve3::Circle { radius, .. } if (*radius - 0.5).abs() < 1e-12),
+        "the fixture's first edge is the seam minor circle"
+    );
     let (t0, t1) = curve.params();
     let mut minted = Vec::new();
     for f in fracs {
@@ -54,13 +58,31 @@ fn volume(b: &Body<f64>) -> Result<f64, topo::MassPropsError> {
 
 /// **The split-seam donut's mesh, measured independently.** Positions
 /// as bit-pattern sets: the two meshes differ only on the seam minor
-/// circle, the split one carries exactly one more position, both are
-/// watertight, and every position of both lies on the torus.
+/// circle; the split one carries one more position — the split
+/// vertex — unless the unsplit seam's chord schedule already sampled
+/// that parameter (an even chord count halved does, bitwise: the same
+/// `t0 + span·f` the split evaluates), in which case the position
+/// COUNTS coincide while the seam column's points still differ (the
+/// pieces' schedules and the unsplit one's evaluate the same fractions
+/// through different arithmetic, and a chord point differs in its last
+/// ulps); both are watertight, and every position of both lies on the
+/// torus.
 #[test]
 fn m10r2_split_donut_mesh_differs_only_on_the_seam_column() {
     let tol = Tol::witness();
     let (body, _, _) = split_seam_donut(&[0.5]);
-    let m0 = mesh::tessellate(&donut(), 0.1, tol).unwrap();
+    let base = donut();
+    let split_point = {
+        let (_, edge) = base.edges().next().unwrap();
+        let curve = base
+            .get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap();
+        let (t0, t1) = curve.params();
+        curve.carrier().eval(t0 + 0.5 * (t1 - t0))
+    };
+    let m0 = mesh::tessellate(&base, 0.1, tol).unwrap();
     let m = mesh::tessellate(&body, 0.1, tol).unwrap();
     mesh::validate::check_mesh(&m0).unwrap();
     mesh::validate::check_mesh(&m).unwrap();
@@ -97,10 +119,11 @@ fn m10r2_split_donut_mesh_differs_only_on_the_seam_column() {
         only_a.len(),
         only_b.len()
     );
-    assert_eq!(m.positions.len(), m0.positions.len() + 1);
+    let extra = usize::from(a.binary_search(&key(&split_point)).is_err());
+    assert_eq!(m.positions.len(), m0.positions.len() + extra);
     assert!(only_a.iter().all(|k| seam(k)) && only_b.iter().all(|k| seam(k)));
     assert!(worst < 1e-12);
-    assert_eq!(only_b.len(), only_a.len() + 1);
+    assert_eq!(only_b.len(), only_a.len() + extra);
 }
 
 /// **The lineage after a graft.** `graft_disjoint` (and the boolean's

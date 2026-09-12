@@ -192,9 +192,9 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // it is the one payload all three pairing doors carry (DI3), which is
 // why it is spelled for the QUESTION rather than for any one door.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, Mispaired,
-    NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3,
-    UnitVec3Error, ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
+    Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
@@ -231,7 +231,9 @@ pub use editor_core::ContentBits;
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
-pub use editor_core::{Product, ProductError, RootFault, product, product_recorded};
+pub use editor_core::{
+    Product, ProductError, ProductErrorKind, RootFault, product, product_recorded,
+};
 
 // The gather's own witness, and only where `debug_assertions` are on:
 // how many times this thread has gathered a product. A consumer that
@@ -359,8 +361,8 @@ pub use editor_core::{
 // pin from disk is `workspace::update_to_store`.
 pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 
-// The advisory-check registry (DISCIPLINES-DESIGN DS6) and its first
-// resident, the connectedness check. `run_checks` REPORTS, never
+// The advisory-check registry (DISCIPLINES-DESIGN DS6) and its
+// residents, the connectedness check among them. `run_checks` REPORTS, never
 // gates (the `mixed_pins` posture: nothing calls it from apply, load,
 // or evaluation); `enforce_checks` is the one refusing path, and the
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
@@ -371,10 +373,15 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // `run_checks_on` is the registry over a `Subject` the caller gathered
 // — the door `run_checks` wraps, for a caller that already holds the
 // document's product.
+// `ChartCoherenceLane` is a BOUND on both registry doors, so it is
+// nameable by necessity: a caller writing its own function generic
+// over the decision lane has to spell it. The trait says which lanes
+// carry a chart-coherence examination — `f64` does, and a lane that
+// does not reports that as a finding rather than as a clean body.
 pub use editor_core::{
-    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
-    ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks, run_checks_on,
-    subject_body,
+    Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
+    ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
+    run_checks_on, subject_body,
 };
 /// The shell door's typed refusal, which two `CheckEvidence` arms
 /// carry — by the payload rule this list states at `VerbKind`.

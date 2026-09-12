@@ -4,7 +4,7 @@ kind: issue
 title: k-lint's EXPECTED_HEADER is hand-copied at five producer sites with no pin in either direction
 status: open
 opened: 2026-09-07
-refs: [2115, D204]
+refs: [2115, 1642]
 ---
 
 
@@ -88,3 +88,9 @@ the claim. This row is one of the twenty on INSTR's opening slate.
 ## Refs at METER's sweep (2026-09-09)
 
 METER closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 10); `k-lint-predicate-roster-unpinned` is now cited by its closing PR 2115. `D204` is unaffected: it is code-quality's row and stays in `work/code-quality/`.
+
+## Refs at code-quality's sweep (2026-09-11)
+
+`work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
+and its closed rows went with it. `D204` is now cited by its closing PR
+1642.

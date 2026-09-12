@@ -289,7 +289,10 @@ impl core::fmt::Display for PcurveMintError {
         match self {
             Self::Corrupt => write!(
                 f,
-                "pcurve minting: the body is structurally corrupt (a key did not resolve)"
+                "pcurve minting: the body is structurally corrupt (a key did not resolve) \
+                 — the structural validators own this diagnosis: read the tier-1 report \
+                 and repair the reference it names; this pass refuses to guess rather \
+                 than minting past a broken one"
             ),
             Self::Certify { half_edge, error } => {
                 write!(f, "pcurve minting at half-edge {half_edge:?}: {error}")
@@ -298,12 +301,19 @@ impl core::fmt::Display for PcurveMintError {
                 f,
                 "pcurve minting: half-edge {half_edge:?} does not meet its predecessor in \
                  the chart — the loop's single-branch unwrap is discontinuous there \
-                 (a branch is chosen once per loop and certified, never per sample)"
+                 (a branch is chosen once per loop and certified, never per sample). \
+                 Re-mint the body if it was edited after minting: surgery leaves stale \
+                 rows and this pass is their backstop. If a fresh mint refuses here too, \
+                 the loop's edges do not meet through the chart and the face's boundary \
+                 is what to repair"
             ),
             Self::LoopNotClosed { face } => write!(
                 f,
                 "pcurve minting: the chart walk of a loop of face {face:?} did not close \
-                 (its azimuth advance is neither zero nor one full period)"
+                 (its azimuth advance is neither zero nor one full period) — re-mint \
+                 after any surgery on an already-minted body, and if a fresh mint refuses \
+                 the same way repair the loop itself: the walk never closes a gap by \
+                 choosing a branch"
             ),
             Self::SingularChartJoint {
                 face,
@@ -313,22 +323,35 @@ impl core::fmt::Display for PcurveMintError {
                 f,
                 "chart boundary: loop {lp:?} of face {face:?} meets a chart singularity at \
                  half-edge {half_edge:?} (a sphere pole or a cone apex), where the first \
-                 chart channel has no lever and the boundary has no chord polygon"
+                 chart channel has no lever and the boundary has no chord polygon — valid \
+                 input, unbuilt lane: the joint's azimuth is whatever the derivation \
+                 produced and no branch choice makes it a vertex, so ask for the \
+                 description on a face whose loops stay clear of the singularity (a sphere \
+                 or cone face that does describes normally); there is nothing in the body \
+                 to repair"
             ),
             Self::OuterSpansPeriod => write!(
                 f,
                 "chart boundary: the outer loop's chart span exceeds the chart's period, so \
-                 the face wraps onto itself and its region is not periodic within its own outer"
+                 the face wraps onto itself and its region is not periodic within its own \
+                 outer — the ring lifts are then lifts of nothing and no honest description \
+                 exists to return, so hold the producer to an outer within one period (a \
+                 revolve's angle headroom is that guard) and describe a face that wraps \
+                 further as sub-period pieces"
             ),
             Self::LoopWraps { face, r#loop: lp } => write!(
                 f,
                 "chart boundary: the chart walk of loop {lp:?} of face {face:?} closes one \
-                 whole period off — it lifts the chart rather than bounding a chart polygon"
+                 whole period off — it lifts the chart rather than bounding a chart polygon. \
+                 No constructor in the tree is known to produce such a loop, so report the \
+                 body that reached this rather than repairing one"
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
                 "pcurve minting: half-edge {half_edge:?} bounds a face whose chart mints \
-                 pcurve caches, but carries none at rest"
+                 pcurve caches, but carries none at rest — the face's cache set is \
+                 half-minted: re-mint the body, and repair the op that returned a mutated \
+                 already-minted body without clearing or re-minting, which is what leaves one"
             ),
             Self::Escalated { half_edge, cause } => write!(
                 f,
@@ -2228,6 +2251,34 @@ pub(crate) mod staleness_posture {
                 Maintains,
                 "calls `merge_coplanar_faces_declared`, which re-mints the staged result",
             ),
+            // ---- Maintains: the doors that re-mint their own staged
+            // result. They carry prose here rather than in
+            // `review_m1_pr5_internal::ALLOWED` because they assert
+            // tier 1 through a surgery scope (`crate::surgery`) and so
+            // are no longer allowlisted there; the two tables still
+            // have to cover this one population between them. ----
+            (
+                "merge_coplanar_faces_declared",
+                Maintains,
+                "re-mints the staged result before it is adopted, whenever the operand \
+                 carried rows",
+            ),
+            (
+                "replace_faces_offset",
+                Maintains,
+                "re-mints the clone whole-body before adopting it",
+            ),
+            (
+                "offset_planes_together",
+                Maintains,
+                "re-mints the moved faces' rows on the clone (`mint_pcurves_of`) before \
+                 adopting it",
+            ),
+            (
+                "offset_charts_together",
+                Maintains,
+                "the axial spelling of `offset_planes_together`, with the same re-mint",
+            ),
             (
                 "replace_face_offset",
                 Maintains,
@@ -2352,7 +2403,9 @@ pub(crate) mod staleness_posture {
             (
                 "describe_at_rest",
                 Neither,
-                "`set_edge_curve` with the edge's own carrier and interval put back              verbatim — only the description moves, so not even content staleness              reaches a pcurve",
+                "`set_edge_curve` with the edge's own carrier and interval put back \
+                 verbatim — only the description moves, so not even content staleness \
+                 reaches a pcurve",
             ),
             ("set_face_sense", Neither, "writes one `bool`"),
             ("set_surface_source", Neither, "GeomSource metadata"),
@@ -2363,6 +2416,11 @@ pub(crate) mod staleness_posture {
                 "set_surface_field_source",
                 Neither,
                 "ParamSource metadata: a per-field side record beside the surface",
+            ),
+            (
+                "begin_surgery",
+                Neither,
+                "opens a debug-only surgery scope: no arena key, no pcurve row",
             ),
             ("set_null_face_pair", Neither, "null-face annotation"),
             ("clear_null_face_pair", Neither, "removes that annotation"),
@@ -2711,5 +2769,120 @@ mod stretch_meter {
         let s: Surface<f64> = Surface::Nurbs(Arc::new(NurbsSurface::placeholder()));
         assert_eq!(azimuth_arm(&s, 0.0), 1.0);
         assert_eq!(v_meter(&s), 1.0);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod recourse_tests {
+    use super::PcurveMintError;
+    use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
+    use geom_brep::PcurveCertifyError;
+    use geom_core::predicate::{Band, BandError, COINCIDENCE_RECOURSE};
+    use geom_core::{Indeterminate, MarginDiag};
+
+    /// **The recourse claim for the carrier tier 3 renders whole.**
+    /// `ValidationError::Pcurve { finding }` is literally
+    /// `"tier 3: {finding}"`, and four more wrappers (`ShellError`,
+    /// `TransformError`, `ReplaceFaceError`, `MergeCoplanarError`)
+    /// contribute a phrase each, so whatever this enum fails to say is
+    /// absent from the message a user reads at five doors.
+    ///
+    /// **Three arms are asserted differently, because they render a
+    /// carrier whole and contribute no prose of their own.** The rule
+    /// is that an arm is checked TRANSITIVELY only where the carrier
+    /// has an enforcement row of its own:
+    ///
+    /// - `Escalated` carries an `Indeterminate`, whose `Display` ends
+    ///   in [`COINCIDENCE_RECOURSE`] on every margin arm, so the
+    ///   recourse is asserted directly.
+    /// - `Band` carries a `BandError`, whose own arms are covered by
+    ///   `geom_core`'s `every_band_error_arm_names_a_recourse`; what is
+    ///   asserted here is the delegation itself — that the arm renders
+    ///   the carrier whole rather than summarising it.
+    /// - `Certify` carries a `PcurveCertifyError`, which has **no such
+    ///   row**, so the chain's claim is unproved at that hop and this
+    ///   row does not pretend otherwise: it asserts the delegation and
+    ///   nothing about the recourse.
+    ///
+    /// **A floor, not a proof**, on the terms
+    /// `every_chart_region_arm_names_a_recourse` states: a vocabulary
+    /// check cannot tell a recourse from a sentence containing one of
+    /// its words, and an arm whose recourse uses a word not listed
+    /// fails it honestly — extend the list in the same change. What it
+    /// catches is the arm added with no second clause at all. The
+    /// payloads below are keys, which render verb-free, so what the row
+    /// measures is the variant's own clause.
+    #[test]
+    fn every_pcurve_mint_error_arm_names_a_recourse() {
+        // A vocabulary, not a part-of-speech test: an arm that points
+        // at a named lever rather than using an imperative satisfies
+        // the claim the same way.
+        const RECOURSE_WORDS: &[&str] = &[
+            "read", "repair", "re-mint", "ask", "hold", "describe", "report",
+        ];
+        let cause = Indeterminate {
+            margin: MarginDiag::Value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("pcurve_recourse_probe"),
+        };
+        let band_error = BandError::Empty {
+            zero: 1e-8,
+            escalate: 1e-9,
+        };
+        let certify_error = PcurveCertifyError::UnsupportedCarrier;
+        let arms = [
+            PcurveMintError::Corrupt,
+            PcurveMintError::Certify {
+                half_edge: HalfEdgeKey::default(),
+                error: certify_error.clone(),
+            },
+            PcurveMintError::LoopDiscontinuity {
+                half_edge: HalfEdgeKey::default(),
+            },
+            PcurveMintError::LoopNotClosed {
+                face: FaceKey::default(),
+            },
+            PcurveMintError::SingularChartJoint {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+                half_edge: HalfEdgeKey::default(),
+            },
+            PcurveMintError::OuterSpansPeriod,
+            PcurveMintError::LoopWraps {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+            },
+            PcurveMintError::MissingCache {
+                half_edge: HalfEdgeKey::default(),
+            },
+            PcurveMintError::Escalated {
+                half_edge: HalfEdgeKey::default(),
+                cause,
+            },
+            PcurveMintError::Band(band_error),
+        ];
+        assert_eq!(arms.len(), 10, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            match arm {
+                PcurveMintError::Escalated { .. } => {
+                    assert!(msg.contains(COINCIDENCE_RECOURSE), "{msg}");
+                }
+                PcurveMintError::Band(_) => {
+                    assert!(msg.contains(&band_error.to_string()), "{msg}");
+                }
+                PcurveMintError::Certify { .. } => {
+                    assert!(msg.contains(&certify_error.to_string()), "{msg}");
+                }
+                _ => {
+                    let lower = msg.to_lowercase();
+                    assert!(
+                        RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                        "no recourse in: {msg}"
+                    );
+                }
+            }
+        }
     }
 }

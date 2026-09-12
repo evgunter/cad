@@ -2,11 +2,12 @@
 id: skip-eps-battery-by-observing-oncelock
 kind: issue
 title: Skip the eps battery's provably-invariant repeats by OBSERVING the tolerance OnceLock, not by declaring
-status: parked
+status: closed
 opened: 2026-08-13
 github: 470
 blocked_on: [449]
 refs: [452, 467, 469]
+closed: 2026-09-11
 ---
 
 ## From GitHub issue 470
@@ -78,3 +79,41 @@ Context: this came up alongside the S22 ruling to keep the ambient `OnceLock` (n
 ## Home
 
 S-TCOST: cutting the ε battery's exact re-execution is a test-suite-cost lever over `crates/*/tests/*`, this program's territory; S-QA parked it and is closed. Parked on the opt-level-2 story of #449, the trigger the issue and its deferral ruling both name.
+
+## Closed (2026-09-11): the currency this was priced in stopped existing
+
+`evgunter/cad` went public on 2026-09-03. Standard-runner minutes are
+free, so the prize this issue holds — *"the whole prize is ~90 cpu-s at
+current pricing"* — is a saving in a currency the project no longer
+spends, and the trigger the deferral ruling attached to it (Ev,
+2026-08-19: revisit *"if the opt-level-2 revert lands and the ε rows get
+expensive again"*) is a cpu-s trigger, so it can no longer fire.
+
+**The saving was never wall clock and cannot become it by this route.**
+The three ε rows are a matrix dimension, not three sequential steps:
+they execute the same archived binaries in parallel legs, so a run's
+wall follows their MAXIMUM and not their sum. Measured on the public
+runner, those legs are **34–74 s** (`nextest-shard-count-needs-remeasure`,
+re-measure of 2026-09-03) against a `build + archive (interval)` of
+**388 s median** — the build→test chain is the critical path and the ε
+legs are the short end of it. Skipping 251 tests on two of three legs
+removes cpu-s from jobs that are already waiting on the archive ahead of
+them; it shortens nothing a contributor waits for.
+
+**And it now runs against a decision taken on the same fact.** The
+lane/eps draw was un-sampled on 2026-09-04 precisely because minutes
+stopped being a currency (`scripts/ci-filter.py` §CONFIGURATION
+COVERAGE; `work/ciw/reinstate-full-configuration-runs`, PR 1823). That
+put every ε row back on every run on the argument that a configuration
+which gates one run in six lets a break confined to it merge green.
+Taking 251 tests back off two of those three rows re-opens the same hole
+one level down, for ~90 cpu-s.
+
+Closed as REJECTED, not deferred — the 2026-08-19 ruling deferred it on
+a number, and the number is now structurally unavailable. What survives
+and is worth keeping is the MECHANISM's design, which was agreed to be
+right (derive by observing the `OnceLock`, never by declaring; fails in
+the safe direction) and which this file remains the record of: if a
+future lane ever needs per-test ε-sensitivity for a reason that is not
+cost — attributing an ε-band red, say — this is how to get it without an
+opt-out surface that can lie.

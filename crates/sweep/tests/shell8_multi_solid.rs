@@ -19,8 +19,9 @@ use geom_core::{Point3, Vec3};
 use sweep::{TubeWindow, tube_along_arc};
 use topo::{Body, ShellError, SolidKey};
 
+use crate::common::approx::band;
 use crate::shell8_common::{
-    band, beside, bits, charts_of, deep_dump, edge_rows, outer_and_void_of, points, solid_of,
+    beside, bits, charts_of, deep_dump, edge_rows, outer_and_void_of, points, solid_of,
     solid_of_vertex, tol, top_chart, volume,
 };
 use crate::verbs_shell::{boxy, hollow_box, v, vessel};

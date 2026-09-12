@@ -85,12 +85,12 @@ pub use editor_core::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NameOrigin, NamePat, NameTable, NamingError, OpGroup, ProfileEdgeRef, ProfileVertexRef,
-    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
-    Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, band, band_pi, band_rim, carried, declare, declare_all, declare_node, denotation,
-    edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates,
-    meridian_vertex, select, select_where, vertex_position,
+    NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, ProfileEdgeRef,
+    ProfileVertexRef, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
+    SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges,
+    all_faces, all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all,
+    declare_node, denotation, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
+    find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class, on this evidence" — the fourth quarter of a vocabulary this
@@ -162,7 +162,8 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 // `RecipeNodeId` and a `u32`. Carrying the payload alone leaves the
 // index unbuildable and closes that one exception.
 pub use editor_core::{
-    HitTestError, MeshPickError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face,
+    HitTestError, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray,
+    pick_face,
 };
 
 // **The resolution verdict a stored name gets at the next

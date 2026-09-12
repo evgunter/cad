@@ -188,7 +188,7 @@ const DOC_EXTENSION: &str = "pncad";
 /// `color` as the toolkit's own colour type.
 ///
 /// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
-/// `theme::linear`'s role on the viewport side: a palette states sRGB
+/// [`crate::theme::linear`]'s role on the viewport side: a palette states sRGB
 /// and each renderer converts once, at its own door.
 pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
     egui::Color32::from_rgb(color.r, color.g, color.b)
@@ -198,7 +198,7 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 ///
 /// The one draw the badge family has. What a badge SAYS, how loud it
 /// is, whether it has more to say on hover and whether it is a control
-/// are all the value's (`frame::Badge`); what a click on a control
+/// are all the value's ([`crate::frame::Badge`]); what a click on a control
 /// MEANS is the caller's, which is why this returns the response
 /// instead of naming a window.
 ///
@@ -309,7 +309,7 @@ pub struct ViewerApp {
     /// rebuild exactly as a new evaluation does.
     scene_display: Option<u64>,
     /// The focus set `scene` was built under — the ids of what the side
-    /// panel is showing (`marks::focus`), which the scene carries as a
+    /// panel is showing ([`crate::marks::focus`]), which the scene carries as a
     /// per-corner flag and therefore has to be rebuilt for.
     ///
     /// Compared as a SET rather than counted by a revision, because
@@ -320,7 +320,7 @@ pub struct ViewerApp {
     /// correctly rebuilds nothing.
     scene_focus: BTreeSet<u32>,
     /// **What the last scene rebuild refused**, held until one
-    /// succeeds — the state `frame::scene_badge` reads.
+    /// succeeds — the state [`crate::frame::scene_badge`] reads.
     ///
     /// Held rather than announced: the viewport keeps drawing the mesh
     /// it already has, so "the picture is older than the document and
@@ -328,7 +328,7 @@ pub struct ViewerApp {
     /// rebuild lands, and a badge is a read of exactly this.
     scene_fault: Option<SceneError>,
     /// **What the last projection refused**, written by the viewport
-    /// as it paints and read by `frame::projection_badge`.
+    /// as it paints and read by [`crate::frame::projection_badge`].
     ///
     /// The toolbar draws before the panes, so the badge appears on the
     /// frame after the refusal. A view matrix that cannot be formed is
@@ -428,7 +428,7 @@ pub struct ViewerApp {
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped — with what it is ABOUT, so
     /// the next event about that subject can retire it
-    /// (`frame::Subject`).
+    /// ([`crate::frame::Subject`]).
     status: Option<frame::Message>,
     /// **Everything THIS frame has to say**, collected as it happens
     /// and ranked with the batch verdict rather than before it. It was
@@ -449,7 +449,7 @@ pub struct ViewerApp {
     /// survives beside it.
     ///
     /// They cannot be written straight to [`ViewerApp::status`] —
-    /// `frame::frame_status` carries that argument, and it is the one
+    /// [`crate::frame::frame_status`] carries that argument, and it is the one
     /// place it is made. Drained every frame by `perform_batch`, so
     /// nothing here survives into the next one.
     notices: Vec<frame::Message>,
@@ -467,7 +467,7 @@ pub struct ViewerApp {
     ///
     /// **The name as WRITTEN, not the resolved [`InputMap`]** — a
     /// preset this viewer does not recognise falls back for the
-    /// session (`prefs::Notice::UnknownPreset`) but must survive in
+    /// session ([`crate::prefs::Notice::UnknownPreset`]) but must survive in
     /// the file, or opening an older viewer once would silently
     /// delete a newer one's choice. Kept as a field rather than
     /// re-read at save time because the save happens on a UI event
@@ -936,21 +936,20 @@ impl ViewerApp {
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
             let outcome = self.session.perform(op);
-            // **Where a supersession reaches the user**: the free-move
-            // placements this operation's document transition
-            // discarded, onto the frame's notices like every other
+            // **Where a withdrawal reaches the user**: everything
+            // this operation's document transition took out of the
+            // display state, onto the frame's notices like every other
             // one (`frame::frame_status` carries the argument).
+            //
+            // ONE call, not one per kind. Three hand-written `extend`s
+            // stood here, and the list they fanned out was held to the
+            // report's by nothing — this code is `app`-gated, so no
+            // row can execute it and a kind dropped here is invisible
+            // until a user misses a sentence. `Withdrawal::all`
+            // destructures the report, so the list is the report's and
+            // a fourth kind reds there.
             notices.extend(
-                frame::Withdrawal::superseded(&outcome.superseded)
-                    .map(|withdrawal| withdrawal.notice()),
-            );
-            // And the hides the same transition dropped, ranked
-            // beside them — the same class of fact (display state an
-            // accepted edit withdrew) and a different sentence
-            // (`frame::dropped_hide_notice` carries the argument).
-            notices.extend(
-                frame::Withdrawal::dropped_hide(&outcome.dropped_hides)
-                    .map(|withdrawal| withdrawal.notice()),
+                frame::Withdrawal::all(&outcome.withdrawn).map(|withdrawal| withdrawal.notice()),
             );
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
@@ -1049,16 +1048,16 @@ impl ViewerApp {
 
     /// This application's door onto [`frame::apply`], for the verdict
     /// the ranking has ALREADY WEIGHED: `perform_batch` hands
-    /// `frame::frame_status`'s answer here rather than assigning the
+    /// [`crate::frame::frame_status`]'s answer here rather than assigning the
     /// field. Its one live caller, and deliberately so — a `Show` that
     /// has been through the ranking must reach the field, and handing
     /// it to [`frame::deliver`] instead would loop it back onto
     /// `notices` to be ranked a second time.
     ///
     /// **Not the one place a [`StatusUpdate`] becomes the field** —
-    /// that is `frame::apply`, which `pane::viewport` reaches directly
+    /// that is [`crate::frame::apply`], which [`crate::pane::viewport`] reaches directly
     /// at both of its doors: `land` through [`frame::deliver`], and the
-    /// cursor's retirement through `frame::apply` itself. Neither has a
+    /// cursor's retirement through [`crate::frame::apply`] itself. Neither has a
     /// `&mut self` to come through; both take the `&mut
     /// Option<frame::Message>` this is shorthand for. This is the
     /// `&mut self` shorthand, nothing more.
@@ -1236,6 +1235,34 @@ impl eframe::App for ViewerApp {
                     .clicked()
                 {
                     ops.push(SessionOp::Redo);
+                }
+                ui.separator();
+                // **The cancel doors**, beside the history controls
+                // because that is where a reader whose every edit is
+                // being refused already is. They are HERE and not on
+                // the field that opened the gesture: the field is what
+                // can stop being drawn mid-drag, and a cancel sited on
+                // it would vanish with the exit it exists to replace
+                // (`session::CancelDoor`). This panel is drawn on every
+                // frame whatever the selection, the standing and the
+                // layout are.
+                //
+                // Enabled exactly while the door's own gesture is in
+                // flight, and out of flight it says the refusal the
+                // operation itself would give — the value that knows
+                // carries the words, so the two cannot disagree.
+                for door in self.session.cancel_doors() {
+                    let button =
+                        ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
+                    let clicked = match &door.blocked {
+                        Some(refusal) => {
+                            button.on_disabled_hover_text(refusal.to_string()).clicked()
+                        }
+                        None => button.clicked(),
+                    };
+                    if clicked {
+                        ops.push(door.op);
+                    }
                 }
                 ui.separator();
                 if ui
@@ -1556,7 +1583,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// Whether a build for the picture this frame WANTS is under way —
     /// the other half of what `index: None` means, and the half that
     /// decides which sentence a refused pick gets
-    /// (`pickcache::NotIndexed`). Carried as a value rather than re-derived
+    /// ([`crate::pickcache::NotIndexed`]). Carried as a value rather than re-derived
     /// from the session, because "someone is building one" is the pick
     /// cache's answer and nothing else's.
     pub(crate) indexing: bool,
@@ -1600,12 +1627,12 @@ pub(crate) struct ViewerBehavior<'a> {
     /// `perform_batch` runs after the panes have drawn.
     pub(crate) notices: &'a mut Vec<frame::Message>,
     /// The line itself, for the one thing a notice cannot do: RETIRE a
-    /// sentence. `frame::cursor_status` and a clean camera fold expire
+    /// sentence. [`crate::frame::cursor_status`] and a clean camera fold expire
     /// what they last said and add nothing, so both reach the field
     /// directly — by different doors, because the two policies are not
     /// the same shape. `cursor_status` answers only `Keep` or `Expire`,
     /// so it can never have news and goes straight through
-    /// `frame::apply` (`pane::viewport`, the id pass). `fold_status`
+    /// [`crate::frame::apply`] ([`crate::pane::viewport`], the id pass). `fold_status`
     /// can answer either way, so `land` hands it to
     /// [`frame::deliver`], which routes the refusal to `notices` above
     /// and the clean fold's retirement here.

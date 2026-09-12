@@ -5,7 +5,7 @@ title: Purchasable area tightness - a demand-triggered valve on the patch lanes'
 status: open
 opened: 2026-08-31
 github: 1367
-refs: [870, 873, 472, 1315, 1366, S26, S230]
+refs: [870, 873, 472, 1315, 1366, S230]
 ---
 
 ## From GitHub issue 1367
@@ -31,3 +31,9 @@ Opened 2026-08-31; 0 comments.
 ## Home
 
 S-CERT: the valve sits on the patch lanes' area enclosure in `crates/geom-brep/src/props/*`, S-CERT territory, and it is the door S-CERT's own Q1 ruling left open — enclosure quality and metering is the program's charter.
+
+## Refs at code-quality's sweep (2026-09-11)
+
+`work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
+and its closed rows went with it. `S26` is now cited by its closing PR
+1366.

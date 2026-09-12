@@ -618,7 +618,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         RecipeNodeId, Subgroup,
     };
     use pncad::geom_core::{
-        Band, BandError, BandField, FrameError, FrameInput, Indeterminate, MarginDiag,
+        Band, BandError, BandField, FrameError, FrameInput, FrameVector, Indeterminate, MarginDiag,
     };
 
     let id = RecipeNodeId;
@@ -684,6 +684,34 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             },
         },
         &["mate", "side", "inner_variant"],
+    );
+    // The same empty payload for a non-finite length, and for a
+    // sharper reason: nothing was CLASSIFIED, so there is no margin
+    // to publish rather than a margin that happened to be definite.
+    // `MateFrame::placement` calls `point_at` directly, so both of
+    // that door's non-finite words reach Python through this arm —
+    // the roll-reference one is pinned here because it is the site
+    // the unit found silently returning a degenerate frame.
+    carries(
+        &F::Frame {
+            mate: id(1),
+            side: MateSide::B,
+            error: FrameError::NonFiniteLength {
+                input: FrameVector::RollReference,
+            },
+        },
+        &["mate", "side", "inner_variant"],
+    );
+    assert_eq!(
+        mate_payload(&F::Frame {
+            mate: id(1),
+            side: MateSide::B,
+            error: FrameError::NonFiniteLength {
+                input: FrameVector::RollReference,
+            },
+        })
+        .inner_variant,
+        Some("non_finite_roll_reference"),
     );
     // An enclosure straddles rather than landing: two bounds and no
     // value, the `MarginDiag` fork the frame door publishes.
@@ -1208,6 +1236,7 @@ fn resolution_status_tags_are_stable() {
 fn select_refusal_tags_are_stable() {
     use crate::tags::select_refusal_tag;
     use pncad::document::{Dimension, RecipeNodeId};
+    use pncad::geom_core::{BandError, BandField};
     use pncad::select::{EntityKind, InterrogateError, SelectRefusal};
 
     let name = Box::new(pncad::prelude::StableName {
@@ -1243,7 +1272,23 @@ fn select_refusal_tags_are_stable() {
         }),
         "not_a_length"
     );
-    assert_eq!(select_refusal_tag(&SelectRefusal::Band), "band");
+    // The band arm delegates: a Python caller branching on `reason`
+    // gets the constructor's own word, so a collapsed band and an
+    // overflowed one are two answers rather than one.
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::Band(BandError::Empty {
+            zero: 5e-324,
+            escalate: 5e-324,
+        })),
+        "empty"
+    );
+    assert_eq!(
+        select_refusal_tag(&SelectRefusal::Band(BandError::InvalidValue {
+            field: BandField::Escalate,
+            value: f64::INFINITY,
+        })),
+        "invalid_value"
+    );
 }
 
 /// LIB-PYG5: `ContactClass` is `#[non_exhaustive]` kernel-side, so
@@ -2652,6 +2697,52 @@ fn the_prose_rule_separates_a_display_from_a_debug_dump() {
     assert!(reads_as_prose("Tessellate refused"));
 }
 
+/// A blend escalation names its site in prose at every site.
+///
+/// `BlendSite::Link` and `::Joint` are struct variants, so rendering
+/// the site through `Debug` puts the field-brace fingerprint in the
+/// message and the refusal PANICS `crate::py::typed_err` instead of
+/// raising. The escalation arm is the one an indeterminate predicate
+/// is for, so that panic sits behind an ordinary fillet or chamfer
+/// request; the site renders through its own `Display`, and this is
+/// the rendering that says so.
+#[test]
+fn a_blend_escalation_reads_as_prose_at_every_site() {
+    use pncad::prelude::{Band, BlendError, BlendSite, EdgeKey, Indeterminate};
+    use pncad::prelude::{MarginDiag, VertexKey};
+
+    let band = Band::new(1e-9, 1e-6).expect("a band");
+    for site in [
+        BlendSite::Link {
+            edge: EdgeKey::default(),
+        },
+        BlendSite::Joint {
+            vertex: VertexKey::default(),
+        },
+        BlendSite::Chain,
+    ] {
+        let refused = BlendError::Escalated {
+            site,
+            source: Indeterminate {
+                margin: MarginDiag::Value(0.0),
+                band,
+                predicate: Some("fillet3_radius_headroom"),
+            },
+        };
+        let text = refused.to_string();
+        assert!(
+            reads_as_prose(&text),
+            "a fillet or chamfer escalation at {site:?} panics the binding \
+             rather than raising: {text}"
+        );
+        assert!(
+            text.contains("escalated at the "),
+            "the site names itself after the preposition the sentence supplies: \
+             {text}"
+        );
+    }
+}
+
 /// Read one flat `key = "value"` TOML table, selected by its exact
 /// header line.
 ///
@@ -2846,6 +2937,7 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         checks_error_tag(&ChecksError::Product {
+            kind: Some(pncad::document::ProductErrorKind::NoBodyRoots),
             reason: "no body roots".into()
         }),
         "product_unavailable"
@@ -2947,7 +3039,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
         reason: "boxes refused".into(),
     };
-    carries(&unavailable, &["reason"]);
+    carries(&unavailable, &["reason", "boolean_variant"]);
 
     // The two arms that hold another door's refusal: its sentence and
     // its own word, which is the half a caller branches on.
@@ -2969,6 +3061,13 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     assert_eq!(
         check_payload(&E::Escalated { source: refused }).inner_variant,
         Some("zero_volume")
+    );
+    // The boolean class beside the sentence, and the two words are
+    // read off the same evidence: a consumer branching on this one
+    // never parses the prose to learn which refusal it was.
+    assert_eq!(
+        check_payload(&unavailable).boolean_variant,
+        Some("classification_invariant")
     );
 
     // The numbers and the sentence themselves, not just which fields
@@ -3067,7 +3166,9 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 /// arms no Python door can produce.
 ///
 /// `ValidationError` has seventy-one arms and Python reaches them
-/// through four `Body` methods, so most of the enum is unreachable
+/// through five `Body` methods — the four rungs of the ladder and
+/// `validate_geometric_measured`, whose gate half is the third rung —
+/// so most of the enum is unreachable
 /// from an authoring script: `census_unsupported` and
 /// `census_lane_unsupported` want a carrier outside the certifiable
 /// inventory or a scalar with no certified chart-overlap lane, and
@@ -3082,13 +3183,24 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 #[test]
 fn every_validation_finding_carries_every_word_its_arm_has() {
     use crate::validation::{Finding, project};
-    use pncad::topo::{CensusContact, CensusSubject, EntityId, ValidationError};
+    use pncad::topo::{
+        CensusContact, CensusSubject, CensusUnsupportedCause, ContactRefusal, EntityId,
+        ValidationError,
+    };
 
     // The arm whose subject is ONE entity: the recourse is that
     // carrier's, so the kind of carrier is the word a caller acts on.
     assert_eq!(
         project(&ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Edge(Default::default())),
+            // The cause is threaded, not read: this crate projects
+            // the SUBJECT and has no word for the cause yet, which is
+            // LIB's row. `what` is production's own string, from
+            // `topo::boolean::contact_verify`'s Rest-ladder arm.
+            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
+                what: "a declared face's surface kind is outside the Rest ladder's \
+                       inventory (plane, sphere, cylinder)",
+            }),
         }),
         Finding {
             variant: "census_unsupported",
@@ -3471,6 +3583,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join",
             "join_desync",
             "merge",
+            "non_finite_sector_chord",
             "non_maximal_faces",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
@@ -3486,6 +3599,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_orientation",
             "torn_component",
             "undeclared_coincidence",
+            "underflowed_sector_chord",
             "unrepresentable_result",
             "unsupported_declaration_class",
             "zip_correspondence",
@@ -3514,6 +3628,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "check_evidence_tag",
         values: &[
+            "chart_coherence",
+            "chart_coherence_unavailable",
+            "chart_coherence_unexamined",
             "connectedness",
             "escalated",
             "not_separated",
@@ -3530,6 +3647,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "product_unavailable",
             "root_without_value",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "coherence_condition_tag",
+        values: &[
+            "meridian_closure",
+            "meridian_continuation",
+            "rim_continuation",
         ],
         delegates: &[],
     },
@@ -3716,6 +3842,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_reference_ladder",
             "degenerate_roll_reference",
             "degenerate_tangent",
+            "non_finite_aim",
+            "non_finite_mirror_normal",
+            "non_finite_roll_reference",
+            "non_finite_tangent",
+            "underflowed_aim",
+            "underflowed_mirror_normal",
+            "underflowed_roll_reference",
+            "underflowed_tangent",
         ],
         delegates: &[],
     },
@@ -3774,7 +3908,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_stacking",
             "euler",
             "pcurve",
-            "profile",
             "reversed_stacking",
             "seam_structure",
             "section_structure",
@@ -3841,7 +3974,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "missing_upstream",
             "unnamed",
         ],
-        delegates: &[],
+        delegates: &["band_error_tag"],
     },
     TagEntry {
         function: "node_error_tag",
@@ -3910,6 +4043,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "transform",
             "tube",
             "undeclared_contact",
+            "underflowed_direction",
             "union_declare_step",
             "unschedulable_cycle",
             "verb_arity",
@@ -4033,6 +4167,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "junction_tangent",
             "no_corner_for_fillet",
             "no_corner_of_pair",
+            "non_finite_direction",
             "nonpositive_circle_radius",
             "nonpositive_fillet_radius",
             "nonpositive_leg",
@@ -4043,6 +4178,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_retrims_arc_first_side",
             "seam_tangent",
             "underdetermined_leg",
+            "underflowed_direction",
             "zero_direction",
         ],
         delegates: &[],
@@ -4210,6 +4346,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "full_range_angle",
             "hole_touches_axis",
             "multiple_axis_runs",
+            "non_finite_axis",
             "non_manifold_axis_contact",
             "op",
             "pcurve",
@@ -4217,6 +4354,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "sliver_join",
             "sliver_radius",
             "sliver_rim",
+            "underflowed_axis",
             "unsupported_toroid",
             "vertex_crosses_axis",
             "void_insertion",
@@ -4247,7 +4385,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "select_refusal_tag",
         values: &[
             "bad_value",
-            "band",
             "in_band",
             "not_a_datum",
             "not_a_length",
@@ -4256,7 +4393,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unclassified",
             "unreadable",
         ],
-        delegates: &[],
+        delegates: &["band_error_tag"],
     },
     TagEntry {
         function: "shell_classify_error_tag",
@@ -4437,6 +4574,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_entity",
             "unsupported_unit",
             "vertex_without_point",
+            "wall_column_structure",
             "wrong_entity_type",
         ],
         delegates: &[],
@@ -4508,6 +4646,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wall_exceeds_radius",
             "wall_gap_collapsed",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "unexaminable_tag",
+        values: &["corrupt", "non_iso_carrier", "null_scaffold_edge"],
         delegates: &[],
     },
     TagEntry {

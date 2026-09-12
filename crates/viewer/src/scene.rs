@@ -85,6 +85,74 @@ impl DisplayTolerance {
         self.0
     }
 
+    /// How far [`DisplayTolerance::render_mm`]'s text may read from the
+    /// δ it renders, as a fraction of it.
+    ///
+    /// **Not a taste: it is the scientific form's own worst case.** Four
+    /// significant figures can misread the δ they render by half a unit
+    /// in the fourth — 5·10⁻⁴ of it — so a decimal spelling is preferred
+    /// exactly while it is no less truthful than the form that would
+    /// replace it. The constant is that form's accuracy rather than a
+    /// number chosen for how a field looks.
+    pub const RENDER_REL_TOLERANCE: f64 = 5.0e-4;
+
+    /// The longest text [`DisplayTolerance::render_mm`] returns, in
+    /// characters.
+    ///
+    /// The scientific arm's worst case, which is `f64`'s smallest
+    /// subnormal: a four-figure mantissa, `e`, a sign and three
+    /// exponent digits — `4.941e-324`. The decimal arm is held to the
+    /// same bound, so anything wide enough for ten characters can show
+    /// every δ this type can hold.
+    pub const RENDER_MM_MAX_CHARS: usize = 10;
+
+    /// This δ in millimetres, as text a person reads.
+    ///
+    /// **The shortest decimal spelling that reads back as this δ, and a
+    /// scientific one when no decimal spelling does.** A millimetre
+    /// length wants to read as a decimal and does wherever it can
+    /// (`0.05`, `0.0016`, `0.0003746`); below that a decimal spelling
+    /// either misreads the δ or does not fit, and the scientific form
+    /// carries it (`1.000e-9`).
+    ///
+    /// **What the choice is made on is the property, not a magnitude.**
+    /// A spelling is used when it fits
+    /// [`DisplayTolerance::RENDER_MM_MAX_CHARS`] and reads back —
+    /// through the millimetre conversion the δ field's own commit path
+    /// uses — as a δ [`DisplayTolerance::new`] accepts, within
+    /// [`DisplayTolerance::RENDER_REL_TOLERANCE`] of this one. So there
+    /// is no threshold here to go stale against the format, and in
+    /// particular no δ renders as `0.000`: a text that reads as zero is
+    /// refused by the same door that refuses the value.
+    ///
+    /// **What it is not is exact.** Four significant figures is what a
+    /// ten-character bound buys, and a δ the triangle budget chose is
+    /// `constant / TRIANGLE_BUDGET` — seventeen. The other thirteen
+    /// figures are shown nowhere, which is why this render is a render
+    /// and never a commit path: the number a δ moves to is the one a
+    /// user types, never one the chrome echoed at them.
+    pub fn render_mm(self) -> String {
+        let mm = self.0 * 1.0e3;
+        // Decimal counts past the character bound cannot fit whatever
+        // they spell, so the bound is what ends the search; the range
+        // only has to reach past the last count that could.
+        (0..=Self::RENDER_MM_MAX_CHARS)
+            .map(|decimals| format!("{mm:.decimals$}"))
+            .find(|spelling| Self::reads_back_as_this_delta(spelling, mm))
+            .unwrap_or_else(|| format!("{mm:.3e}"))
+    }
+
+    /// Whether `spelling` fits, and reads as a δ this type accepts
+    /// within [`DisplayTolerance::RENDER_REL_TOLERANCE`] of `mm`
+    /// millimetres.
+    fn reads_back_as_this_delta(spelling: &str, mm: f64) -> bool {
+        spelling.chars().count() <= Self::RENDER_MM_MAX_CHARS
+            && spelling.parse::<f64>().is_ok_and(|read| {
+                Self::new(read * 1.0e-3).is_ok()
+                    && (read - mm).abs() <= Self::RENDER_REL_TOLERANCE * mm
+            })
+    }
+
     /// This tolerance scaled by `factor` — the coarsen/refine step the
     /// chrome offers.
     ///
@@ -771,13 +839,14 @@ pub fn scene_of_body(
 /// # Why there is a budget at all
 ///
 /// δ is a chord tolerance in metres, and nothing about an absolute
-/// length knows how big a model is or how curved. The application
-/// starts at 0.1 mm, which is a fine picture of the startup plate and
-/// a 4·10⁶-triangle picture of the tour's `hollowring` (a torus of
-/// R = 0.30 m) — 13 s of tessellation and index build with the window
-/// frozen, still showing the previous document, which is what "Open
-/// does nothing" looked like. A budget is what stops an absolute δ
-/// from asking for a picture nobody can wait for.
+/// length knows how big a model is or how curved: the same 0.1 mm the
+/// application starts at is a small picture of the startup plate and
+/// a 1.6·10⁵-triangle picture of the tour's `hollowring`
+/// (a torus of R = 0.30 m), and a body a few times larger or a δ a
+/// decade finer asks for millions — seconds of tessellation and index
+/// build with the window frozen, still showing the previous document,
+/// which reads as "Open does nothing". A budget is what stops an
+/// absolute δ from asking for a picture nobody can wait for.
 ///
 /// # Why one million
 ///
@@ -789,20 +858,24 @@ pub fn scene_of_body(
 ///   triangle per pixel for a body filling the pane: past it the
 ///   tessellation is finer than the display can resolve, and the
 ///   detail is paid for and thrown away.
-/// - **The corpus, by eye.** At this budget both curved gallery
-///   documents draw at δ ≈ 0.2–0.4 mm. Measured on the tour's own
-///   scenes, the fillet corners of `diefillet` read clean there and
-///   visibly band one doubling coarser, so it is also the first
-///   budget that keeps the demo documents looking right.
+/// - **The corpus, by eye.** Measured on the tour's own scenes, the
+///   fillet corners of `diefillet` read clean at δ ≈ 0.2–0.4 mm — the
+///   δ this budget lands a curved gallery document on when it binds —
+///   and visibly band one doubling coarser, so it is also the first
+///   budget that keeps the demo documents looking right when it does
+///   bind. It does not bind either gallery document at the starting
+///   0.1 mm (`tests/display_budget.rs` holds the ring's side of that,
+///   and asks the budget's own rows at 0.01 mm, where it does).
 ///
 /// **The consequence worth stating**: if this number ever has to be
 /// RAISED to make something look right, the fault is upstream in the
 /// sizing, not here — a budget cannot buy detail the tessellator is
-/// spending elsewhere. The ring's 4·10⁶ triangles at 0.1 mm are about
-/// 65× what the per-direction sagitta asks for
-/// (`mesh::sizing::torus_grid_step` sizes both chart directions off
-/// one conservative step); that is TESS-BUDGET's question, and this
-/// constant is a safety net under it, never its answer.
+/// spending elsewhere. The ring at 0.1 mm is ~1.6·10⁵ triangles, which
+/// is `mesh::sizing::torus_grid_steps`' doubly-curved chord bound spent
+/// with no slack in its constant (2.9× the per-direction sagitta, and
+/// that factor is proved necessary, not chosen); what remains is
+/// TESS-BUDGET's question, and this constant is a safety net under it,
+/// never its answer.
 pub const TRIANGLE_BUDGET: usize = 1_000_000;
 
 /// How much coarser than the requested δ the cost probe runs.
@@ -879,11 +952,11 @@ impl FittedDelta {
 /// finest coarser one predicted to fit [`TRIANGLE_BUDGET`].
 ///
 /// **A default, not a clamp.** The caller applies this once per
-/// document that arrives (`app`'s `fit_delta_on_scene`); from there δ
-/// is whatever the user types in the View pane, however fine, and
-/// nothing re-reads it. A budget that bound every rebuild would
-/// disable that field on exactly the documents someone would want it
-/// for.
+/// document that arrives
+/// ([`crate::app::ViewerApp::fit_delta_on_scene`]); from there δ is
+/// whatever the user types in the View pane, however fine, and nothing
+/// re-reads it. A budget that bound every rebuild would disable that
+/// field on exactly the documents someone would want it for.
 ///
 /// # The method: predict, do not ladder
 ///
@@ -906,8 +979,10 @@ impl FittedDelta {
 /// whose SIGN is the safe one: the law describes curved faces, planar
 /// ones stop subdividing and are therefore over-counted from a coarse
 /// probe, so the fit errs coarse ([`FittedDelta::predicted`] carries
-/// the measurements). Drawn against a 10⁶ budget the two curved
-/// gallery documents land at 998 576 and 974 526 triangles.
+/// the measurements). Drawn against a 10⁶ budget from a request it
+/// binds, the gallery ring lands within a few percent under it
+/// (`tests/display_budget.rs` asserts the drawn count against the
+/// budget at a 0.01 mm request, with that margin).
 ///
 /// # What it costs, and what it costs on a document that fits
 ///

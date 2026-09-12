@@ -18,7 +18,7 @@ public surface covers eight unrelated things:
 
 1. the status-line vocabulary and its ranking — `StatusUpdate`,
    `apply`, `acts`, `batch_status`, `frame_status`, `fold_status`,
-   `NOTICE_SEPARATOR`, `supersession_notice`;
+   `NOTICE_SEPARATOR`, `Withdrawal`;
 2. the toolbar badge for the landed product — `product_badge`;
 3. draft/offer chrome — `creation_offer`, `retype_draft`;
 4. the file-chooser backend probe — `ChooserBackend`,
@@ -173,7 +173,7 @@ extend it — the row was extended in the fix pass, with `deliver`.
 ## Evidence, not work: ~80 lines of environment probing in a per-frame module
 
 Recorded here because it belongs to the split this item owns and to
-nothing else on the board. `crates/viewer/src/frame.rs:1570-1777` —
+nothing else on the board. `crates/viewer/src/frame.rs:1662-1869` —
 `ChooserBackend`, `chooser_backend_of`, `chooser_backend`,
 `zenity_on_path`, `session_bus_hinted`, `prefs_path`, `prefs_path_in`
 and `running_under_wsl`, a 208-line span of which ~80 are code — is

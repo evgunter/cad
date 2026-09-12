@@ -19,16 +19,18 @@ become a kernel dependency.
 ## Run
 
 **Renders are hosted, and the hosted lane is the canonical producer.**
-Every committed frame in `renders/`, `renders-freecad/` and
-`renders-wild/` is the hosted workflow's output — llvmpipe under Xvfb,
-FreeCAD 1.1.2 AppImage — and byte-stability ("a clean re-render leaves
-`git status` clean") is defined against that producer. A locally-drawn
-frame carries this box's GL stack, **will** differ byte-wise, and must
-never be committed; the guard below and `check_render_provenance.py`
+Every committed cell of every lane `.github/workflows/render.yml`
+declares is that workflow's output, and byte-stability ("a clean
+re-render leaves `git status` clean") is defined against that producer.
+The lanes that DRAW — the ones whose trees `check_render_provenance.py`'s
+`LANE_DIRS` reads — come off a software GL or Vulkan stack under Xvfb
+with the FreeCAD 1.1.2 AppImage; the rest are renderer-free text and
+reproduce on any box. A locally-drawn frame carries this box's GL
+stack, **will** differ byte-wise, and must never be committed; the guard below and `check_render_provenance.py`
 enforce the commit side.
 
 **You do not need to render at all — CI does it and commits the result.**
-Every CI run on a pushed branch renders all four lanes (ci.yml's
+Every CI run on a pushed branch renders every lane (ci.yml's
 `renders` job calls `render.yml`), and a lane that no longer matches what
 the code renders is **re-baselined for you**:
 
@@ -167,9 +169,10 @@ cd ..
 ./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
 ./render.sh --matplotlib        # FreeCAD-free preview ONLY (renders-preview/renders/, gitignored)
 ./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
+./render-gui.sh                 # the VIEWER, photographed (renders-gui/montage-gui.png)
 ```
 
-`render.sh`, `render-wild.sh` and `render-uv.sh` each source
+`render.sh`, `render-wild.sh`, `render-uv.sh` and `render-gui.sh` each source
 `hosted-render-guard.sh` as their first act. They print a pointer at the
 push-and-pull flow above and **exit nonzero** unless the environment
 carries one of the two exact sentences the guard accepts. On a box that
@@ -582,6 +585,60 @@ SVG lanes that *would* draw the part — a projected-edge wireframe, and
 drawing-grade hidden-line removal — are filed as LONGTERM-IDEAS I4(a) and
 I4(b).
 
+## The viewer lane (`render-gui.sh`)
+
+**The fifth lane, and the first whose subject is the APPLICATION.** The
+other four draw geometry — solids, face charts, a sample cloud. This
+one opens documents in the real `viewer` binary on a virtual X server
+and photographs what a user would see: the feature tree, the properties
+panel, the named document parameters, and the status line's reading of
+the document's declarations.
+
+It photographs the tour's own assembly STORE (`out/assembly/*.pncad`),
+every document in it rather than a curated subset — which documents
+exist is the story, and a hand-picked list goes stale the first time
+the stop gains a part. The sheet reads as the assembly layer's arc: two
+leaf parts carrying their named parameters, each instantiated,
+patterned, flat-packed, and finally mated into the bench, with
+`at rest: certified (N declaration(s))` going from 0 to 2 as the mates
+arrive.
+
+**Three things about it differ from the older lanes, each for a
+reason.**
+
+*It waits rather than sleeps.* The viewer evaluates, tessellates and
+builds a BVH before its first real frame, and how long that takes
+depends on the document and the runner. So each cell polls — shoot,
+hash, shoot again — and accepts a frame only when two consecutive grabs
+are byte-identical and the window is not still blank. A fixed sleep
+would either race the app (committing a HALF-DRAWN pixel, which looks
+like a rendering bug forever after) or waste minutes per cell.
+
+*Its sheet carries the lane signature.* The older sheets are matplotlib
+compositions of FreeCAD frames, so they carry no renderer stamp and
+`check_render_provenance.py` needs an exemption list naming them. This
+sheet is tiled from cells this lane drew and then stamped like one, so
+the guard has ONE rule for the whole directory and no name to
+special-case.
+
+*Its cells are cropped to the window.* There is no window manager on
+the virtual server, so the app sits at the origin in a window smaller
+than the screen, and a root grab carries a band of empty desktop that
+would be most of what a reader sees on a contact sheet. The geometry is
+read from `xdotool` at run time rather than hard-coded, because a
+viewer default that changed would otherwise clip the app silently.
+
+**What it does NOT show, and the planned cell that did not survive.**
+This lane was planned as *"clearance and measures, as the app shows
+them"*. The app shows neither: a measure is a tree row reading
+`"Measure"` with a status and no VALUE, and `clearance` appears nowhere
+in `crates/viewer/src/`. `work/view`'s
+`the-gui-shows-no-measure-value-and-no-clearance` carries the finding,
+including the half that makes it harder than a panel change —
+`min_clearance` has no value at the `f64` scalar the viewer runs at, by
+design. The declaration count on the status line is clearance-adjacent
+and genuinely on screen, but it is a COUNT, not a distance.
+
 ## The MC density lane (`render-mc.sh`)
 
 **`renders-mc/plate-density.svg` — the population an advisory number is
@@ -663,7 +720,7 @@ carries its own scale bar — rather than only stated in the caption.
 | `hollowelbow` | the windowed hollow elbow — `tube_along_arc_hollow` over an arc window: a wall, and an open bore |
 | `hollowtorus` | the full-period hollow tube — `TubeWindow::Full`, where the inner traversal closes and enters as a REVERSED cavity shell through the shared void-insertion door |
 | `fivewall` | **every analytic surface kind the kernel holds, hollowed in ONE `shell` call**: one annular meridian mints two planes, two cylinders, a cone, a sphere and a torus, and the scene reads all five offsets back out of the STORED surfaces — each wall's cavity is a face of its OWN kind with one number moved (radius `∓ t`, the bore's growing where the rim's shrinks; the cone's half-angle unchanged and its apex slid; the torus's minor radius moved and its major left alone). The two arcs are what separate the last two kinds: `Center` ON the axis revolves to a sphere, the same arc about a centre OFF it to a torus. The curved radii are asserted as a GAP rather than bitwise, because an arc's radius is reconstructed from its endpoints and lands one ulp off its authored dyadic — stated rather than authored around. Genus 1 solid, genus 2 hollowed (the meridian never touches the axis, so the body is a bored SLEEVE); beside it in the same cell the same sleeve through `shell_open`, one annular rim, ONE shell |
-| `teapot` | **`shell`'s designated demo**: FOUR solids from ONE recipe document — a pot that is `Profile → Revolve → Node::Shell` opened at its mouth (one annular rim, genus 0), a lid whose three rims roll, and a CANAL of a spout and a handle set BESIDE the pot rather than joined. The spout is seven ANNULAR sections standing on the tangent frames of a circular arc, skinned by ONE `Node::Loft`: it bends 45°, tapers to half its root radius and thins as it goes, so no revolve reaches it at any axis and no extrude does either — which is what retired this scene's old finding that "a spout the shape of a spout is not authorable at all". **Its sections are ROUND, and this scene does not currently pass its own ε sweep because of it — which is the point.** A circle is RATIONAL, so lofted circular sections make rational walls; a rational wall is a quadrature face whose certified enclosure is chased to a target derived from ε; and at ε = 1e-12 the schedule's own last-round bound proves that target unreachable, so `mass_properties` refuses `QuadratureBudget` after round 0 (`rounds: 1`, no work spent) and tier 3 fails `VolumeUncomputable`. **The refusal is a KERNEL finding this scene exhibits rather than dodges**: tier 3's +V check consumes only the SIGN of that enclosure — the tier's own docs say deciding the sign "is an act of certification rather than a measurement" — and the enclosure excludes zero by about five orders of magnitude at the very round the body is refused on, so a valid solid is reported unvalidatable for missing a precision the check never reads (`work/perf`'s `tier3-plus-v-needs-a-sign-and-pays-for-a-precision`). More budget is not the fix, measured: one more round makes the early exit stop firing and the face then runs over half an hour without finishing. An OCTAGONAL authoring certified at every ε — straight sides make polynomial walls, which take the integral lane's exact per-span rule, the same reason `twisted_tube` next door can be a loft and a solid at every ε — and it is REVERTED, because the shape a potter draws is round and a demo bent around a kernel bug hides the bug. So the scene PROBES its mass rather than asserting through a door that may not open, and where the door opens it asserts the BRACKET: the straightened frustum inside the kernel's own certified enclosure. The two joins still refuse, at TWO DIFFERENT RUNGS of the operand gate: handle ∪ pot is `CurvedPairUnsupported` on a face-kind pair (torus × cylinder), while spout ∪ pot now gets PAST the pair rung — a loft's walls are `Nurbs` and that arm exists — and dies one door in at `CurvedEdgeUnsupported` on the canal's own seams, because rung-3 edges are what the curved zip mints and not what it consumes. Making the spout the shape a potter draws moved the refusal off a pair nobody modelled and onto the body's own edges. Rendered see-through: a cavity is invisible in an opaque render at every camera |
+| `teapot` | **`shell`'s designated demo**: FOUR solids from ONE recipe document — a pot that is `Profile → Revolve → Node::Shell` opened at its mouth (one annular rim, genus 0), a lid whose three rims roll, and a CANAL of a spout and a handle set BESIDE the pot rather than joined. The spout is seven ANNULAR sections standing on the tangent frames of a circular arc, skinned by ONE `Node::Loft`: it bends 45°, tapers to half its root radius and thins as it goes, so no revolve reaches it at any axis and no extrude does either — which is what retired this scene's old finding that "a spout the shape of a spout is not authorable at all". **Its sections are ROUND, and what that costs at a tight ε is a volume NUMBER rather than a certificate.** A circle is RATIONAL, so lofted circular sections make rational walls; a rational wall is a quadrature face whose certified enclosure is chased to a reporting target derived from ε; and at ε = 1e-12 the schedule's own last-round bound proves that target unreachable after round 0 (`rounds: 1`, no work spent). **Tier 3 admits the body anyway**, and that is the part worth reading: the +V check consumes only the SIGN of that enclosure — the tier's own docs say deciding the sign "is an act of certification rather than a measurement" — and the enclosure excludes zero by about five orders of magnitude at the very round the chase stops on. So the scene certifies at every ε, and the volume ribbon reports the SIGN-level bracket (`V in [lo, hi] m^3 at SIGN level`) where it has no number to print. More budget would not buy the number back, measured: one more round makes the early exit stop firing and the face then runs over half an hour without finishing. An OCTAGONAL authoring had a number at every ε — straight sides make polynomial walls, which take the integral lane's exact per-span rule, the same reason `twisted_tube` next door can be a loft and a solid at every ε — and it is REVERTED, because the shape a potter draws is round and a demo bent around a kernel's reporting floor hides the floor. So the scene PROBES its mass rather than asserting through a door that may not open, and where the door opens it asserts the BRACKET: the straightened frustum inside the kernel's own certified enclosure. The two joins still refuse, at TWO DIFFERENT RUNGS of the operand gate: handle ∪ pot is `CurvedPairUnsupported` on a face-kind pair (torus × cylinder), while spout ∪ pot now gets PAST the pair rung — a loft's walls are `Nurbs` and that arm exists — and dies one door in at `CurvedEdgeUnsupported` on the canal's own seams, because rung-3 edges are what the curved zip mints and not what it consumes. Making the spout the shape a potter draws moved the refusal off a pair nobody modelled and onto the body's own edges. Rendered see-through: a cavity is invisible in an opaque render at every camera |
 | `torusvessel` | the torus-walled vessel, hollowed — a donut band in the wall, `shell` of a revolve whose belly arc has its centre OFF the axis |
 | `torusvesselcup` | the same vessel opened at its mouth — `shell_open` on the mouth's chart, then `merge_coplanar_faces`: one annular rim, coplanar with the wall's top, the revolve's seam retired before the glue through the Euler doors alone |
 | `s_duct` | the first CURVED-path sweep body: a 0.5 m square swept through an S — two OPPOSED quarter arcs of radius 2 (degree-3 interpolant through exact points), v-degree 3, path-following frame (planar path ⇒ no roll). Not the not-a-revolve claim: TWO GLUED partial revolves reach this shape, since each planar arc sweep is a partial revolve's orbit. Volume expectation A·L (curvature moment cancels) |

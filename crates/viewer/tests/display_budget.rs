@@ -5,10 +5,12 @@
 //! `SessionOp::Open` are exercised in `doc_io.rs` and always were; the
 //! typed door works, the resolver rebinds, the log replays, the round
 //! trip is byte-stable. What went untested was what opening a document
-//! COSTS, and the answer for the tour's own gallery ring at the δ the
-//! application starts on was four million triangles — tens of seconds
-//! of tessellation and index build with the window frozen, still
-//! showing the previous document.
+//! COSTS: a request the budget does not bind must be drawn as asked,
+//! and one it binds must be coarsened to a picture inside the budget
+//! rather than left to freeze the window on millions of triangles.
+//! The tour's gallery ring is the fixture for both: ~1.6·10⁵
+//! triangles at the starting 0.1 mm (inside the budget, drawn as
+//! asked) and ~1.6·10⁶ at 0.01 mm (bound, and coarsened).
 //!
 //! These rows are that gap. Triangle counts are deterministic (D9:
 //! byte-identical mesh for identical `(body, chordal)`), so the cost
@@ -24,10 +26,18 @@ use viewer::scene::{self, DisplayTolerance, TRIANGLE_BUDGET};
 use viewer::session::DocSession;
 
 /// The δ the application starts on (`app::INITIAL_DELTA`, which is
-/// `cfg`-gated behind the `app` feature and so is restated here — the
-/// row below fails loudly if the two ever disagree about the number
-/// that matters, because it asserts the ring is over budget AT this δ).
+/// `cfg`-gated behind the `app` feature and so is restated here; the
+/// rows below say what the gallery ring and the startup plate cost AT
+/// this δ, so a change to the number that matters moves them).
 const INITIAL_DELTA: f64 = 1.0e-4;
+
+/// A request the gallery ring exceeds the budget at: a decade finer
+/// than the starting δ, where the ring's ~1.6·10⁵ triangles at 0.1 mm
+/// become ~1.6·10⁶ (the 1/δ law `fit_delta` solves). The budget rows
+/// need a document that is actually over budget, and since the torus
+/// sizing spends its chord bound without slack the ring is not one at
+/// the starting δ any more.
+const OVER_BUDGET_DELTA: f64 = 1.0e-5;
 
 /// The tour's gallery ring, as the committed fixture.
 fn gallery_ring(tol: Tol) -> DocSession {
@@ -69,11 +79,11 @@ fn delta(value: f64) -> DisplayTolerance {
 
 /// **The row the defect would have failed.**
 ///
-/// At the application's starting δ the ring asks for far more than the
-/// budget, so the fit must move δ; and what it moves to must be inside
-/// the budget, which is the whole claim. Both halves matter: a fit
-/// that never coarsened would leave the freeze, and a fit that
-/// coarsened without bound would answer a cube.
+/// At a δ the ring asks for far more than the budget at, the fit must
+/// move δ; and what it moves to must be inside the budget, which is
+/// the whole claim. Both halves matter: a fit that never coarsened
+/// would leave the freeze, and a fit that coarsened without bound
+/// would answer a cube.
 #[test]
 fn the_gallery_ring_is_drawn_inside_the_budget() {
     let tol = Tol::witness();
@@ -82,12 +92,12 @@ fn the_gallery_ring_is_drawn_inside_the_budget() {
     // fits on, asked for the same way (`DocSession::landed_body`), so
     // this row costs the gather the landing already paid and no other.
     let body = session.landed_body().expect("the ring gathers");
-    let requested = delta(INITIAL_DELTA);
+    let requested = delta(OVER_BUDGET_DELTA);
     let fitted = scene::fit_delta(body, requested, tol).expect("the ring fits");
 
-    let over = fitted
-        .requested_cost
-        .expect("the ring at the startup δ is over budget — that is this row's premise");
+    let over = fitted.requested_cost.expect(
+        "the ring at a decade under the startup δ is over budget — that is this row's premise",
+    );
     assert!(
         over > TRIANGLE_BUDGET,
         "the requested δ was reported as costing {over}, which is not over the \
@@ -118,6 +128,32 @@ fn the_gallery_ring_is_drawn_inside_the_budget() {
         ratio < 1.1,
         "the drawn picture is {triangles} triangles, {ratio:.3}× the budget — \
          the 1/δ prediction has drifted further than its measured few percent"
+    );
+}
+
+/// **The ring at the δ the application starts on is INSIDE the
+/// budget, and is drawn as asked** — the display-side statement of
+/// the torus chart sizing: `mesh::sizing::torus_grid_steps` spends the
+/// doubly-curved chord bound with no slack in its constant, and what
+/// that buys the viewer is the gallery ring opening at 0.1 mm rather
+/// than at whatever the budget could afford. A count over a quarter of
+/// the budget here is the torus sizing gone loose by an order of
+/// magnitude, not noise.
+#[test]
+fn the_gallery_ring_at_the_starting_delta_is_inside_the_budget() {
+    let tol = Tol::witness();
+    let session = gallery_ring(tol);
+    let body = session.landed_body().expect("the ring gathers");
+    let requested = delta(INITIAL_DELTA);
+    let fitted = scene::fit_delta(body, requested, tol).expect("the ring fits");
+    assert_eq!(fitted.delta, requested, "the ring is drawn as asked");
+    assert_eq!(fitted.requested_cost, None, "nothing was over budget");
+    let mesh = scene::scene_of_body(body, requested, tol).expect("the ring draws at 0.1 mm");
+    let triangles = mesh.stats().triangles;
+    assert!(
+        triangles < TRIANGLE_BUDGET / 4,
+        "the ring at the starting δ is {triangles} triangles — over a quarter of the \
+         {TRIANGLE_BUDGET} budget, which is the torus sizing gone loose again"
     );
 }
 
@@ -159,13 +195,13 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
     let tol = Tol::witness();
     let session = gallery_ring(tol);
     let body = session.landed_body().expect("the ring gathers");
-    let fitted = scene::fit_delta(body, delta(INITIAL_DELTA), tol).expect("fits");
+    let fitted = scene::fit_delta(body, delta(OVER_BUDGET_DELTA), tol).expect("fits");
     let wording = fitted
         .wording()
         .expect("a coarsened picture has a sentence");
     for needle in [
         &format!("{:.3}", fitted.delta.get() * 1.0e3),
-        &format!("{:.3}", INITIAL_DELTA * 1.0e3),
+        &format!("{:.3}", OVER_BUDGET_DELTA * 1.0e3),
         &TRIANGLE_BUDGET.to_string(),
         &"not a cap".to_owned(),
     ] {
@@ -174,4 +210,90 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
             "the sentence does not carry {needle}: {wording}"
         );
     }
+}
+
+/// **No δ renders as a number a δ cannot be.** The field, the badge and
+/// the sentence above all show δ as millimetres of text, and
+/// `{:.3}` over millimetres reads `0.000` below half a micrometre —
+/// a value [`DisplayTolerance::new`] refuses, in the one place a user
+/// reads the δ in force as a number they can act on.
+///
+/// The property is the whole range, so the row sweeps it: every δ from
+/// `f64`'s smallest subnormal to a kilometre renders as text that fits
+/// the bound, reads back through the millimetre conversion the δ field
+/// commits with, and lands on a δ the door accepts within the render's
+/// own stated accuracy.
+#[test]
+fn no_delta_renders_as_a_number_a_delta_cannot_be() {
+    let reads_back_as_a_delta = |value: f64| {
+        let d = delta(value);
+        let text = d.render_mm();
+        let mm = d.get() * 1.0e3;
+        assert!(
+            text.chars().count() <= DisplayTolerance::RENDER_MM_MAX_CHARS,
+            "δ {mm} mm renders as {text}, past the {} character bound",
+            DisplayTolerance::RENDER_MM_MAX_CHARS
+        );
+        let read: f64 = text.parse().unwrap_or_else(|error| {
+            panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
+        });
+        assert!(
+            DisplayTolerance::new(read * 1.0e-3).is_ok(),
+            "δ {mm} mm renders as {text}, which is not a δ this door accepts"
+        );
+        assert!(
+            (read - mm).abs() <= DisplayTolerance::RENDER_REL_TOLERANCE * mm,
+            "δ {mm} mm renders as {text}, further from it than the render's own accuracy"
+        );
+    };
+    // The grid the round-trip measurement used, a decade below the
+    // kernel's finest to a decade above the coarsest δ a user types.
+    let mut sampled: u32 = 0;
+    let mut value = 1.0e-12_f64;
+    while value < 1.0e-1 {
+        reads_back_as_a_delta(value);
+        sampled += 1;
+        value *= 1.01;
+    }
+    assert!(sampled > 2_000, "the sweep covered only {sampled} δ");
+    // And the ends of the type, which a geometric grid does not reach:
+    // the smallest subnormal, the smallest normal, a kilometre.
+    for end in [5.0e-324, f64::MIN_POSITIVE, 1.0e3] {
+        reads_back_as_a_delta(end);
+    }
+}
+
+/// The two δ the field used to lie about, by the numbers the item that
+/// filed it named: 0.4 µm read `0.000` and 1.6 µm read `0.002`.
+#[test]
+fn the_two_deltas_the_fixed_three_decimal_render_lied_about() {
+    assert_eq!(delta(0.4e-6).render_mm(), "0.0004");
+    assert_eq!(delta(1.6e-6).render_mm(), "0.0016");
+    // Both are exact here, which is what a decimal spelling buys where
+    // it fits at all: the field shows the δ in force rather than a
+    // rounding of it.
+    assert_eq!("0.000", format!("{:.3}", 0.4e-6 * 1.0e3), "the old render");
+    assert_eq!("0.002", format!("{:.3}", 1.6e-6 * 1.0e3), "and the other");
+}
+
+/// **What the render does to a budget δ's seventeen significant
+/// figures: it shows four.** `fit_delta` solves `constant / budget`, so
+/// a δ the budget chose is a quotient with no short spelling at all —
+/// and no field is wide enough for one. Four figures is what the
+/// character bound buys, which is why this text is a render and never a
+/// commit path.
+#[test]
+fn a_budget_delta_renders_as_four_significant_figures() {
+    // A constant in triangle·metres, exactly as `fit_delta` forms it.
+    let constant = 0.374_612_345_678_901_2_f64;
+    #[allow(clippy::cast_precision_loss)]
+    let solved = constant / TRIANGLE_BUDGET as f64;
+    let d = delta(solved);
+    let exact = format!("{}", d.get() * 1.0e3);
+    assert_eq!(exact, "0.0003746123456789012", "seventeen figures");
+    assert!(
+        exact.chars().count() > DisplayTolerance::RENDER_MM_MAX_CHARS,
+        "and no field this crate has is that wide"
+    );
+    assert_eq!(d.render_mm(), "0.0003746", "four of them");
 }

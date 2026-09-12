@@ -100,9 +100,9 @@ pub use assembly::{
     assemble_gathered,
 };
 pub use checks::{
-    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
-    ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks, run_checks_on,
-    subject_body,
+    Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
+    ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
+    run_checks_on, subject_body,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
@@ -115,10 +115,10 @@ pub use drive::{
 };
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
 pub use eval::{
-    Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
-    EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar, SplitSide, UnitVec3,
-    UnitVec3Error, ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
+    EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError,
+    NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar,
+    SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
@@ -147,7 +147,7 @@ pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameTable, NamingError, OpGroup,
+    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
     SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
     SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
@@ -170,7 +170,9 @@ pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::{AxisRefusal, Frame};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
-pub use product::{Product, ProductError, product, product_named, product_recorded};
+pub use product::{
+    Product, ProductError, ProductErrorKind, product, product_named, product_recorded,
+};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedProgramError, resolve_loops,
@@ -198,7 +200,7 @@ pub use verbs::shell::ShellLane;
 // direct bvh dependency.
 pub use bvh::Ray;
 pub use resolve::{
-    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickTarget, pick_face,
+    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, pick_face,
 };
 pub use roots::RootFault;
 #[cfg(feature = "interval")]

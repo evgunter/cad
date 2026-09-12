@@ -34,8 +34,8 @@
 //! is compared to the table. The other direction is pinned too, as a
 //! truth table rather than an implication, because a disagreement
 //! introduced from either side should be visible on the side that can
-//! see both — and one such disagreement exists today: see
-//! [`TRAILING_TEXT`].
+//! see both. Anchoring `CUT_RE` at BOTH ends is what closed the last
+//! of them, and [`TRAILING_TEXT`] is the row that holds it closed.
 //!
 //! **Why a check is owed here, and in which voice.** The test is the
 //! one [`tess_lint::Report`] states — an observation is a FINDING
@@ -94,32 +94,16 @@ const BASELINE: &str = include_str!("../../../docs/tess-budget-data/tess-budget-
 const COMMIT: &str = "1a2b3c4d5e6f";
 const DATE: &str = "2026-08-30T12:00:00+00:00";
 
-/// The one line in the table on which the two halves disagree.
+/// A well-formed cut record with a third field after it.
 ///
-/// `CUT_RE` is anchored at the start and not at the end, so it
-/// matches a line with a well-formed cut and junk after it; this
-/// crate refuses that line, because a third field is not something
-/// the writer could have emitted. The disagreement is harmless in the
-/// safe direction and it is not this lane's to close — anchoring the
-/// regex is an edit to `scripts/`, which is `work/ciw`'s. Filed as
-/// `work/ciw/cut-regex-unanchored-admits-a-line-the-lint-refuses`,
-/// and [`TRAILING_CASE`] carries that id into the failure message so
-/// that whoever anchors the regex is told by the alarm itself what it
-/// is telling them.
+/// Both halves refuse it, and they refuse it for the same reason read
+/// two ways: this crate takes exactly two fields after the prefix, and
+/// `CUT_RE`'s tail is `[^ ]*$`, which admits every non-space byte the
+/// date can carry and stops at a space. The row is the boundary
+/// between them, so a regex that loses either end reds here — one end
+/// admits a line this crate calls harness breakage, the other refuses
+/// a line this crate reads as a cut.
 const TRAILING_TEXT: &str = "# tess-budget-cut: 1a2b3c4 2026-08-30 extra";
-
-/// What [`TRAILING_TEXT`]'s row prints when it reds, which is the
-/// only place a reader who has just anchored `CUT_RE` will look.
-///
-/// A row that goes red because someone FIXED the defect it pins reads
-/// as a regression unless it says otherwise, so it says otherwise
-/// here rather than only in a doc comment in a cargo root outside the
-/// workspace.
-const TRAILING_CASE: &str = "a well-formed cut with junk after it — the one row where the two \
-     halves disagree, pinning the defect and not the fix. If this just went red because \
-     `CUT_RE` grew an end anchor, that is the fix: close \
-     `work/ciw/cut-regex-unanchored-admits-a-line-the-lint-refuses`, set this row's \
-     `recognises` to false and delete TRAILING_CASE";
 
 /// `(line, this crate reads it as a cut, the script recognises it as
 /// a stamp, what the case is)`.
@@ -146,7 +130,7 @@ const TABLE: &[(&str, bool, bool, &str)] = &[
         "the shortest abbreviation either half admits",
     ),
     (
-        "# tess-budget-cut: caccb936 2026-09-10T20:38:20+00:00",
+        "# tess-budget-cut: 87edbba62 2026-09-10T20:56:22+00:00",
         true,
         true,
         "the shape the committed baseline carries, read from it below",
@@ -212,7 +196,12 @@ const TABLE: &[(&str, bool, bool, &str)] = &[
         false,
         "a comment line that is not a cut record",
     ),
-    (TRAILING_TEXT, false, true, TRAILING_CASE),
+    (
+        TRAILING_TEXT,
+        false,
+        false,
+        "a well-formed cut with a third field after it",
+    ),
 ];
 
 /// The physical line `byte` falls on, 1-based, for a failure message
@@ -319,13 +308,16 @@ fn reads_as_cut(line: &str) -> bool {
 
 /// The count of executable spellings in the script today.
 ///
-/// Three of them are located by name below, so each drifts into its
-/// own failure; the fourth — the selftest's malformed fixture — is
-/// covered by the sweep alone, and a floor equal to the live count is
-/// what stops that one going missing unnoticed. It is a FLOOR and not
-/// an equality: a fifth executable spelling is swept like the others
-/// and does not need this number moved.
-const EXECUTABLE_SPELLINGS: usize = 4;
+/// Three of them are located by name below — the validator's anchor,
+/// the writer's `echo`, the re-stamp strip — so each drifts into its
+/// own failure. The other five are the selftest's fixtures, covered by
+/// the sweep alone, and a floor EQUAL TO THE LIVE COUNT is what stops
+/// one of those going missing unnoticed: a deleted selftest case takes
+/// its fixture with it, and a floor set below the live count absorbs
+/// the loss silently. So this number is raised whenever the script
+/// gains a spelling, and a `>=` is what makes a spelling ADDED without
+/// it a non-event rather than a failure.
+const EXECUTABLE_SPELLINGS: usize = 8;
 
 /// Every place the script EXECUTES the prefix spells it the way this
 /// crate does.
@@ -433,8 +425,7 @@ fn the_line_the_cut_script_writes_is_one_this_crate_reads() {
 }
 
 /// This crate's reading of a cut line and the script's validator
-/// agree on every case in [`TABLE`], one documented disagreement
-/// aside.
+/// agree on every case in [`TABLE`].
 ///
 /// The containment that matters is `reads` implies `recognises`: the
 /// other way round the script merely declines to refuse a re-stamp,

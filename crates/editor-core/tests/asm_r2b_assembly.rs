@@ -156,11 +156,12 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
-            }),
+            }
+            .into(),
         }],
     }
 }
@@ -1469,11 +1470,12 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
     let mut node = rest_mate(ids[0], ids[1], 1.0);
     if let Node::Mate { a, .. } = &mut node {
         a.name.path = vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
-            }),
+            }
+            .into(),
         }];
     }
     let (doc, _) = step(doc, DocEdit::InsertNode { node });

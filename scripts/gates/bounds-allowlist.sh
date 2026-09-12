@@ -473,7 +473,7 @@ BOUNDS_ALLOWLIST=(
   'crates/editor-core/src/eval/mod.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/editor-core/src/eval/wire.rs 15 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
-  'crates/topo/src/props.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/props.rs 19 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'

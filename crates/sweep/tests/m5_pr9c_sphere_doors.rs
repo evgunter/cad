@@ -33,6 +33,7 @@
 
 use crate::revolve_common;
 
+use crate::common::approx::band;
 use geom_core::Point3;
 use geom_core::Tol;
 use profile::RawLoop;
@@ -56,10 +57,6 @@ fn ball() -> topo::Body<f64> {
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
-}
-
-fn band() -> geom_core::Band {
-    geom_core::Band::linear(Tol::witness()).unwrap()
 }
 
 /// The probe offset: a multiple of the RESOLVED band, so each ε lane

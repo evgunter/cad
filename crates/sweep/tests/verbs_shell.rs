@@ -13,8 +13,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom_core::k_stats::Bracket;
-use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
@@ -23,10 +24,6 @@ use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRol
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 /// A `w x d x h` box at the origin.

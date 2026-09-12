@@ -11,12 +11,15 @@
 //! The five enums declare themselves and their `ALL` in one
 //! declaration through the crate's `vocabulary!` macro
 //! (`crates/viewer/src/vocab.rs`), so no list on this page can fall
-//! behind the enum beside it. What no compiler holds is the mirror
-//! itself: whether `PathVerb` still names every `PathStep` is forced
-//! by `PathVerb::of`'s exhaustive match, and whether `BOOLEAN_OPS`
-//! still names every `topo::BooleanOp` is forced by nothing — that is
-//! the MIRROR question, and it has its own tracker item. (Code spans
-//! rather than links: everything on this page is `pub(crate)`, so an
+//! behind the enum beside it. A vocabulary the KERNEL owns is held the
+//! same way from the other end — the boolean operations are drawn from
+//! `topo::BooleanOp::ALL` and only their labels are written here, at an
+//! exhaustive match. What no compiler holds is the mirror itself:
+//! whether `PathVerb` still names every `PathStep` is forced by
+//! `PathVerb::of`'s exhaustive match, while a DELIBERATELY PARTIAL
+//! list (`MATE_PRIMITIVES`, `DatumKind`) claims no completeness and is
+//! held to nothing — each says so at its own site. (Code spans rather
+//! than links: everything on this page is `pub(crate)`, so an
 //! intra-doc link from a public module page does not resolve.)
 //!
 //! [`FieldWriting`] and the drag speeds are the same kind of decision
@@ -49,26 +52,33 @@ vocabulary! {
     pub(crate) const ALL;
 }
 
-/// The boolean operations the form offers, with their labels — the
-/// KERNEL's enum and its own words, so the button a user reads and the
-/// operation the node carries cannot drift into two vocabularies.
+/// The button a boolean operation is offered under — the KERNEL's enum
+/// and its own words, so what a user reads and what the node carries
+/// cannot drift into two vocabularies.
 ///
-/// **The one table here that stays hand-written**, and the reason is
-/// where the enum lives: [`BooleanOp`] is declared in `topo`, so this
-/// list cannot be projected from its declaration the way every
-/// [`crate::vocab::vocabulary`] list on this page is. It lists all
-/// three of that enum's variants today and nothing forces it to keep
-/// doing so — a fourth operation in `topo` would leave this table
-/// three long and this form three buttons wide, silently. That is the
-/// MIRROR question, tracked as
-/// `work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced`;
-/// it is not the same defect as a table that could have been projected
-/// and was not.
-pub(crate) const BOOLEAN_OPS: [(BooleanOp, &str); 3] = [
-    (BooleanOp::Union, "union"),
-    (BooleanOp::Subtract, "subtract"),
-    (BooleanOp::Intersect, "intersect"),
-];
+/// **A match, not a table**, and that is the whole of what holds this
+/// form to the kernel: [`BooleanOp`] is declared in `topo`, so no list
+/// written here can be projected from the declaration the way every
+/// [`crate::vocab::vocabulary`] list on this page is — but the
+/// declaration publishes `BooleanOp::ALL`, and the form draws one
+/// button per entry of it. A fourth operation therefore arrives in
+/// this form with no MEMBERSHIP edit here — it gets its button from
+/// the kernel's list — and it cannot arrive silently either, because
+/// it has no word until this match is given one, which is a compile
+/// error and not a missing button.
+///
+/// **The order is `ALL`'s**, which is the kernel's declaration order,
+/// and the type's own doc says that order carries no meaning. The form
+/// claims none for it either: it is the one order that cannot fall out
+/// of step with the vocabulary, which is worth more here than an
+/// arrangement a reader would have to maintain by hand.
+pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
+    match op {
+        BooleanOp::Union => "union",
+        BooleanOp::Intersect => "intersect",
+        BooleanOp::Subtract => "subtract",
+    }
+}
 
 vocabulary! {
     /// The add-datum form's kind choice — one form, and **four of
@@ -81,7 +91,7 @@ vocabulary! {
     /// it needs a frame PICK before it has coordinates, which is not
     /// what this form collects. So the mirror is deliberately partial
     /// in one direction — every kind here lowers to a spec
-    /// (`pane::create`'s match is exhaustive over this enum), and not
+    /// ([`crate::pane::create`]'s match is exhaustive over this enum), and not
     /// every spec has a kind here.
     ///
     /// **Declared in FORM order**, which is the order [`DatumKind::ALL`]
@@ -412,11 +422,11 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// two a user drags to move the same kind of number. It is not the
 /// creation forms' answer: those hold canonical drafts and pick their
 /// tick from the four constants by hand at each field
-/// (`widgets::named_field` and its callers). The RULE has one home,
+/// ([`crate::widgets::named_field`] and its callers). The RULE has one home,
 /// this module, which holds the four constants and [`drag_tick`]
 /// beside this type; what is still open is those hand-picked call
-/// sites, which sit in `widgets`, `pane::create` and
-/// `pane::properties` (`work/chrome/drag-tick-has-three-homes.md`).
+/// sites, which sit in `widgets`, [`crate::pane::create`] and
+/// [`crate::pane::properties`] (`work/chrome/drag-tick-has-three-homes.md`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldWriting {
     /// The unit the field shows and authors in — [`props::rendering_unit`]'s
@@ -476,9 +486,14 @@ impl FieldWriting {
 /// the kernel represents so it can REFUSE it, and a form offering it
 /// would be offering a refusal. Completeness is exactly what this list
 /// does not claim, so a mechanism that forced it would be forcing the
-/// wrong thing. It shares [`BOOLEAN_OPS`]'s other half all the same —
-/// a kernel enum mirrored where no compiler can see the mirror — and
-/// rides the same item.
+/// wrong thing — mapping this form over a published `ALL` the way the
+/// boolean buttons are mapped is precisely the wrong fix here.
+///
+/// What it still has no answer for is the OTHER half: a primitive the
+/// panel SHOULD offer would not appear here and nothing would say so.
+/// A partial mirror wants to be told its enum grew, not to be
+/// regenerated from it; that is
+/// `work/door/mate-primitives-is-a-partial-mirror-with-no-growth-alarm`.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
     (MatePrimitive::FrameCoincidence, "frame coincidence"),
     (MatePrimitive::Coaxial, "coaxial"),

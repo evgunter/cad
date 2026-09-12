@@ -384,13 +384,13 @@ impl Unusable {
     /// answers with.
     ///
     /// **The one place the words become an error.** A store that keeps
-    /// nothing is asked nothing by this crate — `app`'s
-    /// `ViewerApp::remember_theme` reads [`PrefsStore::unusable`] and
-    /// does not call `save` — but the trait's `save` is total and
-    /// public, so it still owes an honest answer to a caller that did
-    /// not ask first. Composing that answer here rather than at each
-    /// impl is what stops it being a second, drifting statement of a
-    /// condition the read already states.
+    /// nothing is asked nothing by this crate —
+    /// [`crate::app::ViewerApp::remember_theme`] reads
+    /// [`PrefsStore::unusable`] and does not call `save` — but the
+    /// trait's `save` is total and public, so it still owes an honest
+    /// answer to a caller that did not ask first. Composing that answer
+    /// here rather than at each impl is what stops it being a second,
+    /// drifting statement of a condition the read already states.
     #[must_use]
     pub fn refusal(&self) -> StoreError {
         let Self { because } = self;
@@ -420,7 +420,7 @@ impl Unusable {
 /// silently dropped.
 ///
 /// **Annotated, not disabled**, and that is where this parts company
-/// with `frame::chooser_backend`'s posture for Open…/Save As…. A file
+/// with [`crate::frame::chooser_backend`]'s posture for Open…/Save As…. A file
 /// dialog with no backend can do nothing at all, so the control is
 /// disabled with a reason. The palette picker still works: the theme
 /// applies to the screen on the frame it is chosen and only the

@@ -587,7 +587,11 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
 #[test]
 fn the_cap_lever_is_the_links_extent() {
     let phi = 1e-2_f64;
-    let band = Band::new(1.2e-3, 1.2e-2).expect("a band ten wide, like the door's");
+    // Pinned on BOTH edges, so the row is the same at every eps row.
+    // The ×10 is this row's own ratio; it is the door's only while the
+    // run sits at the default K, which is why it is written out here
+    // rather than derived from the run.
+    let band = Band::new(1.2e-3, 1.2e-2).expect("the row's own band, ten wide");
     for (len, in_band) in [(0.3, true), (2.5, false)] {
         let rod = rod_d_profile_of_length_at::<f64>(len, tol());
         let plane = SplitPlane {

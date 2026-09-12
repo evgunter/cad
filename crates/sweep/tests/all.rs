@@ -415,6 +415,12 @@ fn every_suite_file_is_aggregated() {
 #[path = "m8_3_rational_volume.rs"]
 mod m8_3_rational_volume;
 
+#[path = "reporting_door_bit_digest.rs"]
+mod reporting_door_bit_digest;
+
+#[path = "sign_certified_plus_v.rs"]
+mod sign_certified_plus_v;
+
 #[path = "m8_4_intersection_iso.rs"]
 mod m8_4_intersection_iso;
 
@@ -631,3 +637,9 @@ mod shell10_r2_cost;
 
 #[path = "shell10_r2_dump.rs"]
 mod shell10_r2_dump;
+
+#[path = "census_containment_cause.rs"]
+mod census_containment_cause;
+
+#[path = "wire_loft_end_profile_lift.rs"]
+mod wire_loft_end_profile_lift;
