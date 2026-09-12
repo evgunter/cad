@@ -1,10 +1,9 @@
 ---
 id: fuzz-depth-not-existence-run-everything-at-effort-1
 kind: unit
-title: Run every fuzzer at EFFORT=1 on every run; the marker selects a RAISED EFFORT — the measurement, and the wiring it implies
+title: Wire the EFFORT policy: ci-filter.py selects a raised EFFORT instead of excluding suites
 status: open
 opened: 2026-09-11
-needs_ev: true
 ---
 
 
@@ -90,7 +89,7 @@ whether or not they execute (`build + archive (interval)`, 388 s median,
 the run's longest job), so neither policy moves the pole. Everything
 being argued about here lives in the cheap half of the run.
 
-## Wiring, if Ev signs the clause off
+## THE WORK: wiring, and it is the whole of what is left
 
 1. **`ci-filter.py`: invert what `TEST_FILTER` means.** Today the gate
    emits `not (A | B | ...)` excluding untouched gated suites. Under the
@@ -104,15 +103,36 @@ being argued about here lives in the cheap half of the run.
    (`ci.yml:3922-3931`) is the precedent: *"the cases are ~7s at effort 1
    ... and scale linearly — 8.2x measured locally from effort 1 to 8"*.
 3. **The nightly's re-take changes meaning**, and its header must say so:
-   it stops being "the coverage a PR skipped" and becomes "the depth a PR
+   it stops being "the coverage a PR skipped" and becomes "the raise a PR
    did not buy", so it should run at the higher EFFORT rather than at 1.
+   Its retirement is a separate question — see the section below; if it
+   is retired instead, this step is a deletion.
 4. **`fuzz.rs`'s doc has one sentence to fix** — *"in the seconds a
    gated CI job should cost"* assumes the gate decides existence.
 5. **The gate's three guards stay and get cheaper to be wrong about**
    (`--gated-check`'s marker resolution, the helper-import arm and the
    `#[path]`-mount arm, both landed 2026-09-11). A broken marker under
-   the ruling costs depth, not existence — which is the argument for the
-   ruling, not an argument for deleting the guards.
+   the ruling costs the raise, not the run — which is the argument for
+   the ruling, not an argument for deleting the guards.
+
+## Ratified 2026-09-12; `needs_ev` dropped
+
+Ev signed the clause off in chat (*"that version of the memory looks
+good!"*) and it merged at PR #2363, trimmed to six lines against
+`memories/cad-working-style.md`'s own criteria. **The policy is settled
+and none of it is wired**: `scripts/ci-filter.py` still emits an
+EXCLUSION and still decides existence, and no lane in the kernel runs
+above EFFORT = 1. The five steps above are the live work and this row is
+ordinary dispatchable work, not a question.
+
+**It is not blocked, but it has an ordering.** The gated set's execution
+wall is one suite whose cost is a kernel regression
+(`m10-3-chamber-row-reads-ten-times-its-recorded-cost`, handed to M10 as
+`work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`). Wire this
+before that is fixed and step 1 puts a 66-83 s row onto every pull
+request; wire it after and the same step costs about a second of leg
+time. Nothing forbids going first — but a lane that does owes the
+measurement of what it lands, and should say in its PR that it chose to.
 
 ## What this closes and what it does not
 

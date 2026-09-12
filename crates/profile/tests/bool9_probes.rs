@@ -61,7 +61,7 @@ fn stadium() -> ProfileLoop<f64> {
 #[test]
 fn the_materialization_door_reproduces_the_table_bit_for_bit() {
     let source = stadium();
-    let crossed: ProfileLoop<f64> = source.map(<f64 as Real>::from_f64);
+    let crossed: ProfileLoop<f64> = source.map_scalar(<f64 as Real>::from_f64);
 
     assert_eq!(crossed.vertices().len(), source.vertices().len());
     for (i, (a, b)) in source
@@ -92,7 +92,7 @@ fn the_materialization_door_does_not_re_adjudicate_the_table() {
         ProfileVertex::new(p2(1.0, 1.0), 0.0),
     ])
     .with_tangent_joints(vec![7]);
-    let crossed: ProfileLoop<f64> = odd.map(<f64 as Real>::from_f64);
+    let crossed: ProfileLoop<f64> = odd.map_scalar(<f64 as Real>::from_f64);
     assert_eq!(crossed.tangent_joints(), [7]);
     assert_eq!(crossed.vertices().len(), 3);
 }

@@ -24,3 +24,32 @@ The suite's workaround (turning the alignment's roll reference and committing th
 ## Home
 
 `work/mate/` — the static coset-table refusal is `crates/editor-core/src/mate/solve.rs`, inside S-MATE's territory glob `crates/editor-core/src/mate/*`, and mate authoring is the program's charter (the viewer half rides along).
+
+## Re-homed from FIX to DOCM, 2026-09-12 (FIX orchestrator)
+
+**The `## Home` section above names `work/mate/`, a directory that no
+longer exists.** S-MATE left the tracker on 2026-09-04
+(`docs/DOC-LEDGER.md` sweep 6). Its territory was not freed but
+**inherited**: `work/docm/program.md` and `work/msolve/program.md`
+both carry `crates/editor-core/src/mate/*` in `paths`.
+
+`work/fix/plan.md` has held **half (1)** — refuse a nonzero clocking
+rider on `FrameCoincidence` at `AddMate` — on FIX's slate since the
+program opened, on a fence that has since been claimed twice, while
+`work/docm/plan.md:94-96` already carries **half (2)** (a rotate-mate
+affordance or documented roll conventions) as DOCM's. One item cannot
+live on two slates, and splitting it would need two files for one
+finding.
+
+**DOCM takes both halves**, on the charters as written: half (1) is an
+`AddMate` door refusing at authoring time, and the `DocEdit` set is
+DOCM's charter explicitly; half (2) was already DOCM's. DOCM's own
+charter is to open one `[ev]` PR per question and **hand each build to
+FIX, CHROME or VIEW when ruled** — so if the ruling on half (1) is
+"refuse typed at the door", handing that build back to FIX is the
+expected flow and FIX will take it. The sibling row
+`levered-clash-margins-hide-their-arm` went to MSOLVE by the same
+reading, since it is solve semantics rather than document custody.
+
+FIX took nothing here and changed no code; this is a routing move
+only. `work/fix/plan.md`'s half-(1) line is corrected in the same PR.

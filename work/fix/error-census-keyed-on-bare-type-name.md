@@ -2,11 +2,12 @@
 id: error-census-keyed-on-bare-type-name
 kind: issue
 title: The error-type census is keyed on the bare type name, which is ambiguous at seven names
-status: review
+status: closed
 opened: 2026-09-04
 refs: [1111, 1741]
 branch: fix/census-declaring-path-key
 pr: 2402
+closed: 2026-09-12
 ---
 
 
