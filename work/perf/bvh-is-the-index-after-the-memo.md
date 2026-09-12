@@ -15,15 +15,19 @@ the faces that changed, and leave its triangle BVH (`MeshPick::build`,
 whole. Measured on the tree that landed them (release, 4 vCPU, the
 `perf/explore-gui` stage harness, medians of 3):
 
-| document | index, no memo | index, memo primed | of which tessellate_with | of which MeshPick::build |
+| document | index, memo primed | = Σ roots' tessellate_with | + Σ roots' MeshPick::build | + the rest (id map, windows) |
 |---|---:|---:|---:|---:|
-| `die_composed_tour` (one root, 184 034 triangles, one-pip edit: 85 of 89 faces reused) | 235 ms | 104 ms | 11 ms | 103 ms |
-| `tube_ring` (683 672 triangles, an edit every face reads) | 1439 ms | 1376 ms | 844 ms | 558 ms |
+| `die_composed_tour` (one root, 184 034 triangles, one-pip edit: 85 of 89 faces reused) | 174 ms | 25 ms | 148 ms | 0.7 ms |
+| `tube_ring` (683 672 triangles, an edit every face reads) | 2438 ms | 1689 ms | 700 ms | 49 ms |
+| `gallery_ring` (160 260 triangles, likewise) | 439 ms | 311 ms | 123 ms | 5 ms |
 
-On the tour die the BVH is now ~98 % of the index build and the
-whole of the edit→picture wait's index share; on the ring documents
-it is ~40 % and stays behind a tessellation the memo cannot help
-(their bump moves every face).
+(The `MeshPick::build` column is that call re-run on the built parts,
+the tessellation column the per-root time less it; a loaded box, so
+the absolute numbers are ~1.8× the PR's first table and the shares are
+the reading.) On the tour die the BVH is now ~85 % of the memo'd index
+build and the whole of the edit→picture wait's index share; on the
+ring documents it is ~28 % and stays behind a tessellation the memo
+cannot help (their bump moves every face).
 
 ## What a fix is
 
