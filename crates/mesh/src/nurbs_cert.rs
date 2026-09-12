@@ -560,7 +560,7 @@ pub(crate) fn nurbs_cell_bounds(
 /// consumers is the shape that drifts.
 ///
 /// **Who writes it, and when.** Its two consumers read it in two
-/// different phases of [`crate::tessellate`], and the phases are what
+/// different phases of [`crate::tessellate()`], and the phases are what
 /// make one `HashMap` safe under the per-face parallel map:
 ///
 /// * the CHORD PASS walks the edge arena and fills the entry of every
