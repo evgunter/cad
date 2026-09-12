@@ -95,3 +95,46 @@ answer.
 counterexample against the paragraph #2387 put in place of the retired
 kind. The counterexample was misclassified, so it does not support that
 argument; see `readme-ratification-amendments-need-ev`.
+
+## The fix shape, settled (Ev's question on PR #2410, 2026-09-12)
+
+Ev asked: *"can we put that enum in a third dependency free crate that
+both import or does that not work"*.
+
+**A shared crate does not work, and is not needed.**
+
+**Why not.** That trick needs both sides to be ours. `egui` is a
+third-party crate — we cannot make it depend on a crate of ours, so
+there is no third home both sides can import. The mirror is not a
+duplication we chose; it is the shape of a boundary with an upstream we
+do not control, and `input.rs` staying toolkit-free is the thing worth
+protecting.
+
+**Why it is not needed.** `egui::PointerButton` is a **plain closed
+enum** — no `#[non_exhaustive]`
+(`egui-0.36.1/src/data/input/pointer_button.rs:1-20`). So a downstream
+exhaustive `match` over it compiles *and is forced*: the day a future
+egui adds a sixth button, our build fails at that one site.
+
+That is the whole fix. Replace the hand-written three-pair array at
+`crates/viewer/src/pane/viewport.rs:84-88` with a conversion whose match
+names all five variants and says what each maps to — `Extra1` and
+`Extra2` to a written "not bound, because …", or to new
+`input::PointerButton` variants if binding the side buttons is wanted.
+Nothing is shared, `input.rs` keeps its zero toolkit dependencies, and
+the mirror becomes compiler-held.
+
+**This is the same distinction the mirror class turned on today.**
+`topo::ContactClass` is `#[non_exhaustive]`, so downstream *cannot*
+enumerate it and the declaring crate has to publish an `ALL`;
+`topo::BooleanOp` is closed, so a consumer's own exhaustive match fences
+that consumer. `egui::PointerButton` is the `BooleanOp` case, one crate
+boundary further out — with the difference that we cannot add an `ALL`
+upstream even if we wanted to, which is exactly why the match is the
+only lever and happily also a sufficient one.
+
+**What it does not buy.** It is an *upgrade-time* guard, not a runtime
+one: it fires when the egui version bumps, which is the right moment and
+the only moment the set can change. It also does not decide the open
+product question — whether `Extra1`/`Extra2` should bind to anything —
+it forces someone to answer it in writing instead of by omission.
