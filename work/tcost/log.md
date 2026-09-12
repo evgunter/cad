@@ -1921,3 +1921,19 @@ whose cost is a kernel regression now on M10's slate. Wiring before that
 is fixed puts a 66-83 s row on every pull request; after, the same step
 costs about a second of leg time. A lane may go first and owes the
 measurement of what it lands.
+
+## The two ci-filter GUI-LOG citations resolve now (2026-09-12)
+
+`scripts/ci-filter.py` carried the fullest paraphrase of Ev's
+viewer-CI-posture ruling in live code and cited `docs/GUI-LOG.md` for
+it — a path the ledger's own recovery recipe cannot open, because the
+file was renamed to `work/gui/log.md` before the `gui` directory was
+deleted. Every other CI site points HERE for the argument, so this was
+the one citation a reader checking whether the code still applies the
+ruling would dead-end on.
+
+Both sites now carry the house spelling that CIW unit 7 landed on the
+other six, copied from the landed text rather than re-invented. Comments
+only. The one live `GUI-LOG.md` hit left in the tree is
+`docs/MODEL-AB-LOG.md`'s banding entry, which records where a claim was
+made rather than asking a reader to open it.

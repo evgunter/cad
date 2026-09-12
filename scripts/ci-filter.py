@@ -1417,7 +1417,10 @@ def _touches_oracle(files: list[str] | None) -> bool:
 
 
 # THE SEEDS THAT BUY THE GUI TOOLKIT ROWS (Ev's viewer-CI-posture ruling,
-# 2026-08-27; docs/GUI-LOG.md). SEEDS, not the closure — the argument is at
+# 2026-08-27, which was recorded in the closed GUI program's log; that log left
+# the tracker with the program's directory in DOC-LEDGER sweep 5 and reads at
+# `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
+# SEEDS, not the closure — the argument is at
 # `RUN_VIEWER_TOOLKIT` in `decorate`, and it is the whole of why this is a
 # three-name set rather than "anything viewer depends on".
 #
@@ -2435,8 +2438,10 @@ def decorate(
     # member change can break it, so it runs whenever anything builds.
     res["RUN_K_LINT"] = "false" if tier == "docs" else "true"
     # THE VIEWER TOOLKIT AXIS — SEED-KEYED, NOT CLOSURE-KEYED (Ev,
-    # 2026-08-27, ruling recorded in docs/GUI-LOG.md: "the GUI is treated as a
-    # third-party consumer of the API").
+    # 2026-08-27, ruling recorded in the closed GUI program's log: "the GUI is
+    # treated as a third-party consumer of the API"; that log left the tracker
+    # with the program's directory in DOC-LEDGER sweep 5 and reads at
+    # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
     #
     # What it gates: the two rows that compile eframe + wgpu + naga + winit —
     # `clippy -p viewer --features app` and the rustdoc gate's `--all-features`
