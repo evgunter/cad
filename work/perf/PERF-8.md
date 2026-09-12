@@ -2,10 +2,11 @@
 id: PERF-8
 kind: unit
 title: per-face mass-property fluxes in parallel, with the K-funnel composing
-status: review
+status: closed
 opened: 2026-09-12
 branch: perf/8-parallel-mass-props
 pr: 2452
+closed: 2026-09-12
 ---
 
 
