@@ -2,8 +2,10 @@
 id: fit-delta-probe-can-exceed-the-picture-it-sizes
 kind: issue
 title: fit_delta's probe is sized off the requested delta, so it can tessellate more than the picture it is sizing, on the UI thread
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-09-12
+pr: 2464
 ---
 
 ## The finding
