@@ -5,6 +5,7 @@ title: A CLASS - public generic doors with zero production call sites, kept aliv
 status: open
 opened: 2026-09-11
 refs: [2375, 2409]
+pr: 2475
 ---
 
 

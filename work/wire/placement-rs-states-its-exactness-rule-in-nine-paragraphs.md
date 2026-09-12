@@ -5,6 +5,7 @@ title: placement.rs asserts exact / by bits / D9-deterministic in nine separate 
 status: open
 opened: 2026-09-11
 refs: [2375]
+pr: 2475
 ---
 
 
