@@ -1796,3 +1796,86 @@ report a correction as a finding in its own right.
 directory and overwrote each other's `poll.py` and `pr.md` mid-task.
 Nothing was lost, but a lane that writes a PR body to a shared path
 and posts it a minute later posts a sibling's text.
+
+### `error-census-keyed-on-bare-type-name` (PR 2402) — three of my framings were wrong, and the correction is worth more than the unit
+
+The census is re-keyed on the **declaring path**: a written type resolves
+through its module's `use` items and through re-exports (renames
+included) to the module that declares it, and **resolution failure falls
+back to the bare name**, so the change costs precision, never soundness.
+
+**What the lane corrected, all of it mine or the row's:**
+
+1. **The census the row names is not code.** #1111's error-type census
+   was a HAND sweep and #1741 re-ran it by hand. There is nothing to
+   "re-run keyed on `crate::path::Type`". `prose_census.rs`'s table is
+   the tree's only live bare-name-keyed census, so that is where the
+   re-key landed. The row read as a code change and is a method note.
+2. **Only one of the row's two directions exists in that code.** The
+   census indexes DECLARATIONS, and a re-export adds none, so the
+   false-duplicate direction (`PathError`, `Refusal`) was never present
+   — it inflates a hit LIST, which is what #1111 produced and this
+   census never builds. *"Both directions close at once"* is true of
+   the method and false of the code.
+3. **The bare key was never unsound in this tree.** Instrumented at the
+   merge base: 27 colliding names, 26 decided sites reach one, **zero
+   wrong answers** — because rivals that disagree answer `Undecided`
+   and rivals that agree give a verdict correct either way. So the
+   justification is not "fixes a live defect"; it is that the key was
+   sound only because the disagreement rule caught it, at the price of
+   `Undecided`.
+
+**And my overlap claim was wrong in the direction that matters.** I sent
+the lane after class 3 of `prose-census-undecided-residue` on that row's
+own words — *"resolving a bare name through its file's `use` items would
+decide most of them"*. Measured: class 3 is **one row of 28**, and after
+the re-key it is **still undecided** (`Option<profile::Verb>` now
+resolves to a macro-declared type, so the verdict is unchanged and only
+the roster line's REASON becomes true). **The roster shrinks by zero.**
+The overlap was real; my estimate of its size came from the row and I
+passed it on without measuring it. Instruction 2 applies to a dispatch
+as squarely as to an item.
+
+### The find under it: seven roster rows carried a false reason, and nothing could have caught them
+
+`UNDECIDED`'s whole purpose is that *"a site this cannot decide either
+gets its line here, WITH THE REASON it could not be decided, or gets
+rewritten so it can be"*. Seven of its rows said *"declared at a type
+this tree does not declare under that name — an alias, a re-export, or
+one out of tree"*. All seven have an **empty candidate list**: the
+census never typed the binding and never consulted the table. The
+reason was false for as long as anyone read it.
+
+**It could not have been caught**, and that is the durable part.
+`every_site_this_census_cannot_decide_is_named_with_its_reason` compares
+a tally against `roster(UNDECIDED)`, and `roster()` keys on
+`(file, type, binding)` and a count — **the reason string is never
+compared by anything.** A test whose NAME promises the reason asserts
+only the site. That is the reviewer brief's Q5 — *what does this promise
+that it doesn't do* — in a row this program built itself (PR 1809).
+
+The real cause is a fourth class the residue row does not name: the
+census cannot type a binding that arrives from a nested pattern
+(`slot: SlotId::Profile { .. }`, `verb: Some(verb)`,
+`endpoints: (u, v)`), an inner arm naming no variant path, a catch-all,
+or a closure parameter. Reasons corrected in code; the defect filed as
+`census-cannot-type-a-nested-pattern-binding`. Roster composition is now
+7 positional, 13 `Real` scalar, 7 untypable bindings, 1 macro-declared.
+
+**Instruction 3, and the lane built the pin rather than reporting its
+absence.** Both rosters are byte-identical before and after, so nothing
+in the tree discriminated the re-key. Three planted-tree rows now do;
+the sharpest is one `Verb` name declared in two crates with opposite
+shapes, where the SAME site text answers `Braced` or `Prose` according
+only to which is imported. Run red first with `declaring_path` forced
+to `None`.
+
+**Flagged by the lane, not filed, because it did not establish it:**
+`brace_shaped`'s cycle guard keys on the head name, so `Vec<Vec<Braced>>`
+re-enters `Vec`, hits `seen`, and answers **`Prose`** — a guess toward
+prose, which is the one silence this module exists to remove. Preserved
+exactly and not a keying question. Worth a look by whoever takes class 1.
+
+**A tooling trap worth carrying:** `territory --base origin/main` reads
+the COMMITTED diff, so on a dirty tree it reports a vacuous
+`0 path(s)` — which nearly had the lane file my fence claim as wrong.
