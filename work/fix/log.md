@@ -1879,3 +1879,72 @@ exactly and not a keying question. Worth a look by whoever takes class 1.
 **A tooling trap worth carrying:** `territory --base origin/main` reads
 the COMMITTED diff, so on a dirty tree it reports a vacuous
 `0 path(s)` — which nearly had the lane file my fence claim as wrong.
+
+### `underflow-gate-owed-at-five-more-doors` (PR 2401) — three of four doors, and the cut was MY wave design's cost
+
+The gate fits at `frame.rs::definitely_positive`, `revolve::axis::AxisFrame::build`
+and `sector_shape` (per chord), each with a new typed arm beside its
+existing non-finite one and a red-first row **executed against a
+gate-less tree**, not argued. `Vec2::norm_witness` / `Vec3::norm_witness`
+become the one derivation of the witness.
+
+**The decision the item asked for, made explicitly: the predicate stays
+SCALAR and the WITNESS becomes vector-shaped.** The unenforceable half
+of `is_underflowed_length`'s contract is the *derivation* of the
+witness, not its pairing with the length, and one accessor per vector
+type closes that in both dimensions without a predicate twin. A
+vector-shaped predicate would re-derive `len`, which four of seven call
+sites have already bound for their own `Margin` — trading an unenforced
+witness for an unenforced length. The line that decided it is
+`frame_from_unit_aim`'s stated contract: *"one evaluation, one
+rounding"*. The lane argued the counter-case in the PR body and
+declined to claim its answer is the only correct one, which is what
+this posture asks for.
+
+**Instruction 3, and the one existing pin PINNED THE DEFECT.**
+`path_start_frame_refuses_true_degeneracy` listed
+`Vec3::new(0.0, 0.0, 1e-200)` among "stationary points of the path",
+asserting `Degenerate { Tangent, None }`. Verified: `1e-200` squares to
+exactly `0.0` in `f64`, so that row was asserting that a direction the
+format lost is a path with no tangent. The pin was not a baseline to
+preserve; it was the defect written down. The other three doors had no
+pin at all at underflow scale.
+
+**The `min` hides this end harder than the overflow end it mirrors**, and
+the lane measured it rather than reasoning it: at the overflow end
+`min(3.0, inf) = 3.0` let a healthy-looking arm through, while here
+`min(3.0, 0.0) = 0.0` means the underflowed chord always wins — never
+silent, but never about the chord either, and the arm it names belongs
+to the chord that was fine.
+
+**The cut is mine, not the lane's.** `arc_fillet::carrier_tangent` needs
+`PathError::UnderflowedDirection { dx, dy }`, and `PathError`, its
+`Kind` and its `Display` all live in `crates/profile/src/path.rs` — the
+file I told this lane to leave alone because the `num` lane held it for
+this wave's whole life. Designing the collision out cost a forced cut.
+**I judge the trade right** — a merge conflict between a 136-line
+rewrite of `num` and a new error variant in the same file would have
+cost more than the cut — but it is a cost and it belongs on the record
+as a consequence of wave design rather than of the unit. The item stays
+`open` with the remainder fully staged: the variant's home, that
+`v.norm_witness()` is the witness, that `NonFiniteDirection { dx, dy }`
+is the shape to copy, and that nothing pins the current
+`DegenerateArcCenter { radius: 0.0 }` refusal so a red-first row is owed
+with it. **`path.rs` is free as of PR 2399's merge, so this is a small
+wave-3 unit, not a blocked one.**
+
+**Two corrections to the item and to my brief.** Both said a `Vec2` twin
+would be needed *"for the `profile` door"* — `RevolveAxis::dir` is a
+`Vec2<T>` too (`sweep/src/revolve/mod.rs:146`), so the split across the
+six sites is four `Vec3` and two `Vec2`, not five and one. And
+`unit_from_components` has moved to `path.rs:2937`, not `:2907`.
+
+**Fences, and two the `keep_out` does not know.** Fourteen paths across
+six programs, all announced in the PR body. **BLEND's
+`sweep/src/revolve/*` and the `topo/src/splitting/*` pair, plus CURVED's
+claim on `boolean/*`, are not recorded in this program's `keep_out`** —
+the lane flagged that the clause may want to learn them. It is the same
+shape as the `census.rs` clause corrected yesterday: a `keep_out` that
+enumerates crossings goes stale every time the program crosses somewhere
+new. Worth considering whether that field should name FILES this program
+may cross at all rather than the crossings it has made.
