@@ -1,3 +1,4 @@
+# S-TCOST shard-count probe branch (N=3): measurement only, never merged.
 name: CI
 
 on:
@@ -3051,7 +3052,7 @@ jobs:
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
 
   test:
-    name: test (eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
+    name: test (eps = ${{ matrix.eps }}, ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     needs: [filter, build]
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
@@ -3140,7 +3141,7 @@ jobs:
       # Nothing about a run's total job time changes either way: merging two
       # shards trades two jobs for one longer one, once per eps row.
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
         eps: ${{ fromJSON(needs.filter.outputs.eps_rows) }}
     env:
       # Nothing compiles here: cargo only dispatches to cargo-nextest,
@@ -3252,7 +3253,7 @@ jobs:
             GATED=()
           fi
           mkdir -p "$RUNNER_TEMP/test-cost"
-          ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/3 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
           status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
@@ -3327,7 +3328,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          JOB: test (eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
+          JOB: test (eps = ${{ matrix.eps }}, ${{ matrix.shard }}/3)
         run: |
           set +e
           # BOTH DESTINATIONS, and the log is the load-bearing one. The step
@@ -3636,7 +3637,7 @@ jobs:
   # scripts/check-interval-cfg-additive.py GATES it in the `discipline` job,
   # on every code-tier run, and fails loudly the moment it stops holding.
   test-interval:
-    name: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
+    name: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     # `build` is GONE from `needs`, and that is the point of the rewrite
     # above: this job's only cross-lane dependency was the default build's
@@ -3675,7 +3676,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
         eps: ${{ fromJSON(needs.filter.outputs.eps_rows) }}
     env:
       # Nothing compiles here (see the `test` job).
@@ -3743,7 +3744,7 @@ jobs:
             GATED=()
           fi
           mkdir -p "$RUNNER_TEMP/test-cost"
-          ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/3 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
           status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
@@ -3814,7 +3815,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          JOB: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
+          JOB: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/3)
         run: |
           set +e
           # BOTH DESTINATIONS, and the log is the load-bearing one. The step
