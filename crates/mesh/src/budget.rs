@@ -253,6 +253,8 @@ mod live {
     use super::{FaceMeasure, Mode};
 
     use std::cell::RefCell;
+    use std::collections::HashSet;
+    use std::thread::ThreadId;
 
     thread_local! {
         /// This thread's arming and the measurements taken since.
@@ -272,6 +274,15 @@ mod live {
         /// paid for an assembly, which is a property of the pass
         /// structure rather than of any face.
         assemblies: usize,
+        /// The threads a face's lane ran on since arming — the same
+        /// kind of fact as `assemblies` and here for the same reason:
+        /// it is a property of the PASS, not of a face. What reads it
+        /// is the row that holds `tessellate`'s per-face dispatch to
+        /// being D9 idiom 1: the lanes run on rayon workers, never on
+        /// the thread that called in ([`lane_ran_on_caller`]), so a
+        /// serial arm added under some threshold would turn that row
+        /// red instead of passing unnoticed.
+        threads: HashSet<ThreadId>,
     }
 
     /// Arms the meter on THIS thread, discarding anything unread.
@@ -281,6 +292,7 @@ mod live {
                 mode,
                 faces: Vec::new(),
                 assemblies: 0,
+                threads: HashSet::new(),
             });
         });
     }
@@ -324,6 +336,31 @@ mod live {
         STATE.with(|s| s.borrow().as_ref().map_or(0, |st| st.assemblies))
     }
 
+    /// How many distinct threads have run a face's lane since arming
+    /// (does not disarm). Zero before anything was tessellated.
+    pub fn lane_threads() -> usize {
+        STATE.with(|s| s.borrow().as_ref().map_or(0, |st| st.threads.len()))
+    }
+
+    /// Whether any face's lane ran on THIS thread — the thread that
+    /// armed the meter and called `tessellate`.
+    ///
+    /// It answers `false` for a call made from outside a rayon pool,
+    /// and that is a fact about rayon rather than about scheduling
+    /// luck: an indexed `par_iter` collected by a non-worker caller
+    /// injects its job into the pool and parks the caller on a latch,
+    /// so no lane can run here. A serial arm — under a face-count
+    /// threshold, say — would run every lane on this thread and make
+    /// this `true`.
+    pub fn lane_ran_on_caller() -> bool {
+        let here = std::thread::current().id();
+        STATE.with(|s| {
+            s.borrow()
+                .as_ref()
+                .is_some_and(|st| st.threads.contains(&here))
+        })
+    }
+
     /// The lane's one hand-off: this face's measurements, once,
     /// whichever way the face ended.
     pub(crate) fn note_face(m: FaceMeasure) {
@@ -339,19 +376,24 @@ mod live {
     #[derive(Clone, Copy)]
     pub(crate) struct Arming(Option<Mode>);
 
-    /// One face's measurements, taken wherever that face's lane ran.
+    /// One face's measurements, taken wherever that face's lane ran —
+    /// and the thread it ran on, which is a fact about the pass and not
+    /// about the face ([`State::threads`]).
     pub(crate) struct FaceRecording {
         faces: Vec<FaceMeasure>,
         assemblies: usize,
+        thread: ThreadId,
     }
 
     impl FaceRecording {
         /// Nothing recorded: a disarmed meter, or a lane that panicked
-        /// out from under [`record`]'s guard.
+        /// out from under [`record`]'s guard. The thread it ran on is
+        /// still a fact, and still this one.
         fn nothing() -> Self {
             Self {
                 faces: Vec::new(),
                 assemblies: 0,
+                thread: std::thread::current().id(),
             }
         }
     }
@@ -398,6 +440,7 @@ mod live {
             mode,
             faces: Vec::new(),
             assemblies: 0,
+            threads: HashSet::new(),
         })));
         let out = f();
         // Taken out from under the guard, which then puts the caller's
@@ -408,6 +451,7 @@ mod live {
         let recording = mine.map_or_else(FaceRecording::nothing, |st| FaceRecording {
             faces: st.faces,
             assemblies: st.assemblies,
+            thread: std::thread::current().id(),
         });
         (out, recording)
     }
@@ -419,6 +463,7 @@ mod live {
             if let Some(st) = s.borrow_mut().as_mut() {
                 st.faces.extend(recording.faces);
                 st.assemblies += recording.assemblies;
+                st.threads.insert(recording.thread);
             }
         });
     }
@@ -466,6 +511,16 @@ mod inert {
     /// Always zero: nothing counted in this build.
     pub const fn assemblies() -> usize {
         0
+    }
+
+    /// Always zero: nothing is recorded in this build, so no thread is.
+    pub const fn lane_threads() -> usize {
+        0
+    }
+
+    /// Always false: nothing is recorded in this build.
+    pub const fn lane_ran_on_caller() -> bool {
+        false
     }
 
     /// Nothing to carry: there is no arming in this build.

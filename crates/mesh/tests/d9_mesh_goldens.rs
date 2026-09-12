@@ -389,6 +389,13 @@ fn the_corpus_digests_the_same_bytes_at_one_and_four_threads() {
     let one = at(1);
     let four = at(4);
     let want = golden_digests();
+    // Both lengths, because every comparison below is a `zip` and a
+    // `zip` over a short side is silently a shorter comparison.
+    assert_eq!(
+        one.len(),
+        four.len(),
+        "the two pools digested different numbers of body/δ pairs"
+    );
     assert_eq!(
         one.len(),
         want.len(),
