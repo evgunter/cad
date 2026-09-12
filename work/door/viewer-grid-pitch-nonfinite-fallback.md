@@ -141,8 +141,19 @@ way it is turned; a view that scales nothing draws nothing.
 
 Three test call sites take `.expect(…)`. Three rows in
 `crates/viewer/tests/datum_draw.rs`: the refusal at the door, the
-whole-module invariant over a **four-kind** fixture, and the frame's
-arms surviving a refused patch.
+four-kind fixture, and the frame's arms surviving a refused patch.
+
+**What those rows do NOT claim.** `a_view_with_no_finite_scale_draws_nothing`
+asserts the invariant for the case its fixture reaches — a view whose
+SCALE is infinite — and not for every path to a non-finite position.
+There is at least one other, filed as
+`inclusive-rule-range-draws-a-line-on-a-nan-count`: a datum ORIGIN at
+the end of the number line, under an ordinary camera, still rules two
+positions of `NaN`/`inf` per plane-like datum with every door in this
+diff answering `Some`. **That door is document data, not a synthetic
+view**, which is wider than any fixture here. This row closes on
+"`grid_pitch` refuses, and every mark refuses with it", not on "the
+module cannot emit a non-finite position".
 
 **The row's severity claim does not hold, and this is worth keeping.**
 The consequence of `f64::MIN_POSITIVE` is not a hang. The sole caller's
@@ -189,7 +200,7 @@ named-helper hole this row predicted is empty here).
 | `datums.rs` `grid_pitch`'s `f64::MIN_POSITIVE` | **Fixed** — this row. |
 | `datums.rs` `axis_segments`, `point_segments`, `frame_segments`' arms | **Fixed** — the same defect at three more marks, found by the reviewer 40 lines from the one this row named. Measured before the fix, same eye: axis 6 positions first `[NaN, -inf, NaN]`, point 6 first `[-inf, 0.0, 0.0]`. |
 | `datums.rs` `View::metres_per_pixel_at`'s `.max(f64::MIN_POSITIVE)` | **Real hit, filed** — `work/chrome/metres-per-pixel-swallows-a-nan-depth.md`. Two arms, NaN depth and zero depth, both leaving as `f64::MIN_POSITIVE`; the fix is a design call in CHROME's house. |
-| `datums.rs` `grid`'s `((last - first) as usize).min(MAX_GRID_LINES)` | **Not this class, and it was missed once** — a substituted COUNT, and the mechanism the whole hang-falsification above rests on. It is a documented backstop with its argument at the site (`MAX_GRID_LINES`' own doc), and it is the conservative direction. It is in this table because the first census dropped it through its own acknowledged integer-receiver filter, fifteen lines from the fix. |
+| `datums.rs` `rule_patch`'s `((last - first) as usize).min(MAX_GRID_LINES)` + `for i in 0..=count` | **THIS CLASS after all, and filed**: `work/chrome/inclusive-rule-range-draws-a-line-on-a-nan-count.md`. The `.min(…)` cap IS the documented backstop and IS conservative — but the cast is not, on a difference that is not a number: `inf - inf = NaN`, `NaN as usize = 0`, and the INCLUSIVE range then rules one line at `inf`. A first disposition here cleared the whole expression as conservative; that was wrong, and the correction is the point of this line. Missed twice: once by the integer-receiver filter, once by reading the cap's argument as covering the loop below it. |
 | `datums.rs` `unit`'s `else { Vec3::new(1.0, 0.0, 0.0) }` | Not this class — a substituted direction, argued at the site and proved unreachable from its one caller (`basis`: a unit normal crossed with the world axis it is least aligned with has length at least `1/√3`). A census owes the line anyway. |
 | `datums.rs` `viewport_px.max(1.0)`, `datum_view`'s `height_px.max(1.0)` | Not this class — a floor on a pixel COUNT, not on a measurement of the world. |
 | `gpu.rs` `index_count` and edge `vertices`' `u32::try_from(…).unwrap_or(u32::MAX)` | Same class, unreachable, **filed**: `work/chrome/gpu-index-counts-substitute-u32-max.md`. |
@@ -224,9 +235,16 @@ sweep already covered the tree for the `is_finite` spelling.
 
 ### Filed
 
-- `work/chrome/metres-per-pixel-swallows-a-nan-depth.md`
+- `work/chrome/metres-per-pixel-swallows-a-nan-depth.md` — three arms
+  now, not two: NaN depth, zero depth, and a NaN through `look_at`
+  that keeps the scale legitimate while making the patch centre NaN
+  (plane 6 positions / 4 non-finite, frame 18 / 4, axis 6 / 6).
+- `work/chrome/inclusive-rule-range-draws-a-line-on-a-nan-count.md`
 - `work/chrome/gpu-index-counts-substitute-u32-max.md`
-- `work/chrome/degenerate-triangle-normal-is-substituted.md`
+- `work/chrome/degenerate-triangle-normal-is-substituted.md` — recast:
+  the substitution IS argued at the site, with the consumer named, and
+  an earlier draft of that row said otherwise. What is open is the
+  missing contract in `mesh`, not the viewer's answer.
 
 ### Recorded, not scheduled
 
@@ -240,3 +258,21 @@ sweep already covered the tree for the `is_finite` spelling.
   reading, which it is at that door — and it is also the value the
   floor one call up substitutes. The filed row above is where that is
   answered; the pin is correct either way.
+- **A plane can now lose its normal tick while still ruling.** It is
+  the one place per-mark refusal costs the picture's MEANING rather
+  than decoration — the tick is the drawing's only statement of which
+  side is which. Argued at the site now (it was not, while the frame's
+  analogue was argued at length): a tick drawn at a length the view
+  did not give it does not say which way the plane faces either.
+- **`half_patch_at`'s `viewport_px.max(1.0)` sits upstream of the
+  refusal** and launders a NaN viewport into `1.0` before the door
+  sees it, exactly as `metres_per_pixel_at`'s floor does one level
+  further out. Same shape as the filed row, one argument short of
+  being the same finding; noted so a lane fixing the floor knows there
+  is a second one beside it.
+- **`grid_pitch` keeps its own copy of the refusal** rather than going
+  through `screen_metres_at`, so `grid` reaches past its own door for
+  the pitch. That is deliberate — `grid_pitch` is public and asserted
+  on directly, and routing it through a private helper would make the
+  public claim depend on one — but it does mean the module has two
+  places the condition is written.

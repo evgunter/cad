@@ -28,16 +28,21 @@ it and never reach it:
    hair above zero so a datum lying exactly at the eye — reachable by
    flying the camera into a plane — produces a degenerate drawing
    rather than a division by zero."*
+3. **A NaN reaching `look_at` rather than the eye** — and this is the
+   severe one. The floor keeps the SCALE legitimate, so every door
+   answers `Some`, while the patch's centre `(cu, cv)` is computed
+   from `look_at` and is NaN. The scale survives and the geometry does
+   not.
 
 ## What is and is not the defect
 
-**The two arms produce the identical drawing**, and saying so is the
-point of this row: a plane draws **126 positions** over a patch about
-`3.1e-305 m` across, first position `[3.13e-305, -3.0e-305, 0.0]`,
-under either input (measured with a throwaway row against the tree at
-`door/grid-pitch-refusal`). So the drawing does not distinguish them
-and no measurement can — **the distinction is argued versus unargued**,
-and that is the whole finding:
+**Arms 1 and 2 produce the identical drawing**, and saying so is half
+the point of this row: a plane draws **126 positions** over a patch
+about `3.1e-305 m` across, first position `[3.13e-305, -3.0e-305,
+0.0]`, under either input (measured with a throwaway row against the
+tree at `door/grid-pitch-refusal`). So the drawing does not
+distinguish them and no measurement can — **the distinction there is
+argued versus unargued**:
 
 - The **zero-depth** arm is argued at the site, and the argument is
   good as far as it goes: a division by zero is worse than a
@@ -53,6 +58,27 @@ and that is the whole finding:
 Both are the class the closed row
 (`viewer-grid-pitch-nonfinite-fallback`) objected to — a plausible
 reading substituted for a refusal — one call above the fix.
+
+**Arm 3 is the other half, and it is not a degenerate drawing but an
+invalid one.** Measured the same way, datums at the origin, eye
+`[0, -0.15, 0.1]`, `look_at [NaN, 0, 0]`, against this branch with
+every refusal installed:
+
+| kind | positions | non-finite | first |
+| --- | --- | --- | --- |
+| plane | 6 | **4** | `[NaN, NaN, NaN]` |
+| frame | 18 | **4** | `[NaN, NaN, NaN]` |
+| axis | 6 | **6** | `[NaN, NaN, NaN]` |
+| point | 6 | 0 | `[-1.3e-3, 0.0, 0.0]` |
+
+The point is clean because its mark is scaled at its own position and
+never reads `look_at`. Everything else is NaN geometry produced with
+every door answering yes — **that is the severity the closed row was
+written around, arriving through this floor**, and it is the reason
+this row is not merely a tidiness item. (The residual ruling in the
+plane and frame rows above is a second mechanism, filed separately as
+`inclusive-rule-range-draws-a-line-on-a-nan-count`; fixing either one
+alone leaves the other.)
 
 `screen_metres_at`, and through it every mark of every datum kind,
 reads this function, so whatever is decided reaches the whole module.

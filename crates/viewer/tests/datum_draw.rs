@@ -541,13 +541,24 @@ fn a_frame_keeps_its_arms_when_only_the_patch_has_no_scale() {
             "the frame drew {p:?}, which is not a position",
         );
     }
-    // What is drawn is arm-sized, at the ORIGIN's scale — not a patch
-    // that slipped through. The +x arm is the longest of the marks.
-    let arm = view.metres_per_pixel_at_one_metre * 0.1 * 108.0;
+    // **The arms specifically, not just something.** Stated
+    // structurally rather than against a copy of `FRAME_ARM_PX`,
+    // which is private and would go stale silently: this frame's
+    // normal is +z, so its tick is the only mark ON the z axis and
+    // the arms are the only ones that leave it.
+    assert!(
+        segments
+            .iter()
+            .any(|p| p[0].abs() > 0.0 || p[1].abs() > 0.0),
+        "the frame drew only its normal tick — the arms went with the patch",
+    );
+    // And what is drawn is a screen-sized mark at the ORIGIN's scale,
+    // not a patch that slipped through: the refused patch at this
+    // view would have been ~1e305 m across.
     let reached = reach(segments, [0.0, 0.0, 0.0]);
     assert!(
-        (0.5 * arm..=1.5 * arm).contains(&reached),
-        "the frame reached {reached:e} m, nothing like the {arm:e} m arm",
+        (0.0..1.0).contains(&reached),
+        "the frame reached {reached:e} m — that is patch-sized, not a mark",
     );
 }
 
@@ -591,9 +602,22 @@ fn the_ruling_is_anchored_on_the_origin_not_on_the_view() {
         // looked-at point is on it, so the patch centre IS `look_at`.
         let per_pixel = view.metres_per_pixel_at_one_metre * reach(&[look_at], eye);
         let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
-        // The last pair is the normal tick, which is anchored on the
-        // origin by construction and says nothing about the ruling.
-        for pair in segments[..segments.len() - 2].chunks_exact(2) {
+        // The normal tick is anchored on the origin and says nothing
+        // about the ruling, so it is dropped — by SHAPE, not by
+        // position. It used to be the last pair by construction;
+        // since each mark refuses on its own scale it may not be
+        // drawn at all, and a slice off the end would silently take a
+        // ruled line with it (and underflow on an empty drawing). The
+        // tick is the one pair that leaves the plane.
+        let ruled: Vec<&[[f64; 3]]> = segments
+            .chunks_exact(2)
+            .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
+            .collect();
+        assert!(
+            !ruled.is_empty(),
+            "looking at {look_at:?}, the plane ruled nothing to check",
+        );
+        for pair in ruled {
             // Whichever coordinate the line holds constant is the one
             // the lattice indexes.
             let held = if (pair[0][0] - pair[1][0]).abs() < 1.0e-12 {

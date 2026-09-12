@@ -1,40 +1,60 @@
 ---
 id: degenerate-triangle-normal-is-substituted
 kind: issue
-title: scene.rs substitutes +Z for a degenerate triangle's normal
+title: A degenerate triangle's substituted +Z normal is argued locally and unowned upstream
 status: open
 opened: 2026-09-12
 ---
 
 ## Finding
 
-`crates/viewer/src/scene.rs`, the face-normal helper (~`:1053`):
+`crates/viewer/src/scene.rs`, `triangle_normal`:
 
 ```rust
-let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-if len > 0.0 && len.is_finite() {
-    [ (n[0] / len) as f32, (n[1] / len) as f32, (n[2] / len) as f32 ]
-} else {
-    [0.0, 0.0, 1.0]
-}
+if len > 0.0 && len.is_finite() { … } else { [0.0, 0.0, 1.0] }
 ```
 
-`+Z` is a direction the function did not compute, reaching the shader
-as if it were one it did — the same class as
-`viewer-grid-pitch-nonfinite-fallback` (closed), and unargued at the
-site.
+**The substitution is argued at the site, and the argument is good.**
+An earlier draft of this row said it was unargued; that was wrong, and
+the sentence is corrected here rather than left for a lane to
+discover. The doc says: *"A degenerate (zero-area) triangle has no
+normal; it gets `+Z` rather than a NaN, because a NaN in a vertex
+buffer poisons the shading of everything the rasterizer blends it with,
+while a wrong-facing sliver is invisible at the size a degenerate
+triangle has."* That names the consumer and weighs the two failures,
+which is the standard this crate's other substitutions are held to
+(`bounds.rs`' `Probe::new` passes it the same way).
 
-**Milder than that row and genuinely awkward to fix, which is why it
-is filed rather than carried.** The consequence is one mis-lit sliver,
-in a per-triangle hot path, on a mesh `mesh::tessellate` has already
-accepted; refusing here would be a second opinion about another
-crate's contract, which `Delta::new`'s doc thirty lines up explicitly
-declines to give. The two candidate answers are a refusal that skips
-the triangle, or a claim in `mesh`'s contract that a returned patch
-has no degenerate triangles, pinned there — the second is the better
-one and is not this crate's to make.
+## What is actually open
+
+Not the substitution — **the missing contract above it**. This
+function is handed triangles by `mesh::tessellate`, and nothing says
+whether a returned `FacePatch` may contain a zero-area triangle. So
+the viewer carries a display-side answer to a question about another
+crate's output, on a path where it cannot refuse cheaply.
+
+Two candidate resolutions, and the second is the better one:
+
+1. Skip the degenerate triangle in the scene builder — cheap, but it
+   is still the viewer deciding what a tessellation may contain.
+2. **State the guarantee in `mesh`'s contract and pin it there.** If a
+   patch may not contain zero-area triangles, this branch is dead and
+   the doc should say which claim makes it dead, the way
+   `datums::unit`'s fallback names `basis`' `1/√3` bound. If a patch
+   MAY contain them, the viewer's `+Z` is correct and this row closes
+   with a citation instead of a change.
+
+Either way the answer is a sentence in `mesh`, not a rewrite here,
+which is why this is a CHROME row about a seam rather than a defect
+report about a line.
+
+## Provenance
+
+Disclosed in the census closing
+`viewer-grid-pitch-nonfinite-fallback`, as a same-shape hit outside
+that unit; given a file at disclosure per `work/README.md`.
 
 ## Fence
 
 `crates/viewer/src/scene.rs` — CHROME's and VIEW's by the territories
-table.
+table. The resolution likely touches `crates/mesh`, which is not.

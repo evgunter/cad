@@ -160,6 +160,15 @@ impl View {
     /// The check is on the PRODUCT and not on the metres-per-pixel,
     /// because a scale that is a length does not make every multiple
     /// of it one.
+    ///
+    /// **Only `is_finite` fires today**, and the other half is kept
+    /// deliberately rather than by oversight: every `px` here is a
+    /// positive constant and [`View::metres_per_pixel_at`] floors its
+    /// answer at `f64::MIN_POSITIVE`, so a non-positive product is
+    /// unreachable — which is exactly the arrangement
+    /// `work/chrome/metres-per-pixel-swallows-a-nan-depth.md` asks to
+    /// be reconsidered. This door states the condition it means; it
+    /// does not encode the floor's current behaviour.
     fn screen_metres_at(&self, point: Point3<f64>, px: f64) -> Option<f64> {
         let span = self.metres_per_pixel_at(point) * px;
         (span.is_finite() && span > 0.0).then_some(span)
@@ -540,6 +549,15 @@ fn grid(
     // Which way it faces, said once and quietly, AT THE ORIGIN — the
     // one part of the drawing that is about the datum rather than
     // about the window, and scaled at its own point for that reason.
+    //
+    // **Dropping this costs more than dropping a ruled line, and it
+    // is still the right answer.** The ruling is decoration a reader
+    // can do without; the tick is the drawing's only statement of
+    // which side of the plane is which, so a patch ruled without one
+    // says less than a plane usually does. It is dropped anyway,
+    // because a tick drawn at a length the view did not give it does
+    // not say which way the plane faces either — it says whatever the
+    // substituted number happened to point at.
     if let Some(tick) = view.screen_metres_at(origin, NORMAL_TICK_PX) {
         out.extend([
             [origin.x, origin.y, origin.z],
