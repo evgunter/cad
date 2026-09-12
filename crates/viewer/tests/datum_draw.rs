@@ -352,7 +352,7 @@ fn no_zoom_leaves_the_eye_inside_a_grid_cell() {
     while height > 1.0e-4 {
         let view = view_from([0.0, 0.0, height]);
         let per_pixel = view.metres_per_pixel_at_one_metre * height;
-        let pitch = grid_pitch(per_pixel);
+        let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
         let pitch_px = pitch / per_pixel;
         assert!(
             (20.0..=400.0).contains(&pitch_px),
@@ -382,7 +382,7 @@ fn the_grid_pitch_steps_rather_than_sliding() {
     let mut seen: Vec<f64> = Vec::new();
     let mut per_pixel = 1.0e-6;
     while per_pixel < 1.0e-4 {
-        let pitch = grid_pitch(per_pixel);
+        let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
         if seen
             .last()
             .is_none_or(|last| (last - pitch).abs() > 1.0e-15)
@@ -407,6 +407,159 @@ fn the_grid_pitch_steps_rather_than_sliding() {
             "pitch {pitch:e} has mantissa {mantissa}, which is not on the ladder",
         );
     }
+}
+
+/// **`grid_pitch` refuses a scale that is not a positive length**, and
+/// reads every one that is.
+///
+/// The row above asserts what the drawing does with the refusal; this
+/// one asserts the refusal, at the door, over the inputs a `View` can
+/// actually put through it. `f64::MAX` is in the list because the
+/// overflow happens INSIDE the function — the scale is finite and the
+/// span it wants is not — which is the case a caller checking its own
+/// argument would miss.
+///
+/// **The value that makes this false** is any `Some(_)` on the first
+/// list: on the rung side a refused scale used to answer
+/// `f64::MIN_POSITIVE`, a number indistinguishable at the call site
+/// from a reading of a very close plane.
+#[test]
+fn grid_pitch_refuses_a_scale_that_is_not_a_positive_length() {
+    for bad in [
+        f64::NAN,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        0.0,
+        -1.0e-3,
+        f64::MAX,
+    ] {
+        assert_eq!(
+            grid_pitch(bad),
+            None,
+            "grid_pitch({bad:e}) answered with a rung",
+        );
+    }
+    for good in [f64::MIN_POSITIVE, 1.0e-9, 1.0e-3, 1.0, 1.0e6, 1.0e300] {
+        let pitch = grid_pitch(good);
+        assert!(
+            pitch.is_some_and(|p| p.is_finite() && p > 0.0),
+            "grid_pitch({good:e}) answered {pitch:?} for a positive finite scale",
+        );
+    }
+}
+
+/// **A view that lends a datum no scale draws NOTHING**, for EVERY
+/// kind, rather than a lattice of infinities.
+///
+/// Every mark this module draws is a pixel count read into world
+/// metres against the view, and a view can fail to lend one: with the
+/// eye at the far corner of representable space the eye-to-datum
+/// distance overflows to infinity, so world-per-pixel is infinite and
+/// there is no span to scale a mark by. The only honest answer is no
+/// mark. A substituted size is a number the module did not compute,
+/// and nothing downstream can tell it from one it did.
+///
+/// **All four kinds, in one document, because the sibling kinds are
+/// where this was nearly missed.** The plane and the frame go through
+/// the pitch; the axis and the point never touch it and reach the
+/// same infinity through their own arithmetic. A row over a one-datum
+/// document would assert the invariant for a quarter of the module
+/// and read as if it covered all of it.
+///
+/// **The values that make this false** (measured on `main`, this same
+/// eye): a plane draws 390 positions of `NaN` — 97 ruled lines each
+/// way at a substituted `f64::MIN_POSITIVE` pitch, plus a normal tick
+/// — a frame draws those and its arms, an axis draws 6 positions the
+/// first of which is `[NaN, -inf, NaN]`, and a point draws 6 the
+/// first of which is `[-inf, 0.0, 0.0]`.
+#[test]
+fn a_view_with_no_finite_scale_draws_nothing() {
+    let (doc, tol) = evaluated(vec![
+        plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        axis([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        point([0.0, 0.0, 0.0]),
+    ]);
+    let drawn = draws(&doc, tol, [f64::MAX, f64::MAX, f64::MAX]);
+    assert_eq!(drawn.len(), 4, "the fixture is meant to cover every kind");
+    for d in &drawn {
+        assert!(
+            d.segments.is_empty(),
+            "an infinite world-per-pixel drew {} positions for a {}, the first at {:?}",
+            d.segments.len(),
+            d.kind.label(),
+            d.segments.first(),
+        );
+    }
+}
+
+/// **A frame the view cannot RULE still says which way it is turned.**
+///
+/// The two marks are scaled at two different points — the ruling at
+/// the patch's centre, which is what the camera is aimed at, and the
+/// arms at the frame's own origin — so they are two different depths
+/// and a refusal of one is not a refusal of the other. Looking at a
+/// point out at the end of the number line, from a camera a decimetre
+/// off the origin, is exactly that case: the centre's scale overflows
+/// and the origin's is an ordinary hundredth of a metre.
+///
+/// **The value that makes this false** is an empty drawing: a frame
+/// that dropped its arms with its patch would lose a mark it could
+/// have drawn, where a point and an axis at the same origin both draw
+/// normally.
+#[test]
+fn a_frame_keeps_its_arms_when_only_the_patch_has_no_scale() {
+    let (doc, tol) = evaluated(vec![frame(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+    )]);
+    let evaluation = evaluate(
+        &doc,
+        None,
+        &CancelToken::default(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let view = view_at([0.0, 0.0, 0.1], [f64::MAX, 0.0, 0.0]);
+    // The premise, asserted rather than assumed: the eye-to-centre
+    // distance overflows, so the patch's scale is refused, while the
+    // eye-to-origin distance is a tenth of a metre.
+    let to_centre = reach(&[[f64::MAX, 0.0, 0.0]], [0.0, 0.0, 0.1]);
+    assert!(
+        grid_pitch(view.metres_per_pixel_at_one_metre * to_centre).is_none(),
+        "this row needs a looked-at point whose scale overflows, not {to_centre:e} m",
+    );
+    let segments = &datums::draws(&doc, &evaluation, view)[0].segments;
+    assert!(
+        !segments.is_empty(),
+        "the frame drew nothing, so it lost its arms with its patch",
+    );
+    for p in segments {
+        assert!(
+            p.iter().all(|c| c.is_finite()),
+            "the frame drew {p:?}, which is not a position",
+        );
+    }
+    // **The arms specifically, not just something.** Stated
+    // structurally rather than against a copy of `FRAME_ARM_PX`,
+    // which is private and would go stale silently: this frame's
+    // normal is +z, so its tick is the only mark ON the z axis and
+    // the arms are the only ones that leave it.
+    assert!(
+        segments
+            .iter()
+            .any(|p| p[0].abs() > 0.0 || p[1].abs() > 0.0),
+        "the frame drew only its normal tick — the arms went with the patch",
+    );
+    // And what is drawn is a screen-sized mark at the ORIGIN's scale,
+    // not a patch that slipped through: the refused patch at this
+    // view would have been ~1e305 m across.
+    let reached = reach(segments, [0.0, 0.0, 0.0]);
+    assert!(
+        (0.0..1.0).contains(&reached),
+        "the frame reached {reached:e} m — that is patch-sized, not a mark",
+    );
 }
 
 /// **The ruling sits on ONE LATTICE, wherever the camera looks.**
@@ -448,10 +601,23 @@ fn the_ruling_is_anchored_on_the_origin_not_on_the_view() {
         // The pitch this view asks for: the plane is z = 0 and the
         // looked-at point is on it, so the patch centre IS `look_at`.
         let per_pixel = view.metres_per_pixel_at_one_metre * reach(&[look_at], eye);
-        let pitch = grid_pitch(per_pixel);
-        // The last pair is the normal tick, which is anchored on the
-        // origin by construction and says nothing about the ruling.
-        for pair in segments[..segments.len() - 2].chunks_exact(2) {
+        let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
+        // The normal tick is anchored on the origin and says nothing
+        // about the ruling, so it is dropped — by SHAPE, not by
+        // position. It used to be the last pair by construction;
+        // since each mark refuses on its own scale it may not be
+        // drawn at all, and a slice off the end would silently take a
+        // ruled line with it (and underflow on an empty drawing). The
+        // tick is the one pair that leaves the plane.
+        let ruled: Vec<&[[f64; 3]]> = segments
+            .chunks_exact(2)
+            .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
+            .collect();
+        assert!(
+            !ruled.is_empty(),
+            "looking at {look_at:?}, the plane ruled nothing to check",
+        );
+        for pair in ruled {
             // Whichever coordinate the line holds constant is the one
             // the lattice indexes.
             let held = if (pair[0][0] - pair[1][0]).abs() < 1.0e-12 {

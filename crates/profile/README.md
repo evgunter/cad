@@ -113,7 +113,7 @@ DAG input; evaluation resolves the frame at f64 for structure selection
 vocabulary through the `RawLoop` trait (`new`, `polygon`,
 `with_tangent_joints`), omitted from the `pncad::profile` façade;
 `ProfileLoop`'s fields are private, so outside this crate a loop exists
-only through the lattice, the `map` materialization door, or that
+only through the lattice, the `map_scalar` materialization door, or that
 trait — whose item is declared `pub(crate)` in any build satisfying
 neither `test` nor `test-support` (`ProfileLoop`'s own docs are the one
 home for the door list). `continue_to` is a lattice verb

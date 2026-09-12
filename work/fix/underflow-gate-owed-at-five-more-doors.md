@@ -2,10 +2,11 @@
 id: underflow-gate-owed-at-five-more-doors
 kind: issue
 title: five more decide-then-normalize doors owe the underflow gate, and one of them renders an underflowed component as 0
-status: open
-branch: fix/underflow-gate-doors
-pr: 2401
+status: closed
+branch: fix/arc-fillet-underflow
+pr: 2415
 opened: 2026-09-11
+closed: 2026-09-12
 ---
 
 
@@ -92,3 +93,45 @@ with it.
 `unit_from_components` remains the fifth door and remains declined:
 its sentence and its recourse are already right, and its rendering is
 `path-error-numbers-below-1e-9-render-as-zero`, not this item.
+
+## Closed (branch `fix/arc-fillet-underflow`, PR 2415)
+
+**The fourth arm landed and nothing remains.** `arc_fillet.rs`'s
+`carrier_tangent` asks `is_underflowed_length` after
+`is_finite_length` and before the sign decision, against
+`v.norm_witness()`, and refuses the new
+`PathError::UnderflowedDirection { dx, dy }` — a variant, a
+`PathErrorKind` twin, a `Display`, and the `underflowed_direction`
+tag at the Python door, on the `NonFiniteDirection` shape PR 2401
+named.
+
+**The red-first row was executed, not argued, and against the
+gate-less tree**: it was pushed alone as this branch's first commit
+and run on hosted CI (run 34669963687, GREEN on `9dd5d438d`), pinning
+that an arrival carrier anchored `1e-200` from its centre refused
+`DegenerateArcCenter { radius: 0.0 }` with the sentence "the authored
+centre is within tolerance of an endpoint (radius 0 m)" —
+**bit-identical, payload and prose, to the row three lines above it**
+that authors the centre AS the anchor. The second commit flipped that
+row onto the new arm. It runs through the public door
+(`Open.at(..).toward(..).fillet_arc(r, Center { .. })`), so it is
+evidence about the library rather than about a private helper.
+
+**The class is closed at all six `is_finite_length` call sites**,
+re-derived at this merge base rather than carried from the table
+above: `topo::query` (PR 2359), `geom-core`'s `frame`,
+`sweep`'s `revolve::axis` and `topo`'s `sector_shape` (PR 2401),
+`profile`'s `arc_fillet::carrier_tangent` (here), and
+`profile`'s `unit_from_components` — **declined, and now PINNED as
+declined** rather than merely unmentioned: its pair is spelled by the
+caller, so `ZeroDirection`'s sentence is true of an underflowed pair
+and its recourse is already the one that works. A lane adding an arm
+there for symmetry breaks
+`the_two_director_doors_split_at_the_underflow_end`.
+
+`is_underflowed_length`'s hand-kept "which doors ask it" roster names
+the new door and says why the fifth is declined, so the two answers
+are in one place.
+
+Residue disclosed by this unit, filed rather than left in prose:
+`arc-carrier-refusal-register-misses-two-format-arms`.
