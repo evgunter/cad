@@ -1694,3 +1694,521 @@ refusals, the many-to-one `check_residual` pairing). **The posture
 works on the condition that the disclosed-uncertainty half is
 actually honoured.** A lane that smooths over its doubts under this
 posture ships unreviewed and unexamined at once.
+
+## Wave 2, 2026-09-12
+
+### The two mate rows are re-homed, and the stale line was a trap rather than a leftover
+
+`levered-clash-margins-hide-their-arm` → **`work/msolve/`**;
+`mate-clocking-has-no-gui-path` → **`work/docm/`**. Files MOVED with
+their ids per `work/README.md`; FIX changed no code and took nothing.
+
+The first row said it *"needs S-MATE's assent or a re-home"*, and
+S-MATE left the tracker on 2026-09-04. Read quickly that is a blocker
+evaporating. It is the opposite: **the territory was inherited, not
+freed** — `work/msolve/program.md` and `work/docm/program.md` both
+carry `crates/editor-core/src/mate/*` in `paths`. The assent was still
+owed, to a live owner instead of a dead one, and a lane reading the
+line as "the owner is gone, take it" would have walked into two live
+fences. That is the `fired trigger is not a blocker` shape one level
+above what lint checks: the blocker closed and the closure did not
+free the row, it substituted two owners for one. Nothing mechanical
+catches it, because the blocker was prose.
+
+The split follows the charters as written. MSOLVE is *"assembly
+SEMANTICS rather than document custody: … one refusal that reports a
+false cause"* — a clash margin reaching the user with its arm
+invisible is exactly that. DOCM is *"the persisted recipe vocabulary,
+the `DocEdit` set …"* and already held half (2) of the clocking row at
+`work/docm/plan.md:94-96`; an `AddMate` door refusing at authoring
+time is the `DocEdit` set, so both halves go there rather than one
+finding living on two slates. DOCM's charter is to rule and **hand the
+build to FIX, CHROME or VIEW** — so if half (1) rules "refuse typed at
+the door", it comes back here and this program takes it.
+
+**And MSOLVE is not merely the owner of its row, it is working that
+subject now**: open PR **#2116, "MSOLVE-6: the mate's lever is the
+mated parts' own extent"**, against a row about three levered margins
+whose arm the refusal drops. Sequenced against #2116, not beside it.
+
+### A row arrived on this slate overnight, and it is FIX's own doing
+
+`num-relative-tolerance-collides-above-a-decimetre`, filed by the DOOR
+orchestrator — correctly onto this slate rather than carried on
+theirs, since `path::num` is FIX's file and FIX closed two rows on
+that helper on 2026-09-11.
+
+**It is the opposite end of the range from the one FIX just closed.**
+PR 2366 removed a `.max(1.0)` that pinned the tolerance ABSOLUTE at
+1e-9 below a metre, rendering every sub-nanometre margin as `0` — the
+exact margins those messages exist to report. The purely relative form
+that replaced it is right at the small end. It is wrong at the large
+end: verified at dispatch, `crates/profile/src/path.rs:1416` reads
+`let tol = 1e-9 * x.abs();` and `DEFAULT_EPS` is `1e-9`
+(`crates/geom-core/src/tolerance.rs:84`), so the tolerance crosses ε
+at `|x| = 1` m and is a thousand ε at a kilometre. **Two lengths the
+kernel can certify as different render as one number.**
+
+The unit is dispatched with the trap named: the reviewer brief's
+standing warning is that a lane closing a structural finding mints a
+fresh instance of the defect it closes, and a fix here that
+reintroduces a floor re-mints 2366's defect exactly. The cap form
+leaves the sub-ε regime untouched.
+
+### Wave 2 dispatched — five lanes
+
+| unit | branch | ground |
+|---|---|---|
+| `num-relative-tolerance-collides-above-a-decimetre` | `fix/num-tolerance-cap` | `profile/src/path.rs` |
+| `coherence-findings-have-no-consumer` (CheckId half) | `fix/chart-coherence-check` | `editor-core/src/checks.rs` |
+| `underflow-gate-owed-at-five-more-doors` | `fix/underflow-gate-doors` | `geom-core`, `sweep`, `topo/sector_shape.rs`, `profile/path/arc_fillet.rs` |
+| `validation-arms-delegate-a-recourse-their-carriers-do-not-give` | `fix/validation-recourse-arms` | four carriers, four owners |
+| `error-census-keyed-on-bare-type-name` | `fix/census-declaring-path-key` | `pncad-py/src/prose_census.rs` |
+
+**Two collisions designed out rather than discovered.** The num lane
+and the underflow lane both have business in `crates/profile/src/path*`
+— the underflow row's fifth site IS `path.rs:2907`, and the item
+already says that site's real defect is the rendering, which is the
+num lane's. So the underflow lane is told to take four arms, not five,
+and to touch no file the num lane owns. Separately, three open rows
+target `prose_census.rs`; only one is dispatched.
+
+**An overlap found in triage and handed to a lane rather than left in
+two rows.** `error-census-keyed-on-bare-type-name` and class 3 of
+`prose-census-undecided-residue` (*"names with rival declarations …
+resolving a bare name through its file's `use` items would decide most
+of them"*) are one defect seen from two sides, and one repair closes
+both. The lane takes class 3 in the same PR and shrinks the
+`UNDECIDED` roster by what it decides; classes 1 and 2 stay open.
+The lane is told to verify the overlap before building on it, because
+it is my claim and not either row's.
+
+### The brief gained two clauses this wave
+
+**Instruction 4, new:** *an orchestrator disposition asserting what
+code DOES is subject to instruction 1 too.* Written because the fifth
+characterisation error of the 2026-09-11 wave was mine, in the act of
+dispatching a brief about the first four. Two of this wave's briefs
+carry my measured claims; both lanes are told to re-derive them and
+report a correction as a finding in its own right.
+
+**A per-lane scratchpad**, after last wave's five lanes shared one
+directory and overwrote each other's `poll.py` and `pr.md` mid-task.
+Nothing was lost, but a lane that writes a PR body to a shared path
+and posts it a minute later posts a sibling's text.
+
+### `error-census-keyed-on-bare-type-name` (PR 2402) — three of my framings were wrong, and the correction is worth more than the unit
+
+The census is re-keyed on the **declaring path**: a written type resolves
+through its module's `use` items and through re-exports (renames
+included) to the module that declares it, and **resolution failure falls
+back to the bare name**, so the change costs precision, never soundness.
+
+**What the lane corrected, all of it mine or the row's:**
+
+1. **The census the row names is not code.** #1111's error-type census
+   was a HAND sweep and #1741 re-ran it by hand. There is nothing to
+   "re-run keyed on `crate::path::Type`". `prose_census.rs`'s table is
+   the tree's only live bare-name-keyed census, so that is where the
+   re-key landed. The row read as a code change and is a method note.
+2. **Only one of the row's two directions exists in that code.** The
+   census indexes DECLARATIONS, and a re-export adds none, so the
+   false-duplicate direction (`PathError`, `Refusal`) was never present
+   — it inflates a hit LIST, which is what #1111 produced and this
+   census never builds. *"Both directions close at once"* is true of
+   the method and false of the code.
+3. **The bare key was never unsound in this tree.** Instrumented at the
+   merge base: 27 colliding names, 26 decided sites reach one, **zero
+   wrong answers** — because rivals that disagree answer `Undecided`
+   and rivals that agree give a verdict correct either way. So the
+   justification is not "fixes a live defect"; it is that the key was
+   sound only because the disagreement rule caught it, at the price of
+   `Undecided`.
+
+**And my overlap claim was wrong in the direction that matters.** I sent
+the lane after class 3 of `prose-census-undecided-residue` on that row's
+own words — *"resolving a bare name through its file's `use` items would
+decide most of them"*. Measured: class 3 is **one row of 28**, and after
+the re-key it is **still undecided** (`Option<profile::Verb>` now
+resolves to a macro-declared type, so the verdict is unchanged and only
+the roster line's REASON becomes true). **The roster shrinks by zero.**
+The overlap was real; my estimate of its size came from the row and I
+passed it on without measuring it. Instruction 2 applies to a dispatch
+as squarely as to an item.
+
+### The find under it: seven roster rows carried a false reason, and nothing could have caught them
+
+`UNDECIDED`'s whole purpose is that *"a site this cannot decide either
+gets its line here, WITH THE REASON it could not be decided, or gets
+rewritten so it can be"*. Seven of its rows said *"declared at a type
+this tree does not declare under that name — an alias, a re-export, or
+one out of tree"*. All seven have an **empty candidate list**: the
+census never typed the binding and never consulted the table. The
+reason was false for as long as anyone read it.
+
+**It could not have been caught**, and that is the durable part.
+`every_site_this_census_cannot_decide_is_named_with_its_reason` compares
+a tally against `roster(UNDECIDED)`, and `roster()` keys on
+`(file, type, binding)` and a count — **the reason string is never
+compared by anything.** A test whose NAME promises the reason asserts
+only the site. That is the reviewer brief's Q5 — *what does this promise
+that it doesn't do* — in a row this program built itself (PR 1809).
+
+The real cause is a fourth class the residue row does not name: the
+census cannot type a binding that arrives from a nested pattern
+(`slot: SlotId::Profile { .. }`, `verb: Some(verb)`,
+`endpoints: (u, v)`), an inner arm naming no variant path, a catch-all,
+or a closure parameter. Reasons corrected in code; the defect filed as
+`census-cannot-type-a-nested-pattern-binding`. Roster composition is now
+7 positional, 13 `Real` scalar, 7 untypable bindings, 1 macro-declared.
+
+**Instruction 3, and the lane built the pin rather than reporting its
+absence.** Both rosters are byte-identical before and after, so nothing
+in the tree discriminated the re-key. Three planted-tree rows now do;
+the sharpest is one `Verb` name declared in two crates with opposite
+shapes, where the SAME site text answers `Braced` or `Prose` according
+only to which is imported. Run red first with `declaring_path` forced
+to `None`.
+
+**Flagged by the lane, not filed, because it did not establish it:**
+`brace_shaped`'s cycle guard keys on the head name, so `Vec<Vec<Braced>>`
+re-enters `Vec`, hits `seen`, and answers **`Prose`** — a guess toward
+prose, which is the one silence this module exists to remove. Preserved
+exactly and not a keying question. Worth a look by whoever takes class 1.
+
+**A tooling trap worth carrying:** `territory --base origin/main` reads
+the COMMITTED diff, so on a dirty tree it reports a vacuous
+`0 path(s)` — which nearly had the lane file my fence claim as wrong.
+
+### `underflow-gate-owed-at-five-more-doors` (PR 2401) — three of four doors, and the cut was MY wave design's cost
+
+The gate fits at `frame.rs::definitely_positive`, `revolve::axis::AxisFrame::build`
+and `sector_shape` (per chord), each with a new typed arm beside its
+existing non-finite one and a red-first row **executed against a
+gate-less tree**, not argued. `Vec2::norm_witness` / `Vec3::norm_witness`
+become the one derivation of the witness.
+
+**The decision the item asked for, made explicitly: the predicate stays
+SCALAR and the WITNESS becomes vector-shaped.** The unenforceable half
+of `is_underflowed_length`'s contract is the *derivation* of the
+witness, not its pairing with the length, and one accessor per vector
+type closes that in both dimensions without a predicate twin. A
+vector-shaped predicate would re-derive `len`, which four of seven call
+sites have already bound for their own `Margin` — trading an unenforced
+witness for an unenforced length. The line that decided it is
+`frame_from_unit_aim`'s stated contract: *"one evaluation, one
+rounding"*. The lane argued the counter-case in the PR body and
+declined to claim its answer is the only correct one, which is what
+this posture asks for.
+
+**Instruction 3, and the one existing pin PINNED THE DEFECT.**
+`path_start_frame_refuses_true_degeneracy` listed
+`Vec3::new(0.0, 0.0, 1e-200)` among "stationary points of the path",
+asserting `Degenerate { Tangent, None }`. Verified: `1e-200` squares to
+exactly `0.0` in `f64`, so that row was asserting that a direction the
+format lost is a path with no tangent. The pin was not a baseline to
+preserve; it was the defect written down. The other three doors had no
+pin at all at underflow scale.
+
+**The `min` hides this end harder than the overflow end it mirrors**, and
+the lane measured it rather than reasoning it: at the overflow end
+`min(3.0, inf) = 3.0` let a healthy-looking arm through, while here
+`min(3.0, 0.0) = 0.0` means the underflowed chord always wins — never
+silent, but never about the chord either, and the arm it names belongs
+to the chord that was fine.
+
+**The cut is mine, not the lane's.** `arc_fillet::carrier_tangent` needs
+`PathError::UnderflowedDirection { dx, dy }`, and `PathError`, its
+`Kind` and its `Display` all live in `crates/profile/src/path.rs` — the
+file I told this lane to leave alone because the `num` lane held it for
+this wave's whole life. Designing the collision out cost a forced cut.
+**I judge the trade right** — a merge conflict between a 136-line
+rewrite of `num` and a new error variant in the same file would have
+cost more than the cut — but it is a cost and it belongs on the record
+as a consequence of wave design rather than of the unit. The item stays
+`open` with the remainder fully staged: the variant's home, that
+`v.norm_witness()` is the witness, that `NonFiniteDirection { dx, dy }`
+is the shape to copy, and that nothing pins the current
+`DegenerateArcCenter { radius: 0.0 }` refusal so a red-first row is owed
+with it. **`path.rs` is free as of PR 2399's merge, so this is a small
+wave-3 unit, not a blocked one.**
+
+**Two corrections to the item and to my brief.** Both said a `Vec2` twin
+would be needed *"for the `profile` door"* — `RevolveAxis::dir` is a
+`Vec2<T>` too (`sweep/src/revolve/mod.rs:146`), so the split across the
+six sites is four `Vec3` and two `Vec2`, not five and one. And
+`unit_from_components` has moved to `path.rs:2937`, not `:2907`.
+
+**Fences, and two the `keep_out` does not know.** Fourteen paths across
+six programs, all announced in the PR body. **BLEND's
+`sweep/src/revolve/*` and the `topo/src/splitting/*` pair, plus CURVED's
+claim on `boolean/*`, are not recorded in this program's `keep_out`** —
+the lane flagged that the clause may want to learn them. It is the same
+shape as the `census.rs` clause corrected yesterday: a `keep_out` that
+enumerates crossings goes stale every time the program crosses somewhere
+new. Worth considering whether that field should name FILES this program
+may cross at all rather than the crossings it has made.
+
+### `validation-arms-delegate-a-recourse-their-carriers-do-not-give` (PR 2403) — the complete chain, and every count in the item was wrong
+
+Taken: the whole `VolumeUncomputable` carrier chain plus the shared
+`BandError` — `BandError` (3 of 3), `MassPropsError` (3 own arms), and
+**`PropsError`, a FIFTH carrier the item does not name**, reached
+through `MassPropsError::Face` (4 of 8). Without that fifth the chain's
+claim is false one hop down, which is the whole point of the row.
+
+Settled the PR 2354 choice the same way 2354 did: **arms get their
+recourse; the wrapper supplies no blanket tail.**
+
+**Cut: `PcurveMintError` (TRIM) and `OffsetFitError` (PROPS)**, and the
+lane's reason for cutting is the best argument for this posture I have
+seen from a lane. Roughly thirty recourse clauses, written by a lane
+reading two unfamiliar domains for the first time, **with no reviewer
+downstream**, is how a confidently-worded wrong repair ships — which is
+precisely the failure PR 2354 removed a blanket tail to avoid. A lane
+declining scope *because* nobody will catch it is the disclosed-doubt
+half of this posture working as intended.
+
+**All four of the item's counts were wrong, and reading is what
+corrected them:**
+
+| row | item | reading |
+|---|---|---|
+| `BandError` | 0 of 2 | 0 of **3** — three variants; the zero is right |
+| `MassPropsError` | 0 of 5 | 0 of 5 — **confirmed**, two of them delegations the match could not see through |
+| `PcurveMintError` | 1 of 9 | 0 of **10** — and the single hit is a FALSE POSITIVE |
+| `OffsetFitError` | 1 of 8 | **twelve** variants, several already naming their lever |
+
+`OffsetFitError` is where reading most changes the verdict:
+`BudgetExhausted` names `OFFSET_FIT_BUDGET`, `SampleCapReached` names
+`OFFSET_FIT_SAMPLE_CAP`, `BoundNotFinite` names which lever is *not*
+it. Those are rows that already name their repair — **a correct
+finding, and the reason not to rewrite them blind.** The item said its
+counts were a signal to read and not a verdict; that instruction paid
+for itself four times.
+
+**Instruction 3, answered per carrier rather than once.** `BandError`
+had a pin that discriminated (`band_error_display`, all four
+renderings, updated here — it would have failed otherwise);
+`PropsError` and `MassPropsError` had **nothing** pinning any message
+text, so for those two the missing pin was part of the defect. The
+three enforcement rows are that pin, each proved red by mutation.
+
+**The `MassPropsError` row is TRANSITIVE and that is the interesting
+one**: its `Band`/`Face` arms carry no prose of their own, so it passes
+only while its carriers name recourses — a defect two crates away
+reddens it. That is a wrapper's assumption made to fail loudly instead
+of documented, and it is the shape to copy wherever this class recurs.
+
+**The routing question the item raised, answered by measurement:**
+`crates/topo/src/props.rs` is named by **no open program**. `territory`
+does not report it and the lane checked every open `program.md`'s
+`paths` by hand — TOPO's list is explicit files and omits it, CURVED
+claims `census.rs`/`boolean/*`/`splitting/*`, S-MESH claims
+`coherence.rs`. Genuinely unowned, so the lane took it by announcement.
+**Naming a permanent owner for that file is a program-charter question,
+not a unit's and not this orchestrator's** — it is flagged here and
+stays open.
+
+**Filed out of fence, verified first:**
+`work/exch/export-error-arms-delegate-no-recourse` — `ExportError`'s
+`Corrupt { what }` (*"step export: corrupt body ({what})"*, the whole
+message) and `NullScaffoldEdge`. `crates/step-export/*` is EXCH's
+`paths`, so the lane reported and the orchestrator placed.
+
+**And the lane named the real scope of the class, which the item did
+not:** it is not four `ValidationError` arms, it is **every carrier
+reachable from a delegating arm**, and a verb-match sweep cannot see
+past the first hop. `PropsError` was the hop this PR had to absorb;
+`PcurveMintError`'s `Certify`/`Escalated` and `OffsetFitError`'s four
+delegating arms are the next ones for whoever takes the cut rows.
+
+### `coherence-findings-have-no-consumer` (PR 2408) — and my "## Measured" disposition was wrong in a worse way than a stale count
+
+`CheckId::ChartCoherence` is wired as a third resident, `CheckKind::Certified`,
+reading `topo::examine_chart_coherence`, with three `CheckEvidence` arms and
+a `ChartCoherenceLane` capability trait.
+
+**The centre held.** `skipped` is CONFIGURATION and `unexamined` is DATA, and
+nothing from one reaches the other: `Off` goes to `ChecksReport::skipped` with
+**no finding**, while a loop out of the door's reach goes to `findings` as
+`ChartCoherenceUnexamined` carrying `topo::Unexamined` whole. Pinned by a row
+asserting the two reports **share not one word**, and cross-checked against the
+door called directly so the resident's two finding classes are the door's two
+lists, one for one. That is the not-examined-masquerading-as-examined shape
+this program has now found three times, closed rather than documented.
+
+### What I got wrong, precisely
+
+My disposition read:
+
+> **Four non-test match arms over it, in the whole tree**
+> (`grep -rn 'CheckId::[A-Za-z]* *=>' --include=*.rs crates/`, minus
+> tests) — the enum's own `kind()`, `reads_subject()`, `ALL`, and
+> `crates/pncad-py/src/py/checks.rs`.
+
+I re-ran that grep myself on this head. It returns four arms, in **two**
+functions — `ChecksConfig::severity` (`checks.rs:236-237`) and
+`py::checks::check_id` (`:121-122`). **Of the four sites I named, exactly one
+is in its output.** `kind()` (`:79`), `reads_subject()` (`:108`) and
+`Display` (`:117`) all spell their arms `Self::…` and are invisible to that
+pattern; `ALL` (`:98`) is a `const` array and not a match at all. I omitted
+`ChecksConfig::severity` — whose own doc calls itself *"the one match site the
+closed enum walks a new check to"* — and `Display` entirely.
+
+**So the number was right and the attribution was invented.** I ran a grep,
+took its count, and then wrote down four site names from a different and
+partial reading, presenting the two as if one produced the other. That is
+worse than the stale counts this log keeps recording, because a stale count
+announces itself the moment someone re-derives it, while a fabricated
+correspondence between a measurement and a list survives re-derivation of
+either half alone.
+
+The real walk is **eight non-test sites**, and a new CHECK is not a new
+`CheckId`: its findings need `CheckEvidence` arms with four more exhaustive
+matches, plus the `ChecksConfig` literal, the `.pyi` and two Python suites.
+
+**And the obstacle neither the row nor I saw:** `examine_chart_coherence`
+takes `&Body<f64>` (`coherence.rs:672`) while `run_checks` is generic over
+`T: Decide + AtRestPolicy + CertifiedBounds` (`checks.rs:731`). There is no
+arm without a lane capability. **The ROW's "a consumer decision, not part of
+relocating a condition" was closer to right than my disposition was** — I
+called that sentence an overstatement and it was an underestimate of a
+different thing. The conclusion (dispatchable) survives; the cost is about
+three times what I wrote, and a public trait bounding two public doors is the
+shape.
+
+### Two process facts from this lane, both disclosed rather than found
+
+**The lane reported green locally off a log that was still being written.**
+It read a `test result: ok` tail before the run had finished, missed three
+census guards, and CI caught them over two round trips. Nothing merged broken
+and the lane recorded it on its own PR. This is the failure mode
+`docs/prompts/implementer-discipline.md` §2 names — *a build is not a test*,
+one level in: **a log is not a result until it is closed.**
+
+**`work.py territory` gave a vacuous pass, for the second time in one wave.**
+The lane reported *"0 paths in another program's territory"* while its own
+prose correctly listed crossings into LIB, MESH and TCOST/TINT. I ran it
+against the branch myself: **11 paths**. The census lane hit the same trap two
+lanes earlier and caught it; this lane reported the vacuous result as a pass.
+The substance was unharmed — the prose fence list was right and complete — but
+the mechanical check did not run on this diff and was reported as though it
+had. **A lane must run `territory` on a COMMITTED diff and treat a `0 path(s)`
+answer on a cross-crate change as a result to disbelieve, not a pass.** Going
+into every brief from here.
+
+### The `keep_out` stops enumerating
+
+Three stale clauses in two days — `census.rs`'s list of two items, `eval/wire.rs`
+as unowned, and now BLEND's `revolve/*`, the `splitting/*` pair and LIB's
+`pncad-py/*`. The failure is structural: a clause that lists the crossings this
+program has MADE goes stale every time it crosses somewhere new, and a lane
+reading a missing entry as a fence violation is the cost.
+
+The clause now says so: the list records seams that needed a note, **not every
+crossing ever made**, a crossing absent from it is not thereby unannounced, and
+the instrument is `territory`, not the clause. The four standing crossings are
+named so a lane need not rediscover them. FIX's `paths` are three globs and it
+crosses by construction; pretending otherwise in a field lint reads at rest was
+never going to hold.
+
+### `coherence-findings-have-no-consumer` merged (PR 2408) — wave 2 closes five of five
+
+PRs **2399, 2401, 2402, 2403, 2408**. Slate **18 → 17 open** (four
+closed, four new rows filed: `fillet-leg-carrier-renders-raw-float-noise`,
+`census-cannot-type-a-nested-pattern-binding`,
+`chart-coherence-ships-off-and-nothing-schedules-turning-it-on`, plus
+two placed on other programs' slates), **38 closed**, and two mate rows
+re-homed out.
+
+### The operational lesson, which cost the most time in this wave
+
+**`update_pull_request_branch` does not fire CI in this repo, and it
+leaves the PR's head record stale.** The API creates a real merge
+commit on the branch — `git` sees it — but no `pull_request` run
+follows, and the PR object keeps reporting the OLD head SHA for some
+time afterwards. The merge endpoint then refuses with *"Head branch is
+out of date"*, comparing that stale head against a moved base.
+
+Three PRs this wave were sequenced through that call and were fine —
+their re-runs genuinely fired and I read them. The fourth was not, and
+**I read the 409's text as the explanation and stated it as fact**
+("the required check has not run on that SHA") when what I actually had
+was an error string and an inference. Ev caught it: the run WAS green.
+The correct instrument was one command — compare `git rev-parse
+origin/<branch>` against the PR's reported `head.sha` — and I reached
+for the error message instead.
+
+**That is the same failure this wave's log has been recording about
+lanes, in the orchestrator's own operations rather than its
+dispositions.** A grep's count attributed to sites it could not have
+produced, and an error string's wording taken as the mechanism behind
+it, are one habit: reading an artifact that is *adjacent* to the
+question and reporting it as the answer.
+
+**Standing, for this program's orchestration:** after any branch
+update, verify the PR's head SHA against the remote ref before drawing
+any conclusion from a merge refusal, and never paraphrase an API error
+as a cause. Where a branch genuinely needs CI re-run, the way to get it
+is a real commit the PR already owes — here, the item header this unit
+had left at `status: review` while every other unit of the wave closed
+its own row in its carrying PR. **Not an empty commit**, which the
+discipline forbids, and which was never necessary.
+
+## Wave 3 dispatched, 2026-09-12
+
+| unit | branch | ground |
+|---|---|---|
+| `underflow-gate-owed-at-five-more-doors` (the cut fourth arm) | `fix/arc-fillet-underflow` | `profile/src/path/arc_fillet.rs` + `path.rs` |
+| `census-containment-flatten-fabricates-its-diagnostic` | `fix/census-containment-cause` | `topo/src/census.rs` |
+| `kind-mirrors-have-no-single-declaration` (**scale check + spec ONLY**) | `fix/error-kinds-scale-check` | docs + tracker |
+| `validation-arms-delegate-a-recourse-...` (the two cut carriers) | `fix/recourse-arms-remainder` | `topo/src/pcurves.rs`, `geom-brep/src/offset_fit.rs` |
+| `transform-recertifies-through-the-narrow-lane` | `fix/transform-nurbs-lane` | `topo/src/transform.rs`, `geom-brep/src/certify.rs` |
+
+**Two units close a remainder this wave, and one of the two remainders
+was this orchestrator's own doing.** `arc_fillet` was cut from PR 2401
+because `PathError` lives in `path.rs`, which I had told that lane to
+leave alone for the `num` lane's sake. `path.rs` is free now, the
+previous lane staged the remainder completely — the witness accessor,
+the variant to copy, and the fact that nothing pins the current
+`DegenerateArcCenter { radius: 0.0 }` refusal — so this is a small unit
+rather than a blocked one. The cost of designing that collision out was
+one wave's delay, and I still judge the trade right.
+
+**`kind-mirrors` is dispatched with a hard scope fence: it migrates
+nothing.** The row wants a `macro_rules!` `error_kinds!` generating four
+PUBLIC error/kind pairs tree-wide, and the orchestrator flagged it to Ev
+as one of three rows changing public surface. So the unit is the scale
+check the row itself names as owed first — whether `transition_table!`'s
+grammar can express `BooleanError`'s 41 arms, their attributes and their
+nested payloads — answered **by prototype and revert**, output being a
+spec Ev can read or a written statement that the migration should not
+happen. Nothing tree-wide lands unseen, and "not feasible" is an
+outcome, not a failure.
+
+**`transform-recertifies` is the second public-surface row and it lands
+if it is right.** It is a real defect — a body tier 3 validates at rest
+refuses at `transform_rigid`, so the kernel cannot move a body it calls
+valid — and the item is explicit that injecting the lane *"adds no
+certification capability the at-rest validator does not already have"*.
+The lane is told to verify that sentence rather than repeat it, since it
+is the one a reviewer would attack, and to make the public delta legible
+in the PR body.
+
+**Instruction 2 fired before dispatch again.** The transform row's table
+says `crates/topo/src/validate.rs:2920` calls `recertify_nurbs_lane`; I
+grepped that file on this head and found no such hit. The brief says so
+and tells the lane to re-derive the whole table — and, per instruction
+4, to report a correction if my grep is what is wrong.
+
+**Two new standing clauses in every brief**, both earned last wave:
+- **`work.py territory` reads the COMMITTED diff**, so a dirty tree
+  answers a vacuous `0 path(s)`. Commit first, and **disbelieve a `0`
+  on any cross-crate change.** Two lanes hit it; one caught it, one
+  reported it as a pass.
+- **A log is not a result until it is closed.** A lane read a
+  `test result: ok` tail off a file still being written, reported green,
+  and CI caught three census guards over two round trips. Wait for the
+  exit code. This is `implementer-discipline` §2's *"a build is not a
+  test"* one level in.
