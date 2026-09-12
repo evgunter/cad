@@ -168,3 +168,35 @@ arm-independent.
 `XL` kept distinct in the data and folded into L for modelling (a single
 row cannot support its own level); noted in the report. `infra-class`
 rows have no difficulty and are excluded from quality models anyway.
+
+## Fifth readout (2026-09-12) — the fable-5.1 boundary
+
+**Q19 — Which 5.1 cut?** Ev: don't count a row as confidently 5.1 until
+at least a day after the 2026-09-01 release unless stated explicitly.
+→ `era = post_51` iff date >= 2026-09-02; an explicit version statement
+in the row wins over the date. No row states a bare version, so every
+classification is by date. One row (C5-1) says it spans the mark; kept
+post_51 and flagged, since the schema has no third value.
+
+**Q20 — Naive pre/post on fable is not usable.** v6 began 2026-08-27,
+days before the boundary, and randomized the R1 slot between fable and
+opus reviewers. "R1's count" therefore stopped being a consistent
+instrument mid-series, and the pre_51 era mixes pre-v6 rows (R1 always
+fable) with v6 rows (R1 randomized). → Use difference-in-differences
+with opus rows as the time control, AND stratify on R1's reviewer model.
+The stratification is what the unconditioned estimate hides.
+
+**Q21 — MCMC was killed twice for memory** (machine under load from
+other lanes). A Poisson DiD over four cells has a closed form; the
+log-scale SE is sqrt(sum 1/events). Used that rather than degrade the
+sampler settings silently. Reported with the cell counts visible so the
+arithmetic is auditable.
+
+**Q22 — Coder vocabulary vs the tool's enum.** The blinded coder wrote
+`test-gap`, `doc`, `claim`, `contract-API`; `unblind_adjudication.py`
+requires `test_gap`, `doc_or_claim`, `contract_api`. Normalised — pure
+spelling, no judgment. But the coder also used `unclear` on the three
+GATE fields (unilateral / demonstrated / fair_pair), where the tool
+demands yes/no. → Ran the whole adjudication BOTH ways (unclear treated
+as failing the gate, and as passing it) and report the pair as a bound,
+rather than resolving 13 judgment calls silently in either direction.
