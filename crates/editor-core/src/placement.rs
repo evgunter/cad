@@ -71,6 +71,39 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// the kernel's placement door
 /// ([`topo::transform_rigid`]) owns it. What the
 /// edit door checks is the sign (see [`Frame::determinant`]).
+///
+/// # Exactness
+///
+/// **The one home of this rule**; the methods below are cases of it and
+/// do not restate it.
+///
+/// A frame's stored coordinates are CARRIED, never recomputed: reading
+/// one back at any scalar ([`Frame::linear`], [`Frame::affine`]) is a
+/// structural map through [`Real::from_f64`], so it is exact wherever
+/// that conversion is and the identity at `f64`. Where a door does
+/// arithmetic the claim is weaker, deliberately — D9-deterministic, not
+/// exact: [`Mat3::determinant`]'s fixed evaluation order for the sign,
+/// [`Affine3`]'s own product in that operator's fixed association for
+/// [`Frame::compose`]'s general arm.
+///
+/// A BIT-exact identity is a fast path, and only a bit-exact one may
+/// be, since any other value could round: [`Frame::compose`] returns
+/// the other operand verbatim on one, admitted by
+/// [`Frame::is_identity_bits`] over [`Frame::bit_eq`]. That is what
+/// makes the split/inline round trip exact — the frames a split hoists
+/// or leaves behind compose back with zero arithmetic, so D-4's
+/// bit-level volume identity never meets a rounding step.
+///
+/// A placement and a modeled transform of the same part agree BIT FOR
+/// BIT: [`Frame::rotate_then_translate`] is the `Transform` node's own
+/// composition order (D9) built from the same expressions, down to
+/// normalizing the axis on this side because that node does.
+///
+/// Each of the three is guarded. `affine_at_f64_carries_the_stored_bits`
+/// and `compose_is_the_affine_product_to_the_last_multiply_add` are in
+/// this module; the bit agreement needs a whole document, so its guard
+/// is `r1_the_placement_frame_matches_the_transform_node_bit_for_bit`
+/// in this crate's `asm2a_instantiate` suite.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Frame {
@@ -90,6 +123,7 @@ impl Frame {
     };
 
     /// The pure translation by `v`.
+    #[must_use]
     pub fn translation(v: [f64; 3]) -> Self {
         Self {
             translation: v,
@@ -99,33 +133,26 @@ impl Frame {
 
     /// The rotation by `angle` radians (right-hand rule) about the axis
     /// through the origin with direction `axis`, then translation by
-    /// `v` — the `Transform` node's own composition order (D9), so a
-    /// placement and a modeled transform of the same part agree BIT FOR
-    /// BIT.
+    /// `v` — the `Transform` node's own composition order (D9; see
+    /// [`Frame`]'s exactness rule for what that order buys).
     ///
-    /// The agreement is what makes the claim testable, and it is why
-    /// the axis is normalized HERE: the transform node normalizes its
-    /// axis before building the rotation (`eval::wire`'s `unit`), and
-    /// `Mat3::rotation_about` normalizes again internally, so an
-    /// un-normalized axis would take one fewer rounding step through
-    /// this door than through that one. Same input, same expression,
-    /// same bits — for any axis, not just unit ones.
+    /// **Normalizing the axis here is not redundant, and removing it
+    /// would cost the bit agreement.** The transform node normalizes
+    /// its axis before building the rotation (`eval::wire`'s `unit`)
+    /// and `Mat3::rotation_about` normalizes again internally, so an
+    /// axis carried through un-normalized would take one fewer rounding
+    /// step through this door than through that one — for any axis, not
+    /// just unit ones. Deciding the direction costs the agreement
+    /// nothing, because [`topo::query::decide_unit_direction`] answers
+    /// `v.normalize()`, the very expression a bare normalization used.
     ///
     /// **The axis is DECIDED here**, through the evaluation layer's
     /// own direction door ([`crate::eval::unit_direction`]) under
-    /// [`PLACEMENT_AXIS_ROLE`] — the same door and the same four
-    /// answers the transform node's axis takes: a zero axis refuses
-    /// `DegenerateDirection`, a non-finite one `NonFiniteDirection`,
-    /// an underflowed one `UnderflowedDirection`, an in-band length
-    /// escalates. So the two constructions agree on
-    /// their REFUSALS as well as on their bits, and a caller reads
-    /// which vector of theirs was refused instead of being told the
-    /// frame this door built is not finite.
-    ///
-    /// The decided direction is normalized by the very expression the
-    /// bare normalization used ([`topo::query::decide_unit_direction`]
-    /// answers `v.normalize()`), so the bit-identity above is
-    /// untouched for every axis that has a definite direction.
+    /// [`PLACEMENT_AXIS_ROLE`] — the same door, and the same four
+    /// answers below, that the transform node's axis takes. So the two
+    /// constructions agree on their REFUSALS as well as on their bits,
+    /// and a caller reads which vector of theirs was refused instead of
+    /// being told the frame this door built is not finite.
     ///
     /// # Errors
     ///
@@ -162,11 +189,10 @@ impl Frame {
     /// [`Frame::affine`], for the mate solve's poses coming back from
     /// the coset algebra (ASM-R2a D-5).
     ///
-    /// A BIT-exact identity map returns [`Frame::IDENTITY`] verbatim,
-    /// the same rule [`Frame::compose`] follows: an unmated instance's
-    /// solved relative pose must land on the identity's own bits, or
-    /// the mate-less document's evaluation would differ from the
-    /// pre-mate one by a rounding step that never happened.
+    /// A bit-exact identity map returns [`Frame::IDENTITY`] verbatim
+    /// ([`Frame`]'s exactness rule), so an unmated instance's solved
+    /// relative pose lands on the identity's own bits.
+    #[must_use]
     pub fn from_affine(a: geom_core::Affine3<f64>) -> Self {
         let out = Self {
             columns: [
@@ -184,6 +210,7 @@ impl Frame {
     }
 
     /// Whether every stored coordinate is finite.
+    #[must_use]
     pub fn is_finite(&self) -> bool {
         self.columns
             .iter()
@@ -192,15 +219,16 @@ impl Frame {
             .all(|x| x.is_finite())
     }
 
-    /// The linear part's determinant, in [`Mat3::determinant`]'s exact
-    /// evaluation order (D9): a proper frame's is `+1`, an improper
-    /// (mirroring) frame's `−1`.
+    /// The linear part's determinant: a proper frame's is `+1`, an
+    /// improper (mirroring) frame's `−1`.
+    #[must_use]
     pub fn determinant(&self) -> f64 {
         self.linear_f64().determinant()
     }
 
     /// The linear part at the scalar it is STORED in — the one place
     /// the column arrays become a matrix.
+    #[must_use]
     fn linear_f64(&self) -> Mat3<f64> {
         let col = |c: [f64; 3]| Vec3::new(c[0], c[1], c[2]);
         Mat3::from_cols(
@@ -211,8 +239,8 @@ impl Frame {
     }
 
     /// The affine map at the scalar it is STORED in — the one place
-    /// the stored arrays become geometry, and the value every other
-    /// reader of this frame is one structural step from.
+    /// the stored arrays become geometry.
+    #[must_use]
     fn affine_f64(&self) -> Affine3<f64> {
         Affine3::from_parts(
             self.linear_f64(),
@@ -225,15 +253,16 @@ impl Frame {
     }
 
     /// The linear part, in the backend scalar: the stored matrix
-    /// through [`Mat3::map`]. Structural — no arithmetic, so exact,
-    /// and the identity at `f64`, where [`Real::from_f64`] is.
+    /// through [`Mat3::map`] ([`Frame`]'s exactness rule).
+    #[must_use]
     pub fn linear<T: Real>(&self) -> Mat3<T> {
         self.linear_f64().map(T::from_f64)
     }
 
     /// The affine map this frame denotes, in the backend scalar — what
-    /// the kernel's placement door consumes. The stored map through
-    /// [`Affine3::map`], on the same terms as [`Frame::linear`].
+    /// the kernel's placement door consumes: the stored map through
+    /// [`Affine3::map`] ([`Frame`]'s exactness rule).
+    #[must_use]
     pub fn affine<T: Real>(&self) -> Affine3<T> {
         self.affine_f64().map(T::from_f64)
     }
@@ -242,14 +271,10 @@ impl Frame {
     /// `inner` first, then by `self` — inline's rule (ASM-4 D-3: the
     /// instance's cluster frame composed onto the part's placements).
     ///
-    /// A BIT-exact identity on either side returns the other operand
-    /// VERBATIM — the placing door's own fast-path rule, and what
-    /// makes the split/inline round trip exact: the frames a split
-    /// hoists or leaves behind compose back with zero arithmetic, so
-    /// D-4's bit-level volume identity never meets a rounding step.
-    /// The general product is [`Affine3`]'s own multiplication at
-    /// `f64` — plain matrix arithmetic in that operator's fixed order
-    /// (D9-deterministic, not claimed exact).
+    /// A bit-exact identity on either side returns the other operand
+    /// verbatim; the general product is [`Affine3`]'s own
+    /// multiplication at `f64` ([`Frame`]'s exactness rule).
+    #[must_use]
     pub fn compose(&self, inner: &Frame) -> Frame {
         if self.is_identity_bits() {
             return *inner;
@@ -260,16 +285,17 @@ impl Frame {
         Frame::from_affine(self.affine_f64() * inner.affine_f64())
     }
 
-    /// Whether this frame is the stored identity, BY BITS — the
-    /// identity fast-path's admission test (D-3: an identity placement
-    /// skips the kernel map, and only a bit-exact identity may, since
-    /// any other value could round).
+    /// Whether this frame is the stored identity, BY BITS — D-3's
+    /// admission test for the identity fast path, which skips the
+    /// kernel map.
+    #[must_use]
     pub fn is_identity_bits(&self) -> bool {
         self.bit_eq(&Self::IDENTITY)
     }
 
     /// Bit-semantic frame equality (D7's comparator family): every
     /// coordinate compares by BITS, so `±0.0` do not conflate.
+    #[must_use]
     pub fn bit_eq(&self, other: &Self) -> bool {
         self.columns
             .iter()
@@ -292,11 +318,9 @@ impl Default for Frame {
 
 #[cfg(test)]
 mod tests {
-    //! The bit-level claims the stored-arrays-to-geometry doors make,
-    //! which the eval-level tests exercise only through whole
-    //! documents: that reading a frame at `f64` moves no bits, and
-    //! that [`Frame::compose`] is the affine product of the two stored
-    //! maps down to the last multiply-add.
+    //! [`Frame`]'s exactness rule, at the stored-arrays-to-geometry
+    //! doors — which the eval-level tests exercise only through whole
+    //! documents.
 
     use super::*;
 
