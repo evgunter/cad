@@ -190,8 +190,11 @@ a literal `Primary` and pushed a literal `PointerButton::Primary`, so
 `InputMap::select_button` — a BINDING, read as a variable by
 `InputMap::pick` — could name only one button before selection died
 silently, and `pick`'s documented "a click on a button that is not
-`select_button`" arm was unreachable in production. Clicks now come
-through the same conversion. Three unit rows in
+`select_button`" arm was unreachable in production. **Reachable, not
+hypothetical**: `InputMap` is `pub` with `pub` fields and re-exported
+at `crates/viewer/src/lib.rs:144`, so an embedder could already write
+`select_button: Middle` and get a viewer that selected nothing. Clicks
+now come through the same conversion. Three unit rows in
 `pane::viewport::tests` hold it, two of them red before the change:
 `every_toolkit_button_the_adapter_binds_produces_its_click` (left `[]`,
 right `[Click { button: Secondary, … }]`) and
@@ -202,7 +205,20 @@ the toolkit's own constant rather than by hand, and it is not a `const`
 or `static` item, so `viewer-vocab-declared-once.sh`'s roster of
 hand-written lists neither sees it nor wants a row for it.
 
+**The pairing is held too, and separately.** Everything above holds
+the SET; which toolkit button denotes which of the viewer's is a
+naming decision with nothing to derive it from, and every behavioural
+row asks `viewer_button` what to expect, so swapping two of its arms
+left the whole suite green (the reviewer demonstrated it, and
+demonstrated that a docstring of mine claimed otherwise).
+`the_pairing_is_the_one_this_module_intends` states the table a second
+time; both copies are exhaustive, so neither can fall behind the
+toolkit while the other moves. The doc at the site no longer claims
+the compiler holds the mapping, because it does not.
+
 **Residue, filed rather than disclosed here:**
-`work/view/viewport-reads-one-of-the-scroll-deltas-two-axes.md` — the
-same adapter takes `smooth_scroll_delta.y` and drops `.x` with no
-statement either way. VIEW's ground, not this program's.
+`work/view/viewport-adapter-drops-part-of-two-toolkit-values.md` — the
+same function reads two of `egui::Modifiers`' five fields
+(`viewport.rs:195`) and one of `smooth_scroll_delta`'s two axes
+(`viewport.rs:209`), neither stated. One row, because they are one
+decision at two adjacent reads. VIEW's ground, not this program's.

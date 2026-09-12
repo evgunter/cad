@@ -71,12 +71,23 @@ const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
 /// `input::PointerButton`, a binding field or preset that can name it,
 /// and an arm here that stops saying `None`.
 ///
-/// **The set is compiler-held in both directions.** This match names
+/// **The compiler holds the SET, and nothing more.** This match names
 /// every `egui::PointerButton` and the enum is not `#[non_exhaustive]`,
 /// so an egui that grows a sixth button makes it non-exhaustive;
 /// [`egui_buttons`] is `NUM_POINTER_BUTTONS` long, so the same upgrade
 /// fails its length. A version bump is the only moment the toolkit's
-/// set can change, and it is the moment both of these fire.
+/// set can change, and it is the moment both of these fire. (Were egui
+/// to become `#[non_exhaustive]`, the match half dies — `_ => None` is
+/// then the only shape available — and the array's length is the whole
+/// hold. Say so here on the day it happens.)
+///
+/// **Which button pairs with which is held by a ROW, not by the
+/// compiler**, and it could not be otherwise: the pairing is a naming
+/// decision with nothing to derive it from. Swapping two arms here
+/// type-checks and changes what every mouse does.
+/// `tests::the_pairing_is_the_one_this_module_intends` is the second
+/// statement of the table that makes such an edit red, and the only
+/// thing in the tree that can.
 fn viewer_button(button: egui::PointerButton) -> Option<PointerButton> {
     match button {
         egui::PointerButton::Primary => Some(PointerButton::Primary),
@@ -885,14 +896,22 @@ mod tests {
         }
     }
 
-    /// **Every button the toolkit can report is read, and each is read
-    /// as the adapter says it is.**
+    /// **Every button the toolkit can report reaches the pane, and
+    /// what [`viewer_button`] says of it is what comes out.**
     ///
-    /// The buttons come from [`egui_buttons`] and the expectation from
-    /// [`viewer_button`], so this row is over the whole toolkit set
-    /// rather than over a list of its own: a button the loop stopped
-    /// polling fails here, and so does one whose arm starts claiming a
-    /// binding the vocabulary does not have.
+    /// This row is over the PLUMBING, and its reach is exactly that.
+    /// Buttons come from [`egui_buttons`] and the expectation from
+    /// [`viewer_button`], so a button the loop stopped polling fails
+    /// here — the defect this row was written for, where a button
+    /// produced no event and no reader could tell that from a button
+    /// nobody pressed.
+    ///
+    /// **What it cannot catch is a change to `viewer_button` itself**,
+    /// because both sides of the assertion move with it: give `Extra1`
+    /// an arm and this row stays green, having asked for the new
+    /// answer and got it. The decision that function encodes is held
+    /// by [`the_pairing_is_the_one_this_module_intends`] instead, and
+    /// the two rows are complementary rather than overlapping.
     #[test]
     fn every_toolkit_button_the_adapter_binds_produces_its_click() {
         for egui_button in egui_buttons() {
@@ -908,10 +927,12 @@ mod tests {
         }
     }
 
-    /// The same over drags, which is the half that was never in doubt
-    /// for the three main buttons — and the half that says a side
-    /// button reaches nothing, which is what [`viewer_button`]'s
-    /// `None` arm decides.
+    /// The same plumbing over drags, with the same reach and the same
+    /// blind spot: the three main buttons already dragged before this
+    /// unit, so what it adds is the side buttons, whose events stop at
+    /// [`viewer_button`]'s `None` rather than at a loop that never
+    /// asked. Whether `None` is the right answer for them is
+    /// [`the_pairing_is_the_one_this_module_intends`]'s to say.
     #[test]
     fn every_toolkit_button_the_adapter_binds_produces_its_drag() {
         for egui_button in egui_buttons() {
@@ -934,28 +955,70 @@ mod tests {
     ///
     /// [`InputMap::select_button`] is a binding: any button of the
     /// vocabulary may hold it, and `InputMap::pick` reads the field
-    /// rather than a fixed button. A pane that produced a click for
-    /// one button only would make every other setting of that field
-    /// select nothing, with nothing to say so.
+    /// rather than a fixed button. `InputMap` is `pub` with `pub`
+    /// fields and re-exported from the crate root, so an embedder can
+    /// already write `select_button: Middle` — and before this unit
+    /// that setting selected nothing, silently, because the pane
+    /// produced a click for `Primary` only.
+    ///
+    /// **The bound buttons are DERIVED, not listed.** Filtering
+    /// [`egui_buttons`] through [`viewer_button`] is every button the
+    /// viewer binds, by construction: a hand-written
+    /// `[Primary, Secondary, Middle]` here would be a complete list of
+    /// [`input::PointerButton`] that nothing forces — the shape
+    /// `work/view/viewer-suites-hold-hand-written-complete-variant-lists.md`
+    /// catalogues, and one `viewer-vocab-declared-once.sh` names as a
+    /// blind spot it cannot see. Derived, the row also widens itself
+    /// on the day a side button gains a binding.
     #[test]
     fn a_click_selects_through_whichever_button_the_map_binds() {
-        for select_button in [
-            PointerButton::Primary,
-            PointerButton::Secondary,
-            PointerButton::Middle,
-        ] {
+        for egui_button in egui_buttons() {
+            let Some(select_button) = viewer_button(egui_button) else {
+                continue;
+            };
             let map = InputMap {
                 select_button,
                 ..InputMap::DEFAULT
             };
-            let egui_button = egui_buttons()
-                .into_iter()
-                .find(|b| viewer_button(*b) == Some(select_button))
-                .expect("the vocabulary's buttons are the toolkit's");
             assert_eq!(
                 input::pick_stream(&map, &click(&Pane::new(), egui_button)),
                 vec![input::PickAction::Select(AIM_PX)],
-                "a click of the bound button selects"
+                "a click of {select_button:?}, the button this map binds, selects"
+            );
+        }
+    }
+
+    /// **The pairing itself, written a second time so that changing it
+    /// by accident is red.**
+    ///
+    /// Everything else about the adapter is derivable and so is
+    /// derived. This is not: which toolkit button denotes which of the
+    /// viewer's is a naming decision, with nothing in the tree to
+    /// check it against. Swapping two arms of [`viewer_button`]
+    /// type-checks, keeps the set complete and the list a permutation,
+    /// and leaves every other row here green — because they all ask
+    /// that function what to expect. The mouse would simply behave
+    /// wrongly.
+    ///
+    /// So the table is stated twice on purpose, and the second copy
+    /// costs an edit that has to be made deliberately in two places.
+    /// **That cost is the guard, not a defect in it.** Both copies are
+    /// exhaustive matches over a closed enum, so neither can fall
+    /// behind the toolkit while the other moves: a sixth
+    /// `egui::PointerButton` reds them together.
+    #[test]
+    fn the_pairing_is_the_one_this_module_intends() {
+        for egui_button in egui_buttons() {
+            let intended = match egui_button {
+                egui::PointerButton::Primary => Some(PointerButton::Primary),
+                egui::PointerButton::Secondary => Some(PointerButton::Secondary),
+                egui::PointerButton::Middle => Some(PointerButton::Middle),
+                egui::PointerButton::Extra1 | egui::PointerButton::Extra2 => None,
+            };
+            assert_eq!(
+                viewer_button(egui_button),
+                intended,
+                "{egui_button:?} denotes the wrong button of the viewer's vocabulary"
             );
         }
     }
