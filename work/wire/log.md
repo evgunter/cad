@@ -833,3 +833,100 @@ Reclaimed the three merged E lanes' targets and all three review lanes
 kept, its PR being in review with a fix pass likely. Nothing was running
 — checked `pgrep cargo` and every target's mtime before deleting, per
 the memory's rule that a running build's target is never reclaimable.
+
+## PR 2409's full review: 2 MAJOR, and the reviewer built the fixture the lane said could not exist (2026-09-12)
+
+**APPROVE-WITH-FIXES, 2 MAJOR / 6 MINOR / 4 NOTE**, plus nine style
+findings and all eight style questions exercised. The lift is **exact**
+and claim 2 was verified term-for-term rather than accepted:
+`ValidatedSegment::lift` calls the same `pub(crate) seg::arc_carrier`
+that `build_seg` does, on scalars carried verbatim, with nothing
+rounding between.
+
+**MAJOR-1 — there is a SECOND behaviour move and the unit's new doc
+states its opposite.** `loft_body`/`sweep_body` call `loft_geometry` and
+then `assemble` with the same arguments, and `validate_sections` has
+already validated **every** section including first and last. So
+`end_profile`'s `Profile::validate` is a **provable no-op** and
+`LoftError::Profile` is **unreachable from both public doors** — with
+dead arms left in `eval/wire.rs:4319` and `pncad-py/tags.rs:1217`. The
+new doc's *"the `f64` validation is the gate, and it refuses here"* is
+false; the gate is `loft_geometry`'s.
+
+**And style finding S2 names the fix**: `LoftGeometry` **already** keeps
+`sections` under the comment *"no re-derivation, no drift"* and
+**throws away** `validate_sections`' `Vec<ValidatedProfile<f64>>` —
+exactly what `end_profile` recomputes. Adjudicated: carry the validated
+profiles on `LoftGeometry` and have `end_profile` READ one. That deletes
+the redundancy instead of documenting it, retires the dead variant
+honestly, and makes the PR's own *"structural rather than assumed"*
+sentence true — which, as the reviewer notes, it currently is not.
+Fallback if threading proves structural: retire the variant and correct
+the doc; shipping a knowingly-unreachable arm under a doc that says it
+fires is not on the table.
+
+**MAJOR-2 — the stated impossibility was not one.** The lane wrote that
+no fixture separates the two paths by outcome without knife-edge tuning,
+and stated it rather than hiding it, which was right. The reviewer built
+one with round parameters: two sections, vertices `(∓h,0)` at bulge `b`,
+`h=5, b=1e3` — `Ok` at `f64`, `Escalated` at `Interval` on main, `Ok` on
+the PR head. **Broad, not a knife edge**: six `(h,b)` pairs across four
+orders of magnitude separate at profile level. Adopted as a permanent
+row with the reviewer's authorship. The one disclosed behaviour move had
+nothing pinning it.
+
+That is the second unit in a row where **the answer to "can this test
+fail" came from building the thing, not from reading** — and here from
+building the thing the author had argued could not be built.
+
+**One correction owed to the lane, from the orchestrator.** The review
+dispatch quoted the PR body as saying *"k-lint came back green, so
+nothing moved in practice."* That sentence is in the lane's **report**,
+not in the PR body, whose actual text is properly hedged and leans on no
+green. NOTE-1, and the dispatch's error.
+
+**MINOR-5 is the finding that outlives the PR.** The reviewer
+instrumented the coverage change instead of arguing it: one minimal
+two-section loft at `Probe`, **main 455 samples / 33 predicate names,
+PR head 397 / 24**. Nine whole profile-validation families leave the
+loft path. And the gate **cannot see it** — k-lint flags margins per
+row, so a shrunken population yields weakly fewer flags, and
+`predicate_roster.rs` reads kernel source rather than the sweep. That is
+a **third face of the silent-coverage class**
+`memories/agent-lane-operations.md` collects: a green gate over a
+population that got smaller. Filed with three dispositions and no pick,
+because the cause is S-BOOL's and the instrument is INSTR's.
+
+**Five rows filed:**
+
+- `loft-path-loses-nine-predicate-families-from-the-probe-stream` (here)
+  — the schedule Q6 owes for a disclosed narrowing.
+- `frame-linear-generic-door-has-no-consumers` **promoted to a class**
+  with `profile`'s two `map_scalar` rungs as its second instance, proven
+  the same mechanical way (drop `pub`, read the dead-code warnings).
+  Adjudicated **not the same defect**: `Frame::linear<T>` LOST its
+  consumers, while `profile`'s rungs were minted to
+  `scalar_lift.rs`'s written convention, which a library owes an
+  external caller. The class's real question — does that convention mint
+  doors ahead of consumers, and if so is `Frame::linear<T>` a violation
+  that should therefore STAY — disposes of both rows and neither answers
+  alone.
+- `work/bool/arc-carrier-has-three-spellings-under-a-comment-saying-one.md`
+  — `seg.rs` calls itself *"the ONE spelling"* and the crate has three,
+  with different association and `abs` placement. PR 2409's bit-identity
+  claim is unaffected; the sentence was already false when written.
+- `work/bool/validate-rs-hosts-a-quarter-of-the-fillet-subsystem-it-never-runs.md`
+  — six `FILLET_*_RECOURSE` consts whose own docs say *"No caller reads
+  this sentence"*, in a file whose inventory says fillet rows never fire
+  in validation. From the Q8 whole-file read.
+- `work/tint/the-two-vertex-bulge-one-circle-fixture-has-eight-copies.md`
+  — the standing trap's **fifth** instance and its first at the test
+  layer, which matters because every instrument so far has pointed at
+  `src/`. Filed with the warning NOT to assume a shared helper: three of
+  the eight are reviewer-authored probe suites whose independence is
+  their value.
+
+**NOTE-3 cleared the disk-skip worry**: `demos tour fmt + clippy` and
+`demos wild fmt + clippy` both succeeded at STEP level on run
+34666874179, and the `Probe` sweep really did re-cut. The lane's grep
+substitute was sound.
