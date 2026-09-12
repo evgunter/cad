@@ -970,3 +970,46 @@ thread-local; both filed out-of-fence items overstated (editor-core's
 maps bracket per node, so they lose the probe sink and the symbolic
 session, not the verdict logs). Unilateral MAJOR: the opus arm; the
 pair is clean.
+
+## PERF-8: a composing door on the K-funnel (2026-09-12)
+
+**Announcing a `geom-core` edit in PROPS' territory** (`work/README.md`:
+the owner is told where the change lands, and this is that telling).
+`crates/geom-core/src/k_stats.rs` gains two doors and the type between
+them — `detached`, `splice`, `Detached` — and nothing else in that file
+changes behaviour. `Bracket`'s semantics, nesting included, are
+untouched; `detached` is built out of `Bracket` rather than beside it.
+
+Why it had to be there: the funnel's recording is thread-local
+(`FRAMES`, and `SINK` under `probe`), so a face decided on a rayon
+worker records into that worker's frame and sink. `detached` runs a
+closure on the current thread under a frame and sink of its own and
+hands back what it recorded; `splice` appends such a recording to the
+current thread's open frame and sink. A walk that maps faces onto
+workers and splices in arena order therefore produces the serial walk's
+verdict log, escalation log and sample population, element for element,
+at any thread count.
+
+`crates/topo/src/props.rs` is the first consumer (`mass_properties` and
+`sign_certified`); `topo` gains the workspace `rayon`. The same door is
+what the other four rayon maps in the tree need —
+`work/perf/rayon-maps-outside-props-lose-the-funnels-recordings.md` and
+`work/wire/parallel-node-map-loses-the-funnel-and-the-symbolic-session.md`.
+
+## 2026-09-12 — PERF-8 merged; PERF-7's second part released
+
+Fix pass landed the union with nothing disputed (head `013055566`,
+CI run 34722451850 green): the one-thread bench rows keep their ids
+and the four-thread rows join the roster; the serial arm under a
+symbolic session short-circuits at the first refusal and is pinned
+by a session row (the thin strip's `mass_properties` records exactly
+two decisions, as main does); goldens of the verdict logs and the
+probe population cut at the merge base are the oracle at both
+widths; the roster carries PERF-6's digest bodies; the redundant
+bounds are gone; both out-of-fence items say what is actually lost
+(the probe sink and the symbolic session, not the verdict logs).
+Measured on main's tour: 45 → 25 s at four threads; the spout's gate
+9.8 → 2.5 s while its measurement stays flat because the continuation
+is serial by construction — filed. State-sync rode the PR; merged at
+`e7c2542f7` (PR 2452). Lane reclaimed. PERF-7's implementer is
+released to compose the tessellator's lanes through the same door.

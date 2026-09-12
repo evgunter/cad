@@ -294,7 +294,8 @@ Euler-op sequences stay serial — each op mutates shared arenas, and
 they are cheap; full-DAG rebuild is solved by memoization, not by
 parallelizing surgery.
 
-**State.** `rayon` is a dependency of `editor-core` alone; `par_iter`
+**State.** `rayon` is a dependency of `editor-core` and, since PERF-8,
+`topo` (PERF-7 adds `mesh`); `par_iter`
 lives at `eval/mod.rs:2380` (behind `EvalOptions::parallel`, default
 `false` at `:2080`), `drive.rs:1184` (behind `DriveConfig::parallel`,
 default `false` at `:361`), `stackup.rs:513,1831` and `mc.rs:473`
@@ -575,7 +576,16 @@ good"; sequencing left to the orchestrator):
 
 - PERF-7 — the tessellator's face loop as D9 idiom 1 (`docs/PERF-7-SPEC.md`).
 - PERF-8 — per-face mass-property fluxes as idiom 1 with the K-funnel
-  composing across threads (`docs/PERF-8-SPEC.md`).
+  composing across threads — landed (PR 2452): `k_stats::detached` /
+  `splice` compose a worker's recording into the caller's frame and
+  sink in arena order; `mass_properties_impl` and `sign_certified`
+  are `decide_faces` (idiom 1) + `splice_in_arena_order` + the
+  unchanged `fold_runs`; verdict logs and the probe population are
+  byte-identical at any width against goldens cut on the merge base;
+  a symbolic session keeps the serial walk. `loft_prism` 154 → 46 ms
+  at four threads; the tour 45 → 25 s; the spout's gate 9.8 → 2.5 s
+  (its measurement is flat: `refine_to_target` stays serial, filed
+  `face-walks-outside-mass-properties-are-still-serial`).
 - PERF-9 — the pick index's BVH as per-face trees under a top-level
   tree, memoized beside the patches — landed (PR 2451): a `Bvh` per
   patch under a top-level tree, served from `PickMemo`'s tree level by
