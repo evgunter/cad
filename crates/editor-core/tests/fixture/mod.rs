@@ -13,22 +13,97 @@
 //! identity in IEEE arithmetic) and the oracle stays exact. The
 //! rotational Transform path is exercised separately (non-dyadic
 //! assertions) in the wire tests.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// WHY A HELPER TREE ALLOWS THESE — the one statement of it, cited by every
+// other tree that carries an allow of this shape. A helper tree AUTHORS test
+// documents, and a document that will not build is a test failure, not a
+// value to hand back: its builders panic on a malformed fixture rather than
+// thread a `Result` out to a caller whose only recourse is to unwrap it.
+// Each tree names exactly the lints its own code raises, here rather than in
+// the crate-root allow of whatever module loads it.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
+/// The provenance-extended evaluation digest the verb-migration suites
+/// pin their documents with — one feed, per-suite constants.
+pub mod digest;
+
+/// The part store an assembly suite instantiates through, and the
+/// names an instantiated part's faces are spelled with.
+pub mod resolver;
+
+/// The whole-frame product oracle a mate suite measures a seat with.
+pub mod seat;
+
 use editor_core::{
-    CapEnd, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
-    StableName,
+    AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind,
+    EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileEdgeRef,
+    ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, assemble, evaluate,
 };
 use geom_core::Tol;
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
+
+/// **The evaluation, through the ordinary door** — `evaluate` at
+/// `f64` with a fresh cancel token and the witness tolerance, which
+/// is what every suite here wants and what none of them should spell
+/// for itself.
+pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
+    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+}
+
+/// **The at-rest gate's verdict**, as a mate row wants to read it:
+/// whether the assembly mints, with the minted records dropped.
+///
+/// # Errors
+///
+/// The gate's own refusal, unaltered.
+pub fn gate(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
+    assemble(doc, ev, Tol::witness()).map(|_| ())
+}
+
+/// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
+/// wrapper, the segment a pattern's table puts round every master
+/// name it emits. Nest the calls for a nested copy.
+pub fn in_copy(pattern: RecipeNodeId, i: u32, of: StableName) -> StableName {
+    StableName {
+        kind: of.kind,
+        node: pattern,
+        path: vec![RoleSeg::Instance { i, of: of.into() }],
+    }
+}
+
+/// A `Transform` over `input`: a translation, and `angle` about
+/// `axis`.
+///
+/// # Panics
+///
+/// If `angle` is not a finite angle literal.
+pub fn xform(
+    input: RecipeNodeId,
+    translation: [f64; 3],
+    axis: [f64; 3],
+    angle: f64,
+) -> Node<ProfileProgram> {
+    Node::Transform {
+        input,
+        translation: translation.map(len),
+        rotation_axis: axis.map(scl),
+        rotation_angle: Expr::literal(angle, Dimension::Angle).expect("an angle literal"),
+    }
+}
 
 /// The pip depth the document's `pip_depth` parameter starts at.
 pub const DEPTH: f64 = 0.125;
 /// The exact die volume oracle at `DEPTH` (M3).
 pub const DIE_VOLUME: f64 = 7.8359375;
+
+/// **The witnessed band a placement axis is decided under** — what
+/// `Frame::rotate_then_translate` asks the direction door with. Rows
+/// whose axis is a literal pass this and unwrap; a row whose SUBJECT
+/// is the axis decision reads the refusal instead.
+pub fn band() -> geom_core::Band {
+    geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
+}
 
 pub fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).unwrap()
@@ -51,26 +126,138 @@ pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, Recip
     (doc, minted.unwrap())
 }
 
-/// A profile PROGRAM: polygon `loops` on the plane with the given
-/// frame (LIB-SWITCH §4i: the corpus's polygon choke point — under v4
-/// each loop is a chain program, `At(p0), LineTo(p1), …,
-/// LineTo(Start)`, the VQ5 expansion at literal points).
-pub fn desc(
-    origin: [f64; 3],
-    u: [f64; 3],
-    v: [f64; 3],
-    loops: Vec<Vec<(f64, f64)>>,
-) -> ProfileProgram {
-    let plane = SketchPlane::from_frame(
-        Point3::new(origin[0], origin[1], origin[2]),
-        Vec3::new(u[0], u[1], u[2]),
-        Vec3::new(v[0], v[1], v[2]),
+/// The frame datum a profile is drawn on, as a node to insert.
+///
+/// The components `desc` used to bake into a `SketchPlane` are the
+/// frame's own slots now, spelled the same way round: an origin and
+/// the two directions sketch +x and +y point.
+pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
+    Node::Datum(editor_core::Datum::Frame {
+        origin: origin.map(len),
+        u: u.map(scl),
+        v: v.map(scl),
+    })
+}
+
+/// **The `SketchPlane` a frame NODE denotes**, read out of a document.
+///
+/// A test that builds a `profile::Profile` by hand needs the plane the
+/// profile's `plane` id names, and the id alone is not it. Reads the
+/// frame's authored literals and hands them to the same
+/// `SketchPlane::from_frame` the evaluator's own read uses.
+///
+/// **Orthonormality is the caller's, as it is at every other
+/// `from_frame`** — this asserts rather than orthogonalizes, so a
+/// fixture whose frame is not already orthonormal fails here instead of
+/// silently getting a different plane from the one the evaluator would
+/// build. Every fixture frame in this tree is authored orthonormal.
+///
+/// # Panics
+///
+/// If `plane` is not a `Datum::Frame`, if its components are not
+/// literals, or if `u` and `v` are not an orthonormal pair.
+pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
+    let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
+        panic!("node {} is not a Datum::Frame", plane.0)
+    };
+    let read = |xs: &[Expr; 3]| {
+        let c = |e: &Expr| {
+            e.literal_value()
+                .expect("a fixture frame's components are literals")
+        };
+        geom_core::Vec3::new(c(&xs[0]), c(&xs[1]), c(&xs[2]))
+    };
+    let (o, u, v) = (read(origin), read(u), read(v));
+    for (name, w) in [("u", u), ("v", v)] {
+        assert!(
+            (w.norm() - 1.0).abs() < 1e-12,
+            "fixture frame {}'s {name} is not unit",
+            plane.0
+        );
+    }
+    assert!(
+        u.dot(v).abs() < 1e-12,
+        "fixture frame {}'s u and v are not perpendicular",
+        plane.0
     );
+    profile::SketchPlane::from_frame(geom_core::Point3::new(o.x, o.y, o.z), u, v)
+}
+
+/// The world xy frame as a node — origin at the world origin, sketch
+/// +x along world +x, sketch +y along world +y.
+///
+/// The `SketchPlane::xy()` constant most of these suites used, spelled
+/// as the node a profile now names. One per document, shared by every
+/// sketch on it: that is what "the same plane" is once the plane is a
+/// node, where the constant left each profile holding its own copy of
+/// identical floats.
+pub fn xy_frame() -> Node<ProfileProgram> {
+    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+}
+
+/// A profile program on `plane`, from polygon corner lists
+/// (LIB-SWITCH §4i: the corpus's polygon choke point — under v4 each
+/// loop is a chain program, `At(p0), LineTo(p1), …, LineTo(Start)`,
+/// the VQ5 expansion at literal points).
+///
+/// It takes the frame's NODE rather than an origin and two vectors: a
+/// profile's plane is a document node, so the caller inserts the frame
+/// (with [`frame`]) and hands this the id. Two nodes where there was
+/// one, which is the shape of the document now — a sketch names the
+/// frame it is drawn on.
+pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram {
     let loops = loops
         .into_iter()
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
     ProfileProgram { plane, loops }
+}
+
+/// **A frame and a profile on it, inserted in that order** — the whole
+/// of what a `desc(origin, u, v, loops)` call used to be, so a call
+/// site that only wants "a square on the xy plane" stays one line.
+///
+/// Returns the doc and the PROFILE's id: the frame is scaffolding at
+/// almost every call site, and one that needs its id has both nodes'
+/// doors ([`frame`] and [`desc`]) to reach for instead.
+pub fn on_frame(
+    doc: ProfileDoc,
+    origin: [f64; 3],
+    u: [f64; 3],
+    v: [f64; 3],
+    loops: Vec<Vec<(f64, f64)>>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, plane) = insert(doc, frame(origin, u, v));
+    insert(doc, Node::Profile(desc(plane, loops)))
+}
+
+/// [`on_frame`], keeping the FRAME's id too — what a revolve needs,
+/// because its axis has to be written in the same frame the profile
+/// is drawn on and the axis's door names that frame.
+pub fn on_frame_keeping(
+    doc: ProfileDoc,
+    origin: [f64; 3],
+    u: [f64; 3],
+    v: [f64; 3],
+    loops: Vec<Vec<(f64, f64)>>,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, plane) = insert(doc, frame(origin, u, v));
+    let (doc, profile) = insert(doc, Node::Profile(desc(plane, loops)));
+    (doc, plane, profile)
+}
+
+/// An axis written in `plane`'s own 2-D coordinates — a revolve's axis
+/// of revolution.
+pub fn axis_in_plane(
+    plane: RecipeNodeId,
+    origin: (f64, f64),
+    dir: (f64, f64),
+) -> Node<ProfileProgram> {
+    Node::Datum(Datum::AxisInPlane {
+        plane,
+        origin: [len(origin.0), len(origin.1)],
+        direction: [scl(dir.0), scl(dir.1)],
+    })
 }
 
 /// An axis-aligned square of half-width `h` centered at (cx, cy).
@@ -122,6 +309,35 @@ impl Recorder {
     /// Inserts a node, returning its minted id.
     pub fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
         self.push(DocEdit::InsertNode { node }).expect("minted id")
+    }
+
+    /// **A frame and a profile drawn on it**, returning the PROFILE's
+    /// id — [`on_frame`]'s shape for a recorder.
+    ///
+    /// It exists so a call site that wants "a square on this plane"
+    /// stays one line now that saying so takes two nodes. A site that
+    /// needs the frame's own id inserts the two itself.
+    pub fn profile(
+        &mut self,
+        origin: [f64; 3],
+        u: [f64; 3],
+        v: [f64; 3],
+        loops: Vec<Vec<(f64, f64)>>,
+    ) -> RecipeNodeId {
+        self.profile_keeping(origin, u, v, loops).1
+    }
+
+    /// [`Self::profile`], keeping the FRAME's id — what a revolve
+    /// needs, because its axis is written in that frame.
+    pub fn profile_keeping(
+        &mut self,
+        origin: [f64; 3],
+        u: [f64; 3],
+        v: [f64; 3],
+        loops: Vec<Vec<(f64, f64)>>,
+    ) -> (RecipeNodeId, RecipeNodeId) {
+        let plane = self.insert(frame(origin, u, v));
+        (plane, self.insert(Node::Profile(desc(plane, loops))))
     }
 }
 
@@ -206,18 +422,15 @@ pub fn die() -> Die {
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("pip_depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: DEPTH,
-        },
+        value: DocParam::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
-    let cube_profile = r.insert(Node::Profile(desc(
+    let cube_profile = r.profile(
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-    )));
+    );
     let cube = r.insert(Node::Extrude {
         profile: cube_profile,
         distance: len(2.0),
@@ -228,7 +441,7 @@ pub fn die() -> Die {
     // distance).
     let mut masters = Vec::new(); // (extrude id, u, v, pips)
     for (o, u, v, pips) in faces() {
-        let prof = r.insert(Node::Profile(desc(o, u, v, vec![square(0.0, 0.0, 0.125)])));
+        let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
             distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),
@@ -257,12 +470,12 @@ pub fn die() -> Die {
         })
     };
     let mut cube_face_names: [StableName; 6] = [
-        face_name(cube, RoleSeg::Cap(CapEnd::Bottom)),
+        face_name(cube, RoleSeg::Cap(CapEnd::Start)),
         face_name(cube, wall(1)),
         face_name(cube, wall(3)),
         face_name(cube, wall(2)),
         face_name(cube, wall(0)),
-        face_name(cube, RoleSeg::Cap(CapEnd::Top)),
+        face_name(cube, RoleSeg::Cap(CapEnd::End)),
     ];
     let mut acc = cube;
     let mut pz_transform = acc; // overwritten below
@@ -282,7 +495,7 @@ pub fn die() -> Die {
             // The pip master extrudes INWARD (negative distance), so
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane).
-            let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Bottom));
+            let pip_cap = face_name(ext, RoleSeg::Cap(CapEnd::Start));
             let decl = r.insert(Node::declare_rest(vec![(
                 cube_face_names[face_idx].clone(),
                 pip_cap,
@@ -298,7 +511,7 @@ pub fn die() -> Die {
             // Every A-side face name wraps once per boolean (N1
             // derivation paths through the new subtract node).
             for name in &mut cube_face_names {
-                *name = face_name(sub, RoleSeg::FromA(Box::new(name.clone())));
+                *name = face_name(sub, RoleSeg::FromA(name.clone().into()));
             }
         }
     }
@@ -349,8 +562,8 @@ pub fn prism_edges(node: RecipeNodeId, n: u32) -> Vec<StableName> {
             loop_index: 0,
             segment: seg,
         };
-        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Bottom, e)));
-        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Top, e)));
+        out.push(ename(node, RoleSeg::RimEdge(CapEnd::Start, e)));
+        out.push(ename(node, RoleSeg::RimEdge(CapEnd::End, e)));
         out.push(ename(
             node,
             RoleSeg::LateralEdge(ProfileVertexRef {
@@ -385,13 +598,166 @@ pub fn declare_x_offset_flush(
         (fname(a_ext, wall(0)), fname(b_ext, wall(0))),
         (fname(a_ext, wall(2)), fname(b_ext, wall(2))),
         (
-            fname(a_ext, RoleSeg::Cap(CapEnd::Bottom)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::Bottom)),
+            fname(a_ext, RoleSeg::Cap(CapEnd::Start)),
+            fname(b_ext, RoleSeg::Cap(CapEnd::Start)),
         ),
         (
-            fname(a_ext, RoleSeg::Cap(CapEnd::Top)),
-            fname(b_ext, RoleSeg::Cap(CapEnd::Top)),
+            fname(a_ext, RoleSeg::Cap(CapEnd::End)),
+            fname(b_ext, RoleSeg::Cap(CapEnd::End)),
         ),
     ];
     insert(doc, Node::declare_rest(pairs))
+}
+
+/// **What every at-rest finding says about a declaration, in one
+/// vocabulary** — the mate it names and the relation it bears, for a
+/// row that wants to compare a whole finding list at once.
+///
+/// One definition for every suite that asks the question. A CARRIED
+/// row's mate is a node of ANOTHER document, so it reports under its
+/// own words rather than joining the own-minted ones and reading as
+/// this document's.
+pub fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, &'static str)> {
+    findings
+        .iter()
+        .map(|f| match &f.attribution {
+            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
+            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
+            editor_core::Attribution::Carried {
+                declaration,
+                relation,
+                ..
+            } => (
+                declaration.mate,
+                match relation {
+                    editor_core::Relation::Refuted => "carried_refuted",
+                    editor_core::Relation::Declined => "carried_declined",
+                },
+            ),
+            editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
+        })
+        .collect()
+}
+
+/// **No published merged face has a merged face among its
+/// constituents** — the N3 flatness rule, asserted over every name of
+/// every table an evaluation produced.
+///
+/// One walker for every suite that evaluates a document, so the rule
+/// is checked wherever a `Merged` can be minted — the pair boolean's
+/// own tables, the n-ary union's, and whatever wraps either — and not
+/// only in the rows written to look for it. The walk is over every
+/// name a segment embeds ([`embedded_names`]), so a merged face that
+/// reaches a table inside a blend's or a pattern's name is held to
+/// the same rule as one at a row's head; and a constituent is read
+/// through its descent wrappers ([`is_merged_face`]), so a merged
+/// face carried through untouched booleans before being merged again
+/// is nesting exactly as a bare one is.
+pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluation<T>) {
+    for (id, result) in &ev.nodes {
+        let editor_core::NodeResult::Ok(value) = result else {
+            continue;
+        };
+        for (name, _) in value.name_table.iter() {
+            let nested = merged_sets(name)
+                .into_iter()
+                .flat_map(|set| set.iter())
+                .find(|c| is_merged_face(c));
+            assert!(
+                nested.is_none(),
+                "node {id:?} published a merged face with a merged constituent {nested:?}: {name:?}"
+            );
+        }
+    }
+}
+
+/// True iff `name`, read through its `FromA`/`FromB` descent chain,
+/// is a bare merged face — the shape a flat constituent set never
+/// holds. A FRAGMENT of a merged face (`Merged` head with a
+/// `Fragment` tail at the foot) is a fragment, not a merge, and is a
+/// legitimate constituent.
+fn is_merged_face(name: &StableName) -> bool {
+    match name.path.as_slice() {
+        [RoleSeg::Merged(_)] => true,
+        [RoleSeg::FromA(inner) | RoleSeg::FromB(inner)] => is_merged_face(inner),
+        _ => false,
+    }
+}
+
+/// Every `Merged` constituent set reachable from `name`, its own
+/// segments included.
+fn merged_sets(name: &StableName) -> Vec<&[StableName]> {
+    let mut out = Vec::new();
+    for seg in &name.path {
+        if let RoleSeg::Merged(set) = seg {
+            out.push(set.as_slice());
+        }
+        for inner in embedded_names(seg) {
+            out.extend(merged_sets(inner));
+        }
+    }
+    out
+}
+
+/// The names one role segment embeds — a derivation argument or a
+/// discrimination partner alike, since a merged face is held to the
+/// flatness rule wherever it is written.
+///
+/// The match is EXHAUSTIVE on purpose: a segment added to the
+/// vocabulary must be classified here before the suite compiles, so a
+/// new name-carrying segment cannot hide a merged face from the walk.
+fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
+    use editor_core::Qualifier;
+    match seg {
+        RoleSeg::FromA(x)
+        | RoleSeg::FromB(x)
+        | RoleSeg::FromMember { of: x, .. }
+        | RoleSeg::SectionEdge { face: x, .. }
+        | RoleSeg::SplitFragment { parent: x, .. }
+        | RoleSeg::CrossingVertex { edge: x, .. }
+        | RoleSeg::OnToolVertex { of: x, .. }
+        | RoleSeg::Instance { of: x, .. }
+        | RoleSeg::InPart { of: x }
+        | RoleSeg::FromTarget(x)
+        | RoleSeg::BlendFace(x)
+        | RoleSeg::CornerFace(x)
+        | RoleSeg::BandTrim { edge: x, .. }
+        | RoleSeg::BandFoot(x)
+        | RoleSeg::BandCross(x)
+        | RoleSeg::BandCut(x)
+        | RoleSeg::BandSlit(x)
+        | RoleSeg::Inner(x)
+        | RoleSeg::Rim(x)
+        | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
+        RoleSeg::Seam { a: x, b: y }
+        | RoleSeg::TrimEdge {
+            edge: x,
+            support: y,
+        }
+        | RoleSeg::FootVertex {
+            vertex: x,
+            support: y,
+        }
+        | RoleSeg::CornerArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
+        RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
+        RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
+        RoleSeg::Fragment(Qualifier::OrderAlong { .. })
+        | RoleSeg::OutputBody
+        | RoleSeg::Cap(_)
+        | RoleSeg::Lateral(_)
+        | RoleSeg::RimEdge(..)
+        | RoleSeg::LateralEdge(_)
+        | RoleSeg::CapVertex(..)
+        | RoleSeg::Band(_)
+        | RoleSeg::BandRim(_)
+        | RoleSeg::BandRimPi(_)
+        | RoleSeg::BandPi(_)
+        | RoleSeg::Meridian(..)
+        | RoleSeg::MeridianVertex(..)
+        | RoleSeg::RevolveCap(_)
+        | RoleSeg::Pole(_)
+        | RoleSeg::AxisEdge(_)
+        | RoleSeg::SplitBody(_)
+        | RoleSeg::SectionFace { .. } => Vec::new(),
+    }
 }

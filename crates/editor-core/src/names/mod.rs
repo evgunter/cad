@@ -19,24 +19,38 @@
 //! Layering (D1, G1): the kernel never sees a `StableName` — ops emit
 //! birth facts; THIS module (editor-core) names things.
 
+mod attribute;
+mod defer;
 mod discriminate;
 mod emit;
+mod emit_blend;
+mod emit_chamfer;
 mod emit_fillet;
+mod emit_shell;
 mod emit_sweep;
 mod emit_topo;
+mod emit_union;
 mod flush;
 mod geompred;
-mod interrogate;
+pub(crate) mod interrogate;
+pub(crate) mod merged;
 mod role;
 mod select;
 mod table;
 
+pub use attribute::{NameOrigin, attribute};
+pub(crate) use defer::CarriedRows;
 pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
-pub(crate) use emit::{empty, name_pattern, name_placed_union};
+pub(crate) use emit::{
+    check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body,
+};
+pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
+pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
+pub(crate) use emit_union::{collapse_name, collapse_table, member_view, name_union};
 pub use flush::{
     CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,
@@ -47,12 +61,16 @@ pub use geompred::{
     SurfaceKindSet,
 };
 pub use interrogate::{
-    Denotation, InterrogateError, denotation, edge_frame, face_frame, vertex_position,
+    Denotation, InterrogateError, denotation, edge_frame, face_carrier_kind, face_frame,
+    vertex_position,
 };
+pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;
+pub(crate) use role::never_in_a_boolean_table;
 pub use role::{
-    CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport,
-    RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
+    CapEnd, EntityKind, MeridianEnd, NameRef, ProfileEdgeRef, ProfileVertexRef, Qualifier,
+    RimSupport, RolePath, RoleSeg, SideVerdict, SplitHalf, StableName, band, band_pi, band_rim,
+    carried, meridian_vertex,
 };
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};

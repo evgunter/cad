@@ -16,9 +16,11 @@ interval = [
     "geom-core/interval",
     "geom-brep/interval",
     "geom/interval",
+    "mesh/interval",
     "profile/interval",
     "sweep/interval",
     "topo/interval",
+    "verbs/interval",
 ]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. Same shape
@@ -30,9 +32,11 @@ probe = [
     "geom-core/probe",
     "geom-brep/probe",
     "geom/probe",
+    "mesh/probe",
     "profile/probe",
     "sweep/probe",
     "topo/probe",
+    "verbs/probe",
 ]
 
 [dependencies]
@@ -41,6 +45,17 @@ probe = [
 # crates gain NO editor-core dependency (the workspace dep direction
 # enforces it).
 geom-core = { path = "../geom-core" }
+# GUI-1: the hit-test service (`resolve::pick`) traverses `Bvh::ray`
+# over a tree per face patch under a tree over the patches' boxes, and
+# reads the mesh back-references
+# (`FacePatch::face`) it inverts through `resolve::hit`. Both sit
+# below editor-core (bvh under geom-core only; mesh is the kernel's
+# tessellation crate) — the G1 direction is untouched.
+bvh = { path = "../bvh" }
+# Promoted from dev-dependencies by GUI-1; the dev-side need it served
+# there still stands and is now covered by this row (M5 PR 11: the
+# corpus curved documents' tessellation/props columns in tests/).
+mesh = { path = "../mesh" }
 # LIB-SEL1: the geometric selector's EXACT atoms read the surface tag,
 # and `geom_brep::SurfaceKind` is the workspace's ONE fieldless mirror
 # of `Surface` (D3: closed, compiler-enumerated). Reused rather than
@@ -53,6 +68,10 @@ geom-brep = { path = "../geom-brep" }
 # M4 PR 3: the naming layer reads face carrier PLANES (side-of
 # discriminators against cutting carriers, N2) from the result body.
 geom = { path = "../geom" }
+# D9: the analysis lane's normal-quantile bisection and tail-mass
+# accounting read `erf` from the workspace's ONE transcendental source
+# (a system libm differs across platforms in the last ulp).
+libm = { workspace = true }
 profile = { path = "../profile" }
 # LIB-U8a: the expression TEXT parser's unit-suffix vocabulary is the
 # quantity crate's closed unit table (a leaf crate — no dependency
@@ -60,6 +79,10 @@ profile = { path = "../profile" }
 quantity = { path = "../quantity" }
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
+# The kernel's verb vocabulary. This crate is its only consumer — the
+# enum names ops that live in `sweep` and `topo`, so it sits above both
+# and below this one, and the kernel crates gain no edge to it.
+verbs = { path = "../verbs" }
 # D6: rayon idiom-1 parallelism over independent DAG nodes (the D9
 # addendum's sanctioned idiom) — a runtime switch, so the determinism
 # cross-check can compare both schedules in one test run.
@@ -74,13 +97,28 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+# `profile` again, with `test-support` ON. The crate is an ordinary
+# dependency above; naming it a second time here adds the feature for
+# TEST builds only — cargo unions the two entries for this package's
+# test targets and for nothing else. It turns on the
+# `profile::RawLoop` fixture door (that trait's docs carry the
+# argument); a shipped build of this crate still cannot mint a table.
+profile = { path = "../profile", features = ["test-support"] }
 proptest = { workspace = true }
+# The GUI-1 randomized sweeps' varying seed + effort dial
+# (memories/test-suite-cost): a dependency-free leaf crate, dev-only,
+# the same harness row every other randomized sweep in the tree takes.
+test-utils = { path = "../test-utils" }
 # The M5 PR 8 differential suite's doors (failure injection + traces)
 # are test-only surface in topo; dev-dependencies are the only place
 # the feature turns on.
 topo = { path = "../topo", features = ["sweep-testing"] }
-# M5 PR 11: the corpus curved documents gain tessellation columns.
-mesh = { path = "../mesh" }
+# M10-9's staged-ceiling evidence needs geom-core's test-only funnel
+# dial (`identity-pass-testing`), which lets one named identity
+# residual's indeterminate answer pass so a ceiling can be measured "as
+# if" it were discharged. Dev-dependencies are the only place it turns
+# on; the ordinary `geom-core` edge above does not carry it.
+geom-core = { path = "../geom-core", features = ["identity-pass-testing"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

@@ -4,7 +4,7 @@
 //!
 //! This crate sits between the evaluators (`geom`) and the arena
 //! store (`topo`): it defines **what an
-//! edge's geometry is** ([`EdgeGeometry`] — a description, never a bare
+//! edge's geometry is** ([`EdgeDescription`] — a description, never a bare
 //! curve), **how a concrete cache earns its place** ([`EdgeCurve`] —
 //! certification against the description, D4 ¶2; an uncertified carrier
 //! is unrepresentable), and the two geometric classifiers M2's
@@ -54,13 +54,14 @@
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
 pub mod certify;
+pub mod description;
 pub mod dihedral;
-pub mod edge_geometry;
 pub mod edge_nurbs;
 pub mod enters;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
+pub mod mapped;
 pub mod newell;
 pub mod nurbs_iso;
 pub mod offset;
@@ -74,12 +75,17 @@ pub mod ssi;
 pub mod tangent;
 
 pub use certify::{
-    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, edge_extent,
-    sample_param,
+    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, NurbsLane,
+    edge_extent, sample_param,
 };
-pub use dihedral::{DihedralClass, classify_dihedral};
-pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
-pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
+pub use description::{
+    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
+};
+pub use dihedral::{
+    DihedralClass, MaterialPairing, MaterialWedge, SecondOrder, classify_dihedral,
+    classify_material_pairing, folded_lever_arm, material_kappa_rel, tangent_second_order,
+};
+pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
@@ -88,26 +94,36 @@ pub use implicit::{
     implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature, implicit_residual,
 };
 pub use intersect::{
-    EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection,
-    RadiusEvidence, Rung, SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
-    plane_cylinder_section, plane_sphere_section, route,
+    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
+    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
+    Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
+    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
+    plane_sphere_section, plane_torus_section, route, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
+pub use mapped::{MappedCurve, SketchSegment};
 pub use newell::{NewellError, newell_plane};
-pub use nurbs_iso::{IsoRowError, boundary_iso_u, boundary_iso_v, iso_boundary_row};
-pub use offset::{ConeOffset, OffsetError, offset_surface};
+pub use nurbs_iso::{
+    IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row,
+};
+pub use offset::{ConeOffset, Nappe, OffsetError, offset_surface};
 pub use offset_fit::{
-    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, certify_offset,
-    fit_offset, recertify_approx,
+    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, approx_offset_surface_at,
+    certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,
+    fit_offset_at, recertify_approx, recertify_approx_at,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError,
-    PcurveCheck, PcurveFittedLane, chart_pcurve,
+    ChartStretchInf, ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate,
+    PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve, chart_stretch_inf,
+    chart_stretch_sup,
 };
-pub use props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+pub use props::{
+    FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
+    require_one_chart_branch,
+};
 pub use ssi::{
     Exhaustiveness, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode, certify_rung3, cylinder_sphere_ssi,

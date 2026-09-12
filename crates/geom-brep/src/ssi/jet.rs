@@ -143,14 +143,16 @@ impl Poly3 {
     }
 
     /// Truncated `sqrt`, from `Q² = P` solved coefficient by
-    /// coefficient in ascending order. **Poison for `c₀ ≤ 0`**: the
-    /// square root of a series whose constant term is not strictly
-    /// positive is not analytic at `s = 0`, and a marcher step that
-    /// silently substituted something there would be exactly the kind
-    /// of lie the untrusted-stepper discipline exists to prevent.
+    /// coefficient in ascending order. **Poison unless `c₀` is
+    /// positive finite**: the square root of a series whose constant
+    /// term is not strictly positive is not analytic at `s = 0`, and
+    /// an infinite one is no better — admitted, it answers
+    /// `[∞, 0, 0, 0]`, a flat-looking series — while a marcher step
+    /// that silently substituted something there would be exactly the
+    /// kind of lie the untrusted-stepper discipline exists to prevent.
     fn sqrt(self) -> Self {
         let c = self.c;
-        if c[0].is_nan() || c[0] <= 0.0 {
+        if !c[0].is_finite() || c[0] <= 0.0 {
             return Self { c: [f64::NAN; 4] };
         }
         let q0 = c[0].sqrt();
@@ -452,6 +454,22 @@ mod tests {
         assert!(p.value().is_nan());
         let n = Poly3::new(-1.0, 1.0, 0.0, 0.0).sqrt();
         assert!(n.value().is_nan());
+    }
+
+    /// An INFINITE constant term is no more analytic at `s = 0` than a
+    /// non-positive one, and admitting it does not even fail loudly
+    /// downstream: `√∞ = ∞` and every higher coefficient divides by
+    /// it to exactly `0`, so the caller receives `[∞, 0, 0, 0]` — a
+    /// well-formed-looking series claiming the residual is flat.
+    /// Poison, like the rest of the non-positive-finite class.
+    #[test]
+    fn sqrt_of_an_infinite_constant_term_poisons_not_a_flat_series() {
+        let j = Poly3::new(f64::INFINITY, 1.0, 2.0, 3.0).sqrt();
+        assert!(
+            j.value().is_nan() && j.d1().is_nan() && j.d3().is_nan(),
+            "an infinite constant term must poison, got {:?}",
+            j.c
+        );
     }
 
     #[test]

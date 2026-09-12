@@ -21,16 +21,22 @@
 //! 3. **the placement layer is now BEHIND the geometry** — dm1's
 //!    remaining refusal is reachable only once every instance's frame
 //!    was read and applied. Since #327 (stage-1 CURVE recognition)
-//!    that refusal has moved AGAIN, and past the whole D7 ladder: the
+//!    that refusal has moved AGAIN, and into the D7 ladder: the
 //!    file's rational-quadratic rim carriers are recognized as circles
-//!    and promoted, every edge of every instance adopts, every pcurve
-//!    mints and certifies, and the first thing that refuses is the
-//!    SHARED AT-REST GATE — `VolumeUncomputable` /
-//!    `QuadratureBudget` on the rational cylinder wall, i.e. the
-//!    banked rational-patch-flux lane this crate's own docs name
-//!    ("their rational walls have no volume quadrature yet"). This
-//!    probe pins where the frontier actually is, so a claim that it
-//!    moved has to be executable too.
+//!    and promoted, every instance's frame is read and applied, and
+//!    the first thing that refuses is the ladder itself, on edge
+//!    `#389` — a two-point degree-1 polyline offered ZERO candidates
+//!    (`work/exch/step-import-degree-one-line-promotion.md`).
+//!
+//!    It refused at the SHARED AT-REST GATE until tier 3's check 7
+//!    began certifying a SIGN. That gate was chasing a PRECISION: the
+//!    rational cylinder wall's enclosure is inside a factor of two of
+//!    the ambient `1024·ε` target when the fixed round budget runs
+//!    out, and at a coarse band lands just under it and escalates.
+//!    Neither is a statement about the body's orientation, which is
+//!    what check 7 reads, and dm1's enclosure excludes zero at round 0
+//!    at every band. This probe pins where the frontier actually is,
+//!    so a claim that it moved has to be executable too.
 //!
 //! Per-instance placement CORRECTNESS (each frame on its own component
 //! and no other) is pinned where a file that IMPORTS can carry it:
@@ -45,8 +51,8 @@
 //! entity-naming check moved into the `TierInvalid` arm below), and
 //! `review_probes_m7_3`'s V6 first-refusal-site probe is retired — it
 //! asserted a strict subset of this row. `tier_gate.rs` still sweeps
-//! the file at three ε_in values and pins BOTH ε cells' message
-//! fragments there.
+//! the file at three ε_in values and pins all three cells' message
+//! fragments there; they are one fragment now, the ladder's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
@@ -81,44 +87,54 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
     assert_eq!(transforms, 7, "one per occurrence");
     assert_eq!(breps, 3, "three component representations, seven instances");
 
-    // (1) and (3): the disposition — a two-cell claim, because the
-    // ambient band selects which frontier is first (see the coarse
-    // arm below).
-    let coarse = geom_core::Tol::witness().get().eps > 1e-9;
+    // (1) and (3): the disposition — ONE cell at every ambient band
+    // since check 7 stopped selecting a frontier by precision. The
+    // at-rest arm below is kept for the claim inside it, not because a
+    // band reaches it.
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Err(StepImportError::Structure { id, what }) => {
             panic!("the assembly layer must not refuse dm1 any more: #{id} {what}")
         }
-        // **The coarse-band cell** (#327's ε sweep, third outcome).
-        // Retiring #685 let the ladder reach edges it had never
-        // reached at any band, and at a COARSE ambient ε the first of
-        // them — `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline
-        // that stays NURBS — is offered ZERO candidates. That is a
-        // GAP, not a refusal, and it is PRE-EXISTING: nothing #327
-        // touches can reach a degree-1 open carrier (the circle
+        // **The ladder gap, at every band.** Retiring #685 let the
+        // ladder reach edges it had never reached at any band, and the
+        // first of them — `#389`, a two-point `QUASI_UNIFORM_CURVE`
+        // polyline that stays NURBS — is offered ZERO candidates. That
+        // is a GAP, not a refusal, and it is PRE-EXISTING: nothing
+        // #327 touches can reach a degree-1 open carrier (the circle
         // estimator refuses an open curve before it estimates
-        // anything), and the edge was simply masked behind #685 at
-        // every band until now. Named, pinned, and filed rather than
-        // averaged away — the cell says which outcome belongs to
-        // which band, which is the whole point of sweeping.
+        // anything). It is filed, as
+        // `work/exch/step-import-degree-one-line-promotion.md`, which
+        // names this very edge.
+        //
+        // It used to be the COARSE band's cell alone, because at a
+        // fine band the at-rest gate refused this file first, on
+        // quadrature budget, and that refusal masked the gap. Tier 3's
+        // check 7 certifies a SIGN now, so the gate no longer refuses
+        // a valid solid for missing the REPORTING target, and the mask
+        // is gone: the gap is what dm1 meets at every band. Nothing
+        // about the gap moved — what moved is that the thing in front
+        // of it stopped firing.
         Err(StepImportError::Adoption { id, attempts }) => {
-            assert!(
-                coarse,
-                "at a fine ambient band the D7 ladder must not refuse dm1 at all \
-                 (#327 retired edge #685): #{id}, {} candidate(s)",
-                attempts.len()
-            );
-            assert_eq!(id, 389, "the coarse-band cell's edge");
+            assert_eq!(id, 389, "the ladder gap's edge");
             assert!(
                 attempts.is_empty(),
                 "and it is the polyline GAP, not a refusal with candidates"
             );
         }
+        // **The gate's own cell, which NO band reaches now.** It was a
+        // BUDGET refusal at the fine bands and an ESCALATION at the
+        // coarse one — the enclosure landing about 1% under the loose
+        // `1024·ε` target, inside `props_quad_converged`'s ambiguity
+        // band, where the predicate declines to call it either way
+        // (D4, escalate-never-guess). Both were the gate chasing a
+        // PRECISION; check 7 wants a SIGN, this file's enclosure
+        // excludes zero at round 0, and the gate is finished before
+        // either is reached.
+        //
+        // Kept as an arm rather than deleted, and the assertion inside
+        // it is what makes it a claim: a budget refusal returning here
+        // is check 7 consuming a precision again.
         Err(StepImportError::TierInvalid { solid, errors }) => {
-            assert!(
-                !coarse,
-                "the coarse band's cell is the #389 ladder gap, not the gate: {errors:?}"
-            );
             // Adopted from `wild::wild_refusals_are_typed_and_name_their_class`,
             // which no longer imports this file. INVARIANT: every
             // typed refusal points at something in the file a reader
@@ -131,8 +147,9 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
             );
             let shown = StepImportError::TierInvalid { solid, errors }.to_string();
             assert!(
-                shown.contains("the certified quadrature enclosure stalled at"),
-                "the frontier is now the rational-patch-flux lane, not the ladder: {shown}"
+                !shown.contains("the certified quadrature enclosure cannot reach the"),
+                "a BUDGET refusal at the at-rest gate is check 7 back to consuming a \
+                 precision, which is what the sign level removed: {shown}"
             );
         }
         other => panic!("dm1's refusal has moved out of the at-rest gate; got {other:?}"),

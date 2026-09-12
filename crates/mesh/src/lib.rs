@@ -29,8 +29,11 @@
 //! plane cuts the sphere in its circumcircle, exact); cone —
 //! `cos α · ρ_maxᵀ · (1 − cos(Δu/2))` (perpendicular distance to the
 //! generator ray at each point's azimuth; triangle-local max radius, so
-//! apex fans certify tightly); torus — `(3/4)(R + 2r)·L_uv²` (linear
-//! interpolation against the closed-form Hessian bound `R + 2r`);
+//! apex fans certify tightly); torus — `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8`
+//! over the triangle's UV extents (linear interpolation against the
+//! closed-form second-partial sups `A = R + r·max cos φ`,
+//! `B = r·max |sin φ|`, `C = r` over the triangle's own φ range — the
+//! doubly-curved bound `sizing::torus_grid_steps` derives and inverts);
 //! described NURBS (M7, the trimmed-NURBS lane) — the
 //! same interpolation derivation against a **hull-derived** Hessian
 //! bound (second-derivative control nets by knot differencing, sup by
@@ -70,28 +73,36 @@
 //! returned as `Ok` unless the caller runs it — a qualifier this crate
 //! now carries at every site that names `check_mesh` as a backstop.
 //!
-//! **Invariant (ratified via PR #32): per-face tessellation is a pure
-//! function of (face surface, loops, per-edge chord points, δ).** This
-//! is the memo-key contract future incremental re-tessellation
-//! consumes: a face whose surface, loops, and boundary chord points are
-//! unchanged re-tessellates identically and its patch can be reused
-//! across rebuilds. The chord points themselves are a pure function of
+//! **Invariant (ratified via PR #32, and the memo-key contract): per-face
+//! tessellation is a pure function of (face surface, loops — each
+//! edge's carrier, interval, direction, seam flag and lineage identity
+//! — per-edge chord points and parameters, the stored pcurves, δ, and
+//! the ambient ε and k).** A face whose inputs are unchanged
+//! re-tessellates identically and its patch can be reused across
+//! rebuilds. [`fn@tessellate_with`] is that consumer: [`memo::PatchMemo`]
+//! keys each face by the bits its lane reads (stated per lane in
+//! [`memo`]'s docs) and places a stored patch through the same fold the
+//! lane's fresh one takes, so its mesh is byte-identical to
+//! [`fn@tessellate`]'s. The chord points themselves are a pure function of
 //! (edge carrier + interval, endpoint vertex points, the adjacent
 //! faces' surface parameters, δ) — adjacent surfaces enter only through
-//! the torus and trimmed-NURBS boundary-step requirements, documented
-//! on [`chords`].
+//! the torus and trimmed-NURBS boundary-step requirements, which reach
+//! a neighbour's surface through one named door in [`chords`]. That
+//! module states what does and does not hold the door shut; nothing
+//! here adds to it.
 //!
 //! # Structure kept, structure dropped
 //!
 //! - **Per-face patch separability** (ratified): [`Mesh`] keeps one
 //!   [`FacePatch`] per face, individually addressable; nothing flattens
-//!   the per-face structure away. No keying machinery at M2.
+//!   the per-face structure away. The only keying machinery is
+//!   [`memo`]'s, beside the door that takes it.
 //! - **Entity back-references** (ratified, incl. the PR #32 Vertex-key
 //!   addition): every patch carries its source `FaceKey`; every
 //!   boundary polyline its source `EdgeKey` (each segment is a
 //!   consecutive point pair of that polyline) and its endpoint
 //!   `VertexKey`s. STL export (PR 7) simply drops them.
-//! - **No appearance artifact** (final, Evan 2026-07-20): display
+//! - **No appearance artifact** (final, Ev 2026-07-20): display
 //!   attributes live in the document layer from M4, keyed by stable
 //!   names — nothing attaches anywhere at M2 (DESIGN.md Band 1).
 //! - **No face merging** (ratified): coplanar/cosurface neighbors stay
@@ -145,15 +156,28 @@
 //! corner points; `curved::pole_columns` is what guarantees that
 //! (issue #678 — at `nu == 2` a single equidistant column gives both
 //! corners a fan over it and the identified edge is used four times).
-//! The `debug_assert` that re-derives the conclusion over each pole
-//! patch is `#[cfg(debug_assertions)]`, which cargo's release default
-//! compiles out — so whether a release build carries more than the
-//! floor is a manifest setting, and the root `Cargo.toml` currently
-//! sets `debug-assertions = true` for `[profile.release]` (a
-//! pre-publish posture, on `DESIGN.md`'s *Before publishing* list).
+//! The `debug_assert` that re-derives the conclusion runs over each
+//! patch whose walk IDENTIFIES a vertex — a pole corner or a seam
+//! double-traversal, one set rather than two cases
+//! (`curved::identified_ids`, issue 897) — and a second re-derivation
+//! at the end of `tessellate` counts each chord segment's uses across
+//! the whole mesh, which is the CROSS-FACE half no per-patch census
+//! can see. **What that made mechanical is the FULL-2π SEAM half of
+//! the pole-fan argument**: before issue 897 the seam was held off by
+//! an arithmetic claim in `pole_columns`' prose (a `2π` span sizes to
+//! `nu >= 8`, so the two seam entries never share one interior column)
+//! and by no check at all, while the pole half was re-derived on every
+//! patch. The seam half is now re-derived on the same footing.
+//! Both censuses are `#[cfg(debug_assertions)]`, which cargo's release
+//! default would drop — so whether a release build carries more than
+//! the floor is a manifest setting, and the root `Cargo.toml`
+//! currently sets `debug-assertions = true` for `[profile.release]` (a
+//! pre-publish posture, on `DESIGN.md`'s *Before publishing* list), so
+//! today both DO run in release, at a measured +13% to +15% of
+//! `tessellate` on the corpus's largest mesh.
 //! `curved`'s module header states what runs where, and why the
 //! `debug_assert` — not a typed refusal — is the settled mechanism for
-//! that state (`SMELL-SCAN-2026-08.md` S65, ruled row 5 in #884).
+//! that state (a D2 addendum row-5 state, ruled in #884).
 //!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole
@@ -235,14 +259,46 @@ pub mod budget;
 pub mod cert;
 mod chords;
 mod curved;
+// The per-face patch memo behind `tessellate_with`: its key, stated
+// per lane, and its eviction rule. Public for the memo type and the
+// digests a caller keeps alive; the key itself is crate-private.
+pub mod memo;
 mod nurbs_cert;
+// `nurbs_cert`'s randomized sweeps, in a module of their own so the per-file
+// test gate can skip them without skipping that file's deterministic pins.
+#[cfg(test)]
+mod nurbs_cert_fuzz;
 mod planar;
-pub mod sizing;
+// The sizing vocabulary is this crate's own: nothing in the module is
+// `pub`, and its shared names are `pub(crate)`. The module itself is
+// `mod` rather than `pub mod` so that `dead_code` reports one the crate
+// stops using — a `pub` item inside a `pub mod` is exempted on the
+// assumption of an external caller, which `[workspace.lints]`'s
+// `unreachable_pub` paragraph records as false for this workspace.
+// `--document-private-items` keeps the module's prose in the rendered
+// docs.
+mod sizing;
 mod tessellate;
 mod trimmed;
 pub mod types;
 pub mod validate;
 pub mod walk;
 
-pub use tessellate::tessellate;
+/// The Euler-door witnesses the iso-rectangle shape door is measured
+/// on — one definition, shared with the integration suite through
+/// `tests/common/witness_bodies.rs` (its header says why it uses
+/// nothing from this crate). Test-only: in-crate rows reach the walk
+/// itself on these bodies, the suite reaches the public door. The
+/// trade: a `tests/` file mounted into `src` is unusual and a reader
+/// finds it only through this line; the alternatives were a second
+/// copy of the builders (the duplication a style lane raises) or a
+/// dev-only feature exposing the walk to `tests/` (public surface for
+/// a test's convenience). The mount costs one path attribute.
+#[cfg(test)]
+#[path = "../tests/common/witness_bodies.rs"]
+#[allow(dead_code, unreachable_pub)]
+mod witness_bodies;
+
+pub use memo::{PatchDigest, PatchKeys, PatchMemo};
+pub use tessellate::{Tessellation, tessellate, tessellate_with};
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};

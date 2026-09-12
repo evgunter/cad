@@ -23,7 +23,7 @@
 //!   the native `KERNEL_*` sidecars).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{SOLID_FIXTURES, fixture};
 use geom_core::Tol;
@@ -368,7 +368,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 /// wall's boundary column (bits differing from the arc wall's own
 /// column by the arc endpoint's rounding) has no bitwise `IsoCurve`
 /// match. The file's carrier is adopted as EVIDENCE and certified
-/// against both operands instead (declare-and-check, Evan's #264
+/// against both operands instead (declare-and-check, Ev's #264
 /// ruling) — a certificate, not a widened bitwise match.
 ///
 /// The RATIONAL wall completes the picture the integral twin starts:
@@ -479,9 +479,14 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         }
         // The FIXED SCHEDULE's honest frontier (M8-3, D9): where the
         // seam certifies but the rational wall's flux cannot reach
-        // `1024·ε`, the shared at-rest gate refuses TYPED with the
-        // measured width. That is a DIFFERENT refusal from the retired
-        // bank — the lane ran, and said how far it got.
+        // `1024·ε`, a caller wanting the NUMBER is refused TYPED with
+        // the measured width. That is a DIFFERENT refusal from the
+        // retired bank — the lane ran, and said how far it got.
+        //
+        // Tier 3's own check 7 no longer makes that refusal (it reads
+        // a SIGN), so a body reaching this arm is one whose aggregate
+        // tier-3′ gate asked for the number, or one whose sign was
+        // undecided when the schedule ran out.
         Err(refusal @ StepImportError::TierInvalid { .. }) => {
             let shown = format!("{refusal:?}");
             assert!(
@@ -589,7 +594,7 @@ fn plane_nurbs_seams(
                 return None;
             };
             let (&s1, &s2) = match curve.description() {
-                geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => (s1, s2),
+                geom_brep::EdgeDescription::Intersection { s1, s2, .. } => (s1, s2),
                 _ => return None,
             };
             let pair = plane(s1)

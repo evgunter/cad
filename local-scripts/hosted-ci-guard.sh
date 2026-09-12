@@ -4,7 +4,10 @@
 #
 # Deliberately modelled on demos/hosted-render-guard.sh, which solved the
 # same problem for renders. Read that file for the reasoning; the three
-# design choices are reproduced here because they are the point:
+# design choices are reproduced here because they are the point. What does
+# NOT carry over is its second accepted sentence: renders have two
+# acceptors and hosted CI is one of them, whereas hosted CI never calls
+# these scripts at all, so one sentence here has one audience.
 #
 # WHY A GUARD AND NOT A README LINE. The full matrix is the heaviest thing
 # this repo asks of a developer box — it self-acquires ALL machine build

@@ -103,10 +103,7 @@ fn author_die() -> Die {
         &mut log,
         TEdit::SetDocParam {
             name: ParamName::new("pip_depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.002,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.002),
         },
     );
     // Cube: profile wrap + extrude.
@@ -239,10 +236,7 @@ fn die_authors_replays_and_diffs() {
         .apply(
             &TEdit::SetDocParam {
                 name: ParamName::new("pip_depth"),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value: 0.003,
-                },
+                value: DocParam::continuous(Dimension::Length, 0.003),
             },
             Tol::witness(),
         )

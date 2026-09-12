@@ -67,7 +67,13 @@ def placeholder(ax, name, renderdir):
 
 
 def note_stamp(ax, name, renderdir):
-    """Neutral stamp for a cell that is blank ON PURPOSE.
+    """Neutral stamp for a cell that is MISSING SOMETHING on purpose.
+
+    Two shapes of missing, and the note names which: a cell that is
+    blank because every body it would draw was skipped, and a cell that
+    drew a picture with a body LEFT OUT of it. The second is the more
+    deceiving — it looks finished — so it gets the stamp too, over the
+    picture.
 
     Deliberately NOT the failure placeholder: no box, no red, no
     "FAILED". This cell is a gate the tour declared and pinned, not

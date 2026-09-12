@@ -252,6 +252,14 @@ mod live {
     struct State {
         mode: Mode,
         faces: Vec<FaceMeasure>,
+        /// Certified cell tables assembled since arming — the count
+        /// `crates/mesh/tests/cert10r1_assembly_accounting.rs` pins at
+        /// one per described NURBS face. It is a COUNT, not a
+        /// measurement of one face, so it does not belong in
+        /// `FaceMeasure`: what it reports is how many times the lane
+        /// paid for an assembly, which is a property of the pass
+        /// structure rather than of any face.
+        assemblies: usize,
     }
 
     /// Arms the meter on THIS thread, discarding anything unread.
@@ -260,6 +268,7 @@ mod live {
             *s.borrow_mut() = Some(State {
                 mode,
                 faces: Vec::new(),
+                assemblies: 0,
             });
         });
     }
@@ -287,6 +296,22 @@ mod live {
         STATE.with(|s| s.borrow_mut().take().map(|st| st.faces).unwrap_or_default())
     }
 
+    /// One certified cell table assembled. Called from the single
+    /// door (`nurbs_cert::nurbs_cell_grid`), so the count is the
+    /// lane's assembly count.
+    pub(crate) fn note_assembly() {
+        STATE.with(|s| {
+            if let Some(st) = s.borrow_mut().as_mut() {
+                st.assemblies += 1;
+            }
+        });
+    }
+
+    /// Assemblies counted since arming (does not disarm).
+    pub fn assemblies() -> usize {
+        STATE.with(|s| s.borrow().as_ref().map_or(0, |st| st.assemblies))
+    }
+
     /// The lane's one hand-off: this face's measurements, once,
     /// whichever way the face ended.
     pub(crate) fn note_face(m: FaceMeasure) {
@@ -301,11 +326,10 @@ mod live {
 /// **The disarmed half — compiled when the `budget` feature is off**,
 /// which is every shipped build and every default `cargo test`.
 ///
-/// [`armed`][inert::armed] is a constant `false` and
-/// [`deviation_samples`][inert::deviation_samples] a constant `None`,
-/// so the optimizer deletes the recording branches in `crate::trimmed`
-/// outright — the meter costs nothing, structurally, rather than by
-/// argument. [`note_face`][inert::note_face] keeps its signature so the
+/// [`armed`] is a constant `false` and [`deviation_samples`] a constant
+/// `None`, so the optimizer deletes the recording branches in
+/// `crate::trimmed` outright — the meter costs nothing, structurally,
+/// rather than by argument. [`note_face`] keeps its signature so the
 /// call site is shared with the live half.
 #[cfg(not(feature = "budget"))]
 mod inert {
@@ -334,6 +358,14 @@ mod inert {
     /// [`armed`]); it exists so the lane has one shared call site
     /// instead of a `#[cfg]`.
     pub(crate) fn note_face(_m: FaceMeasure) {}
+
+    /// No-op, per [`note_face`].
+    pub(crate) fn note_assembly() {}
+
+    /// Always zero: nothing counted in this build.
+    pub const fn assemblies() -> usize {
+        0
+    }
 }
 
 #[cfg(not(feature = "budget"))]

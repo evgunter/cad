@@ -22,7 +22,7 @@
 #     below.) The session-3 70-minute matrix was partly CPU
 #     contention from concurrent agent builds (identical rows
 #     measured 3-4x faster uncontended) and partly since-fixed
-#     laptop settings (Evan, 2026-08-06) — timing numbers from
+#     laptop settings (Ev, 2026-08-06) — timing numbers from
 #     before that fix, including the ~3.7 min uncontended warm
 #     matrix, are stale upper bounds.
 #   * WARM: the runner keeps one persistent target/ at a fixed path.
@@ -34,7 +34,10 @@
 # (or preview-merge) as usual, and gate the resulting sha/ref here.
 #
 # CACHING GUIDANCE FOR AGENTS' OWN WORKTREES (not this runner):
-#   * sccache v0.16.0 is at ~/.local/bin/sccache. Export
+#   * sccache v0.16.0 is at ~/.local/bin/sccache (the version literal is
+#     ci.yml's SCCACHE_VERSION restated, and check-ci-mirror-parity.py's
+#     pin-literal claim reds if this line stops naming the pinned one).
+#     Export
 #     RUSTC_WRAPPER=~/.local/bin/sccache from the worktree's FIRST
 #     build onward — flipping the wrapper mid-life re-fingerprints
 #     everything. Cold worktree + warm sccache: ~8-9 min matrix.

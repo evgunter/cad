@@ -21,7 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Node, ProfileDoc, RecipeNodeId, RunStatus, evaluate, load, save,
@@ -43,8 +43,12 @@ const EPS_NEW: &str = "1e-4";
 /// bulge 2e-6 (sagitta 1e-6 on the unit chord) — a single
 /// `segment_straightness` margin between the two audit ε values.
 fn thin_profile_doc() -> ProfileDoc {
-    let (doc, _) = insert(
+    let (doc, plane) = insert(
         ProfileDoc::empty_derived("m4_pr6_eps_diff", Tol::witness()),
+        fixture::xy_frame(),
+    );
+    let (doc, _) = insert(
+        doc,
         Node::Profile({
             // v4: the thin bulge authors as an arc_to step with its
             // AUTHORED bulge (the program stores exactly the value the
@@ -58,7 +62,7 @@ fn thin_profile_doc() -> ProfileDoc {
                     Expr::literal(y, Dimension::Length).unwrap(),
                 ]
             };
-            let mut d = desc([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![]);
+            let mut d = desc(plane, vec![]);
             d.loops = vec![LoopProgram::Chain(vec![
                 ProgramStep::At(lpt(0.0, 0.0)),
                 ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 0.0))),
@@ -134,15 +138,16 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     );
 
     let flips = editor_core::diff_summaries(&old, &new);
-    // GOLDEN (update only on a ratified predicate-vocabulary or
-    // fixture change — RE-PINNED once at the #101 merge: declared
-    // tangency added validation probes, so carrier_line_circle and
-    // chord_side instance counts grew; the FLIPS are unchanged):
-    // exactly ONE differing node — the profile —
-    // both runs Ok. The ε re-classification reports as EXACTLY these
-    // net flips (the thin segment_straightness margin, twice decided
-    // per validation pass, plus the line_span probes the collapsed
-    // arc now answers at Zero), and the arc→straight branch change
+    // GOLDEN. A legitimate re-pin is a ratified change to what a log
+    // holds or to the predicate vocabulary or the fixture — never a
+    // number chased back into place — and it moves the populations,
+    // never which predicates flip. Exactly ONE differing node — the
+    // profile — both runs Ok. The populations are the profile node's
+    // WHOLE log, which under the pinned lift is its pre-pass's one f64
+    // validation. The ε re-classification reports as EXACTLY these net
+    // flips (the thin segment_straightness margin, twice decided per
+    // validation pass, plus the line_span probes the collapsed arc now
+    // answers at Zero), and the arc→straight branch change
     // reports its reshaped decision structure as loud DIVERGENCE
     // rows (arc-only predicates leaving, chord probes recounting) —
     // never absorbed, never guessed about (vdiff module docs).
@@ -151,9 +156,10 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
         1,
         "exactly one differing node: {flips:?}"
     );
+    // The profile is node 1: the frame it is drawn on goes in first.
     let delta = flips
         .nodes
-        .get(&RecipeNodeId(0))
+        .get(&RecipeNodeId(1))
         .expect("profile node delta");
     let expected = editor_core::SummaryDelta {
         old_status: RunStatus::Ok,
@@ -209,7 +215,7 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // The report surface: exactly the flipped predicates, in order.
     let report = flips.report();
     assert_eq!(report.len(), 2);
-    assert!(report.iter().all(|(node, _)| *node == RecipeNodeId(0)));
+    assert!(report.iter().all(|(node, _)| *node == RecipeNodeId(1)));
 
     // The no-edit control: a summary diffs empty against itself.
     assert!(editor_core::diff_summaries(&old, &old).is_empty());

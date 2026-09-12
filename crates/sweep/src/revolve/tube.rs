@@ -1,5 +1,5 @@
 //! **`tube_along_arc` — the world-coordinate tube/torus door** (M6-3
-//! Leg F; the Evan-ratified rider, #175 thread). A ring-torus body
+//! Leg F; the Ev-ratified rider, #175 thread). A ring-torus body
 //! from its INTENT parameters: spine centre/axis/reference direction,
 //! major radius, an arc window (or a full ring), and the tube's minor
 //! radius — **stored exactly**, with no profile→bulge→radius
@@ -262,7 +262,7 @@ impl std::error::Error for TubeError {}
 /// ring-torus convention (`R > r > 0`) refuses through the shared
 /// `axis_arc_clearance`/`axis_vertex_radius` decides as
 /// [`TubeError::Revolve`].
-pub fn tube_along_arc<T: Decide>(
+pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
     center: Point3<T>,
     axis: Vec3<T>,
     u_ref: Vec3<T>,
@@ -303,7 +303,7 @@ pub fn tube_along_arc<T: Decide>(
 // IS the door, and bundling any subset of it into a struct would hide
 // which numbers the body stores verbatim.
 #[allow(clippy::too_many_arguments)]
-pub fn tube_along_arc_hollow<T: Decide>(
+pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
     center: Point3<T>,
     axis: Vec3<T>,
     u_ref: Vec3<T>,
@@ -327,7 +327,7 @@ pub fn tube_along_arc_hollow<T: Decide>(
 
 /// Both doors' body (module docs). `wall` present ⇔ hollow.
 #[allow(clippy::too_many_arguments)]
-fn build<T: Decide>(
+fn build<T: Decide + geom_brep::PcurveFittedLane>(
     center: Point3<T>,
     axis: Vec3<T>,
     u_ref: Vec3<T>,

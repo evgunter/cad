@@ -5,10 +5,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod revolve_common;
+use crate::revolve_common;
 
 use geom::Surface;
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use profile::ProfileLoop;
 use profile::RawLoop;
@@ -53,11 +53,21 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
         let e = r.expect("no on-axis vertices");
         assert!(matches!(
             description(&t.body, e),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
-    // Meridians: cylinder walls carry Seam, plane walls keep the
-    // conventional MappedCurve (module-doc exception).
+    // Meridians: the cylinder walls' carry their chart's own seam,
+    // the plane walls' do not (module-doc exception — a plane chart is
+    // not periodic) and stay images the profile segment declared.
+    //
+    // **Re-expressed at PCURVE P-1b.** The (2, 2) split is unchanged
+    // and so is every fact it states; what changed is that the two
+    // classes it counted were collapsed into one conventional form, so
+    // a variant census would read (4, 0) and discriminate nothing. The
+    // distinction that survived is the one this row was always about:
+    // the seam obligation, and — the other half, now checked too —
+    // whether a profile entity DECLARED the locus (U2 Q3's authority
+    // record) or the kernel derived it.
     let RevolvedKind::Full {
         meridians,
         pi_walls,
@@ -73,15 +83,19 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     assert!(pi_meridians.iter().all(Option::is_none));
     assert!(pi_rims.iter().all(Option::is_none));
     let mut seams = 0;
-    let mut mapped = 0;
+    let mut declared = 0;
     for m in meridians {
-        match description(&t.body, m.expect("no omitted segments")) {
-            EdgeGeometry::Seam { .. } => seams += 1,
-            EdgeGeometry::MappedCurve(_) => mapped += 1,
-            other => panic!("unexpected meridian description {other:?}"),
+        let e = m.expect("no omitted segments");
+        let c = chart_image(&t.body, e);
+        match (c.seam, authority(&t.body, e).is_declared()) {
+            (true, false) => seams += 1,
+            (false, true) => declared += 1,
+            (seam, decl) => {
+                panic!("a meridian that is neither: seam = {seam}, declared = {decl}")
+            }
         }
     }
-    assert_eq!((seams, mapped), (2, 2));
+    assert_eq!((seams, declared), (2, 2));
     // Orientation oracle: positive material volume (exact value
     // 2π·R̄·A = 2π·1.5·1 ≈ 9.42; chordal sampling only bounds it
     // loosely — the SIGN is the oracle).
@@ -114,23 +128,175 @@ fn donut_two_arc_profile_shares_one_torus() {
         t.body.get_surface(k0),
         Some(Surface::Torus { .. })
     ));
-    // Full-period rims stay conventional (same surface key each side).
+    // Full-period rims stay conventional (same surface key each side,
+    // so the surfaces under-determine the locus): images in that one
+    // torus chart, declared by the profile's revolved vertex — never
+    // the chart's seam, which the two meridians below are.
     for r in &t.rims[0] {
-        assert!(matches!(
-            description(&t.body, r.unwrap()),
-            EdgeGeometry::MappedCurve(_)
-        ));
+        assert_declared_image_in(&t.body, r.unwrap(), k0);
     }
-    // Both meridians are the torus's seam.
+    // Both meridians ARE the torus's seam: derived, seam obligation
+    // carried. (Pre-U2 this pair of loops read `MappedCurve` against
+    // `IsoCurve`; the taxonomy collapse merged those names, and the
+    // seam flag plus the authority record are what the row was
+    // discriminating with them.)
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full revolve");
     };
     let meridians = &meridians[0];
     for m in meridians {
-        assert!(matches!(
-            description(&t.body, m.unwrap()),
-            EdgeGeometry::Seam { .. }
-        ));
+        assert_seam_of(&t.body, m.unwrap(), k0);
     }
-    assert!(signed_volume(&t.body) > 0.0);
+    // Orientation oracle: per-face lift points. Both faces' boundaries
+    // are the SAME pair of full-period rims (y = 0.5) plus the two
+    // halves of the u = 0 seam meridian, so a fan from a boundary
+    // vertex spans no volume at all — the two halves' fans are mirror
+    // images and cancel identically, and [`signed_volume`] returns a
+    // structural zero on this body rather than a measurement. Lifting
+    // the two halves apart gives the oracle something to measure.
+    //
+    // WHICH half is which is load-bearing — swap the two lifts and the
+    // sign flips — so it is asserted here rather than asserted in
+    // prose: wall 0 is the LOWER half, wall 1 the upper, and a future
+    // change to revolve's face order fails on that fact with its own
+    // name on it instead of on a mysterious negative volume.
+    for (n, (fk, want)) in [
+        (t.walls[0][0].unwrap(), (0.0, 0.5)),
+        (t.walls[0][1].unwrap(), (0.5, 1.0)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let pts = revolve_common::loop_probe_points(&t.body, t.body.get_face(fk).unwrap().outer);
+        let lo = pts.iter().map(|q| q.y).fold(f64::INFINITY, f64::min);
+        let hi = pts.iter().map(|q| q.y).fold(f64::NEG_INFINITY, f64::max);
+        assert!(
+            (lo - want.0).abs() < 1e-12 && (hi - want.1).abs() < 1e-12,
+            "wall {n} probes span y ∈ [{lo}, {hi}], expected [{}, {}] — the \
+             lift points below are chosen for that half and are now on the \
+             wrong face",
+            want.0,
+            want.1
+        );
+    }
+    let v = signed_volume_lifted(
+        &t.body,
+        &[
+            (
+                t.walls[0][0].unwrap(),
+                geom_core::Point3::new(0.0, 0.0, 1.5),
+            ),
+            (
+                t.walls[0][1].unwrap(),
+                geom_core::Point3::new(0.0, 1.0, 1.5),
+            ),
+        ],
+    );
+    assert!(v > 0.0, "donut volume {v}");
+    // The oracle's honest contract, checked rather than described: one
+    // face's fan is `(q − o)·A_L` — linear in the lift — so the total
+    // depends on the lift DIFFERENCE alone. Translating both lifts
+    // together must not move it, and these two sit far off the surface,
+    // which is why "the lift must be an interior surface point" was an
+    // overclaim. It also means agreement between two lift pairs is
+    // arithmetic and not evidence that the oracle is well conditioned.
+    let shifted = signed_volume_lifted(
+        &t.body,
+        &[
+            (
+                t.walls[0][0].unwrap(),
+                geom_core::Point3::new(7.0, -3.0, 12.5),
+            ),
+            (
+                t.walls[0][1].unwrap(),
+                geom_core::Point3::new(7.0, -2.0, 12.5),
+            ),
+        ],
+    );
+    assert!(
+        (shifted - v).abs() < 1e-12,
+        "the lifts translated together by (7, -3, 11) moved the oracle from \
+         {v} to {shifted}, so it is not linear in the lift after all"
+    );
+}
+
+/// **M10-9: THE REVOLVE'S LATITUDE CARRIERS STATE THEIR RIM IDENTITY**,
+/// and this row is what keeps their two call sites from being code no
+/// run exercises.
+///
+/// `revolve::surfaces::revolved_strut_spec` and `revolve::full`'s band-2
+/// rim spec both mint a `Curve3::Circle` from a sketch point and the
+/// foot of its perpendicular to the axis, and both now register
+/// `‖q − center‖ = radius` through `swept::register_rim_identity` — A1's
+/// "the unit of scope is the CONSTRUCTOR" applied to the second
+/// constructor that builds the same circle under the same guarantee.
+/// RIM ONLY: neither builder is handed the far endpoint, so the span
+/// identity has nothing to be stated about
+/// (`work/m10/revolve-carriers-state-only-the-rim`).
+///
+/// **The profile has to be PARAMETRIC for this to be readable.** On a
+/// wholly literal washer every value is a constant, the tier's constant
+/// fold reaches the rim residual on its own, and the decision lands in
+/// `symbolic_zero` — the door is asked nothing, because `registered` is
+/// attributed by NECESSITY. Here the inner radius is a parameter over a
+/// narrow box, so the residual is a genuine identity IN the parameters
+/// and only the registration answers it.
+#[cfg(feature = "interval")]
+#[test]
+fn m10_9_the_revolve_carriers_state_their_rim_identity() {
+    use geom_core::sym::with_session_rules;
+    use geom_core::{Interval, ParamSymbol, Point2, Real, Sym, SymBudget, SymRules, Vec2};
+    use profile::{Profile, SketchPlane};
+    use sweep::RevolveAxis;
+
+    type S = Sym<Interval>;
+
+    let budget = SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    };
+    let run = |rules: SymRules| {
+        with_session_rules(budget, rules, || {
+            let lit = |v: f64| S::from_f64(v);
+            let eps = Tol::witness().eps();
+            let r0: S = Sym::param(
+                ParamSymbol::of("r0"),
+                Interval::from_bounds(1.0 - eps / 64.0, 1.0 + eps / 64.0),
+            );
+            let (zero, one, two) = (lit(0.0), lit(1.0), lit(2.0));
+            let loop_ = ProfileLoop::polygon([
+                Point2::new(r0, zero),
+                Point2::new(two, zero),
+                Point2::new(two, one),
+                Point2::new(r0, one),
+            ]);
+            let vp = Profile::new(SketchPlane::xy(), vec![loop_])
+                .validate(Tol::witness())
+                .expect("the washer validates over its box");
+            let axis = RevolveAxis {
+                origin: Point2::new(zero, zero),
+                dir: Vec2::new(zero, one),
+            };
+            revolve(&vp, axis, Revolution::Full, Tol::witness()).is_ok()
+        })
+    };
+    let (built_shut, shut) = run(SymRules::shipped_without_the_door());
+    let (built_open, open) = run(SymRules::shipped());
+    println!("   revolve door shut {shut:?}\n   revolve door open {open:?}");
+    assert!(built_shut && built_open, "the washer revolves both ways");
+    assert_eq!(shut.registered, 0, "M10-8's tier registers nothing");
+    assert!(
+        open.registered > 0,
+        "the revolve's latitude carriers state their rim identity and it discharges: {open:?}"
+    );
+    assert_eq!(
+        (open.symbolic_zero, open.sign_gated),
+        (shut.symbolic_zero, shut.sign_gated),
+        "and out of `numeric` only: {open:?} vs {shut:?}"
+    );
+    assert_eq!(
+        (open.registrations_refused, open.registrations_contradicted),
+        (0, 0),
+        "no revolve registration is refused or contradicted here: {open:?}"
+    );
 }

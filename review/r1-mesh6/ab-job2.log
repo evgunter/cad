@@ -1,0 +1,5 @@
+with-build-slot: waiting for a slot (0s; holding: slot-1: pid 7169 since 04:12:35 (@1788322355): shared: cargo test --release -p mesh --test all issue897_guard_cost_report -- --nocapture [held 0m2s]; slot-2: pid 23880 since 20:06:11 (@1788293171): exclusive: cargo fmt --all -- --check [held 486m26s] [record is stale (pid 23880 dead); this shared request never polls slot-2 at width 1]; express: pid 9621 since 19:43:56 (@1788291836): express(580s): cargo test -p mesh --lib sizing [held 508m41s] [record is stale (pid 9621 dead); this shared request never polls express at width 1])
+done
+done
+done
+exit 0

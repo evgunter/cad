@@ -101,8 +101,11 @@ fn full_period_closure_skips_loudly() {
     assert!(out.groups.is_empty(), "no group commits: {:?}", out.groups);
     assert_eq!(out.skipped.len(), 1, "the closure is a loud skip");
     assert!(
-        out.skipped[0].reason.contains("full chart period"),
-        "the skip names the period closure: {}",
+        matches!(
+            out.skipped[0].reason,
+            topo::MergeCoplanarError::PeriodClosure { .. }
+        ),
+        "the skip carries the period-closure refusal itself: {:?}",
         out.skipped[0].reason
     );
     let vol_after = topo::mass_properties(&body, Tol::witness()).unwrap().volume;

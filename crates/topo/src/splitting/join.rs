@@ -9,7 +9,7 @@
 //! The chord `mef`/`mekr` insertion, the ring re-homing and the
 //! null-edge retirement this sweep drives are NOT here: they are
 //! [`crate::chord_join`], one implementation shared with the boolean
-//! lane's joining (smell scan S5). What is here is the split lane's
+//! lane's joining. What is here is the split lane's
 //! **sweep** — the order it visits null edges in, the loose-end
 //! pairing, and the role resolution and area certification it layers
 //! on the core's side-agnostic outcome.

@@ -71,7 +71,7 @@
 //! still a row that greens without entering its own mode the day the
 //! budget starts firing everywhere. The retired `fixture_or_return!` /
 //! `carrier_or_return!` macros returned green in silence, which is the
-//! honesty gap `docs/M5-EXIT-WALK.md` row 15 recorded.
+//! honesty gap this suite closes.
 //!
 //! **Planted quantities are stated in metres, not in multipliers.** The
 //! accounting floor is `SSI_FLOOR · band.zero() · floor_scale`, so a
@@ -87,6 +87,8 @@
     clippy::unreachable
 )]
 
+use crate::shared::surf;
+use crate::shared::tol::{band, eps};
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
@@ -95,24 +97,15 @@ use geom_brep::ssi::{
     self, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_TUBE_RADIUS,
     SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
 };
-use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Band, Margin, Point3, Vec3};
+use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
 
 /// The accounting floor the floor-clamped fixture plants, **in metres**
 /// — far wider than any certifiable tube radius on that pair, and the
 /// same width at every ε of the battery.
 const FLOOR_CLAMP_METRES: f64 = 0.1;
-
-fn eps() -> f64 {
-    Tol::witness().get().eps
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// A margin the resolved band calls **definitely positive**, at any ε.
 ///
@@ -169,12 +162,7 @@ fn distance_to_carrier(carrier: &NurbsCurve3<f64>, p: Point3<f64>) -> f64 {
 
 /// The unit sphere at the origin.
 fn sphere() -> Surface<f64> {
-    Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
-        radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    surf::sphere(1.0)
 }
 
 /// A thin cylinder threaded through the sphere, offset from the axis so
@@ -258,8 +246,8 @@ fn slab() -> SsiDomain {
 ///
 /// The retired `fixture_or_return!` / `carrier_or_return!` macros made
 /// that stand-down a bare `return`, so a row that asserted NOTHING
-/// reported green and nothing in the log said which it had been — the
-/// honesty gap `docs/M5-EXIT-WALK.md` row 15 records. The `BUDGET` arm
+/// reported green and nothing in the log said which it had been. The
+/// `BUDGET` arm
 /// below still pins the refusal typed, and then SAYS, by name, every
 /// property this run did not cover.
 #[test]
@@ -1008,6 +996,13 @@ fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertifica
 ///
 /// Loft/sweep *definitions* are PR 10; these are authored control nets.
 fn wall_from_cols(cols: [(f64, f64); 4]) -> NurbsSurface<f64> {
+    wall_from_cols_w(cols, [1.0; 8])
+}
+
+/// [`wall_from_cols`] with the weights stated too — for the one row
+/// whose defect IS its weights (the D286 underflow fixture), so the
+/// net literals live in exactly one place per section.
+fn wall_from_cols_w(cols: [(f64, f64); 4], weights: [f64; 8]) -> NurbsSurface<f64> {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let mut control = Vec::with_capacity(8);
@@ -1015,8 +1010,13 @@ fn wall_from_cols(cols: [(f64, f64); 4]) -> NurbsSurface<f64> {
         control.push(Point3::new(x, y, 0.0));
         control.push(Point3::new(x, y, 0.8));
     }
-    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+    NurbsSurface::new(ku, kv, control, weights.to_vec()).unwrap()
 }
+
+/// The section [`nurbs_wall`] and the D286 underflow fixture share —
+/// one spelling, so the fixture's "no magnitude anywhere" claim is
+/// pinned to the wall it actually copies.
+const NURBS_WALL_COLS: [(f64, f64); 4] = [(0.0, 0.0), (0.35, 0.18), (0.70, -0.12), (1.05, 0.04)];
 
 /// The wall the ℝ⁴ rows march: curved in `x`–`y`, extruded in `z`. The
 /// cutting plane meets it in a single open branch that runs wall-edge to
@@ -1027,7 +1027,7 @@ fn wall_from_cols(cols: [(f64, f64); 4]) -> NurbsSurface<f64> {
 /// slowly-varying curvature) then understates what the fit needs. The
 /// acceptance shape wants a NURBS wall, not a pathological one.
 fn nurbs_wall() -> NurbsSurface<f64> {
-    wall_from_cols([(0.0, 0.0), (0.35, 0.18), (0.70, -0.12), (1.05, 0.04)])
+    wall_from_cols(NURBS_WALL_COLS)
 }
 
 /// The wall the substrate row CERTIFIES: same construction, section
@@ -1058,6 +1058,11 @@ fn cutting_plane() -> Surface<f64> {
     }
 }
 
+/// **Deliberately not shared with `review_m5_pr7b_ssi.rs`'s**, which
+/// is this box character for character. That suite is the reviewer's
+/// independent consumer of the same door: the box it marches in is
+/// part of what it asserts for itself, and a shared one would make the
+/// two agree about the search region by construction.
 fn wall_domain() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),
@@ -1088,7 +1093,7 @@ fn wall_outcome() -> Option<geom_brep::SsiOutcome> {
 
 /// The wall fixture's stand-down, said out loud: which row stood down,
 /// and what it therefore did NOT cover. A bare `return` here reports
-/// coverage the run does not have (`docs/M5-EXIT-WALK.md` row 15).
+/// coverage the run does not have.
 ///
 /// One argument's worth of local vocabulary over
 /// [`test_utils::vacuity::stood_down`], not a second implementation of
@@ -1719,13 +1724,11 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 //     tubes between them resolve every cell above any floor. What is
 //     needed is a fixture leaving a region neither excluded nor
 //     accounted at every width — a new fixture, not a new assertion.
-//     Scheduled as §D row C18 in `docs/SMELL-SCAN-2026-08.md`, which
-//     carries this negative result so the next taker does not repeat
-//     it.
-//   - the chart-speed guard itself. Both of its arms are unreachable
-//     as written, and the hole beside them is a LIVE source defect,
-//     open as issue #762 — see
-//     `an_infinite_chart_speed_refuses_rather_than_receipting`.
+//     The negative result is written out here so the next taker does
+//     not repeat the naive road in.
+//   - the chart-speed guard's ZERO arm. Its non-finite arm is covered
+//     by `an_infinite_chart_speed_refuses_rather_than_receipting`; a
+//     wall whose chart speed is exactly zero has no fixture.
 //
 // Every cell here is a claim in `exhaust.rs`'s module docs — "a typed
 // refusal, never a silent truncation of the search" — that no fixture
@@ -2043,16 +2046,14 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 /// enclosure divides by `2r`, and the ring refuses a divisor that
 /// touches zero, so the very first cell poisons.
 ///
-/// **What the refusal is reached by is not what its text describes**,
-/// and the row says so rather than hiding it: the arm's message names
-/// a surface KIND with no ring-computable implicit form (cone, torus,
-/// NURBS), and no such kind can get here — `cylinder_sphere_ssi`
-/// refuses `WrongLane` for anything but a cylinder and a sphere. The
-/// reachable cause is a degenerate INSTANCE of a supported kind. Both
-/// are the same obligation — an enclosure that cannot be formed is a
-/// typed refusal, never a sweep that quietly excludes nothing — and
-/// pinning the text is what keeps this row from passing on some other
-/// `UnsupportedCertificate`, of which the certificate stack has many.
+/// **The refusal names the cause a caller can actually produce**, and
+/// the row pins that rather than the obligation alone: the only way
+/// into this arm is a degenerate INSTANCE of a supported kind, because
+/// `cylinder_sphere_ssi` refuses `WrongLane` for anything but a
+/// cylinder and a sphere — a kind with no implicit form at all never
+/// gets here. Pinning the text is also what keeps this row from
+/// passing on some other `UnsupportedCertificate`, of which the
+/// certificate stack has many.
 ///
 /// **Which duty**: the **Seed** one. `cylinder_sphere_ssi` calls
 /// `seed_r3` before `account_r3`, the poison arm lives in the closure
@@ -2067,10 +2068,11 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 /// budget. The caller is then told the search was too big, when the
 /// truth is that this operand has no certificate at all and no budget
 /// would have helped. That is what this arm exists to prevent: not a
-/// wrong answer, a wrong DIAGNOSIS. The same substitution happens for
-/// real, today, one guard over — see
-/// [`an_infinite_chart_speed_refuses_rather_than_receipting`], where
-/// there is no arm and the budget does answer in its place.
+/// wrong answer, a wrong DIAGNOSIS. The chart lane states the same duty
+/// one guard over — see
+/// [`an_infinite_chart_speed_refuses_rather_than_receipting`], whose
+/// guard refuses a non-finite chart speed before the cell budget can
+/// answer in its place.
 #[test]
 fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
     let point_sphere = Surface::Sphere {
@@ -2089,6 +2091,18 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
                 "the refusal must be the SWEEP's poison arm: {what}"
             );
             assert!(what.contains("cannot be proved exhausted"), "{what}");
+            // The sentence must name a cause this door can deliver. A
+            // kind with no implicit form cannot reach the arm, so a
+            // message blaming one would send a reader hunting for an
+            // operand `WrongLane` already refused.
+            assert!(
+                what.contains("zero radius"),
+                "the refusal must name the producible cause: {what}"
+            );
+            assert!(
+                !what.contains("this surface kind has no"),
+                "the refusal must not blame a KIND its own door excludes: {what}"
+            );
             assert!(format!("{err}").starts_with("ssi: "), "{err}");
         }
         Err(other) => panic!("expected the enclosure refusal, got {other}"),
@@ -2119,13 +2133,20 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
 /// row: the arm is a certificate obligation, and a certificate that
 /// cannot be formed must say so at any magnitude a caller can build.
 ///
-/// **Which duty**: the **Seed** one, as in the ℝ³ twin —
-/// `seed_chart_plane` runs first and the first cell poisons
-/// (instrumented). Worth recording: this net also drives the certified
-/// chart speed to `+∞`, so it passes through the same guard hole
-/// [`an_infinite_chart_speed_refuses_rather_than_receipting`] is about;
-/// the poison arm simply answers first, which is the ordering that
-/// makes this row a poison-arm row and not a second copy of that one.
+/// **Which door answers**: this net also drives the certified chart
+/// speed to `+∞`, and the chart-speed guard runs BEFORE the sweep — a
+/// floor cannot be translated at all if the speed is not finite — so on
+/// this fixture the guard answers and the sweep is never entered. Both
+/// diagnoses are true of this wall. The row therefore accepts either
+/// door and names which one fired; what it pins, at any magnitude a
+/// caller can build, is that the operation refuses in the operation's
+/// own terms rather than handing back a receipt.
+///
+/// The coupling is not a property of this fixture alone: a control-net
+/// enclosure poisons only once `w·P` overflows, and the chart speed
+/// squares the same magnitudes, so it is already `+∞` well below that.
+/// A fixture that reaches the sweep's poison arm from the public door
+/// is still wanted.
 #[test]
 fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     let h = 1.0e308;
@@ -2152,13 +2173,17 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     );
     let w = NurbsSurface::new(ku, kv, control, weights).expect("a wall a caller can build");
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
-        Err(SsiError::UnsupportedCertificate { what }) => {
-            assert!(
-                what.contains("control-net enclosure poisoned"),
-                "the refusal must be the CHART sweep's poison arm: {what}"
-            );
+        Err(SsiError::UnsupportedCertificate { what })
+            if what.contains("control-net enclosure poisoned") =>
+        {
+            println!("the poisoned net was answered by the CHART SWEEP'S POISON ARM");
         }
-        Err(other) => panic!("expected the enclosure refusal, got {other}"),
+        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
+            println!("the poisoned net was answered by the CHART-SPEED GUARD");
+        }
+        Err(other) => {
+            panic!("expected the enclosure refusal or the chart-speed refusal, got {other}")
+        }
         Ok(out) => panic!(
             "SILENT: a chart domain no enclosure could be formed over returned Ok with \
              {} branches and a receipt {:?}",
@@ -2168,46 +2193,105 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     }
 }
 
-/// **A live defect, made executable — not a door row.**
+/// **The chart sweep's poison arm, reached with no magnitude at all** —
+/// the row that says the arm is live code a caller can enter, not an
+/// unreachable branch.
 ///
-/// This row covers **none** of the thirteen cells the block header
-/// enumerates. It is the regression guard attached to a source defect
-/// that is open as **issue #762**, and it is here so the defect is
-/// executable rather than only written down.
+/// Its sibling above reaches the arm by overflow, and overflow alone
+/// can no longer get there: the seeding guard refuses a non-finite
+/// chart speed first, and the derivative bound a net of magnitude `m`
+/// certifies is at best `ulp(m)` — the cancellation floor of the hull
+/// differences — so `mag`, which squares before its `sqrt`, is already
+/// `+∞` by `m ≈ 1e169`, four orders of magnitude BELOW the `1e308` at
+/// which `w·P` first overflows. Every overflowing net is refused by
+/// the guard before the sweep runs.
 ///
-/// **The defect.** `plane_nurbs_ssi` translates BOTH of its floors —
-/// seeding and accounting — from meters into the wall's parameter
-/// domain by dividing by a certified chart speed, and guards that
-/// translation with `speed.is_nan() || speed <= 0.0`. A speed of
-/// **+∞** passes: `floor / ∞` is exactly `0`, in both floors, so
-/// neither sweep can terminate at its floor; and the certified tube
-/// padding is `tube_radius / speed`, so every banked tube would be
-/// zero-width as well. Measured on this fixture: `speed = inf`,
-/// `seed_floor/speed = 0e0`, `floor/speed = 0e0`.
+/// **Underflow is the open side, and it needs no magnitude.** This
+/// fixture's control points are [`nurbs_wall`]'s own (the file's
+/// ordinary ℝ⁴ wall — not [`certifiable_wall`], the one the substrate
+/// row certifies), order 1; its
+/// weights are finite, positive, and equal; its certified chart speed
+/// is about 25 m per parameter unit, which the guard passes without
+/// comment. What poisons is the RATIONAL's own denominator: the weight
+/// is the smallest positive subnormal, so `N·w` rounds to exactly zero
+/// for every basis value below 1, the partition of unity the rational
+/// divides by evaluates to `0`, and the midpoint evaluation inside
+/// `rect_box` — the one arithmetic there that is an evaluation rather
+/// than hull algebra — is `0/0`.
 ///
-/// **What answers instead, and why that is the bug.** Seeding runs
-/// first, so the refusal comes from `seed_chart_plane` and the cell
-/// budget — the same door and the same duty
-/// [`an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed`]
-/// already covers, reached by another road. The caller is told its
-/// search was too big when the truth is that this wall has no usable
-/// chart speed, which is exactly the substitution
-/// [`a_degenerate_r3_operand_refuses_the_enclosure_typed`]'s arm
-/// exists to prevent one lane over: not a wrong answer, a wrong
-/// DIAGNOSIS. This row does not endorse that disposition. It pins the
-/// one thing that is true today and must stay true — the operation
-/// never hands back a receipt — and names which door answered, so that
-/// when the guard is widened to refuse a non-finite speed the row
-/// moves to the other arm instead of going red.
+/// The derivative box does not see it: it works on exact control
+/// differences over a weight HULL of `[w, w]`, strictly positive and
+/// never underflowing, which is why the guard reads a healthy speed
+/// over a net whose values cannot be enclosed at all. A guard on the
+/// derivative cannot stand in for the enclosure's own arm.
 ///
-/// Latent beside it, and part of the same defect: `mag(du).max(mag(dv))`
-/// **drops a lone `NaN`** (`f64::max` returns the non-NaN operand), so
-/// the guard's `is_nan` arm cannot fire from a single poisoned
-/// derivative box. Nothing reaches it today.
+/// **ε-invariant on purpose**: the root cell poisons, so the arm
+/// answers before the first floor comparison and no tolerance the
+/// battery runs can change which door fires.
+#[test]
+fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
+    // The smallest positive subnormal: `w` survives as a weight, and
+    // `N·w` for any `N < 1` does not.
+    let tiny = f64::from_bits(1);
+    assert!(
+        tiny > 0.0 && tiny.is_finite(),
+        "FIXTURE: a finite positive weight"
+    );
+    assert_eq!(
+        0.5 * tiny,
+        0.0,
+        "FIXTURE: the product underflows, the weight does not"
+    );
+    assert!(
+        NURBS_WALL_COLS
+            .iter()
+            .all(|(x, y)| x.abs() < 2.0 && y.abs() < 2.0),
+        "FIXTURE: no magnitude anywhere — the net is nurbs_wall's own"
+    );
+    // The constructor accepts it — a wall a caller can build.
+    let w = wall_from_cols_w(NURBS_WALL_COLS, [tiny; 8]);
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
+        Err(SsiError::UnsupportedCertificate { what })
+            if what.contains("control-net enclosure poisoned") => {}
+        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
+            panic!("the chart-speed guard answered for a net whose speed is finite: {what}")
+        }
+        Err(other) => panic!(
+            "expected the chart sweep's poison arm, got {other} — the arm is what \
+             must answer an enclosure that cannot be formed, and any other door \
+             answering in its place is the wrong DIAGNOSIS"
+        ),
+        Ok(out) => panic!(
+            "SILENT: a chart domain whose enclosure poisons returned Ok with {} \
+             branches and a receipt {:?}",
+            out.branches.len(),
+            out.exhaustiveness
+        ),
+    }
+}
+
+/// **The chart-speed guard**: a wall whose certified chart speed is not
+/// a positive finite number is refused as itself, by name.
 ///
-/// The fixture is a net at `1e200` m: the derivative boxes are finite
-/// intervals, their magnitudes overflow when squared, and the speed
-/// comes out `+∞`.
+/// `plane_nurbs_ssi` translates BOTH of its floors — seeding and
+/// accounting — from meters into the wall's parameter domain by
+/// dividing by that speed, and pads every banked tube by
+/// `tube_radius / speed`. A speed of `+∞` divides all three to exactly
+/// `0`: a floor no cell can reach and a tube of zero width. Nothing
+/// downstream can then state the operation's own terms, so the guard
+/// refuses before the first division rather than letting the sweep run
+/// to its cell budget and answer in its place — the budget's sentence
+/// ("your search exceeded the budget") would be the wrong DIAGNOSIS,
+/// the substitution [`a_degenerate_r3_operand_refuses_the_enclosure_typed`]'s
+/// arm exists to prevent one lane over.
+///
+/// The fixture is a net at `1e200` m: every input is finite, the
+/// derivative boxes are finite intervals, and their magnitudes overflow
+/// when squared, so the speed comes out `+∞`.
+///
+/// The guard's fold propagates NaN — `f64::max` returns the non-NaN
+/// operand, which would drop a lone poisoned derivative box — so a
+/// poisoned box reaches the same refusal as an overflowed one.
 #[test]
 fn an_infinite_chart_speed_refuses_rather_than_receipting() {
     let m = 1.0e200;
@@ -2218,19 +2302,18 @@ fn an_infinite_chart_speed_refuses_rather_than_receipting() {
         (1.05 * m, 0.30 * m),
     ]);
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
-        Err(SsiError::CellBudget { budget }) => {
-            assert_eq!(budget, SSI_MAX_CELLS);
-            println!(
-                "the infinite chart speed was answered by the CELL BUDGET, under the \
-                 SEEDING duty: both floors translated to 0 and the sweep ran until the \
-                 budget stopped it — the wrong diagnosis, and the reason this row is a \
-                 defect record rather than a door row"
+        Err(SsiError::UnsupportedCertificate { what }) => {
+            assert!(
+                what.contains("chart speed") && what.contains("not finite"),
+                "the refusal must name the chart speed as the diagnosis: {what}"
             );
         }
-        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
-            println!("the infinite chart speed was answered by the CHART-SPEED GUARD");
-        }
-        Err(other) => panic!("expected the budget refusal or the chart-speed refusal, got {other}"),
+        Err(SsiError::CellBudget { budget }) => panic!(
+            "WRONG DIAGNOSIS: the cell budget ({budget}) answered for a wall whose \
+             chart speed is not finite — both floors translated to 0 and the sweep \
+             ran until the budget stopped it"
+        ),
+        Err(other) => panic!("expected the chart-speed refusal, got {other}"),
         Ok(out) => panic!(
             "SILENT: a floor that translated to zero returned Ok with {} branches and \
              a receipt {:?}",
@@ -2413,7 +2496,7 @@ fn the_ssi_predicates_reach_the_k_funnel() {
     // one funnel, so the verdict log — which records at f64, unlike the
     // `Probe` margin sink — sees them by name. This is the row that
     // would catch a raw comparison sneaking into the marcher.
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     let (s, c) = (sphere(), threaded_cylinder());
     let mut d = SsiDomain {
         center: Point3::new(0.03, 0.0, 0.996),
@@ -2422,9 +2505,9 @@ fn the_ssi_predicates_reach_the_k_funnel() {
         floor_scale: 1.0,
     };
     d.floor_scale = 1.0;
-    start_verdict_log();
+    let bracket = Bracket::open();
     let outcome = ssi::cylinder_sphere_ssi(&c, &s, d, band());
-    let v = take_verdict_log();
+    let v = bracket.finish().verdicts;
     // The marching predicates run before anything is fitted, so they
     // are recorded at every ε; the certificate's only run once a branch
     // was actually fitted, which the fit-sample budget can prevent at
@@ -2441,5 +2524,39 @@ fn the_ssi_predicates_reach_the_k_funnel() {
                 .map(|x| x.predicate)
                 .collect::<std::collections::BTreeSet<_>>()
         );
+    }
+}
+
+/// **A collapsed net lands on the ZERO-speed arm, and the speed is
+/// exactly `0`** — measured to settle two contradicting review
+/// readings (one predicted the budget answers, one a hull-inflated
+/// ≈1e-7 speed keeping the sweep alive).
+///
+/// Mechanism: the seeding guard's `mag` squares each derivative-hull
+/// component before its `sqrt`, so a net whose spread is below
+/// ~1e-154 underflows to exactly `0.0` there — no ring inflation
+/// keeps it positive — and the `speed <= 0.0` arm refuses by the
+/// speed's own name before any floor is translated. Pinned across
+/// the whole subnormal-adjacent range the reviews probed.
+#[test]
+fn a_collapsed_net_refuses_on_the_zero_speed_arm_not_the_budget() {
+    for spread in [1.0e-200f64, 1.0e-260, 1.0e-300, 1.0e-315] {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::with_capacity(8);
+        for i in 0..4 {
+            let x = spread * (i as f64);
+            control.push(Point3::new(x, 0.0, 0.0));
+            control.push(Point3::new(x, 0.0, 0.5 * spread));
+        }
+        let w = NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap();
+        match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
+            Err(SsiError::UnsupportedCertificate { what })
+                if what.contains("chart speed is zero") => {}
+            other => panic!(
+                "spread {spread:e}: expected the zero-speed arm to answer by \
+                 name, got {other:?}"
+            ),
+        }
     }
 }

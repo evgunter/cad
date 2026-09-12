@@ -1,5 +1,5 @@
 //! **The tube door made visible** — `pncad::sweep::tube_along_arc`, the
-//! world-coordinate torus door (M6-3 Leg F, the Evan-ratified rider
+//! world-coordinate torus door (M6-3 Leg F, the Ev-ratified rider
 //! on the #175 thread).
 //!
 //! # Why this is a scene and not "another torus"
@@ -34,15 +34,25 @@ use pncad::sweep::{TubeWindow, tube_along_arc};
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 
+// The wedge's constants live here and ONLY here: `tubewall`'s hollow
+// elbow is this same swept arc with a wall, and its panel asserts that
+// the two doors' outer walls mesh face for face. That assertion is only
+// about the DOORS if the two scenes cannot differ in the fixture, so
+// the hollow panel imports these rather than restating them.
+
 /// Major radius (`m6_tube.rs::R`).
-const R: f64 = 2.0;
+pub(crate) const R: f64 = 2.0;
 /// Minor radius (`m6_tube.rs::MINOR`).
-const MINOR: f64 = 0.5;
+pub(crate) const MINOR: f64 = 0.5;
 /// The window's start angle, radians about the spine axis from
 /// `u_ref` (`m6_tube.rs::tube_window_and_refusal_doors`).
-const T0: f64 = 0.25;
+pub(crate) const T0: f64 = 0.25;
 /// The window's end angle.
-const T1: f64 = 1.75;
+pub(crate) const T1: f64 = 1.75;
+/// This scene's chord budget — shared with the hollow elbow, since a
+/// triangle-count comparison across the two panels is meaningless at
+/// two budgets.
+pub(crate) const DELTA: f64 = 1e-2;
 
 /// The tube-door stop.
 pub fn stops(tol: Tol) -> Vec<Stop> {
@@ -84,7 +94,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![Stop {
         name: "tube_along_arc",
         caption: "tube_along_arc (intent parameters, stored)".to_string(),
-        // Standalone since the montage-v2 curation (Evan, #218 follow-up):
+        // Standalone since the montage-v2 curation (Ev, #218 follow-up):
         // the cell's content — bit-exact STORED intent parameters — is
         // interesting for how it works, not visually; without that context
         // it reads as one more partial revolve. The scene, its assertions
@@ -98,13 +108,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "sweep::tube_along_arc(origin, +y, +x, R = 2, Arc{t0 = 0.25, t1 = 1.75}, \
               r = 0.5)",
         // The lily's finding 13 in miniature: delta is a CHORD budget
-        // spent per RING radius, not per feature size, so a 2 m spine
-        // burns it fast. Measured on this body: 2e-3 -> 172k triangles
-        // at 0.004% mesh-volume error, 6e-3 -> 58k at 0.011%,
-        // 1e-2 -> 23k at 0.028%. 1e-2 is the montage's own working
-        // budget (cutaway, projectbox) and the facets it leaves are
-        // the point of the kernel lane, not a defect.
-        delta: 1e-2,
+        // spent per curvature, and the two chart directions of a torus
+        // spend it at their own radii (`mesh::sizing::torus_grid_steps`):
+        // 1 668 triangles at 1e-2 on this body, ∝ 1/delta from there.
+        // 1e-2 is the montage's own working budget (cutaway,
+        // projectbox) and the facets it leaves are the point of the
+        // kernel lane, not a defect.
+        delta: DELTA,
         note: Some(format!(
             "sweep/tests/m6_tube.rs's wedge, constant for constant. NO semantic fork: \
              the body is assembled by the revolve's own partial-wedge machinery fed a \

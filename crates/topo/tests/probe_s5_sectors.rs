@@ -1,11 +1,11 @@
-//! S5 sector-predicate probe: the FULL recorded margin stream of a
+//! Sector-predicate probe: the FULL recorded margin stream of a
 //! boolean run and a plane-split run at the recording scalar, printed
 //! in RECORDED ORDER, for merge-base-vs-tip byte-identity diffing.
 //!
 //! Why it exists: the vertex-neighborhood sector-shape rungs (metering
 //! arm, wideness, subdivision direction) used to be written twice, once
 //! per lane, and were merged into [`topo`]'s shared `sector_shape`
-//! module (smell scan S5). #647 merged the bodies with the K predicate
+//! module. #647 merged the bodies with the K predicate
 //! names still a per-lane parameter; **#652 then pooled the names**,
 //! six into three. Each of those steps has a load-bearing claim about
 //! this stream — "same names, same margins" for the first, "same
@@ -21,21 +21,20 @@
 //! claim — a reordering of decisions shows up even when the multiset is
 //! preserved — so the rows are NOT sorted.
 //!
-//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** CI's `k-lint` job has
+//! **CI COMPILES AND EXECUTES THIS SUITE.** CI's `k-lint` job has
 //! a step named *"compile and list every probe-gated test target"*
 //! (`scripts/gates/probe-suite-census.sh` derives the crate set; the step
 //! builds each one `--features probe --all-targets` and feeds the listing
 //! back), so this file cannot rot into a build error unnoticed. That step
 //! name is grepped for by the census gate, so this sentence cannot go
-//! quietly false. What no merge does is EXECUTE it: the probe suites CI
-//! runs are rostered in that gate's `RUN_FLOOR` and this is not one of
-//! them, so the recorded stream can drift — and, the sharper half, the
-//! six per-lane coverage assertions below cannot go red either. Both are
-//! evidence for whoever runs the diff rather than a gate, and a claim
-//! leaning on either must say so. By hand:
+//! quietly false. The suite is ALSO rostered in that gate's `RUN_FLOOR`
+//! and run under the DEFAULT selection by `scripts/k_probe_sweep.sh`,
+//! whose tally is floored by `--check-executed`: the recorded stream and
+//! the six per-lane coverage assertions below are gates, and a drift in
+//! either reds the merge. By hand:
 //! `cargo test -p topo --features probe --test all -- probe_s5_sectors::`.
-//! `tests/probe_census.rs` is in the same position. The standing gate over
-//! the same telemetry is CI's `k-lint`, which runs
+//! `tests/probe_census.rs` is in the same position. The ε sweep over the
+//! same telemetry is CI's `k-lint`, which runs
 //! `scripts/k_probe_sweep.sh` at three ε.
 //!
 //! The fixtures are chosen to drive BOTH lanes: two boolean subtracts
@@ -53,7 +52,7 @@
 //! no merge runs them, per the disposition above.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod common;
+use crate::common;
 
 use common::{prism, prism_z};
 use geom_core::Tol;

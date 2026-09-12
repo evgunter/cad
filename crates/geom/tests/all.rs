@@ -15,16 +15,25 @@
 //! mirroring the crate's two modules — the two halves were separate
 //! crates and their suite names collide (`boxes.rs`,
 //! `span_window_pairing.rs`, `review_m5_pr3_attack*.rs`,
-//! `decoration_ring_coords.rs`). A `#[path]` module's child modules
-//! resolve against the DIRECTORY CONTAINING the path file, so a suite
-//! that grows a `mod <helper>;` resolves it inside its own group
-//! directory.
+//! `decoration_ring_coords.rs`). A suite does NOT carry a
+//! `mod <helper>;` line of its own: the shared helper trees are declared
+//! once, below, as modules of THIS root, and a suite that wants one says
+//! `use crate::<group>::<helper>;`. One declaration means one parse, one
+//! resolve, one type-check and one codegen of that helper per binary
+//! instead of one per including suite.
 //!
-//! WHY ONE BINARY: on the CI runner (2 vCPU) each extra test binary cost
-//! ~1.9 s of codegen+link — measured at 494 of the 514 s of the
-//! workspace build job (see the LINK/DEBUGINFO note in
-//! .github/workflows/ci.yml). The suites are small; the per-binary
-//! constant was the bill.
+//! What that gives up: a suite file is no longer compilable as its own
+//! crate root, because `crate::` now names this binary. Nothing in the
+//! tree compiles them that way — `autotests = false` plus the guard below
+//! make this file the only root — but it was true before and is not now.
+//!
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
 //!
 //! ADDING A SUITE: drop the file in `tests/curves/` or
 //! `tests/surfaces/` AND add a `#[path]` line below. `autotests = false`
@@ -36,12 +45,25 @@
 //! than `round_trip`, under binary `all` rather than binary
 //! `projection`); the set of tests is otherwise identical.
 
-// Each suite keeps its own verbatim `mod <helper>;`, so a shared helper is
-// loaded once per suite that uses it. That is deliberate — the alternative
-// is editing the suites — and it is what `duplicate_mod` is warning about.
-// Allowed HERE ONLY, by name: no blanket `#![allow]`, which would weaken
-// the lint gate for every suite module included below.
-#![allow(clippy::duplicate_mod)]
+// The shared helper trees, declared ONCE for the whole binary. This one
+// lives INSIDE a group directory (`tests/curves/n1r2_fixtures/mod.rs`),
+// so it is declared inside an inline `mod curves` block: an inline
+// module extends the directory its children resolve against, which is
+// what puts `tests/curves/` on the path. Every consumer reaches that one
+// instance through `use crate::curves::n1r2_fixtures;`.
+//
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
+// (`every_suite_file_is_aggregated` counts them against the directory
+// walk), and a helper module directory is not a suite. `mod` without the
+// attribute is also what `test_utils::source::suite_files` assumes when
+// it skips a directory carrying a `mod.rs`.
+//
+// There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+// loaded twice any more; if one ever is, the lint is meant to fire.
+mod curves {
+    pub mod n1r2_fixtures;
+}
 
 // ---- curves ----
 #[path = "curves/boxes.rs"]
@@ -64,10 +86,32 @@ mod curves_lt_r1_probes;
 mod curves_m5_pr7_speed_meter;
 #[path = "curves/m8_14_long_turn_meter.rs"]
 mod curves_m8_14_long_turn_meter;
+#[path = "curves/n1r1_c24_dump.rs"]
+mod curves_n1r1_c24_dump;
+// Lane registration (aggregation guard): the R1 meter probe was pushed
+// without a `#[path]` line.
+#[path = "cert_n2r2_probes.rs"]
+mod cert_n2r2_probes;
+#[path = "curves/n1r1_c24_meter.rs"]
+mod curves_n1r1_c24_meter;
+#[path = "curves/n1r1_lift_probes.rs"]
+mod curves_n1r1_lift_probes;
+#[path = "curves/n1r2_bench.rs"]
+mod curves_n1r2_bench;
+#[path = "curves/n1r2_dump.rs"]
+mod curves_n1r2_dump;
+#[path = "curves/n1r2_lift_probes.rs"]
+mod curves_n1r2_lift_probes;
+#[path = "curves/n1r2_lift_probes_interval.rs"]
+mod curves_n1r2_lift_probes_interval;
 #[path = "curves/nurbs_differential.rs"]
 mod curves_nurbs_differential;
 #[path = "curves/nurbs_interval.rs"]
 mod curves_nurbs_interval;
+#[path = "curves/param_near.rs"]
+mod curves_param_near;
+#[path = "curves/param_near_interval.rs"]
+mod curves_param_near_interval;
 #[path = "curves/projection.rs"]
 mod curves_projection;
 #[path = "curves/r2_lt_probes.rs"]
@@ -86,6 +130,16 @@ mod curves_span_window_pairing;
 mod curves_split_at;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
+#[path = "n2r1_probes.rs"]
+mod n2r1_probes;
+#[path = "net_placeholder_width.rs"]
+mod net_placeholder_width;
+#[path = "net_placeholder_width_interval.rs"]
+mod net_placeholder_width_interval;
+#[path = "span_bit_identity.rs"]
+mod span_bit_identity;
+#[path = "span_bit_identity_ext.rs"]
+mod span_bit_identity_ext;
 
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]
@@ -113,67 +167,17 @@ mod surfaces_s32_jet_projection;
 #[path = "surfaces/span_window_pairing.rs"]
 mod surfaces_span_window_pairing;
 
-/// Guards the `autotests = false` hazard: a suite file added under
-/// `tests/` but not declared above would silently stop being compiled
-/// and run. Walks the group directories, not just `tests/` itself, and
-/// checks the declaration COUNT against what is on disk so no number
-/// about this file can be asserted in prose without being computed.
-///
-/// One shape to know before you trip it: this guard treats every `.rs`
-/// file under `tests/` as a suite, so a shared HELPER placed in a group
-/// directory is reported as an undeclared suite. None exist today; the
-/// header above anticipates a suite growing a `mod <helper>;`, and when
-/// one does the helper belongs beside it with a `#[path]` line of its
-/// own, or the guard needs a stated exclusion — not a silent one.
+/// The aggregation and ONE HOME checks, whose one home — the walk, the
+/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
 #[test]
-// Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
-// weaken the lint gate for every suite module included above.
-#[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
-    let mut missing: Vec<String> = Vec::new();
-    let mut found = 0usize;
-    let mut pending = vec![root.clone()];
-    while let Some(dir) = pending.pop() {
-        for entry in std::fs::read_dir(&dir).expect("tests/ subtree is readable") {
-            let path = entry.expect("readable dir entry").path();
-            if path.is_dir() {
-                pending.push(path);
-                continue;
-            }
-            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-                continue;
-            }
-            let rel = path
-                .strip_prefix(&root)
-                .expect("entry is under tests/")
-                .to_string_lossy()
-                .replace('\\', "/");
-            if rel == "all.rs" {
-                continue;
-            }
-            found += 1;
-            if !src.contains(&format!("#[path = \"{rel}\"]")) {
-                missing.push(rel);
-            }
-        }
-    }
-    missing.sort();
-    assert!(
-        missing.is_empty(),
-        "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
-         is silently dropping them: {missing:?}. Add a `#[path]` line for each."
-    );
-
-    // The count, computed rather than restated. `missing` proves every
-    // file on disk is declared; this proves the converse is not padded
-    // — one `#[path]` line per suite file, no orphan declarations. The
-    // `format!` call above spells its quote escaped, so it is not one
-    // of these matches.
-    let declared = src.matches("#[path = \"").count();
-    assert_eq!(
-        declared, found,
-        "tests/all.rs declares {declared} suites but {found} suite files exist under tests/"
-    );
+    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
+#[path = "curves/n3r2_c24_meter.rs"]
+mod curves_n3r2_c24_meter;
+#[path = "curves/n3r2_probes.rs"]
+mod curves_n3r2_probes;
+#[path = "n3r1_probes.rs"]
+mod n3r1_probes;

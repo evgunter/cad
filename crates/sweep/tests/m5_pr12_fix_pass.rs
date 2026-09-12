@@ -8,19 +8,15 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
-use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Point3, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{MarginDiag, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::FilletError;
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, EdgeKey};
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
+use topo::query;
+use topo::{Body, BooleanDeclarations, MassPropsError, ValidationError};
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
@@ -48,10 +44,6 @@ fn hexagonal_prism() -> Body<f64> {
     prism(&pts, 4.0)
 }
 
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
-
 /// **F2 (MAJOR), the row that would have caught it.** Every corner
 /// face of a hexagonal prism satisfies the octant chart's own
 /// iso-rectangle condition — the third support's normal is parallel to
@@ -65,10 +57,9 @@ fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 #[test]
 fn f2_every_corner_face_of_a_hexagonal_prism_is_tier3_valid() {
     let body = hexagonal_prism();
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 18, "a hexagonal prism has 18 edges");
-    let f = fillet_edges(&body, &edges, 0.3, band(), Tol::witness())
-        .expect("the hexagonal prism fillets");
+    let f = fillet_edges(&body, &edges, 0.3, Tol::witness()).expect("the hexagonal prism fillets");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
     assert_eq!(
@@ -95,9 +86,9 @@ fn f2_an_irregular_prism_is_tier3_valid_too() {
         &[(0.0, 0.0), (2.0, 0.0), (2.6, 1.1), (1.2, 2.0), (-0.3, 1.3)],
         3.0,
     );
-    let edges = all_edges(&body);
-    let f = fillet_edges(&body, &edges, 0.12, band(), Tol::witness())
-        .expect("the pentagonal prism fillets");
+    let edges = query::all_edges(&body);
+    let f =
+        fillet_edges(&body, &edges, 0.12, Tol::witness()).expect("the pentagonal prism fillets");
     assert_eq!(
         topo::validate_geometric(&f.body, Tol::witness()),
         Ok(()),
@@ -125,10 +116,10 @@ fn f2_an_irregular_prism_is_tier3_valid_too() {
 #[test]
 fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let body = hexagonal_prism();
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
 
     for r in [0.30, 0.45, 0.499] {
-        let f = fillet_edges(&body, &edges, r, band(), Tol::witness())
+        let f = fillet_edges(&body, &edges, r, Tol::witness())
             .unwrap_or_else(|e| panic!("r = {r} is well inside the screen: {e}"));
         assert_eq!(
             topo::validate_geometric(&f.body, Tol::witness()),
@@ -142,9 +133,13 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let apothem = 3.0_f64.sqrt() / 2.0;
     for r in [0.51, 0.6, 0.8] {
         assert!(r < apothem, "the row is only interesting below the apothem");
-        match fillet_edges(&body, &edges, r, band(), Tol::witness()) {
-            Err(e @ FilletError::FaceClearanceUncertified { margin, gap, .. }) => {
-                assert!(margin < 0.0);
+        match fillet_edges(&body, &edges, r, Tol::witness()).map_err(|r| r.error) {
+            Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
+                assert_eq!(margin.predicate, "fillet3_face_clearance");
+                assert!(margin.value().is_some_and(|m| m < 0.0));
+                let MarginDiag::Value(gap) = gap else {
+                    panic!("this lane classifies at f64, so the gap is one number: {gap:?}")
+                };
                 assert!(
                     (gap - 1.0).abs() < 1e-9,
                     "the binding gap is the hexagon's SIDE, not its apothem: {gap}"
@@ -167,6 +162,16 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 /// `VolumeUncomputable` because the closed-form mass-properties
 /// inventory has no spherical-triangle form. The gap is in `props`,
 /// not in the body, and this row is what says so out loud.
+///
+/// **It is also the pin on tier 3's curved check-6 EXEMPTION.** Five
+/// of this body's faces are exactly the input on which
+/// `boundary_material_sign` refuses, and check 6 must stay silent on
+/// them: the refusal is not a sense disagreement, and check 7 — gated
+/// on `errors.is_empty()` — is the check that owns it and names its
+/// cause. So the two halves are asserted together and structurally: no
+/// `CurvedSenseInverted`, and a `VolumeUncomputable` carrying
+/// `NotIsoRectangle`. Turn that exemption into a raise and the second
+/// half vanishes with the first.
 #[test]
 fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
@@ -200,16 +205,29 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     .expect("a body")
     .body
     .clone();
-    let edges = all_edges(&clipped);
-    let f = fillet_edges(&clipped, &edges, 0.08, band(), Tol::witness())
+    let edges = query::all_edges(&clipped);
+    let f = fillet_edges(&clipped, &edges, 0.08, Tol::witness())
         .expect("an oblique trihedron still builds");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
     let errs = topo::validate_geometric(&f.body, Tol::witness())
         .expect_err("tier 3 cannot meter a spherical triangle at M5");
-    let text = format!("{errs:?}");
     assert!(
-        text.contains("VolumeUncomputable") && text.contains("NotIsoRectangle"),
-        "the refusal must name the props inventory's gap: {text}"
+        !errs
+            .iter()
+            .any(|e| matches!(e, ValidationError::CurvedSenseInverted { .. })),
+        "check 6 must EXEMPT a face whose material-side derivation refuses: {errs:?}"
+    );
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            ValidationError::VolumeUncomputable {
+                source: MassPropsError::Face {
+                    source: geom_brep::PropsError::NotIsoRectangle { .. },
+                    ..
+                }
+            }
+        )),
+        "the refusal must name the props inventory's gap: {errs:?}"
     );
 }

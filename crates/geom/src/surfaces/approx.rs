@@ -25,7 +25,7 @@
 //!
 //! # Why the base is owned, not an arena key
 //!
-//! `EdgeGeometry::Intersection` names its surfaces by arena key, and
+//! `EdgeDescription::Intersection` names its surfaces by arena key, and
 //! that is the precedent this description would otherwise follow. Two
 //! concrete obstructions rule it out here:
 //!
@@ -124,10 +124,18 @@ pub struct OffsetCertificate {
     ///
     /// **Provenance of the FIT, not a limb**, and the one field a
     /// re-derivation cannot recompute: re-measuring a finished fit runs
-    /// no refinement. So [`crate::ApproxSurface`]'s stored copy carries
-    /// the MINT loop's count across the re-derivation the storage door
-    /// makes (see `geom_brep::approx_offset_surface`), and a bare
-    /// `certify_offset` — which has no loop behind it — reports `0`.
+    /// no refinement. A bare `geom_brep::certify_offset` — which has no
+    /// loop behind it — therefore reports `0`.
+    ///
+    /// **This is the one home of the carry argument**, and the two
+    /// doors that carry it cite this field rather than restate it.
+    /// Whoever holds the honest count passes it across a re-derivation:
+    /// the storage door (`geom_brep::approx_offset_surface`) has the
+    /// mint loop's, and `topo::transform_rigid` has the operand
+    /// surface's — the mapped fit is the rigid image of a fit that took
+    /// exactly that many rounds. Nothing classifies against this field,
+    /// so carrying it cannot make a bad surface look good; resetting it
+    /// to `0` would only lose provenance.
     pub rounds: u32,
 }
 
@@ -154,6 +162,24 @@ pub enum SurfaceDescription<T: Real> {
     },
 }
 
+impl<T: Real> SurfaceDescription<T> {
+    /// The same description read at another scalar: the base through
+    /// [`NurbsSurface::map_scalar`] (whose own door states why the
+    /// net's invariants survive), the distance through `f`. A
+    /// structural map, exact whenever `f` is; this enum carries no
+    /// invariant of its own beyond its base's, so there is nothing
+    /// here for a check to re-establish.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> SurfaceDescription<U> {
+        match self {
+            SurfaceDescription::Offset { base, d } => SurfaceDescription::Offset {
+                base: Arc::new(base.map_scalar(&f)),
+                d: f(*d),
+            },
+        }
+    }
+}
+
 /// The uncertified input to [`ApproxSurface::certify`]: the intent, the
 /// fit that claims to realize it, the window the claim is made over,
 /// and the tolerance it claims. Plain data — the certified product is
@@ -176,15 +202,21 @@ pub struct SurfaceSpec<T: Real> {
 /// tolerance and the [`OffsetCertificate`] of the run that bound them
 /// together.
 ///
-/// Fields are private and the only constructor is
-/// [`ApproxSurface::certify`], so an uncertified value is
+/// Fields are private and the only constructor from uncertified parts
+/// is [`ApproxSurface::certify`], so an uncertified value is
 /// unrepresentable (D4 ¶2 made structural — the `EdgeCurve` invariant,
-/// lifted one dimension).
+/// lifted one dimension). [`ApproxSurface::map_scalar`] only re-reads
+/// a value that already passed that door at another scalar.
 ///
-/// **The certificate is provenance, not authority.** Tier-3 validation
+/// **The certificate is provenance, not authority**, and that holds at
+/// every scalar by one of two mechanisms. Where the derivation exists —
+/// `f64`, the only scalar the offset fit runs at — tier-3 validation
 /// re-derives it against the description on every call and never
-/// consults the stored copy; the stored copy is what the construction
-/// run measured, kept so a consumer can report it.
+/// consults the stored copy. Where it does not, tier 3 does not fall
+/// back on the carried record either: the validation lane reports that
+/// it has no re-derivation at this scalar and the face is REFUSED. So
+/// the stored copy is never the thing a claim rests on; it is what the
+/// construction run measured, kept so a consumer can report it.
 #[derive(Clone, Debug)]
 pub struct ApproxSurface<T: Real> {
     description: SurfaceDescription<T>,
@@ -200,8 +232,10 @@ impl<T: Real> ApproxSurface<T> {
     ///
     /// The certifier's refusal propagates verbatim — this door neither
     /// interprets it nor works around it, so a capability the
-    /// certification stack does not have (a rational fit, today) stays
-    /// a refusal all the way out.
+    /// certification stack does not have stays a refusal all the way
+    /// out. (A RATIONAL fit is not one of those: the fit door's
+    /// composite is weighted, so rationality takes the polynomial
+    /// path and a rational base mints like any other.)
     ///
     /// **The window is handed to the certifier**, not merely stored
     /// beside its answer: the today's certifier
@@ -261,6 +295,40 @@ impl<T: Real> ApproxSurface<T> {
     /// re-derives rather than reading this (see the type docs).
     pub fn certificate(&self) -> &OffsetCertificate {
         &self.certificate
+    }
+
+    /// The same certified surface read at another scalar: the
+    /// description and the fit through their own `map_scalar`s, the
+    /// window, tolerance and certificate carried over verbatim.
+    ///
+    /// **Not a second door, and why `certify`'s work is not redone.**
+    /// This type's one invariant is "the certificate was produced by a
+    /// certifier run over this description and this fit". The
+    /// description and fit go through their own structural doors
+    /// ([`SurfaceDescription::map_scalar`], [`NurbsSurface::map_scalar`],
+    /// which state why the payload invariants survive), and a
+    /// structural map of the geometry — exact for every scalar
+    /// embedding, `Real::from_f64` or `Dual::constant` — is the same
+    /// geometry, so the certifier's record still describes what it was
+    /// run over. The certificate is provenance, not authority (type
+    /// docs): at `f64` the validator re-derives against the description
+    /// on every call, and at a scalar whose validation lane has no
+    /// re-derivation it refuses the face rather than accept the carried
+    /// record — so a lift can neither mint a claim nor launder one, and
+    /// the lift is not what decides which of the two it gets. The
+    /// scalar this type can hold is
+    /// therefore no longer only the fit door's `f64`: a consumer that
+    /// argued "no other scalar can hold an `ApproxSurface`" now needs
+    /// the refusal it already has, not the premise.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ApproxSurface<U> {
+        ApproxSurface {
+            description: self.description.map_scalar(&f),
+            fit: self.fit.map_scalar(&f),
+            window: self.window,
+            tolerance: self.tolerance,
+            certificate: self.certificate,
+        }
     }
 
     /// The uncertified spec this surface would certify from — the

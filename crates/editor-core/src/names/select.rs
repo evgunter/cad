@@ -73,27 +73,58 @@ pub enum OpGroup {
     Boolean,
     /// Split.
     Split,
-    /// Fillet (M6-5's composition-surgery vocabulary).
+    /// Fillet (M6-5's composition-surgery vocabulary) — and the
+    /// CHAMFER's, which reuses these roles deliberately: the shapes
+    /// are the same (a band face off a source edge, a corner patch off
+    /// a source vertex), and a `StableName` carries the minting node,
+    /// which is what tells the two apart (RECIPE-DOORS D3).
+    ///
+    /// The group's NAME under-describes what it groups, and stays:
+    /// fenced by the ratified verb-vocabulary decision
+    /// (`crates/sweep/README.md`, settled ground).
     Fillet,
     /// Pattern.
     Pattern,
     /// Instantiate-part (ASM-2A's cross-document wrapper).
     InstantiatePart,
+    /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
+    /// Its outer wall speaks as [`SegTag::FromTarget`], which groups
+    /// under [`OpGroup::Fillet`]: the tag names the SHAPE (an entity
+    /// carried through one op), and the minting node says which op.
+    Shell,
 }
 
-/// Which [`RoleSeg`] variant a segment is: the fieldless mirror of
-/// the role enum.
-///
-/// The mirror is hand-written and its [`SegTag::of`] match is
-/// EXHAUSTIVE with no wildcard arm, so adding a `RoleSeg` variant
-/// fails to compile here rather than silently falling through to "no
-/// tag" — fail-loud, at the site that must grow.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[allow(
-    missing_docs,
-    reason = "each variant mirrors the documented `RoleSeg` variant of the same name"
-)]
-pub enum SegTag {
+macro_rules! seg_tags {
+    ($($name:ident),* $(,)?) => {
+        /// Which [`RoleSeg`] variant a segment is: the fieldless mirror of
+        /// the role enum.
+        ///
+        /// The mirror is hand-written and its [`SegTag::of`] match is
+        /// EXHAUSTIVE with no wildcard arm, so adding a `RoleSeg` variant
+        /// fails to compile here rather than silently falling through to "no
+        /// tag" — fail-loud, at the site that must grow. The mirror is
+        /// declared through one macro so that [`SegTag::ALL`] is projected
+        /// from the same list as the variants and cannot fall behind one.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[allow(
+            missing_docs,
+            reason = "each variant mirrors the documented `RoleSeg` variant of the same name"
+        )]
+        pub enum SegTag {
+            $($name),*
+        }
+
+        impl SegTag {
+            /// Every tag, in declaration order — the row set a census
+            /// over the segment vocabulary iterates (the content key's
+            /// `seg_content_tags_are_injective`), enumerated from the
+            /// same declaration as the variants.
+            pub const ALL: &'static [SegTag] = &[$(SegTag::$name),*];
+        }
+    };
+}
+
+seg_tags! {
     // Shared
     OutputBody,
     // Extrude
@@ -115,6 +146,7 @@ pub enum SegTag {
     // Boolean
     FromA,
     FromB,
+    FromMember,
     Seam,
     Merged,
     Fragment,
@@ -138,6 +170,10 @@ pub enum SegTag {
     BandCross,
     BandCut,
     BandSlit,
+    // Shell
+    Inner,
+    Rim,
+    HoleRim,
     // Pattern
     Instance,
     // Instantiate part
@@ -148,7 +184,7 @@ pub enum SegTag {
 /// float-free tags of the role vocabulary (cap end, meridian end,
 /// split half, rim support). One type so a pattern can constrain
 /// "which side" uniformly; the `From` impls let a caller write
-/// `.side(CapEnd::Top)`.
+/// `.side(CapEnd::End)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Side {
     /// An extrude/revolve cap end.
@@ -204,6 +240,7 @@ impl SegTag {
             RoleSeg::AxisEdge(..) => Self::AxisEdge,
             RoleSeg::FromA(..) => Self::FromA,
             RoleSeg::FromB(..) => Self::FromB,
+            RoleSeg::FromMember { .. } => Self::FromMember,
             RoleSeg::Seam { .. } => Self::Seam,
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
@@ -225,6 +262,9 @@ impl SegTag {
             RoleSeg::BandCross(..) => Self::BandCross,
             RoleSeg::BandCut(..) => Self::BandCut,
             RoleSeg::BandSlit(..) => Self::BandSlit,
+            RoleSeg::Inner(..) => Self::Inner,
+            RoleSeg::Rim(..) => Self::Rim,
+            RoleSeg::HoleRim { .. } => Self::HoleRim,
             RoleSeg::Instance { .. } => Self::Instance,
             RoleSeg::InPart { .. } => Self::InPart,
         }
@@ -246,9 +286,15 @@ impl SegTag {
             | Self::RevolveCap
             | Self::Pole
             | Self::AxisEdge => OpGroup::Revolve,
-            Self::FromA | Self::FromB | Self::Seam | Self::Merged | Self::Fragment => {
-                OpGroup::Boolean
-            }
+            Self::FromA
+            | Self::FromB
+            // The n-ary union is a boolean in the vocabulary's sense —
+            // the group is the naming CONTRACT the segment versions
+            // with, and this segment versions with the union's.
+            | Self::FromMember
+            | Self::Seam
+            | Self::Merged
+            | Self::Fragment => OpGroup::Boolean,
             Self::SplitBody
             | Self::SectionFace
             | Self::SectionEdge
@@ -267,6 +313,7 @@ impl SegTag {
             | Self::BandCross
             | Self::BandCut
             | Self::BandSlit => OpGroup::Fillet,
+            Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
             Self::Instance => OpGroup::Pattern,
             Self::InPart => OpGroup::InstantiatePart,
         }
@@ -302,6 +349,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::AxisEdge(_)
         | RoleSeg::FromA(_)
         | RoleSeg::FromB(_)
+        | RoleSeg::FromMember { .. }
         | RoleSeg::Seam { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. })
@@ -316,6 +364,9 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::BandCross(_)
         | RoleSeg::BandCut(_)
         | RoleSeg::BandSlit(_)
+        | RoleSeg::Inner(_)
+        | RoleSeg::Rim(_)
+        | RoleSeg::HoleRim { .. }
         | RoleSeg::InPart { .. }
         | RoleSeg::Instance { .. } => None,
     }
@@ -331,10 +382,19 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
 /// that answer is written for this and its two sibling matches.
+///
+/// **Only NAMES.** [`RoleSeg::FromMember`] contributes its `of` and not
+/// its `member`, exactly as [`RoleSeg::Instance`] contributes its `of`
+/// and not its `i`: a bare [`crate::RecipeNodeId`] is not a name and a
+/// walk over names cannot see it. The consumers that need the member
+/// edge — the content key, the re-map, and `derivation_nodes` — reach
+/// it through [`crate::names::member_edge`], which is where "which
+/// segments carry a bare recipe-node id" is answered.
 fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
         RoleSeg::FromA(n)
         | RoleSeg::FromB(n)
+        | RoleSeg::FromMember { of: n, .. }
         | RoleSeg::FromTarget(n)
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
@@ -342,6 +402,9 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandCross(n)
         | RoleSeg::BandCut(n)
         | RoleSeg::BandSlit(n)
+        | RoleSeg::Inner(n)
+        | RoleSeg::Rim(n)
+        | RoleSeg::HoleRim { of: n, .. }
         | RoleSeg::SectionEdge { face: n, .. }
         | RoleSeg::SplitFragment { parent: n, .. }
         | RoleSeg::CrossingVertex { edge: n, .. }
@@ -414,7 +477,7 @@ impl SegPat {
         }
     }
 
-    /// Constrains the end/side tag (`.side(CapEnd::Top)`).
+    /// Constrains the end/side tag (`.side(CapEnd::End)`).
     #[must_use]
     pub fn side(mut self, side: impl Into<Side>) -> Self {
         self.side = Some(side.into());
@@ -653,7 +716,7 @@ pub fn select_where<T: Decide>(
         return Ok(Vec::new());
     };
     let atoms = geompred::prepare(ev, geom, params)?;
-    let band = Band::linear(tol).map_err(|_| SelectRefusal::Band)?;
+    let band = Band::linear(tol)?;
     let mut out: Vec<StableName> = Vec::new();
     for (name, entry) in value.name_table.iter() {
         if !sel.matches(name) {

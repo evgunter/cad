@@ -5,7 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::RawLoop;
@@ -147,7 +147,7 @@ fn split_circle_carrier_intersection_edge() {
         (created.second_curve, (t, t1)),
     ] {
         let child = body.get_curve_geom(curve_key).unwrap().certified().unwrap();
-        let EdgeGeometry::Intersection { witness, .. } = *child.description() else {
+        let EdgeDescription::Intersection { witness, .. } = *child.description() else {
             panic!("child lost its Intersection description");
         };
         let expected = parent.carrier().eval(ta + (tb - ta) * 0.5);

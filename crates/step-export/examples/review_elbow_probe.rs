@@ -2,6 +2,13 @@
 //! elbow exactly as the DELETED duplicate in `tests/m7_swept_elbow.rs`
 //! did at `main`, exports it with the fixture-writing options, and
 //! compares the bytes with the committed `swept_elbow.step`.
+//!
+//! **This copy stays a copy, and that is the probe.** Every other
+//! construction of this body now delegates to `sweep::test_support`;
+//! this one re-derives the six constants by hand on purpose, because
+//! the question it answers is whether an INDEPENDENT construction
+//! reaches the committed bytes. Pointing it at the shared home would
+//! make it compare the fixture against itself.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

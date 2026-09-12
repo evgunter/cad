@@ -28,29 +28,12 @@
 //! matrix, and an ε-literal states a claim about one of the three.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3, v3};
+use crate::shared::tol::band;
+use crate::shared::topo::edge;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, PropsError, curved_face};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge {
-        carrier,
-        t0,
-        t1,
-        forward,
-        start,
-        end,
-    }
-}
 
 /// A gasket: a 1 mm tube on a 1 m ring, so `major / minor = 1000` and
 /// the two candidate levers are three orders apart. Ordinary geometry
@@ -132,7 +115,7 @@ fn exact_area(va: f64, vb: f64) -> f64 {
 /// stops being exact.
 #[test]
 fn a_rim_arc_split_within_epsilon_of_its_level_stays_one_group() {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let (va, vb) = (0.2, 0.7);
     let (s, edges) = gasket_band(va, vb, 0.5 * band.zero() / MINOR);
     let got =
@@ -157,7 +140,7 @@ fn a_rim_arc_split_within_epsilon_of_its_level_stays_one_group() {
 /// the level's own lever.
 #[test]
 fn a_rim_arc_well_outside_the_band_is_still_refused() {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let (s, edges) = gasket_band(0.2, 0.7, 10.0 * band.escalate() / MINOR);
     assert!(
         matches!(
@@ -176,8 +159,7 @@ fn a_rim_arc_well_outside_the_band_is_still_refused() {
 fn the_unwobbled_split_rim_measures_exactly() {
     let (va, vb) = (0.2, 0.7);
     let (s, edges) = gasket_band(va, vb, 0.0);
-    let got =
-        curved_face(&s, &edges, 1.0, Band::linear(Tol::witness()).unwrap()).expect("computes");
+    let got = curved_face(&s, &edges, 1.0, band()).expect("computes");
     let exact = exact_area(va, vb);
     assert!((got.area - exact).abs() / exact < 1e-12);
 }

@@ -9,13 +9,20 @@
 //! halves.
 //!
 //! This is the shape the Klein bottle scene wanted and could not have.
-//! Its findings entry 6 still stands — `tube_along_arc`, the door that
-//! stores a torus's INTENT parameters bit-exactly, is solid-only, so a
-//! hollow tube cannot use it — and its entry 7 is what this scene
-//! renders: the ring BUILDS, and its remaining wall is the STEP export
-//! (below). The tour therefore says the hollow tube twice: as the
-//! parameter door's missing wall thickness, and as the profile door's
-//! one-call answer.
+//! Its findings entry 7 is what this scene renders: the ring BUILDS,
+//! and its remaining wall is the STEP export (below).
+//!
+//! Its entry 6 — that `tube_along_arc`, the door storing a torus's
+//! INTENT parameters bit-exactly, was solid-only — **no longer
+//! stands**: VERBS-TUBEWALL gave that door the hollow sibling
+//! `tube_along_arc_hollow`, and `tubewall::hollowtorus` puts its full
+//! period on the tour beside this ring. So the two panels are now the
+//! SAME shape through two doors rather than a shape and a gap: this
+//! one is the profile door's answer (a holed profile, fully revolved),
+//! that one the parameter door's (an outer radius and a wall, stored),
+//! and they come out with the same census, the same two shells and the
+//! same closed forms. What is still said only once is the STEP wall,
+//! which both of them hit — pinned on both, and on klein's wall 6.
 //!
 //! # Why it is drawn see-through
 //!
@@ -78,9 +85,11 @@
 //!    document path is not a workaround for anything.
 //!
 //!    What this leaves standing is `diechamfer`'s finding on its own
-//!    scene: the chamfer has no node, so THAT die has no document.
-//!    The two verbs are not in the same position, and saying they were
-//!    would have been a finding invented from symmetry.
+//!    scene: the kernel verb takes arena KEYS, so a document's own
+//!    selection cannot be handed to it, and THAT die has no document
+//!    because the scene calls the verb directly. The two verbs are not
+//!    in the same position, and saying they were would have been a
+//!    finding invented from symmetry.
 //! 2. **The cavity's props door is [`pncad::topo::classify_shells`]**
 //!    (this finding used to record its absence; the checks unit built
 //!    it). A consumer wanting the bore's own volume or area (a coolant
@@ -96,21 +105,41 @@ use core::f64::consts::PI;
 use pncad::authoring::{p2, validated};
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, Node,
-    ProfileProgram, RecipeNodeId, ValuePayload, apply, evaluate,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, MM, Node,
+    PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, apply, evaluate,
 };
+// The prefix data lives with the unit TABLE, one hop away from the
+// prelude — the scene converts its own constants with the same factor
+// the table pairs with `mm`, so the two cannot drift.
 use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::quantity::MILLI;
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
 
+// **This scene is authored in MILLIMETRES**, and its document says so.
+//
+// The `_MM` constants are what a person designing this ring would
+// write; the canonical metres beside them are derived through the unit
+// table's own factor, so the analytic oracle below (which works in m
+// and m³) and the recipe cannot drift apart. The document's literals
+// then REMEMBER `mm`, so the panel opens on `300`, `70`, `50` rather
+// than on `0.3`, `0.07`, `0.05`.
+//
+// `heatsink` and `checks` are the other half of this exhibit: they
+// author canonically, so the gallery carries a document written in a
+// chosen unit and a document written in the kernel's own.
+
 /// The ring's mean radius: axis to tube centre.
-const R: f64 = 0.30;
+const R_MM: f64 = 300.0;
+const R: f64 = R_MM * MILLI;
 /// The tube's outer radius.
-const RO: f64 = 0.07;
+const RO_MM: f64 = 70.0;
+const RO: f64 = RO_MM * MILLI;
 /// The tube's bore radius. `RO - RI` is the 20 mm wall.
-const RI: f64 = 0.05;
+const RI_MM: f64 = 50.0;
+const RI: f64 = RI_MM * MILLI;
 
 /// One concentric circle of the section, centred on the tube axis.
 fn section(radius: f64, tol: Tol) -> ProfileLoop<f64> {
@@ -130,45 +159,7 @@ fn section(radius: f64, tol: Tol) -> ProfileLoop<f64> {
 /// verb, this stops agreeing and the finding is rewritten from what
 /// the assertion says — not the other way round.
 fn through_the_document(tol: Tol) -> Body<f64> {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
-    let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("insert mints an id")
-    };
-    let circle = |r: f64| LoopProgram::Circle {
-        centre: [len(R), len(0.0)],
-        radius: len(r),
-    };
-    let profile = insert(
-        &mut doc,
-        Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
-            // Outer first, then the holes: the list IS the hole
-            // vocabulary, and nothing else here mentions one.
-            loops: vec![circle(RO), circle(RI)],
-        }),
-    );
-    let axis = insert(
-        &mut doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [
-                Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
-                Expr::literal(1.0, Dimension::Scalar).expect("a scalar"),
-                Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
-            ],
-        }),
-    );
-    let revolved = insert(
-        &mut doc,
-        Node::Revolve {
-            profile,
-            axis,
-            angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("an angle"),
-        },
-    );
+    let (doc, revolved) = document(tol);
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -180,6 +171,76 @@ fn through_the_document(tol: Tol) -> Body<f64> {
         ValuePayload::Body(b) => (**b).clone(),
         other => panic!("expected a body, got {other:?}"),
     }
+}
+
+/// This scene's recipe, as a document the GUI can open.
+///
+/// The same document `through_the_document` evaluates — the gallery
+/// hands a reader exactly the recipe this scene's claim rests on.
+pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
+    document(tol).0
+}
+
+/// The ring's recipe and its revolve node.
+fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    // Written in millimetres: the value crosses in canonical metres,
+    // and the literal keeps the notation it was authored in.
+    let mm = |v: f64| Expr::length_in(v, MM).expect("a length in millimetres");
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
+    let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+        *doc = applied.doc;
+        applied.record.minted.expect("insert mints an id")
+    };
+    let circle = |r_mm: f64| LoopProgram::Circle {
+        centre: [mm(R_MM), mm(0.0)],
+        radius: mm(r_mm),
+    };
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let plane = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [mm(0.0), mm(0.0), mm(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let profile = insert(
+        &mut doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            // Outer first, then the holes: the list IS the hole
+            // vocabulary, and nothing else here mentions one.
+            loops: vec![circle(RO_MM), circle(RI_MM)],
+        }),
+    );
+    // The axis of revolution, written in the sketch it turns: the
+    // frame's v is world +Y, so this is its own +y through (0, 0).
+    // Four numbers in the frame's coordinates rather than six in the
+    // world's — and no way to write one that leaves the plane.
+    let axis = insert(
+        &mut doc,
+        Node::Datum(Datum::AxisInPlane {
+            plane,
+            origin: [mm(0.0), mm(0.0)],
+            direction: [
+                Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
+                Expr::literal(1.0, Dimension::Scalar).expect("a scalar"),
+            ],
+        }),
+    );
+    let revolved = insert(
+        &mut doc,
+        Node::Revolve {
+            profile,
+            axis,
+            // A full turn, written as one: the half-turn row is a
+            // NOTATION carried as a unit, so the recipe says `2 pi rad`
+            // where it would otherwise say `6.283185307179586 rad`.
+            angle: Expr::angle_in(2.0, HALF_TURN).expect("a full turn"),
+        },
+    );
+    (doc, revolved)
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
@@ -296,7 +357,20 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![Stop {
         name: "hollowring",
         caption: "THE ONE-CALL HOLLOW RING (a holed profile, fully revolved)".to_string(),
-        montage: true,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
+        // 2026-08-30), with `hollowelbow` and `hollowtorus` beside it.
+        // A cavity is invisible in an opaque render at every camera and
+        // the see-through render is only a partial answer — Ev's
+        // ruling: "they just aren't that interesting-looking". This is
+        // `voidbox`'s own precedent one door over: its panel was
+        // retired at the #91 refresh because an opaque void is
+        // indistinguishable from a cube, and `crate::cutaway` — which
+        // shows an interior by splitting rather than by translucency —
+        // is what replaced it (see `bool_bodies::voidbox_narration`). The hollowness evidence was never the pixels: two
+        // shells, `Revolved::cavities`, and the torus closed forms are
+        // printed, and they stay, as does the standalone render and the
+        // STEP-frontier declaration.
+        montage: false,
         story: "a tube bent into a closed circle, hollow the whole way round — two \
                 concentric circles and a full turn, in ONE revolve call",
         ops: "revolve(annulus, axis, Revolution::Full): the outer circle sweeps the \
@@ -338,9 +412,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                             pncad::step_export::StepExportError::CurvedShellClassification { .. }
                         )
                     },
-                    "say so in klein's findings entry 7 and retire klein's WALL 6 probe \
-                     (`klein::wall_probes`), which pins this exact refusal on this exact \
-                     shape — the two are one gate with two probes and retire together",
+                    "say so in klein's findings entry 7 and retire the other three probes \
+                     of this one gate — klein's WALL 6 (`klein::wall_probes`), which pins \
+                     this exact refusal on this exact shape, `tubewall::hollowtorus`, which \
+                     pins it on the parameter door's hollow torus, and `torusvessel`, which \
+                     pins it on a body `shell` hollowed",
                 ),
         ],
     }]

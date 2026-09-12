@@ -7,17 +7,26 @@
 //! directory on every run, and a number written out beside it is a
 //! second, unchecked copy of a set the compiler already knows.
 //!
-//! The files themselves are untouched: each keeps its own `//!` docs, its inner
-//! attributes (`#![cfg(feature = "interval")]` and friends work as
-//! module-level attributes), and its own `mod <helper>;` lines — a
-//! `#[path]` module's child modules resolve against the DIRECTORY
-//! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
-//! its own crate root.
+//! Each suite keeps its own `//!` docs and its inner attributes
+//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! attributes). What it does NOT keep is a `mod <helper>;` line of its
+//! own: the shared helper trees are declared once, below, as modules of
+//! THIS root, and a suite that wants one says `use crate::<helper>;`.
+//! One declaration means one parse, one resolve, one type-check and one
+//! codegen of that helper per binary instead of one per including suite.
 //!
-//! WHY: on the CI runner (2 vCPU) each extra test binary cost ~1.9 s of
-//! codegen+link — measured at 494 of the 514 s of the workspace build job
-//! (see the LINK/DEBUGINFO note in .github/workflows/ci.yml). The suites
-//! are small; the per-binary constant was the bill.
+//! What that gives up: a suite file is no longer compilable as its own
+//! crate root, because `crate::` now names this binary. Nothing in the
+//! tree compiles them that way — `autotests = false` plus the guard below
+//! make this file the only root — but it was true before and is not now.
+//!
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
 //!
 //! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
 //! below. `autotests = false` in Cargo.toml means a file that is not
@@ -28,12 +37,22 @@
 //! `round_trip`, under binary `all` rather than binary `export`); the set
 //! of tests is otherwise identical.
 
-// Each suite keeps its own verbatim `mod <helper>;`, so a shared helper is
-// loaded once per suite that uses it. That is deliberate — the alternative
-// is editing the suites — and it is what `duplicate_mod` is warning about.
-// Allowed HERE ONLY, by name: no blanket `#![allow]`, which would weaken
-// the lint gate for every suite module included below.
-#![allow(clippy::duplicate_mod)]
+// The shared helper trees, declared ONCE for the whole binary. This file
+// is the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/corpus/mod.rs` and `tests/fixture/mod.rs` — and every consumer
+// reaches that one instance through `use crate::<helper>;`.
+//
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
+// (`every_suite_file_is_aggregated` counts them against the directory
+// walk), and a helper module directory is not a suite. `mod` without the
+// attribute is also what `test_utils::source::suite_files` assumes when
+// it skips a directory carrying a `mod.rs`.
+//
+// There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+// loaded twice any more; if one ever is, the lint is meant to fire.
+mod corpus;
+mod fixture;
 
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
@@ -45,30 +64,99 @@ mod asm2b_multisolid;
 mod asm4_split_inline;
 #[path = "asm_r2a_mate_solve.rs"]
 mod asm_r2a_mate_solve;
-#[path = "asm_r2a_schema_v13.rs"]
-mod asm_r2a_schema_v13;
+#[path = "asm_r2a_mate_wire.rs"]
+mod asm_r2a_mate_wire;
 #[path = "asm_r2b_assembly.rs"]
 mod asm_r2b_assembly;
-#[path = "asm_r2b_schema_v14.rs"]
-mod asm_r2b_schema_v14;
+#[path = "asm_r2b_interface_wire.rs"]
+mod asm_r2b_interface_wire;
 #[path = "asm_roots.rs"]
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
-#[path = "asm_upd_schema_v10.rs"]
-mod asm_upd_schema_v10;
+#[path = "blend5_r1_probes.rs"]
+mod blend5_r1_probes;
+#[path = "blend5_r2_probes.rs"]
+mod blend5_r2_probes;
+#[path = "blend5_rim_support.rs"]
+mod blend5_rim_support;
+#[path = "blend5_rim_support_wire.rs"]
+mod blend5_rim_support_wire;
+#[path = "bool12r2_ec_probe.rs"]
+mod bool12r2_ec_probe;
+#[path = "bool13_r1_probes.rs"]
+mod bool13_r1_probes;
+#[path = "bool13r2_probes.rs"]
+mod bool13r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "cascade_delete.rs"]
+mod cascade_delete;
+#[path = "cert3r1_dump.rs"]
+mod cert3r1_dump;
+#[path = "display_contract.rs"]
+mod display_contract;
+#[path = "docm1_face_frame.rs"]
+mod docm1_face_frame;
+#[path = "docm1_face_frame_interval.rs"]
+mod docm1_face_frame_interval;
+#[path = "docm2_part.rs"]
+mod docm2_part;
+#[path = "docm2_part_interval.rs"]
+mod docm2_part_interval;
+#[path = "docm3_union.rs"]
+mod docm3_union;
+#[path = "docm4_evaluation_identity.rs"]
+mod docm4_evaluation_identity;
+#[path = "docm5_subject.rs"]
+mod docm5_subject;
+#[path = "docm6_seam_declarations.rs"]
+mod docm6_seam_declarations;
+#[path = "docm7_union_declare.rs"]
+mod docm7_union_declare;
+#[path = "docm8_flat_merged.rs"]
+mod docm8_flat_merged;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
-#[path = "lbret_schema_v8.rs"]
-mod lbret_schema_v8;
+#[path = "eval10_section_reads_the_nominal.rs"]
+mod eval10_section_reads_the_nominal;
+#[path = "eval4_accept_funnel.rs"]
+mod eval4_accept_funnel;
+#[path = "eval6_placers_over_instances.rs"]
+mod eval6_placers_over_instances;
+#[path = "eval6_placers_over_instances_interval.rs"]
+mod eval6_placers_over_instances_interval;
+#[path = "eval9_nominal_in_the_key.rs"]
+mod eval9_nominal_in_the_key;
+#[path = "fix_loop_polygon_expr.rs"]
+mod fix_loop_polygon_expr;
+#[path = "fix_pattern_mate_crossing.rs"]
+mod fix_pattern_mate_crossing;
+
+#[path = "gui1_pick.rs"]
+mod gui1_pick;
+#[path = "gui1_pick_r2.rs"]
+mod gui1_pick_r2;
+#[path = "lib_dietool_crossing.rs"]
+mod lib_dietool_crossing;
 #[path = "lib_doors_node_result.rs"]
 mod lib_doors_node_result;
 #[path = "lib_g14_split_walls.rs"]
 mod lib_g14_split_walls;
+#[path = "lib_g16_blend_messages.rs"]
+mod lib_g16_blend_messages;
+#[path = "lib_g16_chamfer_node.rs"]
+mod lib_g16_chamfer_node;
+#[path = "lib_g16_corpus_name_digests.rs"]
+mod lib_g16_corpus_name_digests;
+#[path = "lib_g17_r1_probes.rs"]
+mod lib_g17_r1_probes;
+#[path = "lib_g17_r2_probes.rs"]
+mod lib_g17_r2_probes;
+#[path = "lib_g17_shell_node.rs"]
+mod lib_g17_shell_node;
 #[path = "lib_placedunion.rs"]
 mod lib_placedunion;
 #[path = "lib_sel1_geoselect.rs"]
@@ -79,6 +167,81 @@ mod lib_sel2_flush;
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
 mod lib_u7_select;
+#[path = "m10_1_analysis.rs"]
+mod m10_1_analysis;
+#[path = "m10_1_distribution_wire.rs"]
+mod m10_1_distribution_wire;
+#[path = "m10_1_r2_probes.rs"]
+mod m10_1_r2_probes;
+#[path = "m10_2_measure.rs"]
+mod m10_2_measure;
+#[path = "m10_2_measure_wire.rs"]
+mod m10_2_measure_wire;
+#[path = "m10_2_r1_probes.rs"]
+mod m10_2_r1_probes;
+#[path = "m10_3_driver_interval.rs"]
+mod m10_3_driver_interval;
+#[path = "m10_3_driver_k_probe_interval.rs"]
+mod m10_3_driver_k_probe_interval;
+#[path = "m10_3_r1_probes_interval.rs"]
+mod m10_3_r1_probes_interval;
+#[path = "m10_3_r2_probes_interval.rs"]
+mod m10_3_r2_probes_interval;
+#[path = "m10_4_r1_probes_interval.rs"]
+mod m10_4_r1_probes_interval;
+#[path = "m10_4_seed.rs"]
+mod m10_4_seed;
+#[path = "msolve1_transform_aware.rs"]
+mod msolve1_transform_aware;
+#[path = "msolve2_member_chain.rs"]
+mod msolve2_member_chain;
+#[path = "msolve3_placer_refused.rs"]
+mod msolve3_placer_refused;
+#[path = "msolve4_mate_memo.rs"]
+mod msolve4_mate_memo;
+#[path = "msolve5_read_below_a_root.rs"]
+mod msolve5_read_below_a_root;
+#[path = "onb_wall_normal_census.rs"]
+mod onb_wall_normal_census;
+
+#[path = "m10_4_r2_probes_interval.rs"]
+mod m10_4_r2_probes_interval;
+#[path = "m10_4_stackup_interval.rs"]
+mod m10_4_stackup_interval;
+#[path = "m10_5_clearance_interval.rs"]
+mod m10_5_clearance_interval;
+#[path = "m10_5_r1_probes_interval.rs"]
+mod m10_5_r1_probes_interval;
+#[path = "m10_5_r2_probes_interval.rs"]
+mod m10_5_r2_probes_interval;
+#[path = "m10_6_ci_rows_interval.rs"]
+mod m10_6_ci_rows_interval;
+#[path = "m10_6_mc_draws.rs"]
+mod m10_6_mc_draws;
+#[path = "m10_6_min_clearance_interval.rs"]
+mod m10_6_min_clearance_interval;
+#[path = "m10_6_r1_probes_interval.rs"]
+mod m10_6_r1_probes_interval;
+#[path = "m10_6_reports_interval.rs"]
+mod m10_6_reports_interval;
+#[path = "m10_7_census_probe.rs"]
+mod m10_7_census_probe;
+#[path = "m10_7_lever.rs"]
+mod m10_7_lever;
+#[path = "m10_7_plate.rs"]
+mod m10_7_plate;
+#[path = "m10_7_probe_interval.rs"]
+mod m10_7_probe_interval;
+#[path = "m10_7_r1_census_probe.rs"]
+mod m10_7_r1_census_probe;
+#[path = "m10_7_r1_probes_interval.rs"]
+mod m10_7_r1_probes_interval;
+#[path = "m10_di_dual_corpus.rs"]
+mod m10_di_dual_corpus;
+#[path = "m10_p_fence.rs"]
+mod m10_p_fence;
+#[path = "m10_p_lift.rs"]
+mod m10_p_lift;
 #[path = "m4_pr1_dims.rs"]
 mod m4_pr1_dims;
 #[path = "m4_pr1_doc.rs"]
@@ -91,6 +254,8 @@ mod m4_pr1_paths;
 mod m4_pr2_eval;
 #[path = "m4_pr2_eval_interval.rs"]
 mod m4_pr2_eval_interval;
+#[path = "m4_pr2_frame.rs"]
+mod m4_pr2_frame;
 #[path = "m4_pr2_wire.rs"]
 mod m4_pr2_wire;
 #[path = "m4_pr3_names.rs"]
@@ -149,8 +314,6 @@ mod m4_pr8_k_probe;
 mod m4_pr8_latency;
 #[path = "m5_pr10_nodes.rs"]
 mod m5_pr10_nodes;
-#[path = "m5_pr10_schema_v2.rs"]
-mod m5_pr10_schema_v2;
 #[path = "m5_pr11_corpus_curved.rs"]
 mod m5_pr11_corpus_curved;
 #[path = "m5_pr12_fillet_node.rs"]
@@ -167,32 +330,71 @@ mod m5_pr8_bvh_diff;
 mod m5_s1_rest_declare;
 #[path = "m6_5_downstream.rs"]
 mod m6_5_downstream;
-#[path = "m6_5_schema_v3.rs"]
-mod m6_5_schema_v3;
 #[path = "m6_5_selection_refusals.rs"]
 mod m6_5_selection_refusals;
+#[path = "m6_5_selection_wire.rs"]
+mod m6_5_selection_wire;
 #[path = "m6_composed_node.rs"]
 mod m6_composed_node;
+#[path = "m9_1_declaration_wire.rs"]
+mod m9_1_declaration_wire;
 #[path = "m9_1_declare_classes.rs"]
 mod m9_1_declare_classes;
-#[path = "m9_1_schema_v11.rs"]
-mod m9_1_schema_v11;
 #[path = "m9_d1_r1_probes.rs"]
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]
 mod m9_d1_r2_probes;
-#[path = "placedunion_schema_v12.rs"]
-mod placedunion_schema_v12;
-#[path = "respell_schema_v9.rs"]
-mod respell_schema_v9;
+#[path = "mate1_member_vocab.rs"]
+mod mate1_member_vocab;
+#[path = "mate1_r1_probes.rs"]
+mod mate1_r1_probes;
+#[path = "mate1r2_probes.rs"]
+mod mate1r2_probes;
+#[path = "mate6_gather_mints.rs"]
+mod mate6_gather_mints;
+#[path = "mate6r1_shared.rs"]
+mod mate6r1_shared;
+#[path = "mate6r2_probes.rs"]
+mod mate6r2_probes;
+#[path = "perf2_name_keying_differential.rs"]
+mod perf2_name_keying_differential;
+#[path = "pinned_lift_validates_once.rs"]
+mod pinned_lift_validates_once;
+#[path = "pirad_wire.rs"]
+mod pirad_wire;
+#[path = "placedunion_wire.rs"]
+mod placedunion_wire;
+#[path = "props_verdict_shapes.rs"]
+mod props_verdict_shapes;
+
+#[path = "r1_bool11_ec_probe.rs"]
+mod r1_bool11_ec_probe;
+#[path = "r1_dual_probes.rs"]
+mod r1_dual_probes;
+#[path = "r1_m10_1_corruptions.rs"]
+mod r1_m10_1_corruptions;
+#[path = "r1_m10_1_probes.rs"]
+mod r1_m10_1_probes;
+#[path = "r2_cert3_coord_dump.rs"]
+mod r2_cert3_coord_dump;
+#[path = "r2_keydiff.rs"]
+mod r2_keydiff;
+#[path = "r2_m10_2_probes.rs"]
+mod r2_m10_2_probes;
+#[path = "r2_m10_6_probes_interval.rs"]
+mod r2_m10_6_probes_interval;
+#[path = "r2_m10_di_probes.rs"]
+mod r2_m10_di_probes;
+#[path = "rev_fix_xsplit_unreachable.rs"]
+mod rev_fix_xsplit_unreachable;
+#[path = "review_gui1_r1.rs"]
+mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]
 mod review_m4_pr1_die;
 #[path = "review_m4_pr2.rs"]
 mod review_m4_pr2;
-#[path = "review_m5_pr10_schema.rs"]
-mod review_m5_pr10_schema;
 #[path = "review_m5_pr10_sweep_node.rs"]
 mod review_m5_pr10_sweep_node;
 #[path = "review_m5_pr1_e2e_interval.rs"]
@@ -203,8 +405,16 @@ mod review_m5_pr9_doc_probe;
 mod review_m6_5_pr2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
-#[path = "schema_ledger.rs"]
-mod schema_ledger;
+#[path = "seat4_verb_lowering.rs"]
+mod seat4_verb_lowering;
+#[path = "seat6_param_source.rs"]
+mod seat6_param_source;
+#[path = "seat7_sweep_lowering.rs"]
+mod seat7_sweep_lowering;
+#[path = "seat8_split_lowering.rs"]
+mod seat8_split_lowering;
+#[path = "seatfw_curved_flush.rs"]
+mod seatfw_curved_flush;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -221,38 +431,66 @@ mod switch_program_vocabulary;
 mod switch_slots;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
+#[path = "unreadable_by_this_build.rs"]
+mod unreadable_by_this_build;
 
-/// Guards the `autotests = false` hazard: a suite file added to `tests/`
-/// but not declared above would silently stop being compiled and run.
+/// The aggregation and ONE HOME checks, whose one home — the walk, the
+/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
 #[test]
-// Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
-// weaken the lint gate for every suite module included above.
-#[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
-    let mut missing: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-            continue;
-        }
-        let name = path
-            .file_name()
-            .expect("file has a name")
-            .to_string_lossy()
-            .to_string();
-        if name == "all.rs" {
-            continue;
-        }
-        if !src.contains(&format!("#[path = \"{name}\"]")) {
-            missing.push(name);
-        }
-    }
-    missing.sort();
-    assert!(
-        missing.is_empty(),
-        "tests/*.rs suites are not declared in tests/all.rs, so `autotests = false` \
-         is silently dropping them: {missing:?}. Add a `#[path]` line for each."
-    );
+    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
+
+#[path = "cert_m2r1_corpus.rs"]
+mod cert_m2r1_corpus;
+
+#[path = "lib_tube_node.rs"]
+mod lib_tube_node;
+
+#[path = "lib_tube_r1_probes.rs"]
+mod lib_tube_r1_probes;
+
+#[path = "lib_tube_r1_dump.rs"]
+mod lib_tube_r1_dump;
+
+#[path = "lib_tube_r1_probes2.rs"]
+mod lib_tube_r1_probes2;
+
+#[path = "lib_tube_r2_probes.rs"]
+mod lib_tube_r2_probes;
+
+#[path = "m10_7_r2_probes_interval.rs"]
+mod m10_7_r2_probes_interval;
+#[path = "m10_8_arc_family_interval.rs"]
+mod m10_8_arc_family_interval;
+#[path = "m10_8_harness.rs"]
+mod m10_8_harness;
+#[path = "m10_8_pins_interval.rs"]
+mod m10_8_pins_interval;
+#[path = "m10_8_r1_probes_interval.rs"]
+mod m10_8_r1_probes_interval;
+
+#[path = "m10_8_r2_probes_interval.rs"]
+mod m10_8_r2_probes_interval;
+
+#[path = "m10_9_evidence_interval.rs"]
+mod m10_9_evidence_interval;
+#[path = "m10_9_pins_interval.rs"]
+mod m10_9_pins_interval;
+
+#[path = "m10_9_r2_probes_interval.rs"]
+mod m10_9_r2_probes_interval;
+
+#[path = "kstats_bracket_rows.rs"]
+mod kstats_bracket_rows;
+
+#[path = "m10_9_r1_probes_interval.rs"]
+mod m10_9_r1_probes_interval;
+#[path = "wire_band_cause.rs"]
+mod wire_band_cause;
+#[path = "wire_frame_placement_carry.rs"]
+mod wire_frame_placement_carry;
+#[path = "wire_product_gather_tie.rs"]
+mod wire_product_gather_tie;

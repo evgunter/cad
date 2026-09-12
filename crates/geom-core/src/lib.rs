@@ -25,6 +25,7 @@ pub mod predicate;
 pub mod real;
 pub mod ring_interval;
 pub mod spline;
+pub mod sym;
 pub mod tolerance;
 
 #[cfg(feature = "interval")]
@@ -34,14 +35,18 @@ pub use dual::{Dual, Dual64};
 pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
-pub use linalg::{Affine3, FrameError, FrameInput, Mat3, Point2, Point3, Vec2, Vec3};
+pub use linalg::{Affine3, FrameError, FrameInput, FrameVector, Mat3, Point2, Point3, Vec2, Vec3};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, Decide, Indeterminate,
     IndeterminatePayload, Margin, MarginDiag, Sign,
 };
-pub use real::{Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real};
+pub use real::{
+    Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real, is_finite_length,
+    is_underflowed_length,
+};
 pub use ring_interval::RingInterval;
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
+pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRules};
 pub use tolerance::{
     EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
     ToleranceReport,

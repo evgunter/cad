@@ -38,7 +38,7 @@ came from a developer's box. A 2026-08-22 census measured the same ratio at
 **4.95 / 4.99** on a 4-core AVX-512 guest — about 30% lower, enough to turn the
 note's "~2x and ~3x margins" into 0.94x and 0.91x. That is **not** a licence to
 flip: a ratio does not transfer between machines, and the census box is not
-CI's 2-vCPU runner. It is a demonstration that the number CI relies on had
+CI's runner. It is a demonstration that the number CI relies on had
 never been measured where CI runs.
 
 Each sample here is that measurement, taken on the runner:
@@ -105,7 +105,7 @@ Two derived figures exist to make the opt-1 row readable at a glance:
 `execution_kept_vs_opt2` (~1.0 means opt-1 runs as fast as opt-2) and
 `build_penalty_kept_vs_opt2` (<1.0 means it pays less to get there).
 
-**The tree was then moved to opt-1 on that evidence** (Evan, 2026-08-25),
+**The tree was then moved to opt-1 on that evidence** (Ev, 2026-08-25),
 before any runner sample existed — deliberately, because the fastest way to
 get runner data on opt-1 is to run the gate on opt-1. Every PR now produces a
 real opt-1 archive step and a real opt-1 test row, and this lane reads exactly
@@ -122,9 +122,44 @@ rebuild.
   the tree's setting — is printed loudly in the job summary and is the rare
   actionable event; it changes nothing by itself.
 * **Read the `environment` block before comparing two samples.** Runner, core
-  count, memory, toolchain, `RUSTFLAGS`, every `CARGO_PROFILE_*`,
-  debug-assertions and ε are recorded per sample, because a committed timing is
-  only worth anything if you know which box produced it.
+  count, memory, `cpu_model`, `cpu_flags`, toolchain, `RUSTFLAGS`, every
+  `CARGO_PROFILE_*`, debug-assertions and ε are recorded per sample, because a
+  committed timing is only worth anything if you know which box produced it.
+
+  **What that block can now tell you**: which host CPU the measured arms ran
+  on — model string, and whether `avx2` / `avx512f` were available — where
+  every other field in that list is constant across the whole `ubuntu-latest`
+  pool. That matters more here than in the other two histories, because a
+  sample compares one **free** arm (the median of five gate runs, so five
+  hosts) against **measured** arms taken on one host on one night: a slow box
+  moves both measured arms together and only ever toward the tree's own level.
+  A margin smaller than the between-host spread is not a verdict, and
+  `cpu_model` is what lets a reader check that — though what that spread
+  actually is has not been measured yet, which is what these fields are
+  being accumulated to find out.
+
+  **Reading the pair.** `cpu_flags` is the field that says whether
+  `/proc/cpuinfo` was read at all: `null` means it could not be, and ANY
+  list — the empty one included — means it could. Three shapes, not two:
+
+  | `cpu_model` | `cpu_flags` | what happened |
+  |---|---|---|
+  | a string | a list | read; the ordinary case, and `[]` there means neither extension was present |
+  | `null` | `null` | `/proc/cpuinfo` unreadable — the box is unidentified, not featureless |
+  | `null` | a list | read, but it carried no `model name` line (an aarch64 one spells its flags `Features` and names no model) |
+
+  So `cpu_model: null` is not by itself a reading: pair it with `cpu_flags`
+  before concluding anything about the host.
+
+  **What it still cannot.** *These fields start with the first sample written
+  after they were added; earlier samples carry the old field set and stay
+  unattributable — the history is append-only and nothing retro-fits it.* The
+  free arm's five runs are still summarised without their hosts, so its
+  between-host spread remains unrecorded. And the runner class moved from
+  2 vCPU / 7 GB to 4 vCPU / 16 GB on 2026-09-03
+  (`.github/workflows/ci.yml`): `nproc` separates the two eras, nothing
+  separates the boxes within either, and no `a`/`E` figure crosses that date
+  comparably.
 * **The arms must have measured the same suite.** Each arm's `tests` count is
   recorded for exactly that check. The measured arms are deliberately built
   **without** `--cfg nightly_suite`: with it, `E0`/`E1` would cover the
@@ -139,11 +174,6 @@ rebuild.
   arms now pass `--color never`. **Arm A still reports `n/a`** and that is not
   a regression: the jobs API gives step durations, not test counts, so what
   the cross-check can actually compare is arm B against arm C.
-* **A verdict of `opt-1` is a flip like any other**, and it changes nothing by
-  itself. The tree is at opt-level 2 and `ci.yml`'s OPT LEVEL note is still
-  the argument of record; moving it is a separate decision, made against
-  samples from this history rather than against the sweep that motivated the
-  arm.
 * **This has flipped once already.** opt-2 (#449) was itself a reversal of an
   earlier opt-0 verdict (#52/#53) whose premises expired. That is why each
   sample carries its inputs (`r`, `E2`, `a2 - a0`, the build/total split)

@@ -1,0 +1,213 @@
+id: 1c20a55875fd2760f4d43eb67ee0d135
+{
+  "snapshot": {
+    "id": "1c20a55875fd2760f4d43eb67ee0d135",
+    "next_id": 4,
+    "nodes": {
+      "0": {
+        "Datum": {
+          "Frame": {
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "u": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "v": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "1": {
+        "Profile": {
+          "plane": 0,
+          "loops": [
+            {
+              "Circle": {
+                "centre": [
+                  {
+                    "Literal": {
+                      "value": 0.3,
+                      "dim": "Length",
+                      "unit": "mm"
+                    }
+                  },
+                  {
+                    "Literal": {
+                      "value": 0.0,
+                      "dim": "Length",
+                      "unit": "mm"
+                    }
+                  }
+                ],
+                "radius": {
+                  "Literal": {
+                    "value": 0.07,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                }
+              }
+            },
+            {
+              "Circle": {
+                "centre": [
+                  {
+                    "Literal": {
+                      "value": 0.3,
+                      "dim": "Length",
+                      "unit": "mm"
+                    }
+                  },
+                  {
+                    "Literal": {
+                      "value": 0.0,
+                      "dim": "Length",
+                      "unit": "mm"
+                    }
+                  }
+                ],
+                "radius": {
+                  "Literal": {
+                    "value": 0.05,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "2": {
+        "Datum": {
+          "AxisInPlane": {
+            "plane": 0,
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "direction": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "3": {
+        "Revolve": {
+          "profile": 1,
+          "axis": 2,
+          "angle": {
+            "Literal": {
+              "value": 6.283185307179586,
+              "dim": "Angle",
+              "unit": "pi rad"
+            }
+          }
+        }
+      }
+    },
+    "order": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "roots": [
+      3
+    ],
+    "placements": {},
+    "params": {},
+    "epsilon": 1e-9,
+    "witnesses": {},
+    "metadata": {},
+    "appearance": []
+  },
+  "edits": []
+}

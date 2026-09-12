@@ -1,0 +1,146 @@
+---
+id: opt-level-selftest-runs-nowhere
+kind: issue
+title: opt-level-calibrate.py --selftest is invoked by nothing in the tree - a guard that has never been shown to fire
+status: closed
+opened: 2026-09-04
+branch: ciw/demotion-verified
+pr: 2124
+closed: 2026-09-08
+---
+
+
+Found by CIW unit 5 (PR 1722), which extended that selftest and had to
+check where it runs in order to claim the extension was verified.
+
+## The finding
+
+`scripts/opt-level-calibrate.py --selftest` exists, is substantial, and
+**is invoked by nothing**. Every reference to the script in the tree is
+one of its three real modes:
+
+* `.github/workflows/nightly.yml:1023` — `read-free-arm`
+* `.github/workflows/nightly.yml:1036` — `decide`
+* `.github/workflows/nightly.yml:1243` — `record`
+
+plus prose mentions in `local-scripts/test-fast.sh:39`,
+`.github/workflows/nightly.yml:852`/`:1795` and
+`scripts/check-ci-mirror-parity.py:155`. No workflow, no gate, no
+`local-scripts/` row and no `test-fast.sh` row runs `--selftest`.
+
+## Why nothing catches it
+
+`scripts/gates/gate-roster.sh` is the check that would: it refuses a
+hosted half that runs a gate "without running its `--selftest` first — a
+guard that has never been shown to fire is not a guard" (`:165`, `:221`,
+`:283`). Its scope is `scripts/gates/*` plus a named outlier list, and
+`scripts/opt-level-calibrate.py` is in neither. So the rule exists, the
+sentence that names this exact defect exists, and the file it applies to
+sits outside its reach.
+
+The sibling sets the precedent in the other direction. The criterion lane
+runs `scripts/criterion-emit.py --selftest` immediately before the real
+invocation (`.github/workflows/nightly.yml:1804`), and the comment above
+it cites *this very script* as the precedent for siting such rows in the
+nightly rather than the merge gate — while this script does not have the
+row it is being cited for.
+
+## What is at stake, and it is not hypothetical
+
+The selftest is the only thing that exercises the parts of this script a
+malformed sample would come from: shard summing, the docs-tier skip, a
+cancelled shard, a renamed step, the schema-1/2/3 readers, the cadence
+triggers, the argmin over three arms, the one-arm refusal, and (as of PR
+1722) the environment block's host-identity degradation. The `record`
+mode it guards **appends to an append-only history** — `docs/perf-data/
+opt-level/` — where a malformed entry cannot be overwritten out. That is
+the same failure the criterion comment names as its own reason for
+running its selftest first.
+
+## Same class as
+
+`work/ciw/nightly-demotions-have-never-run` — a check that exists and
+runs nowhere, so its greenness is a statement about nothing. That item is
+about rows that were demoted and never observed; this one is about a
+guard that was written and never invoked. Both are "the tree believes it
+is covered here and is not".
+
+## Not fixed in unit 5, deliberately
+
+Wiring it is an edit to `.github/workflows/nightly.yml`'s `opt-level`
+job, and unit 5's brief fenced that file off — sibling lanes are in it.
+Which row it belongs on is also a real question rather than an obvious
+one: before `read-free-arm` (earliest, cheapest, fails before any minutes
+are spent) or immediately before `record` (closest to the append it
+protects, matching the criterion lane's spelling). Whoever takes it
+should also decide whether `gate-roster.sh`'s outlier list is the right
+home for the general rule, so the next script in this position is caught
+by a check rather than by a lane that happened to look.
+
+## Disposition (PR 2124)
+
+`scripts/opt-level-calibrate.py --selftest` runs in `.github/workflows/ci.yml`'s
+`discipline` job, mirrored in `local-scripts/ci-local.sh`. **Per-PR, not
+nightly**, on the argument this item's sibling is about: a guard sited only in
+a scheduled workflow is exercised only on a schedule. The item's two candidate
+sites were both in `nightly.yml`; neither survives that, and the
+"closest to the append it protects" half does not survive the detail that the
+nightly runs `main`, which is reached only through the gate that now carries
+the selftest. Sited in `discipline` rather than `mirror` by
+`check-run-jobs.py`'s own argument: the script's inputs are `scripts/*.py`,
+which is not a docs-tier file class, so the change set that can break the
+selftest is exactly the change set `discipline` runs on.
+
+The path's `MIRROR_EXEMPT` entry is deleted — both halves name it now, so the
+confession expired; its hosted-only reason is re-stated at the local row,
+where it is about the LANE rather than the path.
+
+**The general rule got a check, and it is not in `gate-roster.sh`.** That file
+is GATES' and PR 2077 was open on it. `scripts/check-ci-mirror-parity.py`'s
+CLAIM 4 gains a SECOND ARM, in claim 4's own loop: the same population, the
+same `SCRIPT_RE`, the same closure, asking of a script's `--selftest` mode what
+arm one asks of the script. `scripts/gates/` is outside both, as
+`gate-roster.sh`'s ground.
+
+It shipped wrong the first time and the review caught it. As first written it
+counted a `local-scripts/` line as a caller — and every hosted job DELETES
+that tree, so a selftest running in no CI at all passed, and an `_ok_case`
+pinned that shape as correct. It also matched one physical line, so a loop or
+a continuation in one `run:` block red two scripts with a false message. Both
+are fixed and both are proven by mutation on the real tree; the caller
+population is now workflow files only, read one `run:` block at a time.
+
+Residue, filed: `work/ciw/criterion-selftest-nightly-only` —
+`scripts/criterion-emit.py --selftest` is invoked only from `nightly.yml:1835`,
+the same class one step milder, and its comment cites THIS script as the
+precedent for that siting.
+
+## Closed 2026-09-08
+
+PR 2124. `scripts/opt-level-calibrate.py --selftest` runs in `ci.yml`'s
+`discipline` job, mirrored in `local-scripts/ci-local.sh` — sited there
+because the script's inputs are `scripts/*.py`, so the change set that
+can break the selftest is exactly the change set that job runs on
+(measured: a calibrator-only diff classifies `TIER=all`, `RUN_BUILD=true`,
+and `discipline` gates on `run_build`). Not the nightly: a guard sited
+only in a scheduled workflow is this item's own defect one level in.
+
+The class got a check — **claim 4's second arm** in
+`check-ci-mirror-parity.py`: a script under `scripts/` or `demos/` that
+implements a `--selftest` nothing invokes. It is claim 4's own loop with
+one more predicate, sharing its population, its `SCRIPT_RE` matcher and
+its closure, after review found the first attempt was a parallel
+mechanism describing itself as a reuse.
+
+Two defects the reviews caught and this closure should not paper over,
+because both were in the FIRST version of the very check meant to prevent
+them: a `local-scripts/` line counted as a caller although every hosted
+job deletes that tree at checkout — so a selftest running in no CI at all
+passed, and a selftest case asserted that as correct — and a `for` loop
+over two scripts in one `run:` block red both with a false message.
+
+The systemic half is GATES': `scripts/gates/gate-roster.sh` already
+carries "a guard that has never been shown to fire is not a guard" for
+`scripts/gates/*`, and this arm covers only the population outside it.
+Announced in the PR with the offer to delete the arm if GATES would
+rather own both.

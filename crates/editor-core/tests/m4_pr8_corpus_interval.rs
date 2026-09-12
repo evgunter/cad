@@ -13,8 +13,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use editor_core::EvalOutcome;
 use geom_core::Interval;

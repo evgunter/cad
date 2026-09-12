@@ -1,13 +1,12 @@
 # pncad — Python bindings
 
-Python bindings for the `pncad` B-rep CAD kernel: author exact
-solids, validate them, measure them, export STEP — headless, from a
-script.
+Python bindings for the `pncad` B-rep CAD kernel: author exact solids,
+validate them, measure them, tessellate and cross-check the mesh, export
+STEP and STL — headless, from a script.
 
-`pncad` is a **placeholder name**. The project has not been named yet
-(design question Q9), and the crate, the module and the docs will all
-be renamed together when it is. Nothing is published to PyPI, because
-there is nothing to publish it under.
+`pncad` is a **placeholder name** (design question Q9); the crate, the
+module and the docs get renamed together when the project is named.
+Nothing is published to PyPI.
 
 ## Install
 
@@ -27,20 +26,25 @@ $ ./crates/pncad-py/run-python-tests.sh          # builds, stages, runs the test
 $ PYTHONPATH=target/python-stage python3 crates/pncad-py/examples/bracket.py
 ```
 
-Wheels are abi3 (`py38`), so one wheel per platform serves every
-CPython from 3.8. The bindings are f64-only; the kernel's certified
-interval and dual-number lanes are not bound yet.
+Wheels are abi3 (`py38`), so one wheel per platform serves every CPython
+from 3.8. The bindings are f64-only; the kernel's certified interval and
+dual-number lanes are not bound.
 
 ## A first model
 
 ```python
-from pncad import Doc, Node, evaluate, mm
+from pncad import Doc, Expr, Node, evaluate, mm
 
 doc = Doc()
 profile = doc.insert(
-    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)])
+    Node.polygon([
+        (Expr.length_in(0, mm), Expr.length_in(0, mm)),
+        (Expr.length_in(80, mm), Expr.length_in(0, mm)),
+        (Expr.length_in(80, mm), Expr.length_in(40, mm)),
+        (Expr.length_in(0, mm), Expr.length_in(40, mm)),
+    ], plane=doc.sketch_frame())
 )
-plate = doc.insert(Node.extrude(profile, 8 * mm))
+plate = doc.insert(Node.extrude(profile, Expr.length_in(8, mm)))
 
 body = evaluate(doc).value(plate).body()
 body.validate()
@@ -51,7 +55,7 @@ Rounds and arcs are the PATHS lattice, where each state of the tip is
 its own class exposing only its legal continuations:
 
 ```python
-from pncad import Doc, Node, Open, Start, evaluate, mm
+from pncad import Doc, Expr, Node, Open, Start, evaluate, mm
 
 rounded = (
     Open.at((0 * mm, 0 * mm))
@@ -63,48 +67,60 @@ rounded = (
     .line_to(Start)
 )
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), 8 * mm))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Expr.length_in(8, mm)))
 assert evaluate(doc).succeeded(plate)
 ```
 
 The rounded corner is never authored: you give the two rays that would
 have met there and the arc is fitted to their virtual intersection,
-trimming both. Off-lattice moves — a second director, `.tangent()` on
-a point with no incoming leg, a leading `.fillet` — are not methods
-that refuse; they are methods that do not exist.
+trimming both. Off-lattice moves — a second director, `.tangent()` on a
+point with no incoming leg, a leading `.fillet` — are not methods that
+refuse; they are methods that do not exist.
 
-`crates/pncad-py/examples/bracket.py` is the full journey — build,
-evaluate, validate, measure, export STEP, and re-import the result to
-prove it round-trips.
+`examples/bracket.py` is the full journey — build, evaluate, validate,
+measure, export STEP, and re-import the result to prove it round-trips.
 
 ## What you are talking to
 
 Python speaks the kernel's **document layer**, not a second
 kernel-bypassing API. You insert nodes describing what to build,
-`evaluate` the document, and read typed values out. That is
-deliberate: the document layer is the single API surface shared with
-the future GUI, macro recording and headless tests, so a Python script
-is a recipe that persists, replays and undoes — not a pile of opaque
-calls. `Doc.save()` / `load()` round-trip bit-identically.
+`evaluate` the document, and read typed values out. The document layer
+is the single API surface shared with the GUI, macro recording and
+headless tests, so a Python script is a recipe that persists, replays
+and undoes. `Doc.save()` / `load()` round-trip bit-identically.
 
-Three things to expect, all of which have longer treatments in the
-guide:
+Three things to expect, all treated at length in the guide:
 
-- **Typed quantities.** `25 * mm` is a `Length`, not a float.
-  Mixing dimensions raises `DimensionError` with `op`, `left`,
-  `right`.
+- **Typed quantities.** `25 * mm` is a `Length`, not a float. Mixing
+  dimensions raises `DimensionError` with `op`, `left`, `right`.
 - **`evaluate` is total** — it never raises. Every node either has a
-  value or has failed; ask with `ev.succeeded(node)`. Reading a
-  failed node raises `EvaluationError`, and a node poisoned by an
-  upstream failure names the culprit in `through`.
+  value or has failed; ask with `ev.succeeded(node)`. Reading a failed
+  node raises `EvaluationError`, and a node poisoned by an upstream
+  failure names the culprit in `through`.
 - **The kernel refuses rather than guesses.** Two faces that merely
   touch are not silently welded; a boolean over an undeclared
-  coincidence fails loudly — and the refusal carries its own
-  recourse: the candidate declaration rides the exception as a typed
-  `finding` (`Evaluation.find_flush_candidates` → `Node.declare` is
-  the protocol behind it). Refusals are exceptions carrying
-  attributes, never prose to parse — all of them subclass
-  `PncadError`.
+  coincidence fails loudly — and the refusal carries its own recourse:
+  the candidate declaration rides the exception as a typed `finding`
+  (`Evaluation.find_flush_candidates` → `Node.declare`). Refusals are
+  exceptions carrying attributes, never prose to parse — all of them
+  subclass `PncadError`. A refusal's discriminant is one word on one
+  attribute, with a single stated exception: `Body.validate*` is the
+  one door that reports MANY failures in one raise, so `ValidationError`
+  carries `findings`, a sequence of `ValidationFinding`s, one per
+  failure. The door's own shape is the whole argument for it; nothing
+  else on the surface is shaped that way.
+- **Every arm's payload is an attribute**, present on every arm of the
+  class and `None` where that arm does not carry one — so `getattr`
+  never raises and a caller reads the payload without first branching
+  on the discriminant. Each door projects it from ONE exhaustive
+  match with no wildcard, so a kernel arm added without a payload
+  stops the bindings compiling. Where an arm wraps a refusal of
+  another layer, that refusal's own word rides on `inner_variant` and
+  its payload stays the inner door's surface. Two doors are still
+  tag-plus-prose, each with its reason at the site: `PathError` waits
+  on a kernel-side discriminant its tag map currently hand-writes, and
+  `StepImportError`'s twenty-one arms are all reachable with their
+  entity id and line in the message.
 
 ## Documentation
 
@@ -112,12 +128,14 @@ guide:
   canonical journey.
 - `docs/guide/fail-loud.md` — the refusal vocabulary, with executed
   Python examples.
+- `docs/guide/meshing.md` — what a `Mesh` carries across, and how a
+  caller re-derives closure and volume from it.
 - `docs/guide/north-star-audit.md` — **what is not bound yet**, gap by
   gap. Read this before assuming a feature exists.
 - `pncad.pyi` — the stubs, checked against the compiled module by
   `tests/test_stubs.py` name for name, and by `ty` for signatures in
-  `tests/test_ty.py` — where the lattice's illegal states are pinned
-  as type errors. The runtime checks live once at the Rust boundary.
+  `tests/test_ty.py`, where the lattice's illegal states are pinned as
+  type errors. The runtime checks live once at the Rust boundary.
 
 ## Tests
 
@@ -126,13 +144,13 @@ $ ./crates/pncad-py/run-python-tests.sh [python-binary]
 ```
 
 Covers the document surface, quantities, stub drift, D9 bit-identical
-replay, persistence and STEP round-trips, plus every Python block in
-the guide (`tests/test_guide.py` reads the Markdown directly, so the
-documentation cannot rot).
+replay, persistence and STEP round-trips, the mesh door and its STL
+exports, plus every Python block in the guide (`tests/test_guide.py`
+reads the Markdown directly, so the documentation cannot rot).
 
-These tests are **not** in CI yet — building the extension module
-requires the `extension-module` feature, and the wheel job is a
-recorded follow-up. Run them by hand when you touch the bindings.
+These tests are **not in CI** — building the extension module requires
+the `extension-module` feature, and the wheel job is a recorded
+follow-up. Run them by hand when you touch the bindings.
 
 ## License
 

@@ -19,7 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Point3, Vec3};
+use pncad::authoring::{p3, polygon, v3};
 use pncad::profile::{Profile, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanResultKind};
@@ -32,14 +32,9 @@ use pncad::geom_core::Tol;
 /// The one box builder: axis-aligned `[x0,x1] x [y0,y1] x [z0,z1]`,
 /// a rectangle on a z-offset xy sketch plane extruded up.
 pub fn slab<S: Scalar>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<S> {
-    // Algebra-authored (LIB-U2 PR-2): the same four corners, said as
-    // a `line_to` chain closing at `Start`.
-    let lp = crate::paths::path_polygon(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], tol);
-    let plane = SketchPlane::from_frame(
-        Point3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(z.0)),
-        Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
-        Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
-    );
+    let lp =
+        polygon(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], tol).expect("slab rectangle");
+    let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
     let profile = Profile::new(plane, vec![lp])
         .validate(tol)
         .expect("slab profile validation");
@@ -148,7 +143,7 @@ fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> Body<S> {
 ///     etc.), so each seam crosses the underside AND two side faces.
 ///
 /// All three are narrated LIVE from their actual outcomes; since M4
-/// PR 5 the SHIPPED variant is the TRUE corner-ALIGNED table (Evan,
+/// PR 5 the SHIPPED variant is the TRUE corner-ALIGNED table (Ev,
 /// PR #71 — the first `demo_tripwires.rs` wire FIRED): each leg's
 /// outer faces lie exactly in the top's side planes, DECLARED per
 /// union, and the declared rung glues them — every later union sees
@@ -321,7 +316,24 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "table",
             caption: String::new(),
-            montage: true,
+            // Montage cell RETIRED by the montage-v3 curation (Ev,
+            // 2026-08-30). The reason first written here was that the
+            // assembly layer's furniture is "the same geometry, four
+            // legs on the corners" — it is NOT, and converting it would
+            // cost more than this cell is worth: `assembly`'s bench is
+            // two posts FLUSH with the shelf's ends and deliberately
+            // INSET in depth, because a bench top overhangs and a post
+            // is not the depth of the shelf, and that inset is what
+            // carries the flush-seat story (including SEAT_B's 1.11e-16
+            // residue, narrated as measured evidence). The true reason
+            // is simpler: what this cell shows is a table, and a table
+            // is not a fact the sheet is short of. What is NOT
+            // duplicated is this scene's four
+            // narrated union variants (coplanar-undeclared refusing at
+            // the coincidence door; inset overlap; the straddle
+            // workaround; the shipped declared-flush rung) — narration,
+            // which the standalone render keeps.
+            montage: false,
             story: "a table: tabletop unioned with four corner-straddling legs",
             ops: "extrude 5 boxes (one shared builder) -> 4 sequential union nodes (Seamed)",
             delta: 1e-2,

@@ -2,7 +2,7 @@
 
 **Status: REPORT ONLY. Nothing here is ratified, nothing is a
 commitment, and no code was changed.** This is a survey, requested by
-Evan, of where this kernel's time actually goes — read against
+Ev, of where this kernel's time actually goes — read against
 `docs/PERF-PLAN.md`, whose ranking was written at M3-start against the
 M2 codebase and is now three milestones stale in specific, checkable
 ways (§6). Where this report contradicts PERF-PLAN, PERF-PLAN is the
@@ -651,7 +651,7 @@ current:  75 + 379 = 455 s step   (493 s job)
 default lane goes 493 → ~610 billed seconds because the lib chain
 compiles twice. Given `ci.yml:143-146` records an Actions-budget
 exhaustion as the reason the change filter exists, **that trade is
-Evan's call.** Net across findings 3+10: billed −4.7 min, wall −3.9 min.
+Ev's call.** Net across findings 3+10: billed −4.7 min, wall −3.9 min.
 
 #### 11. `merge_group` rescans the whole edge arena after every kill
 
@@ -873,7 +873,7 @@ Individually small, collectively systematic, all D9-safe:
 
 ## 2. Open obligation: the verdict-log back channel
 
-**Not a performance finding.** Raised by Evan on reading this scan, and
+**Not a performance finding.** Raised by Ev on reading this scan, and
 recorded here because it is a structural-safety debt that the scan
 surfaced and that needs a decision, not a benchmark. **The obligation is
 that this gets redone, or that a better design is thoroughly proven
@@ -1001,7 +1001,7 @@ than inheriting both.
 ### 2.4 The obligation
 
 **Status: (a) vs (b) is UNRESOLVED and was left so deliberately at
-merge (Evan, 2026-08-16).** Neither branch is chosen here; the choice
+merge (Ev, 2026-08-16).** Neither branch is chosen here; the choice
 is recorded as open rather than settled by whoever wrote this report.
 What *is* settled is that one of them has to happen — "leave it, it
 works today" is not a third branch.
@@ -1094,7 +1094,7 @@ the current mechanism rests on.
 **Wave 4 — contract-touching, needs discussion first:** finding 8
 (re-pins the K sample stream), finding 15 (name digest; the interning
 variant touches the wire format), finding 10 (trades billed minutes for
-wall-clock — Evan's call).
+wall-clock — Ev's call).
 
 ---
 

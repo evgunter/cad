@@ -49,6 +49,28 @@ pub enum FmtQuantityError {
     },
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): the arm states
+// the PROBLEM in this module's vocabulary — a value with no display
+// form — and points where the fix is. The recourse is upstream by
+// construction: nothing this formatter could be asked differently
+// turns poison into text, so the sentence sends the caller to the
+// operation that produced the value, as the predicate layer's
+// poisoned-margin sentence does.
+impl core::fmt::Display for FmtQuantityError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NonFinite { value } => write!(
+                f,
+                "quantity display: {value} has no display form — a non-finite \
+                 quantity is poison and never lands in display text; check the \
+                 operation's inputs upstream"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for FmtQuantityError {}
+
 /// Formats a canonical-METERS value in `unit` (module docs; the pin:
 /// the text parses back to `meters`' exact bits).
 ///

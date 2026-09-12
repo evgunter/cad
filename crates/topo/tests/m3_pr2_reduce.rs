@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::prism;
 use geom_core::Tol;
@@ -550,4 +550,37 @@ fn interval_lane_notched_and_wedge() {
         };
         assert_eq!(dangling, expected_dangling);
     }
+}
+
+/// The `split_reduce` twin of `boolean_reduce`'s non-finite sector
+/// chord arm: it names the lane, the vertex and the face, gives the
+/// cause and a recourse that can WORK, and does not claim the chord is
+/// zero — it is not, and no tolerance lever reaches it.
+///
+/// **This is a pin on the ARM, not an end-to-end row.** There is no
+/// fixture here that drives a real `Body` into `sector_shape`'s rung
+/// 0: that needs an orbit chord past `Vec3::normalize`'s ~1e154 band
+/// surviving body construction and reaching the neighborhood pass, and
+/// every fixture in this file is built from small integers on purpose.
+/// The translation from `SectorFault::NonFiniteChord` into this arm is
+/// held by the exhaustive `map_err` in `splitting/neighborhood.rs` and
+/// by nothing else; the rung itself is measured in
+/// `topo::sector_shape`'s own tests, over all eight shapes.
+#[test]
+fn non_finite_sector_chord_names_the_cause_and_no_tolerance_recourse() {
+    let msg = SplitReduceError::NonFiniteSectorChord {
+        vertex: VertexKey::default(),
+        face: topo::FaceKey::default(),
+    }
+    .to_string();
+    assert!(msg.contains("split_reduce:"), "{msg}");
+    assert!(msg.contains("has no finite length"), "{msg}");
+    assert!(
+        msg.contains("scale the geometry into the session's range"),
+        "{msg}"
+    );
+    assert!(!msg.contains("zero length"), "{msg}");
+    // The coincidence recourse is what a band refusal offers; this is
+    // not one, and offering it would name a lever that cannot move.
+    assert!(!msg.contains("tolerance"), "{msg}");
 }

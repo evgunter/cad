@@ -34,11 +34,12 @@
 //! is persisted — the derived-value list in `persist`'s module docs
 //! gains the segments. D9 makes the load-time rebuild exact.
 
-use geom_core::Point2;
-use profile::{ArcSweep, SketchPlane, Step, Target};
+use geom_core::{Decide, Point2};
+use profile::{ArcSweep, Step, Target};
 
+use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
-use crate::node::{SlotId, StepArg};
+use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
 
 /// Where a target-taking step ends: an authored point (two Length
@@ -50,6 +51,10 @@ pub enum ProgramTarget {
     Point([Expr; 2]),
     /// The entry vertex: this step closes the loop.
     Start,
+    /// The entry vertex with the seam's TANGENT JOINT declared — a
+    /// structural tag, no expressions (so it contributes no slots) and
+    /// no payload: there is exactly one declaration to make there.
+    StartArriving,
 }
 
 /// One Expr-bearing recorded verb — the document-layer mirror of
@@ -86,12 +91,18 @@ pub enum ProgramStep {
     },
     /// `.tangent()` — structural, no arguments.
     Tangent,
+    /// `.cusp()` — structural, no arguments: the declared
+    /// reverse-tangent junction (D1's wedge-0/2π authoring door).
+    Cusp,
     /// `.turn(δ)`.
     Turn(Expr),
     /// `line(len)`.
     Line(Expr),
     /// `line_to(target)`.
     LineTo(ProgramTarget),
+    /// `continue_to(target)` — the declared point-target straight
+    /// continuation; `Start` targets close the loop.
+    ContinueTo(ProgramTarget),
     /// `arc_to(spec)` — the sharp arc leg, every §2c mode in the one
     /// unified spec record (derived quantities re-derived at replay).
     ArcTo(ProgramArcData),
@@ -135,6 +146,19 @@ pub enum ProgramStep {
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
 /// arc-spec record): continuous fields [`Expr`], structural tags
 /// literal (`side`, `winding`, `Start`).
+///
+/// It is the arc-mode vocabulary's second spelling, and it has to be
+/// for the reason [`ProgramStep`] does. A mode the kernel vocabulary
+/// gains does break this crate at compile — `spec_lit` and the two
+/// content-key hashers are exhaustive on `profile::ArcData` — but
+/// each of those breaks can be discharged where it stands, with a
+/// refusal arm and a tag, while this enum, the wire and the
+/// expression-slot roles stay short: the hop that would need them,
+/// `res_spec`, matches THIS type and CONSTRUCTS the kernel one, so it
+/// keeps compiling. What forces arrival is the mode census in
+/// `tests/switch_program_vocabulary.rs`, keyed on
+/// [`profile::ArcMode::ALL`]: its witness is a match on the mode tag,
+/// so a mode with no document spelling is a compile error there.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
@@ -218,22 +242,51 @@ pub enum LoopProgram {
     },
 }
 
-/// The profile node's payload: plane placement (stored `f64`, its own
-/// struct — VQ8's visible seam) plus the loop programs, outer first
-/// then holes in description order.
+/// The profile node's payload: the sketch frame it is drawn on, named
+/// as a document NODE, plus the loop programs, outer first then holes
+/// in description order.
+///
+/// # The plane is a reference, not a placement
+///
+/// This field held a `SketchPlane<f64>` — twelve placement floats
+/// inline, unshared and unnameable. It now names a frame node — a
+/// [`crate::Datum::Frame`], or a [`crate::Datum::FaceFrame`] derived
+/// from a face — which is the whole of what the frame
+/// datum was added for: two profiles on one face are two references to
+/// one frame rather than two copies of a placement that can silently
+/// drift apart, an axis can be declared to lie IN a named frame, and a
+/// plane a person can see in the viewport is the plane they draw on.
+///
+/// The consequence to know when reading the rest of this crate: a
+/// profile is no longer a DAG leaf. [`crate::Node::inputs`] reports
+/// the frame, so evaluation orders it first, poison propagates through
+/// it, the content key takes it as an upstream key rather than as
+/// inline bits, and `roots::on_insert` transfers the frame's tip when
+/// a profile consumes it.
 ///
 /// # Equality is BIT equality
 ///
-/// `PartialEq` compares plane floats by BITS and expressions by
+/// `PartialEq` compares the frame by NODE IDENTITY and expressions by
 /// [`Expr::bit_eq`] — the canonical payload's equality IS the D7
-/// replay-identity comparator, exactly the retired payload's contract
-/// (`Node::bit_eq` inherits it). Display units are invisible to it
+/// replay-identity comparator. Comparing the id rather than the
+/// placement it resolves to is the same claim the rest of the DAG
+/// makes about its edges: two profiles on two frames that happen to
+/// coincide today are two different documents, because editing one
+/// frame moves only one of them. Display units are invisible to it
 /// (they are invisible to `bit_eq` itself, D7).
 #[derive(Debug, Clone)]
 pub struct ProfileProgram {
-    /// The sketch-plane placement (stored `f64`; Expr-izing placement
-    /// is the U4 pose conversation, not this switch — VQ8).
-    pub plane: SketchPlane<f64>,
+    /// The frame node this profile is drawn on — a
+    /// [`crate::Datum::Frame`] or a [`crate::Datum::FaceFrame`], either
+    /// of which lands the same frame value: sketch (0, 0) and the
+    /// directions sketch +x and +y point.
+    ///
+    /// Typed as a plain node reference rather than a frame-only
+    /// newtype for the reason every other operand reference here is:
+    /// what a reference DENOTES is the evaluator's question, answered
+    /// once at the door with a typed refusal, not the recipe
+    /// vocabulary's.
+    pub plane: RecipeNodeId,
     /// The loop programs.
     pub loops: Vec<LoopProgram>,
 }
@@ -270,16 +323,41 @@ pub trait ProfilePayload {
     fn check(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
         Ok(())
     }
+    /// **The document node this payload is drawn ON**, if it names one
+    /// — the profile's one DAG edge.
+    ///
+    /// It rides the payload trait rather than [`crate::Node::Profile`]
+    /// because that is where the plane already lived: the variant
+    /// stays a one-field tuple, and the payload answers for its own
+    /// content. [`crate::Node::inputs`] reads this, so a payload that
+    /// names a node and does not report it here would be a node the
+    /// evaluator never waits for and the cascade never deletes.
+    ///
+    /// `None` by default, which is the honest answer for `Doc<P>`'s
+    /// slot-free test payloads: they carry no plane at all.
+    fn plane_input(&self) -> Option<crate::RecipeNodeId> {
+        None
+    }
 }
 
 /// A typed authoring-time program refusal (VQ9; `EditError`'s payload).
 ///
 /// The resolve and validate classes carry their causes UNALTERED
 /// (`EvalError`/`ProfileError` are `PartialEq`, as `EditError`
-/// requires). The geometry-replay class cannot: `profile::PathError`
-/// deliberately derives no equality, so [`ProgramRefusal::Geometry`]
-/// carries the driver's rendered refusal plus the typed coordinates —
-/// the full typed error remains the EVALUATION surface's contract
+/// requires). The geometry-replay class cannot carry its cause whole:
+/// `profile::PathError` is generic in the evaluation scalar and its
+/// arms carry scalar payloads, and `Real` omits comparison. A derived
+/// `PartialEq` would not be unavailable so much as useless — it would
+/// exist only where the scalar supplies equality on its own, which is
+/// `f64` and neither `Interval` nor `Dual`, and even at `f64` it is
+/// float `==`, non-reflexive at the poison value `Real`'s totality
+/// contract promises. [`ProgramRefusal::Geometry`] therefore
+/// carries the part that does compare — `profile::PathErrorKind`, the
+/// refusal's class — beside the driver's rendered sentence and the
+/// typed coordinates. **The class is the typed interface; the prose is
+/// for a reader.** A consumer asking WHICH geometry refusal fired
+/// matches that variant's `kind` and never the string.
+/// The full typed error remains the EVALUATION surface's contract
 /// (`NodeErrorKind` carries it unaltered); the edit door is the early
 /// ergonomic mirror. REPORTED shape, not silent (LIB-SWITCH §10).
 #[derive(Debug, Clone, PartialEq)]
@@ -313,8 +391,11 @@ pub enum ProgramRefusal {
         loop_: u32,
         /// The offending step index.
         step: u32,
-        /// The driver's rendered refusal (see enum docs for why this
-        /// class is rendered here and typed at evaluation).
+        /// Which geometry refusal fired — the typed half, and the one
+        /// a consumer branches on.
+        kind: profile::PathErrorKind,
+        /// The driver's rendered refusal, for a reader. Carries the
+        /// scalar payloads `kind` drops; never an interface.
         rendered: String,
     },
     /// The replayed loops refused profile validation under the current
@@ -342,6 +423,7 @@ impl core::fmt::Display for ProgramRefusal {
                 loop_,
                 step,
                 rendered,
+                ..
             } => write!(f, "loop {loop_} step {step}: {rendered}"),
             Self::Validate(e) => write!(f, "the replayed loops failed profile validation: {e}"),
         }
@@ -355,24 +437,29 @@ impl core::error::Error for ProgramRefusal {}
 // ------------------------------------------------------------------
 
 /// The argument roles a target contributes ([] for `Start`).
+///
+/// Exhaustive on the target vocabulary rather than a test for one
+/// form: a target form that carries expressions and enumerates no role
+/// is an expression no slot addresses, which the bijection census sees
+/// only where the corpus reaches it.
 fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    if let ProgramTarget::Point(_) = t {
-        out.push(StepArg::TargetX);
-        out.push(StepArg::TargetY);
+    match t {
+        ProgramTarget::Point(_) => out.extend([StepArg::TargetX, StepArg::TargetY]),
+        ProgramTarget::Start | ProgramTarget::StartArriving => {}
     }
 }
 
 /// The argument roles of one arc spec; `second` selects the arrival
 /// (spec₂) role twins.
 ///
-/// The twins cover the positional roles only. `Bulge`, `Sweep` and
-/// `ArcLen` have none, because none of them is an arrival mode (§2c:
-/// `family::ArrivalSpec` is implemented for `Radius`, `Via` and
-/// `Center` alone), so no recording surface can put one in second
-/// position. Enumeration stays total over the data type regardless,
-/// and for a HAND-BUILT step whose two specs are the SAME one of
-/// those three the reused role addresses the incoming spec's argument
-/// twice and the arrival's not at all — issue #829.
+/// EVERY role has a twin, including the three whose modes are not
+/// arrival modes (§2c: `family::ArrivalSpec` is implemented for
+/// `Radius`, `Via` and `Center` alone, so no recording surface can put
+/// a `Bulge`, `Sweep` or `ArcLen` in second position). Enumeration is
+/// total over the data type, and a hand-built step may carry one:
+/// without its own twin such a spec's argument would share the
+/// incoming spec's role, which addresses the incoming argument twice
+/// and the arrival's not at all.
 fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     use ProgramArcData as S;
     use StepArg as A;
@@ -383,10 +470,9 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target_slots(target, out);
             out.push(A::Bulge);
         }
-        // No `Bulge2`: see the twin note above.
         (S::Bulge { target, .. }, true) => {
             target2_slots(target, out);
-            out.push(A::Bulge);
+            out.push(A::Bulge2);
         }
         (S::Via { target, .. }, false) => {
             out.extend([A::ViaX, A::ViaY]);
@@ -405,17 +491,17 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target2_slots(target, out);
         }
         (S::Sweep { .. }, false) => out.extend([A::CarrierRadius, A::SweepVal]),
-        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal]),
+        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal2]),
         (S::ArcLen { .. }, false) => out.extend([A::CarrierRadius, A::ArcLenVal]),
-        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal]),
+        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal2]),
     }
 }
 
-/// The spec₂ twin of [`target_slots`].
+/// The spec₂ twin of [`target_slots`], exhaustive for the same reason.
 fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    if let ProgramTarget::Point(_) = t {
-        out.push(StepArg::Target2X);
-        out.push(StepArg::Target2Y);
+    match t {
+        ProgramTarget::Point(_) => out.extend([StepArg::Target2X, StepArg::Target2Y]),
+        ProgramTarget::Start | ProgramTarget::StartArriving => {}
     }
 }
 
@@ -428,10 +514,10 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::At(_) | P::FarEndTo(_) => out.extend([A::PointX, A::PointY]),
         P::Angle(_) => out.push(A::AngleVal),
         P::Toward { .. } => out.extend([A::DirX, A::DirY]),
-        P::Tangent | P::CloseTo => {}
+        P::Tangent | P::Cusp | P::CloseTo => {}
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
-        P::LineTo(t) | P::TangentArcTo(t) => target_slots(t, out),
+        P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_slots(t, out),
         P::ArcContinue(_) => out.extend([A::TargetX, A::TargetY]),
         P::ArcTo(spec) => spec_slots(spec, false, out),
         P::Fillet(_) => out.push(A::Radius),
@@ -464,9 +550,12 @@ macro_rules! spec_arg_access {
             | (S::Sweep { r, .. }, A::CarrierRadius2, true)
             | (S::ArcLen { r, .. }, A::CarrierRadius, false)
             | (S::ArcLen { r, .. }, A::CarrierRadius2, true) => Some(r),
-            (S::Bulge { b, .. }, A::Bulge, _) => Some(b),
-            (S::Sweep { angle, .. }, A::SweepVal, _) => Some(angle),
-            (S::ArcLen { len, .. }, A::ArcLenVal, _) => Some(len),
+            (S::Bulge { b, .. }, A::Bulge, false)
+            | (S::Bulge { b, .. }, A::Bulge2, true) => Some(b),
+            (S::Sweep { angle, .. }, A::SweepVal, false)
+            | (S::Sweep { angle, .. }, A::SweepVal2, true) => Some(angle),
+            (S::ArcLen { len, .. }, A::ArcLenVal, false)
+            | (S::ArcLen { len, .. }, A::ArcLenVal2, true) => Some(len),
             (S::Via { q, .. }, A::ViaX, false) | (S::Via { q, .. }, A::Via2X, true) => {
                 Some($($ref_kw)* q[0])
             }
@@ -531,8 +620,10 @@ macro_rules! step_arg_access {
             (P::Turn(e), A::TurnVal) => Some(e),
             (P::Line(e), A::Length) => Some(e),
             (P::LineTo(ProgramTarget::Point(p)), A::TargetX)
+            | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetX)
             | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetX) => Some($($ref_kw)* p[0]),
             (P::LineTo(ProgramTarget::Point(p)), A::TargetY)
+            | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetY)
             | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetY) => Some($($ref_kw)* p[1]),
             (P::ArcTo(spec), a) => $spec_fn(spec, a, false),
             (P::Fillet(e), A::Radius)
@@ -563,6 +654,52 @@ fn step_expr_mut(step: &mut ProgramStep, arg: StepArg) -> Option<&mut Expr> {
 }
 
 impl LoopProgram {
+    /// **The one radius every edge of this loop is drawn at**, where
+    /// the loop is a CARRIER form and has one.
+    ///
+    /// The carrier forms — `circle(centre, r)` and
+    /// `circle_split(centre, r, n, phase)` — are the loops whose whole
+    /// boundary is a single arc carrier: every segment they replay to
+    /// is an arc of that one radius, whatever the subdivision. So the
+    /// answer is per LOOP and needs no per-segment address, and a
+    /// consumer that has a canonical loop index has everything it
+    /// needs.
+    ///
+    /// A CHAIN loop answers `None`, and that is a scope statement, not
+    /// an omission: a chain's arc steps carry their own radii
+    /// (`StepArg::CarrierRadius` and the arrival spec's twin), each
+    /// addressing one segment, and pairing those with swept walls
+    /// needs the step→segment map that the replay owns. Nothing today
+    /// reads a chain's radii, so the map stays unbuilt rather than
+    /// guessed at.
+    ///
+    /// **The obligation that `None` carries.** The memo's guard on
+    /// this channel is scoped at the ATTACH, not at the key: the
+    /// content key writes a carrier radius's spelling whenever ANY
+    /// migrated verb declares the profile edge's radius into a field
+    /// (`param_source::operand_flow_bearing`), which is already true,
+    /// so it cannot notice that chain radii are un-attached. Widen
+    /// this door to answer per segment and the stale-token class
+    /// reopens silently for exactly those loops — a chain radius
+    /// re-spelled value-preservingly would be attached to a wall
+    /// while its key still says the value alone. So chain radii enter
+    /// the key in the same change that attaches them, and the feed at
+    /// `eval::content_key` carries the same sentence.
+    ///
+    /// The address is the loop's `Radius` slot
+    /// (`SlotId::Profile { loop_, step: 0, arg: StepArg::Radius }`);
+    /// this hands back the expression that slot holds, which is what a
+    /// lowering needs to lower.
+    #[must_use]
+    pub fn carrier_radius(&self) -> Option<&Expr> {
+        match self {
+            LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
+                Some(radius)
+            }
+            LoopProgram::Chain(_) => None,
+        }
+    }
+
     /// This loop's argument roles per step, deterministic order.
     fn step_args(&self) -> Vec<(u32, StepArg)> {
         let mut out = Vec::new();
@@ -649,32 +786,57 @@ impl LoopProgram {
 }
 
 // ------------------------------------------------------------------
-// Resolution (V2: at f64, the C6-pinned lane)
+// Resolution (the C6 lane, plus the lift's second pass)
+//
+// Resolution itself is scalar-generic: an expression evaluates at
+// whatever scalar its environment binds. What is C6-pinned is not the
+// arithmetic but the STRUCTURE the resolved values then feed — which
+// is why the second pass resolves at `T` and replays GUIDED, rather
+// than replaying freely at `T`.
 // ------------------------------------------------------------------
 
-/// Resolves one expression at f64, tagging failures with the slot.
-fn res(
+/// Resolves one expression at the resolution scalar, tagging failures
+/// with the slot.
+fn res<T: Decide>(
     e: &Expr,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
     arg: StepArg,
-) -> Result<f64, (SlotId, EvalError)> {
-    eval::<f64>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
+) -> Result<T, (SlotId, EvalError)> {
+    eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
 }
 
-/// Resolves a target's expressions.
-fn res_target(
+/// Resolves a target's expressions, addressing its coordinates at the
+/// slot roles the caller names (a fused step's second spec carries the
+/// `Target2*` twins, exactly as [`spec_slots`] enumerates them).
+///
+/// This is the target vocabulary's ONE construct hop: every target a
+/// document program carries — a straight leg's, a continuation's, a
+/// tangent arc's, and the endpoint inside every endpoint-bearing arc
+/// mode — resolves here, so the form set is matched in exactly one
+/// place below the document type's own declaration. The direction the
+/// compiler cannot check is the one this function runs in: it MATCHES
+/// [`ProgramTarget`] and CONSTRUCTS a [`profile::Target`], so a form
+/// the kernel vocabulary gains is invisible here. The census keyed on
+/// `profile::TargetKind::ALL`
+/// (`tests/switch_program_vocabulary.rs`) is what sees it, and it
+/// checks the other half of the same arm too: that each form resolves
+/// to ITS OWN form rather than being laundered into a neighbour's.
+fn res_target<T: Decide>(
     t: &ProgramTarget,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
-) -> Result<profile::Target<f64>, (SlotId, EvalError)> {
+    ax: StepArg,
+    ay: StepArg,
+) -> Result<profile::Target<T>, (SlotId, EvalError)> {
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
+        ProgramTarget::StartArriving => profile::Target::StartArriving,
         ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
-            res(&p[0], env, loop_, step, StepArg::TargetX)?,
-            res(&p[1], env, loop_, step, StepArg::TargetY)?,
+            res(&p[0], env, loop_, step, ax)?,
+            res(&p[1], env, loop_, step, ay)?,
         )),
     })
 }
@@ -685,14 +847,14 @@ fn res_target(
 /// [`ProgramStep`] and CONSTRUCTS a [`Step`], so a verb `profile`'s
 /// table gains is invisible here. The census in
 /// `tests/switch_program_vocabulary.rs` is what sees it.
-fn res_step(
+fn res_step<T: Decide>(
     s: &ProgramStep,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     loop_: u32,
     i: u32,
-) -> Result<Step<f64>, (SlotId, EvalError)> {
+) -> Result<Step<T>, (SlotId, EvalError)> {
     use StepArg as A;
-    let pt = |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<f64>, _> {
+    let pt = |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<T>, _> {
         Ok(Point2::new(
             res(&p[0], env, loop_, i, ax)?,
             res(&p[1], env, loop_, i, ay)?,
@@ -706,11 +868,19 @@ fn res_step(
             dy: res(dy, env, loop_, i, A::DirY)?,
         },
         ProgramStep::Tangent => Step::Tangent,
+        ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
-        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
+        ProgramStep::LineTo(t) => {
+            Step::LineTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
+        ProgramStep::ContinueTo(t) => {
+            Step::ContinueTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
         ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
-        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
+        ProgramStep::TangentArcTo(t) => {
+            Step::TangentArcTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
         ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
@@ -739,31 +909,39 @@ fn res_step(
 
 /// Resolves an arc spec to its scalar-valued mirror (`second` selects
 /// the spec₂ role twins, exactly as [`spec_slots`] enumerates them).
-fn res_spec(
+///
+/// This is the hop the compiler cannot check in the direction that
+/// matters: it matches the document vocabulary and CONSTRUCTS the
+/// kernel one, so it stays well-typed while the kernel vocabulary
+/// grows past it. The mode census keyed on `profile::ArcMode::ALL`
+/// (`tests/switch_program_vocabulary.rs`) is what stands there, and it
+/// checks both directions of the same arm: that every kernel mode is
+/// reachable from a document spec, and that each one resolves to ITS
+/// OWN mode rather than being laundered into a neighbour's.
+fn res_spec<T: Decide>(
     spec: &ProgramArcData,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     loop_: u32,
     i: u32,
     second: bool,
-) -> Result<profile::ArcData<f64>, (SlotId, EvalError)> {
+) -> Result<profile::ArcData<T>, (SlotId, EvalError)> {
     use StepArg as A;
     let pick = |a: StepArg, b: StepArg| if second { b } else { a };
-    let pt2 =
-        |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<f64>, (SlotId, EvalError)> {
-            Ok(Point2::new(
-                res(&p[0], env, loop_, i, ax)?,
-                res(&p[1], env, loop_, i, ay)?,
-            ))
-        };
-    let tgt = |t: &ProgramTarget| -> Result<profile::Target<f64>, (SlotId, EvalError)> {
-        Ok(match t {
-            ProgramTarget::Start => profile::Target::Start,
-            ProgramTarget::Point(p) => profile::Target::Point(pt2(
-                p,
-                pick(A::TargetX, A::Target2X),
-                pick(A::TargetY, A::Target2Y),
-            )?),
-        })
+    let pt2 = |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<T>, (SlotId, EvalError)> {
+        Ok(Point2::new(
+            res(&p[0], env, loop_, i, ax)?,
+            res(&p[1], env, loop_, i, ay)?,
+        ))
+    };
+    let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
+        res_target(
+            t,
+            env,
+            loop_,
+            i,
+            pick(A::TargetX, A::Target2X),
+            pick(A::TargetY, A::Target2Y),
+        )
     };
     Ok(match spec {
         ProgramArcData::Radius { r, side } => profile::ArcData::Radius {
@@ -772,7 +950,7 @@ fn res_spec(
         },
         ProgramArcData::Bulge { target, b } => profile::ArcData::Bulge {
             target: tgt(target)?,
-            b: res(b, env, loop_, i, A::Bulge)?,
+            b: res(b, env, loop_, i, pick(A::Bulge, A::Bulge2))?,
         },
         ProgramArcData::Via { q, target } => profile::ArcData::Via {
             q: pt2(q, pick(A::ViaX, A::Via2X), pick(A::ViaY, A::Via2Y))?,
@@ -790,12 +968,12 @@ fn res_spec(
         ProgramArcData::Sweep { r, side, angle } => profile::ArcData::Sweep {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            angle: res(angle, env, loop_, i, A::SweepVal)?,
+            angle: res(angle, env, loop_, i, pick(A::SweepVal, A::SweepVal2))?,
         },
         ProgramArcData::ArcLen { r, side, len } => profile::ArcData::ArcLen {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            len: res(len, env, loop_, i, A::ArcLenVal)?,
+            len: res(len, env, loop_, i, pick(A::ArcLenVal, A::ArcLenVal2))?,
         },
     })
 }
@@ -808,11 +986,11 @@ impl LoopProgram {
     /// # Errors
     ///
     /// The failing slot plus the evaluator's refusal, unaltered.
-    pub fn resolve(
+    pub fn resolve<T: Decide>(
         &self,
-        env: &ParamEnv<f64>,
+        env: &ParamEnv<T>,
         loop_: u32,
-    ) -> Result<Vec<Step<f64>>, (SlotId, EvalError)> {
+    ) -> Result<Vec<Step<T>>, (SlotId, EvalError)> {
         use StepArg as A;
         match self {
             LoopProgram::Chain(steps) => steps
@@ -849,19 +1027,59 @@ impl LoopProgram {
 // ProfileProgram: resolution, equality, the payload impl
 // ------------------------------------------------------------------
 
+/// **Resolves a list of loop programs**, the evaluation pipeline's
+/// first stage (then `profile::replay` per loop, then embed +
+/// validate).
+///
+/// Free of [`ProfileProgram`] on purpose: resolution reads the LOOPS
+/// and nothing else, and a caller that has loops in hand and no
+/// document — a form previewing what it is about to author, a lattice
+/// question about which verbs a chain admits — should not have to
+/// invent a plane node to ask. Before the plane became a reference
+/// those callers built a throwaway program around a world-XY constant;
+/// that shortcut would now be a fabricated node id in a value nobody
+/// commits.
+///
+/// # Errors
+///
+/// The failing slot plus the evaluator's refusal, unaltered.
+pub fn resolve_loops<T: Decide>(
+    loops: &[LoopProgram],
+    env: &ParamEnv<T>,
+) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
+    loops
+        .iter()
+        .enumerate()
+        .map(|(li, lp)| lp.resolve(env, li as u32))
+        .collect()
+}
+
 impl ProfileProgram {
-    /// Resolves every loop at f64 — the evaluation pipeline's first
-    /// stage (then `profile::replay` per loop, then embed + validate).
+    /// Whether any expression of this program reads the document
+    /// parameter `name` — the question a C6/D9-pinned consumer of the
+    /// program (a loft's or a sweep's section) asks before a seed on
+    /// that parameter is silently embedded as a constant.
+    pub fn references(&self, name: &ParamName) -> bool {
+        let mut refs = Vec::new();
+        for slot in ProfilePayload::slots(self) {
+            if let Some(e) = ProfilePayload::expr(self, slot) {
+                e.param_refs(&mut refs);
+            }
+        }
+        refs.iter().any(|(n, _)| n == name)
+    }
+
+    /// Resolves every loop at f64 — [`resolve_loops`] over this
+    /// program's own loops.
     ///
     /// # Errors
     ///
     /// The failing slot plus the evaluator's refusal, unaltered.
-    pub fn resolve(&self, env: &ParamEnv<f64>) -> Result<Vec<Vec<Step<f64>>>, (SlotId, EvalError)> {
-        self.loops
-            .iter()
-            .enumerate()
-            .map(|(li, lp)| lp.resolve(env, li as u32))
-            .collect()
+    pub fn resolve<T: Decide>(
+        &self,
+        env: &ParamEnv<T>,
+    ) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
+        resolve_loops(&self.loops, env)
     }
 
     /// The authoring-time check's body (VQ9): resolve under `env`,
@@ -887,12 +1105,22 @@ impl ProfileProgram {
                 profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
                     loop_: li as u32,
                     step: e.step as u32,
+                    kind: source.kind(),
                     rendered: source.to_string(),
                 },
             })?;
             loops.push(lp);
         }
-        profile::Profile::new(self.plane, loops)
+        // **The identity plane, and the check is honest about why.**
+        // Validation is 2-D — `profile::validate` says so itself, and
+        // the plane rides through it as conventional data — so what
+        // this door checks is the LOOPS: closure, orientation, no
+        // self-intersection. It could not read the real frame anyway:
+        // this runs at the insert door with a payload in hand and no
+        // document, and the frame is a node in one. A profile whose
+        // frame reference does not denote a frame is refused where
+        // every other operand's kind is, at evaluation.
+        profile::Profile::new(profile::SketchPlane::xy(), loops)
             .validate(tol)
             .map(|_| ())
             .map_err(ProgramRefusal::Validate)
@@ -900,10 +1128,10 @@ impl ProfileProgram {
 }
 
 impl PartialEq for ProfileProgram {
-    /// BIT equality (struct docs): plane floats by bits, expressions by
-    /// [`Expr::bit_eq`], structure structurally.
+    /// BIT equality (struct docs): the frame by node identity,
+    /// expressions by [`Expr::bit_eq`], structure structurally.
     fn eq(&self, other: &Self) -> bool {
-        plane_bits(&self.plane) == plane_bits(&other.plane)
+        self.plane == other.plane
             && self.loops.len() == other.loops.len()
             && self
                 .loops
@@ -911,27 +1139,6 @@ impl PartialEq for ProfileProgram {
                 .zip(&other.loops)
                 .all(|(a, b)| loop_bit_eq(a, b))
     }
-}
-
-/// The 12 placement floats as bits, deterministic column order — also
-/// the content key's plane feed (crate-internal).
-pub(crate) fn plane_key_bits(p: &SketchPlane<f64>) -> [u64; 12] {
-    plane_bits(p)
-}
-
-/// The 12 placement floats, as bits.
-fn plane_bits(p: &SketchPlane<f64>) -> [u64; 12] {
-    let a = &p.placement;
-    let mut out = [0u64; 12];
-    for (i, v) in [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .enumerate()
-    {
-        out[3 * i] = v.x.to_bits();
-        out[3 * i + 1] = v.y.to_bits();
-        out[3 * i + 2] = v.z.to_bits();
-    }
-    out
 }
 
 /// Structural equality with Exprs compared by bits.
@@ -964,7 +1171,18 @@ fn loop_bit_eq(a: &LoopProgram, b: &LoopProgram) -> bool {
                 phase: pb,
             },
         ) => pair_bit_eq(ca, cb) && ra.bit_eq(rb) && na == nb && pa.bit_eq(pb),
-        _ => false,
+        // Different variants are unequal — spelled over the whole
+        // vocabulary by first element rather than swept up by a
+        // catch-all. That is what makes the answer for a variant added
+        // to `LoopProgram` a compile error here: under a catch-all it
+        // would compare unequal to ITSELF, and the D7 replay identity
+        // and the document diff both read this answer, so a program
+        // that never changed would report as changed. The same holds
+        // for the three functions below.
+        (
+            LoopProgram::Chain(_) | LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. },
+            _,
+        ) => false,
     }
 }
 
@@ -975,8 +1193,9 @@ fn pair_bit_eq(a: &[Expr; 2], b: &[Expr; 2]) -> bool {
 fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
     match (a, b) {
         (ProgramTarget::Start, ProgramTarget::Start) => true,
+        (ProgramTarget::StartArriving, ProgramTarget::StartArriving) => true,
         (ProgramTarget::Point(x), ProgramTarget::Point(y)) => pair_bit_eq(x, y),
-        _ => false,
+        (ProgramTarget::Start | ProgramTarget::StartArriving | ProgramTarget::Point(_), _) => false,
     }
 }
 
@@ -1026,7 +1245,15 @@ fn spec_bit_eq(a: &ProgramArcData, b: &ProgramArcData) -> bool {
                 len: lb,
             },
         ) => ra.bit_eq(rb) && sa == sb && la.bit_eq(lb),
-        _ => false,
+        (
+            S::Radius { .. }
+            | S::Bulge { .. }
+            | S::Via { .. }
+            | S::Center { .. }
+            | S::Sweep { .. }
+            | S::ArcLen { .. },
+            _,
+        ) => false,
     }
 }
 
@@ -1041,10 +1268,10 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
         (P::Toward { dx: xa, dy: ya }, P::Toward { dx: xb, dy: yb }) => {
             xa.bit_eq(xb) && ya.bit_eq(yb)
         }
-        (P::Tangent, P::Tangent) | (P::CloseTo, P::CloseTo) => true,
-        (P::LineTo(x), P::LineTo(y)) | (P::TangentArcTo(x), P::TangentArcTo(y)) => {
-            target_bit_eq(x, y)
-        }
+        (P::Tangent, P::Tangent) | (P::Cusp, P::Cusp) | (P::CloseTo, P::CloseTo) => true,
+        (P::LineTo(x), P::LineTo(y))
+        | (P::ContinueTo(x), P::ContinueTo(y))
+        | (P::TangentArcTo(x), P::TangentArcTo(y)) => target_bit_eq(x, y),
         (P::ArcContinue(x), P::ArcContinue(y)) => pair_bit_eq(x, y),
         (P::ArcTo(x), P::ArcTo(y)) => spec_bit_eq(x, y),
         (
@@ -1079,7 +1306,27 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
                 spec2: s2b,
             },
         ) => spec_bit_eq(sa, sb) && ra.bit_eq(rb) && spec_bit_eq(s2a, s2b),
-        _ => false,
+        (
+            P::At(_)
+            | P::Angle(_)
+            | P::Toward { .. }
+            | P::Tangent
+            | P::Cusp
+            | P::Turn(_)
+            | P::Line(_)
+            | P::LineTo(_)
+            | P::ContinueTo(_)
+            | P::ArcTo(_)
+            | P::TangentArcTo(_)
+            | P::ArcContinue(_)
+            | P::Fillet(_)
+            | P::FilletArc { .. }
+            | P::ArcFillet { .. }
+            | P::ArcFilletArc { .. }
+            | P::FarEndTo(_)
+            | P::CloseTo,
+            _,
+        ) => false,
     }
 }
 
@@ -1115,6 +1362,9 @@ impl ProfilePayload for ProfileProgram {
     fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         ProfileProgram::check(self, env, tol)
     }
+    fn plane_input(&self) -> Option<crate::RecipeNodeId> {
+        Some(self.plane)
+    }
 }
 
 // ------------------------------------------------------------------
@@ -1149,11 +1399,17 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
     Ok(match t {
         Target::Point(p) => ProgramTarget::Point(pt_lit(p)?),
         Target::Start => ProgramTarget::Start,
+        Target::StartArriving => ProgramTarget::StartArriving,
     })
 }
 
 /// Why a recorded PATHS program could not be lifted
 /// ([`LoopProgram::from_recorded`]).
+///
+/// Every verb the transition table declares now has a document
+/// spelling, so there is no vocabulary arm: `from_recorded` is
+/// exhaustive on [`profile::Step`], and a verb the table gains breaks
+/// this file at compile rather than reaching a typed refusal.
 ///
 /// Two of the three arms are unreachable through the authoring
 /// algebra — they exist because the door takes a `&[Step<f64>]`, which
@@ -1228,18 +1484,21 @@ fn spec_lit(spec: &profile::ArcData<f64>) -> Result<ProgramArcData, RecordedProg
 }
 
 impl LoopProgram {
-    /// A literal polygon: `At(p0)`, `LineTo(p1)`, …, `LineTo(Start)` —
-    /// the VQ5 expansion of the polygon builder, at literal points
-    /// (corpus/fixture authoring; parametric authors write the steps
-    /// with their own Exprs).
+    /// A polygon over EXPRESSION corners: `At(p0)`, `LineTo(p1)`, …,
+    /// `LineTo(Start)` — the VQ5 expansion of the polygon builder, at
+    /// arbitrary points, so a document whose corners are driven by
+    /// document parameters reaches the builder rather than spelling
+    /// the expansion out.
     ///
-    /// # Errors
+    /// Infallible: every coordinate is already an [`Expr`], so there
+    /// is no literal left to refuse.
     ///
-    /// A non-finite coordinate (the literal door's refusal).
-    pub fn polygon(points: impl IntoIterator<Item = (f64, f64)>) -> Result<Self, DimensionError> {
+    /// This is the ONE expansion. [`LoopProgram::polygon`] is this
+    /// door at literal corners, so the two spellings of a polygon
+    /// cannot drift apart.
+    pub fn polygon_expr(points: impl IntoIterator<Item = [Expr; 2]>) -> Self {
         let mut steps = Vec::new();
-        for (i, (x, y)) in points.into_iter().enumerate() {
-            let p = [len_lit(x)?, len_lit(y)?];
+        for (i, p) in points.into_iter().enumerate() {
             steps.push(if i == 0 {
                 ProgramStep::At(p)
             } else {
@@ -1247,7 +1506,21 @@ impl LoopProgram {
             });
         }
         steps.push(ProgramStep::LineTo(ProgramTarget::Start));
-        Ok(LoopProgram::Chain(steps))
+        LoopProgram::Chain(steps)
+    }
+
+    /// A literal polygon — [`LoopProgram::polygon_expr`] at literal
+    /// corners (corpus/fixture authoring).
+    ///
+    /// # Errors
+    ///
+    /// A non-finite coordinate (the literal door's refusal).
+    pub fn polygon(points: impl IntoIterator<Item = (f64, f64)>) -> Result<Self, DimensionError> {
+        let corners = points
+            .into_iter()
+            .map(|(x, y)| Ok([len_lit(x)?, len_lit(y)?]))
+            .collect::<Result<Vec<_>, DimensionError>>()?;
+        Ok(Self::polygon_expr(corners))
     }
 
     /// Lift a RECORDED PATHS program to its document form — the
@@ -1311,9 +1584,11 @@ impl LoopProgram {
                     dy: scalar_lit(*dy)?,
                 },
                 Step::Tangent => ProgramStep::Tangent,
+                Step::Cusp => ProgramStep::Cusp,
                 Step::Turn(delta) => ProgramStep::Turn(ang_lit(*delta)?),
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
+                Step::ContinueTo(t) => ProgramStep::ContinueTo(target_lit(t)?),
                 Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
                 Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),
@@ -1347,6 +1622,48 @@ impl LoopProgram {
 
     /// A literal circle loop.
     ///
+    /// # The struct literal is the parametric door
+    ///
+    /// There is no `circle_expr` twin of
+    /// [`LoopProgram::polygon_expr`], and that is the design rather
+    /// than an omission. `polygon` EXPANDS — one authoring call
+    /// becomes a chain of steps — so the expansion needs exactly one
+    /// home, and the literal door reaches it by delegating to the
+    /// expression door. `Circle` expands into nothing: it is a struct
+    /// variant whose two fields are the whole program, so an author
+    /// holding [`Expr`] arguments writes
+    /// `LoopProgram::Circle { centre, radius }` (and
+    /// `LoopProgram::CircleSplit { .. }`) directly. That literal IS
+    /// the parametric door. A constructor over it would be a third
+    /// spelling of the variant with nothing behind it to keep in
+    /// step.
+    ///
+    /// # The literal author keeps both of this door's guarantees
+    ///
+    /// This door is not the check its `Result` makes it look like, so
+    /// writing the variant out gives nothing up:
+    ///
+    /// - FINITENESS belongs to [`Expr::literal`], which is the only
+    ///   way to mint a literal expression at all and refuses a
+    ///   non-finite value there. That refusal is the sole error this
+    ///   constructor can return.
+    /// - DIMENSION belongs to the document. This door only PICKS
+    ///   `Length` for the centre and radius (and `Angle` for
+    ///   [`LoopProgram::circle_split`]'s phase), so the picks agree
+    ///   with the roles by construction. An author supplying
+    ///   expressions picks instead, and `apply` checks the pick: every
+    ///   slot of an entering node is walked, the role's required
+    ///   dimension ([`StepArg::dimension`], reached through
+    ///   [`SlotId::dimension`]) against the expression's, and a
+    ///   disagreement refuses as `EditError::SlotDimensionMismatch`
+    ///   before the program joins the document. The same walk runs on
+    ///   every slot write and on a parameter redeclaration, so there
+    ///   is no later window in which a document's role can hold the
+    ///   wrong dimension. It is the DOCUMENT's door, though: a program
+    ///   built and replayed without entering one — a viewer preview —
+    ///   never reaches it, and such a builder assigns the dimensions
+    ///   itself exactly as this constructor does.
+    ///
     /// # Errors
     ///
     /// A non-finite argument.
@@ -1358,6 +1675,10 @@ impl LoopProgram {
     }
 
     /// A literal declared-subdivision circle loop.
+    ///
+    /// Parametric authors write the `CircleSplit` variant out; see
+    /// [`LoopProgram::circle`] for why there is no expression door
+    /// here and where an expression's dimension is checked instead.
     ///
     /// # Errors
     ///

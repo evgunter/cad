@@ -1,10 +1,14 @@
 //! The sizing vocabulary: one home for "how fine should this be".
 //!
-//! # Three quantities, one word each
+//! # Three quantities, one word each — and one that is not a quantity
 //!
 //! Every sizing question in this crate is one of three things, and
 //! this module fixes the word for each so a reader never has to open a
-//! function to learn which kind it answers:
+//! function to learn which kind it answers. The fourth item below is
+//! not one of them and does not join the rule: [`Eps`] is the run's ε
+//! carried as a BAND, it sizes nothing, and it lives here because
+//! [`SizingTols`] carries it beside δ and δ_s. Its own vocabulary
+//! rule is a different one — named operations, stated at the type.
 //!
 //! - a **target** — the metres of deviation a schedule aims at. There
 //!   is exactly one, δ_s = [`sizing_target`]`(δ)`, and it is carried
@@ -13,7 +17,7 @@
 //!   chart angle, a UV coordinate), always `f64`. Steps come from a
 //!   closed-form deviation bound: [`sagitta_step`] and [`ellipse_step`]
 //!   here, [`curvature_step`] for a second-derivative bound,
-//!   [`torus_grid_step`] for the torus chart, and
+//!   [`torus_grid_steps`] for the torus chart, and
 //!   [`crate::nurbs_cert::NurbsFaceBound::grid_steps`] for a certified
 //!   NURBS patch. The cap on an angular one is [`MAX_ANGULAR_STEP`];
 //!   this module is the only place it is applied ([`cap_angular`], and
@@ -27,14 +31,21 @@
 //!
 //! **The rule, in one sentence:** *"step" names an `f64` increment and
 //! nothing else; a `usize` count is never called a step, and neither is
-//! a sample count.* A new rule that PRODUCES one of the three states
-//! which by its name, or it is misnamed. It binds the PROSE as well as
+//! a sample count.* A new rule that produces one of the three
+//! quantities says which one by its name, or it is misnamed. It
+//! binds the PROSE as well as
 //! the identifiers — a rename that leaves a doc sentence calling a
 //! count a step has not landed.
 //!
-//! **Scope, and what enforces it.** The rule is this crate's; the
-//! nearest violation outside it is `step-import`'s `STEPS: usize`
-//! sample count. Nothing mechanical enforces either half today — the
+//! **Scope, and what enforces it.** The rule is this crate's. No
+//! violation of it is known outside the crate: the three integer
+//! constants elsewhere whose names carry "steps" — `bvh`'s
+//! `ITEM_WIDEN_STEPS` and `HULL_WIDEN_STEPS`, and `geom-brep`'s
+//! `SSI_MAX_STEPS` — each count a step actually taken (ULP widenings,
+//! marching iterations) rather than a sampling density, which is the
+//! shape this rule forbids. No sweep has read the whole tree for that
+//! shape, so read it as no KNOWN violation, not a checked absence.
+//! Nothing mechanical enforces either half today — the
 //! guard this wants is a source-scraping row in the shape of this
 //! crate's own `tests/all.rs`, which `include_str!`s its own source to
 //! prove every test file is registered — and, since the ε ledger,
@@ -64,12 +75,213 @@
 //! knowing it is the only one**: `docs/TESS-BUDGET.md`'s *split
 //! schedule's aspect policy* (2026-08-16, PR #568) rules the NURBS
 //! split schedule's 3-D aspect cap at A = 16, and
-//! `docs/TESS-SPLIT-SPEC.md` binds its execution. Both are scoped
+//! the TESS-SPLIT unit executed it (#951). Both are scoped
 //! entirely to `nurbs_cert`'s per-cell step derivation. Nothing covers
 //! the analytic charts, the sizing target itself, or the retry and
 //! refinement budgets.
 
 use crate::types::TessellateError;
+use geom_core::{Band, Tol};
+
+/// **The kernel ε, carried as a band with four named operations —
+/// this crate's whole ε vocabulary.**
+///
+/// The band is a length in metres, in a private field, and the four
+/// methods below are the only operations on it — so **a `mesh` read of
+/// ε through this type is one of the four or it does not compile**,
+/// and the crate's ε inventory IS those methods, which is what
+/// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned` counts.
+///
+/// **The bound of that claim.** ε also reaches `mesh` as
+/// [`SizingTols::band`] — props' `Band`, ε AND K, minted from the same
+/// `Tol` — and leaves it unread: `mesh` hands it to
+/// `geom_brep::props::require_iso_rectangle` and
+/// `require_one_chart_branch`, and decides nothing against it. The
+/// inventory pin counts `eps` identifier carriers and the four method
+/// reads per file; it does not count `band`, `Band` or K, so a
+/// decision written against the band in this crate would be a bypass
+/// the pin cannot see. None exists; the field's doc is the obligation.
+///
+/// **The scalar is not sealed in, and the honest bound is narrower
+/// than "no way back".** [`Display`](core::fmt::Display) emits a
+/// round-trippable decimal, so `eps.to_string().parse::<f64>()`
+/// recovers the band; a `Debug` derive would do the same, which is
+/// why this type carries none. What actually holds is the second
+/// mechanism, not the first: **every such spelling has to NAME the
+/// band at its call site**, which moves that file's carrier count in
+/// the inventory pin. The type makes the bare read inconvenient and
+/// unnatural; the pin makes it visible. Neither alone is the claim.
+///
+/// # The four operations, and their band edges
+///
+/// Written as edges rather than as prose, because the edge is the only
+/// thing that distinguishes three of them:
+///
+/// | operation | true when | edge |
+/// |---|---|---|
+/// | [`separates`](Eps::separates)`(x)` | `x > band` | band EXCLUDED |
+/// | [`coincident`](Eps::coincident)`(x)` | `x <= band` | band INCLUDED |
+/// | [`dominates`](Eps::dominates)`(x)` | `x < band` | band EXCLUDED |
+/// | [`pad`](Eps::pad)`(b)` | — | `b + band`, widening UP |
+///
+/// **`coincident` and `dominates` differ by one character of code and
+/// carry the difference in a NOUN, which is a real cost of these
+/// names and is recorded rather than hidden.** Nothing in either word
+/// says "≤" or "<"; a reader who wants the edge reads the table or
+/// the method, not the call site. The alternative considered was
+/// spelling inclusivity into the names (`within` / `under`, or
+/// `at_most` / `below`) — rejected because the four names are the
+/// issue's own vocabulary and renaming them here would make this
+/// unit's diff a naming argument on top of a port whose gate is that
+/// nothing moves. **A reader at a call site who needs the edge must
+/// look it up**; that is the trade, and the type rows in this
+/// module's tests are what keep the table true.
+///
+/// **Each operation takes ONE argument, not the two the issue's
+/// sketch wrote.** The band is `self` and the length is the argument,
+/// because the five predicate call sites compute their length three
+/// different ways — a norm, a chart radial, a product — and a
+/// two-argument `separates(a, b)` would have had to pick one
+/// subtraction and impose it on all of them. That is a moved byte, and
+/// this unit's gate forbids it.
+///
+/// **`separates` and `coincident` are exact negations on ordered
+/// input, and neither is written as the other's `!`.** On a NaN both
+/// are FALSE — a poisoned length is neither separated nor coincident —
+/// and that asymmetry is the reason: `!coincident(NaN)` is `true`,
+/// which would admit a poisoned length as separated at
+/// `walk::iso_side_starts`, where today it does not. Each
+/// method is the bare comparison its caller used to spell, so the
+/// NaN behaviour is carried through unchanged rather than re-derived.
+///
+/// `dominates` differs from `coincident` ONLY at the edge, and the
+/// difference is load-bearing at exactly one place: [`crate::walk`]'s
+/// band predicate is a strict `<` so that a zero band admits nothing,
+/// which is what makes `gap_is_noise(gap, lever, 0)` the exact form
+/// its own fixtures compare against.
+///
+/// # The seam, and where this type goes when #741 lands
+///
+/// The band is minted once, at the [`Tol`] seam ([`Eps::at`]) — the
+/// only place in this crate that reads `Tol::eps()`. Issue 741 is
+/// ε's CONFIGURATION surface and may give `geom-core` an ε type of
+/// its own; the operations named here are a `mesh`-local fact about
+/// `mesh`'s terminal reads, so they are minted here rather than grown
+/// on contended cross-crate ground. **If #741's surface later carries
+/// these same four operations, this newtype collapses onto it**: the
+/// callers keep their spellings, `Eps` becomes a re-export or is
+/// deleted, and the seam that has to move is [`Eps::at`] alone.
+///
+/// # Why it lives in `sizing`, where nothing reads it
+///
+/// Every consumer is in [`crate::walk`], [`crate::curved`],
+/// [`crate::trimmed`] and [`mod@crate::tessellate`]; this module reads ε
+/// in none of its own rules and says so at [`SizingTols`]. It is here
+/// anyway because **the band arrives as part of the call's tolerance
+/// bundle** — `SizingTols` is the struct that carries δ, δ_s and ε
+/// together, this is where that struct is defined, and a type whose
+/// whole job is to be one field of it belongs beside it. The
+/// alternative, a module of its own for one newtype and four methods,
+/// buys a file and no invariant.
+///
+/// **Only `Clone` and `Copy` are derived**, and they are load-bearing:
+/// the band is threaded by value through four signatures. `PartialEq`
+/// and `PartialOrd` were derived at first and are gone — no consumer
+/// used either, and `band_a <= band_b` compiling is an unnamed
+/// operation on a type whose entire premise is that its operations are
+/// named. `Debug` is absent for the reason the header gives.
+#[derive(Clone, Copy)]
+pub(crate) struct Eps(f64);
+
+impl Eps {
+    /// The run's committed ε, as a band. The crate's ONE read of
+    /// `Tol::eps()`, so a second raw read shows up as a moved count in
+    /// `the_eps_inventory_is_pinned` rather than as nothing at all.
+    pub(crate) fn at(tol: Tol) -> Self {
+        Self(tol.eps())
+    }
+
+    /// A chosen band, for a row that fixes ε rather than taking the
+    /// run's. Test-only on purpose: in shipped code [`Eps::at`] is the
+    /// only constructor, so ε cannot enter `mesh` except through the
+    /// witness.
+    #[cfg(test)]
+    pub(crate) fn exactly(band: f64) -> Self {
+        Self(band)
+    }
+
+    /// **The band SEPARATES `length`**: the length lies outside it,
+    /// so the two things it measures are two and not one. Band
+    /// excluded; false on a NaN length.
+    ///
+    /// The caller's decision is a CLASSIFICATION, not a state
+    /// disposition: `walk::iso_side_starts` picks which of
+    /// two analytically-equal columns an iso side's entries carry, so
+    /// no D2-addendum row applies to it (rows 1–5 dispose of a state
+    /// that should not exist; this one chooses between two correct
+    /// spellings of a coordinate). D2 addendum **row 0** is what this
+    /// type answers, for every read on it.
+    pub(crate) fn separates(self, length: f64) -> bool {
+        length > self.0
+    }
+
+    /// **The band finds `length` COINCIDENT**: the length lies inside
+    /// it, so the two points it measures are read as one. Band
+    /// included; false on a NaN length.
+    ///
+    /// Its callers' decisions live on **D2 addendum row 5** (kernel
+    /// bug, detectable only by re-derivation) — [`crate::walk`]'s
+    /// declared-vertex guard and its pole guard are both
+    /// `debug_assert`s over every pair — except the pole-membership
+    /// find, which is a classification like [`separates`](Eps::separates)
+    /// and carries no row: it substitutes a pole's exact `v` and seeds
+    /// a fan, and whether an in-band junction REALLY is the pole is
+    /// the intent question this project does not ask.
+    pub(crate) fn coincident(self, length: f64) -> bool {
+        length <= self.0
+    }
+
+    /// **The band DOMINATES `scaled`**: a quantity already converted
+    /// to metres is small enough beside it to be float noise. Band
+    /// excluded, so a zero band dominates nothing; false on a NaN.
+    ///
+    /// **D2 addendum row 1**, for its one caller:
+    /// [`crate::curved`]'s swept-rectangle domain guard, which refuses
+    /// a face typed. Nothing else in this crate reads it, and in
+    /// particular nothing reads it to measure the quality of a body's
+    /// own coordinates: that question is `topo::coherence`'s, and it
+    /// carries its own band. So this operation has no deviation to
+    /// record.
+    pub(crate) fn dominates(self, scaled: f64) -> bool {
+        scaled < self.0
+    }
+
+    /// **The band PADS `bound`**: `bound` widened by one band,
+    /// UPWARD — the conservative direction for a bound that will
+    /// divide. The one operation here that answers with a length
+    /// rather than a verdict, which is why it reads as a verb on a
+    /// value where the three above read as verdicts about one.
+    ///
+    /// No D2-addendum row: the caller ([`crate::trimmed`]'s deviation
+    /// probe) disposes of no state. It publishes a measurement, and
+    /// this widening is why f64 evaluation rounding on a wall
+    /// certifying at ~5e-17 does not read as a violation.
+    pub(crate) fn pad(self, bound: f64) -> f64 {
+        bound + self.0
+    }
+}
+
+impl core::fmt::Display for Eps {
+    /// The band's own metres, for an assertion message — which is
+    /// what it exists for, and NOT a claim that the value cannot get
+    /// out: `f64`'s `Display` round-trips, so this is a door and not a
+    /// wall. It is an acceptable one because a caller walking back
+    /// through it has to name the band to do so, and the inventory pin
+    /// counts that name (see the type's header).
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 /// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
 /// and the run's kernel ε — fetched once by [`fn@crate::tessellate`] and
@@ -77,9 +289,10 @@ use crate::types::TessellateError;
 ///
 /// # What ε may and may not do here
 ///
-/// **No sizing function takes it as an argument**: `eps` appears
-/// nowhere in this module but on the field below, and no step or grid
-/// rule in the crate has it in its signature. **A count can still
+/// **No sizing function takes it as an argument**: in this module ε
+/// appears only on the field below and inside [`Eps::at`], the seam
+/// that mints the band, and no step or grid rule in the crate has it
+/// in its signature. **A count can still
 /// move**, which is why that sentence is about arguments —
 /// `curved::pole_columns(nu, has_pole)` returns 3 where it would
 /// return 2, and `has_pole` is a bit an ε comparison in
@@ -110,21 +323,36 @@ use crate::types::TessellateError;
 /// moves; a reported number does.
 ///
 /// **Where the reads are is not written down here** — it is pinned by
-/// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned`, which counts ε
-/// identifiers per file and reds when one lands. A list here could
-/// not, and one here was short by a read for two milestones. That walk
-/// is textual and cannot see a read spelled another way; the mechanism
-/// that would (ε as a type whose operations are named, D2 addendum
-/// row 0) is **issue #881**.
+/// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned`, which counts
+/// the named operations per file and reds when one lands. A list here
+/// could not, and one here was short by a read for two milestones.
+/// One place holds ε's bits without reading them: the patch memo's
+/// key (`crate::memo`) folds the ambient ε and k as bytes, so a
+/// tolerance change misses every memoised face. That is not a
+/// decision and not an [`Eps`]; the inventory row names it as such.
+/// **What KIND each read is, the type now carries**: every ε read in
+/// this crate is one of [`Eps`]'s four operations, so a fifth read
+/// picks a name or adds a method rather than spelling its own band
+/// arithmetic — the D2-addendum row-0 answer to the class.
 pub(crate) struct SizingTols {
     /// The chordal tolerance δ.
     pub delta: f64,
     /// The sizing target δ_s = δ/2.
     pub delta_s: f64,
-    /// The kernel ε. No sizing rule takes it; see above for what its
-    /// reads may do, and `the_eps_inventory_is_pinned` for where they
-    /// are.
-    pub eps: f64,
+    /// The kernel ε, as a band. No sizing rule takes it; see above for
+    /// what its reads may do, [`Eps`] for the four they are spelled
+    /// with, and `the_eps_inventory_is_pinned` for where they are.
+    pub eps: Eps,
+    /// The linear decision band props classifies with, minted from
+    /// the same [`Tol`] as `eps` at operation entry (the calling
+    /// convention `Band::linear` prescribes). Consumed by exactly one
+    /// site — `curved`'s shape door, which hands it to
+    /// `geom_brep::props::require_iso_rectangle` and then to
+    /// `require_one_chart_branch` — and by no rule of this crate's
+    /// own: `mesh` decides nothing against it, it carries props' band
+    /// to props' predicates. Not an ε read of this crate, and the
+    /// inventory pin does not count it as one.
+    pub band: Band,
 }
 
 /// The sizing target δ_s for a call's chordal tolerance δ.
@@ -166,7 +394,7 @@ pub(crate) fn cap_angular(step: f64) -> f64 {
 /// radius `rho`, capped at [`MAX_ANGULAR_STEP`]. Total (poison-free
 /// for positive inputs): if δ_s ≥ ρ the sagitta constraint is vacuous
 /// and the cap rules.
-pub fn sagitta_step(delta_s: f64, rho: f64) -> f64 {
+pub(crate) fn sagitta_step(delta_s: f64, rho: f64) -> f64 {
     if delta_s < rho {
         cap_angular(2.0 * (1.0 - delta_s / rho).acos())
     } else {
@@ -195,46 +423,179 @@ pub(crate) fn curvature_step(delta_s: f64, m: f64) -> f64 {
 /// `R_eff = major·(major/minor)²`. Coarser than the circle's exact
 /// sagitta near `major = minor` — conservative is the promised
 /// direction.
-pub fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
+pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
     let r_eff = major * (major / minor) * (major / minor);
     cap_angular(curvature_step(delta_s, r_eff))
 }
 
-/// The torus UV grid step `h = √(δ_s/(3(R+2r)))` — shared by the
-/// curved-face grid sizing and the chord pass's adjacent-torus
-/// tightening so boundary and interior steps agree.
+/// The torus chart's two grid steps `(h_u, h_v)` — azimuth θ and
+/// minor angle φ — for chord deviation ≤ `delta_s` on every triangle
+/// of an `h_u × h_v` cell grid, from the doubly-curved interpolation
+/// bound below. Shared by the curved-face grid sizing and the chord
+/// pass's adjacent-torus tightening ([`torus_boundary_step`]) so a
+/// boundary polyline and the interior grid agree on the rows they
+/// share.
 ///
-/// Uncapped here, and its two consumers differ on that. The curved
-/// lane steps a periodic chart coordinate with it directly and applies
-/// [`cap_angular`] itself; the chord pass takes it only as a *lower
-/// bound on a count* it has already sized from the circle sagitta, and
-/// that sagitta step is capped over the same span. `h` exceeds the cap
-/// only when `δ_s > (3π²/16)·(R + 2r) ≈ 1.85·(R + 2r)`, which is above
-/// every circle radius a torus carries (`R + r` at most), so the
-/// sagitta step is then exactly the cap and the capped and uncapped
-/// requirements coincide. No in-tree body reaches that regime, so the
-/// claim is pinned directly rather than by the mesh oracles:
-/// `torus_cap_regime_is_sagitta_capped` below goes red if either
-/// formula or [`MAX_ANGULAR_STEP`] moves.
+/// # The bound (proved; [`crate::cert::cert_torus`] is its forward form)
+///
+/// Write the torus as `P(θ, φ) = c + radial(θ)·(R + r·cos φ) +
+/// axis·(r·sin φ)`. Its second partials have `‖P_θθ‖ = R + r·cos φ`,
+/// `‖P_θφ‖ = r·|sin φ|` and `‖P_φφ‖ = r`; over the whole tube the sups
+/// are `A = R + r`, `B = r`, `C = r`. For a UV triangle `T` with
+/// vertices `a_i` and a point `x = Σ λ_i·a_i` of it, Taylor with the
+/// integral remainder at `x` gives, with `d_i = a_i − x`,
+///
+/// ```text
+/// P(a_i) − P(x) = DP(x)·d_i + ∫₀¹ (1−t)·D²P(x + t·d_i)(d_i, d_i) dt
+/// ```
+///
+/// and `Σ λ_i·d_i = 0` kills the first-order term, so the affine
+/// interpolant `Π(x) = Σ λ_i·P(a_i)` satisfies
+///
+/// ```text
+/// ‖Π − P‖(x) ≤ ½·Σ λ_i·(A·d_iu² + 2B·|d_iu·d_iv| + C·d_iv²)
+/// ```
+///
+/// (`‖D²P(d, d)‖ ≤ A·d_u² + 2B·|d_u·d_v| + C·d_v²` with the sups over
+/// `T`, and `∫₀¹ (1−t) dt = ½`). The three weighted sums are the
+/// λ-variance of u, the λ-covariance of |u|,|v|, and the λ-variance of
+/// v over the triangle's corners: a variable confined to an interval
+/// of length `Δ` has variance at most `Δ²/4` (Popoviciu), and
+/// Cauchy–Schwarz bounds the middle sum by the geometric mean of the
+/// two variances. With `Δu`, `Δv` the triangle's UV extents,
+///
+/// ```text
+/// ‖Π − P‖ ≤ (A·Δu² + 2B·Δu·Δv + C·Δv²) / 8          (★)
+/// ```
+///
+/// **The constant 8 is not slack.** On a cell-half with legs
+/// `(h_u, h_v)`, at the hypotenuse midpoint (λ = 0, ½, ½) all three
+/// sums attain their bounds at once, so (★) is exact for a constant
+/// Hessian whose blocks add with aligned signs — and at φ = 0 on the
+/// torus `P_θθ` and `P_φφ` are both radial-inward and `P_θφ` vanishes,
+/// so there the second-order deviation IS (★). `cert_torus`'s
+/// `certificate_is_attained_on_the_outer_equator` measures that.
+///
+/// # The steps: the optimum of (★) over the grid, closed-form
+///
+/// A grid cell splits (either diagonal) into right triangles with
+/// `Δu = h_u`, `Δv = h_v`, so the grid is sound when
+/// `A·h_u² + 2B·h_u·h_v + C·h_v² ≤ 8·δ_s`. Fewest cells is largest
+/// `h_u·h_v` under that. Put `x = h_u·√A`, `y = h_v·√C`,
+/// `β = B/√(A·C) = √(r/(R + r))`: the constraint reads
+/// `x² + 2β·x·y + y² ≤ 8·δ_s`, and for a fixed product `p = x·y`,
+/// `x² + y² ≥ 2p` (AM–GM), so `p ≤ 4·δ_s/(1 + β)` with equality iff
+/// `x = y`. The optimum is therefore
+///
+/// ```text
+/// h_u = √(4·δ_s / ((1 + β)·(R + r)))      h_v = √(4·δ_s / ((1 + β)·r))
+/// ```
+///
+/// — the two pure terms take equal shares `4δ_s/(1+β)` of the budget
+/// and the mixed term the rest, `8βδ_s/(1+β)`; equivalently the aspect
+/// is fixed at `h_u·√A = h_v·√C` and the scale solved. Nothing here is
+/// chosen: the split is the theorem, and
+/// `torus_grid_steps_meet_the_bound_with_equality` pins that the steps
+/// spend exactly `δ_s` of it. The only cost against this ideal is the
+/// `ceil` in [`ceil_count`], `≤ (1 + 1/n_u)(1 + 1/n_v)` in cells.
+///
+/// Against the per-direction sagitta steps `√(8δ_s/A)`, `√(8δ_s/C)`
+/// the cell count is `2(1 + β)` times higher — the 2 because a
+/// cell-half's hypotenuse midpoint sees BOTH pure sagittas at once
+/// (the naive schedule's deviation there is `2δ_s`), the `1 + β` for
+/// the mixed term. `β ∈ (0, 1/√2)` on a ring torus (`R > r`), so the
+/// factor lies in `(2, 2 + √2)`.
+///
+/// # What is deliberately NOT read: the face's φ window
+///
+/// A face avoiding the outer equator would admit `A_W = R + r·max_W
+/// cos φ < A` and a coarser `h_u` (at most `√((R + r)/R)` fewer
+/// columns), and the sharp joint maximum over φ of the two φ-dependent
+/// terms would buy a few percent more. The chord pass sizes an edge
+/// before any face's walk has established its window, and a window
+/// read on the grid side alone would put the boundary rows off the
+/// grid's; one rule for both keeps them coincident. The certificate
+/// does read each triangle's own window, so the pin measures the
+/// sizing's real slack. The lever and its price are
+/// `work/perf/torus-sizing-reads-no-phi-window.md`.
+///
+/// Uncapped here, and the two consumers differ on that. The curved
+/// lane steps periodic chart coordinates with these directly and
+/// applies [`cap_angular`] itself; the chord pass takes one as a
+/// *lower bound on a count* it has already sized from the circle
+/// sagitta, and that sagitta step is capped over the same span.
+/// `h_u` exceeds the cap only when `δ_s > (π²/64)(1 + β)(R + r)`
+/// (`≥ 0.154·(R + r)`), and every rim circle a torus carries has
+/// radius `≤ R + r`, over which the sagitta step is already the cap
+/// once `δ_s ≥ (R + r)(1 − cos(π/8)) ≈ 0.076·(R + r)`; `h_v` the same
+/// with `r`, the radius of every meridian circle. So in the capped regime
+/// the sagitta step is exactly the cap and the capped and uncapped
+/// requirements coincide, per direction. No in-tree body reaches that
+/// regime, so the claim is pinned directly rather than by the mesh
+/// oracles: `torus_cap_regime_is_sagitta_capped` below goes red if
+/// either formula or [`MAX_ANGULAR_STEP`] moves.
 ///
 /// The chord pass must NOT simply cap here to sidestep the argument:
 /// [`ceil_count`] refuses a non-finite step typed, while
 /// [`cap_angular`] turns one into the cap, so capping a poisoned torus
 /// step there would swallow a refusal.
-pub(crate) fn torus_grid_step(delta_s: f64, major: f64, minor: f64) -> f64 {
-    (delta_s / (3.0 * (major + 2.0 * minor))).sqrt()
+pub(crate) fn torus_grid_steps(delta_s: f64, major: f64, minor: f64) -> (f64, f64) {
+    let a = major + minor;
+    let beta = (minor / a).sqrt();
+    // Each direction is the plain second-derivative inversion
+    // (`h² · m / 8 ≤ share`) at a `2(1 + β)`-fold smaller share of
+    // δ_s: the 2 for the coupling of the two pure terms, the `1 + β`
+    // for the mixed one.
+    let share = delta_s / (2.0 * (1.0 + beta));
+    (curvature_step(share, a), curvature_step(share, minor))
 }
 
-/// The torus boundary-step requirement `h` (crate docs) for a face's
-/// surface, if that surface is a torus.
-pub(crate) fn torus_step(surface: &geom::Surface<f64>, delta_s: f64) -> Option<f64> {
-    match *surface {
-        geom::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(torus_grid_step(delta_s, major_radius, minor_radius)),
-        _ => None,
+/// The torus boundary-step requirement for a circle edge adjacent to
+/// `surface`, if that surface is a torus: `h_u` for a rim (its carrier
+/// parameter is the azimuth), `h_v` for a meridian (the minor angle).
+///
+/// The rim/meridian rule is [`topo::chart_iso::classify_kind`]'s — the
+/// same rule the walk classifies the same edge with when it lays the
+/// boundary polygon on the face's grid, so the count sized here and
+/// the grid row it lands on agree by construction rather than by a
+/// second copy of the threshold. That rule is total on circle
+/// carriers (`|n · axis| > 0.5` splits rim from meridian, every
+/// direction falling on one side), so nothing refuses HERE: a circle
+/// on a torus that is neither iso-curve — a Villarceau circle, which
+/// no construction of this kernel authors — is refused by the face
+/// door (`geom_brep::props::require_iso_rectangle`, through
+/// [`crate::curved`]) before any grid is built on the face, and a
+/// whole-body refusal is what a mis-tightened count on such an edge
+/// could never outlive. The `None` the classifier reserves for conic
+/// and spline carriers is unreachable from a circle and is surfaced
+/// typed rather than defaulted, so a widened classifier cannot make
+/// this arm silently pick a direction.
+pub(crate) fn torus_boundary_step(
+    surface: &geom::Surface<f64>,
+    curve: &geom_brep::EdgeCurve<f64>,
+    edge: topo::EdgeKey,
+    delta_s: f64,
+) -> Result<Option<f64>, TessellateError> {
+    let geom::Surface::Torus {
+        major_radius,
+        minor_radius,
+        ..
+    } = *surface
+    else {
+        return Ok(None);
+    };
+    let Some(chart) = topo::chart::Chart::of(surface) else {
+        unreachable!("Chart::of answers every torus, and this surface is one: {surface:?}")
+    };
+    let (hu, hv) = torus_grid_steps(delta_s, major_radius, minor_radius);
+    match topo::chart_iso::classify_kind(&chart, curve) {
+        Some(topo::chart_iso::TravKind::Rim { .. }) => Ok(Some(hu)),
+        Some(topo::chart_iso::TravKind::Meridian { .. }) => Ok(Some(hv)),
+        None => Err(TessellateError::UnsupportedCurve {
+            edge,
+            note: "a circle edge on a torus that the iso-curve classifier left unclassified — \
+                   neither rim nor meridian, so no grid direction sizes its chords",
+        }),
     }
 }
 
@@ -245,7 +606,7 @@ pub(crate) fn torus_step(surface: &geom::Surface<f64>, delta_s: f64) -> Option<f
 ///
 /// [`TessellateError::ResolutionOverflow`] when the count is
 /// non-finite or at/above the cap.
-pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
+pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
     let raw = (span / step).ceil();
     if !(raw.is_finite() && raw < MAX_COUNT) {
         return Err(TessellateError::ResolutionOverflow { count: raw });
@@ -259,29 +620,251 @@ pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
 mod tests {
     use super::*;
 
-    /// [`torus_grid_step`]'s doc claim, which no meshing oracle
-    /// reaches: above `delta_s = (3*pi^2/16)*(R+2r)` the torus step
-    /// passes the angular cap, and there the sagitta step over the
-    /// widest circle a torus carries (`R + r`) is EXACTLY the cap — so
-    /// the chord pass's uncapped `max` and the curved lane's capped one
-    /// agree. Red if either formula or the cap moves.
+    /// **[`Eps`]'s band edges, pinned at the type rather than at each
+    /// caller.** Three of the four operations differ ONLY here, so the
+    /// edge is the whole of what distinguishes them and the one thing
+    /// a caller picking a name is choosing between. Red if any
+    /// operation's strictness flips — which is a moved mesh byte
+    /// wherever a coordinate sits exactly on the band.
+    ///
+    /// # These rows are the ONLY defence of the band's WIDTH
+    ///
+    /// The division of labour is worth stating once, here, because it
+    /// is not what a reader would guess: **a byte-identity corpus
+    /// carries REACH — which decisions a body actually exercises —
+    /// and these type rows carry WIDTH and EDGE.** Two measurements
+    /// establish it, both made against transient mutants of this file:
+    ///
+    /// - flipping `coincident` to a strict `<` leaves the whole tour
+    ///   corpus GREEN, `step-import`'s pole-band witness included (it
+    ///   sits strictly outside the default band, so inclusivity never
+    ///   decides it) — and reds the row below;
+    /// - doubling the pole band outright ALSO leaves the corpus green:
+    ///   the witness's own row accepts any S22 panic, and a sibling
+    ///   unwidened read still panics with the message it greps for, so
+    ///   the identification flip is masked. The row below reds on it.
+    ///
+    /// So a future lane must not read a green corpus as evidence that
+    /// a band edge or a band width is unchanged; it is evidence about
+    /// reach. **If these rows go, nothing in the tree notices a band
+    /// that has silently doubled.**
+    #[test]
+    fn the_band_edges_are_where_the_operations_differ() {
+        let e = Eps::exactly(1e-9);
+        // AT the edge: coincident includes it, the other two exclude.
+        assert!(e.coincident(1e-9), "`coincident` includes the band");
+        assert!(!e.separates(1e-9), "`separates` excludes the band");
+        assert!(!e.dominates(1e-9), "`dominates` excludes the band");
+        // Inside and outside, where all three agree with their names.
+        assert!(e.coincident(0.5e-9) && e.dominates(0.5e-9) && !e.separates(0.5e-9));
+        assert!(e.separates(2e-9) && !e.coincident(2e-9) && !e.dominates(2e-9));
+        // A ZERO band admits nothing: `dominates` is strict, which is
+        // the exact form `curved`'s band fixtures compare against.
+        assert!(!Eps::exactly(0.0).dominates(0.0));
+    }
+
+    /// **`separates` and `coincident` are negations on ordered input
+    /// and NOT on a NaN** — the reason neither is written as the
+    /// other's `!`. Both are false on a poisoned length, so a NaN
+    /// stays neither near nor far; `!coincident` would report it as
+    /// separated, which is a decision this crate does not make.
+    #[test]
+    fn a_poisoned_length_is_neither_near_nor_far() {
+        let e = Eps::exactly(1e-9);
+        for x in [0.0, 1e-12, 1e-9, 1e-6, f64::INFINITY] {
+            assert_ne!(e.separates(x), e.coincident(x), "ordered input at {x}");
+        }
+        assert!(!e.separates(f64::NAN) && !e.coincident(f64::NAN));
+        assert!(!e.dominates(f64::NAN));
+    }
+
+    /// **`pad` widens UP, by exactly one band.** The direction is the
+    /// claim: [`crate::trimmed`]'s probe divides by the result, so a
+    /// downward pad would inflate the ratio it publishes instead of
+    /// keeping evaluation rounding out of it.
+    #[test]
+    fn pad_widens_upward_by_one_band() {
+        let e = Eps::exactly(1e-9);
+        assert_eq!(e.pad(1.0), 1.0 + 1e-9);
+        assert!(e.pad(0.0) > 0.0, "a zero bound pads to the band itself");
+        assert_eq!(Eps::exactly(0.0).pad(4.0), 4.0, "a zero band pads nothing");
+    }
+
+    /// **The port's central claim, executed: each operation computes
+    /// bit-for-bit the boolean the bare spelling computed.**
+    ///
+    /// Everything else about this port rests on this. The
+    /// byte-identity corpus shows that no BODY IN THE TREE notices the
+    /// change; this row shows the change is not noticeable — over the
+    /// representable neighbours of the band edge, at ±0.0, at the
+    /// subnormal floor, at the infinities and on NaN, across bands
+    /// including a zero band and a NaN band. Where the corpus argues
+    /// from reach, this argues from the operation.
+    ///
+    /// `pad` is compared ON BITS rather than by value, so a NaN bound
+    /// is a real comparison and a signed zero cannot pass by
+    /// numeric equality.
+    ///
+    /// Lifted from the review lanes, whose independent instruments are
+    /// recorded under `review/r1-mesh4/` and `probes/`: the band-edge
+    /// value sweep is R1's transient probe, made permanent here
+    /// because nothing in-tree executed this claim; the sweep over
+    /// MANY bands (zero and NaN included) is R2's differential
+    /// dimension, which found the same answer over 242,040 checks
+    /// against the merge base's actual spellings.
+    #[test]
+    fn each_operation_is_bitwise_the_bare_spelling_it_replaced() {
+        for band in [1e-9f64, 1e-6, 1e-12, 0.0, 1.0, f64::MIN_POSITIVE, f64::NAN] {
+            let e = Eps::exactly(band);
+            // The representable neighbours of the edge, plus the
+            // values a length can hold that are not ordinary lengths.
+            let up = f64::from_bits(band.to_bits().wrapping_add(1));
+            let down = f64::from_bits(band.to_bits().wrapping_sub(1));
+            for x in [
+                0.0,
+                -0.0,
+                f64::MIN_POSITIVE,
+                down,
+                band,
+                up,
+                2e-9,
+                1e-6,
+                1.0,
+                -1.0,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NAN,
+            ] {
+                assert_eq!(
+                    e.separates(x),
+                    x > band,
+                    "separates at band {band:e}, x {x:e}"
+                );
+                assert_eq!(
+                    e.coincident(x),
+                    x <= band,
+                    "coincident at band {band:e}, x {x:e}"
+                );
+                assert_eq!(
+                    e.dominates(x),
+                    x < band,
+                    "dominates at band {band:e}, x {x:e}"
+                );
+                assert_eq!(
+                    e.pad(x).to_bits(),
+                    (x + band).to_bits(),
+                    "pad at band {band:e}, x {x:e} (bitwise, NaN included)"
+                );
+            }
+        }
+    }
+
+    /// [`torus_grid_steps`]' doc claim, which no meshing oracle
+    /// reaches, per direction: above `delta_s = (pi^2/64)(1+beta)(R+r)`
+    /// the u step passes the angular cap, and there the sagitta step
+    /// over the widest rim circle a torus carries (`R + r`) is EXACTLY
+    /// the cap; above `(pi^2/64)(1+beta)·r` the v step does, and there
+    /// the sagitta step over every meridian circle (`r`) is the cap —
+    /// so the chord pass's uncapped `max` and the curved lane's capped
+    /// count agree in both directions. Red if either formula or the
+    /// cap moves.
     #[test]
     fn torus_cap_regime_is_sagitta_capped() {
-        for &(major, minor) in &[(1.0, 0.25), (5.0, 3.0), (0.5, 0.4), (100.0, 1.0)] {
-            let threshold = 3.0 * core::f64::consts::PI.powi(2) / 16.0 * (major + 2.0 * minor);
-            let delta_s = threshold * 1.0001;
+        use core::f64::consts::PI;
+        let cases: &[(f64, f64)] = &[(1.0, 0.25), (5.0, 3.0), (0.5, 0.4), (100.0, 1.0)];
+        for &(major, minor) in cases {
+            let beta = (minor / (major + minor)).sqrt();
+            let (u_threshold, v_threshold) = (
+                PI.powi(2) / 64.0 * (1.0 + beta) * (major + minor),
+                PI.powi(2) / 64.0 * (1.0 + beta) * minor,
+            );
+            let (hu, _) = torus_grid_steps(u_threshold * 1.0001, major, minor);
             assert!(
-                torus_grid_step(delta_s, major, minor) > MAX_ANGULAR_STEP,
-                "the threshold no longer predicts the uncapped regime"
+                hu > MAX_ANGULAR_STEP,
+                "the u threshold no longer predicts the uncapped regime"
             );
             assert!(
-                sagitta_step(delta_s, major + minor) == MAX_ANGULAR_STEP,
-                "the sagitta step is not exactly the cap, so the two requirements diverge"
+                sagitta_step(u_threshold * 1.0001, major + minor) == MAX_ANGULAR_STEP,
+                "the rim sagitta step is not exactly the cap, so the two requirements diverge"
+            );
+            let (hu, _) = torus_grid_steps(u_threshold * 0.9999, major, minor);
+            assert!(
+                hu <= MAX_ANGULAR_STEP,
+                "the u threshold no longer predicts the capped regime"
+            );
+            let (_, hv) = torus_grid_steps(v_threshold * 1.0001, major, minor);
+            assert!(
+                hv > MAX_ANGULAR_STEP,
+                "the v threshold no longer predicts the uncapped regime"
             );
             assert!(
-                torus_grid_step(threshold * 0.9999, major, minor) <= MAX_ANGULAR_STEP,
-                "the threshold no longer predicts the capped regime"
+                sagitta_step(v_threshold * 1.0001, minor) == MAX_ANGULAR_STEP,
+                "the meridian sagitta step is not exactly the cap, so the two requirements diverge"
             );
+            let (_, hv) = torus_grid_steps(v_threshold * 0.9999, major, minor);
+            assert!(
+                hv <= MAX_ANGULAR_STEP,
+                "the v threshold no longer predicts the capped regime"
+            );
+        }
+    }
+
+    /// [`torus_grid_steps`] spends EXACTLY `delta_s` of the bound (★)
+    /// on a cell-half — `(A·hu² + 2B·hu·hv + C·hv²)/8 == delta_s` — at
+    /// the aspect `hu·√A == hv·√C` the closed-form optimum names, and
+    /// in the uncapped regime both steps sit strictly inside the
+    /// per-direction sagitta steps, which is what makes a rim or
+    /// meridian edge's torus count the one that binds (the boundary
+    /// and the grid coincide). The first equality is the row that goes
+    /// red if a constant drifts: a bound ten times too loose passes
+    /// every certifier and fails this.
+    #[test]
+    fn torus_grid_steps_meet_the_bound_with_equality() {
+        let cases: &[(f64, f64)] = &[(0.30, 0.07), (2.0, 0.5), (1.2, 1.0), (50.0, 1.0)];
+        for &(major, minor) in cases {
+            for &delta_s in &[1e-6_f64, 1e-4, 1e-2] {
+                let (hu, hv) = torus_grid_steps(delta_s, major, minor);
+                let (a, b, c) = (major + minor, minor, minor);
+                let spent = (a * hu * hu + 2.0 * b * hu * hv + c * hv * hv) / 8.0;
+                assert!(
+                    ((spent - delta_s) / delta_s).abs() < 1e-12,
+                    "R {major} r {minor} delta_s {delta_s}: the steps spend {spent} of the bound"
+                );
+                assert!(
+                    ((hu * a.sqrt() - hv * c.sqrt()) / (hv * c.sqrt())).abs() < 1e-12,
+                    "R {major} r {minor}: the aspect is off the optimum"
+                );
+                assert!(hu < sagitta_step(delta_s, a) && hv < sagitta_step(delta_s, c));
+                // The cost against the per-direction sagitta, in cells.
+                let naive = curvature_step(delta_s, a) * curvature_step(delta_s, c);
+                let ratio = naive / (hu * hv);
+                let beta = (minor / a).sqrt();
+                assert!(((ratio - 2.0 * (1.0 + beta)) / ratio).abs() < 1e-12);
+                assert!(ratio > 2.0 && ratio < 2.0 + core::f64::consts::SQRT_2);
+            }
+        }
+    }
+
+    /// [`torus_grid_steps`] and [`crate::cert::cert_torus`] are an
+    /// INVERSE PAIR through one arithmetic: the certifier's own bound
+    /// (`cert::torus_chord_bound`, which `cert_torus` evaluates at a
+    /// triangle's window sups and extents) on a cell-half of the
+    /// sizing's steps at the whole-tube sups is exactly `delta_s`. A
+    /// loosening of the certifier's constant alone passes every
+    /// per-triangle row and reds this one.
+    #[test]
+    fn torus_grid_steps_and_cert_torus_are_an_inverse_pair() {
+        let cases: &[(f64, f64)] = &[(0.30, 0.07), (2.0, 0.5), (1.2, 1.0), (50.0, 1.0)];
+        for &(major, minor) in cases {
+            for &delta_s in &[1e-6_f64, 1e-4, 1e-2] {
+                let (hu, hv) = torus_grid_steps(delta_s, major, minor);
+                let certified = crate::cert::torus_chord_bound(major + minor, minor, minor, hu, hv);
+                assert!(
+                    ((certified - delta_s) / delta_s).abs() < 1e-12,
+                    "R {major} r {minor} delta_s {delta_s}: the certifier reads {certified} on \
+                     the sizing's own cell-half"
+                );
+            }
         }
     }
 
@@ -289,7 +872,7 @@ mod tests {
     /// audit re-derived inside the tree, from the scenes' constants and
     /// nothing observed. `hollowring`'s two wall sizes, the
     /// `tube_along_arc` reference pair, and `diecomposed`'s pip-rim
-    /// blend tori are exactly what [`torus_grid_step`] prices — the
+    /// blend tori are exactly what [`torus_grid_steps`] prices — the
     /// rim torus's major radius and arc are derived here from the
     /// rolling-ball construction (ball tangent to the top plane and
     /// externally tangent to the cavity sphere), so no number in this
@@ -298,17 +881,18 @@ mod tests {
     fn tessfold_r1_torus_rows_rederive_from_scene_constants() {
         use core::f64::consts::PI;
         let tris = |delta: f64, major: f64, minor: f64, uspan: f64, vspan: f64| {
-            let h = cap_angular(torus_grid_step(delta * 0.5, major, minor));
-            2 * ceil_count(uspan, h).unwrap() * ceil_count(vspan, h).unwrap()
+            let (hu, hv) = torus_grid_steps(delta * 0.5, major, minor);
+            2 * ceil_count(uspan, cap_angular(hu)).unwrap()
+                * ceil_count(vspan, cap_angular(hv)).unwrap()
         };
         // hollowring (demos/tour/src/ring.rs): R = 0.30, walls
         // r_i = 0.05 / r_o = 0.07, delta = 2e-3; each wall is two
         // half-tube faces (uspan 2*pi, vspan pi).
-        assert_eq!(tris(2e-3, 0.30, 0.05, 2.0 * PI, PI), 47_524);
-        assert_eq!(tris(2e-3, 0.30, 0.07, 2.0 * PI, PI), 52_670);
+        assert_eq!(tris(2e-3, 0.30, 0.05, 2.0 * PI, PI), 1_932);
+        assert_eq!(tris(2e-3, 0.30, 0.07, 2.0 * PI, PI), 2_336);
         // tube_along_arc (demos/tour/src/tube.rs): R = 2, r = 0.5,
         // delta = 1e-2, arc T1 - T0 = 1.5.
-        assert_eq!(tris(1e-2, 2.0, 0.5, 1.5, PI), 17_152);
+        assert_eq!(tris(1e-2, 2.0, 0.5, 1.5, PI), 798);
         // diecomposed pip-rim blend (demos/tour/src/diefillet.rs):
         // RIM_R = 0.02 ball between the face plane and the
         // PIP_R = 0.09 cavity sphere whose centre stands
@@ -319,7 +903,7 @@ mod tests {
         let d = pip_r - pip_h;
         let major = ((pip_r + rim_r).powi(2) - (d + rim_r).powi(2)).sqrt();
         let vspan = ((d + rim_r) / (pip_r + rim_r)).acos();
-        assert_eq!(tris(5e-3, major, rim_r, 2.0 * PI, vspan), 2_080);
+        assert_eq!(tris(5e-3, major, rim_r, 2.0 * PI, vspan), 104);
     }
 
     /// [`cap_angular`]'s documented total behaviour. The obvious-looking

@@ -4,29 +4,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::arena2;
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn arena2(
-    s1: Surface<f64>,
-    s2: Surface<f64>,
-) -> (
-    SurfaceKey,
-    SurfaceKey,
-    slotmap::SlotMap<SurfaceKey, Surface<f64>>,
-) {
-    let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
-    let k1 = map.insert(s1);
-    let k2 = map.insert(s2);
-    (k1, k2, map)
-}
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_core::{Point3, Vec3};
 
 fn zcyl(cx: f64, r: f64) -> Surface<f64> {
     Surface::Cylinder {
@@ -51,7 +34,7 @@ fn certify_line(
         dir: Vec3::new(0.0, 0.0, 1.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(0.5),
@@ -151,7 +134,7 @@ fn ruling_drift_is_exactly_zero_and_the_bound_discriminates() {
         dir: Vec3::new(0.0, 0.0, 1.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(50.0),

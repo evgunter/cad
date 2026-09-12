@@ -3,8 +3,8 @@
 Status: **RATIFIED** (design-conversation PR #124, signed off and
 merged 2026-07-29; the ratified doc was the deliverable of that
 conversation). **IMPLEMENTED** as LIB unit U2 (`crates/profile/`);
-`docs/LIB-U2-SPEC.md` and `docs/LIB-LOG.md` are the implementation
-record. Designed across twelve review rounds with Evan
+`docs/LIB-U2-SPEC.md` and `work/lib/log.md` are the implementation
+record. Designed across twelve review rounds with Ev
 (2026-07-27/29, #104 + the #124 threads); the round-by-round trail
 lives in #124 and the M5 log — this document states only the
 resulting design.
@@ -14,12 +14,12 @@ declared-tangency discipline (flags verified-never-trusted,
 `UndeclaredTangency`/`TangencyContradicted`, fillet fit gating,
 same-carrier-is-identity) landed at #109/#112 and is the layer this
 algebra lowers to. **End state (the #104 recorded v2 commitment,
-affirmed here per Evan's round-13 note): the algebra IS the core
+affirmed here per Ev's round-13 note): the algebra IS the core
 representation of paths** — the program is the profile's definition
 and derived segments are caches/provenance, exactly as Q8
 definitional surfaces work (the constructing function is the
 surface). That representation switch is designed in
-`docs/PROFILES-V2-DESIGN.md` and shipped in the LIB SWITCH units;
+`crates/profile/README.md` and shipped in the LIB SWITCH units;
 this document specifies the algebra itself, which is what both the
 pre-switch generator surface and the stored profile-program speak.
 
@@ -29,9 +29,10 @@ A typed authoring algebra for profile loops in which **accidental
 tangency is unrepresentable, intended tangency is exact by
 construction, and every authored point lies on the final path,
 authored once**. It is a generator-layer surface (D8); it lowers to
-what exists — explicit segments + declared tangency flags, verified
-at build by the same junction predicates. No kernel or document
-semantics change.
+explicit segments + declared tangency flags, verified at build by
+the same junction predicates. No kernel semantics change; the
+document layer's own change — the stored program — is
+PROFILES-V2's.
 
 ## 2. The core
 
@@ -111,7 +112,9 @@ half-bound tip.
   the tangent-departing endpoint-full form; {tangent-both + r} =
   the fillet family (§ below), which alone carries the
   neighbor-trimming insertion.
-- **NURBS legs** — rigid authored data (clamped, w > 0, the PR 3
+- **NURBS legs** — specified here, not built: `ProfileLoop` has no
+  NURBS segment to lower to, so they wait on the segment vocabulary
+  (PROFILES-V2 VQ7). Rigid authored data (clamped, w > 0, the PR 3
   invariants); end positions and end tangents are intrinsic, so a
   NURBS leg's end is a directed point and `.tangent()` chains
   onward. Two doors:
@@ -151,7 +154,7 @@ half-bound tip.
   unrepresentable, not refused (§2c round 10). Bare `fillet(r)`
   after a NURBS leg is the uniform ray extension: the surviving
   ray piece is a genuine line leg off the curve's end.
-- **NURBS legs CAN close** (round 13, Evan's observation that
+- **NURBS legs CAN close** (round 13, Ev's observation that
   trailing DOFs can be left off exactly as leading ones are): the
   FULLY-authored form cannot target `Start` (placement consumed
   at departure, the end lands where the data says), but the
@@ -197,7 +200,8 @@ authoring act.
   leg's ray extension); otherwise the joint at the tip is a
   constructed tangency onto a new carrier — sound for every
   authored `r`. A trim that would eat the tip's authored anchor
-  refuses (`AnchorOutsideTrimmedExtent`). `Center` from a
+  refuses (`CornerReason::AnchorOutsideTrimmedExtent`, an entry
+  of the `NoCornerOfPair` envelope). `Center` from a
   directed tip stays EXCLUDED — the tip's direction is bound, so
   an authored centre's derived tangent would have to value-match
   it, and no direction remains for the centre to supply
@@ -246,19 +250,62 @@ is closing — structurally**: the endpoint IS the start point by
 reference, authored once; closure never depends on re-typed
 coordinates value-matching.
 
-- Sharp seam: `line_to(Start)` / `arc_to(Start, bulge)` — an
-  ordinary leg targeting Start; the seam's junction check runs
-  with both directions known.
-- Tangent seam: `.tangent().tangent_arc_to(Start)`. (A tangent
-  LINE close is overdetermined — direction inherited AND through
-  Start — and refuses ALWAYS, exact collinearity included: a ray
-  hitting an independently-authored point is a VALUE coincidence,
-  and the ratified ladder never infers from values — geometry
-  that works by luck is refused, not blessed. The refusal names
-  the two structural spellings: close with the tangent ARC
-  instead, or rotate the loop's authoring origin — the loop is
-  cyclic, so the straight run can always be authored forward as
-  side 1 and the arc becomes the closer.)
+- Sharp seam: `line_to(Start)` / `arc_to(Bulge { p: Start, b })` —
+  an ordinary leg targeting Start; the seam's junction check runs
+  with both directions known, and an UNDECLARED tangent seam
+  refuses (`SeamTangent`) from every closing verb.
+- Declared seam (§6's revised PQ4): the seam's own junction is the
+  one declaration that cannot ride a departing leg, because the
+  arriving leg is authored last. It rides the TARGET —
+  `Start.arrives_tangent()`, the ONE arrival declaration — and
+  **every closing verb takes it**: `line_to`, `continue_to`,
+  `tangent_arc_to`, `arc_to(Bulge { … })`. Every zero-turn joint is
+  a declared tangent joint (Ev, in-chat, 2026-09-02), so there is
+  nothing else to declare and no sibling token. The kernel CHECKS
+  the arriving direction against `Start`'s own direction and
+  NOTHING else — never whether the two carriers are the same.
+- Tangent seam: **declared**, per the bullet above. The 2026-07-28
+  text here read "`.tangent().tangent_arc_to(Start)`", and that
+  spelling refuses `SeamTangent` — its DEPARTURE tangency is
+  declared and its ARRIVAL was not, which is the half no departing
+  leg could ever carry. The stadium is exactly that shape, and it
+  closes as `.tangent().tangent_arc_to(Start.arrives_tangent())`.
+  A straight closing leg says the same thing the same way:
+  `line_to(Start.arrives_tangent())` — what the token classifies is
+  the JOINT, not the shape of the leg reaching it.
+  A tangent LINE close remains impossible, and that part of the
+  2026-07-28 text stands: a line's direction cannot be both
+  INHERITED from the tip and aimed at an independently authored
+  point, so there is no such verb to reach — `.tangent()` leaves the
+  tip Directed, where the only straight leg is `line(len)`, which
+  has no target. Accepting it would mean reading "the author meant
+  this ray to hit Start" off a ray that happens to hit it, which is
+  the value inference the ladder refuses.
+- Straight-run seam: what an author reaching for a tangent line
+  close actually wants — a straight leg CONTINUING its run onto the
+  entry — is `continue_to(Start)` (§4, BOOL-11), and
+  it departs the very state `.tangent()` does: the two are the
+  alternatives at one tip. The verb DECLARES the continuation, and
+  the joint it mints is a declared TANGENT joint like any other
+  zero-turn joint; nothing is inferred, and the kernel then CHECKS
+  that the target lies on the departing ray to within ε_input —
+  authored-data consistency, the arc verbs' class, refusing
+  `ContinuationTargetOffRay` past the band. Where the seam's own
+  joint is zero-turn too, the arrival token says so on the same
+  verb:
+
+  ```text
+  Open.at((0, 0)).angle(north)
+      .line(2.0)
+      .arc_to(Bulge { p: (0, -2), b: 1.0 })
+      .line_to((0, -1))
+      .continue_to(Start.arrives_tangent())
+  ```
+
+  — the D-shape, closing on its own straight side, pinned by
+  `the_d_shape_closes_with_the_declared_straight_arrival` in
+  `profile`'s `bool12_probes`. Its `tangent_joints` is `[0, 3]`: the
+  seam's joint and the interior continuation's, both declared.
 - Seam fillet: `.angle(θ).fillet(r).to(Start)` — both carriers
   bound, nothing pending, loop closed.
 
@@ -341,10 +388,16 @@ This primitive is not a chain and authors no seam, so the chain rule
 stands untouched and a chain closing on its own carrier still refuses
 (pinned by test).
 
-The primitive offers no control over the split, deliberately. A demo
-that needs a particular split (the tour's boss wants three 120° arcs so
-a boolean can cross a three-face rim seam) is asking for a specific
-lowering, which is a raw-chain question, not an authoring one.
+`circle` itself offers no control over the split. A loop whose
+downstream naming depends on the seam structure (the tour's boss wants
+three 120° arcs so a boolean can cross a three-face rim seam) authors
+it with `circle_split(centre, r, n, phase)` instead — the
+declared-subdivision closed carrier: `n` arcs of equal sweep, first
+vertex at `phase` from +x, `n ≥ 2` or `CircleSplitCount`. Its vertices
+are STRUCTURAL subdivisions of one carrier — same-carrier identities,
+nothing declared tangent — so it too authors no seam and PQ4 stays
+untouched; the count and phase are simply authored data rather than a
+private lowering detail.
 
 **Refusals**: `r` not definitely positive (`NonpositiveCircleRadius`),
 through the same funnel as the other sign gates.
@@ -516,11 +569,11 @@ types. The register's full text is the git history of this section
 (and #386/#413's threads); the ratified surface is §2c.
 
 ## 2c. The fillet-family redesign (RATIFIED — fifteen rounds with
-## Evan, merged #419; implemented by LIB-RESPELL, which re-spelled
+## Ev, merged #419; implemented by LIB-RESPELL, which re-spelled
 ## §2/§2a/§3 to this surface and compressed §2b to its historical
 ## note)
 
-**THE AXIOM (leads by design — Evan, round 11): every verb can
+**THE AXIOM (leads by design — Ev, round 11): every verb can
 depend ONLY on its incoming lattice state — Open / Point /
 Angle / Directed, carrying nothing but its binding bits
 (position and/or tangent) — plus the verb's own authored
@@ -547,7 +600,7 @@ Everything below DERIVES from the axiom:
   refusal (`NoCornerForFillet`) consumes only the verb's own
   inputs.
 
-**The axiom is ENFORCED BY CONSTRUCTION (Evan, round 12 — not
+**The axiom is ENFORCED BY CONSTRUCTION (Ev, round 12 — not
 discipline, structure):** every verb is a PURE FUNCTION over
 bare state VALUES — e.g. `fillet(dp: DirectedPoint<T>, r: T) ->
 FilletArrival<T>`, where the state types hold NOTHING but their
@@ -561,7 +614,7 @@ one parameter has two fields; the module cannot name the
 accumulator) — re-introducing carrier-awareness would require
 changing a signature, the loud reviewable act such a change
 should be. CONSEQUENCE (the drift-proofing dividend, completed by
-Evan's round-13 push toward full unification): the surface and
+Ev's round-13 push toward full unification): the surface and
 the replay driver become TWO MECHANICAL PROJECTIONS OF ONE
 DECLARATION — a single TRANSITION TABLE, one row per
 (state, verb, kernel fn, next state), macro-expanded (the
@@ -589,7 +642,7 @@ the delegation alternative (typed methods calling through the
 driver) was considered and rejected: it needs an unreachable!()
 where the statically-known state meets the enum return, a
 runtime assertion standing where the types should speak.
-Spelling freedom (round 14, Evan's trait suggestion): the
+Spelling freedom (round 14, Ev's trait suggestion): the
 REQUIREMENT is the invariant — every transition declared exactly
 once, all projections (typed method, driver arm, Step variant,
 tag) mechanically derived, drift unwritable. TWO spellings
@@ -599,7 +652,7 @@ one per row, calling the kernel fn — rustdoc-visible, consistent
 with the ArcSpecFor admissibility impls) plus a SLIM macro for
 only the enum-side projections, which Rust cannot derive from
 impls (no reflection — without that step the enum match is
-hand-written and the drift point quietly returns). RULED (Evan, round 15): **lean (a), the
+hand-written and the drift point quietly returns). RULED (Ev, round 15): **lean (a), the
 table-macro** — a macro exists in both spellings, so the trait
 layer buys little, and (b)'s generic impls (flavored states ×
 verb types × associated Out types) add trait-resolution surface
@@ -631,7 +684,7 @@ compile, and there is no second place to write a transition.
 - Plain `arc_to(spec)` remains for SHARP-cornered arcs;
   converting sharp→filleted is an edit at the same call site.
 - **The endpoint lives INSIDE the endpoint-full variants**
-  (Evan's round-8 observation, vindicating his wrap-the-args
+  (Ev's round-8 observation, vindicating his wrap-the-args
   instinct): once the family admits endpoint-FREE modes, `p`
   stops being a uniform argument — so `Bulge{p, b}`,
   `Via{q, p}`, `Center{c, w, p}` carry their target, and the
@@ -673,7 +726,7 @@ chord exists: leg targets AND the fused verbs' incoming specs
 the re-spell unit's spec. The wire/program layer records ONE
 unified `ArcData` enum (record-as-you-lower keeps the authored
 mode; the VQ contracts rely on that distinctness).
-**RULED (Evan, round 9): the ENTIRE family ships in stage 1 —
+**RULED (Ev, round 9): the ENTIRE family ships in stage 1 —
 every admissible (site, mode) pair, tested.** The forcing
 argument is exhaustiveness one layer down: the wire enum is
 matched exhaustively by the replay driver, persist wire, and
@@ -716,7 +769,7 @@ capture and nothing second-order to carry). `at_on`, `to_on`,
 `at_toward` all dissolve at the re-spell; the §2b register and
 the §2/§3 fillet text rewrite at that unit.
 
-**Round 10 (Evan): `FilletCarrierUnsupported` RETIRES.** The
+**Round 10 (Ev): `FilletCarrierUnsupported` RETIRES.** The
 incoming contact of bare `fillet(r)` lies on the tangent ray
 AHEAD of the directed point, as new path (latent in §2's own
 anchoring: the corner is the carrier INTERSECTION; behind-the-
@@ -732,19 +785,17 @@ extension**, uniform across line/arc/NURBS incomings. The one
 surviving refusal is `NoCornerForFillet` (parallel carriers /
 intersection behind the ray start) — geometry, not mechanism.
 
-Sequencing: #413 (route 3 as landed) is MERGED; this redesign
-re-spells the surface on top of the same resolution machinery
-in a follow-up unit, which also re-spells the program Step
-vocabulary (pre-release clean break; the v8 step set is not a
-compatibility surface).
+The program Step vocabulary carries the same spelling as the
+surface: pre-release, the step set is not a compatibility
+surface (LQ7a's clean break).
 
 ### §2c dissolution amendment — OnArc RETIRES (RATIFIED
-### 2026-08-16; Evan's in-chat ruling, ratification delegated
+### 2026-08-16; Ev's in-chat ruling, ratification delegated
 ### on a clean blast-radius census)
 
 The re-spell unit shipped a fifth tip state, `OnArc` (an
 interior arc arrival's tip, its carrier run to the anchor left
-un-emitted for the NEXT fused verb to trim). Evan's ruling: the
+un-emitted for the NEXT fused verb to trim). Ev's ruling: the
 axiom's own state vocabulary is the four binding states and the
 directed point suffices — carrier continuation folds into the
 fused verbs the way `arc_fillet` already folds carrier
@@ -782,7 +833,7 @@ typestate, and it retires:
 - **What is unchanged**: shipped geometry — the census
   (2026-08-16, in LIB-LOG) found the fit gate already refuses
   a trim that would eat the authored anchor
-  (`AnchorOutsideTrimmedExtent`), so every constructing chain
+  (`CornerReason::AnchorOutsideTrimmedExtent`), so every constructing chain
   already has its trim at/after the anchor and re-emits the
   IDENTICAL final vertex chain; `p: Start` closes; the entry
   fused rows. The all-blended-loop entry gap is NOT addressed
@@ -799,7 +850,9 @@ typestate, and it retires:
 | `.angle(θ)` | Point → Directed; Open → Angle | angle binder (+ junction check on directed points) |
 | `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
 | `.toward(dx, dy)` | Point → Directed; Open → Angle | **G1** — the exact director: same slot as `.angle`, ray stored verbatim |
-| `line(len)` / `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs |
+| `line(len)` | Directed → Point; directed point → directed point | off a directed point, the straight continuation: the leg departs along the point's own intrinsic tangent. Binding bits only; there is no junction (no authored direction exists to classify) and nothing is declared. The minted vertex is a structural subdivision of the carrier — the loft vertex-budget shape. |
+| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the departing point's ray, within ε_input, metered as the target's own lateral displacement (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, refusing `SeamTangent` when the seam is undeclared and zero-turn; `Start.arrives_tangent()` is the target that DECLARES it (§6's revised PQ4) and inverts that verdict. The zero-turn joint the leg itself mints is DECLARED by the verb (2026-09-02), so it enters `tangent_joints`. The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
+| `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `fillet(r)` | Directed \| leg end → Open | line incoming (ray extension off a leg end), line arrival |
 | `fillet_arc(r, spec)` | Directed \| leg end → per spec | line incoming, ARC arrival (see arrival rows below) |
@@ -808,13 +861,16 @@ typestate, and it retires:
 | arrival `Center{c, w, p}` | (open fillet) → directed Point; `p: Start` → complete loop | complete at the verb; interior `p` is a HARD anchor (run emitted, ordinary directed point); `Start` keeps the entry vertex |
 | arrival `Radius{r, side}` | (open fillet) → builder → directed Point | centre DERIVED from the directed anchor the binders supply |
 | arrival `Via{q, p}` | (open fillet) → builder → directed Point; `p: Start` closes | anchor in the spec; one director pending |
-| `Start` | directed-point VALUE | targeting it closes, structurally |
+| `Start` | directed-point VALUE | targeting it closes, structurally; the seam's junction is classified and, UNDECLARED, a tangent one refuses `SeamTangent` from every closing verb |
+| `Start.arrives_tangent()` | target of EVERY closing verb → complete loop | the seam's joint is a declared **TANGENT joint** — the ONE arrival declaration, because every zero-turn joint is a declared tangent joint (Ev, in-chat, 2026-09-02). `line_to`, `continue_to`, `tangent_arc_to` and `arc_to(Bulge { … })` all take it: what it classifies is the JOINT, not the shape of the leg reaching it. The kernel CHECKS the arriving direction against `Start`'s own, banded through the funnel, the turn LEVERED by the arriving leg's arm (the datum is an angle; §4 item 1's precedent), refusing `SeamArrivalOffDirection` past ε_input, `JunctionCusp` for a reversed arrival and `SeamArrivalLeverTooShort` when the leg is too short to carry the question. It reads NOTHING about the carriers — identity is a fact about carriers, tangency a fact about directions. Joint 0 carries the flag, which the verify layer re-checks. |
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
+| `circle_split(c, r, n, phase)` | — → complete loop | the declared-subdivision closed carrier: `n` equal arcs from `phase`, structural subdivisions of one carrier — the same no-seam story as `circle`, with the count and phase authored |
+| `arc_continue(p)` | directed point → directed point | continues the incoming ARC carrier to `p`, minting a structural subdivision vertex; a same-carrier identity, so no junction check runs and nothing is declared |
 | **TIER 1 — SUGAR** (one call each; expands to core; adds no semantics) | | |
 | `line_to(p)` | Point → Point (also from line arrivals) | `.angle(toward p).line(dist)` |
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc |
-| `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement |
+| `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement; VQ7-banked with the legs |
 | `.turn(δ)` | directed point → Directed | `.angle(incoming + δ)`; `turn(0)` refuses → `.tangent()`; `turn(±π)` hits the reverse class |
 
 The retired-name doors (`arc_to(p, bulge)` / `arc_via` / `arc_center`
@@ -847,28 +903,44 @@ Open.at(a).angle(d)
 **Refusals.** Compile-time, from the lattice and the §2c trait
 matrix: double director; `fillet`/legs from non-Directed tips;
 `.tangent()` on a plain point; leading `.fillet`/`.tangent` (§2
-entry rule); a NURBS leg targeting `Start`; every INADMISSIBLE
+entry rule); the overdetermined tangent-LINE close (§2's closure
+bullets — `.tangent()` leaves the tip Directed, where the only
+straight leg is `line(len)` and no targeting verb is in reach, so
+there is no verb to refuse at runtime); a NURBS leg targeting
+`Start`; every INADMISSIBLE
 (state, mode) pair of the `ArcData` matrix is a missing impl —
 unrepresentable, not refused (at the wire the same pair is the
 replay driver's Transition class). Typed runtime errors, from
 geometry — the lattice guarantees the authoring, never the
 geometry: the junction check (§4 item 1); `NoCornerForFillet`
-(r too large, carriers parallel/non-intersecting/never meeting,
-corner behind the ray, no tangent circle); the M8 conditioning
-gate `FilletOffsetLeverTooShort`; `AnchorOutsideTrimmedExtent`
-(a trim would eat an anchor — the #101 `TangentJointOutOfRange`
-fit-gating generalized, carrying the side's carrier kind; also
-checked for the entry point under a seam fillet);
+(the pair-level conditions that name no corner at all: carriers
+parallel, carriers never meeting); `NoCornerOfPair`, the envelope
+naming every corner that REFUSED at the answering stage with that
+corner's own reason and point (not every corner the pair derives —
+a pair derives up to two and most refusals list one) (r too large, corner behind the ray or before the
+arrival anchor, no tangent circle, a trim that would eat an anchor
+— the #101 `TangentJointOutOfRange` fit-gating generalized,
+carrying the side's carrier kind, also checked for the entry point
+under a seam fillet — or the permanently refused enclosing class);
+the M8 conditioning gate `FilletOffsetLeverTooShort`;
 `SeamRetrimsArcFirstSide` (a `.to(Start)` seam needs a straight
 side 1 — closing onto a carrier while keeping the entry vertex is
-`fillet_arc(r, Center { c, winding, p: Start })`); the
-overdetermined tangent-line close; `TangencyContradicted` from the
-verify layer as today. From §2a and the spec family:
+`fillet_arc(r, Center { c, winding, p: Start })`);
+`TangencyContradicted` from the verify layer as today. From §2a and the spec family:
 `NonpositiveCircleRadius`; `ZeroDirection`; `ArcViaCollinear`;
 `DegenerateArcChord`; `DegenerateArcSpec` (a zero bulge, a
 non-positive sweep/arc-length); `ArcCenterNotEquidistant`;
-`DegenerateArcCenter`; `FarEndAnchorWithoutFillet`. RETIRED with
-the §2b register: `ArcCarrierSpelling` and the doctrine-level
+`DegenerateArcCenter`; `FarEndAnchorWithoutFillet`;
+`CircleSplitCount`; `ArcContinueNeedsArcCarrier` and
+`ArcContinueOffCarrier` (no incoming arc carrier to continue; an
+authored target off it — authored points never re-project);
+`SeamArrivalOffDirection` (a DECLARED seam arrival that definitely
+does not continue the entry's outgoing direction — the levered
+miss, its lever and the member that declared, in the payload; a
+REVERSED one is `JunctionCusp`);
+`SeamArrivalLeverTooShort` (a declared arrival on a closing leg
+whose arm cannot carry the question).
+RETIRED with the §2b register: `ArcCarrierSpelling` and the doctrine-level
 `FilletCarrierUnsupported` — under the §2c axiom a carrier-keyed
 refusal is unwritable (contact ON a carrier is the fused verb;
 bare `fillet` is ray extension; `nurbs_fillet` is an absent verb).
@@ -891,11 +963,14 @@ and the angle slot bound.
    TANGENT direction refuses — ONE refusal, one recourse, for any
    sub-ε_input margin (D4's two-tolerance principle): "this
    junction is tangent at any precision you could care about — if
-   intended, use `.tangent()`, which makes it exact by
-   construction; otherwise move the geometry (or lower the
-   tolerance)". The margin rides the payload as data; the message
-   never forks on exactly-on vs in-band. Within ε_input of the
-   REVERSE direction refuses as a cusp (reverse-tangent class).
+   intended as tangency onto a new carrier, use `.tangent()`, which
+   makes it exact by construction; if intended as a straight
+   continuation of the same line, spell it `line(len)` off the
+   directed point — no junction exists there; otherwise move the
+   geometry (or lower the tolerance)". The margin rides the payload
+   as data; the message never forks on exactly-on vs in-band.
+   Within ε_input of the REVERSE direction refuses as a cusp (the
+   reverse-tangent class).
    Declared cusps are legal kernel geometry (D1 tier 3's declared
    second-order wedge arm; #131 ruled 2026-08-23), but the
    authoring door — a cusp analogue of `.tangent()` that authors
@@ -915,26 +990,358 @@ and the angle slot bound.
    anchors); junction-owned points (fillet corners, trim points,
    NURBS P0/P1) are implied, never authored; the anchor fit check
    enforces the invariant where trims could threaten it.
-4. **Same-carrier junctions refuse** exactly as #101's
-   `same_carrier: true` (identity, not tangency); the post-fillet
-   continuation is exempt by construction — it extends the same
-   leg rather than minting a collinear neighbor.
+4. **Every zero-turn joint is a declared tangent joint** (RULED —
+   Ev, in-chat, 2026-09-02). The lattice checks DIRECTIONS and
+   never asks whether the two carriers are the same: identity is a
+   fact about carriers, tangency is a fact about directions, and
+   where the directions agree the joint is tangent whatever the
+   carriers do. So `.tangent()` onto the incoming carrier is a
+   declared tangent joint and is legal, and the continuation verbs —
+   `line(len)` off a directed point, `continue_to`, the post-fillet
+   extension — DECLARE the zero-turn joint they mint: declaration by
+   construction, exactly as `.tangent()` is, re-checked by the verify
+   layer.
 
-**OPEN (#433) — the lattice and `validate` disagree about EXACT
-collinearity, and the disposition is Evan's.** A junction whose
-turn is exactly zero is, to invariant 1, tangent at any precision:
-the lattice refuses it and names `.tangent()` as the recourse.
-`validate` accepts the same three points as loop DATA, because a
-straight run subdivided at an interior vertex is well-formed
-geometry — it is what STEP import and raw authored loops routinely
-produce, and nothing there claims tangency. So the two rules are
-not measuring the same thing: one gates an AUTHORING act (what did
-you mean by this corner?), the other gates a DATA shape (is this
-loop well formed?). The three candidate dispositions are on the
-table — admit exact collinearity in the junction check, tighten
-`validate` to refuse it, or rule the divergence INTENTIONAL with
-the reason stated at both sites — and the unit that raised it
-proposes the third; until it is ruled, neither site changes.
+   *History (this item's earlier reading, kept because the refusals
+   it names appear in older logs).* It read "same-carrier junctions
+   refuse when DECLARED — `.tangent()` onto the incoming carrier is
+   identity, not tangency (#101's rule)", and the continuations were
+   said to mint no junction and declare nothing. `SameCarrierJunction`
+   was that reading's refusal, along with `refuse_identical_carriers`
+   and `validate`'s `TangencyContradicted { same_carrier: true }`;
+   all three are retired. What is NOT retired is the undeclared case:
+   an undeclared zero-turn junction still refuses `JunctionTangent`
+   (or `SeamTangent` at the seam). The rule is "declared", not
+   "anything goes".
+
+**RULED (#433 — Ev, in-chat, 2026-09-01, with a second-round
+extension): the lattice and `validate` AGREE.** A straight run
+subdivided at an interior vertex is well formed as DATA
+(`validate`, unchanged: it is what STEP import and raw authored
+loops routinely produce, and an UNDECLARED one claims nothing) and
+it is expressible STRUCTURALLY in the algebra — `line(len)` off a
+directed point, chained, mints subdivision vertices on the one
+carrier the binding bits already determine (item 4 above; the §3
+row). Since 2026-09-02 the algebra also DECLARES those joints, so a
+lattice-authored subdivided run reaches the gate with its zero-turn
+joints named; the raw-authored one still reaches it undeclared, and
+both are accepted — that is what "the two doors agree" means here. The two doors were never measuring different things about
+this shape; the authoring door was simply missing its spelling. An
+AUTHORED direction landing in the tangent band still refuses,
+recourse as in item 1: a target that happens to be collinear is a
+value coincidence, and the ladder never reads intent off a margin.
+
+Per the ruling's second-round extension, `arc_continue` is NOT kept
+as the §2c axiom's exception: it is scheduled for REMOVAL, its
+subdivision need re-spelling as declared subdivision on the arc leg
+itself — the open-carrier analog of `circle_split`, with vertices
+minted at the chain's emission layer where the axiom's bookkeeping
+legitimately lives. Companion: `RawLoop` is not an authoring door —
+the vertex table is the materialized form intensional recipes
+evaluate into. The units: this half is **BOOL-8**, the
+`arc_continue` retirement **BOOL-10**, the declared point-target
+continuation and its closer **BOOL-11**, the raw-door demotion
+**BOOL-9** (resequenced behind BOOL-11), the seam's declared arrival
+**BOOL-12**.
+
+**CLOSED: both lattice halves, the seam, and the raw door.** The
+interior continuation (BOOL-8), the declared point-target form with its
+structural closer (BOOL-11), the declared arrival that admits a
+subdivision or G1 seam (BOOL-12, §6's revised PQ4), and the raw-door
+demotion (BOOL-9). The last of those executes the companion sentence
+above: `ProfileLoop`'s vertex table has one private constructor and
+three doors onto it — the lattice's emission layer,
+`ProfileLoop::map_scalar` (a table that already exists, read at another
+scalar; it has no production caller, every crossing in the tree having
+moved onto the validated form, and it stands on the scalar-lift
+convention a library crate owes an outside caller), and, declared `pub`
+only under `test`/`test-support`, the fixture door `RawLoop`.
+`crates/profile/src/lib.rs`'s docs on the type are the ONE home for
+that list, including the two anticipated doors that turned out not to
+exist; everything else points there rather than restating it.
+
+`validate` is unchanged and stays the data checker for materialized
+loops. The disagreement this item records was never one rule with two
+answers: the lattice checks AUTHORING (a declaration against the data
+being authored, before any table exists) and `validate` checks the
+MATERIALIZED TABLE (`tangent_joints` as data, author unknown). Both
+sites now say so — `validate.rs`'s module header and
+`ProfileLoop::tangent_joints`.
+
+**The seam, measured here and RULED (third round, Ev, in-chat,
+2026-09-01) — and LANDED (BOOL-11).** The interior continuation as
+BOOL-8 shipped it spells INTERIOR subdivisions only, and a straight run
+crossing the SEAM was unauthorable in either rotation: with the seam at
+a corner the closer departs the run's subdivision vertex (a tangent
+DEPARTURE), and with the seam at that subdivision vertex the
+seam's own junction is the straight one, which PQ4 (§6, no mid-carrier
+seam) refuses by construction. What forced the choice is the strict
+corner/subdivision ALTERNATION that one subdivision per side produces:
+the seam junction and the junction the closer departs are then always
+adjacent and always of different kinds, so no rotation puts a corner at
+both. The lift layer carried a name for this wall from the day it was
+written until BOOL-9 retired it:
+`LiftRefusal::DeclaredJointBeforeClosingLine` (`crates/profile/src/lift.rs`),
+whose message said a run's "leaving segment closes the loop straight;
+`.tangent().line(len)` cannot close" — the straight wall exactly. It is
+gone, and on the same premise as the ruling below: the closing straight
+leg off a declared joint IS the continuation verb, which declares the
+joint it mints and does close. Its all-declared sibling
+`AllJointsDeclared` went with it, for the entry's half of the same
+premise — `.at(p)` declares nothing, but the closing TARGET does. (An
+earlier draft cited `SameCarrierClose` here. That variant is about ARC
+runs — `arc_continue` has no closing form — so it names a different
+wall; the identical mis-citation was dropped from the lily demo's
+comment in the same unit, and this is its retained sibling.)
+
+The ruling: the straight continuation gains a DECLARED POINT-TARGET
+form — the leg declared to land on a NAMED point, with the kernel
+CHECKING that the target lies on the departing directed point's ray and
+refusing when it does not (a declared structural fact, verified, never
+inferred from a value coincidence). The target is ANY authored point,
+and the structural CLOSER — `Start` as the target — is the special case
+that ends the seam wall. Axiom-clean: it consults the directed point's
+binding bits, the authored target, and, for the closer, `Start`, which
+is the chain's own emission-layer bookkeeping. PQ4 stands unchanged;
+the closer makes a seam at a CORNER sufficient for an
+all-sides-subdivided outline.
+
+**Landed as `continue_to(target)` (§3's row).** The f64 question the
+third round left open — exact-or-refuse versus a banded check — was
+ruled in the fourth round: BANDED, as ever, because the DECLARATION is
+what legalizes the band. With the intent authored, comparing the target
+against the ray is authored-data CONSISTENCY (the arc verbs' class),
+not the value inference the ladder refuses, which reads intent OFF a
+coincidence nobody declared. The unit's three decisions, recorded here
+for the record they belong to:
+
+- **Which ε: the run's own linear band, whose refusing edge is
+  ε_input.** The two candidates were not really alternatives. ε_input
+  IS K·ε (D4's two-tolerance principle — a role name, not a third
+  dial), and K·ε is the escalation band's upper edge, so "use ε_input"
+  and "use the run band" name the same threshold; what differs is
+  whether the comparison goes through the predicate funnel. It does.
+  Below ε_precision the target and the ray are the same place at the
+  precision anything here represents, and the declaration is
+  consistent; above ε_input they are definitely different places, and
+  the authored data contradicts itself; between them nothing is
+  decidable and the band ESCALATES. A bare comparison against K·ε would
+  have swallowed that middle and decided where the numbers cannot,
+  which is the one thing escalate-never-guess forbids. ε_input is the
+  right edge to refuse at for the reason the role exists: the question
+  is about authored INPUT — does the point the author wrote agree with
+  the intent the author declared — not about what the kernel can build.
+- **The lever: none, and that is the dimension-honest answer.** The
+  miss is `(target − at) · n̂` with `n̂ ⟂ û` a unit direction — already
+  the target's own displacement from the ray, in metres, and already
+  the point deviation the tolerance is defined about. §4 item 1 levers
+  ITS margin (sin φ · arm) because its datum is an ANGLE, which means
+  nothing until an arm says what it displaces; here the datum is a
+  POINT. Levering anyway would mean dividing the length by the leg to
+  make an angle and multiplying it back — bits lost, and a threshold
+  that would drift with how far along the ray the author put the point.
+- **The D2 row: 1 (reachable by input, invalid) — typed error.** Row 0
+  was asked first and answered NO out loud: whether a runtime `Point2`
+  lies on a runtime ray is a value fact, and making it unrepresentable
+  needs the type system to carry the geometry. Row 3 (poison) would be
+  wrong — an off-ray target is not a domain degeneracy, it is
+  well-formed input that disagrees with itself.
+
+Two smaller decisions came with it, both recorded because they are
+contracts rather than implementation. The emitted vertex is the
+AUTHORED TARGET, never its projection onto the ray: item 3 says every
+authored point lies on the final path, and projecting would also leave
+the closer's endpoint a hair off the entry vertex, which is the one
+place a hair is not allowed. And the CLOSER mints no vertex at all —
+`Start` is the entry, which the loop already carries.
+
+**What the closer did NOT move, measured.** It ends the DEPARTURE half
+of the wall and leaves PQ4's half exactly where it was, and the two are
+now separable at the refusal rather than only through the fixture that
+provoked them — and separable by TYPE, not by a payload tag. A tangent
+DEPARTURE on a closing leg refuses `JunctionTangent`, exactly as any
+other departure does; a tangent SEAM refuses `SeamTangent`, a refusal
+only a seam can produce.
+
+That is a correction to how this first landed (ruled 2026-09-01). The
+first version gave one refusal a `site: Departure | Seam` payload, which
+kept a close-only second name for a departure — and a tangent departure
+on a closing leg is geometrically identical to one mid-chain, with an
+identical recourse now that the declared closer exists (spell it
+structurally). A second name for the same fact is uniformity debt
+against this document's own rule that `Start` goes through ORDINARY
+verbs, and it predated the program: it is the original lattice's
+`line_close: bool`, from when the recourses really did differ. Two types
+also beat a tag on the merits — a tag must be read and a `{ .. }`
+pattern can ignore it, whereas types cannot be confused by a caller, and
+each refusal now carries only the payload its own recourse needs. Re-running BOOL-8's exhaustive hunt with the declared closer in
+the alphabet (64 rings — both lily section widths, both ends of the
+shoulder parameter, every starting vertex, both directions) closes 32
+of them where the undeclared closer still closes zero. Every closure is
+a spelling whose SEAM is a corner, which is the ruling's "sufficient"
+made a measurement.
+
+The same run also measures what remains, and it is a fact about lily
+rather than about the closer. The spellings that close sit at OPPOSITE
+PARITY in the two sections a leaf plan carries: in the kite
+(`shoulder = 0`) the corners are the TIPS — starts 0, 2, 4, 6 — and in
+the rectangle (`shoulder = 1`) they are the SHOULDERS — starts 1, 3, 5,
+7. The two sets are disjoint, and not by accident: the kite's corner
+set IS its tips and the rectangle's IS its shoulders, which are
+disjoint points of the outline whatever vertex budget is spent. A loft
+matches segment j of every section to segment j of every other, so all
+of a plan's sections must be authored at ONE rotation — and a plan
+carrying both a `shoulder = 1` base and a `shoulder = 0` belly has no
+rotation that gives every section a corner at its seam. So the lily
+demo does NOT migrate here: its remaining wall is PQ4's, reached by the
+one section whose seam is forced onto a subdivision vertex.
+
+**That question was asked and RULED, and the other half of the wall is
+gone too (fifth round, Ev, in-chat, 2026-09-01; landed by BOOL-12).**
+A DECLARED subdivision vertex IS an admissible seam — the loop cut where
+the author said the carrier continues — and so is a DECLARED G1 joint.
+PQ4's revised entry in §6 carries the rule, the loop-start reading of
+its two named consumers, and the uniformity argument; what belongs here
+is the mechanism and its three decisions.
+
+**The declaration rides the TARGET**, not the verb, because the seam is
+the one junction whose ARRIVING leg is the later-authored one. Every
+other declaration in this document rides the departing leg, and at the
+seam there is no departing leg to ride: the entry's first side is
+authored at the front, where §2's entry rule makes the seam's content
+ill-typed. So `Start` gains ONE declaring sibling —
+`Start.arrives_tangent()`, because every zero-turn joint is a declared
+tangent joint and there is nothing else to say there — and the closing
+verbs are the ordinary ones, unchanged, each still one
+`transition_table!` row. Admissibility is still the §2c matrix
+discipline, and the matrix over the CLOSERS is FULL: `line_to`,
+`continue_to`, `tangent_arc_to` and `arc_to(Bulge { … })` all take it,
+because the token classifies the JOINT and not the shape of the leg
+reaching it. What stays unrepresentable is the arc DATA that has no
+arm: `arc_to`'s `Via` and `Center` modes carry no declaring target, so
+those pairs are missing impls rather than refusals, and at the wire they
+are the replay driver's `Transition` class (issue 1579).
+
+**The two declarations on a closing leg are INDEPENDENT.** `continue_to`
+declares the DEPARTURE (this leg continues its run, and the joint it
+mints is a declared tangent joint); the target declares the seam's own
+joint. A closing leg departing a corner and arriving zero-turn declares
+only the second; one that does both declares both; one that turns at
+each end declares neither and is the plain `line_to(Start)` it always
+was. Folding the arrival into `continue_to` would have made the middle
+case unspellable.
+
+- **Which ε: the run's own linear band, refusing edge ε_input**, for the
+  reason `continue_to`'s target check uses it — the question is about
+  authored INPUT, whether the direction the author's points produce
+  agrees with the intent the author declared. Zero accepts, the band
+  ESCALATES, past ε_input refuses typed.
+- **The LEVER: the arriving leg's own arm, and here there IS one.** The
+  datum is `sin` of the turn between the arriving direction and the
+  entry's outgoing one — dimensionless, and comparing it against a
+  length tolerance is a category error. §4 item 1 levers its turn margin
+  for exactly this reason, and this is the same junction at the same
+  vertex, so it uses the same lever: the emitted leg's length for a
+  straight closer, `radius.min(chord)` for an arc one. The product is,
+  TO FIRST ORDER, the lateral displacement the misalignment opens at the
+  seam — for an arc leg the exact figure is `s·sin φ + s²/2R`, and the
+  lever takes the leading term exactly as §4 item 1 does — which is the
+  point deviation the tolerance is defined about, so the threshold is on
+  the DISPLACEMENT and does not drift with leg length. This is the
+  mirror of `continue_to`'s decision to lever NOTHING: there the datum
+  was already a length, and levering it would have invented an angle.
+- **The D2 row: 1 (reachable by input, invalid) — typed error.** Row 0
+  again answers NO out loud: whether two runtime directions are parallel
+  is a value fact. Row 3 (poison) would be wrong — a misaligned arrival
+  is well-formed input disagreeing with itself, not a domain degeneracy.
+
+**The token classifies the JOINT, the seam check consults NOTHING about
+the carriers, and there is ONE token** (RULED — Ev, in-chat,
+2026-09-02, superseding the two-token reading of the day before). The
+only entry-side datum the check reads is `Start`'s own direction —
+exactly what the interior junction check reads of a directed point. It
+never asks whether the two sides ride the same carrier: identity is a
+fact about CARRIERS, tangency a fact about DIRECTIONS, and where the
+directions agree the joint is tangent whatever the carriers do. So
+`Start.arrives_tangent()` is the whole arrival vocabulary, every closing
+verb takes it, and a declared zero-turn seam onto ONE carrier is a
+tangent joint rather than a contradiction.
+
+Two refusals retired with that reading and are recorded here because
+older logs name them: `SameCarrierJunction` (the lattice's
+declared-tangency-onto-identity refusal, and BOOL-11's addendum arm at
+the collinear tangent-arc close) and `validate`'s
+`TangencyContradicted { same_carrier: true }`. What stays is the
+UNDECLARED case — `JunctionTangent` mid-chain, `SeamTangent` at the seam,
+`UndeclaredTangency` for a materialized loop — because the rule is
+"declared", not "anything goes".
+
+One gate was REPLACED rather than removed. `tangent_arc_geom` used to
+refuse a collinear target under a declared departure as carrier
+identity; the collinear FORWARD case is now legal (the arc degenerates
+to the straight segment the declaration asks for), and what survives is
+a geometry question about the chain's own leg: behind the tip the
+tangent-chord angle is π and the bulge unbounded, so that refuses
+`DegenerateArcChord`.
+
+Three more contracts came with the arrival. A declared arrival that
+REVERSES the entry's outgoing direction has a near-zero turn too, and it
+is a CUSP: it refuses `JunctionCusp`, the name it carries at every other
+junction — one fact, one refusal. A closing leg whose ARM is not
+definitely positive carries no question at all — the levered turn and
+the levered alignment both read Zero, so any arriving direction would
+satisfy the declaration — and refuses `SeamArrivalLeverTooShort`, which
+is the degeneracy `junction_check` already refuses at its own site. And
+a declared arrival puts joint 0 in `tangent_joints`, where the verify
+layer re-checks it.
+
+**Every seam ARRIVAL is classified as a seam.** `line_to(Start)` already
+passed `junction_check`'s seam flag; the two ARC closers did not, so a
+stadium closed with `.tangent().tangent_arc_to(Start)` refused
+`JunctionTangent` — a departure's name for the loop's own junction,
+measured before this unit built anything. The flag is the only thing
+that says "this junction is the seam", and a seam arrival has a recourse
+no departure has (the entry cannot carry `.tangent()`), so naming it as
+a departure sent the reader to a spelling the seam does not have. Both
+arc closers pass `true` now.
+
+**The band's guarantee is PER LEG, and the run-level certifier is the
+data gate** (recorded after review; a limit, not a hole). Each
+`continue_to` checks THIS leg's target against THIS leg's declared ray.
+That is the honest scope of the on-ray band, and it composes as any
+per-step tolerance composes: forty legs each accepting a same-side miss
+of 0.5·ε put the run's end 20·ε — two full ε_input — off the ray it
+started on, with every per-leg check green and correctly so. The drift
+does not escape quietly: the data gate sees the accumulated bow that no
+per-leg check can, and ESCALATES on `chord_side` rather than accepting
+it. Loud, not silent, and not a guess. Tightening the per-leg band
+would not change the shape of this, so the answer is the gate — which
+is already this design's answer for run-level facts.
+`the_per_leg_band_composes_and_the_data_gate_catches_the_sum` pins the
+gate's verdict.
+
+**The ε_input story of the new arms** (D4 consequence (iv): for every
+arm added to a decision, name which ε_input story it belongs to, or say
+why it belongs to none). The definite arm,
+`ContinuationTargetOffRay`, belongs to the AUTHORED-DATA story: the
+target and the ray are definitely different places, and the recourse is
+to move the target onto the ray — or, if the miss is genuinely
+acceptable, to WIDEN the input tolerance. That is the opposite
+direction from the tangency refusals, where closeness is what refuses
+and lowering the tolerance is the recourse, and the message says so
+rather than inheriting the wrong half of the template.
+
+The in-band arm belongs to NO existing story, and this is the "or say
+why" branch. The shared sub-ε_input recourse is "declare the
+coincidence, move the geometry, or lower the tolerance" — and at this
+site the first lever is meaningless, because the DECLARATION IS THE
+VERB: there is nothing left to declare that `continue_to` has not
+already said. So the escalation at `path_continuation_target_offset`
+composes its own message from the margin payload, with its own two
+levers (move the target, or widen ε_input), instead of the shared tail.
+The same correction was owed to `path_leg_length`, which had been
+reporting an authored extent under the prefix "path junction
+classification" — it is not a junction, and neither is this.
 
 The #101 verify layer runs UNCHANGED on the lowered output — the
 algebra is upstream insurance; the flags remain the contract of
@@ -954,7 +1361,7 @@ bound slot + its args; a fillet arrival binds from its own
 anchor/director args; the seam consumes `Start` — bound at entry
 — plus the final carrier), and the one construct that needed a
 LATER binding (the anchor-free both-ends-trimmed side) is
-unwritable. To re-verify at implementation, not an axiom. D9:
+unwritable. D9:
 elaboration is pure f64 structure selection (C6 boundary — it
 decides leg parameters, never topology); the lowered profile runs
 the ordinary generic pipeline. `UnderdeterminedLeg`/
@@ -963,7 +1370,8 @@ unreachable from the typed surface; a reachable case is a design
 finding to bring back here, not a silent fix.
 
 Representation: ONE struct — `pos: Option<PosData>`,
-`ang: Option<f64>` — under type-level lattice markers
+`ang: Option<Dir>` (the §2a widening: the ray stored verbatim, the
+angle carried beside it) — under type-level lattice markers
 (`Tip<P, A>`; the four states are the instantiations, the
 position marker carrying the plain-vs-directed flavor). Binders
 are written once, generic over the slot they do not touch;
@@ -983,21 +1391,153 @@ second-order wedge arm) with the authoring verb banked at #941 —
 cusps refuse here until it ships; there is no
 path-concatenation operator (builder functions instead).
 
-**PQ4 — mid-carrier seams: DECIDED (Evan, in-session,
-2026-08-01), as recommended.** The v1 rule stands: a closed
-loop's seam sits at a junction or fillet only; closing mid-side
-is refused. The M2 closed-carrier conventional-split precedent
-was considered and declined — the relaxation touches the
-same-carrier discipline (one authored side = one carrier), which
-germ matching and the merge ladders lean on. Revisit only with a
-concrete authoring need, as a revision to this section.
+**PQ4 — mid-carrier seams: REVISED (Ev, in-chat, 2026-09-01,
+the Q1 fifth round; implemented by BOOL-12).** The v1 rule was
+that a closed loop's seam sits at a junction or fillet only and
+closing mid-side is refused; the M2 closed-carrier
+conventional-split precedent was considered and declined, because
+the relaxation was thought to touch the same-carrier discipline
+(one authored side = one carrier) that germ matching and the merge
+ladders lean on. The rule now reads:
+
+> A closed loop's seam may sit at a DECLARED TANGENT JOINT, mid-side
+> or not — the seam is a joint like any other, and every zero-turn
+> joint is a declared tangent joint. The declaration rides the
+> closing verb's TARGET, `Start.arrives_tangent()`, which every
+> closing verb takes; the kernel CHECKS the arriving direction
+> against `Start`'s own within ε_input through the funnel, refusing
+> `SeamArrivalOffDirection` when it definitely does not continue,
+> and asks NOTHING about the carriers. An UNDECLARED zero-turn seam
+> keeps refusing `SeamTangent`, and nothing is inferred from a
+> value: `Start` alone reads exactly as it always did.
+
+**Why the seam has a spelling the interior does not, and why that
+is not a leak of the `Start`-goes-through-ordinary-verbs rule.**
+Every declaration that elsewhere rides the DEPARTING leg —
+`.tangent()` for a G1 junction, `line(len)`/`continue_to` for a
+straight continuation — has no departing leg to ride at the seam:
+the entry's first side is authored FIRST, at the front, where the
+seam's content is ill-typed by §2's entry rule (neither adjacent
+carrier is bound there). The seam is the one junction whose
+arriving leg is the later-authored one, so an arrival-side
+declaration has no interior counterpart to be uniform WITH. The
+verbs are the ordinary ones; what is new is a target value, which
+is the same mechanism `Start` itself has always been.
+
+**The loop-start reading the ruling required before the build**
+(BOOL-12, reported before implementation). PQ4's recorded
+rationale named two consumers. Neither distinguishes a seam vertex
+from an interior subdivision vertex, and neither carries the
+one-authored-side-one-carrier premise:
+
+- **Germ matching** (`crates/topo/src/boolean/mod.rs`'s `HalfGerm`,
+  matched in `boolean/join.rs`) keys a null-edge half by its
+  `(A-face, B-face)` pair and its 3-D direction — "never by slot
+  position or dynamic face lookups", as its own doc says. It never
+  sees a profile loop, a side, a carrier or a vertex index, so it
+  cannot tell the two vertices apart. Its real premise is one
+  A-face and one B-face per germ line, i.e. MAXIMAL-FACED operands,
+  which a different gate enforces.
+- **That gate**, `gate_maximal_faces` in `boolean/reduce.rs`, walks
+  EDGES: two distinct parent faces with the same surface key and a
+  planar surface refuse `NonMaximalFaces`, and otherwise the planes
+  are compared with `declared: false`. Edge-keyed; no loop, no
+  vertex index, no seam.
+- **The merge ladder** (`crates/topo/src/merge_faces.rs`) merges
+  adjacent faces on the same surface KEY, the same `GeomSource`, or
+  a declared pair verified by `oriented_plane_eq`. The numeric rung
+  is retired: coincidence is never inferred from values. Face-
+  adjacency keyed, seam-blind.
+- **The loop start is an ORIGIN OF INDEXING downstream and nothing
+  else.** `sweep/src/loft.rs` raises a strut for every vertex
+  `j in 0..n` and re-describes every one of them identically in its
+  phase 6; `profile/src/validate.rs`'s `judge_joints` walks joints
+  with `prev = (joint + n − 1) % n`. Both `loft.rs` and
+  `extrude.rs` DO carry an `if j == 0` arm, and it is worth being
+  exact about it: each remembers the first wall's top half-edge
+  (`first_top`) so the ring can be closed back onto it at the end.
+  That is ring-wrap bookkeeping — the wall built at `j = 0` is
+  identical in kind to every other, its strut is described by the
+  same code, and nothing branches on the profile's seam. The
+  adjacency a seam subdivision creates is walls `n−1 / 0` — the
+  same modular adjacency an interior subdivision creates at
+  `j / j+1`.
+- **BOOL-8 already crossed whatever there was to cross**, in the
+  interior: since the `line(len)` ruling the algebra has emitted
+  loops whose consecutive segments share a carrier, so every
+  downstream consequence of a subdivided side already exists. The
+  seam adds no new KIND of adjacency, only the same one at the index
+  pair the ring wraps at.
+
+A forward observation from that reading, filed as issue 1568 and
+not acted on here: a subdivided side lowers to two coplanar walls,
+which the merge ladder will merge only on a structural or declared
+rung, so whether the sweep lowering gives them one surface key or
+one `GeomSource` is a live question BOOL-8's ruling opened. It is
+seam-independent and belongs to sweep/topo.
+
+**The token classifies the JOINT, and there is ONE of them** (RULED —
+Ev, in-chat, 2026-09-02, closing the question this entry put and
+superseding the two-token reading of the day before). Every zero-turn
+joint is a declared tangent joint, so `Start.arrives_tangent()` is the
+whole arrival vocabulary and every closing verb takes it: what is
+declared is the JOINT, not the shape of the leg reaching it, so a
+STRAIGHT leg declares a tangent seam exactly as a closing ARC does. The
+seam is a joint like any other — mid-side or not is not a property the
+kernel asks about.
+
+**And nothing at the seam consults the carriers.** The only entry-side
+datum the check reads is `Start`'s own direction — exactly what the
+interior junction check reads of a directed point. It does not ask
+whether the two sides ride one carrier, because identity is a fact about
+CARRIERS and tangency a fact about DIRECTIONS. Two readings of this
+entry are withdrawn by that: the "subdivision vs G1" split, and the
+sentence "a straight leg's arrival direction IS its own direction",
+which conflated the leg's shape with the joint's class. So is the pair
+of authoring-layer refusals the first of those produced — a straight
+arrival onto an arc first side, and a cocircular declared tangent
+arrival — both of which are now simply declared tangent joints and
+validate.
+
+The continuation verbs declare the zero-turn joints they mint for the
+same reason (`line(len)` off a directed point, `continue_to`, the
+post-fillet extension): the departure IS the incoming ray, so the joint
+is tangent by construction, and declaration by construction is what
+`.tangent()` already was. §4 item 4 carries the rule and the history of
+the reading it replaced.
+
+**What is still refused at the LATTICE.** An UNDECLARED zero-turn
+seam (`SeamTangent`), from every closing verb — the arc closers
+classify the seam under the seam's own name now, not the
+departure's; a DECLARED arrival the direction check refuses
+(`SeamArrivalOffDirection`); a declared arrival that REVERSES the
+entry's outgoing direction, which is a cusp and says so
+(`JunctionCusp`); and a declared arrival whose closing leg has no
+LEVER — an arm below ε, where any arriving direction would satisfy
+the declaration inside the band — which refuses
+`SeamArrivalLeverTooShort` rather than being left to the data
+gate's `DegenerateSegment`. Every one of these is a fact about the
+ARRIVING leg or about `Start`'s own bits; none reads a carrier. A circular arc cannot generically carry a
+tangency at both ends, so a closing arc asked for both gets the
+check's refusal with the seam FILLET named as the spelling that
+constructs them.
+
+**Which closing verbs take the declaration**: `line_to`,
+`continue_to`, `tangent_arc_to` and `arc_to(Bulge { … })` — all of
+them, because the token names the joint rather than the leg. `arc_to`'s
+`Via` and `Center` modes are the one gap: they fix an end tangent
+like `Bulge` does and the same tokens would serve them, and their
+arms stay lattice violations until a unit takes them (issue 1579).
+The construct-from-arrival closer — the arc through the departure
+point and `Start` whose END tangent is `Start.dir`, which would
+spare an author solving for a departure angle — is also still
+unbuilt (issue 1578).
 
 ## 7. Explicitly out of scope
 
-Implementation (banked for v2 profiles-as-programs, #104);
-persistence changes (the lowering targets the existing form:
-segments + tangent_joints flags); constraint-solver interactions
-(fillets/directors are closed forms, never iterative); 3-D paths;
-spline legs as junction-vocabulary extensions (they join with
-their own continuity story when profiles grow them); arc-arrival
-fillets (additive, with a use case).
+Constraint-solver interactions (fillets/directors are closed
+forms, never iterative); 3-D paths — LIBRARY-DESIGN LQ3(a)
+ratifies the landing site as this layer, an open-chain vocabulary,
+and nothing is built; spline legs as junction-vocabulary
+extensions (they join with their own continuity story when
+profiles grow them — PROFILES-V2 VQ7).

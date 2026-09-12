@@ -20,8 +20,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
@@ -30,7 +30,7 @@ use editor_core::{
 };
 use geom_brep::SurfaceKind;
 
-use fixture::{insert, len};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
@@ -47,14 +47,12 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// its normal along +z — the frame every position row below measures
 /// against, referenced as a node exactly like any other input (GS-Q6).
 fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()),
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, cube) = insert(
         doc,
@@ -173,7 +171,7 @@ fn surface_kind_selects_the_box_faces() {
     assert_eq!(faces.len(), 6);
 
     let top_cap = Selector::of(
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
     );
     assert_eq!(
         select_where(&ev, cube, &top_cap, &planes, &no_params(), Tol::witness()).unwrap(),
@@ -336,7 +334,7 @@ fn datum_distance_reads_face_frames() {
         &ev,
         cube,
         &Selector::of(
-            NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+            NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
         ),
     );
     assert_eq!(top, named, "the decided atom finds what the role path does");
@@ -478,28 +476,29 @@ fn a_valueless_node_is_empty_not_an_error() {
 }
 
 // ------------------------------------------------------------------
-// 4. The mirrors cannot drift.
+// 4. The kind sets, through the document layer's re-export.
 // ------------------------------------------------------------------
 
-/// `ALL_SURFACE_KINDS` is the iteration order of a `SurfaceKindSet`,
-/// and the bitset's exhaustive `surface_bit` match is the compile-time
-/// tripwire. This pins the pair: every listed kind is a member of the
-/// set built from the whole list, exactly once.
+/// The kind sets carry exactly their members, reached through the
+/// document layer's re-export: a set built from the whole mirror holds
+/// every kind on it, the empty set holds none, and a singleton
+/// iterates back to the one kind it was built from.
+///
+/// **This does not pin the mirrors against their enums** — both sides
+/// of such an equality would be derived from the list under test, so a
+/// kind missing from the list would be missing from both. That census
+/// lives beside the lists, as the two `census!` invocations in
+/// `topo::query`'s test module — where it is the compiler, not an
+/// assertion, that reds when a list falls behind its enum.
 #[test]
-fn the_surface_kind_mirror_is_complete() {
+fn kind_sets_carry_exactly_their_members() {
     let all = SurfaceKindSet::of(editor_core::ALL_SURFACE_KINDS);
-    assert_eq!(
-        all.iter().count(),
-        editor_core::ALL_SURFACE_KINDS.len(),
-        "a kind added to SurfaceKind must be added to ALL_SURFACE_KINDS",
-    );
     for k in editor_core::ALL_SURFACE_KINDS {
         assert!(all.contains(k));
         assert!(!SurfaceKindSet::default().contains(k));
-        assert_eq!(SurfaceKindSet::just(k).iter().count(), 1);
+        assert_eq!(SurfaceKindSet::just(k).iter().next(), Some(k));
     }
     let curves = CurveKindSet::of(CurveKind::ALL);
-    assert_eq!(curves.iter().count(), CurveKind::ALL.len());
     for k in CurveKind::ALL {
         assert!(curves.contains(k));
         assert_eq!(CurveKindSet::just(k).iter().next(), Some(k));

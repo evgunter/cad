@@ -12,10 +12,13 @@
 //!   n = ceil(Δt/φ).
 //! - Adjacent-torus tightening: a face on a torus certifies through
 //!   the UV interpolation bound (crate docs), which needs boundary UV
-//!   steps ≤ its grid step h = √(δ_s/(3(R+2r))); a circle edge's
-//!   carrier parameter *is* the torus chart coordinate along it
-//!   (azimuth for rims, minor angle for meridians), so each adjacent
-//!   torus face adds n ≥ ceil(Δt/h).
+//!   steps within its grid steps `(h_u, h_v)` =
+//!   `sizing::torus_grid_steps`; a circle edge's carrier parameter
+//!   *is* the torus chart coordinate along it (azimuth for rims, minor
+//!   angle for meridians), so each adjacent torus face adds
+//!   n ≥ ceil(Δt/h) with `h` the step of the edge's OWN direction —
+//!   `sizing::torus_boundary_step` classifies it with the walk's own
+//!   rim/meridian rule and says what refuses.
 //! - Adjacent-NURBS tightening (M7, the trimmed-NURBS lane): the same
 //!   shape with a hull-derived Hessian — a described NURBS face
 //!   certifies through `crate::nurbs_cert`'s anisotropic bound, which
@@ -29,8 +32,16 @@
 //!   speed bound here and refuses typed (the trimmed lane's module
 //!   docs name its consumer).
 //!
-//! These tightenings are the only places adjacent surfaces enter
-//! chord counts — chord points remain a pure function of (carrier +
+//! An adjacent surface reaches a chord count only through
+//! [`adjacent_surface`], and the two tightenings above are its two
+//! call sites — the `Circle` arm's torus boundary step and
+//! [`nurbs_tighten`].
+//! The claim is therefore about one function's callers, which a reader
+//! settles by grepping this file for the name. **Nothing in the tree
+//! checks it**: a third caller compiles green, and it would be a third
+//! way for a neighbour to enter the count.
+//!
+//! With that door held, chord points are a pure function of (carrier +
 //! interval, endpoint points, adjacent surface parameters, δ).
 //!
 //! Polyline endpoints are the topology vertices' points **bitwise**
@@ -44,11 +55,10 @@ use geom::Curve3;
 use geom_brep::Pcurve;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
-use geom_core::spline::hull::derivative_coeffs;
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
-use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_step};
+use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_boundary_step};
 use crate::types::TessellateError;
 
 /// The chord pass's output: every edge's chord-point ids and the
@@ -95,15 +105,9 @@ pub(crate) fn compute_chords(
                 let mut n =
                     ceil_count(span, sagitta_step(delta_s, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {
-                    let face = body
-                        .get_face(fk)
-                        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-                    let surface =
-                        body.get_surface(face.surface)
-                            .ok_or(TessellateError::MissingEntity {
-                                what: "face surface",
-                            })?;
-                    if let Some(h) = torus_step(surface, delta_s) {
+                    if let Some(h) =
+                        torus_boundary_step(adjacent_surface(body, fk)?, curve, ek, delta_s)?
+                    {
                         n = n.max(ceil_count(span, h)?);
                     }
                 }
@@ -238,8 +242,8 @@ fn nurbs_chord_count(
                     })
                 })
                 .collect();
-            let q1 = derivative_coeffs(kv, &coeffs);
-            let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
+            let q1 = kv.difference_coeffs(&coeffs);
+            let inner = kv.derivative_knot_slice().to_vec();
             let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
@@ -247,7 +251,7 @@ fn nurbs_chord_count(
                            materialise — outside the certified chord inventory",
                 });
             };
-            let q2 = derivative_coeffs(&kv1, &q1);
+            let q2 = kv1.difference_coeffs(&q1);
             let mut hull = RingInterval::poison();
             for (k, q) in q2.iter().enumerate() {
                 hull = if k == 0 {
@@ -289,7 +293,7 @@ fn nurbs_chord_count(
 /// `sup|C − c| ≤ max_active |P − c|` (positive weights — the licence
 /// the caller checked — make the rational basis a nonnegative
 /// partition of unity), `sup|Ã'|`/`sup|Ã″|`/`sup|w′|`/`sup|w″|` are
-/// iterated [`derivative_coeffs`] hulls, and the divisor is the span's
+/// iterated [`geom_core::spline::SplineCoeffs::derivative_coeffs`] hulls, and the divisor is the span's
 /// weight range: for a SUP bound with a nonnegative numerator the
 /// conservative division is by `w_min` (the mirror image of the speed
 /// meter's lower-bound `w_max` choice — the interval division by
@@ -325,7 +329,7 @@ fn rational_carrier_m_bound(
     }
     let kv = refined.knots();
     let p = kv.degree(); // ≥ 2: the caller's degree gate ran first
-    let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
+    let inner = kv.derivative_knot_slice().to_vec();
     let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
@@ -339,8 +343,8 @@ fn rational_carrier_m_bound(
         .iter()
         .map(|w| RingInterval::point(*w))
         .collect();
-    let dw = derivative_coeffs(kv, &w_pts);
-    let ddw = derivative_coeffs(&kv1, &dw);
+    let dw = kv.difference_coeffs(&w_pts);
+    let ddw = kv1.difference_coeffs(&dw);
     let comp = |c: usize| -> Vec<RingInterval> {
         refined
             .control()
@@ -359,8 +363,8 @@ fn rational_carrier_m_bound(
     let a_nets: Vec<(Vec<RingInterval>, Vec<RingInterval>)> = (0..3)
         .map(|c| {
             let a = comp(c);
-            let da = derivative_coeffs(kv, &a);
-            let dda = derivative_coeffs(&kv1, &da);
+            let da = kv.difference_coeffs(&a);
+            let dda = kv1.difference_coeffs(&da);
             (da, dda)
         })
         .collect();
@@ -499,14 +503,7 @@ fn nurbs_tighten(
                 what: "parent loop",
             })?;
         let fk = lp.face;
-        let face = body
-            .get_face(fk)
-            .ok_or(TessellateError::MissingEntity { what: "face" })?;
-        let surface = body
-            .get_surface(face.surface)
-            .ok_or(TessellateError::MissingEntity {
-                what: "face surface",
-            })?;
+        let surface = adjacent_surface(body, fk)?;
         // The UV step schedule is a statement about the chart, so both
         // spline kinds take it — an approximating surface's chart is
         // its fit's.
@@ -566,6 +563,17 @@ fn nurbs_tighten(
                            edge×NURBS-face boolean layer (the cut-loft unit)",
                 });
             }
+            // The general curve-in-UV arm (U2) refuses on the same
+            // ground and names its own class: a NURBS chart image has
+            // no closed-form UV speed sup, whatever its provenance.
+            Pcurve::General(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS-face half-edge carries a GENERAL curve-in-UV pcurve — \
+                           no certified UV speed bound is wired for a spline chart \
+                           image's chord schedule",
+                });
+            }
         };
         n = n
             .max(ceil_count(su * span, hu)?)
@@ -599,6 +607,27 @@ pub(crate) fn edge_vertices(
             what: "he_plus end",
         })?;
     Ok((he.start, end))
+}
+
+/// The door an adjacent face's surface reaches a chord count through.
+/// The module header's claim is a claim about this function's call
+/// sites, and it names them: the `Circle` arm's torus tightening and
+/// [`nurbs_tighten`].
+///
+/// **Nothing counts those call sites.** What the name buys is a token
+/// to grep for, which is what the claim lacked; a third caller still
+/// compiles green.
+fn adjacent_surface(
+    body: &Body<f64>,
+    fk: topo::FaceKey,
+) -> Result<&geom::Surface<f64>, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    body.get_surface(face.surface)
+        .ok_or(TessellateError::MissingEntity {
+            what: "face surface",
+        })
 }
 
 /// The (≤ 2 distinct) faces adjacent to an edge.

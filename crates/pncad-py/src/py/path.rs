@@ -6,13 +6,23 @@
 //! typestate's E0599. There are no `isinstance` ladders and no runtime
 //! state flags; the class IS the state.
 //!
-//! The Python layer re-implements NOTHING. Every verb clones its
+//! The Python layer re-implements no BODY. Every verb clones its
 //! `PartialPath` and calls the SAME generic Rust method, so geometry
 //! refusals fire at the call site as the same typed `PathError` the
 //! Rust surface returns (§2.4 of the unit spec). Cloning is the
 //! documented fork the algebra already permits (`PartialPath` derives
 //! `Clone` for motif exploration); it mints no new closure door,
 //! because every lowered result still passes the verify layer.
+//!
+//! What it DOES re-spell is the vocabulary: which verbs exist, which
+//! arc modes exist, and which modes each state admits are written out
+//! by hand here and again in `pncad.pyi`, because a `#[pymethods]`
+//! block is not generated from `transition_table!`. Neither copy is
+//! reached by any compile error the kernel can raise, so a verb or a
+//! mode the kernel gains is simply absent from Python. The crate's
+//! `surface_census` is what makes that absence loud: its rosters are
+//! matches on `Verb` and `ArcMode`, so a vocabulary that grows stops
+//! the census compiling until the growth is dispositioned here.
 //!
 //! One class per Rust type, with two deliberate identifications:
 //! `PathDirected` carries BOTH `Directed` flavors (`HasPos<Plain>` and
@@ -34,7 +44,7 @@ use pncad::profile::path::{HasAng, HasPos, NoAng, NoPos, Plain, WithIncoming};
 use super::quantity::{Angle, Length};
 use super::typed_err;
 use crate::errors::ErrorClass;
-use crate::tags::{path_error_tag, recorded_program_error_tag};
+use crate::tags::{corner_reason_tag, path_error_tag, recorded_program_error_tag};
 use pncad::tolerance::Tol;
 
 /// The lattice's runtime value, at one state.
@@ -42,15 +52,40 @@ type Path<P, A> = pf::PartialPath<f64, P, A>;
 type KPathError = pf::PathError<f64>;
 
 /// The kernel's refusal, raised where the verb was written.
+///
+/// `variant` is the refusal's stable tag; `corners` is the
+/// `no_corner_of_pair` envelope projected as a list of
+/// `(x, y, reason)` rows — one per REFUSING corner, which is not the
+/// same as one per derived corner (a pair derives up to two) — in the
+/// kernel's own order (nearest the bracketing anchors first), with
+/// `reason` the entry's own tag. Every attribute is set on every arm,
+/// `None` where the arm carries no corner list, so handling reads
+/// `err.corners` without first branching on `err.variant`.
 fn path_err(py: Python<'_>, err: &KPathError) -> PyErr {
+    let corners = match err {
+        pf::PathError::NoCornerOfPair { corners, .. } => {
+            let rows: Vec<(f64, f64, &'static str)> = corners
+                .iter()
+                .map(|c| (c.at.x, c.at.y, corner_reason_tag(&c.reason)))
+                .collect();
+            match rows.into_pyobject(py) {
+                Ok(list) => list.unbind().into_any(),
+                Err(failed) => return failed,
+            }
+        }
+        _ => py.None(),
+    };
     typed_err(
         py,
         ErrorClass::Path,
         err.to_string(),
-        &[(
-            "variant",
-            PyString::new(py, path_error_tag(err)).unbind().into_any(),
-        )],
+        &[
+            (
+                "variant",
+                PyString::new(py, path_error_tag(err)).unbind().into_any(),
+            ),
+            ("corners", corners),
+        ],
     )
 }
 
@@ -81,8 +116,8 @@ impl StartToken {
 }
 
 /// Travel sense about a centre — structural, never a value.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ArcSweep {
     /// Counterclockwise (positive included angle; positive bulge).
     Ccw,
@@ -102,8 +137,8 @@ impl ArcSweep {
 /// Which half-plane of the departure tangent a DERIVED carrier centre
 /// sits on — structural, the one discrete bit the endpoint-free and
 /// radius modes carry. `Left` of travel curves the arc counterclockwise.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ArcSide {
     /// Centre on the left of travel (counterclockwise arc).
     Left,
@@ -117,6 +152,42 @@ impl ArcSide {
             Self::Left => pf::ArcSide::Left,
             Self::Right => pf::ArcSide::Right,
         }
+    }
+}
+
+/// **Kernel-growth tripwires** for the two structural bits an arc
+/// spec carries.
+///
+/// `to_kernel` matches on the MIRROR — a closed local enum — so it
+/// says nothing about the kernel growing, and a sense or a side added
+/// there would leave Python silently short of it. These matches are
+/// over the KERNEL enums, with no wildcard arm, so the addition
+/// breaks this build instead. They are never called: the type-checked
+/// match is the whole product, which the leading underscore says.
+///
+/// The vocabularies one level up — the verbs and the arc modes — are
+/// too large for this shape, because their Python spelling is a
+/// method name rather than a variant; `surface_census` carries them,
+/// on the same principle.
+#[allow(
+    dead_code,
+    reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
+)]
+const fn _binds_every_arc_sweep(kernel: pf::ArcSweep) -> ArcSweep {
+    match kernel {
+        pf::ArcSweep::Ccw => ArcSweep::Ccw,
+        pf::ArcSweep::Cw => ArcSweep::Cw,
+    }
+}
+
+#[allow(
+    dead_code,
+    reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
+)]
+const fn _binds_every_arc_side(kernel: pf::ArcSide) -> ArcSide {
+    match kernel {
+        pf::ArcSide::Left => ArcSide::Left,
+        pf::ArcSide::Right => ArcSide::Right,
     }
 }
 
@@ -796,9 +867,18 @@ point_state!(
             PathDirected(Directed::WithIncoming(self.0.clone().tangent()))
         }
 
+        /// Depart along the REVERSE of the incoming end tangent, and
+        /// DECLARE the reverse-tangent joint on lowering — the
+        /// wedge-0/2π authoring door. A junction merely authored
+        /// within ε_input of the reverse is still `JunctionCusp`: the
+        /// declaration is this verb, never a value.
+        fn cusp(&self) -> PathDirected {
+            PathDirected(Directed::WithIncoming(self.0.clone().cusp()))
+        }
+
         /// Depart at the incoming tangent rotated by `delta`. A zero
         /// turn lands in the tangent band and refuses (use
-        /// `tangent()`); a half turn refuses as a cusp.
+        /// `tangent()`); a half turn refuses as a cusp (use `cusp()`).
         fn turn(&self, py: Python<'_>, delta: Angle) -> PyResult<PathDirected> {
             let tol = Tol::witness();
             self.0

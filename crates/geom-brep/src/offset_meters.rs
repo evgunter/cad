@@ -1,5 +1,5 @@
 //! **The two meters the offset fit needs** — the regularity floor and
-//! the collapse headroom (`docs/OFFSET-DESIGN.md` O3).
+//! the collapse headroom (`crates/geom-brep/README.md` O3).
 //!
 //! Both are read off [`crate::patch_bound`]'s per-cell enclosures, and
 //! both are **f64-substrate**: the C9 ring produces an `f64` certified
@@ -13,7 +13,7 @@
 //! degenerates, so the fit door must refuse — never degrade — on a
 //! patch whose `‖S_u × S_v‖` cannot be bounded away from zero. Every
 //! surface bound the kernel had until now was sup-side
-//! ([`geom_core::spline::hull::sup_norm_bound`] and its family); the
+//! ([`geom_core::spline::SplineCoeffs::sup_norm_bound`] and its family); the
 //! curve side's inf meter (`NurbsCurve3::speed_lower_bound`) is
 //! one dimension down and does not lift directly, because the
 //! quantity here is a **product** of two coefficient nets, not one.
@@ -320,6 +320,14 @@ pub struct CellNormal {
 }
 
 /// Meter 1, per cell: the three-assembly join (module docs).
+///
+/// **Reads the cell's signed enclosures inf-side**, so it inherits
+/// their provenance: on the rational arm they enclose the refined-`f64`
+/// patch ([`PatchCell`], "What the enclosure encloses"). The gap is
+/// insertion dust, and every claim here is a MAGNITUDE claim at ε
+/// scale rather than a structural one (no `contains(0)`, no exact
+/// sign), so the dust is far below anything this meter decides — which
+/// is the reason it is sound to read them here, not an accident.
 pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     let m = cross(&cell.s_u, &cell.s_v);
     // Assembly A: componentwise mignitude.

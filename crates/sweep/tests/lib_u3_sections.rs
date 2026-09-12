@@ -28,7 +28,7 @@ use profile::RawLoop;
 use sweep::skin::SkinError;
 use sweep::{LoftError, ProfileLoop, ProfileVertex, Section, loft_body};
 
-mod common;
+use crate::common;
 use common::quad;
 use geom_core::Tol;
 
@@ -59,8 +59,8 @@ fn at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 
 /// Delta 2, the gain: a declared-tangent section loop LOFTS now.
 /// (Tier 3 volume stays refused on the rational arc walls — the
-/// banked rational-flux lane, not this unit's — so the pin is tiers
-/// 1/2 on the assembled body.)
+/// rational patch-flux lane's round budget, not this unit's — so the
+/// pin is tiers 1/2 on the assembled body.)
 #[test]
 fn declared_tangent_section_loops_now_loft() {
     let lofted = loft_body::<f64>(

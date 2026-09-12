@@ -108,10 +108,9 @@
 //!   **rimless sphere band**, which carries no rim, so the predicate
 //!   is vacuous on it rather than satisfied by it. What that arm does
 //!   establish (its meridians all lie on ONE great circle, which is
-//!   where `Δu = π` comes from) and what it does not (its `v`-extent,
-//!   still `min_max` over meridian ENDPOINT latitudes — #723's
-//!   mechanism, reaching the one arm #723's text does not name) is
-//!   stated at `curved::sphere`, at the arm.
+//!   where `Δu = π` comes from; its `v`-extent, from the fold that
+//!   carries each arc's span-derived pole extremes) is stated at
+//!   `curved::sphere`, at the arm.
 //! * **[`boundary_material_sign`] runs it too, on ALL FOUR arms**,
 //!   because every one of them reaches a side derivation that rests
 //!   on this premise. It was listed here as a second exemption, on the
@@ -144,17 +143,27 @@
 //!   only a rectangle guarantees it. The arm runs
 //!   `require_rims_at_extremes` on the same `torus_ends` extremes the
 //!   flux lane uses.
+//! * **[`require_iso_rectangle`] is the predicate's own public door**:
+//!   the per-kind boundary classification and `props_rim_level`, and
+//!   nothing integrated on top — for a consumer whose lane rests on
+//!   the premise without wanting a volume (`mesh`'s swept-rectangle
+//!   walk cites it before walking a face). It ADMITS the rimless
+//!   sphere band the flux lane refuses on `props_band_coplanar`:
+//!   `Δu = π` is the closed form's premise, not the shape's, and the
+//!   door says so at its definition.
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
-//!   `v`-extent, and **this predicate does not establish it**. The
-//!   torus derives its extent from the anchor meridian's stored span
-//!   and is sound; the linearly-leveled kinds take theirs from
-//!   `min_max` over edge ENDPOINT levels, and on the sphere a meridian
-//!   arc crossing a pole reaches ±1 in its interior, unseen — a −47%
-//!   certified volume at `pad = 0.0`, tier 3 green. That is **open at
-//!   issue #723**, pre-existing and untouched by S58. A face can pass
-//!   `props_rim_level` at margin 0 and still be measured wrong that
-//!   way.
+//!   `v`-extent, and **this predicate does not establish it** — each
+//!   kind's own derivation does. The torus's ends are the anchor
+//!   meridian's stored span, the pieces of a split edge folded into
+//!   that meridian first. The cylinder's and cone's are `min_max`
+//!   over edge ENDPOINT levels, exact because their meridians are
+//!   lines, monotone in `v`. The sphere's meridians are great-circle
+//!   arcs whose latitude peaks at a pole the arc may contain in its
+//!   interior, so its fold also carries each arc's span-derived pole
+//!   extremes (`curved::sphere_meridian_span_levels`, decided through
+//!   `props_meridian_pole`) — the stored-span derivation in fold
+//!   form.
 //!
 //! Outside that verification: the loop-local vertex **tags** are
 //! trusted as declared (the [`LoopEdge`] trust boundary), and the
@@ -169,7 +178,10 @@ use geom::Curve3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
 
-pub use curved::{MaterialSign, boundary_material_sign, curved_face};
+pub use curved::{
+    MaterialSign, boundary_material_sign, curved_face, require_iso_rectangle,
+    require_one_chart_branch,
+};
 pub use loop_area::loop_vector_area;
 
 /// One traversed boundary edge of a face loop: a key-free view of
@@ -194,6 +206,20 @@ pub use loop_area::loop_vector_area;
 pub struct LoopEdge<T: Real> {
     /// The edge's carrier locus.
     pub carrier: Curve3<T>,
+    /// The identity of the edge this one is a piece of, when the
+    /// owning body records one ([`CarrierId`]); `None` for a loop
+    /// built without a body ([`LoopEdge::hand_built`]). Two edges with
+    /// equal ids are pieces of ONE edge — one carrier, one
+    /// parametrisation, intervals that partition its own — which is
+    /// what lets a parse fold them back into it ([`curved`]'s torus
+    /// meridian fold). Equality of ids is the only identity test props
+    /// runs; two edges carrying the same locus as VALUES are never
+    /// inferred to be one edge. A hand-built id is the loop author's
+    /// assertion of what a body would have recorded, exactly as the
+    /// vertex tags are: the fold enforces what it can see — the pieces
+    /// meet, and span one certified interval — and trusts the identity
+    /// for the rest.
+    pub carrier_id: Option<CarrierId>,
     /// Certified interval start (`he_plus`-forward, `t0 < t1`).
     pub t0: T,
     /// Certified interval end.
@@ -205,6 +231,30 @@ pub struct LoopEdge<T: Real> {
     pub start: u32,
     /// Traversal-order end vertex tag (loop-local).
     pub end: u32,
+}
+
+impl<T: Real> LoopEdge<T> {
+    /// A loop edge stated without a body — a test's or a consumer's
+    /// hand-built loop. It carries no [`CarrierId`], so no two such
+    /// edges are ever folded into one; the opt-out is said here, once.
+    pub fn hand_built(
+        carrier: Curve3<T>,
+        t0: T,
+        t1: T,
+        forward: bool,
+        start: u32,
+        end: u32,
+    ) -> Self {
+        Self {
+            carrier,
+            carrier_id: None,
+            t0,
+            t1,
+            forward,
+            start,
+            end,
+        }
+    }
 }
 
 impl<T: SpanLocate> LoopEdge<T> {
@@ -222,6 +272,29 @@ impl<T: SpanLocate> LoopEdge<T> {
     /// The vertex tag at the interval start `t0` (`he_plus` start).
     pub(crate) fn tag_at_t0(&self) -> u32 {
         if self.forward { self.start } else { self.end }
+    }
+}
+
+/// The identity of the original edge a boundary edge is a piece of —
+/// the root of its split lineage in the owning body, opaque here. A
+/// body's loop flattening mints one per edge from its own keys
+/// (`topo` chases each edge's split provenance to the edge that was
+/// never itself minted by a split), so ids are comparable only within
+/// ONE body's flattening: a graft re-keys, and two bodies' ids mean
+/// nothing to each other. A split keeps the parent's carrier and
+/// partitions its interval, so equal ids assert one carrier and one
+/// parametrisation by construction, never by a comparison of stored
+/// geometry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CarrierId(u64);
+
+impl CarrierId {
+    /// The one constructor. `topo`'s flattening is the minter in
+    /// production; anyone else who mints one asserts, as the loop's
+    /// author, what a body would have recorded ([`LoopEdge`]'s
+    /// `carrier_id` states the contract).
+    pub fn minted(raw: u64) -> Self {
+        Self(raw)
     }
 }
 
@@ -244,8 +317,13 @@ pub enum PropsError {
     /// A carrier or surface is the unimplemented `Nurbs` placeholder.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
-    /// or a stored-data consistency residual is definitely nonzero.
-    /// The payload names the structural expectation that failed.
+    /// a stored-data consistency residual is definitely nonzero, or a
+    /// stored span is outside certification's per-edge bounds
+    /// `0 < Δt ≤ τ` (`props_meridian_span_forward` /
+    /// `props_meridian_span_winding` on a sphere meridian arc, the
+    /// `props_meridian_pieces_*` names on a reconstructed torus
+    /// meridian) — an arc no closed form here may fold. The payload
+    /// names the structural expectation that failed.
     NotIsoRectangle {
         /// Which structural expectation failed (static description).
         what: &'static str,
@@ -253,6 +331,60 @@ pub enum PropsError {
     /// A cone face's `v` range definitely spans both nappes — not a
     /// face any M2 construction produces.
     NappeSpanning,
+    /// A boundary edge's traversed **arc** leaves one branch of the
+    /// chart, though its CARRIER is a certified iso curve: the arc's
+    /// stored parameter span contains a chart singularity in its
+    /// interior, so the chart coordinate the edge is supposed to hold
+    /// constant jumps by π mid-edge.
+    ///
+    /// Raised only by [`require_one_chart_branch`], which is a
+    /// different question from [`Self::NotIsoRectangle`]'s and is
+    /// asked by a different set of consumers: the flux lane's extent
+    /// derivation FOLDS the singularity in and measures such a face
+    /// exactly, while a lane that reads one chart coordinate per edge
+    /// cannot read this edge at all. Valid input, unbuilt lane (D2
+    /// addendum row 2): the recourse is to state the meridian as two
+    /// edges meeting at the singularity, which every consumer reads.
+    ///
+    /// **`what` carries the per-kind sentence, not this variant's
+    /// prose**, because the jump is not one fact: a sphere meridian's
+    /// azimuth jumps by π at a pole, a cone generator's flips to the
+    /// mirror nappe at the apex. A single sentence here would be a
+    /// sphere sentence printed over a cone refusal.
+    ///
+    /// **No measured overshoot in the payload, and that is a
+    /// scheduled gap, not a choice** (issue 1602). The margin IS
+    /// measured — it is the same `props_meridian_pole` /
+    /// `props_cone_apex` quantity the funnel records, levered to
+    /// metres — but reading a DEFINITE margin back as `f64` from a
+    /// `Decide`-generic lane needs a compound `Bounds`/`Enclosure`
+    /// bound, which `scripts/gates/bounds-allowlist.sh` does not
+    /// ratify for `props/curved.rs`. Every arm of this enum that
+    /// carries a measured `f64` gets it from a concrete scalar
+    /// ([`Self::QuadratureBudget`], from a `RingInterval`); the
+    /// generic arms are name-only, exactly as
+    /// [`Self::NotIsoRectangle`] is. Issue 1602 is the ratification
+    /// that would let this arm carry the number.
+    NotOneChartBranch {
+        /// Which boundary edge, as its index in the loop slice the
+        /// caller handed in — the same order `topo::props::loop_edges`
+        /// flattens the half-edge cycle into.
+        ///
+        /// **An index and not an `EdgeKey`, structurally.** A
+        /// [`LoopEdge`] is a KEY-FREE view by construction — that is
+        /// the trust boundary this module's docs draw — and
+        /// `geom-brep` sits BELOW `topo` in the dependency order, so
+        /// `EdgeKey` is not a type this crate can name. The index is
+        /// what a caller can resolve: it indexes the same slice it
+        /// passed, and `topo::props::loop_edges` returns the loop's
+        /// half-edges in that order beside it, so the caller holds
+        /// the key it wants without props ever handling one.
+        edge: usize,
+        /// The per-kind sentence: which chart singularity the span
+        /// crosses and what the edge's constant coordinate does there
+        /// (static description).
+        what: &'static str,
+    },
     /// The face's parameter extent is coincident with zero — a
     /// degenerate (zero-area) face, refused rather than integrated.
     ///
@@ -285,10 +417,25 @@ pub enum PropsError {
     /// floor sits above the target" outcome. The recourse is the ε
     /// knob: the target scales with the run's ε.
     QuadratureBudget {
-        /// The achieved enclosure width, as a length (m).
+        /// The enclosure width the schedule reached, as a length (m):
+        /// the last round's own when the schedule ran out, or — when a
+        /// round proved that the last round could not certify either
+        /// and the loop refused without running it — the lower bound
+        /// every remaining round's width was proven to exceed, which
+        /// is the last round's width to within the midpoint sum's own
+        /// rounding width ([`quad`]'s `last_round_width_lo` says what
+        /// the bound omits and why it is a bound). Either way a width
+        /// that really missed: strictly above `target_len`.
         width_len: f64,
         /// The convergence target, as a length (m).
         target_len: f64,
+        /// The refinement rounds the loop ran before refusing: the
+        /// schedule's full count when it ran out; `1` when the
+        /// last-round bound refused the face after round 0; `0` on the
+        /// exact arm, which has no composite round. A receipt for what
+        /// the refusal cost, and the witness that the early exit fired
+        /// — a width alone cannot tell the two apart.
+        rounds: usize,
     },
     /// A quadrature input is outside the lane's certified inventory
     /// (M5 PR 11): a rational pcurve channel, a chart kind without a
@@ -308,14 +455,31 @@ pub enum PropsError {
 impl core::fmt::Display for PropsError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Unimplemented => {
-                f.write_str("integral properties: Nurbs carrier/surface is unimplemented (D3)")
-            }
+            Self::Unimplemented => f.write_str(
+                "integral properties: Nurbs carrier/surface is unimplemented (D3) — valid \
+                 input, unbuilt lane: no closed form here covers a NURBS or Approx carrier, \
+                 so state the face on an analytic surface where it is one; there is nothing \
+                 in the body to repair",
+            ),
             Self::NotIsoRectangle { what } => write!(
                 f,
-                "integral properties: face boundary outside the iso-rectangle inventory ({what})"
+                "integral properties: face boundary outside the iso-rectangle inventory \
+                 ({what}) — the payload says which of the two this is: a boundary outside the \
+                 inventory is valid input on an unbuilt lane and wants the face re-cut to an \
+                 iso-parameter rectangle (a wall merged across iso lines splits back into \
+                 rectangular sub-faces), while a nonzero consistency residual or an \
+                 out-of-bounds stored span is stored data to repair"
             ),
-            Self::NappeSpanning => f.write_str("integral properties: cone face spans both nappes"),
+            Self::NappeSpanning => f.write_str(
+                "integral properties: cone face spans both nappes — no construction here \
+                 produces such a face, so report it rather than repairing a body: a cone face \
+                 stays on one nappe",
+            ),
+            Self::NotOneChartBranch { edge, what } => write!(
+                f,
+                "integral properties: boundary edge {edge}'s traversed arc leaves one chart \
+                 branch — {what}; state the side as two edges meeting at the singularity"
+            ),
             Self::DegenerateFace => write!(
                 f,
                 "integral properties: face parameter extent is degenerate (zero area) — {}",
@@ -327,17 +491,22 @@ impl core::fmt::Display for PropsError {
             Self::QuadratureBudget {
                 width_len,
                 target_len,
+                rounds,
             } => write!(
                 f,
-                "integral properties: the certified quadrature enclosure stalled at a mean \
-                 boundary displacement of {width_len:.3e} m against the {target_len:.3e} m \
-                 target (which scales with the run's tolerance) — certified bounds or typed \
-                 refusal, never a silently wide answer; loosen the tolerance or simplify \
-                 the trim"
+                "integral properties: the certified quadrature enclosure cannot reach the \
+                 {target_len:.3e} m target (which scales with the run's tolerance): its mean \
+                 boundary displacement is {width_len:.3e} m — the schedule's last round's, or \
+                 the bound every remaining round was proven to exceed — after {rounds} \
+                 refinement round(s); certified bounds or typed refusal, never a silently \
+                 wide answer; loosen the tolerance or simplify the trim"
             ),
             Self::QuadratureUnsupported { what } => write!(
                 f,
-                "integral properties: quadrature input outside the certified inventory: {what}"
+                "integral properties: quadrature input outside the certified inventory: \
+                 {what} — a missing stored cache is one to re-mint; every other blocker named \
+                 here is a lane this build has not certified, so the face wants stating inside \
+                 the certified inventory rather than repairing"
             ),
         }
     }
@@ -393,17 +562,17 @@ mod tests {
     fn line_edge(a: Point3<f64>, b: Point3<f64>) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();
-        LoopEdge {
-            carrier: Curve3::Line {
+        LoopEdge::hand_built(
+            Curve3::Line {
                 origin: a,
                 dir: d * (1.0 / len),
             },
-            t0: 0.0,
-            t1: len,
-            forward: true,
-            start: 0,
-            end: 0,
-        }
+            0.0,
+            len,
+            true,
+            0,
+            0,
+        )
     }
 
     /// Assemble the unit cube from six planar faces (outward CCW
@@ -481,5 +650,74 @@ mod tests {
             1,
             "{msg}"
         );
+    }
+    /// **`PropsError`'s recourse claim, made enforceable** — the same
+    /// row `topo`'s `every_chart_region_arm_names_a_recourse` writes,
+    /// for the carrier tier 3 reaches through
+    /// `ValidationError::VolumeUncomputable { MassPropsError::Face }`.
+    /// That arm renders this error whole and adds nothing, so an arm
+    /// here that states a condition and stops is a message that stops.
+    /// Four of the eight did: `Unimplemented`, `NotIsoRectangle`,
+    /// `NappeSpanning` and `QuadratureUnsupported`.
+    ///
+    /// **This is a floor, not a proof.** A vocabulary check cannot
+    /// tell a recourse from a sentence containing a verb, and a new
+    /// arm whose recourse uses a word not on this list fails it
+    /// honestly — extend the list in the same change. The payloads
+    /// below are chosen to carry no verb of their own, so what the row
+    /// measures is the variant's own clause and not its `what`.
+    #[test]
+    fn every_props_error_arm_names_a_recourse() {
+        const RECOURSE_VERBS: &[&str] = &[
+            "state", "declare", "move", "lower", "loosen", "simplify", "report", "re-cut",
+            "re-mint", "repair",
+        ];
+        let escalated = PropsError::Escalated {
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::Value(5e-9),
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("props_face_extent"),
+            },
+        };
+        let arms = [
+            PropsError::Unimplemented,
+            PropsError::NotIsoRectangle {
+                what: "props_rim_level",
+            },
+            PropsError::NappeSpanning,
+            PropsError::NotOneChartBranch {
+                edge: 0,
+                what: "azimuth jumps by one half-turn at the pole",
+            },
+            PropsError::DegenerateFace,
+            escalated,
+            PropsError::QuadratureBudget {
+                width_len: 2e-9,
+                target_len: 1e-9,
+                rounds: 3,
+            },
+            PropsError::QuadratureUnsupported {
+                what: "a rational pcurve channel",
+            },
+        ];
+        assert_eq!(arms.len(), 8, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            // The two coincidence arms carry the shared fragment
+            // rather than a clause of their own (the pair is pinned in
+            // `face_extent_pair_carries_the_shared_recourse`).
+            if matches!(
+                arm,
+                PropsError::DegenerateFace | PropsError::Escalated { .. }
+            ) {
+                assert!(msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
+                continue;
+            }
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
+                "no recourse in: {msg}"
+            );
+        }
     }
 }

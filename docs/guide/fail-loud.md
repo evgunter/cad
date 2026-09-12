@@ -129,7 +129,7 @@ checks are local, and all four corners are sharp — and then
 self-intersection; that is what the profile-level validator is for.
 The contract is pinned in the kernel's own suite
 (`crates/profile/tests/rejections.rs`), where it moved from the demo
-tour: a broken-on-purpose scene is not a use case (Evan's ruling on
+tour: a broken-on-purpose scene is not a use case (Ev's ruling on
 #413).
 
 ## 3. Contact: the refusal that defines this kernel
@@ -173,7 +173,7 @@ so it refuses to guess, and asks you.**
 You answer by *declaring* the contact. The declaration is data
 attached to the operation — `union_with(&a, &b, &decls)` — and it is
 verified, not believed: a declaration whose planes are in fact
-distinct is `ContradictedDeclaration`. So the fail-loud property
+distinct is `DeclarationContradicted`. So the fail-loud property
 survives the escape hatch.
 
 Working examples of the declared path, in increasing order of realism:
@@ -201,12 +201,23 @@ use pncad::document::EditError;
 
 let tol = Tol::witness();
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
+// The frame the square is drawn on — a dependency of the profile
+// exactly as the profile is a dependency of the extrude.
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
+    node: Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+}, tol)?;
+let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
+let applied = apply(&doc, &DocEdit::InsertNode {
+    node: Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
 }, tol)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {
@@ -215,7 +226,7 @@ let doc = apply(&doc, &DocEdit::InsertNode {
 
 let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol);
 assert!(matches!(refused, Err(EditError::DeleteWouldDangle { .. })));
-assert_eq!(doc.len(), 2, "the refused edit changed nothing");
+assert_eq!(doc.len(), 3, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
@@ -230,17 +241,22 @@ node should not hide the state of every other node. So `evaluate` is
 *total* — it always returns, and each node carries its own outcome.
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Node, evaluate, mm
+from pncad import BooleanOp, Doc, EvaluationError, Expr, Node, evaluate, mm
 
 
 def slab(doc, z0, z1):
     profile = doc.insert(
         Node.polygon(
-            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
-            elevation=z0,
+            [
+                (Expr.length_in(0, mm), Expr.length_in(0, mm)),
+                (Expr.length_in(10, mm), Expr.length_in(0, mm)),
+                (Expr.length_in(10, mm), Expr.length_in(10, mm)),
+                (Expr.length_in(0, mm), Expr.length_in(10, mm)),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, z1 - z0))
+    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
 
 # The same undeclared coincidence as section 3, now inside a document.
@@ -273,19 +289,31 @@ author the undeclared boolean, read the typed menu, declare, succeed:
 
 ```python
 from pncad import (
-    BooleanOp, ContactClass, Doc, EvaluationError, Node, PlaneRelation,
-    evaluate, mm,
+    BooleanOp,
+    ContactClass,
+    Doc,
+    EvaluationError,
+    Expr,
+    Node,
+    PlaneRelation,
+    evaluate,
+    mm,
 )
 
 
 def slab(doc, z0, z1):
     profile = doc.insert(
         Node.polygon(
-            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
-            elevation=z0,
+            [
+                (Expr.length_in(0, mm), Expr.length_in(0, mm)),
+                (Expr.length_in(10, mm), Expr.length_in(0, mm)),
+                (Expr.length_in(10, mm), Expr.length_in(10, mm)),
+                (Expr.length_in(0, mm), Expr.length_in(10, mm)),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, z1 - z0))
+    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
 
 doc = Doc()
@@ -329,7 +357,7 @@ A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
 
 ```python
-from pncad import BooleanOp, Doc, EvaluationError, Node, evaluate, mm
+from pncad import BooleanOp, Doc, EvaluationError, Expr, Node, evaluate, mm
 
 doc = Doc()
 
@@ -337,11 +365,16 @@ doc = Doc()
 def slab(z0, z1):
     profile = doc.insert(
         Node.polygon(
-            [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
-            elevation=z0,
+            [
+                (Expr.length_in(0, mm), Expr.length_in(0, mm)),
+                (Expr.length_in(10, mm), Expr.length_in(0, mm)),
+                (Expr.length_in(10, mm), Expr.length_in(10, mm)),
+                (Expr.length_in(0, mm), Expr.length_in(10, mm)),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z0)),
         )
     )
-    return doc.insert(Node.extrude(profile, z1 - z0))
+    return doc.insert(Node.extrude(profile, Expr.literal(z1 - z0)))
 
 
 lower = slab(0 * mm, 10 * mm)
@@ -362,6 +395,55 @@ except EvaluationError as err:
 That `through` field is the difference between "something upstream
 failed" and a debugging session. In a 500-node document it points
 straight at the culprit.
+
+A failed node says **which door refused and what that door's refusal
+was**, in two words rather than one. `kind` is the op — `revolve`,
+`tube`, `extrude` — and `inner_kind` is the kernel refusal's own arm
+beneath it. They are two different enums' discriminants, which is why
+they are two attributes: the first is fixed by the node's kind before
+any payload is read, and the second exists only once the first has
+said which refusal it holds.
+
+```python
+import math
+
+from pncad import Doc, EvaluationError, Expr, Node, Open, Start, evaluate, m, rad
+
+
+def revolved(x0, angle):
+    doc = Doc()
+    frame = doc.sketch_frame()
+    square = (
+        Open.at((x0 * m, 0 * m))
+        .line_to(((x0 + 1) * m, 0 * m))
+        .line_to(((x0 + 1) * m, 1 * m))
+        .line_to((x0 * m, 1 * m))
+        .line_to(Start)
+    )
+    axis = doc.insert(Node.datum_axis_in_plane(frame, (
+        Expr.length_in(0, m),
+        Expr.length_in(0, m),
+    ), (
+        Expr.literal(0.0),
+        Expr.literal(1.0),
+    )))
+    node = doc.insert(Node.revolve(doc.insert(Node.profile(square, plane=frame)), axis, Expr.literal(angle)))
+    try:
+        evaluate(doc).value(node)
+        raise AssertionError("expected a typed refusal")
+    except EvaluationError as err:
+        return err.kind, err.inner_kind
+
+
+# One op, two faults, two repairs — and the op word never moves.
+assert revolved(1.0, 0 * rad) == ("revolve", "degenerate_angle")
+assert revolved(-0.5, 2 * math.pi * rad) == ("revolve", "vertex_crosses_axis")
+```
+
+`inner_kind` is `None` where the refusal has no arms of its own — the
+undeclared-contact refusal above is one, and its payload is the
+`finding` instead. The edit door carries the same pair, spelled
+`variant` and `inner_variant`.
 
 ## 6. Validation: a vector, not the first complaint
 
@@ -404,7 +486,7 @@ The Python boundary refuses before a bad value ever reaches the
 kernel. Dimensions are checked by construction:
 
 ```python
-from pncad import DimensionError, LiteralError, Node, PncadError, deg, mm
+from pncad import DimensionError, Expr, LiteralError, Node, PncadError, deg, mm
 
 try:
     25 * mm + 90 * deg
@@ -421,7 +503,7 @@ except DimensionError as err:
 
 # Non-finite values are refused where they enter, not where they explode.
 try:
-    Node.extrude(None, float("nan") * mm)
+    Node.extrude(None, Expr.length_in(float("nan"), mm))
     raise AssertionError("expected a typed refusal")
 except (LiteralError, TypeError) as err:
     if isinstance(err, LiteralError):
@@ -442,17 +524,75 @@ tour tolerates exactly those three, per scene, and panics on anything
 else. That is the right posture to copy: enumerate the refusals you
 accept, and let every other one be loud.
 
+## 8. The mesh door: budgets and files
+
+Tessellation refuses on the SAME principle, one layer further out. δ
+is refused rather than clamped — a zero, negative or non-finite
+budget is not a request the kernel can round into a sensible one —
+and the STL writers refuse a name or header they cannot write AT THE
+CALL rather than emitting a file that no reader can parse.
+
+```python
+from pncad import Doc, Expr, Node, PncadError, StlError, TessellateError, evaluate, m, mm
+
+doc = Doc()
+sketch = doc.insert(
+    Node.polygon([
+        (Expr.length_in(0, m), Expr.length_in(0, m)),
+        (Expr.length_in(1, m), Expr.length_in(0, m)),
+        (Expr.length_in(1, m), Expr.length_in(1, m)),
+        (Expr.length_in(0, m), Expr.length_in(1, m)),
+    ], plane=doc.sketch_frame())
+)
+cube = doc.insert(Node.extrude(sketch, Expr.length_in(1, m)))
+body = evaluate(doc).value(cube).body()
+
+# Refused, never clamped. `value` is the budget that was rejected.
+try:
+    body.tessellate(-1 * mm)
+    raise AssertionError("expected a typed refusal")
+except TessellateError as refusal:
+    assert refusal.variant == "invalid_chordal_tolerance"
+    assert refusal.value == -0.001
+    # The payload attributes are always PRESENT, `None` where this arm
+    # has nothing to put there — so a caller reads without a trap.
+    assert refusal.bound is None and refusal.note is None
+
+# Sanitizing a name would produce a file that parses to the wrong
+# thing, which is worse than not writing one.
+mesh = body.tessellate(1 * mm)
+try:
+    mesh.to_stl_ascii(solid_name="two\nlines")
+    raise AssertionError("expected a typed refusal")
+except StlError as refusal:
+    assert refusal.variant == "solid_name_unrepresentable"
+
+assert issubclass(TessellateError, PncadError)
+assert issubclass(StlError, PncadError)
+```
+
+One honest wrinkle, since this page is about reading refusals:
+`TessellateError`'s human message is a `Debug` rendering rather than
+the door's own prose, because `mesh::TessellateError` implements no
+`Display`. The `variant` tag is unaffected and is what a caller
+branches on — which is the general rule this page teaches, holding up
+in the one place the prose is weakest.
+
 ## Reading a refusal, in general
 
 1. **Match the variant.** It names the class of thing that went
    wrong.
-2. **Read the payload.** It names the specific entity, node, loop,
+2. **Then match the inner one.** Where a refusal wraps another —
+   an evaluation failure wrapping an op's refusal, an edit wrapping a
+   direction door's — the second word says which arm of the wrapped
+   refusal fired, and that is usually the one with the repair in it.
+3. **Read the payload.** It names the specific entity, node, loop,
    step, or pair.
-3. **If there is a margin and a band, the answer is not "loosen the
+4. **If there is a margin and a band, the answer is not "loosen the
    tolerance".** An `Escalated` refusal means the decision was
    genuinely in-band — a sliver — and the model is ill-conditioned at
    this ε. The recourse is to fix the geometry or state the intent,
    not to widen the band until the kernel stops noticing.
-4. **If it is a coincidence refusal, decide whether you meant it.**
+5. **If it is a coincidence refusal, decide whether you meant it.**
    If you did, declare it. If you did not, you just found a bug in
    your model that a tolerant kernel would have shipped.

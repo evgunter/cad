@@ -11,8 +11,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use corpus::plate_param::{
     HOLE_CENTRES, HOLE_R, HOLE_R_VALUE, PLATE, PLATE_DEPTH, hole_loop, plate_profile,
@@ -43,10 +43,7 @@ fn scene() -> Scene {
         &doc,
         &DocEdit::SetDocParam {
             name: ParamName::new(HOLE_R),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: HOLE_R_VALUE,
-            },
+            value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
         },
         Tol::witness(),
     )
@@ -55,7 +52,16 @@ fn scene() -> Scene {
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(plate_profile()),
+            node: fixture::xy_frame(),
+        },
+        Tol::witness(),
+    )
+    .expect("the sketch frame inserts");
+    let plane = applied.record.minted.expect("frame id");
+    let applied = apply(
+        &applied.doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(plate_profile(plane)),
         },
         Tol::witness(),
     )
@@ -87,10 +93,7 @@ fn set_hole_r(doc: &ProfileDoc, value: f64) -> ProfileDoc {
         doc,
         &DocEdit::SetDocParam {
             name: ParamName::new(HOLE_R),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value,
-            },
+            value: DocParam::continuous(Dimension::Length, value),
         },
         Tol::witness(),
     )

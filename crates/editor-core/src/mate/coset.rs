@@ -125,7 +125,21 @@ impl PartialEq for Subgroup {
                     direction: db,
                 },
             ) => point_eq(*pa, *pb) && vec_eq(*da, *db),
-            _ => false,
+            // Different subgroups are unequal — spelled over the whole
+            // lattice rather than swept up by a catch-all, so a
+            // subgroup added to the closure must be given its own arm
+            // above instead of comparing unequal to itself, which is
+            // the one answer this structural equality can never give.
+            (
+                Self::Se3
+                | Self::Planar { .. }
+                | Self::Cylindrical { .. }
+                | Self::Prismatic { .. }
+                | Self::Revolute { .. }
+                | Self::Trivial
+                | Self::Empty,
+                _,
+            ) => false,
         }
     }
 }
@@ -571,7 +585,9 @@ fn member_of(
     let checks: Vec<(&'static str, f64)> = match g {
         // The empty set holds nothing, and no margin decides that —
         // the answer is structural, so it never reaches the funnel.
-        Subgroup::Empty => return Ok(Err(("mate_member_empty", f64::INFINITY))),
+        Subgroup::Empty => {
+            return Ok(Err((super::MATE_MEMBER_EMPTY, f64::INFINITY)));
+        }
         Subgroup::Se3 => Vec::new(),
         Subgroup::Trivial => vec![
             (

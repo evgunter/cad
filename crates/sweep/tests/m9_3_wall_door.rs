@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -132,9 +132,9 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
     let bored = bored_plate();
     let peg = cyl(0.0, 1.0, 0.5);
     let decls = wall_declarations(&bored, &peg, ContactClass::Rest);
-    start_verdict_log();
+    let bracket = Bracket::open();
     let out = topo::union_with(&bored, &peg, &decls, Tol::witness());
-    let v = take_verdict_log();
+    let v = bracket.finish().verdicts;
     // The carrier ladder's cylinder rungs ran — the declared descent
     // executed rather than being skipped past (telemetry from birth).
     for name in ["carrier_cyl_axis_parallel", "carrier_cyl_radius"] {
@@ -160,6 +160,18 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
             // smooth-seam `JoinDesync` door demands (the red half of
             // this row was the measured refusal before the
             // conventional-arc lane existed).
+            //
+            // **Re-expressed at PCURVE P-1b.** "Conventionally
+            // described" was the `MappedCurve` variant; U2 collapsed
+            // the conventional forms into one chart image, so the
+            // variant is gone. What the row is actually about survives
+            // untouched and is asserted directly: the rim is NOT
+            // intrinsically described — the coplanar pair cannot
+            // support an Intersection citation, and a stale one is
+            // exactly the `JoinDesync` defect this row exists for —
+            // and the chart it names is one of the two coplanar PLANES
+            // it lies between, which is what "conventionally, on the
+            // unchanged circle carrier" meant.
             let mut rims = 0;
             for (_, e) in b.body.edges() {
                 let Some(c) = b.body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
@@ -167,10 +179,19 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
                 };
                 if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
                     rims += 1;
+                    let geom_brep::EdgeDescription::Chart(chart) = c.description() else {
+                        panic!(
+                            "a coplanar-adjacent rim is conventionally described: {:?}",
+                            c.description()
+                        );
+                    };
+                    assert!(!chart.seam, "a cap rim is not its chart's seam");
                     assert!(
-                        matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_)),
-                        "a coplanar-adjacent rim is conventionally described: {:?}",
-                        c.description()
+                        matches!(
+                            b.body.get_surface(chart.surface),
+                            Some(geom::Surface::Plane { .. })
+                        ),
+                        "the chart is one of the two coplanar planar caps"
                     );
                 }
             }
@@ -305,14 +326,14 @@ fn tangent_door_contradicts_escalates_and_admits() {
     // The genuinely-touching pair is ADMITTED: whatever the outcome,
     // it is not a door refusal, and the second-order sector rows run.
     let resting = lying_cyl(1.5);
-    start_verdict_log();
+    let bracket = Bracket::open();
     let out = topo::union_with(
         &a,
         &resting,
         &top_wall_declarations(&a, &resting, ContactClass::Tangent),
         Tol::witness(),
     );
-    let v = take_verdict_log();
+    let v = bracket.finish().verdicts;
     assert!(
         v.iter().any(|x| x.predicate == "tangent_locus_gap"),
         "the witness lane must have derived the ruling"

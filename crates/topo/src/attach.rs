@@ -11,7 +11,7 @@
 //!   `Surface::Nurbs` "not yet described" state); the sweep attaches
 //!   the real plane once profile data determines it.
 //! - [`Body::set_edge_curve`] — an intrinsic
-//!   ([`geom_brep::EdgeGeometry::Intersection`]) description references
+//!   ([`geom_brep::EdgeDescription::Intersection`]) description references
 //!   its two adjacent faces' surfaces *by key*, and a swept edge is
 //!   necessarily minted **before** the side faces it will bound
 //!   (struts precede `mef`): the sweep mints with a conventional
@@ -28,7 +28,16 @@
 //! Neither setter is an Euler operator (no topology changes — the D1
 //! "exclusively Euler" rule governs *topology*); both preserve tier 1
 //! (geometry arenas stay reference-coherent through the orphan-hygiene
-//! paths) and re-run the tier-1 debug postcondition.
+//! paths) and carry the tier-1 debug postcondition on the same terms
+//! as the operators: **it is re-derived once per public door**, so a
+//! setter a consumer calls directly re-certifies the whole body and
+//! one called inside a composing door's surgery scope
+//! ([`crate::surgery`]) leaves the sweep to that door's close (Ev's
+//! ruling on `work/perf/d1-per-op-tier1-sweep-price`, PR 2305). A
+//! surface swap can orphan a key and a door that replaces a whole
+//! chart makes one such swap per face, which is the case the rule is
+//! about: the check is the same check, taken once over the finished
+//! state instead of once per write.
 //!
 //! Replacement is by **fresh insertion** (new key, old removed iff
 //! orphaned): overwriting in place could silently retarget another
@@ -90,11 +99,7 @@ impl<T: Decide> Body<T> {
         }
 
         #[cfg(debug_assertions)]
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "set_face_surface postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        self.assert_tier1_postcondition("set_face_surface");
         Ok(new)
     }
 
@@ -102,10 +107,11 @@ impl<T: Decide> Body<T> {
     /// constructor-facing writer of the S10 orientation bit, opened in
     /// M5 S11.
     ///
-    /// The Euler operators mint every face `sense: true` because the
-    /// material side is not op-level knowledge: `mef` sees two chords,
-    /// not the profile. Whether a swept wall's material lies with or
-    /// against its surface's chart normal is the **constructor's**
+    /// An Euler operator mints `sense: true` on a face it puts on a
+    /// NEW surface, because the material side is not op-level
+    /// knowledge: `mef` sees two chords, not the profile. Whether a
+    /// swept wall's material lies with or against its surface's chart
+    /// normal is the **constructor's**
     /// knowledge, decided from exact stored structure (a concave arc
     /// segment's turn sign against its loop's canonical winding — the
     /// profile's material-left rule), so the constructor attaches the
@@ -121,22 +127,20 @@ impl<T: Decide> Body<T> {
     /// decision (a `bool` is written, nothing compared); tier 1 is
     /// trivially preserved.
     ///
-    /// **KNOWN HAZARD — splitting does not inherit the bit yet (M5
-    /// S11 audit finding, banked for the curved-boolean/revert
-    /// units).** Every `mef` mints its new face `sense: true`,
-    /// including the boolean splitting/reassembly re-mints
-    /// (`chord_join.rs`, `splitting/reassembly.rs`), so splitting
-    /// a `sense: false` face today would silently stamp `true` on the
-    /// pieces — a piece of a reversed wall is the same surface region
-    /// with the same material side and MUST inherit the parent face's
-    /// bit. Unreachable in the current battery: curved
-    /// subtract/intersect refuse at the front door, and touching
-    /// curved unions refuse typed before any reversed face splits
-    /// (pinned by the sweep-side guard
-    /// `review_s11_adv::adv_touching_union_with_reversed_faces_refuses_typed`,
-    /// which fails loudly the day such a union starts answering). The
-    /// inheritance fix must land WITH the unit that makes those splits
-    /// reachable, not after it.
+    /// **Splitting inherits the bit exactly where the fragment is the
+    /// same region.** A `mef` or `mfkrh` re-mint that keeps the
+    /// parent's surface takes the parent's `sense` — a piece of a
+    /// reversed wall is the same surface region with the same material
+    /// side — and stamps `true` only when the fragment lands somewhere
+    /// that is NOT the parent's surface (a fresh one, or a foreign
+    /// shared key), which is not the parent's region at all and whose
+    /// honest bit is this door's to attach.
+    /// `Body::mint_face_surface_and_sense`
+    /// owns that rule; the boolean's chord re-mints (`chord_join.rs`)
+    /// pass `FaceSurface::Inherit` and so inherit, while
+    /// `splitting/finish.rs`'s section promotion is the live case of
+    /// the mint. Guard: sweep's `m5_s12_curved_ops.rs`, the row named
+    /// `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
     ///
     /// # Errors
     ///
@@ -172,6 +176,66 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<CurveKey, EulerOpError> {
         self.set_edge_curve_via(edge, curve, Self::certify_edge_spec, tol)
+    }
+
+    /// Re-states `edge` as an image in `chart`, keeping its carrier,
+    /// its parameter interval and — through `at_rest_in_chart` — the
+    /// pushforward that scaffolded it, as its authority record.
+    ///
+    /// This is D2's **conventional split**, at rest: where two
+    /// surfaces under-determine an edge's locus (one surface on both
+    /// sides, or a smooth pair whose jet is zero), the description
+    /// stays conventional rather than intrinsic — but the edge is
+    /// between two real faces now, so it is an image in a chart and
+    /// not the scaffolding the mint left (D3's transience fence; the
+    /// scaffolding door is for edges whose surfaces do not exist yet).
+    ///
+    /// **The carrier is RESTATED, never rebuilt.** Re-deriving it from
+    /// the endpoints recomputes the direction and the interval from a
+    /// sum that need not be bitwise what the edge was minted with,
+    /// which silently moves geometry in a pass whose whole contract is
+    /// that only the DESCRIPTION moves. Through `at_rest_in_chart` the
+    /// pushforward that scaffolded the edge stays beside it as the
+    /// authority record, which is what keeps tier 3's prefer-intrinsic
+    /// reading unchanged.
+    ///
+    /// One home for a rule three sweep lanes read: `extrude`'s strut
+    /// join, `revolve::upgrade`'s join lanes, and `swept`'s
+    /// scaffold-retirement pass each spelled these two lines
+    /// themselves. It lives here, beside [`Body::set_edge_curve`],
+    /// because that is the certified mutation it performs and because
+    /// `topo` is the crate both callers already depend on.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] on
+    /// unresolvable topology or geometry;
+    /// [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
+    /// carries no certified geometry to re-state; and whatever
+    /// [`Body::set_edge_curve`] raises on the re-attachment.
+    pub fn describe_at_rest(
+        &mut self,
+        edge: EdgeKey,
+        chart: SurfaceKey,
+        tol: Tol,
+    ) -> Result<(), EulerOpError> {
+        let curve_key = self
+            .get_edge(edge)
+            .ok_or(EulerOpError::StaleKey {
+                key: EntityId::Edge(edge),
+            })?
+            .curve;
+        let spec = self
+            .get_curve_geom(curve_key)
+            .ok_or(EulerOpError::StaleGeometry {
+                key: crate::GeomRef::Curve(curve_key),
+            })?
+            .certified()
+            .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?
+            .restated_spec()
+            .at_rest_in_chart(chart, false);
+        self.set_edge_curve(edge, spec, tol)?;
+        Ok(())
     }
 
     /// [`Body::set_edge_curve`] with the certification door supplied by
@@ -227,30 +291,33 @@ impl<T: Decide> Body<T> {
             // Both intrinsic variants carry the same adjacency
             // obligation: the described pair IS the faces' pair
             // (M5 PR 9 — TangentIntersection mirrors Intersection).
-            geom_brep::EdgeGeometry::Intersection { s1, s2, .. }
-            | geom_brep::EdgeGeometry::TangentIntersection { s1, s2, .. } => {
+            geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, .. }
+            | geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
                 let matches_pair =
                     (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus);
                 if !matches_pair {
                     return Err(EulerOpError::DescriptionNotAdjacent { edge });
                 }
             }
-            geom_brep::EdgeGeometry::Seam { surface } => {
-                if surface != fs_plus || surface != fs_minus {
+            // A chart image names ONE of the edge's two adjacent
+            // faces' surfaces (M6-3: a wall–wall seam is the
+            // u-boundary iso of either wall; the minted convention
+            // picks one, and adjacency accepts either side — the
+            // M5-LOG item 6(iii) reading). A chart image that claims
+            // to BE the chart's parameterization seam owes more: both
+            // sides of a seam are the SAME surface, by what a seam is.
+            geom_brep::EdgeDescriptionSpec::Chart { surface, seam, .. } => {
+                let adjacent = if seam {
+                    surface == fs_plus && surface == fs_minus
+                } else {
+                    surface == fs_plus || surface == fs_minus
+                };
+                if !adjacent {
                     return Err(EulerOpError::DescriptionNotAdjacent { edge });
                 }
             }
-            // The iso description names ONE of the edge's two adjacent
-            // faces' surfaces (M6-3: a wall–wall seam is the u-boundary
-            // iso of either wall; the minted convention picks one, and
-            // adjacency accepts either side — the M5-LOG item 6(iii)
-            // reading).
-            geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
-                if surface != fs_plus && surface != fs_minus {
-                    return Err(EulerOpError::DescriptionNotAdjacent { edge });
-                }
-            }
-            geom_brep::EdgeGeometry::MappedCurve(_) => {}
+            // The scaffolding door names no surface — there is none.
+            geom_brep::EdgeDescriptionSpec::Scaffold(_) => {}
         }
 
         let certified = certify(self, curve, p_start, p_end, tol)?;
@@ -267,11 +334,7 @@ impl<T: Decide> Body<T> {
         self.remove_curve_if_orphaned(old);
 
         #[cfg(debug_assertions)]
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "set_edge_curve postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        self.assert_tier1_postcondition("set_edge_curve");
         Ok(new)
     }
 }

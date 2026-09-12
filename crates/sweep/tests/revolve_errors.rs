@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod revolve_common;
+use crate::revolve_common;
 
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
@@ -82,8 +82,85 @@ fn degenerate_and_poisoned_axes_are_typed() {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(f64::NAN, f64::NAN),
     };
+    // A poisoned axis is a length that is not a NUMBER, and that is
+    // the question the door asks first — `NaN − NaN` is the scalar's
+    // poison exactly as `∞ − ∞` is.
     let e = revolve(&vp, poison, Revolution::Full, Tol::witness()).unwrap_err();
-    assert!(matches!(e, RevolveError::AxisEscalated { .. }), "{e:?}");
+    assert!(matches!(e, RevolveError::NonFiniteAxis), "{e:?}");
+}
+
+/// **An axis direction past the ~1e154 overflow band.** `norm2`
+/// overflows to ∞, an infinite margin is maximally definite, and
+/// `normalize` then divides by ∞: before the finiteness question went
+/// first, `AxisFrame::build` returned `Ok` with `dir_sk = (0, 0)` and
+/// the revolve went on to report `NonManifoldAxisContact` — every
+/// profile vertex reads as radius 0 against a zero axis, so the
+/// refusal that eventually surfaced named a contact that does not
+/// exist. The profile here is a washer sitting at x ∈ [1, 2]: it
+/// touches nothing.
+#[test]
+fn an_axis_direction_with_no_finite_length_is_typed() {
+    let vp = validated(vec![washer()]);
+    for dir in [
+        Vec2::new(1e200, 0.0),
+        Vec2::new(0.0, 1e200),
+        Vec2::new(1e200, 1e200),
+    ] {
+        let axis = RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir,
+        };
+        let e = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap_err();
+        assert!(matches!(e, RevolveError::NonFiniteAxis), "{dir:?}: {e:?}");
+        // The sentence names the cause and a recourse that can work.
+        let msg = e.to_string();
+        assert!(msg.contains("no finite length"), "{msg}");
+        assert!(
+            msg.contains("scale the geometry into the session's range"),
+            "{msg}"
+        );
+    }
+}
+
+/// **An axis direction below the ~1e-162 underflow band.** The
+/// components square to zero, so `norm2` is EXACTLY zero and the
+/// classifier answers `Zero` definitely: before the underflow question
+/// was asked, `AxisFrame::build` refused as `DegenerateAxis` — "no
+/// definite length (zero or sliver)" with the coincidence recourse.
+/// Both halves of that were false. The axis is not zero and it is not a
+/// sliver: `(0, 1e-200)` names +Y exactly, and no tolerance recovers a
+/// norm the format lost, because the squared norm is zero at every eps.
+#[test]
+fn an_axis_direction_whose_length_underflowed_is_typed() {
+    let vp = validated(vec![washer()]);
+    for dir in [
+        Vec2::new(0.0, 1e-200),
+        Vec2::new(1e-200, 0.0),
+        Vec2::new(1e-200, 1e-200),
+    ] {
+        // The premise: the norm flushed, and the direction survives in
+        // the witness the underflow question is asked against.
+        assert_eq!(dir.norm(), 0.0, "{dir:?}");
+        let axis = RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir,
+        };
+        let e = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap_err();
+        assert!(matches!(e, RevolveError::UnderflowedAxis), "{dir:?}: {e:?}");
+        // The sentence names the end of the format it is, and the one
+        // recourse that can work — not a coincidence band.
+        let msg = e.to_string();
+        assert!(msg.contains("underflowed out of the format"), "{msg}");
+        assert!(
+            msg.contains("scale the geometry into the session's range"),
+            "{msg}"
+        );
+        assert_eq!(
+            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            0,
+            "{msg}"
+        );
+    }
 }
 
 #[test]

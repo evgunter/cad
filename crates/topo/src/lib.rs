@@ -134,12 +134,16 @@ pub mod attach;
 pub mod body;
 pub mod boolean;
 pub(crate) mod census;
+pub mod chart;
+pub mod chart_bound;
+pub mod chart_iso;
 pub mod chart_region;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
 // section-chord geometry, a top-level sibling of `boolean/` and
-// `splitting/` for the reason its own docs give (S5). Non-doc comment
-// for the same rustdoc reason as the sector modules below.
+// `splitting/` for the reason its own docs give. Non-doc comment for
+// the same rustdoc reason as the sector modules below.
 pub(crate) mod chord_join;
+pub mod coherence;
 pub mod contact;
 pub mod entity;
 pub mod euler;
@@ -152,6 +156,7 @@ pub mod euler_ring;
 pub(crate) mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
+pub mod flush;
 // This crate's own sources, read as source. A sibling of `fixtures`
 // rather than a section of it: that module's subject is canonical
 // bodies, this one's is a Rust reader. Non-doc comment for the
@@ -160,16 +165,25 @@ pub mod geometry;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
+#[cfg(test)]
+mod cert_m3r1_probes;
 pub mod instance;
 #[cfg(test)]
 pub(crate) mod iso;
 pub(crate) mod live;
 pub mod merge_faces;
 pub mod movefac;
+#[cfg(test)]
+mod n2r1_probes;
 pub mod null;
+pub mod offset_axial;
+pub mod offset_nappe;
+pub mod offset_together;
+pub mod param_source;
 pub mod pcurves;
 pub mod props;
 pub mod provenance;
+pub mod query;
 pub(crate) mod ray_parity;
 pub mod readback;
 pub mod replace_face;
@@ -194,7 +208,7 @@ mod review_m1_pr4;
 pub(crate) mod review_m1_pr5_internal;
 // The shared vertex-neighborhood sector modules — top-level siblings
 // of `boolean/` and `splitting/` on purpose: both lanes ask these
-// questions, so neither hosts them (S5). Each module's own docs carry
+// questions, so neither hosts them. Each module's own docs carry
 // the placement argument. Non-doc comments deliberately: an outer
 // `///` here would merge into the module's own `//!` docs and make
 // rustdoc resolve their intra-doc links in THIS module's scope instead
@@ -204,9 +218,11 @@ pub(crate) mod sector_shape;
 pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
+pub mod shell;
 pub mod source;
 pub mod split;
 pub mod splitting;
+pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
 // must be compiled wherever any of their three consumers is — the
@@ -251,24 +267,30 @@ pub mod test_support {
     }
 }
 #[cfg(test)]
+mod r2_probes;
+#[cfg(test)]
+mod shell10_r2_probes;
+#[cfg(test)]
 mod tier3_tests;
 pub mod transform;
 pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts, CarriedVf, CarriedVv,
-    CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair, ContactRecords,
-    CurveContact, FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
-    PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
-    PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy, SweepTrace,
-    TangentLocus, TangentLocusError, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
-    contfp, curved_face_containment, face_carrier, flush_pair_relation, insert_void, intersect,
-    intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with, tangent_locus,
-    tangent_pair_relation, union, union_with,
+    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
+    BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
+    CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair,
+    ContactRecords, ContainError, CurveContact, FaceContainment, FacePairDeclaration,
+    NullEdgePairRecord, Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc,
+    PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment,
+    SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment,
+    VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
+    flush_pair_relation, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
+    point_in_solid, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
+    union_with,
 };
+pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
@@ -287,12 +309,23 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
-pub use chart_region::{ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap};
+pub use chart::{Chart, ChartKind};
+pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
+pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
+pub use chart_region::{
+    ChartOverlap, ChartRegionError, ChartRegionLane, WITNESS_BUDGET, WitnessBudget,
+    chart_region_overlap, declared_pair_overlap,
+};
+pub use coherence::{
+    CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
+    examine_chart_coherence, gap_is_noise,
+};
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
-    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, Pcurve,
-    PcurveCache, PcurveCertifyError,
+    CertifyError, ChartCurve, ChartWindow, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
+    EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError,
+    PcurveFittedLane,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
@@ -301,16 +334,31 @@ pub use instance::{
 };
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
-pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
+pub use offset_axial::{is_axial, offset_charts_together};
+pub use offset_nappe::{Nappe, face_nappe, group_nappe};
+pub use offset_together::{ChartMove, offset_planes_together};
+pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
 pub use props::{
-    MassProperties, MassPropsError, PropsQuadLane, ShellClassification, ShellClassifyError,
-    ShellRole, classify_shells, mass_properties,
+    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
+    ShellClassification, ShellClassifyError, ShellRole, SignCertificate, VolumeEnclosure,
+    classify_shells, classify_shells_of, mass_properties,
 };
-pub use provenance::Provenance;
+pub use provenance::{Provenance, SplitLineageCycle};
+// The query VOCABULARY rides at the root like every other type;
+// the query DOORS (materializers, predicates) keep their module
+// identity, like `readback`'s.
+pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
+pub use query::{
+    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimError,
+    SEL_DATUM_DISTANCE, SurfaceKindSet, UnitVec3, UnitVec3Error,
+};
 pub use readback::{DanglingRef, Pose, ReadbackError};
-pub use replace_face::{ReplaceFaceError, replace_face_offset};
+pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::RevertError;
-pub use separation::{PlacementsMeet, Separation};
+pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
+pub use shell::{
+    HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
+};
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
@@ -319,8 +367,14 @@ pub use splitting::{
     SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
     plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
-pub use transform::{TransformError, transform_rigid};
+pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
-    CensusContact, ContactMark, StaleDeclaration, ValidationError, contact_marks, validate,
-    validate_closed, validate_geometric, validate_pseudomanifold,
+    CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
+    StaleDeclaration, ValidationError, contact_marks, contact_marks_certified,
+    contact_marks_declared, contact_marks_declared_certified, validate, validate_closed,
+    validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
+    validate_geometric_declared, validate_geometric_structural,
+    validate_geometric_structural_declared, validate_pseudomanifold,
+    validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_certified,
+    validate_pseudomanifold_certified,
 };

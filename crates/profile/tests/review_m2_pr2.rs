@@ -27,7 +27,7 @@
     clippy::unreachable
 )]
 
-mod common;
+use crate::common;
 
 use common::{chain, profile, quarter_bulge, rect, tol};
 // `lift` re-instantiates a fixture at another scalar; the only
@@ -383,10 +383,7 @@ fn near_tangent_join_escalates() {
         .validate(tol())
         .expect_err("contradicted declaration")
     {
-        ProfileError::TangencyContradicted {
-            same_carrier: false,
-            ..
-        } => {}
+        ProfileError::TangencyContradicted { .. } => {}
         other => panic!("expected contradicted tangency, got {other:?}"),
     }
 }

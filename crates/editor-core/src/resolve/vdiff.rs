@@ -49,21 +49,48 @@
 //! diagnosis"). The PR 6 audit inherits the caveat with this
 //! paragraph as its record.
 //!
+//! # The two derived forms, in one module
+//!
+//! A node's verdict log is the substrate, and this module holds BOTH
+//! shapes derived from it: the per-predicate sign POPULATIONS above
+//! ([`NodeVerdicts`], [`VerdictSummary`]) and the ordered STRICT form
+//! at the foot of this file ([`VerdictVector`], keyed by
+//! [`VerdictVectorKey`]). They answer different questions and neither
+//! subsumes the other — [`VerdictVector`]'s docs argue the split — but
+//! they share an outcome tag ([`RunStatus`]) and they are read off the
+//! same runs, so they are argued against each other here rather than
+//! drifting apart in two modules. A third shape over this substrate
+//! belongs in this file too, or not at all.
+//!
+//! Only the population form is persisted ([`VerdictSummary`], the ε
+//! audit's cross-process seam); the strict form is derived at every
+//! use and stored nowhere (E10). A node's escalations
+//! ([`crate::eval::NodeValue::escalations`], the frame's other channel)
+//! are not persisted either and have no population form: an escalation
+//! is a fact about one run at one box, read in hand by the
+//! subdivision driver, never a population to compare across runs.
+//!
 //! [`SetTolerance`]: crate::edit::DocEdit
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::{Decide, Sign};
 
-use crate::eval::{Evaluation, NodeResult};
+use crate::eval::{Evaluation, KeyHasher, NodeResult};
 use crate::names::StableName;
 use crate::node::RecipeNodeId;
 
 use super::derivation_nodes;
 
-/// A node's standing in one run, as the diff engine sees it.
+/// A node's standing in one run — the outcome tag BOTH derived forms
+/// carry: the population form's [`NodeVerdicts::status`] and the strict
+/// form's [`VerdictRow::outcome`]. One enum, read off the `NodeResult`
+/// discriminants by [`status`], so the two forms cannot disagree about
+/// a node's standing.
+///
 /// Serializable: it rides in [`VerdictSummary`], the cross-process ε
-/// audit's persist-grade seam.
+/// audit's persist-grade seam. Its key tag bytes are chosen at
+/// [`VerdictVector::key`], not derived from this enum's shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum RunStatus {
@@ -194,6 +221,12 @@ fn status<T: Decide>(run: &Evaluation<T>, id: RecipeNodeId) -> RunStatus {
 
 const SIGNS: [Sign; 3] = [Sign::Negative, Sign::Zero, Sign::Positive];
 
+/// THE sign ladder, in both places a sign is turned into a number: the
+/// column a verdict is counted in
+/// ([`NodeVerdicts::populations`], indexed Negative/Zero/Positive) and,
+/// plus one, the tag byte [`VerdictVector::key`] writes for it. The
+/// offset is what the minted keys carry, so it is fixed rather than
+/// free; the ladder itself is written once so the two cannot drift.
 fn sign_ix(s: Sign) -> usize {
     match s {
         Sign::Negative => 0,
@@ -484,4 +517,125 @@ pub fn diff_summaries(old: &VerdictSummary, new: &VerdictSummary) -> SummaryFlip
         }
     }
     SummaryFlipSet { nodes: out }
+}
+
+// ---------------------------------------------------------------
+// The STRICT form of the same substrate.
+// ---------------------------------------------------------------
+
+/// One node's row of a [`VerdictVector`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerdictRow {
+    /// The node.
+    pub node: RecipeNodeId,
+    /// Its standing in the run.
+    pub outcome: RunStatus,
+    /// Every definite decision it made, in decision order.
+    pub verdicts: Vec<geom_core::k_stats::Verdict>,
+}
+
+/// An evaluation's verdict vector: one [`VerdictRow`] per node, in the
+/// evaluation's deterministic order.
+///
+/// Float-free, so equality is exact and means what it says. This is the
+/// object leaf certification compares, and the ONLY thing it compares.
+///
+/// # Why this is not [`NodeVerdicts`], one module over
+///
+/// Two shapes, two questions, over one substrate — a node's verdict
+/// log ([`crate::eval::NodeValue::verdicts`]).
+///
+/// - **"Is this leaf the witness build?"** wants the STRICTEST
+///   available test, because a false yes is a false certificate. Order
+///   included, outcome tags included, no cancellation anywhere: that is
+///   this type, and it is what `drive` gates on.
+/// - **"What differs, and what should the report call it?"** wants a
+///   test that survives permutation, because construction order inside
+///   an op is itself predicate-steered (module docs above) — this
+///   module's populations, which `drive::FlipEvidence` carries
+///   verbatim.
+///
+/// The population form is deliberately WEAKER (a pure sign exchange in
+/// one node nets to nothing), so it can name but must not gate; this
+/// form cannot explain a difference it detects, so it gates but does
+/// not name. Neither subsumes the other, and neither is a rounding of
+/// the other: `crates/editor-core/tests/props_verdict_shapes.rs` is the
+/// asymmetry as two rows — logs the engine calls identical whose keys
+/// here differ.
+///
+/// **Not the persisted shape.** [`VerdictSummary`] is: it is the one
+/// form with a serde derive and the one the strict codecs in
+/// `crate::persist::strict` carry, because a cross-process ε audit
+/// ships populations. This vector is DERIVED at every use, from a run
+/// in hand, and stored nowhere (E10); a certified leaf keeps only its
+/// [`VerdictVectorKey`].
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct VerdictVector {
+    /// The rows, in evaluation order.
+    pub rows: Vec<VerdictRow>,
+}
+
+impl VerdictVector {
+    /// The vector of an evaluation, in its own `order`.
+    ///
+    /// Every node of the order gets a row, tagged with [`status`]' four-
+    /// way standing — the same standing the population form records.
+    /// The verdict rows alone do not separate "this node built and
+    /// decided nothing" from "this node failed before deciding
+    /// anything", and a certificate that could not tell those apart
+    /// would certify a leaf whose build refused; the tag closes that.
+    pub fn of<T: Decide>(ev: &Evaluation<T>) -> Self {
+        let rows = ev
+            .order
+            .iter()
+            .map(|&node| VerdictRow {
+                node,
+                outcome: status(ev, node),
+                verdicts: ev
+                    .value(node)
+                    .map_or_else(Vec::new, |v| v.verdicts.to_vec()),
+            })
+            .collect();
+        Self { rows }
+    }
+
+    /// The vector's content key — the `verdict_vector_key` a certified
+    /// leaf carries. Derived, never persisted (E10).
+    pub fn key(&self) -> VerdictVectorKey {
+        let mut h = KeyHasher::new();
+        h.write_tag(0xE6);
+        h.write_u64(self.rows.len() as u64);
+        for row in &self.rows {
+            h.write_u64(row.node.0);
+            // The tag alphabet is hand-written literals, so the enum's
+            // declaration order decides nothing: reordering
+            // [`RunStatus`] moves no key. `Ok`/`Failed`/`Poisoned` carry
+            // the bytes every key already minted was built from, and
+            // `Absent` is appended rather than inserted. The match is
+            // exhaustive, which is what forces a new variant to be given
+            // a byte here before it can reach a key.
+            h.write_tag(match row.outcome {
+                RunStatus::Ok => 1,
+                RunStatus::Failed => 2,
+                RunStatus::Poisoned => 3,
+                RunStatus::Absent => 4,
+            });
+            h.write_u64(row.verdicts.len() as u64);
+            for v in &row.verdicts {
+                h.write_str(v.predicate);
+                h.write_tag(sign_tag(v.sign));
+            }
+        }
+        VerdictVectorKey(h.finish().0)
+    }
+}
+
+/// The identity of a [`VerdictVector`] — what a certified leaf carries
+/// instead of a copy of the vector, since every certified leaf's vector
+/// is the witness's by definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct VerdictVectorKey(pub u128);
+
+fn sign_tag(s: Sign) -> u8 {
+    sign_ix(s) as u8 + 1
 }

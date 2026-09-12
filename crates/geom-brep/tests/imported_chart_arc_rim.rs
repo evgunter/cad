@@ -13,12 +13,12 @@
 //! miss exact thirds of the domain by ~2·10⁻¹⁴.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{ChartWindow, Pcurve, PcurveCache};
-use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point2, Point3, Vec2, Vec3};
+use geom_core::{Point2, Point3, Vec2, Vec3};
 
 const R: f64 = 0.005;
 const H: f64 = 0.01;
@@ -76,10 +76,6 @@ fn rim(axis_z: f64) -> Curve3<f64> {
 
 fn breaks() -> KnotVector {
     KnotVector::clamped(vec![0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0], 1).unwrap()
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 fn window() -> ChartWindow<f64> {
@@ -153,9 +149,12 @@ fn a_reversed_arc_rim_certifies_on_a_non_unit_chart() {
     assert!(cache.certificate().envelope < 1e-9);
 }
 
-/// And the generalization did not become a licence: a rim placed on an
-/// INTERIOR column of the same chart (`u = 1`, which is exactly the
-/// value the old code treated as a boundary) still refuses typed.
+/// And the generalization did not become a licence: a rim placed at
+/// `u = 1` of the same chart (exactly the value the old code treated as
+/// a boundary) still refuses typed. Its fixed channel `v = 0` IS a
+/// boundary; what is wrong is the LOCUS — the image `u ∈ [1, 6.196]`
+/// is not the rim's — and the schedule residual (check 3, millimetres
+/// at `t = 0`) refuses it before any boundary question is asked.
 #[test]
 fn an_interior_column_still_refuses() {
     let tau = core::f64::consts::TAU;
@@ -175,8 +174,12 @@ fn an_interior_column_still_refuses() {
         band(),
     );
     assert!(
-        outcome.is_err(),
-        "u = 1 is an interior column of a [0, 3√3] chart, not a boundary"
+        matches!(
+            outcome,
+            Err(geom_brep::PcurveCertifyError::ResidualExceeded { sample: 0, .. })
+        ),
+        "u = 1 of a [0, 3√3] chart is the wrong locus for this rim, refused at the schedule: \
+         {outcome:?}"
     );
 }
 
@@ -184,7 +187,8 @@ fn an_interior_column_still_refuses() {
 /// column an `Intersection` seam's chart image lands on is a knot-domain
 /// end, so a `u = 0` image over the chart's own boundary row certifies —
 /// and the `u = 1` restatement of it, which a `[0, 1]` literal would
-/// have called a boundary, is an INTERIOR column and refuses typed.
+/// have called a boundary, is a DIFFERENT locus from the carrier and
+/// refuses at the schedule residual, before the boundary question.
 #[test]
 fn a_seam_column_certifies_on_a_non_unit_chart() {
     let wall = imported_wall();
@@ -214,14 +218,15 @@ fn a_seam_column_certifies_on_a_non_unit_chart() {
         "envelope {:e}",
         cache.certificate().envelope
     );
-    // `u = 1` is an INTERIOR column of a `[0, 3√3]` chart AND a
-    // different locus from the carrier, so it refuses TYPED — at the
-    // residual, which measures the distance between the two loci before
-    // the boundary question is reached.
-    let refusal = seam(1.0).expect_err("u = 1 is no boundary of this chart");
-    let shown = format!("{refusal:?}");
+    // `u = 1` is a different locus from the carrier (the `u = 0` row),
+    // so it refuses TYPED at the residual, which measures the distance
+    // between the two loci before the boundary question is reached.
+    let refusal = seam(1.0).expect_err("u = 1 is not the carrier's column");
     assert!(
-        shown.contains("MapResidual") || shown.contains("INTERIOR"),
-        "the refusal is typed and names its check: {shown}"
+        matches!(
+            refusal,
+            geom_brep::PcurveCertifyError::ResidualExceeded { sample: 0, .. }
+        ),
+        "the refusal is the schedule residual at the first sample: {refusal:?}"
     );
 }

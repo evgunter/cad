@@ -121,7 +121,7 @@ use crate::tolerance::Tol;
 /// `zero` threshold (K·ε for [`Band::linear`], K·(ε/r) for
 /// [`Band::angular_at`] at lever arm r).
 ///
-/// Since M2 PR 7 (Evan-directed) K is an ε-style once-per-run
+/// Since M2 PR 7 (Ev-directed) K is an ε-style once-per-run
 /// configured value — [`Tol::k`](crate::tolerance::Tol), overridable
 /// via [`crate::tolerance::ENV_K`] — exactly the growth path this
 /// constant's original doc anticipated ("piggyback on the tolerance
@@ -270,17 +270,25 @@ impl fmt::Display for BandError {
         match self {
             Self::InvalidValue { field, value } => write!(
                 f,
-                "invalid band: {} = {value:e} (must be finite and > 0)",
+                "invalid band: {} = {value:e} (must be finite and > 0) — a derived band takes \
+                 zero from the run's tolerance ε and escalate from K·ε, so \
+                 lower whichever of the two is not finite and positive; a band built directly \
+                 wants finite positive thresholds at the call site",
                 field.name()
             ),
             Self::InvalidLeverArm { value } => write!(
                 f,
-                "invalid band: lever arm = {value:e} (must be finite and > 0)"
+                "invalid band: lever arm = {value:e} (must be finite and > 0) — name the lever \
+                 arm the decision actually turns on (the local radius of relative curvature, \
+                 the face extent, or the session-box extent), or classify a linear margin \
+                 instead"
             ),
             Self::Empty { zero, escalate } => write!(
                 f,
                 "invalid band: zero = {zero:e} must be strictly below escalate = {escalate:e} \
-                 (the ambiguity band is a nonempty open interval)"
+                 (the ambiguity band is a nonempty open interval) — raise escalate above zero; \
+                 a band derived from the run's tolerance does this with its ambiguity \
+                 multiplier K > 1"
             ),
         }
     }
@@ -568,7 +576,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// when the measure is exactly zero, so non-strict pass directions
     /// are unmoved.
     ///
-    /// What this door deliberately does NOT serve (Evan's #213
+    /// What this door deliberately does NOT serve (Ev's #213
     /// layering ruling): the **consistency backstops** — inequalities
     /// between integral RESULTS, the `volume_backstop` family. Those
     /// are outside the length seam by design: they decide on bare `T`
@@ -822,6 +830,26 @@ pub trait Decide: SpanLocate {
     /// band; callers attach their predicate name via
     /// [`Indeterminate::with_predicate`].
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate>;
+
+    /// **The certified enclosure this value would be classified on**,
+    /// for the shape report's use only ([`crate::sym::report`]'s
+    /// `DecisionShape::enclosure`). `None` at every scalar that has no
+    /// enclosure, which is the default and the only implementation
+    /// outside [`crate::Interval`].
+    ///
+    /// It exists because "what bounds this document" is not answerable
+    /// from predicate NAMES: several predicates can be over the band at
+    /// once, and which one a drive reports is evaluation order. Reading
+    /// the SET with its enclosures is what makes the bound a
+    /// measurement (M10-9's fix pass; adopted from a review probe).
+    ///
+    /// It is an instrument, not a decision channel: nothing in the
+    /// funnel may branch on it, and it is read at the report's call
+    /// sites only. The read itself is two `f64` copies at `Interval`,
+    /// so it is not guarded — a guard would cost what it saves.
+    fn enclosure_probe(self) -> Option<(f64, f64)> {
+        None
+    }
 }
 
 /// `f64` classification: |m| ≤ `zero` ⇒ `Zero`; |m| ≥ `escalate` ⇒ the
@@ -1006,16 +1034,24 @@ mod tests {
     fn band_error_display() {
         assert_eq!(
             Band::new(-1e-9, 1e-8).unwrap_err().to_string(),
-            "invalid band: zero = -1e-9 (must be finite and > 0)"
+            "invalid band: zero = -1e-9 (must be finite and > 0) — a derived band takes zero \
+             from the run's tolerance ε and escalate from K·ε, so lower whichever of the two is \
+             not finite and positive; a band built directly wants finite positive thresholds \
+             at the call site"
         );
         assert_eq!(
             Band::new(1e-9, f64::INFINITY).unwrap_err().to_string(),
-            "invalid band: escalate = inf (must be finite and > 0)"
+            "invalid band: escalate = inf (must be finite and > 0) — a derived band takes zero \
+             from the run's tolerance ε and escalate from K·ε, so lower whichever of the two is \
+             not finite and positive; a band built directly wants finite positive thresholds \
+             at the call site"
         );
         assert_eq!(
             Band::new(1e-8, 1e-9).unwrap_err().to_string(),
             "invalid band: zero = 1e-8 must be strictly below escalate = 1e-9 \
-             (the ambiguity band is a nonempty open interval)"
+             (the ambiguity band is a nonempty open interval) — raise escalate above zero; \
+             a band derived from the run's tolerance does this with its ambiguity \
+             multiplier K > 1"
         );
         // The lever-arm variant (an invalid arm returns before the global
         // tolerance is read, so this stays pure).
@@ -1023,8 +1059,54 @@ mod tests {
             Band::angular_at(Tol::witness(), f64::NEG_INFINITY)
                 .unwrap_err()
                 .to_string(),
-            "invalid band: lever arm = -inf (must be finite and > 0)"
+            "invalid band: lever arm = -inf (must be finite and > 0) — name the lever arm the \
+             decision actually turns on (the local radius of relative curvature, the face \
+             extent, or the session-box extent), or classify a linear margin instead"
         );
+    }
+
+    /// **`BandError`'s half of the recourse claim, made enforceable.**
+    /// Every arm states a condition; until this row, none of them said
+    /// what to do about it, and the consumers that render a `BandError`
+    /// whole — tier 3's `Band` arm is literally `"tier 3: {error}"` —
+    /// contributed no recourse of their own, so the message a user read
+    /// stopped at the condition.
+    ///
+    /// **This is a floor, not a proof**, on the same terms as
+    /// `topo`'s `every_chart_region_arm_names_a_recourse`: a vocabulary
+    /// check cannot tell a recourse from a sentence containing a verb,
+    /// and a new arm whose recourse uses a word not on this list fails
+    /// it honestly — extend the list in the same change. What it
+    /// catches is the arm added with no second clause at all.
+    #[test]
+    fn every_band_error_arm_names_a_recourse() {
+        const RECOURSE_VERBS: &[&str] = &["lower", "raise", "name", "classify", "wants"];
+        let arms = [
+            BandError::InvalidValue {
+                field: BandField::Zero,
+                value: -1e-9,
+            },
+            BandError::InvalidValue {
+                field: BandField::Escalate,
+                value: f64::INFINITY,
+            },
+            BandError::InvalidLeverArm { value: 0.0 },
+            BandError::Empty {
+                zero: 1e-8,
+                escalate: 1e-9,
+            },
+        ];
+        // Three variants; `InvalidValue` is rendered at both of its
+        // fields, because the field name is interpolated into the message.
+        assert_eq!(arms.len(), 4, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
+                "no recourse in: {msg}"
+            );
+        }
     }
 
     /// The pure scaling policy behind `Band::linear`/`angular_at` (the

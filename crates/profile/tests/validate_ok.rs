@@ -7,7 +7,7 @@
 //! default build.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{annulus, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
 use geom_core::Sign;

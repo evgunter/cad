@@ -8,6 +8,13 @@
 # spent on a sub-workspace fmt miss (2026-08-03, PR #166) before this
 # script existed; it runs in ~2 s.
 #
+# Both of those are unguarded readings and stay that way: nothing re-takes
+# a hosted queue time or this script's runtime, and nothing here computes
+# with either — the script discovers its workspace list at run time, so it
+# is correct whatever it costs. `local-scripts/hooks/pre-push` cites the
+# same day and PR for the same event with a different figure; neither was
+# re-taken, and the event is the point rather than its duration.
+#
 #   local-scripts/fmt-all.sh          format in place
 #   local-scripts/fmt-all.sh --check  fail loudly if anything is unformatted
 #                               (the pre-push / CI-mirror mode)

@@ -4,6 +4,22 @@
 # push leaves the machine. ~9s of gate round-trip pain motivated it
 # (2026-08-03, PR #166).
 #
+# THAT FIGURE IS UNGUARDED AND DISAGREES WITH ITS OWN SIBLING.
+# `local-scripts/fmt-all.sh` cites the SAME day and the SAME PR for the
+# same motivating event and calls it two 15-minute gate round trips;
+# nothing reconciles them, and nothing re-takes either — a round-trip cost
+# is a hosted-queue reading and this repo keeps no register of one. Neither
+# is load-bearing: the rule this hook enforces (nothing leaves the machine
+# unformatted) is right at any cost above zero, which is why the
+# disagreement was survivable long enough to be found. Read both as "it
+# hurt on 2026-08-03", not as measurements.
+#
+# THIS FILE IS ALSO A POPULATION HOLE, named here because a hook is exactly
+# where a sweep stops looking. It has NO EXTENSION, so every sweep that
+# selects by suffix skips it silently — `local-scripts/measured-claim-sweep.py`'s
+# own `--ext` included. It is bash, it carries prose, and the claim above
+# was reached by reading this directory rather than by matching a pattern.
+#
 # NO CARGO ON THIS PATH (#298): `cargo fmt` acquires the workspace build
 # lock, so the old hook (fmt-all --check) blocked indefinitely whenever
 # another lane was building — which taught agents --no-verify. Instead we

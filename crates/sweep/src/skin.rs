@@ -39,10 +39,13 @@
 //! parameters are chosen in `f64`, deterministically: same sections in,
 //! same knots and same control bits out. The produced surface then
 //! evaluates generically over [`geom_core::Real`] (the substrate's
-//! rule) — [`lift_surface`] carries a chosen structure to any scalar.
-//! No topology decision is made here, so nothing routes through
-//! `k_stats`; the raw `f64` comparisons below are structure selection
-//! under C6.
+//! rule) — [`NurbsSurface::map_scalar`] carries a chosen structure to
+//! any scalar. The control bits and the weights are DATA, so that lift
+//! is exact at every scalar and reads the SAME definition Q8 names
+//! above: the interval lane encloses this surface, never an
+//! approximation of it. No topology decision is made here, so nothing
+//! routes through `k_stats`; the raw `f64` comparisons below are
+//! structure selection under C6.
 
 use std::sync::Arc;
 
@@ -52,7 +55,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
 use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
@@ -153,11 +156,12 @@ pub enum SkinError {
     /// — plus the exactly-anti-parallel case, where the minimal
     /// rotation is not unique because every axis perpendicular to the
     /// tangent turns one into the other. The second case is a `f64`
-    /// knife edge and essentially unreachable: an exact half-turn path
-    /// evaluates `|t₀ × t₁| ≈ 1.2e-16 > 0`, so the frame is BUILT from
-    /// a numerically ill-conditioned axis rather than refused (pinned,
-    /// executed, in `tests/review_m5_pr10.rs`). Under Q8 that surface
-    /// is still the definition — it is whatever that frame produced,
+    /// knife edge and essentially unreachable: at an exact half-turn
+    /// `|t₀ × t₁|` does not evaluate to zero, so the frame is BUILT
+    /// from a numerically ill-conditioned axis rather than refused
+    /// (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`,
+    /// which is also the one home for that magnitude). Under Q8 that
+    /// surface is still the definition — it is whatever that frame produced,
     /// not an approximation of something else — but it is not the
     /// surface a reader of "reversing paths refuse" would expect, so
     /// the claim is stated as it is rather than as it reads best. See
@@ -411,40 +415,9 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
             }
         })
         .collect::<Result<_, _>>()?;
-    // §5.3: the union knot vector — every distinct interior value at
-    // the greatest multiplicity any section gives it.
-    let mut union: Vec<(f64, usize)> = Vec::new();
-    for c in &elevated {
-        for (value, mult) in c.knots().interior_knots() {
-            match union.iter_mut().find(|(v, _)| *v == value) {
-                Some((_, m)) => *m = (*m).max(mult),
-                None => union.push((value, mult)),
-            }
-        }
-    }
-    union.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let merged: Vec<NurbsCurve3<f64>> = elevated
-        .iter()
-        .map(|c| {
-            let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
-            let mut add: Vec<f64> = Vec::new();
-            for (value, want) in &union {
-                let have = own
-                    .iter()
-                    .find(|(v, _)| *v == *value)
-                    .map_or(0, |(_, m)| *m);
-                for _ in have..*want {
-                    add.push(*value);
-                }
-            }
-            if add.is_empty() {
-                Ok(c.clone())
-            } else {
-                c.refine_knots(&add).map_err(SkinError::KnotAlgebra)
-            }
-        })
-        .collect::<Result<_, _>>()?;
-    Ok(merged)
+    // §5.3: one common knot vector — the union, at one degree and on
+    // one domain by the two checks above.
+    NurbsCurve3::refine_to_union(&elevated).map_err(SkinError::KnotAlgebra)
 }
 
 // ---------------------------------------------------------------------
@@ -590,7 +563,8 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 /// bit-for-bit; and the final divide it removes was a division by
 /// exactly `1.0` in precisely the cases whose weights came out exact.
 /// A uniformly spaced loft therefore skins to bit-identical walls
-/// (pinned in `tests/m7_skin_integral.rs`).
+/// (pinned by
+/// `m7_skin_integral::the_uniform_loft_is_bitwise_unchanged`).
 ///
 /// # Numbered note 5 (spec §2): the solve is DENSE, and where that lands
 ///
@@ -748,29 +722,6 @@ pub fn skin_on(
     NurbsSurface::new(knots_u, knots_v, control, weights).map_err(SkinError::Structure)
 }
 
-/// Carries an `f64`-chosen surface structure to any scalar for
-/// evaluation (crate docs' C6 note): the control bits and weights are
-/// DATA — the Q8 definition — so lifting is `from_f64`, exact at every
-/// scalar, and the interval lane encloses the very same surface.
-///
-/// # Errors
-///
-/// [`SplineError`] — unreachable for a surface that already validated,
-/// surfaced rather than swallowed.
-pub fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> Result<NurbsSurface<T>, SplineError> {
-    let control = s
-        .control()
-        .iter()
-        .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-        .collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        control,
-        s.weights().to_vec(),
-    )
-}
-
 // ---------------------------------------------------------------------
 // §10.3/§10.4 as FEATURE geometry: the walls of a lofted body
 // ---------------------------------------------------------------------
@@ -799,6 +750,14 @@ pub struct LoftGeometry {
     /// the cap and rim geometry is exactly section 0's and section
     /// `k − 1`'s — no re-derivation, no drift.
     pub sections: Vec<Vec<Vec<NurbsCurve3<f64>>>>,
+    /// **Each input section's canonical form**, in input order — the
+    /// `ValidatedProfile` [`validate_sections`] decided at the door and
+    /// the walls were skinned from. Kept for the same reason
+    /// [`Self::sections`] is: the body assembly's end caps ARE section
+    /// 0's and section `k − 1`'s profiles, so handing the decided form
+    /// over is what makes the caps the walls' own sections rather than
+    /// a second validation of the same data agreeing by determinism.
+    pub canonical: Vec<ValidatedProfile<f64>>,
 }
 
 /// One section of a loft or sweep: its loops in the profile
@@ -954,6 +913,7 @@ pub fn loft_geometry(
         walls,
         section_params: params,
         sections: kept,
+        canonical: validated,
     })
 }
 
@@ -986,12 +946,23 @@ pub fn loft_geometry(
 ///
 /// ```
 /// use geom_core::{Affine3, Point2, Tol, Vec3};
-/// use profile::RawLoop;
+/// use profile::{Open, Start};
 /// use sweep::{ProfileLoop, Section, loft_parameters};
 ///
 /// let tol = Tol::witness();
+/// // A section is authored through the PATHS lattice, which classifies
+/// // each corner as it is written; the loop it lowers to is the vertex
+/// // table this door consumes.
 /// let quad = |pts: [(f64, f64); 4]| -> Section {
-///     vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)))]
+///     let p = |i: usize| Point2::new(pts[i].0, pts[i].1);
+///     let loop_: ProfileLoop<f64> = Open
+///         .at(p(0))
+///         .line_to(p(1), tol).expect("a definitely-sharp corner")
+///         .line_to(p(2), tol).expect("a definitely-sharp corner")
+///         .line_to(p(3), tol).expect("a definitely-sharp corner")
+///         .line_to(Start, tol).expect("the seam closes")
+///         .into();
+///     vec![loop_]
 /// };
 /// // The corpus's non-uniform prism: square, flared trapezoid,
 /// // square — placed at z = 0, 1, 3.
@@ -1081,9 +1052,11 @@ fn first_strip_parameters(
 /// EXACT `f64` comparison — structure selection, not a predicate: no
 /// topology depends on it, so it never routes through `k_stats`. The
 /// consequence is that `sin > 0.0` separates only the exactly-zero
-/// case. At a genuine half-turn `sin` evaluates to ≈ `1.2e-16`, not
-/// `0`, so the anti-parallel arm does not fire and the frame is built
-/// from an axis whose DIRECTION is decided by cancellation.
+/// case. At a genuine half-turn `sin` does not evaluate to `0`, so the
+/// anti-parallel arm does not fire and the frame is built from an axis
+/// whose DIRECTION is decided by cancellation
+/// (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`,
+/// which states the magnitude and executes the build).
 ///
 /// No band is asserted here, deliberately (D4 ¶1: a band needs a
 /// margin with a stated meaning and a stated lever arm). `sin` is a
@@ -1186,10 +1159,11 @@ pub fn sweep_places(
             //
             // C6 knife edge (see the fn docs): `sin > 0.0` is an exact
             // structure comparison, so this arm fires only on an
-            // EXACT zero. A float half-turn gives sin ≈ 1.2e-16 and
+            // EXACT zero. A float half-turn gives a NONZERO sin and
             // takes the branch above instead, building from an
-            // ill-conditioned axis. Pinned as executed behaviour, not
-            // asserted as intent.
+            // ill-conditioned axis
+            // (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`).
+            // Pinned as executed behaviour, not asserted as intent.
             return Err(SkinError::PathTangentReversal { station: i });
         };
         places.push(Affine3::translation(path.eval(t) - base_point) * turn * place);

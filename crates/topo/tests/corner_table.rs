@@ -1,7 +1,7 @@
 //! The corner-aligned table — CAPABILITY PINS (M4 PR 5).
 //!
 //! History: PR #82 planted two tripwires in `demo_tripwires.rs`
-//! (Evan's #71 question — "is the corner-aligned table possible
+//! (Ev's #71 question — "is the corner-aligned table possible
 //! yet?"). M4 PR 5's Declare + GeomSource opened the class exactly as
 //! predicted and the PRIMARY tripwire FIRED: with the flush contacts
 //! DECLARED, the full four-leg corner-aligned table builds
@@ -21,7 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{flush_declarations, prism_z};
 use geom_core::Decide;

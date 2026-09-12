@@ -1,14 +1,22 @@
 //! The derivations this crate owns, checked where they are: the split
 //! optimizer's answer against the certificate it claims to satisfy,
-//! its determinism, the ruled-wall case #320 is about, and the CSV's
-//! two row shapes agreeing about their width.
+//! its determinism, the ruled-wall case #320 is about, the resolution
+//! the split scan's two constants buy, and the CSV's two row shapes
+//! agreeing about their width.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use tess_meter::{
-    Bound, CSV_HEADER, Chart, FaceRow, NurbsColumns, best_split_cells, best_split_steps, divisions,
+    Bound, CSV_HEADER, Chart, FaceName, FaceNameError, FaceRow, NurbsColumns, SPLIT_SCAN_DECADES,
+    SPLIT_SCAN_SAMPLES, Sizing, SplitScan, best_split_cells, best_split_scan, best_split_steps,
+    divisions, floored_worst_excess, optimum_is_unfloored, shipped_split_scan_aspects, split_scan,
+    split_scan_aspects, unfloored_worst_excess,
 };
 use test_utils::fuzz;
+use test_utils::source;
+use test_utils::vacuity::Exposure;
+
+use std::sync::OnceLock;
 
 /// A synthetic [`Bound`] with a plausible seed in its `steps`.
 ///
@@ -144,48 +152,957 @@ fn a_ruled_wall_pays_for_its_flat_direction() {
     );
 }
 
+/// Which of the continuous objective's two shapes a family member has.
+/// Declared per member and CHECKED — the claims below dispatch on it,
+/// so a member silently changing class would move which claim it
+/// answers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shape {
+    /// The optimum is the interior stationary point `t* = √(muu/mvv)`,
+    /// strictly above `divisions`' one-division floor — the domain
+    /// [`unfloored_worst_excess`] bounds.
+    Unfloored,
+    /// The optimum is a KINK on that floor. Outside the closed form's
+    /// domain; measured, not bounded.
+    Floored,
+    /// No optimum at all: the cost is constant in `t` over an interval
+    /// wider than the scan can resolve, so there is nothing to bracket
+    /// and nothing to resolve.
+    Flat,
+}
+
+/// The bounds the split scan is measured on: `(name, shape, muu, muv, mvv)`.
+///
+/// **What a member is for.** Each names an aspect ratio the scan must be
+/// wide enough to reach and close enough to land near. The resolution
+/// question on the [`Shape::Unfloored`] members is answered in closed
+/// form and does not depend on this list, which is why the ceilings
+/// below are not fitted to it; on the [`Shape::Floored`] members there
+/// is no closed form and the list IS the evidence, which is why the two
+/// counterexamples that exposed the missing certificate are members.
+///
+/// **The two degeneracies, stated because they were not obvious.**
+/// `anisotropic, live cross term` shares `t* = √(muu/mvv)` with
+/// `mildly anisotropic` and therefore lands on the same sample: on THIS
+/// quantity it distinguishes nothing. It is kept because it is
+/// load-bearing on the CELL COUNT, where it scores 0.5249% at the
+/// shipped pair (the figure and its provenance are
+/// [`tess_meter::SPLIT_SCAN_DECADES`]'s, which says it is a MEASURED
+/// reading nothing re-takes and why that is right; this row's own
+/// assertions are what keep the member honest) — it is `S160`'s sixth
+/// family member, whose deletion
+/// with #783's instrument is what made that finding's table
+/// unreproducible from the tree. And `cross term only` is
+/// [`Shape::Flat`]: its cost is exactly `U·V·2·muv/δ_s` on the whole
+/// plateau where neither floor binds, so its argmin is float dust and
+/// the range claim says nothing about it.
+const SPLIT_SCAN_FAMILY: [(&str, Shape, f64, f64, f64); 8] = [
+    ("ruled wall", Shape::Floored, 0.0, 2.4, 51.3),
+    ("isotropic", Shape::Unfloored, 10.0, 0.0, 10.0),
+    ("mildly anisotropic", Shape::Unfloored, 0.1, 0.0, 50.0),
+    ("cross term only", Shape::Flat, 0.0, 5.0, 0.0),
+    ("unit", Shape::Unfloored, 1.0, 1.0, 1.0),
+    (
+        "anisotropic, live cross term",
+        Shape::Unfloored,
+        0.1,
+        1.0,
+        50.0,
+    ),
+    (
+        "floored, cross-term-free",
+        Shape::Floored,
+        2.9808e-4,
+        0.0,
+        1.9437e-2,
+    ),
+    ("floored ruled wall", Shape::Floored, 0.0, 2.4, 3716.36),
+];
+
+/// The sizing target and the box the family is measured over. Both
+/// cancel out of the aspect-ratio optimum and neither cancels out of
+/// the one-division floor — which is the whole distinction
+/// [`Shape`] draws — so they are named rather than inlined.
+const FAMILY_DELTA_S: f64 = 1e-3;
+const FAMILY_EXTENT: f64 = 1.0;
+
+/// `tools/tess-lint`'s source text, read across the cargo-root boundary.
+///
+/// **Read rather than imported, and read rather than transcribed.**
+/// `tess-meter` must not DEPEND on `tess-lint` — that crate's manifest
+/// states dependency-freedom as its design, and a consumer that shares
+/// a constant with its producer can no longer fail as a PARSER when
+/// the producer's schema moves, which is the failure mode the lint
+/// wants. The pins below are derivations over that crate's constants,
+/// and a derivation from a transcribed constant is a transcription, so
+/// they read the declarations out of this text instead.
+const LINT_SOURCE: &str = include_str!("../../tess-lint/src/lib.rs");
+
+/// A view of [`LINT_SOURCE`], byte for byte as long as the original,
+/// lexed once per view and held in `cache`.
+///
+/// `test_utils::source` blanks the regions a view drops rather than
+/// removing them, so every offset means the same byte in every view —
+/// which is what lets a declaration be LOCATED in one view and READ in
+/// another. The pins below do exactly that, so the property is
+/// asserted here rather than assumed at each of them.
+///
+/// **One lex per view, not one per pin.** The views are pure functions
+/// of a `const` text, so every caller wants the same answer; the cache
+/// is what keeps a pin cheap enough that reaching for the other view
+/// is never a reason to skip it.
+fn lint_view(view: fn(&str) -> String, cache: &'static OnceLock<String>) -> &'static str {
+    cache.get_or_init(|| source::blanked(view, LINT_SEARCHED, LINT_SOURCE))
+}
+
+/// What the pins below searched, for their refusals — one spelling,
+/// because three call sites naming the same text three times is the
+/// shape these pins exist to keep out of `tess-lint`'s constants.
+const LINT_SEARCHED: &str = "tess-lint's code view";
+
+/// [`LINT_SOURCE`] with prose AND string literals blanked — the view a
+/// declaration is LOCATED in.
+fn lint_code() -> &'static str {
+    static CODE: OnceLock<String> = OnceLock::new();
+    lint_view(source::code_only, &CODE)
+}
+
+/// [`LINT_SOURCE`] with prose blanked and literals kept — the view a
+/// located literal's VALUE is read out of.
+fn lint_literals() -> &'static str {
+    static LITERALS: OnceLock<String> = OnceLock::new();
+    lint_view(source::code_and_literals, &LITERALS)
+}
+
+/// The pins read the declaration and not prose about it.
+///
+/// The wrong answer here is the silent one: a doc comment or a string
+/// spelling the same declaration sorts ahead of the declaration, so a
+/// raw-text search parses THAT and the pin is green over a number
+/// nothing in the tree uses. The fixture carries both decoys above a
+/// real declaration, and the counts are the assertion — three
+/// occurrences in the text, one in the code.
+#[test]
+fn the_pins_read_the_declaration_and_not_prose_about_it() {
+    const DECL: &str = "pub const GROWTH_TOLERANCE: f64 = ";
+    let decoyed = concat!(
+        "/// pub const GROWTH_TOLERANCE: f64 = 9.0;\n",
+        "const QUOTED: &str = \"pub const GROWTH_TOLERANCE: f64 = 8.0;\";\n",
+        "pub const GROWTH_TOLERANCE: f64 = 1.05;\n"
+    );
+    assert_eq!(source::initializers(decoyed, DECL).len(), 3);
+    let code = source::code_only(decoyed);
+    assert_eq!(
+        code[source::sole_initializer(&code, "the decoy fixture", DECL)].trim(),
+        "1.05"
+    );
+}
+
+/// `tess-lint`'s `GROWTH_TOLERANCE`, read out of its source text.
+///
+/// [`LINT_SOURCE`] says why it is read and not imported. The code view
+/// is the one that carries it: a numeric literal is code to the lexer,
+/// so nothing of the value is lost, and blanking prose AND string
+/// literals leaves only a real declaration able to answer. What the
+/// pin still asks of that crate is the declaration's SPELLING — a
+/// rename, a retype, or a different spacing around the `=` reds it.
+fn lint_growth_tolerance() -> f64 {
+    let code = lint_code();
+    code[source::sole_initializer(code, LINT_SEARCHED, "pub const GROWTH_TOLERANCE: f64 = ")]
+        .trim()
+        .parse()
+        .expect("GROWTH_TOLERANCE is a float literal")
+}
+
+/// The margin the split column's consumer allows before it calls a
+/// movement a finding: `GROWTH_TOLERANCE − 1`, i.e. 5%.
+///
+/// **Why this is the quantity the instrument answers to.**
+/// `tools/tess-lint` fires when a face's recoverable slack
+/// `grid_cells / span_opt_cells` grows past `GROWTH_TOLERANCE` against
+/// the committed baseline, and that margin is documented at its own site
+/// as the allowance for an honest small mover — a face gaining one grid
+/// row — with no noise budget in it. This scan sits in that denominator
+/// on BOTH rows, so a static excess cancels exactly and a CHANGE in it
+/// does not: retuning these constants alone moves every fresh
+/// `span_opt_cells` against a baseline taken at the old resolution, and
+/// so does a face whose bound moves to a different point relative to the
+/// lattice. `GROWTH_TOLERANCE` is boxed to `[1.04, 1.06)` by that
+/// crate's own tests, so this cannot drift out from under the row.
+fn growth_margin() -> f64 {
+    lint_growth_tolerance() - 1.0
+}
+
+/// What the scan may leave on the class where the excess IS bounded —
+/// a tenth of [`growth_margin`], so the analytically controlled part of
+/// the instrument's error is negligible against its consumer.
+///
+/// **This is a ceiling on [`unfloored_worst_excess`] and on nothing
+/// else.** It is not a bound on the instrument's total error. The
+/// floored class has a closed form of its own and it is not this one:
+/// [`floored_worst_excess`] reads 1.75540% at the shipped pair, three
+/// and a half times this ceiling. (The family's own floored members
+/// measure 0.14890% and 0.39930% there, under the ceiling rather than
+/// over it — which is a property of where this lattice happens to fall
+/// and not of the class, and is exactly why the ceilings here are the
+/// closed forms and not the family.) And the `ceil`'d objective the
+/// gate actually reads is covered by neither. Saying "a tenth of the
+/// margin" about the whole error would be the claim this row was sent
+/// back for.
+///
+/// **Not a re-pin of the shipped pair.** The bound at `(8, 379)` is
+/// 0.11876%, a factor of four below; the ceiling admits any sampling
+/// step at or under 0.0868 decades — 186 samples over 8 decades, or 8
+/// decades widened to 16.4 at the shipped sample count.
+fn unfloored_ceiling() -> f64 {
+    growth_margin() / 10.0
+}
+
+/// The one-sided envelope `10^(decades/(samples − 1)) − 1` — the
+/// factor one whole sampling step in aspect ratio costs on the
+/// CONTINUOUS cost, which is what `tess_meter::SPLIT_SCAN_SAMPLES` is
+/// chosen against.
+///
+/// **It lives here because nothing else in the tree computes it.** The
+/// constant's entire licence is a comparison of this value against
+/// [`growth_margin`], written out longhand in
+/// `tess_meter::SPLIT_SCAN_DECADES`' docs; before this function that
+/// comparison was prose and a wrong figure in it could not go red.
+fn one_sided_envelope(decades: f64, samples: usize) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let spans = (samples - 1) as f64;
+    10.0f64.powf(decades / spans) - 1.0
+}
+
+/// [`divisions`] with its `ceil` deleted and nothing else changed — the
+/// CONTINUOUS objective's counting function.
+///
+/// The `ceil` is what makes the cell count discontinuous in the scan's
+/// two constants; the quantity left when it goes is smooth in the
+/// sampling step and in nothing else those constants do not set. The
+/// one-division floor STAYS: a grid cannot have less than one division,
+/// and dropping it too would move the ruled wall's optimum to `t → 0`
+/// and change which quantity is being measured.
+fn continuous_divisions(extent: f64, h: f64) -> f64 {
+    assert!(h > 0.0, "a grid step of {h} is not a reading");
+    assert!(
+        extent.is_finite() && extent >= 0.0,
+        "an extent of {extent} is not a reading"
+    );
+    (extent / h).max(1.0)
+}
+
+/// A family member as a [`Bound`] with no usable seed — the scan is
+/// what is under test, so nothing may pre-empt it.
+///
+/// The steps are `NaN` on purpose rather than absent: `Bound` carries
+/// them, and a path that read this seed by mistake would panic in
+/// [`divisions`] instead of quietly winning the running minimum. That
+/// matters here more than usual, because the fixture seed of the
+/// neighbouring rows IS the continuous optimum whenever `muv = 0` or
+/// `muu = mvv` — four of this family's eight members — so a seeded
+/// quantity would score exactly zero on them however badly the scan
+/// were tuned.
+fn unseeded(muu: f64, muv: f64, mvv: f64) -> Bound {
+    Bound {
+        muu,
+        muv,
+        mvv,
+        steps: (f64::NAN, f64::NAN),
+    }
+}
+
+/// The shipped scan's answer on one member, in the continuous count.
+///
+/// **It goes through [`split_scan`] and [`shipped_split_scan_aspects`],
+/// which is the point.** An earlier version of this row re-spelled the
+/// optimizer's `Q(t)`, its step derivation and its lattice here; it
+/// boxed the two constants and could not see the scan's CALL SITE
+/// changing under them — `(SPLIT_SCAN_DECADES, 21)` inflated the
+/// reported cell count by 15.02%, three times the gate's whole
+/// margin, with every row in this file green.
+fn scanned(muu: f64, muv: f64, mvv: f64) -> SplitScan {
+    split_scan(
+        unseeded(muu, muv, mvv),
+        FAMILY_EXTENT,
+        FAMILY_EXTENT,
+        FAMILY_DELTA_S,
+        shipped_split_scan_aspects(),
+        None,
+        continuous_divisions,
+    )
+}
+
+/// The true minimum of the continuous cost over all `t > 0`, by
+/// golden-section search on `log t`.
+///
+/// **Deliberately not a denser scan of the same shape.** The oracle
+/// this row's predecessor used was a lattice containing the subject's
+/// lattice as a strict subset, so *reference ≤ subject* held by
+/// construction and replacing the reference with the subject left the
+/// row green. A bracketing search shares no sample with the scan and
+/// converges below any lattice, so the comparison is a claim rather
+/// than an identity.
+///
+/// **Why bracketing is valid here.** In `log t` the cost is
+/// non-increasing while the `u` divisions are floored, convex where
+/// neither floor binds (`muu/t + 2·muv + mvv·t` in the exponent), and
+/// non-decreasing once the `v` divisions are floored — quasiconvex in
+/// every case, including the plateau at one cell.
+fn continuous_optimum(muu: f64, muv: f64, mvv: f64) -> (f64, f64) {
+    // Wide enough that the family's optima are interior by orders of
+    // magnitude, and narrow enough that `10^x` and `mvv·t²` stay finite.
+    const BRACKET_DECADES: f64 = 80.0;
+    const ITERATIONS: usize = 300;
+    let phi = 0.5 * (5.0f64.sqrt() - 1.0);
+    let at = |x: f64| {
+        let t = 10.0f64.powf(x);
+        let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));
+        assert!(
+            q > 0.0,
+            "a bound that certifies at every step has no aspect-ratio optimum: \
+             muu={muu}, muv={muv}, mvv={mvv} at t={t}"
+        );
+        let hu = (FAMILY_DELTA_S / q).sqrt();
+        continuous_divisions(FAMILY_EXTENT, hu) * continuous_divisions(FAMILY_EXTENT, t * hu)
+    };
+    let (mut lo, mut hi) = (-BRACKET_DECADES, BRACKET_DECADES);
+    let (mut c, mut d) = (hi - phi * (hi - lo), lo + phi * (hi - lo));
+    let (mut fc, mut fd) = (at(c), at(d));
+    let mut best = if fc <= fd { (fc, c) } else { (fd, d) };
+    for _ in 0..ITERATIONS {
+        if fc < fd {
+            hi = d;
+            d = c;
+            fd = fc;
+            c = hi - phi * (hi - lo);
+            fc = at(c);
+        } else {
+            lo = c;
+            c = d;
+            fc = fd;
+            d = lo + phi * (hi - lo);
+            fd = at(d);
+        }
+        for (v, x) in [(fc, c), (fd, d)] {
+            if v < best.0 {
+                best = (v, x);
+            }
+        }
+    }
+    best
+}
+
+/// Whether the continuous optimum sits ON [`divisions`]' one-division
+/// floor, read off the argmin the golden section already found.
+///
+/// **The second, independent answer to the question
+/// [`optimum_is_unfloored`] answers**, and the reason there are two: a
+/// family member's [`Shape`] decides which claim it answers, so
+/// checking that declaration against the one predicate the claims also
+/// dispatch on would be checking it against itself. This one searches
+/// for the optimum instead of solving for it, and reads the division
+/// counts where it lands.
+fn optimum_sits_on_the_floor(muu: f64, muv: f64, mvv: f64) -> bool {
+    let (_, x) = continuous_optimum(muu, muv, mvv);
+    let t = 10.0f64.powf(x);
+    let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));
+    let hu = (FAMILY_DELTA_S / q).sqrt();
+    let (nu, nv) = (FAMILY_EXTENT / hu, FAMILY_EXTENT / (t * hu));
+    nu <= 1.0 + 1e-9 || nv <= 1.0 + 1e-9
+}
+
+/// **The shipped optimizer IS the shipped scan** — asserted on the
+/// COMPOSITION, because boxing the constants and checking the lattice
+/// helper both leave the call site free.
+///
+/// [`best_split_scan`] is supposed to be `split_scan` over
+/// [`shipped_split_scan_aspects`], counted with [`divisions`] and
+/// seeded with the lane's own grid. Nothing about the constants, and
+/// nothing about the helper, says that it is: three retunes at that one
+/// call site — a sample count of its own, a range of its own, a dropped
+/// seed — passed `fmt`, `clippy -D warnings` and every other row in
+/// this file. How far the sample-count retune alone moves the reported
+/// cell count was measured once and is stated once, at
+/// [`best_split_scan`]'s own docs, together with the fact
+/// that nothing re-takes it; it is not restated here, because a
+/// measurement written in two places is two things to keep in step and
+/// this row is the half that is meant to stay live.
+///
+/// So this row spells the intended composition itself and compares bit
+/// for bit, **sample index included** — the seed retune is the one that
+/// can leave `cells` untouched, because on a bound whose lane grid ties
+/// with the best sampled aspect the answer is the same number reached
+/// from a different place.
+///
+/// The family is what makes the comparison bite: the ruled wall's
+/// optimum is at `t ≈ 2.1e-4`, so a narrowed range moves its answer;
+/// its `ceil`'d count moves by 15.02% at 21 samples; and the isotropic
+/// bound's lane grid ties with sample 189, so the seed wins there and
+/// dropping it moves `sample` from `None` to `Some`.
+#[test]
+fn the_shipped_optimizer_is_the_shipped_scan() {
+    let mut seen = Exposure::new("shipped composition");
+    for (name, _, muu, muv, mvv) in SPLIT_SCAN_FAMILY {
+        let b = bound(muu, muv, mvv, FAMILY_DELTA_S);
+        let want = split_scan(
+            b,
+            FAMILY_EXTENT,
+            FAMILY_EXTENT,
+            FAMILY_DELTA_S,
+            shipped_split_scan_aspects(),
+            Some(b.steps),
+            divisions,
+        );
+        let got = best_split_scan(b, FAMILY_EXTENT, FAMILY_EXTENT, FAMILY_DELTA_S);
+        assert_eq!(
+            (
+                got.cells.to_bits(),
+                got.steps.0.to_bits(),
+                got.steps.1.to_bits()
+            ),
+            (
+                want.cells.to_bits(),
+                want.steps.0.to_bits(),
+                want.steps.1.to_bits()
+            ),
+            "best_split_scan is no longer the shipped scan on the {name}: \
+             {got:?} against {want:?}"
+        );
+        assert_eq!(
+            got.sample, want.sample,
+            "best_split_scan reaches its answer from a different place on the {name}: \
+             sample {:?} against {:?} — a retuned seed can leave the count identical",
+            got.sample, want.sample
+        );
+        match got.sample {
+            Some(_) => seen.note("a scanned aspect won"),
+            None => seen.note("the lane's own seed won"),
+        }
+    }
+    seen.report();
+    seen.require_each(
+        &["a scanned aspect won", "the lane's own seed won"],
+        1,
+        "the comparison can only see a dropped seed on a bound where the seed WINS, \
+         and only see a retuned lattice on a bound where a sample does",
+    );
+}
+
+/// **`SPLIT_SCAN_DECADES` and `SPLIT_SCAN_SAMPLES`, boxed on the
+/// quantity they set** — the resolution of the aspect-ratio scan — and
+/// the scan's own call site with them.
+///
+/// A wrong pair is invisible from outside: the optimizer still returns a
+/// grid and the grid still certifies, it is merely not the cheapest one,
+/// which makes `span_opt_cells` — and `tools/tess-lint`'s slack
+/// denominator with it — wrong in the direction that flatters the
+/// shipped schedule. CI's own sweep cannot see that: a worse scan RAISES
+/// `span_opt_cells`, which LOWERS the recoverable slack, and that gate
+/// fires only on growth.
+///
+/// **Four claims, each with one failure mode.** (Numbered 0-3; claim 3
+/// used to have a second half, and the paragraph after it says why that
+/// half is gone.)
+///
+/// 0. **The lattice under test is the shipped one.** The count and the
+///    ends of `shipped_split_scan_aspects` are the constants' own, so a
+///    second lattice reaching `best_split_steps` reds here rather than
+///    passing under a boxed pair.
+/// 1. **The range brackets the optimum.** The continuous cost is
+///    quasiconvex in `log t`, so a scan whose argmin is an ENDPOINT is
+///    exactly a scan whose range stops short. `DECADES = 2` breaks it:
+///    the ruled wall's optimum is at `t ≈ 2.1e-4`, outside `10^±2`.
+///    Skipped on the [`Shape::Flat`] member, which has no optimum to
+///    bracket — and its flatness is asserted rather than assumed.
+/// 2. **The step resolves the class that admits a closed form.**
+///    [`unfloored_worst_excess`] must stay under [`unfloored_ceiling`],
+///    and each [`Shape::Unfloored`] member must stay under the closed
+///    form. This is the direction a family cannot see, since a family is
+///    a sample and the closed form is a supremum — and it is ATTAINED,
+///    so the per-member comparison carries a float allowance rather than
+///    a margin.
+/// 3. **Each [`Shape::Floored`] member stays inside
+///    [`floored_worst_excess`].** The kink derivation is what makes
+///    that a bound rather than a measurement.
+///
+/// **There is no fourth claim, and the one that used to sit here could
+/// not fail.** It asserted that every member also stays inside the
+/// consumer's WHOLE margin on the continuous objective, which claim 2
+/// already forces: [`unfloored_ceiling`] is a tenth of that margin, and
+/// claim 2 reds as soon as the count drops to 185, where
+/// [`floored_worst_excess`] is still 3.79% — so no coarsening can carry
+/// a member past the whole margin without reddening claim 2 first, and
+/// `GROWTH_TOLERANCE`'s own box (`[1.04, 1.06)`) cannot move the margin
+/// far enough to change
+/// that. The statement is a CONSEQUENCE of the two ceilings, and an
+/// assertion that no input can red is a comment wearing an `assert!`.
+/// What it is a consequence about is the CONTINUOUS objective;
+/// `span_opt_cells`, the column `tools/tess-lint` divides by, is the
+/// `ceil`'d one, and nothing bounds the excess there —
+/// [`the_ceild_excess_can_exceed_the_one_sided_envelope`] is the
+/// witness.
+///
+/// **Measured on this tree at the shipped pair** (continuous excess,
+/// unseeded — the seeded column `S160` published is a different
+/// quantity and is not this row's evidence): ruled wall 0.02250%,
+/// isotropic 0%, mildly anisotropic 0.00666%, cross term only 0%, unit
+/// 0%, live cross term 0.00460%, floored cross-term-free 0.14890%,
+/// floored ruled wall **0.39930%**. The two bounds at that pair:
+/// 0.11876% unfloored, 1.75540% floored — and
+/// `floored, cross-term-free` sits at `r = 0.29808`, which is the kink
+/// derivation's analytic argmax, so the family carries the class's
+/// worst case rather than a sample of it. **Which member is worst is a
+/// property of the lattice and not of the class**: at a different
+/// sample count another member lands further from a sample, which is
+/// why the ceilings above are the closed forms and not this row.
+///
+/// **What this deliberately does not do.** It says nothing about the
+/// cell count these columns report — that quantity is discontinuous in
+/// both constants and cannot carry a tolerance at all
+/// (`SPLIT_SCAN_DECADES`' own docs). And it does not stop the pair being
+/// made needlessly FINE, which costs sweep time and no accuracy.
+#[test]
+fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
+    let mut seen = Exposure::new("split scan resolution");
+    // Claim 0.
+    let aspects: Vec<f64> = shipped_split_scan_aspects().collect();
+    assert_eq!(
+        aspects.len(),
+        SPLIT_SCAN_SAMPLES,
+        "the shipped scan visits {} aspects, not SPLIT_SCAN_SAMPLES = {SPLIT_SCAN_SAMPLES} — \
+         the lattice under test is not the one the constants describe",
+        aspects.len()
+    );
+    for (end, want) in [
+        (aspects[0], -SPLIT_SCAN_DECADES),
+        (aspects[SPLIT_SCAN_SAMPLES - 1], SPLIT_SCAN_DECADES),
+    ] {
+        assert!(
+            (end.log10() - want).abs() < 1e-9,
+            "the shipped scan ends at 10^{}, not 10^{want} — the lattice under test is \
+             not the one SPLIT_SCAN_DECADES describes",
+            end.log10()
+        );
+    }
+    // Claim 2, the family-free half.
+    let closed = unfloored_worst_excess(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES);
+    let kinked = floored_worst_excess(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES);
+    assert!(
+        closed <= unfloored_ceiling(),
+        "the split scan's sampling step leaves up to {:.5}% on the unfloored class, \
+         over the {:.5}% a tenth of the slack gate's margin allows — \
+         SPLIT_SCAN_DECADES = {SPLIT_SCAN_DECADES} over SPLIT_SCAN_SAMPLES = \
+         {SPLIT_SCAN_SAMPLES} is too coarse a step",
+        100.0 * closed,
+        100.0 * unfloored_ceiling()
+    );
+    for (name, shape, muu, muv, mvv) in SPLIT_SCAN_FAMILY {
+        let b = unseeded(muu, muv, mvv);
+        let is_unfloored = optimum_is_unfloored(b, FAMILY_EXTENT, FAMILY_EXTENT, FAMILY_DELTA_S);
+        assert_eq!(
+            is_unfloored,
+            shape == Shape::Unfloored,
+            "the {name} is declared {shape:?} and the closed-form floor test disagrees"
+        );
+        if shape != Shape::Flat {
+            assert_eq!(
+                optimum_sits_on_the_floor(muu, muv, mvv),
+                shape == Shape::Floored,
+                "the {name} is declared {shape:?} and the SEARCHED argmin disagrees — \
+                 the declaration is what picks which claim this member answers, so it \
+                 is checked against a second derivation and not only against the \
+                 predicate the claims dispatch on"
+            );
+        }
+        let scan = scanned(muu, muv, mvv);
+        let at = scan.sample.expect("an unseeded scan answers with a sample");
+        if shape == Shape::Flat {
+            // Asserted, not assumed: a member excused from the range
+            // claim has to earn it.
+            let mid = SPLIT_SCAN_SAMPLES / 2;
+            let a = scanned_cost_at(muu, muv, mvv, aspects[mid]);
+            let c = scanned_cost_at(muu, muv, mvv, aspects[mid + 1]);
+            assert!(
+                (a / c - 1.0).abs() < 1e-12,
+                "the {name} is declared Flat and its cost moves between adjacent \
+                 samples: {a:e} against {c:e}"
+            );
+            seen.note("flat: no optimum to bracket");
+        } else {
+            assert!(
+                at > 0 && at + 1 < SPLIT_SCAN_SAMPLES,
+                "the split scan's cheapest aspect for the {name} is sample {at} of \
+                 {SPLIT_SCAN_SAMPLES}, an endpoint — SPLIT_SCAN_DECADES = \
+                 {SPLIT_SCAN_DECADES} does not reach that bound's optimum"
+            );
+        }
+        let (optimum, _) = continuous_optimum(muu, muv, mvv);
+        // The allowance is float dust and not a margin, and it is owed
+        // by the [`Shape::Flat`] member: its cost is CONSTANT in `t`, so
+        // the bracketing search and the scan evaluate the same real
+        // number by different routes and either may land an ulp below
+        // the other. SIZED AGAINST THE MEASURED DUST: at zero the row
+        // reds by exactly one ulp, so the allowance is eight of them —
+        // wide enough that a re-association of either route stays
+        // green, and eleven orders under the smallest real excess in
+        // this family, which is the `ruled wall`'s 0.0225%.
+        const REFERENCE_SLACK: f64 = 8.0 * f64::EPSILON;
+        assert!(
+            optimum <= scan.cells * (1.0 + REFERENCE_SLACK),
+            "the reference stopped being the better answer on the {name}: \
+             {optimum:e} against the scan's {:e}",
+            scan.cells
+        );
+        let excess = scan.cells / optimum - 1.0;
+        // A member whose optimum sits ON a sample scores zero however
+        // the scan is tuned, so it is the members that do NOT that
+        // carry the resolution claim. The threshold is float dust and
+        // not a margin: the smallest real excess in this family is
+        // 4.6e-5, five decades above it.
+        let off_lattice = excess > 1e-10;
+        match shape {
+            Shape::Unfloored => {
+                seen.note("unfloored: bounded in closed form");
+                if off_lattice {
+                    seen.note("unfloored, optimum off the lattice");
+                }
+                assert!(
+                    // The closed form is attained, so the allowance is
+                    // float slack and not a margin.
+                    excess <= closed * (1.0 + 1e-9),
+                    "the {name} leaves {:.5}% on the continuous objective, over the \
+                     {:.5}% the sampling step can account for — the scan's excess is no \
+                     longer explained by its resolution",
+                    100.0 * excess,
+                    100.0 * closed
+                );
+            }
+            Shape::Floored => {
+                seen.note("floored: bounded by the kink derivation");
+                if off_lattice {
+                    seen.note("floored, optimum off the lattice");
+                }
+                assert!(
+                    excess <= kinked * (1.0 + 1e-9),
+                    "the {name} leaves {:.5}% on the continuous objective, over the \
+                     {:.5}% the kink derivation admits — the scan's excess on the \
+                     floored class is no longer explained by its resolution",
+                    100.0 * excess,
+                    100.0 * kinked
+                );
+            }
+            Shape::Flat => {}
+        }
+    }
+    seen.report();
+    seen.require_each(
+        &[
+            "unfloored, optimum off the lattice",
+            "floored, optimum off the lattice",
+        ],
+        1,
+        "a family whose every optimum sits on a sample scores zero however badly \
+         the scan is tuned, which measures the lattice's luck and not the \
+         resolution",
+    );
+    seen.require_each(
+        &[
+            "unfloored: bounded in closed form",
+            "floored: bounded by the kink derivation",
+        ],
+        2,
+        "both shapes of the objective have to be under test: the closed form covers \
+         one of them and the ruled wall this scan exists for is in the other",
+    );
+}
+
+/// **The one-sided envelope is the shipped sample count's whole
+/// licence, and this is the only place it is computed.**
+/// `tess_meter::SPLIT_SCAN_SAMPLES = 379` exists because 379 is the
+/// smallest count whose envelope fits inside the consumer's margin;
+/// that sentence is written out in `SPLIT_SCAN_DECADES`' docs and
+/// nothing re-took either number, so a retune that no longer fits, or a
+/// figure mistyped in the prose, was invisible.
+#[test]
+fn the_shipped_sample_count_is_the_smallest_whose_envelope_fits() {
+    let here = one_sided_envelope(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES);
+    assert!(
+        here <= growth_margin(),
+        "the one-sided envelope at ({SPLIT_SCAN_DECADES}, {SPLIT_SCAN_SAMPLES}) is \
+         {:.4}%, over the {:.4}% the slack gate allows in whole — the sample count \
+         no longer buys the resolution its own docs license it by",
+        100.0 * here,
+        100.0 * growth_margin()
+    );
+    let coarser = one_sided_envelope(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES - 1);
+    assert!(
+        coarser > growth_margin(),
+        "one sample FEWER would also fit ({:.4}% against {:.4}%): \
+         SPLIT_SCAN_SAMPLES is documented as the smallest count that fits and is not",
+        100.0 * coarser,
+        100.0 * growth_margin()
+    );
+}
+
+/// **The envelope bounds the CONTINUOUS excess and nothing else**, and
+/// this row is the counterexample that keeps `SPLIT_SCAN_DECADES`' docs
+/// from saying otherwise. A `ceil`'d cell count is an integer: a scan
+/// that misses the best aspect ratio by a fraction of a division still
+/// pays a whole one, and the fewer divisions the answer has the larger
+/// that is in relative terms.
+///
+/// **The witness is exact and carries no reference lattice.** For
+/// `muu = 100, muv = 0, mvv = 0.1` over a `1 x 10` box at `δ_s = 1`,
+/// the aspect `t = 26` gives `h_u = 1/13` and `h_v = 2`, which is
+/// `Q = 100/169 + 0.4 = 0.99172 ≤ δ_s` — admissible — and costs
+/// `13 x 5 = 65` cells. The shipped lattice does not contain `t = 26`
+/// (it would need sample 222.43 of 379) and its nearest samples cost 78
+/// and 70, so the scan reports 70: **7.6923% over**, against an
+/// envelope of 4.9939% and the slack gate's whole 5% margin. Both sides
+/// are driven through `split_scan` over `divisions`, so neither is a
+/// re-spelling of the optimizer.
+///
+/// **Which way it reds.** A pair fine enough to find `t = 26`, or a
+/// `GROWTH_TOLERANCE` wide enough to cover 7.6923%, and either way the
+/// sentence this row licenses has to be rewritten.
+#[test]
+fn the_ceild_excess_can_exceed_the_one_sided_envelope() {
+    let bound = unseeded(100.0, 0.0, 0.1);
+    let (du, dv, delta_s) = (1.0, 10.0, 1.0);
+    let scan = split_scan(
+        bound,
+        du,
+        dv,
+        delta_s,
+        shipped_split_scan_aspects(),
+        None,
+        divisions,
+    );
+    // The admissible grid the lattice misses, priced by the same scan
+    // over a one-aspect lattice so that `Q(t)`, the step and the count
+    // are the optimizer's own on both sides.
+    let witness = split_scan(
+        bound,
+        du,
+        dv,
+        delta_s,
+        std::iter::once(26.0),
+        None,
+        divisions,
+    );
+    assert_eq!(
+        (scan.cells, witness.cells),
+        (70.0, 65.0),
+        "the exhibit moved: the scan reports {} cells against the witness's {}",
+        scan.cells,
+        witness.cells
+    );
+    let excess = scan.cells / witness.cells - 1.0;
+    let envelope = one_sided_envelope(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES);
+    assert!(
+        excess > envelope,
+        "the exhibit leaves {:.4}% on the `ceil`'d count, inside the {:.4}% one-sided \
+         envelope — the envelope would then be a bound on the quantity the gate reads, \
+         and SPLIT_SCAN_DECADES' docs say it is not",
+        100.0 * excess,
+        100.0 * envelope
+    );
+    assert!(
+        excess > growth_margin(),
+        "the exhibit leaves {:.4}% on the `ceil`'d count, inside the slack gate's whole \
+         {:.4}% margin — D206 is recorded as having left that reachable by the \
+         instrument alone, and this row is the exhibit for it",
+        100.0 * excess,
+        100.0 * growth_margin()
+    );
+}
+
+/// The continuous cost at one aspect, for the flatness assertion.
+fn scanned_cost_at(muu: f64, muv: f64, mvv: f64, t: f64) -> f64 {
+    let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));
+    let hu = (FAMILY_DELTA_S / q).sqrt();
+    continuous_divisions(FAMILY_EXTENT, hu) * continuous_divisions(FAMILY_EXTENT, t * hu)
+}
+
+/// **The guard above can go red, in both of its directions.** A guard
+/// nothing has been seen to fail is a claim, and the two perturbations
+/// that fail it are cheap enough to keep in the suite rather than
+/// leaving them to a reviewer's local edit.
+///
+/// The numbers are the ones a reader gets by editing the constants: at
+/// `DECADES = 2` the ruled wall's cheapest sampled aspect is sample 0
+/// and the floored ruled wall leaves 665.99%; at `DECADES = 40` the
+/// closed form is 2.98322% against a ceiling of 0.5%.
+#[test]
+fn the_split_scan_guard_reds_on_a_narrow_range_and_on_a_coarse_step() {
+    let narrow = split_scan(
+        unseeded(0.0, 2.4, 51.3),
+        FAMILY_EXTENT,
+        FAMILY_EXTENT,
+        FAMILY_DELTA_S,
+        split_scan_aspects(2.0, SPLIT_SCAN_SAMPLES),
+        None,
+        continuous_divisions,
+    );
+    assert_eq!(
+        narrow.sample,
+        Some(0),
+        "claim 1 no longer reds: a 2-decade range should stop short of the ruled \
+         wall's optimum"
+    );
+    let coarse = unfloored_worst_excess(40.0, SPLIT_SCAN_SAMPLES);
+    assert!(
+        coarse > unfloored_ceiling(),
+        "claim 2 no longer reds: 40 decades at {SPLIT_SCAN_SAMPLES} samples leaves \
+         {:.5}%, which the {:.5}% ceiling should refuse",
+        100.0 * coarse,
+        100.0 * unfloored_ceiling()
+    );
+}
+
+/// An off-lane row, hand-built. **The fields are `pub`, so every
+/// pairing of a [`Chart`] with a [`Sizing`] is constructible** — which
+/// is what the refusals below are about, and what lets the two row
+/// shapes be written here without a body to tessellate.
+fn plane_row() -> FaceRow {
+    FaceRow {
+        face: 0,
+        name: None,
+        chart: Chart::Plane,
+        delta: 1e-3,
+        triangles: 2,
+        sizing: Sizing::OffLane,
+    }
+}
+
+/// A filled sizing block, hand-built. The values are arbitrary and
+/// distinct: nothing below reads one, they are here so a column
+/// printed out of order is visible in the row's text.
+fn some_columns() -> NurbsColumns {
+    NurbsColumns {
+        u: (0.0, 1.0),
+        v: (0.0, 1.0),
+        nu: 4.0,
+        nv: 5.0,
+        muu: 1.0,
+        muv: 2.0,
+        mvv: 3.0,
+        mu1: 1.5,
+        mv1: 2.5,
+        cells: 6,
+        grid_cells: 12.0,
+        patch_cells: 20.0,
+        opt_cells: 10.0,
+        span_opt_cells: 8.0,
+        worst_cert: 1e-4,
+        worst_dev: 5e-5,
+        dev_samples: 7,
+        bands: 3,
+        cap_bands: 1,
+        snap_bands: 0,
+        realized_aspect: 4.2,
+    }
+}
+
 /// The empty-tail arm and the filled arm must agree about the row's
 /// width, or every consumer's column indices are off by the
 /// difference.
 #[test]
 fn both_row_shapes_have_the_headers_width() {
     let cols = CSV_HEADER.split(',').count();
-    let plane = FaceRow {
-        face: 0,
-        chart: Chart::Plane,
-        delta: 1e-3,
-        triangles: 2,
-        nurbs: None,
-    };
+    let plane = plane_row();
     assert_eq!(plane.csv_row("s/b").split(',').count(), cols);
     let nurbs = FaceRow {
         chart: Chart::Nurbs,
-        nurbs: Some(NurbsColumns {
-            u: (0.0, 1.0),
-            v: (0.0, 1.0),
-            nu: 4.0,
-            nv: 5.0,
-            muu: 1.0,
-            muv: 2.0,
-            mvv: 3.0,
-            mu1: 1.5,
-            mv1: 2.5,
-            cells: 6,
-            grid_cells: 12.0,
-            patch_cells: 20.0,
-            opt_cells: 10.0,
-            span_opt_cells: 8.0,
-            worst_cert: 1e-4,
-            worst_dev: 5e-5,
-            dev_samples: 7,
-            bands: 3,
-            cap_bands: 1,
-            snap_bands: 0,
-            realized_aspect: 4.2,
-        }),
-        ..plane
+        sizing: Sizing::Measured(some_columns()),
+        ..plane.clone()
     };
     assert_eq!(nurbs.csv_row("s/b").split(',').count(), cols);
+    // And with the name column filled, which is the third shape: it
+    // rides in the head block, so a token there must not widen either
+    // arm.
+    let named = FaceRow {
+        name: Some(FaceName::new("n3/OutputBody").unwrap()),
+        ..plane
+    };
+    assert_eq!(named.csv_row("s/b").split(',').count(), cols);
+}
+
+/// **The name goes in the column the header names, and an absent one
+/// is the empty field there** — not a missing field, and not a token
+/// somewhere else in the row.
+#[test]
+fn the_name_column_carries_the_name_and_nothing_else_does() {
+    let at = CSV_HEADER
+        .split(',')
+        .position(|c| c == "name")
+        .expect("the header names the column");
+    let absent = plane_row().csv_row("s/b");
+    let fields: Vec<&str> = absent.split(',').collect();
+    assert_eq!(fields[at], "", "an unnamed face leaves the column empty");
+    let named = FaceRow {
+        name: Some(FaceName::new("n3/OutputBody").unwrap()),
+        ..plane_row()
+    }
+    .csv_row("s/b");
+    let fields: Vec<&str> = named.split(',').collect();
+    assert_eq!(fields[at], "n3/OutputBody");
+    assert_eq!(
+        fields.iter().filter(|f| **f == "n3/OutputBody").count(),
+        1,
+        "the token appears once, in its own column"
+    );
+}
+
+/// **The three tokens a CSV cannot carry are refused at the only door
+/// into the type**, so no later site has to re-check them: a `,`
+/// widens the row, a newline splits it, and the empty string is
+/// already the spelling of a face nobody could name.
+#[test]
+fn a_token_that_is_not_one_csv_field_is_not_a_face_name() {
+    assert_eq!(FaceName::new(""), Err(FaceNameError::Empty));
+    for bad in ["a,b", "a\nb", "a\rb", ",", "\n"] {
+        assert_eq!(
+            FaceName::new(bad),
+            Err(FaceNameError::NotOneField),
+            "{bad:?} is not one field"
+        );
+    }
+    for good in ["n3/OutputBody", "{\"kind\":\"Face\";\"node\":3}", " "] {
+        assert!(FaceName::new(good).is_ok(), "{good:?} is one field");
+    }
+}
+
+/// **A sized-lane chart with no columns never reaches the CSV.**
+///
+/// `face_rows` cannot build this row — its lookup refuses the state —
+/// but nothing else has to go through that lookup: [`plane_row`] shows
+/// the literal, and swapping one field produces a `nurbs` face wearing
+/// the empty tail, which every consumer reads as *"this face is not on
+/// the sized lane"*. The refusal is therefore at the WRITER, and this
+/// is the row that says a hand-built one cannot slip past it.
+#[test]
+#[should_panic(expected = "the Hessian-sized lane's, and carries no columns")]
+fn a_sized_lane_chart_with_an_empty_tail_never_reaches_the_csv() {
+    let row = FaceRow {
+        chart: Chart::Nurbs,
+        ..plane_row()
+    };
+    let _ = row.csv_row("s/b");
+}
+
+/// **And the other half of the same 2×2**: an off-lane chart wearing
+/// the sized lane's columns, which would hang a measurement on a chart
+/// nothing sizes that way.
+#[test]
+#[should_panic(expected = "carries the sized lane's columns anyway")]
+fn an_off_lane_chart_with_columns_never_reaches_the_csv() {
+    let row = FaceRow {
+        sizing: Sizing::Measured(some_columns()),
+        ..plane_row()
+    };
+    let _ = row.csv_row("s/b");
 }
 
 /// The header this crate writes and the one `tools/tess-lint` parses
@@ -202,30 +1119,305 @@ fn both_row_shapes_have_the_headers_width() {
 /// the lint wants. So the two declarations stay independent and this
 /// test reads the other one's source.
 ///
-/// It is a real pin and it is ugly: it parses Rust string
-/// continuations out of a sibling crate's `lib.rs`, and it breaks if
-/// that declaration is reformatted rather than changed.
+/// **Located in the code view and read in the literal one**, which is
+/// the split this pin needs: the needle is an item head, so only code
+/// may answer it, while the value IS a string literal, which
+/// [`source::code_only`] blanks and would leave this comparing
+/// `CSV_HEADER` against spaces. What the pin still asks of that crate
+/// is the declaration's spelling and a literal written as one plain
+/// string: a `concat!`, a raw string or an escape other than a line
+/// continuation reds it rather than decoding to something else.
 #[test]
 fn the_lints_expected_header_is_this_one() {
-    let lint = include_str!("../../tess-lint/src/lib.rs");
-    let quoted = lint
-        .split("pub const EXPECTED_HEADER: &str = ")
-        .nth(1)
-        .expect("tess-lint declares EXPECTED_HEADER");
-    let end = quoted.find(';').expect("the declaration ends");
-    // Rust string continuations: drop the backslash-newline-indent runs.
-    let mut header = String::new();
-    let mut chars = quoted[..end].chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '"' => {}
-            '\\' => {
-                while chars.peek().is_some_and(|c| c.is_whitespace()) {
-                    chars.next();
-                }
-            }
-            c => header.push(c),
-        }
+    let decl = source::sole_initializer(
+        lint_code(),
+        LINT_SEARCHED,
+        "pub const EXPECTED_HEADER: &str = ",
+    );
+    let quoted = source::plain_string_literal(&lint_literals()[decl])
+        .expect("EXPECTED_HEADER is one plain string literal");
+    // A Rust line continuation is `\` and the whitespace run after it.
+    // Every other escape is REFUSED rather than decoded: the header
+    // carries no whitespace of its own, so a `\` followed by anything
+    // else is a difference in the header and not in its formatting.
+    let mut parts = quoted.split('\\');
+    let mut header = String::from(parts.next().expect("a split yields one part"));
+    for part in parts {
+        let continued = part.trim_start();
+        assert!(
+            continued.len() < part.len(),
+            "EXPECTED_HEADER holds `\\{}`, an escape this pin does not decode",
+            part.chars().next().unwrap_or(' ')
+        );
+        header.push_str(continued);
     }
     assert_eq!(header, CSV_HEADER);
+}
+
+/// The roster of every [`Chart`], and the wildcard-free match that
+/// makes it complete — generated from ONE spelling of the list, which
+/// is the whole mechanism.
+///
+/// **The enforcement is a COMPILE ERROR, not a red test, and it is
+/// exact**: a variant added to `Chart` and not named in this macro's
+/// invocation has no arm in the generated match, that match is
+/// non-exhaustive, and this crate's tests do not build. Nothing here
+/// runs to discover the gap, so nothing here can be green over one.
+///
+/// **What that buys over a hand-written array plus a slot function.**
+/// A slot function alone forces an ARM, never a roster entry: an arm
+/// reusing an existing slot, or naming one past the array's end that
+/// nothing ever indexes with, left every pin below iterating a list
+/// the new variant was not on — and green. Both defeats are
+/// unspellable here, because the array and the match are the same
+/// tokens and there are no slots at all.
+///
+/// **What it does not catch**: a variant listed TWICE. That arm is a
+/// duplicate rather than a missing one, so `unreachable_patterns` is
+/// what sees it — denied below, so it too is a compile error — and
+/// [`the_roster_names_each_chart_once`] carries the reading of that
+/// which a lint cannot make, that no two charts share a `tag`.
+macro_rules! chart_roster {
+    ($($v:ident),+ $(,)?) => {
+        /// Every [`Chart`] this crate has, in declaration order.
+        const EVERY_CHART: &[Chart] = &[$(Chart::$v),+];
+
+        /// Exhaustiveness over `Chart`, spelled in the same tokens as
+        /// [`EVERY_CHART`]. It is never called: the item exists for
+        /// the compile error its non-exhaustiveness would be, per
+        /// [`chart_roster`].
+        #[deny(unreachable_patterns)]
+        #[allow(dead_code)]
+        fn every_chart_is_rostered(c: Chart) {
+            match c {
+                $(Chart::$v => (),)+
+            }
+        }
+    };
+}
+
+chart_roster!(Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx);
+
+/// [`EVERY_CHART`] names each chart once, and each under its own tag.
+///
+/// Completeness is [`chart_roster`]'s compile error and is not
+/// re-asserted here. What is left for a run is the half a match cannot
+/// state: the pins below compare charts BY THEIR TAG, so two charts
+/// sharing one would make the roster containment pass for a row the
+/// CSV cannot tell apart afterwards.
+#[test]
+fn the_roster_names_each_chart_once() {
+    let mut tags: Vec<&str> = EVERY_CHART.iter().map(|c| c.tag()).collect();
+    tags.sort_unstable();
+    tags.dedup();
+    assert_eq!(
+        tags.len(),
+        EVERY_CHART.len(),
+        "EVERY_CHART is {EVERY_CHART:?}, whose tags are not {} distinct names",
+        EVERY_CHART.len()
+    );
+}
+
+/// The string literals of the ONE array `decl` initializes in
+/// `tess-lint`'s source.
+///
+/// **Bracket-balanced rather than `;`-terminated**, which is where
+/// this parts from [`source::sole_initializer`]: an array's TYPE carries a `;`
+/// of its own (`[&str; 7]`), so the first `;` after the head is inside
+/// the declaration and not at its end. The `=` is sought first for the
+/// same reason — the `[` of `[&str; N]` precedes the `[` of the
+/// initializer.
+///
+/// Located in the code view and read in the literal one, by
+/// [`lint_view`]'s equal-offsets property: over the code view every
+/// bracket and every top-level comma is real, so `source`'s two
+/// bracket helpers ARE the parse; over the literal view the elements
+/// still carry their text.
+fn lint_string_array(decl: &str) -> Vec<String> {
+    string_array(lint_code(), lint_literals(), LINT_SEARCHED, decl)
+}
+
+/// [`lint_string_array`] over any pair of views of one text, so the
+/// locator itself is exercisable on a fixture. `searched` names that
+/// text for the refusals, per [`source::sole_initializer`].
+fn string_array(code: &str, literals: &str, searched: &str, decl: &str) -> Vec<String> {
+    assert_eq!(
+        code.len(),
+        literals.len(),
+        "the two views are the same bytes, blanked differently"
+    );
+    let mut heads: Vec<usize> = code.match_indices(decl).map(|(at, _)| at).collect();
+    assert!(
+        heads.len() == 1,
+        "`{decl}` is declared {} times in {searched}, not once",
+        heads.len()
+    );
+    let head = heads.remove(0);
+    let eq = head + code[head..].find('=').expect("the declaration initializes");
+    let open = eq + code[eq..].find('[').expect("the initializer is an array");
+    let close = source::balanced_end(code, open).expect("the array closes");
+
+    let inner = open + 1..close;
+    source::top_level_split(&code[inner.clone()], ',')
+        .into_iter()
+        .filter_map(|item| {
+            let at = inner.start + item.start..inner.start + item.end;
+            let text = literals[at].trim();
+            if text.is_empty() {
+                return None; // the trailing comma's empty tail
+            }
+            Some(
+                source::plain_string_literal(text)
+                    .unwrap_or_else(|| {
+                        panic!("`{decl}` holds {text:?}, not a plain string literal")
+                    })
+                    .to_string(),
+            )
+        })
+        .collect()
+}
+
+/// **`tools/tess-lint`'s roster admits every tag this crate can
+/// emit** — the pin that closes `CHART_TAGS`' one-way asymmetry, on
+/// the side that can close it.
+///
+/// [`LINT_SOURCE`] says why the roster is read and not imported. What
+/// is new here is the DIRECTION, and it is deliberately not equality.
+/// `CHART_TAGS` is the lint's PARSE vocabulary: `parse` refuses any
+/// row whose `chart` token is not in it, and what it parses includes
+/// `docs/tess-budget-data/`, a committed cut of an older tree. So a
+/// tag this crate RETIRES has to stay in that roster for as long as a
+/// committed baseline carries it, and an equality pin would red this
+/// suite over an entry still doing the lint's work. That the two
+/// lists happen to agree today is a fact about today — the roster
+/// already carries `approx`, which no baseline row uses.
+///
+/// The direction that IS owed runs the other way and is the one the
+/// lint cannot check for itself: a tag this crate ADDS arrives there
+/// as harness breakage on every row carrying it, with nothing on this
+/// side saying so. [`EVERY_CHART`] is what makes the containment
+/// complete rather than a spot check, and its own guard is what makes
+/// [`EVERY_CHART`] complete.
+#[test]
+fn the_lints_roster_admits_every_tag_this_crate_emits() {
+    let roster = lint_string_array("pub const CHART_TAGS");
+    for c in EVERY_CHART.iter().copied() {
+        assert!(
+            roster.iter().any(|t| t == c.tag()),
+            "tess-lint's CHART_TAGS is {roster:?}, which does not admit {:?} — \
+             a row carrying it would leave that crate as harness breakage",
+            c.tag()
+        );
+    }
+}
+
+/// The roster pin reads the declaration, and the containment it
+/// asserts is falsifiable.
+///
+/// Two failures this exercises, both of which would otherwise be
+/// silent greens. First, the locator's: a doc comment and a quoted
+/// string spelling the same declaration sort ahead of it, and over the
+/// code view neither can answer — the `;` inside `[&str; N]` is the
+/// second, and it is why the array is bracket-balanced rather than
+/// `;`-terminated. Second, the pin's: a roster short a tag must red,
+/// so the shortfall is constructed here rather than assumed.
+#[test]
+fn the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it() {
+    let decoyed = concat!(
+        "/// pub const CHART_TAGS: [&str; 1] = [\"decoy\"];\n",
+        "const QUOTED: &str = \"pub const CHART_TAGS: [&str; 1] = [\\\"decoy\\\"];\";\n",
+        "pub const CHART_TAGS: [&str; 2] = [\n    \"plane\", \"cone\",\n];\n"
+    );
+    let tags = string_array(
+        &source::code_only(decoyed),
+        &source::code_and_literals(decoyed),
+        "the decoy fixture",
+        "pub const CHART_TAGS",
+    );
+    assert_eq!(tags, ["plane", "cone"]);
+    let missing: Vec<&str> = EVERY_CHART
+        .iter()
+        .map(|c| c.tag())
+        .filter(|t| !tags.iter().any(|r| r == t))
+        .collect();
+    assert_eq!(
+        missing,
+        ["cylinder", "sphere", "torus", "nurbs", "approx"],
+        "the containment separates a roster short a tag from a complete one"
+    );
+}
+
+/// **`tools/tess-lint`'s SIZED roster answers `Chart::sized_lane` on
+/// every tag this crate can emit** — the same pin as the one above,
+/// over the second roster and in both directions.
+///
+/// `tess_lint::SIZED_CHART_TAGS` restates [`Chart::sized_lane`] across
+/// a cargo-root boundary, and `tess_lint::parse` reads it as a PAIRING:
+/// a row whose `chart` is in that roster owes the sizing block, and a
+/// row whose `chart` is not in it owes an empty tail. Both arms refuse.
+/// So the roster being wrong in EITHER direction turns rows this crate
+/// legitimately writes into harness breakage — a sized chart missing
+/// from it refuses every sized row carrying that tag, and an unsized
+/// chart wrongly in it refuses every row carrying that one.
+///
+/// **Per-tag biconditional, not equality**, and the reason is
+/// [`the_lints_roster_admits_every_tag_this_crate_emits`]' reason one
+/// level down: the lint parses committed baselines cut from older
+/// trees, so a chart this crate RETIRES has to stay in both rosters
+/// for as long as a baseline row carries it, and equality would red
+/// this suite over an entry still doing the lint's work. What is owed,
+/// and what this asserts, is that every tag the crate emits TODAY is
+/// on the side of the roster [`Chart::sized_lane`] puts it on.
+#[test]
+fn the_lints_sized_roster_answers_sized_lane_for_every_tag_this_crate_emits() {
+    let sized = lint_string_array("pub const SIZED_CHART_TAGS");
+    for c in EVERY_CHART.iter().copied() {
+        assert_eq!(
+            sized.iter().any(|t| t == c.tag()),
+            c.sized_lane(),
+            "tess-lint's SIZED_CHART_TAGS is {sized:?}; {:?} is sized_lane = {} here, so \
+             the lint's parse refuses the rows this crate writes for it",
+            c.tag(),
+            c.sized_lane()
+        );
+    }
+}
+
+/// The sized-roster pin is falsifiable in both of the directions it
+/// asserts, constructed rather than assumed: a roster short a sized
+/// tag and a roster carrying an unsized one are both separated from
+/// the real thing. The locator's own failures are
+/// [`the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it`]'s
+/// — one array, one locator.
+#[test]
+fn the_sized_roster_pin_reds_on_a_missing_tag_and_on_an_extra_one() {
+    let read = |text: &str| {
+        string_array(
+            &source::code_only(text),
+            &source::code_and_literals(text),
+            "the decoy fixture",
+            "pub const SIZED_CHART_TAGS",
+        )
+    };
+    // The real roster answers `sized_lane` on every tag.
+    let disagreeing = |roster: &[String]| -> Vec<&'static str> {
+        EVERY_CHART
+            .iter()
+            .copied()
+            .filter(|c| roster.iter().any(|t| t == c.tag()) != c.sized_lane())
+            .map(|c| c.tag())
+            .collect()
+    };
+    let real = read("pub const SIZED_CHART_TAGS: [&str; 2] = [\"nurbs\", \"approx\"];\n");
+    assert_eq!(real, ["nurbs", "approx"]);
+    assert_eq!(disagreeing(&real), Vec::<&str>::new());
+    // Short a sized tag: every `approx` row this crate writes would be
+    // refused for carrying the block its lane filled.
+    let short = read("pub const SIZED_CHART_TAGS: [&str; 1] = [\"nurbs\"];\n");
+    assert_eq!(disagreeing(&short), ["approx"]);
+    // Carrying an unsized one: every `plane` row would be refused for
+    // the empty tail that is the honest reading of an unsized face.
+    let wide =
+        read("pub const SIZED_CHART_TAGS: [&str; 3] = [\"nurbs\", \"approx\", \"plane\"];\n");
+    assert_eq!(disagreeing(&wide), ["plane"]);
 }

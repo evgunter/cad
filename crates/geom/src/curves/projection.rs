@@ -9,7 +9,7 @@
 //!
 //! # This half's reading of the shared policy
 //!
-//! `crate::projection` carries the policy itself — the C6 `f64`
+//! `crate::projection_policy` carries the policy itself — the C6 `f64`
 //! lane, the `f64`-structure + `T`-payload lift, the honesty contract,
 //! and the four constants named below, declared once for both halves.
 //! What follows is what that policy means in one parameter.
@@ -44,7 +44,7 @@
 //!
 //! # Honesty, in one parameter
 //!
-//! The shared contract is `crate::projection`'s. Here the residual
+//! The shared contract is `crate::projection_policy`'s. Here the residual
 //! set is two: on a closed curve a deliberately bad seed can converge
 //! to the far branch with a tiny `orthogonality` and a large
 //! `distance`, and at `|C′| = 0` the cosine test is met with a
@@ -56,7 +56,7 @@
 use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Real};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
-use crate::projection::{
+use crate::projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, mid,
 };
 
@@ -100,7 +100,7 @@ macro_rules! nurbs_project {
         ///
         /// **At `T = Dual` every `T`-valued field here carries a partial
         /// derivative rather than a total one — issue #874.** `t` is
-        /// selected as `f64` and frozen (`crate::projection::mid`), so
+        /// selected as `f64` and frozen (`crate::projection_policy::mid`), so
         /// each field is differentiated at fixed `t*` and each is short
         /// by its own `∂/∂t × dt*/dp` term: the coefficient is `C′(t*)`
         /// for `foot`, `C″·(C − P) + |C′|²` for `orthogonality`, and
@@ -149,13 +149,15 @@ macro_rules! nurbs_project {
                 let mut best_d2 = f64::INFINITY;
                 for index in kv.first_span()..=kv.last_span() {
                     // Emptiness check and span validation are one step.
-                    let Some(span) = kv.span(index) else { continue };
+                    let Some(span) = self.span(index) else {
+                        continue;
+                    };
                     let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
                     for j in 0..PROJECT_SEEDS_PER_SPAN {
                         #[allow(clippy::cast_precision_loss)]
                         let frac = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let t = u0 + (u1 - u0) * frac;
-                        let d = self.eval_in_span(span, T::from_f64(t)) - p;
+                        let d = span.eval_in_span(T::from_f64(t)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -204,8 +206,8 @@ macro_rules! nurbs_project {
                 let mut last_g = f64::NAN;
                 let mut last_dist = f64::NAN;
                 while iterations < PROJECT_MAX_ITERS {
-                    let span = self.knots().span_at(t);
-                    let (c, c1, c2) = self.ders_in_span(span, T::from_f64(t));
+                    let span = self.span_at(t);
+                    let (c, c1, c2) = span.ders_in_span(T::from_f64(t));
                     let d = c - p;
                     // The iteration reads structure through the
                     // brackets; the T-valued jet above is what the
@@ -236,8 +238,13 @@ macro_rules! nurbs_project {
                     // Acceptance: parameter stagnation (domain-end
                     // feet land here — module docs).
                     if ((tn - t) * speed).abs() <= PROJECT_EPS_POINT {
-                        let span = self.knots().span_at(tn);
-                        let (c, c1, _) = self.ders_in_span(span, T::from_f64(tn));
+                        let span = self.span_at(tn);
+                        // The foot and its tangent only: the order-1
+                        // door answers both from one basis pass, bit
+                        // for bit with the order-2 door's first two
+                        // components, whose third row this acceptance
+                        // has no use for.
+                        let (c, c1) = span.ders1_in_span(T::from_f64(tn));
                         let d = c - p;
                         let dist = d.norm();
                         if !mid(dist).is_nan() {

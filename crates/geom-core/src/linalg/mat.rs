@@ -29,14 +29,25 @@ pub struct Mat3<T: Real> {
 
 impl<T: Real> Mat3<T> {
     /// Builds a matrix from its columns (the images of the basis
-    /// vectors).
-    pub fn from_cols(c0: Vec3<T>, c1: Vec3<T>, c2: Vec3<T>) -> Self {
+    /// vectors). A `const fn` (the doctest at [`Point3::new`] reads a
+    /// constant placement built through it).
+    ///
+    /// [`Point3::new`]: crate::Point3::new
+    pub const fn from_cols(c0: Vec3<T>, c1: Vec3<T>, c2: Vec3<T>) -> Self {
         Self { c0, c1, c2 }
     }
 
     /// The identity map.
     pub fn identity() -> Self {
         Self::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z())
+    }
+
+    /// The same matrix read at another scalar: `f` applied to every
+    /// entry, column by column ([`Vec3::map`]). A structural map — no
+    /// arithmetic, so exact whenever `f` is.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Mat3<U> {
+        Mat3::from_cols(self.c0.map(&f), self.c1.map(&f), self.c2.map(&f))
     }
 
     /// The transpose. Pure field shuffling — no arithmetic, so
@@ -62,11 +73,17 @@ impl<T: Real> Mat3<T> {
     /// for the *normalized* axis `n`.
     ///
     /// **The axis is normalized internally** ([`Vec3::normalize`]).
-    /// Total: a zero (or poisoned) axis therefore yields an all-NaN
-    /// matrix — deliberately, per the crate's totality policy. The
-    /// alternative of trusting the caller to pre-normalize was rejected:
-    /// a silently unnormalized axis *scales* everything it rotates, a
-    /// far worse bug than visible poison.
+    /// Total: a zero (or poisoned) axis therefore yields a matrix that
+    /// is poison in every entry — deliberately, per the crate's
+    /// totality policy. The alternative of trusting the caller to
+    /// pre-normalize was rejected: a silently unnormalized axis
+    /// *scales* everything it rotates, a far worse bug than visible
+    /// poison. **What poison looks like is scalar-dependent**: all-NaN
+    /// at `f64`, but the ENTIRE interval `[−∞, ∞]` at `Interval`, which
+    /// is not NaN and does not test as NaN. The enclosure contract
+    /// holds there — `[−∞, ∞]` encloses everything — and what fails is
+    /// certification, so a caller detecting the degenerate axis must
+    /// ask about certification rather than about NaN.
     ///
     /// Evaluation order (fixed, D9), with `(s, c) = angle.sin_cos()` and
     /// `t = 1 − c`: each off-diagonal entry is `((t·nᵢ)·nⱼ) ± (s·nₖ)` and
@@ -81,6 +98,40 @@ impl<T: Real> Mat3<T> {
     /// the two differ by a rounding and that difference is visible in
     /// `f64` output.
     /// Orthogonality and unit determinant hold to rounding, not exactly.
+    ///
+    /// **The diagonal's width floor at exact angles is the backend's,
+    /// not this spelling's.** At `Interval` the entry `t·nᵢ² + c` is
+    /// wide even at an exact angle, and the width is the SUM of two
+    /// enclosures: `t = 1 − cos θ`'s — at `θ = 0` the backend's `cos`
+    /// encloses `[0.9999999999999996, 1]`, so `t` encloses
+    /// `[0, 4.44e-16]` where its true value is exactly zero — and
+    /// `cos`'s own, the same `4.44e-16`, which `+ c` adds back whatever
+    /// `t` did. So the entry is `8.88e-16` wide on the axis and the
+    /// respell that removes the first term does not remove the sum:
+    /// building `t = 2·sin²(θ/2)` alone recovers **0 %** of the width
+    /// of `R·p` at a `RevolvedPoint` start sample (`θ = 0`) — the
+    /// near-unit sum still rounds outward by an ulp — and is **WORSE
+    /// at its full-period sample** (`θ = 2π`: 133 % of the shipped
+    /// width — the diagonal narrows there too, to `7.77e-16`, so the
+    /// growth is the off-diagonals', where the half-angle
+    /// `s = 2·sin(θ/2)·cos(θ/2)` is wider than `sin θ` at that point);
+    /// building both `t` and `c = 1 − t` from the
+    /// half angle recovers **~17 %** at the start sample and **0 %** at
+    /// full period, where the diagonal narrows (`8.88e-16` to
+    /// `6.66e-16`) and `R·p` does not move at all. The irreducible part
+    /// is the backend's `cos` enclosure at exact angles, which no
+    /// arrangement of these operations reaches. Nothing computes with
+    /// these numbers; their register is
+    /// `crates/geom-core/tests/cert3_evidence.rs`'s `#[ignore]`d rows
+    /// (`start_sample_residue_decomposition`), which print the three
+    /// spellings side by side, and this paragraph is the one home of
+    /// the decomposition. The same floor is why
+    /// [`Self::identity_minus_rotation_about`] DOES take the half-angle
+    /// forms: there the entry's true value vanishes with the angle, so
+    /// the `4.44e-16` floor would be the entry's whole value and the
+    /// half angle is load-bearing; here the entry's value is near one,
+    /// `+ c` swamps the same floor, and the half angle buys a sixth at
+    /// best.
     pub fn rotation_about(axis: Vec3<T>, angle: T) -> Self {
         let n = axis.normalize();
         let (s, c) = angle.sin_cos();
@@ -90,6 +141,95 @@ impl<T: Real> Mat3<T> {
             Vec3::new(t * x.powi(2) + c, t * x * y + s * z, t * x * z - s * y),
             Vec3::new(t * x * y - s * z, t * y.powi(2) + c, t * y * z + s * x),
             Vec3::new(t * x * z + s * y, t * y * z - s * x, t * z.powi(2) + c),
+        )
+    }
+
+    /// `I − R` for the rotation `R = rotation_about(axis, angle)` — the
+    /// operator that carries an anchor displacement to the translation
+    /// of the rotation anchored there (`Affine3::rotation_about_axis`).
+    ///
+    /// **Assembled so the vanishing factor multiplies**, which is the
+    /// whole point of the method existing: `I − R` is `−s·[n]× − t·[n]×²`
+    /// with `s = sin θ` and `t = 1 − cos θ`, so every entry already
+    /// carries a factor that vanishes with the angle — but only if it is
+    /// *built* that way. Spelled `Mat3::identity() − rotation_about(…)`
+    /// the diagonal would come out as `1 − (t·nᵢ² + c)`, two near-unit
+    /// quantities differenced, and its ulp-of-1 cancellation error would
+    /// swamp the entry's own magnitude (`≈ θ²/2`) for every angle below
+    /// `θ ≈ 1e-8`. Here instead:
+    ///
+    /// - **The factors come from the half angle**: `t = 2·sin²(θ/2)` and
+    ///   `s = 2·sin(θ/2)·cos(θ/2)`, one `sin_cos` of `θ/2`. Both are
+    ///   exact identities for the full-angle forms, and both make
+    ///   `sin(θ/2)` a syntactic factor of every entry — so the operator
+    ///   vanishes with the angle *by construction* rather than by
+    ///   cancellation. The full-angle `1 − cos θ` cannot: its enclosure
+    ///   at the exact point `θ = 0` is `[0, 4.44e-16]` (the interval
+    ///   `cos` rounds outward from 1), a floor that has nothing to do
+    ///   with the angle — and that here would BE the entry's whole
+    ///   value, which is why the half angle is load-bearing in this
+    ///   operator and buys a sixth at best in [`Self::rotation_about`],
+    ///   where `+ c` swamps the same floor (the width-floor paragraph
+    ///   there). This form's is `[0, 2.5e-323]`.
+    /// - `t` uses the **tight square** `powi(2)`: `sin(θ/2)`'s enclosure
+    ///   straddles zero near `θ = 0`, and `hs·hs` would return a
+    ///   straddling product where the square is one-sided.
+    /// - The diagonal is `t·(nⱼ² + nₖ²)` — the two *other* squared
+    ///   components, which is `t·(1 − nᵢ²)` for a normalized axis, but
+    ///   without the cancellation: near a coordinate axis `nᵢ` rounds to
+    ///   1 and `1 − nᵢ²` collapses to exactly zero, while the sum of
+    ///   squares stays tight. They agree over the reals through
+    ///   `|n| = 1`, exactly so on the coordinate axes.
+    /// - The off-diagonals are the entries of `R` negated, term for term
+    ///   in the same order — the same expressions, evaluated on the
+    ///   half-angle `s` and `t`.
+    ///
+    /// The `f64` zero-angle case is therefore exactly the zero matrix.
+    /// The `Interval` one is not *bitwise* zero — `sin`'s enclosure at
+    /// the exact point 0 is `[−2e-323, 2e-323]` rather than `[0, 0]`, a
+    /// backend property no spelling here can undo — but it is zero to
+    /// within subnormal dust. That dust **multiplies** its operand
+    /// rather than being added to it, which is the property that
+    /// matters: the residue is proportional to the operand's scale (a
+    /// metre-scale anchor pays ~2.6e-322) instead of to the operand's
+    /// *width*, which is what the subtract-and-re-add spelling charged.
+    /// Proportional, not independent — the residue does grow with a
+    /// large enough operand, and at `|q| ≈ 1e6` it is ~1.7e-316.
+    ///
+    /// Same totality contract as [`Mat3::rotation_about`]: the axis is
+    /// normalized internally, so a zero or poisoned axis yields an
+    /// operator that is poison in every entry, at every angle including
+    /// zero. **What poison looks like is scalar-dependent.** At `f64` it
+    /// is NaN throughout (`0·NaN` is NaN). At `Interval` it is the
+    /// ENTIRE interval `[−∞, ∞]`, which is not NaN and does not test as
+    /// NaN — the enclosure contract still HOLDS (`[−∞, ∞]` encloses
+    /// everything), and what fails is certification: no entry comes back
+    /// a certified finite enclosure. A caller meaning to detect the
+    /// degenerate axis must ask that question, not `is_nan`.
+    /// Evaluation order fixed as written (D9).
+    pub fn identity_minus_rotation_about(axis: Vec3<T>, angle: T) -> Self {
+        let n = axis.normalize();
+        let (hs, hc) = (angle * T::from_f64(0.5)).sin_cos();
+        let two = T::from_f64(2.0);
+        let s = two * hs * hc;
+        let t = two * hs.powi(2);
+        let (x, y, z) = (n.x, n.y, n.z);
+        Self::from_cols(
+            Vec3::new(
+                t * (y.powi(2) + z.powi(2)),
+                -(t * x * y + s * z),
+                -(t * x * z - s * y),
+            ),
+            Vec3::new(
+                -(t * x * y - s * z),
+                t * (x.powi(2) + z.powi(2)),
+                -(t * y * z + s * x),
+            ),
+            Vec3::new(
+                -(t * x * z + s * y),
+                -(t * y * z - s * x),
+                t * (x.powi(2) + y.powi(2)),
+            ),
         )
     }
 
@@ -262,8 +402,8 @@ mod tests {
     /// The tree's one other oblique-axis bit-exact rotation row
     /// (`editor-core/tests/asm2a_instantiate.rs`) cannot help: its
     /// oracle re-spells the caller's own expression and so moves with
-    /// the code. That is smell-scan **S215**, and this doc comment is
-    /// the reason it is only a finding rather than a hole.
+    /// the code. **That is a known gap, and this row is what keeps it
+    /// from being a hole**: the discrimination is pinned here instead.
     ///
     /// **The angles are swept, not hand-picked.** Whether a given θ
     /// separates the two spellings depends on libm's `sin_cos` to the
@@ -312,6 +452,307 @@ mod tests {
             "no angle in the sweep separates ((t*n)*n)+c from (t*n^2)+c for \
              every diagonal — this test no longer guards the association"
         );
+    }
+
+    /// The **off-diagonals** of [`Mat3::rotation_about`] are
+    /// `((t·nᵢ)·nⱼ) ± (s·nₖ)` and **not** `(t·(nᵢ·nⱼ)) ± (s·nₖ)` — the
+    /// association the doc comment states, at an input that can tell
+    /// the two apart. The sibling above pins the diagonal; with this
+    /// row the whole Rodrigues form has a value pin rather than half
+    /// of one.
+    ///
+    /// **DO NOT DELETE THIS AS REDUNDANT**, for the reason the
+    /// diagonal row states at length: every committed artifact rotates
+    /// about an axis whose components are `0` or `±1`, where
+    /// `(t·0)·0`, `t·(0·0)`, `(t·1)·1` and `t·(1·1)` all agree, so
+    /// re-associating here would move `f64` output for every
+    /// **oblique**-axis caller while the entire corpus stayed
+    /// byte-identical and green.
+    ///
+    /// The tree's one oblique-axis bit-exact rotation row outside this
+    /// module (`editor-core/tests/asm2a_instantiate.rs`) cannot cover
+    /// it: that oracle re-spells its own caller's expression and so
+    /// moves with the code. This row is what covers that gap for the
+    /// oblique-axis case.
+    ///
+    /// **What this does NOT pin, said because the oracle shares it
+    /// with the subject:** [`Vec3::normalize`]. Both sides normalize
+    /// the raw axis, so a change inside normalization moves both — a
+    /// `vec.rs` row's job, not this one's. What is pinned here is the
+    /// Rodrigues arithmetic downstream of `n`.
+    ///
+    /// **The angles are swept, not hand-picked**, exactly as above:
+    /// the sweep asserts that *some* angle separates the two
+    /// spellings for each of the six entries, which fails loudly if a
+    /// libm bump ever leaves an entry unable to discriminate.
+    #[test]
+    fn rotation_off_diagonals_scale_by_t_before_the_second_component() {
+        // The RAW axis goes in — `rotation_about` normalizes
+        // internally, as the diagonal row's comment explains.
+        let axis = Vec3::new(1.0f64, 2.0, 3.0);
+        let n = axis.normalize();
+        let (nx, ny, nz) = (n.x, n.y, n.z);
+        let mut discriminating = [false; 6];
+        for k in 1..=64u32 {
+            let theta = f64::from(k) * 0.05;
+            let r = Mat3::rotation_about(axis, theta);
+            // `Real::sin_cos`, NOT std's inherent method: the kernel
+            // routes transcendentals through `libm` and the two differ
+            // in the last ulp, which at this precision is the whole
+            // test (D9; see the diagonal row).
+            let (s, c) = <f64 as Real>::sin_cos(theta);
+            let t = 1.0 - c;
+            // Column-major, in the order `from_cols` writes them:
+            // (entry, documented spelling, the association it is not).
+            let entries = [
+                (r.c0.y, (t * nx) * ny + s * nz, t * (nx * ny) + s * nz),
+                (r.c0.z, (t * nx) * nz - s * ny, t * (nx * nz) - s * ny),
+                (r.c1.x, (t * nx) * ny - s * nz, t * (nx * ny) - s * nz),
+                (r.c1.z, (t * ny) * nz + s * nx, t * (ny * nz) + s * nx),
+                (r.c2.x, (t * nx) * nz + s * ny, t * (nx * nz) + s * ny),
+                (r.c2.y, (t * ny) * nz - s * nx, t * (ny * nz) - s * nx),
+            ];
+            for (idx, (got, want, alt)) in entries.into_iter().enumerate() {
+                assert_eq!(
+                    got.to_bits(),
+                    want.to_bits(),
+                    "off-diagonal {idx} at theta={theta}: {got} vs \
+                     documented ((t*ni)*nj)+-(s*nk) {want}"
+                );
+                if want.to_bits() != alt.to_bits() {
+                    discriminating[idx] = true;
+                }
+            }
+        }
+        assert_eq!(
+            discriminating, [true; 6],
+            "no angle in the sweep separates ((t*ni)*nj) from (t*(ni*nj)) \
+             for every off-diagonal — this test no longer guards the \
+             association"
+        );
+    }
+
+    // ---- `identity_minus_rotation_about`, pinned in its own right ----
+    //
+    // The operator is a HAND-MIRRORED ladder: its nine entries repeat
+    // `rotation_about`'s nine, negated, on half-angle factors. Nothing
+    // derives one from the other, so the two can drift apart term by
+    // term with every existing row still green. The three rows below
+    // mirror `rotation_about`'s three (poison, diagonal association,
+    // off-diagonal association) and the fourth couples the two ladders.
+
+    /// The operator's poison contract, at every angle **including
+    /// zero** — the case that is easy to get wrong, because at
+    /// `angle = 0` the half-angle factors are themselves ~0 and a
+    /// spelling that reached the zero matrix by short-circuiting would
+    /// hand back a certified answer for a degenerate axis.
+    ///
+    /// Sibling of [`rotation_about_zero_axis_is_all_nan`]. It asserts
+    /// `is_nan` because at `f64` that is what poison is; this row does
+    /// not, because the operator is generic and **poison does not look
+    /// the same at every scalar**. At `Interval` a zero axis normalizes
+    /// to `[−∞, ∞]` per component and the entries come back entire, not
+    /// NaN — the enclosure contract HOLDS there (`[−∞, ∞]` does enclose
+    /// the answer); what must not happen is a *certified finite*
+    /// entry. That is the claim, at both scalars, in the vocabulary
+    /// each one has.
+    #[test]
+    fn identity_minus_rotation_poisons_on_a_degenerate_axis() {
+        for &angle in &[0.0f64, 1.0e-30, 1.0, core::f64::consts::TAU, -2.0] {
+            let m = Mat3::identity_minus_rotation_about(Vec3::new(0.0f64, 0.0, 0.0), angle);
+            for c in [m.c0, m.c1, m.c2] {
+                for e in [c.x, c.y, c.z] {
+                    assert!(
+                        e.is_nan(),
+                        "angle {angle}: a zero axis gave the f64 operator the \
+                         finite entry {e} instead of poison"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The operator's **diagonal** is `t·(nⱼ² + nₖ²)` with the tight
+    /// squares taken before the `t` scale — bit-exactly, and not
+    /// `t·(nⱼ·nⱼ + nₖ·nₖ)` or `(t·nⱼ)·nⱼ + (t·nₖ)·nₖ`.
+    ///
+    /// Sibling of [`rotation_diagonal_takes_the_square_before_the_scale`]
+    /// and it exists for the same reason: `t` is arbitrary, so the
+    /// spellings differ by a rounding on an oblique axis and agree on
+    /// every coordinate axis the corpus actually uses. Angles are
+    /// **swept, not hand-picked**, and the sweep asserts that some angle
+    /// separates each spelling — so a libm bump that stopped the
+    /// fixture discriminating reds the row instead of hollowing it.
+    ///
+    /// `Real::sin_cos` on the HALF angle is the oracle, not std's
+    /// inherent method and not the full angle: the operator's `t` is
+    /// `2·sin²(θ/2)`, which is a different f64 number from `1 − cos θ`.
+    #[test]
+    fn operator_diagonal_takes_the_square_before_the_scale() {
+        // The RAW axis: the operator normalizes internally, so a
+        // pre-normalized vector would normalize twice and model a
+        // different axis.
+        let axis = Vec3::new(1.0f64, 2.0, 3.0);
+        let n = axis.normalize();
+        let (nx, ny, nz) = (n.x, n.y, n.z);
+        let mut discriminating = [false; 3];
+        for k in 1..=64u32 {
+            let theta = f64::from(k) * 0.05;
+            let m = Mat3::identity_minus_rotation_about(axis, theta);
+            let (hs, _) = <f64 as Real>::sin_cos(theta * 0.5);
+            let t = 2.0 * <f64 as Real>::powi(hs, 2);
+            let got = [m.c0.x, m.c1.y, m.c2.z];
+            let pairs = [(ny, nz), (nx, nz), (nx, ny)];
+            for (i, (a, b)) in pairs.into_iter().enumerate() {
+                let want = t * (<f64 as Real>::powi(a, 2) + <f64 as Real>::powi(b, 2));
+                assert_eq!(
+                    got[i].to_bits(),
+                    want.to_bits(),
+                    "diagonal {i} at theta={theta}: {} vs documented t*(nj^2+nk^2) {}",
+                    got[i],
+                    want
+                );
+                if want.to_bits() != ((t * a) * a + (t * b) * b).to_bits() {
+                    discriminating[i] = true;
+                }
+            }
+        }
+        assert_eq!(
+            discriminating, [true; 3],
+            "no angle in the sweep separates t*(nj^2+nk^2) from its \
+             distributed spelling — this row no longer guards the association"
+        );
+    }
+
+    /// The operator's **off-diagonals** are `−(((t·nᵢ)·nⱼ) ± (s·nₖ))`:
+    /// `rotation_about`'s entry, in `rotation_about`'s association, as
+    /// a WHOLE negation — so the `s·nₖ` term's sign flips with the
+    /// rest. Bit-exactly, and **not** `−(t·(nᵢ·nⱼ)) ∓ (s·nₖ)`.
+    ///
+    /// Sibling of
+    /// [`rotation_off_diagonals_scale_by_t_before_the_second_component`],
+    /// and the discriminator is the same one: `(t·nᵢ)·nⱼ` against
+    /// `t·(nᵢ·nⱼ)`, which differ by a rounding on an oblique axis. The
+    /// negation itself is **not** a discriminator and is not claimed as
+    /// one — f64 negation is exact, so `−(a + b)` and `(−a) − b` are
+    /// the same bits always. What the negation needs pinning for is its
+    /// *sign pattern*, and that the `assert_eq` against the documented
+    /// spelling gives directly: a flipped `s` term is a different value,
+    /// not a different rounding.
+    ///
+    /// Same fixture rationale as the sibling: every committed artifact
+    /// rotates about an axis whose components are `0` or `±1`, where
+    /// all the spellings coincide, so an oblique axis is the only thing
+    /// that can tell them apart.
+    #[test]
+    fn operator_off_diagonals_negate_the_whole_entry() {
+        let axis = Vec3::new(1.0f64, 2.0, 3.0);
+        let n = axis.normalize();
+        let (nx, ny, nz) = (n.x, n.y, n.z);
+        let mut discriminating = [false; 6];
+        for k in 1..=64u32 {
+            let theta = f64::from(k) * 0.05;
+            let m = Mat3::identity_minus_rotation_about(axis, theta);
+            let (hs, hc) = <f64 as Real>::sin_cos(theta * 0.5);
+            let s = 2.0 * hs * hc;
+            let t = 2.0 * <f64 as Real>::powi(hs, 2);
+            // Column-major, in the order `from_cols` writes them:
+            // (entry, documented spelling, the re-associated alternative
+            // `t·(nᵢ·nⱼ)` — the one that actually differs in bits).
+            let entries = [
+                (m.c0.y, -((t * nx) * ny + s * nz), -(t * (nx * ny) + s * nz)),
+                (m.c0.z, -((t * nx) * nz - s * ny), -(t * (nx * nz) - s * ny)),
+                (m.c1.x, -((t * nx) * ny - s * nz), -(t * (nx * ny) - s * nz)),
+                (m.c1.z, -((t * ny) * nz + s * nx), -(t * (ny * nz) + s * nx)),
+                (m.c2.x, -((t * nx) * nz + s * ny), -(t * (nx * nz) + s * ny)),
+                (m.c2.y, -((t * ny) * nz - s * nx), -(t * (ny * nz) - s * nx)),
+            ];
+            for (idx, (got, want, alt)) in entries.into_iter().enumerate() {
+                assert_eq!(
+                    got.to_bits(),
+                    want.to_bits(),
+                    "off-diagonal {idx} at theta={theta}: {got} vs documented {want}"
+                );
+                if want.to_bits() != alt.to_bits() {
+                    discriminating[idx] = true;
+                }
+            }
+        }
+        assert_eq!(
+            discriminating, [true; 6],
+            "no angle in the sweep separates ((t*ni)*nj) from (t*(ni*nj)) \
+             for every off-diagonal — this row no longer guards the association"
+        );
+    }
+
+    /// **The association pin.** `identity_minus_rotation_about` and
+    /// `rotation_about` are two hand-written ladders that must stay the
+    /// same map; nothing in the code couples them. This row is that
+    /// coupling: at `f64`, over axes × angles, the operator agrees with
+    /// `I − rotation_about` to a few ulps.
+    ///
+    /// It is deliberately NOT bit-exact. The two are different
+    /// arithmetic by design — half-angle factors against `1 − cos θ`,
+    /// which is the entire point of the operator existing — so they
+    /// differ by rounding and must. What the row forbids is a
+    /// *structural* slip: a transposed index, a dropped negation, a
+    /// term on the wrong side. Every such slip is O(1) here, four
+    /// orders over the bound, while the legitimate difference is ~4
+    /// ulps of the entry.
+    ///
+    /// The bound is measured, not guessed: the worst disagreement over
+    /// this sweep is 4.44e-16, and `1e-15` is a little over 2× that.
+    /// The oracle is exact: `Mat3::identity()` entries are `0.0`/`1.0`
+    /// and the subtraction of a value ≤ 2 from them is exact, so the
+    /// reference carries no error of its own.
+    ///
+    /// Degenerate axes are excluded on purpose. Where `normalize` is
+    /// not unit — an axis whose norm² overflows normalizes to the ZERO
+    /// vector — the two ladders are genuinely different maps and
+    /// disagree by metres; that is a `vec.rs` question, carried
+    /// separately, and pinning it here would pin the wrong thing.
+    #[test]
+    fn the_operator_and_rotation_about_stay_the_same_map() {
+        let mut worst = 0.0f64;
+        for ax in [
+            [0.0f64, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [1.0, -2.0, 2.0],
+            [-3.0, 1.0, 0.5],
+            [0.1, 0.2, -0.97],
+            [1.0, 2.0, 3.0],
+            [1.0, 1.0e-9, 0.0],
+        ] {
+            let axis = Vec3::new(ax[0], ax[1], ax[2]);
+            for k in -40..=40i32 {
+                let angle = f64::from(k) * 0.17;
+                let r = Mat3::rotation_about(axis, angle);
+                let d = Mat3::identity_minus_rotation_about(axis, angle);
+                let id = Mat3::<f64>::identity();
+                let cols = [
+                    (d.c0, r.c0, id.c0),
+                    (d.c1, r.c1, id.c1),
+                    (d.c2, r.c2, id.c2),
+                ];
+                for (col, (dc, rc, ic)) in cols.into_iter().enumerate() {
+                    let rows = [(dc.x, rc.x, ic.x), (dc.y, rc.y, ic.y), (dc.z, rc.z, ic.z)];
+                    for (row, (dv, rv, iv)) in rows.into_iter().enumerate() {
+                        let err = (dv - (iv - rv)).abs();
+                        worst = worst.max(err);
+                        assert!(
+                            err <= 1.0e-15,
+                            "col {col} row {row}, axis {ax:?}, angle {angle}: the \
+                             operator says {dv} and I - rotation_about says {}, \
+                             off by {err:e} — the two hand-written ladders have \
+                             drifted apart",
+                            iv - rv
+                        );
+                    }
+                }
+            }
+        }
+        println!("worst |operator - (I - rotation_about)| = {worst:e}");
     }
 
     proptest! {

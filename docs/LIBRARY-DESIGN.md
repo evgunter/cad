@@ -1,8 +1,8 @@
 # LIBRARY-DESIGN: the usable-as-a-library program
 
 Status: **RATIFIED** (design conversation opened 2026-08-06 at
-Evan's request; first-round rulings in-chat the same day, recorded
-at §L7; Evan's sign-off 2026-08-06 in-chat, merged as PR #229).
+Ev's request; first-round rulings in-chat the same day, recorded
+at §L7; Ev's sign-off 2026-08-06 in-chat, merged as PR #229).
 Recorded open residue: LQ7's tail (wheel cadence, post-release
 schema/package version coupling — deferred to implementation
 time). LQ3 was ratified 2026-08-10 (#362) — see its entry in §L7. This doc turns DESIGN.md's
@@ -15,8 +15,18 @@ step-export/editor-core test corpora, and `editor-core`'s verified
 public surface, executed 2026-08-06 (§L2) — the claims are from
 reading the code, not the docs.
 
-**The §L5 unit ladder is COMPLETE**: every unit merged, and the
-live residuals are the register at the tail of `docs/LIB-LOG.md`.
+**The §L5 unit ladder is SHIPPED except U4's tail**: every other
+unit merged (U6 dispatched inside SELECT-DESIGN rather than as its
+own unit, per LB11, which also records its declared-offset half as
+out of scope), and of U4, LQ3(b)'s composition door and
+LQ3(c)'s frame family landed while LQ3(a)'s open-chain path
+vocabulary and the `wire_sweep`/`Node::Tube` discharge stay the
+named design conversation. The live residuals are the register at
+the tail of `work/lib/log.md`, whose largest standing item is the
+assembly surface: authorable through the façade, still unbound in
+`pncad-py` for AUTHORING — the seam it is reached through is bound
+(LIB-G18a: `evaluate(doc, resolver=store)`, so an assembly document
+loaded from a workspace evaluates), and no door that WRITES one is.
 What follows is the program's design, not its status.
 
 ## L1. What "usable as a library" means
@@ -55,10 +65,10 @@ it; and bodies authored in triplicate across tour, fixture and
 corpus. Ten specific authoring pains were tabulated with file:line
 sites, each mapped to the unit below that would kill it.
 
-*The table itself is retired.* Every §L5 unit merged, so it tracked
-nothing live; the surveyed line numbers no longer resolve, and what
+*The table itself is retired.* It tracked nothing live once its
+units shipped; the surveyed line numbers no longer resolve, and what
 is genuinely still open is the residual register at the tail of
-`docs/LIB-LOG.md` — the one place that tracks it. The survey is in
+`work/lib/log.md` — the one place that tracks it. The survey is in
 this file's git history if the original sites are ever wanted.
 
 What the corpus showed already WORKS, and must not regress, is a
@@ -78,8 +88,8 @@ literally:
   arena key — the same boundary rule as G1's layer 3. Evaluation
   returns the GQ2 per-node result DAG as typed values; failures are
   typed payloads (Python exceptions carrying the structured error,
-  never strings); documents persist as the same files the future GUI
-  will read, so undo, macros, and session-spanning history are free
+  never strings); documents persist as the same files the GUI
+  reads, so undo, macros, and session-spanning history are free
   for Python users the day the bindings exist.
 - **Python authoring sugar emits recipe data.** D8's stance is that
   the host language generates recipes; Python becomes a host
@@ -95,7 +105,7 @@ literally:
 
 **The load-bearing consequence**: for parametric value to reach
 Python, the document layer must stop being opaque to sketch
-geometry. **Ruled (Evan, LQ4): the v2 switch is pulled to the FRONT
+geometry. **Ruled (Ev, LQ4): the v2 switch is pulled to the FRONT
 of the program** — Python never ships the opaque-profile
 intermediate state. The front-loaded arc, still two sequenced
 steps:
@@ -121,7 +131,7 @@ already-known shapes, not research.
 
 ## L4. The Python type story
 
-Two-layer checking, per Evan's directive (in-chat, 2026-08-06):
+Two-layer checking, per Ev's directive (in-chat, 2026-08-06):
 **static checking via `ty`, runtime checking at the user-input
 boundary only.**
 
@@ -166,7 +176,7 @@ boundary only.**
   lowering verifies against. Kills the profile-level re-typing
   class at the profile level — transcribed 16-digit coordinates
   that must value-match; makes corner/anchor work structural.
-- **U3 — profile-vocabulary unification.** RULED (Evan, LQ2):
+- **U3 — profile-vocabulary unification.** RULED (Ev, LQ2):
   retiring `SectionSegments` as an authoring surface IS the goal —
   one profile vocabulary, so U2's algebra serves all four body ops;
   loft/sweep sections move to the `ProfileLoop` form (or the v2
@@ -241,24 +251,23 @@ bindings crate).
   GQ1 audit note generalizes: anything that runs inside evaluation
   satisfies bit-identity).
 
-## L7. Questions — rulings (Evan, in-chat, 2026-08-06) and what stays open
+## L7. Questions — rulings (Ev, in-chat, 2026-08-06) and what stays open
 
 - **LQ1 — the façade's name: RULED.** The façade crate carries the
   eventual project name — one name for the project and its entry
   crate (Q9 decides the name itself; placeholder until then, per
   the standing Q9 posture).
 - **LQ2 — U3's shape: RULED in direction.** Retiring
-  `SectionSegments` as an authoring surface is the goal — Evan's
+  `SectionSegments` as an authoring surface is the goal — Ev's
   framing: that retirement is what the PATHS program is FOR at the
   loft/sweep seam. The internal-form residue question goes to U3's
   measured spec (see U3).
-- **LQ3 — U4's landing site: OPEN** (Evan: unsure). Settle it in
-  U4's own measured spec: exact path legs as `geom-curves`
-  constructors vs `sweep` vocabulary vs both; where the
-  pose/point-at/mirror family lives. Measure-first per house style;
-  the survey's consumer census is the starting evidence.
+- **LQ3 — U4's landing site: RATIFIED.** The question it settled:
+  exact path legs as `geom-curves` constructors vs `sweep`
+  vocabulary vs both, and where the pose/point-at/mirror family
+  lives.
 
-  **LQ3 RATIFIED (Evan 👍 on #362's sign-off comment,
+  **RATIFIED (Ev 👍 on #362's sign-off comment,
   2026-08-10, with the resonance amendment below folded; M8
   orchestrator's kernel-side concurrence on (b) recorded on the
   thread).** The proposal as ratified: The 2026-08-10 substrate survey pins the walls:
@@ -272,31 +281,31 @@ bindings crate).
   §10.4 wants one curve — the banked "joined-path composition
   lane". So LQ3 is really three sub-questions:
 
-  (a) **Where do exact 3-D path legs live?** PROPOSED: in the
+  (a) **Where do exact 3-D path legs live?** RATIFIED: in the
   `profile`/PATHS layer as an OPEN-CHAIN vocabulary (the 2-D
   algebra's junction discipline, minus closure), because the
   document layer has already committed to "path = profile node" —
   a second path type would fork the surface G1 unified. NURBS
   legs stay VQ7-banked.
 
-  (b) **Where does chain→curve composition live?** PROPOSED: a
+  (b) **Where does chain→curve composition live?** RATIFIED: a
   `geom-curves` door (exact C¹ join of line/arc/nurbs legs into
   one curve — the §10.4 consumer's own vocabulary), which is
-  ALSO the discharge site for the banked SWEEP_FRONTIER: when
-  the door exists, `wire_sweep`'s refusal narrows from
+  ALSO the discharge site for the banked SWEEP_FRONTIER: with
+  the door in place, `wire_sweep`'s refusal narrows from
   everything to genuinely-unjoinable chains. This un-banking is
   kernel-side work and needs the kernel program's concurrence
   (coordinate with the M8/ASM side; it is not a LIB unit to
   self-authorize).
 
   (c) **Where does the pose/point-at/mirror family live?**
-  PROPOSED: frame CONSTRUCTORS in `geom-core` (point-at, mirror,
+  RATIFIED: frame CONSTRUCTORS in `geom-core` (point-at, mirror,
   path-start frame with the degenerate-axis policy stated, written
   once), consumed by `SketchPlane::from_frame`
   and loft/sweep placements as plain `Affine3` values;
   document-level Expr-ized placement stays deferred (VQ8's pose
   conversation), so no schema change rides this unit.
-  **Amendment (Evan, #362, 2026-08-10): resonance with the PATHS
+  **Amendment (Ev, #362, 2026-08-10): resonance with the PATHS
   placement vocabulary is REQUIRED.** The 2-D algebra already
   has rigid placement and mirroring (`nurbs(curve)` places a
   curve value rigidly; `nurbs_reversed`/`nurbs_mirrored` are the
@@ -306,14 +315,13 @@ bindings crate).
   stated orientation consequence; placement means rigid, no
   scale/deform) so the two surfaces read as one vocabulary;
   outright unification only if it falls out naturally — not
-  worth forcing (Evan's stated guess), and U4's spec must SAY
+  worth forcing (Ev's stated guess), and U4's spec must SAY
   which of the two it did.
 
-  Consequence if ratified as proposed: U4 becomes two
-  dispatchable units (path legs + composition door;
-  frame-constructor family), the sweep audit rows (15–18) get a
-  real path to YES, and `Node::Tube`'s schema bump remains a
-  separate coordination item with ASM's version sequence.
+  Consequence: U4 becomes two dispatchable units (path legs +
+  composition door; frame-constructor family), the sweep audit
+  rows (15–18) get a real path to YES, and `Node::Tube`'s schema
+  bump remains a separate coordination item.
   Alternatives considered and why not: path legs as raw
   `geom-curves` constructors only (no junction discipline — the
   exact re-typing class PATHS exists to kill); path legs as
@@ -324,7 +332,7 @@ bindings crate).
   the opaque-profile intermediate state.
 - **LQ5 — sequencing: RULED.** Implementation units run IN PARALLEL
   with the kernel milestones where footprints are independent, at
-  Evan's per-unit discretion — this program is not sequenced behind
+  Ev's per-unit discretion — this program is not sequenced behind
   them. (DESIGN.md's roadmap carries the ruling.)
 - **LQ6 — Python surface breadth at v1: RULED —
   documents-from-day-one.** The L3 prerequisite completions are
@@ -340,10 +348,10 @@ bindings crate).
   and whether schema versions couple to package versions
   post-release.
 
-## L8. Second-round rulings (Evan, in-chat, 2026-08-06, at program start)
+## L8. Second-round rulings (Ev, in-chat, 2026-08-06, at program start)
 
 Recorded by the program orchestrator; operational detail in
-`docs/LIB-LOG.md`.
+`work/lib/log.md`.
 
 - **LQ5 execution — first authorized batch**: U1 and U2 start now,
   in parallel with the M6/M7 close-out (footprints verified

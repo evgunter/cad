@@ -19,13 +19,10 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::interval::iv;
 use geom_brep::{NewellError, newell_plane};
 use geom_core::predicate::Band;
 use geom_core::{CertifiedEnclosure, Interval, Point3, Real};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
 
 /// A domain violation with a finite, strictly positive bracket:
 /// `sqrt([−1, 4]) + 1` is `[1, 3]` at decoration `Trv`. Endpoints alone
@@ -34,6 +31,10 @@ fn trv_pos() -> Interval {
     Interval::from_bounds(-1.0, 4.0).sqrt() + iv(1.0)
 }
 
+/// **Deliberately not `shared::tol::band`.** These rows measure the
+/// mint's own arithmetic against a FIXED coincidence scale, so the
+/// band must not follow the ε the run drew — a row about the mint
+/// would otherwise become a row about the matrix point it ran at.
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
 }

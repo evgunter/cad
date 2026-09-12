@@ -7,14 +7,107 @@
 //! per test process, and the crate's suites all run inside the one
 //! aggregated `all` binary, so the geom-core global-state discipline is
 //! satisfied by a single process-wide read.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
 use geom_core::{Point2, Real};
 use profile::RawLoop;
-use profile::{ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
+use profile::{
+    ArcSweep, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
+    PathError, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
+};
+
+/// A point in the profile frame, from its two coordinates.
+pub fn p2(x: f64, y: f64) -> Point2<f64> {
+    Point2::new(x, y)
+}
+
+/// **The one accessor**: a refusal's corner entries, in the order the
+/// kernel reported them (nearest the bracketing anchors first), or the
+/// EMPTY SLICE for a refusal that is not the envelope.
+///
+/// Total on purpose, so the searching helpers below and the sweep rows
+/// that ask "did some corner refuse this way" can call it on an
+/// arbitrary refusal. A row that needs the SHAPE asserts it — the
+/// length, and which corner each entry names — and every such
+/// assertion carries the refusal in its message, so an empty slice
+/// reads as the wrong refusal rather than as a silent zero.
+pub fn corners<T: Real>(err: &PathError<T>) -> &[CornerRefusal<T>] {
+    match err {
+        PathError::NoCornerOfPair { corners, .. } => corners,
+        _ => &[],
+    }
+}
+
+/// **Which corners the refusal is about, exactly.**
+///
+/// Asserts the envelope's LENGTH and each entry's point, in the order
+/// reported. A row whose subject is attribution — which corner refused,
+/// and whether the other one is listed beside it — has to say both: an
+/// existential "some entry refused this way" passes on an envelope that
+/// names the wrong corner, which is the defect the envelope exists to
+/// remove.
+#[track_caller]
+pub fn assert_corners(err: &PathError<f64>, want: &[(f64, f64)], what: &str) {
+    let got: Vec<(f64, f64)> = corners(err).iter().map(|c| (c.at.x, c.at.y)).collect();
+    assert_eq!(
+        got.len(),
+        want.len(),
+        "{what}: the envelope lists {got:?}, not {want:?} — refusal {err:?}"
+    );
+    for (i, (g, w)) in got.iter().zip(want).enumerate() {
+        let off = (g.0 - w.0).hypot(g.1 - w.1);
+        let scale = w.0.hypot(w.1).max(1.0);
+        assert!(
+            off <= 1e-9 * scale,
+            "{what}: entry {i} names {g:?}, not {w:?} (off by {off}) — refusal {err:?}"
+        );
+    }
+}
+
+/// Whether ANY entry of the envelope refused for the named shape.
+pub fn any_reason<T: Real>(err: &PathError<T>, pred: impl Fn(&CornerReason<T>) -> bool) -> bool {
+    corners(err).iter().any(|c| pred(&c.reason))
+}
+
+/// The first entry refusing with the enclosing class, as its payload.
+pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T, Option<T>)> {
+    corners(err).iter().find_map(|c| match &c.reason {
+        CornerReason::EnclosesLegCarrier {
+            side,
+            carrier_radius,
+            offset_radius,
+            largest_tangent_radius,
+        } => Some((
+            *side,
+            *carrier_radius,
+            *offset_radius,
+            *largest_tangent_radius,
+        )),
+        _ => None,
+    })
+}
+
+/// The first entry refusing on the anchor fit, as its payload.
+pub fn anchor_fit<T: Real>(err: &PathError<T>) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
+    corners(err).iter().find_map(|c| match &c.reason {
+        CornerReason::AnchorOutsideTrimmedExtent {
+            side,
+            carrier,
+            setback,
+            available,
+        } => Some((*side, *carrier, *setback, *available)),
+        _ => None,
+    })
+}
+
+/// Whether some corner of the envelope refused with the enclosing
+/// class.
+pub fn is_enclosing<T: Real>(err: &PathError<T>) -> bool {
+    enclosing(err).is_some()
+}
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).
@@ -254,4 +347,377 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
     la.sort_unstable();
     lb.sort_unstable();
     assert_eq!(la, lb, "declared tangent joints (multiset)");
+}
+
+/// The census corpus: closed chains whose union covers every declared
+/// verb. Each is authored through the typed surface, so its recorded
+/// program is the table's own output.
+pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
+    use profile::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
+    use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
+
+    // 1. The fused entry verb, the plain binders and the straight legs.
+    let fused = Open
+        .arc_fillet(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            0.5,
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(0.0, 3.0), Tol::witness())
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 2. An endpoint-free sharp leg, ray extension, an arc arrival and
+    //    the mid-chain Radius arc extension.
+    let walk = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .fillet(0.2, Tol::witness())
+        .unwrap()
+        .at(p2(4.0, 3.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.25,
+            Center {
+                c: p2(2.0, 6.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0, 9.0),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_fillet(
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            0.25,
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(1.0, 4.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, -1.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 3. `.turn(δ)` at the corners. Each δ is far from both 0 (which
+    //    refuses — `.tangent()` is its recourse) and ±π (the reverse
+    //    class), so substituting any other director moves real geometry
+    //    and the round-trip reddens on the first vertex it reaches.
+    let turned = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 4. The seam-fillet close: mid-side anchors, every corner filleted
+    //    including the one under the entry vertex, which `.to(Start)`
+    //    retrims.
+    let seam = Open
+        .at(p2(1.5, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(3.0, 1.5), Tol::witness())
+        .unwrap()
+        .angle(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(1.5, 3.0), Tol::witness())
+        .unwrap()
+        .angle(PI, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(0.0, 1.5), Tol::witness())
+        .unwrap()
+        .angle(-FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .to(Start, Tol::witness())
+        .unwrap();
+
+    // 5. The declared tangent joint and the unique tangent arc.
+    let tangent_arc = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p2(3.0, 1.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 6. The declared-subdivision step on an arc carrier.
+    let subdivided = Open
+        .at(p2(0.0, -0.5))
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: FRAC_PI_8.tan(),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_continue(p2(0.0, 0.5), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 7. The far-end anchor: the arrival side ENDS at its authored point.
+    let far_end = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0), Tol::witness())
+        .unwrap()
+        .line_to(p2(3.0, 1.0), Tol::witness())
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .to(p2(1.0, 3.0), Tol::witness())
+        .unwrap()
+        .line_to(p2(0.0, 3.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 8. The fused verb with an ARC arrival, closing on the far lobe.
+    let tip = 0.75f64.sqrt();
+    let eye = Open
+        .arc_fillet_arc(
+            Center {
+                c: p2(-0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, -tip),
+            },
+            0.25,
+            Center {
+                c: p2(0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+
+    // 9. The DECLARED cusp: the lune between two internally tangent
+    //    circles, cut on the y axis so the region is the one lip —
+    //    the cross-section of D1's kissing-cylinders figure. The
+    //    junction at the kiss is authored by `.cusp()`, which reverses
+    //    the arriving ray exactly; every other corner is a right
+    //    angle, so nothing but the cusp is declared.
+    let lune = Open
+        .at(p2(0.0, 4.0))
+        .angle(-FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .tangent_arc_to(p2(0.0, 0.0), Tol::witness())
+        .unwrap()
+        .cusp()
+        .tangent_arc_to(Start, Tol::witness())
+        .unwrap();
+
+    // 12. The two arc modes the chains above never reach: the
+    //     endpoint-free `ArcLen` leg off a directed tip (the extent
+    //     authored as a length rather than a swept angle), and the
+    //     three-point `Via` leg off the bare point it lands on.
+    let mode_legs = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            ArcLen {
+                r: 2.0,
+                side: ArcSide::Left,
+                len: 1.2,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_to(
+            Via {
+                q: p2(2.0, 1.5),
+                p: p2(3.0, 0.5),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 13. The DECLARED point-target continuation and its structural
+    //     CLOSER: a square whose every side is subdivided at one
+    //     interior vertex — four corners said on eight — with the seam
+    //     cut at a corner and the last side crossing it. Each
+    //     subdivision names the point it lands on and is checked
+    //     against the ray it declared; the closer names `Start`. This
+    //     is the shape the ruling was for, and the only chain here in
+    //     which a straight run crosses the seam.
+    let subdivided_square = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(p2(2.0, 2.0), Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(p2(0.0, 2.0), Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(Start, Tol::witness())
+        .unwrap();
+
+    // 14. The DECLARED STRAIGHT ARRIVAL at the seam (BOOL-12): Ev's
+    //     D-shape, whose entry sits at a SUBDIVISION point of its one
+    //     straight side. The closing leg declares both facts — its own
+    //     departure continues the run, and its arrival continues the
+    //     entry's first side — and each is checked, never inferred.
+    let d_shape = Open
+        .at(p2(0.0, 0.0))
+        .angle(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            Bulge {
+                p: p2(0.0, -2.0),
+                b: 1.0,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .line_to(p2(0.0, -1.0), Tol::witness())
+        .unwrap()
+        .continue_to(Start.arrives_tangent(), Tol::witness())
+        .unwrap();
+
+    // 15. The DECLARED G1 ARRIVAL at the seam (BOOL-12): a stadium,
+    //     tangent at all four joints. The closing cap's departure
+    //     tangency CONSTRUCTS the arc and its arrival tangency is
+    //     CHECKED, so the seam joint carries a declared flag the verify
+    //     layer re-checks.
+    let stadium = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p2(2.0, 2.0), Tol::witness())
+        .unwrap()
+        .tangent()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(Start.arrives_tangent(), Tol::witness())
+        .unwrap();
+
+    // 10/11. The complete-loop program forms.
+    let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
+    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
+
+    vec![
+        fused,
+        walk,
+        turned,
+        seam,
+        tangent_arc,
+        subdivided,
+        far_end,
+        eye,
+        lune,
+        mode_legs,
+        subdivided_square,
+        d_shape,
+        stadium,
+        circle,
+        split,
+    ]
+}
+
+/// **The one home for the `EscalationSite::Fillet` value the kernel
+/// does not build.**
+///
+/// Six recourse sentences are written by a single `Display` arm —
+/// `ProfileError::Escalated { site: EscalationSite::Fillet, .. }`,
+/// dispatched on the escalation's predicate name — and nothing in the
+/// kernel constructs that value
+/// (`work/fillet/fillet-escalation-site-has-no-producer.md`). Two
+/// suites therefore hand-build it to pin the render rule, and they had
+/// hand-built it twice; when a producer lands, the thing to delete is
+/// this function and its callers, and one home is what makes that a
+/// single edit.
+///
+/// Returns what a caller would read: the arm rendered at an in-band
+/// margin for `predicate`.
+pub fn fillet_escalation_rendered(predicate: &'static str, tol: geom_core::Tol) -> String {
+    let eps = tol.eps();
+    profile::ProfileError::Escalated {
+        site: profile::EscalationSite::Fillet,
+        source: geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::Value(-5.0 * eps),
+            band: geom_core::Band::linear(tol).expect("the run's band forms"),
+            predicate: Some(predicate),
+        },
+    }
+    .to_string()
 }

@@ -1,0 +1,501 @@
+//! **The authoring vocabularies the panels offer**, and how a panel
+//! field is written.
+//!
+//! A VOCABULARY module (`crates/viewer/README.md`, Module boundaries):
+//! values, their wording, and pure functions over them. Each enum here
+//! MIRRORS a kernel or sketch enum, kept separate from it because what
+//! a form offers is a product decision and what the kernel accepts is
+//! not. Nothing here names `DocSession`, `ViewerApp` or `egui`.
+//!
+//! **What is hand-maintained here is the mirror, not the membership.**
+//! The five enums declare themselves and their `ALL` in one
+//! declaration through the crate's `vocabulary!` macro
+//! (`crates/viewer/src/vocab.rs`), so no list on this page can fall
+//! behind the enum beside it. A vocabulary the KERNEL owns is held the
+//! same way from the other end — the boolean operations are drawn from
+//! `topo::BooleanOp::ALL` and only their labels are written here, at an
+//! exhaustive match. What no compiler holds is the mirror itself:
+//! whether `PathVerb` still names every `PathStep` is forced by
+//! `PathVerb::of`'s exhaustive match, while a DELIBERATELY PARTIAL
+//! list (`MATE_PRIMITIVES`, `DatumKind`) claims no completeness and is
+//! held to nothing — each says so at its own site. (Code spans rather
+//! than links: everything on this page is `pub(crate)`, so an
+//! intra-doc link from a public module page does not resolve.)
+//!
+//! [`FieldWriting`] and the drag speeds are the same kind of decision
+//! one level down: how many of a unit one pixel of drag is worth.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
+
+use pncad::document::{BooleanOp, Dimension, MatePrimitive};
+use pncad::profile::{ArcSide, ArcSweep};
+use pncad::quantity::UnitDef;
+
+use crate::props;
+use crate::sketch::{ArcSpec, PathStep, PathTarget};
+use crate::vocab::vocabulary;
+
+vocabulary! {
+    /// The pattern form's rule choice — the two PARAMETRIC rules, an enum
+    /// for the reason [`DatumKind`] is one. `Explicit` is absent by the
+    /// plan's ruling: a list of absolute frames is not a form's job.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum PatternKindChoice {
+        /// Stepped along a direction.
+        Linear = "linear",
+        /// Stepped around a picked datum axis.
+        Circular = "circular",
+    }
+
+    /// Every rule with its radio label, in form order.
+    pub(crate) const ALL;
+}
+
+/// The button a boolean operation is offered under — the KERNEL's enum
+/// and its own words, so what a user reads and what the node carries
+/// cannot drift into two vocabularies.
+///
+/// **A match, not a table**, and that is the whole of what holds this
+/// form to the kernel: [`BooleanOp`] is declared in `topo`, so no list
+/// written here can be projected from the declaration the way every
+/// [`crate::vocab::vocabulary`] list on this page is — but the
+/// declaration publishes `BooleanOp::ALL`, and the form draws one
+/// button per entry of it. A fourth operation therefore arrives in
+/// this form with no MEMBERSHIP edit here — it gets its button from
+/// the kernel's list — and it cannot arrive silently either, because
+/// it has no word until this match is given one, which is a compile
+/// error and not a missing button.
+///
+/// **The order is `ALL`'s**, which is the kernel's declaration order,
+/// and the type's own doc says that order carries no meaning. The form
+/// claims none for it either: it is the one order that cannot fall out
+/// of step with the vocabulary, which is worth more here than an
+/// arrangement a reader would have to maintain by hand.
+pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
+    match op {
+        BooleanOp::Union => "union",
+        BooleanOp::Intersect => "intersect",
+        BooleanOp::Subtract => "subtract",
+    }
+}
+
+vocabulary! {
+    /// The add-datum form's kind choice — one form, and **four of
+    /// [`crate::session::DatumSpec`]'s five arms**. An enum rather
+    /// than an index into a label list, so every consumer matches
+    /// exhaustively and a fifth kind cannot leave a silent wildcard
+    /// arm behind.
+    ///
+    /// The arm this does not offer is `AxisInPlane`, a sketch axis:
+    /// it needs a frame PICK before it has coordinates, which is not
+    /// what this form collects. So the mirror is deliberately partial
+    /// in one direction — every kind here lowers to a spec
+    /// ([`crate::pane::create`]'s match is exhaustive over this enum), and not
+    /// every spec has a kind here.
+    ///
+    /// **Declared in FORM order**, which is the order [`DatumKind::ALL`]
+    /// is projected in and therefore the order the radio row is drawn
+    /// in: the frame sits next to the plane because that is the choice
+    /// a reader is actually making — the same surface, with or without
+    /// a stated direction on it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum DatumKind {
+        /// A plane datum.
+        Plane = "plane",
+        /// A sketch frame — an oriented plane.
+        Frame = "frame",
+        /// An axis datum.
+        Axis = "axis",
+        /// A point datum.
+        Point = "point",
+    }
+
+    /// Every kind with its radio label, in form order.
+    pub(crate) const ALL;
+}
+
+vocabulary! {
+    /// The add-profile form's loop choice: the two templates, or a PATH
+    /// authored verb by verb.
+    ///
+    /// An enum for the reason [`DatumKind`] is one — and the templates
+    /// stay in it rather than being folded into the path arm because they
+    /// are not chains: a circle is a seamless closed carrier no chain of
+    /// legs can spell, and a rectangle is four `line_to`s nobody should
+    /// have to type.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum ShapeKind {
+        /// A circle, optionally with a concentric bore.
+        Circle = "circle",
+        /// A centred rectangle.
+        Rectangle = "rectangle",
+        /// A chain of authoring verbs — the whole PATHS vocabulary.
+        Path = "path",
+    }
+
+    /// Every shape with its radio label, in form order.
+    pub(crate) const ALL;
+}
+
+vocabulary! {
+    /// **The authoring verbs the path form offers**, with the names the
+    /// algebra itself gives them.
+    ///
+    /// A tag beside [`PathStep`] rather than a method on it: the form
+    /// needs to name a verb BEFORE it has a step (the "add" control's
+    /// choice), and a step needs to name its own verb (the row's combo),
+    /// so the tag is the thing both hold. [`PathVerb::fresh`] is the one
+    /// place a default step per verb is written.
+    ///
+    /// **Declared in the algebra's own order**, which is the order
+    /// [`PathVerb::ALL`] is projected in and the order the "add step"
+    /// menu offers.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum PathVerb {
+        /// Bind the tip's position.
+        At = "at",
+        /// Bind the tip's outgoing direction, absolutely.
+        Angle = "angle",
+        /// Bind it by exact components.
+        Toward = "toward",
+        /// Leave along the incoming tangent.
+        Tangent = "tangent",
+        /// Leave along its reverse.
+        Cusp = "cusp",
+        /// Leave at an angle from it.
+        Turn = "turn",
+        /// A straight leg of a stated length.
+        Line = "line",
+        /// A straight leg to a target.
+        LineTo = "line_to",
+        /// A sharp arc leg.
+        ArcTo = "arc_to",
+        /// An arc leg leaving along the bound direction.
+        TangentArcTo = "tangent_arc_to",
+        /// A structural vertex on the incoming carrier.
+        ArcContinue = "arc_continue",
+        /// Round the corner: line in, line out.
+        Fillet = "fillet",
+        /// Round it with an arc on the arrival side.
+        FilletArc = "fillet_arc",
+        /// Round it with an arc on the incoming side.
+        ArcFillet = "arc_fillet",
+        /// Round it with an arc on both.
+        ArcFilletArc = "arc_fillet_arc",
+        /// The anchor a fillet's arrival side is aimed at.
+        FarEndTo = "to (far end)",
+        /// The seam fillet's close.
+        CloseTo = "to Start (close)",
+    }
+
+    /// Every verb with the word the chrome shows for it, in the
+    /// algebra's own order — the "add step" menu and the row combo's
+    /// options, which draw an option per entry and read the word off
+    /// the entry. No row can check this list: the type is `pub(crate)`
+    /// behind the `app` feature, so no integration test sees it — the
+    /// coverage gap #1385 names, and the reason the membership has to
+    /// be held by the projection rather than by a test.
+    pub(crate) const ALL;
+
+    /// This verb's word, for the one place a verb is asked on its own:
+    /// the combo's closed face, which names the verb of the step the
+    /// row is showing. The same literal the list above carries, so the
+    /// closed face and the options it opens on cannot disagree.
+    pub(crate) fn label;
+}
+
+impl PathVerb {
+    /// Which verb a step names.
+    pub(crate) fn of(step: &PathStep) -> Self {
+        match step {
+            PathStep::At(_) => Self::At,
+            PathStep::Angle(_) => Self::Angle,
+            PathStep::Toward { .. } => Self::Toward,
+            PathStep::Tangent => Self::Tangent,
+            PathStep::Cusp => Self::Cusp,
+            PathStep::Turn(_) => Self::Turn,
+            PathStep::Line(_) => Self::Line,
+            PathStep::LineTo(_) => Self::LineTo,
+            PathStep::ArcTo(_) => Self::ArcTo,
+            PathStep::TangentArcTo(_) => Self::TangentArcTo,
+            PathStep::ArcContinue(_) => Self::ArcContinue,
+            PathStep::Fillet(_) => Self::Fillet,
+            PathStep::FilletArc { .. } => Self::FilletArc,
+            PathStep::ArcFillet { .. } => Self::ArcFillet,
+            PathStep::ArcFilletArc { .. } => Self::ArcFilletArc,
+            PathStep::FarEndTo(_) => Self::FarEndTo,
+            PathStep::CloseTo => Self::CloseTo,
+        }
+    }
+
+    /// A step of this verb with the form's starting numbers.
+    ///
+    /// **Millimetre-scale, never zero.** A leg of length zero and a
+    /// fillet of radius zero are both geometry refusals, so a fresh
+    /// step that carried them would put the form in a refusing state
+    /// the moment a verb was added — which reads as the form
+    /// rejecting the verb rather than waiting for its number.
+    pub(crate) fn fresh(self) -> PathStep {
+        let point = [0.01, 0.0];
+        let arc = ArcSpec::Radius {
+            r: 0.01,
+            side: ArcSide::Left,
+        };
+        match self {
+            Self::At => PathStep::At([0.0, 0.0]),
+            Self::Angle => PathStep::Angle(0.0),
+            Self::Toward => PathStep::Toward { dx: 1.0, dy: 0.0 },
+            Self::Tangent => PathStep::Tangent,
+            Self::Cusp => PathStep::Cusp,
+            Self::Turn => PathStep::Turn(0.0),
+            Self::Line => PathStep::Line(0.01),
+            Self::LineTo => PathStep::LineTo(PathTarget::Point(point)),
+            Self::ArcTo => PathStep::ArcTo(arc),
+            Self::TangentArcTo => PathStep::TangentArcTo(PathTarget::Point(point)),
+            Self::ArcContinue => PathStep::ArcContinue(point),
+            Self::Fillet => PathStep::Fillet(0.001),
+            Self::FilletArc => PathStep::FilletArc {
+                radius: 0.001,
+                spec: arc,
+            },
+            Self::ArcFillet => PathStep::ArcFillet {
+                spec: arc,
+                radius: 0.001,
+            },
+            Self::ArcFilletArc => PathStep::ArcFilletArc {
+                spec: arc,
+                radius: 0.001,
+                spec2: arc,
+            },
+            Self::FarEndTo => PathStep::FarEndTo(point),
+            Self::CloseTo => PathStep::CloseTo,
+        }
+    }
+}
+
+vocabulary! {
+    /// **Which of [`ArcSpec`]'s six modes the form is offering** — the
+    /// tag [`PathVerb`] is, for the reason it is one: the picker needs to
+    /// name a mode before there is a spec in it, and a spec needs to name
+    /// its own mode. An index into a label table would couple the two by
+    /// position, so a reordered table would silently relabel every mode.
+    ///
+    /// **Declared in the vocabulary's own order**, which is the order
+    /// [`ArcMode::ALL`] is projected in and the order the picker
+    /// offers.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum ArcMode {
+        /// The carrier's radius and the side its centre is on.
+        Radius = "radius",
+        /// The endpoint and an authored bulge.
+        Bulge = "bulge",
+        /// A point the arc passes through, and the endpoint.
+        Via = "via",
+        /// The carrier centre, the travel sense, and the endpoint.
+        Center = "centre",
+        /// The carrier and how far round it to go.
+        Sweep = "sweep",
+        /// The carrier and the distance travelled along it.
+        ArcLen = "arc length",
+    }
+
+    /// Every mode with the word the picker shows for it, in the
+    /// vocabulary's own order — the picker's options, one per entry,
+    /// each reading its word off the entry.
+    pub(crate) const ALL;
+
+    /// This mode's word, for the one place a mode is asked on its own:
+    /// the picker's closed face, which names the mode the spec is in.
+    pub(crate) fn label;
+}
+
+impl ArcMode {
+    /// Which mode a spec is in.
+    pub(crate) fn of(spec: &ArcSpec) -> Self {
+        match spec {
+            ArcSpec::Radius { .. } => Self::Radius,
+            ArcSpec::Bulge { .. } => Self::Bulge,
+            ArcSpec::Via { .. } => Self::Via,
+            ArcSpec::Center { .. } => Self::Center,
+            ArcSpec::Sweep { .. } => Self::Sweep,
+            ArcSpec::ArcLen { .. } => Self::ArcLen,
+        }
+    }
+
+    /// A spec of this mode with the form's starting numbers —
+    /// millimetre-scale and never degenerate, for the reason
+    /// [`PathVerb::fresh`]'s are.
+    pub(crate) fn fresh(self) -> ArcSpec {
+        let target = PathTarget::Point([0.01, 0.0]);
+        match self {
+            Self::Radius => ArcSpec::Radius {
+                r: 0.01,
+                side: ArcSide::Left,
+            },
+            Self::Bulge => ArcSpec::Bulge { target, b: 0.5 },
+            Self::Via => ArcSpec::Via {
+                q: [0.005, 0.005],
+                target,
+            },
+            Self::Center => ArcSpec::Center {
+                c: [0.0, 0.0],
+                winding: ArcSweep::Ccw,
+                target,
+            },
+            Self::Sweep => ArcSpec::Sweep {
+                r: 0.01,
+                side: ArcSide::Left,
+                angle: core::f64::consts::FRAC_PI_2,
+            },
+            Self::ArcLen => ArcSpec::ArcLen {
+                r: 0.01,
+                side: ArcSide::Left,
+                len: 0.01,
+            },
+        }
+    }
+}
+
+/// One drag tick of a LENGTH field, in metres — half a millimetre.
+/// The creation forms' and the property panel's alike ([`drag_tick`]
+/// is where the panel picks it), so one gesture over a length cannot
+/// come to mean two different steps.
+pub(crate) const FIELD_DRAG_SPEED: f64 = 0.0005;
+
+/// One drag tick of an ANGLE field, in radians — a third of a degree,
+/// so a full turn is a drag of a few hundred pixels rather than of
+/// several screens.
+///
+/// A separate constant because the unit is: dragging a radian field at
+/// the metre field's speed moves it by 0.0005 rad per pixel, which is
+/// a quarter-turn per three thousand pixels.
+pub(crate) const ANGLE_DRAG_SPEED: f64 = 0.005;
+
+/// One drag tick of a DIMENSIONLESS field — a direction or a normal
+/// component, whose useful range is roughly [-1, 1].
+///
+/// The length speed applied here made these fields effectively
+/// undraggable: at 0.0005 per pixel, moving a component from 0 to 1
+/// took two thousand pixels of drag. A hundredth per pixel spans the
+/// whole range in one comfortable gesture, and the exact value stays a
+/// keyboard edit either way.
+pub(crate) const UNIT_DRAG_SPEED: f64 = 0.01;
+
+/// One drag tick of a COUNT field — instances are whole, so the field
+/// is dragged in tenths of one and lands on integers.
+pub(crate) const COUNT_DRAG_SPEED: f64 = 0.1;
+
+/// **The drag tick a slot of `dimension` is scrubbed at**, in
+/// CANONICAL units — the property panel's pick from the same four
+/// constants the creation forms choose between by hand.
+///
+/// A dimension branch and not one number, because the useful range of
+/// a slot is its dimension's: half a millimetre per pixel is a good
+/// length tick and a terrible angle one — at 0.0005 rad it takes
+/// twelve thousand pixels to drag a full turn, which is the same
+/// arithmetic [`ANGLE_DRAG_SPEED`] exists to answer for the forms.
+/// A `Count` never reaches here (its slots are structural, and the
+/// panel steps those in whole units), so it takes the count tick for
+/// completeness rather than for use.
+pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
+    match dimension {
+        Dimension::Length => FIELD_DRAG_SPEED,
+        Dimension::Angle => ANGLE_DRAG_SPEED,
+        Dimension::Scalar => UNIT_DRAG_SPEED,
+        Dimension::Count => COUNT_DRAG_SPEED,
+    }
+}
+
+/// **How ONE PANEL FIELD is written**: the unit it shows and authors
+/// in, and the tick it is scrubbed at, taken together off the row it is
+/// drawn for.
+///
+/// The two are one value because they are one decision. A tick is a
+/// number of whatever the field says, so a tick chosen without the unit
+/// is half a millimetre applied to a field showing metres — the same
+/// gesture made a thousand times coarser by a change of notation.
+///
+/// **The two panel fields this answers for are the SLOT field
+/// (`ViewerBehavior::slot_value_ui`) and the DOCUMENT PARAMETER's
+/// (`ViewerBehavior::properties_ui`'s `Selection::Param` arm)** — the
+/// two a user drags to move the same kind of number. It is not the
+/// creation forms' answer: those hold canonical drafts and pick their
+/// tick from the four constants by hand at each field
+/// ([`crate::widgets::named_field`] and its callers). The RULE has one home,
+/// this module, which holds the four constants and [`drag_tick`]
+/// beside this type; what is still open is those hand-picked call
+/// sites, which sit in `widgets`, [`crate::pane::create`] and
+/// [`crate::pane::properties`] (`work/chrome/drag-tick-has-three-homes.md`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FieldWriting {
+    /// The unit the field shows and authors in — [`props::rendering_unit`]'s
+    /// answer, so a computed slot and a written literal agree. `None`
+    /// is the field that names no notation at all (a count, a bare
+    /// scalar).
+    pub unit: Option<UnitDef>,
+    /// One drag tick, IN [`Self::unit`] — 0.5 for a millimetre field,
+    /// 0.0005 for the same field written in metres.
+    pub tick: f64,
+}
+
+impl FieldWriting {
+    /// How a field of `dimension` whose value remembers `stored` is
+    /// written. `stored` is the row's own `unit` — the fact the
+    /// document carries, before [`props::rendering_unit`] chooses what
+    /// a value that remembers nothing reads as.
+    pub fn of(dimension: Dimension, stored: Option<UnitDef>) -> Self {
+        let unit = props::rendering_unit(dimension, stored);
+        // A COUNT field steps by one whatever it is written in: what it
+        // holds is a count, and a tenth of an instance is not a value
+        // it can take. Read off the dimension and not off a
+        // structurality flag beside it — `SlotId::is_structural` is
+        // itself defined as "the dimension is Count"
+        // ([`props::SlotValue::of`] argues this at length), so a second
+        // argument would only be a way for the two to disagree.
+        let tick = if dimension == Dimension::Count {
+            1.0
+        } else {
+            props::shown_in(unit, drag_tick(dimension))
+        };
+        Self { unit, tick }
+    }
+
+    /// One canonical value as this field SHOWS it.
+    pub fn shown(self, canonical: f64) -> f64 {
+        props::shown_in(self.unit, canonical)
+    }
+
+    /// One number read out of this field — dragged or typed — back in
+    /// canonical terms. [`Self::shown`]'s inverse, and the door every
+    /// value crossing out of a panel field goes through, because what
+    /// crosses `props` is canonical.
+    pub fn authored(self, shown: f64) -> f64 {
+        props::authored_in(self.unit, shown)
+    }
+}
+
+/// The primitives the chrome offers, with their labels. The op
+/// vocabulary accepts any [`MatePrimitive`]; these are the three the
+/// panel can spell without a numeric field (`PlanarRest`'s offset is
+/// authored 0 — a flush rest; a standoff is typed through the tree's
+/// ordinary property doors once the node exists).
+///
+/// **Deliberately partial**, which is why it is hand-written and not
+/// projected: [`MatePrimitive`] has a fourth variant (`Clocking`) that
+/// the kernel represents so it can REFUSE it, and a form offering it
+/// would be offering a refusal. Completeness is exactly what this list
+/// does not claim, so a mechanism that forced it would be forcing the
+/// wrong thing — mapping this form over a published `ALL` the way the
+/// boolean buttons are mapped is precisely the wrong fix here.
+///
+/// What it still has no answer for is the OTHER half: a primitive the
+/// panel SHOULD offer would not appear here and nothing would say so.
+/// A partial mirror wants to be told its enum grew, not to be
+/// regenerated from it; that is
+/// `work/door/mate-primitives-is-a-partial-mirror-with-no-growth-alarm`.
+pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
+    (MatePrimitive::FrameCoincidence, "frame coincidence"),
+    (MatePrimitive::Coaxial, "coaxial"),
+    (MatePrimitive::PlanarRest { offset: 0.0 }, "planar rest"),
+];

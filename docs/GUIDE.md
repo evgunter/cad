@@ -123,13 +123,18 @@ $ PYTHONPATH=target/python-stage python3 crates/pncad-py/examples/bracket.py
 The same plate, in Python:
 
 ```python
-from pncad import Doc, Node, evaluate, mm
+from pncad import Doc, Expr, Node, evaluate, mm
 
 doc = Doc()
 profile = doc.insert(
-    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)])
+    Node.polygon([
+        (Expr.length_in(0, mm), Expr.length_in(0, mm)),
+        (Expr.length_in(80, mm), Expr.length_in(0, mm)),
+        (Expr.length_in(80, mm), Expr.length_in(40, mm)),
+        (Expr.length_in(0, mm), Expr.length_in(40, mm)),
+    ], plane=doc.sketch_frame())
 )
-plate = doc.insert(Node.extrude(profile, 8 * mm))
+plate = doc.insert(Node.extrude(profile, Expr.length_in(8, mm)))
 body = evaluate(doc).value(plate).body()
 body.validate()
 assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
@@ -137,6 +142,16 @@ assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
 
 Here `25 * mm` builds a typed `Length`. Dimensions are checked: `25 *
 mm + 90 * deg` is a `DimensionError`, not a number.
+
+A dimensioned slot takes an `Expr`, and `Expr.length_in(8, mm)` is how
+an authored number reaches one: the value and the unit it was written
+in, so the recipe reads back `8 mm` rather than the canonical
+`0.008 m`. It is exactly
+`Expr.length_in(8, mm)` — the two doors
+underneath, which are what you reach for when the `WrittenLength` is
+already in hand. `Expr.angle_in(90, deg)` is the angle mirror, and
+`Expr.literal(width / 2)` is the door for a value you COMPUTED, which
+stores the canonical row because there is no notation to keep.
 
 ### 1.4 Where to go next
 
@@ -148,6 +163,9 @@ mm + 90 * deg` is a `DimensionError`, not a number.
   vocabulary, layer by layer.
 - Selecting entities (`docs/guide/selecting.md`) is how you name a
   face or an edge so a later step can refer to it.
+- Assemblies (`docs/guide/assembly.md`) is the step past one
+  document: a workspace of parts, instances of them, mates, and the
+  gate that says the result is valid at rest.
 - The north-star audit (`docs/guide/north-star-audit.md`) says
   exactly which demos Python can author today.
 
@@ -168,6 +186,13 @@ you run them, in order, on the way to your answer. Second, **the
 cross-check is not optional decoration**: the exact B-rep measure and
 the tessellated mesh are computed by independent code paths, and
 comparing them is how you find out that one of them is wrong.
+
+An **assembly** runs this same ladder — on its gathered *product*,
+the body its roots denote — with two rungs of its own in front:
+solving the mates for where each instance sits, and the at-rest gate
+that certifies the parts really meet as the mates declare.
+`docs/guide/assembly.md` is those two rungs, and the workspace store
+the parts come from.
 
 ### 2.1 The worked example
 
@@ -191,7 +216,7 @@ make. Section 2.3 and the fail-loud tour return to this.
 
 `crates/pncad-py/examples/bracket.py` builds this model with one
 addition the table cannot hold: since the PATHS lattice crossed to
-Python, its base plate carries a 3 mm round at each of its four
+Python, its base plate carries a 6 mm round at each of its four
 corners, authored as fillets rather than as a rounded outline. The
 extents, the web and the pocket are these ones, so the two languages
 below are building one solid, and the plate's own closed form is the
@@ -202,7 +227,7 @@ only number that differs.
 Profiles are closed loops on a sketch plane, and there is one way to
 say one: the PATHS algebra, where you walk the outline and the type
 system tracks what the tip has bound. (Raw `ProfileLoop` vertex tables
-are kernel vocabulary and not part of this surface — Evan's ruling on
+are kernel vocabulary and not part of this surface — Ev's ruling on
 #413. The lattice is not merely the nicer spelling; it is the one that
 classifies each junction as you author it, so a corner that is
 accidentally tangent or reversed refuses here rather than at
@@ -324,7 +349,7 @@ are one program:
 ```python
 import math
 
-from pncad import Doc, Node, Open, Start, evaluate, mm
+from pncad import Doc, Expr, Node, Open, Start, evaluate, mm
 
 rounded = (
     Open.at((0 * mm, 0 * mm))
@@ -337,7 +362,7 @@ rounded = (
 )
 
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), 8 * mm))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), Expr.length_in(8, mm)))
 ev = evaluate(doc)
 assert ev.succeeded(plate)
 
@@ -347,7 +372,6 @@ area = 0.040 * 0.030 - (0.006**2 - math.pi * 0.006**2 / 4)
 assert abs(ev.value(plate).body().mass_properties().volume - area * 0.008) < 1e-15
 ```
 
-let tol = Tol::witness();
 **Corners between a line and a CIRCLE.** A fillet's two sides do not
 have to be straight, and a side that rides a carrier is authored in
 the SAME act as the fillet: `arc_fillet(spec, r)` gives the corner an
@@ -403,15 +427,26 @@ blended = (
 assert blended.vertex_count == 4
 ```
 
-**The plane is an argument, not an assumption.** A profile lives on a
-`SketchPlane` — a rigid frame `origin, u, v`, where sketch (x, y) maps
-to `origin + x·u + y·v`. The plane's NORMAL is `u × v`, and that is
-the direction `extrude` runs, so choosing the plane is choosing the
-axis. Three named frames come cyclically (x→y→z→x): `xy` (normal +z),
-`yz` (u = ŷ, v = ẑ, normal +x), `zx` (u = ẑ, v = x̂, normal +y).
-`elevation=` remains what it always was — sugar for the xy-plane, that
-far up z — and naming the plane both ways at once is a `TypeError`
-rather than a silent preference.
+**The plane is a NODE, not an argument.** A profile is drawn on a
+sketch frame that lives in the document — a node you insert, see and
+edit, exactly like the extrude that consumes it. `doc.sketch_frame()`
+inserts one and hands back its id, and `plane=` on a sketch names that
+id.
+
+The frame itself is still `origin, u, v`, where sketch (x, y) maps to
+`origin + x·u + y·v`. Its NORMAL is `u × v`, and that is the direction
+`extrude` runs, so choosing the frame is choosing the axis. The two
+ways to spell one moved from the sketch to the frame and are otherwise
+unchanged: `plane=` a `SketchPlane` (three named frames come
+cyclically, x→y→z→x: `xy` (normal +z), `yz` (u = ŷ, v = ẑ, normal +x),
+`zx` (u = ẑ, v = x̂, normal +y)), or `elevation=`, the xy sugar — that
+far up z. Naming it both ways at once is a `TypeError` rather than a
+silent preference.
+
+Each `doc.sketch_frame()` call mints a FRESH frame. Two sketches meant
+to share a plane bind the id once and pass it twice — which is a fact
+about the document now, with something in the document to be a fact
+about.
 
 Rigidity (u, v unit and perpendicular) is **conventional data,
 unchecked**, in Python exactly as in Rust: a non-rigid frame yields a
@@ -419,7 +454,7 @@ well-defined skewed sketch, not poison, and the kernel's geometric
 validation is what certifies a body at rest.
 
 ```python
-from pncad import Doc, Node, SketchPlane, evaluate, m
+from pncad import Doc, Expr, Node, SketchPlane, evaluate, m
 
 doc = Doc()
 # An upright wall: a 2 x 3 sketch on the world yz-plane, extruded
@@ -428,25 +463,29 @@ wall = doc.insert(
     Node.extrude(
         doc.insert(
             Node.polygon(
-                [(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)],
-                plane=SketchPlane.yz(),
+                [
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(2, m), Expr.length_in(0, m)),
+                    (Expr.length_in(2, m), Expr.length_in(3, m)),
+                    (Expr.length_in(0, m), Expr.length_in(3, m)),
+                ],
+                plane=doc.sketch_frame(plane=SketchPlane.yz()),
             )
         ),
-        0.25 * m,
+        Expr.length_in(0.25, m),
     )
 )
 assert abs(evaluate(doc).value(wall).body().mass_properties().volume - 1.5) < 1e-12
 
-# Naming the plane twice is refused at the boundary.
+# Naming the frame's plane twice is refused at the boundary.
 try:
-    Node.polygon([(0 * m, 0 * m)], elevation=1 * m, plane=SketchPlane.yz())
+    doc.sketch_frame(elevation=Expr.length_in(1, m), plane=SketchPlane.yz())
 except TypeError:
     pass
 else:
     raise AssertionError("plane= and elevation= must be mutually exclusive")
 ```
 
-let tol = Tol::witness();
 **Stacked sections make a loft.** `Node.loft(profiles, v_degree)`
 skins a solid through two or more section profiles in skin order — and
 takes no placement argument, because each section rides its own
@@ -454,20 +493,25 @@ profile's sketch plane. The three sections below are the corpus's
 `loft_prism`: squares at z = 0 and z = 2 with a trapezoid between
 them, whose non-parallel pair means the middle section is *not* an
 affine image of the ends, so the four walls are genuinely curved
-rather than ruled.
+rather than ruled. The degree is a STRUCTURAL slot, and both of the
+loft's inputs are editable in place once the node exists:
+`DocEdit.bind_v_degree_param(node, name)` makes the degree a named
+number that one `set_doc_param` moves — at degree 1 the same three
+sections enclose 8.75 m³ rather than 9 — and `DocEdit.set_members`
+restates the section list whole.
 
 ```python
-from pncad import Doc, Node, evaluate, m
+from pncad import Doc, Expr, Node, evaluate, m
 
 SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 
 doc = Doc()
 sections = [
-    doc.insert(Node.polygon([(x * m, y * m) for x, y in pts], elevation=z * m))
+    doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in pts], plane=doc.sketch_frame(elevation=Expr.length_in(z, m))))
     for pts, z in [(SQUARE, 0.0), (TRAPEZOID, 1.0), (SQUARE, 2.0)]
 ]
-prism = doc.insert(Node.loft(sections, 2))
+prism = doc.insert(Node.loft(sections, Expr.count(2)))
 
 # The degree-2 skin through sections at (0, 1/2, 1) is the quadratic
 # Lagrange interpolant: corner paths S + 4v(1-v)*D, z = 2v exactly,
@@ -481,7 +525,7 @@ assert props.volume_pad < 1e-6
 # The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
 # sections cannot carry degree 3, and nothing here pre-checks that —
 # it refuses at evaluation, where the kernel refuses.
-overdegree = doc.insert(Node.loft(sections, 3))
+overdegree = doc.insert(Node.loft(sections, Expr.count(3)))
 assert not evaluate(doc).succeeded(overdegree)
 ```
 
@@ -582,6 +626,15 @@ way you should: **if the value came from a boolean, gate it at 3′
 with that operation's own `contacts`; otherwise gate it at 3.** A
 body from `split` carries no contacts, so it takes plain tier 3.
 
+All four rungs are bound in Python as methods on `Body`, and the
+fourth takes **no** contacts argument there: a Python `Body` carries
+the declarations its own producer minted for it, so
+`body.validate_pseudomanifold()` certifies against those and the
+choice above is already made. An `assemble`d at-rest body arrives
+with its mates' records and passes over its seats; `product`, which
+gathers the same solids and declares nothing, reports every seat as
+an undeclared contact.
+
 ```
 use pncad::prelude::*;
 # let tol = Tol::witness();
@@ -653,6 +706,28 @@ their pads are `0.0`; a curved *cut* face contributes a certified
 quadrature bracket and widens the pad. A nonzero pad is the kernel
 telling you how much it does not know, and a program that cares about
 a tolerance should read it rather than assume it.
+
+**Gating and then measuring pays for one quadrature, not two — if you
+ask for it that way.** Tier 3's orientation check *is* a certified
+quadrature over the same body at the same band, so
+`validate_geometric` followed by `mass_properties` runs the expensive
+part twice. `validate_geometric_certificate` hands back the
+certificate the gate decided on, and
+`SignCertificate::refine_to_target` continues that same quadrature to
+the reporting target, reusing every round already paid for; the
+result is `mass_properties`' own answer, bit for bit. Python spells
+the pair as one call, `body.validate_geometric_measured()`.
+
+The continuation can refuse where the gate passed, and that is the
+honest answer rather than a wrinkle. The reporting target is `1024·ε`,
+a length that shrinks with your tolerance, while the refinement
+schedule's floor is a property of the part — so a body whose volume's
+*sign* is definite, which is all tier 3 reads, can have no volume
+*number* at a tight enough ε. Such a body is valid and unmeasurable at
+that ε, and what it still offers is the sign-level bracket:
+`SignCertificate::enclosure` in Rust, and in Python the `volume_lo` /
+`volume_hi` / `surface_area` attributes on the refusal
+`validate_geometric_measured` raises.
 
 ### 2.5 Tessellate
 
@@ -822,24 +897,29 @@ Python does not mirror the Rust calls above. It speaks the **document
 layer**: you insert nodes describing what to build, evaluate the
 document, and read typed values out. This is deliberate (LIBRARY-DESIGN
 §L3) — the document layer is the single API surface shared by the
-future GUI, macro recording, and the bindings, so a Python script is a
+GUI, macro recording, and the bindings, so a Python script is a
 recipe that persists, replays, and undoes, rather than a pile of
 opaque kernel calls.
 
 The same bracket, the same numbers:
 
 ```python
-from pncad import BooleanOp, Doc, Node, evaluate, import_step, mm
+from pncad import BooleanOp, Doc, Expr, Node, evaluate, import_step, mm
 
 
 def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
-            [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
-            elevation=z[0],
+            [
+                (Expr.literal(x[0]), Expr.literal(y[0])),
+                (Expr.literal(x[1]), Expr.literal(y[0])),
+                (Expr.literal(x[1]), Expr.literal(y[1])),
+                (Expr.literal(x[0]), Expr.literal(y[1])),
+            ],
+            plane=doc.sketch_frame(elevation=Expr.literal(z[0])),
         )
     )
-    return doc.insert(Node.extrude(profile, z[1] - z[0]))
+    return doc.insert(Node.extrude(profile, Expr.literal(z[1] - z[0])))
 
 
 doc = Doc()
@@ -860,10 +940,14 @@ props = body.mass_properties()
 assert abs(props.volume - 2.984e-5) < 1e-15
 assert props.volume_pad == 0.0
 
-# Export through the document layer, and re-import to prove it.
+# Export through the document layer, and re-import to prove it. The
+# report's `enclosure` is the IMPORT GATE's own certified measurement
+# of the body it just adopted — reading it re-measures nothing.
 step = ev.step_string(lightened, product_name="bracket")
 assert step.startswith("ISO-10303-21;")
-assert abs(import_step(step).mass_properties().volume - props.volume) < 1e-15
+report = import_step(step)
+assert abs(report.enclosure.volume - props.volume) < 1e-15
+assert report.instances[0].index == 0  # one assembly row per solid
 ```
 
 Two differences from the Rust walk are real and worth stating plainly
@@ -876,19 +960,109 @@ rather than hiding:
   failure, the `through` node that actually broke. Failure does not
   propagate as an exception up your call stack; it sits in the result
   DAG where you can inspect all of it at once.
-- **There is no `tessellate` in Python.** Steps 2.5 and 2.6 of the
-  ladder have no binding yet, so the mesh cross-check is not
-  available from Python. That is a named gap, not an oversight — see
-  the north-star audit.
+- **Tessellation is a `Body` method.** The free `tessellate` above is
+  `body.tessellate(chordal)` here, beside `mass_properties` and the
+  validators, and δ crosses as a `Length` because it is a distance.
+  The mesh cross-check that follows is not a second reading of the
+  kernel: `mesh::validate`'s helpers are not bound, so the Python
+  ladder's step 5 is a sum the CALLER writes over the mesh's own
+  triangles — which is what makes agreeing with the exact measure
+  evidence rather than a tautology. `docs/guide/meshing.md` is the
+  page for it.
+
+Steps 2.5 and 2.6 finish the same way. The mesh crosses with its
+shared position buffer and its per-face patches intact, so both of
+the ladder's claims are checkable from Python — closure on INDICES,
+volume on the triangles:
+
+```python
+from pncad import BooleanOp, Doc, Expr, Node, evaluate, m, mm
+
+doc = Doc()
+profile = doc.insert(
+    Node.polygon([
+        (Expr.length_in(0, m), Expr.length_in(0, m)),
+        (Expr.length_in(2, m), Expr.length_in(0, m)),
+        (Expr.length_in(2, m), Expr.length_in(3, m)),
+        (Expr.length_in(0, m), Expr.length_in(3, m)),
+    ], plane=doc.sketch_frame())
+)
+block = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
+body = evaluate(doc).value(block).body()
+body.validate()
+
+# 4. Tessellate. The budget is a DISTANCE (delta), not the kernel's
+#    epsilon: how coarsely a view of the model may approximate it,
+#    not what the model is.
+mesh = body.tessellate(0.5 * mm)
+assert mesh.patch_count == 6            # one patch per face, addressable
+assert mesh.triangle_count == 12
+
+# 5. Cross-check, two independent ways.
+#
+#    Closure first, on INDICES: adjacent faces share position indices
+#    along their common boundary, so every directed triangle edge has
+#    exactly one opposite twin. No coordinates and no tolerance.
+half_edges = {}
+for i, j, k in mesh.triangles:
+    for a, b in ((i, j), (j, k), (k, i)):
+        half_edges[(a, b)] = half_edges.get((a, b), 0) + 1
+assert all(
+    n == 1 and half_edges.get(e[::-1]) == 1 for e, n in half_edges.items()
+), "watertight and consistently wound"
+
+#    Then volume, by the divergence theorem over the same triangles,
+#    with each tetrahedron measured from `o`, the positions' own
+#    bounding-box centre. For a closed mesh the anchor cancels out over
+#    the reals, so this is the same volume from any anchor; in floating
+#    point it is the choice that keeps the products at the body's own
+#    scale instead of at its distance from the world origin.
+#    The winding is OUTWARD, so this is positive for a closed body.
+points = [tuple(q.meters for q in p) for p in mesh.positions]
+lo = [min(q[d] for q in points) for d in range(3)]
+hi = [max(q[d] for q in points) for d in range(3)]
+o = [lo[d] + (hi[d] - lo[d]) * 0.5 for d in range(3)]
+measured = 0.0
+for i, j, k in mesh.triangles:
+    (ax, ay, az), (bx, by, bz), (cx, cy, cz) = (
+        tuple(q[d] - o[d] for d in range(3))
+        for q in (points[i], points[j], points[k])
+    )
+    measured += (
+        ax * (by * cz - bz * cy)
+        - ay * (bx * cz - bz * cx)
+        + az * (bx * cy - by * cx)
+    )
+measured /= 6.0
+
+exact = body.mass_properties().volume
+assert abs(measured - exact) / exact < 1e-12, "mesh vs exact"
+
+# 6. Export the mesh. Both writers ANSWER the bytes rather than take
+#    a sink, and their options are keyword arguments.
+text = mesh.to_stl_ascii(solid_name="block")
+assert text.startswith("solid block\n")
+data = mesh.to_stl_binary(header="pncad")
+assert int.from_bytes(data[80:84], "little") == mesh.triangle_count
+```
+
+This body is all planar, so its triangulation is exact and the two
+measures agree at rounding level. On a curved body they differ by the
+budget, and the difference shrinks with it — `docs/guide/meshing.md`
+runs that convergence.
 
 Python's document also persists and replays bit-identically:
 
 ```python
-from pncad import Doc, Node, evaluate, load, mm
+from pncad import Doc, Expr, Node, evaluate, load, mm
 
 doc = Doc()
-profile = doc.insert(Node.polygon([(0 * mm, 0 * mm), (1 * mm, 0 * mm), (1 * mm, 1 * mm)]))
-doc.insert(Node.extrude(profile, 1 * mm))
+profile = doc.insert(Node.polygon([
+    (Expr.length_in(0, mm), Expr.length_in(0, mm)),
+    (Expr.length_in(1, mm), Expr.length_in(0, mm)),
+    (Expr.length_in(1, mm), Expr.length_in(1, mm)),
+], plane=doc.sketch_frame()))
+doc.insert(Node.extrude(profile, Expr.length_in(1, mm)))
 
 text = doc.save()
 replayed = load(text).doc
@@ -914,7 +1088,7 @@ at `insert`, not as a guess.
 ```python
 import math
 
-from pncad import Doc, EditError, Node, Open, Start, circle, evaluate, m
+from pncad import Doc, EditError, Expr, Node, Open, Start, circle, evaluate, m
 
 # The tour's `plate` stop: a 6 x 3 slab, 0.6 deep, with two holes.
 outer = (
@@ -927,8 +1101,8 @@ outer = (
 holes = [circle((-1.5 * m, 0 * m), 0.7 * m), circle((1.5 * m, 0 * m), 0.7 * m)]
 
 doc = Doc()
-sketch = doc.insert(Node.profile([outer, *holes]))
-plate = doc.insert(Node.extrude(sketch, 0.6 * m))
+sketch = doc.insert(Node.profile([outer, *holes], plane=doc.sketch_frame()))
+plate = doc.insert(Node.extrude(sketch, Expr.length_in(0.6, m)))
 
 body = evaluate(doc).value(plate).body()
 body.validate()
@@ -938,8 +1112,12 @@ assert abs(body.mass_properties().volume - 0.6 * area) < 1e-12
 # Two disjoint circles are not an outline and its hole. The kernel
 # says so; the binding does not pre-empt it.
 try:
-    Doc().insert(
-        Node.profile([circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)])
+    other = Doc()
+    other.insert(
+        Node.profile(
+            [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
+            plane=other.sketch_frame(),
+        )
     )
     raise AssertionError("that profile should not have validated")
 except EditError as refusal:
@@ -972,22 +1150,27 @@ next section runs them.
 ```python
 import math
 
-from pncad import Doc, EvaluationError, Node, evaluate, m
+from pncad import Doc, EvaluationError, Expr, Node, evaluate, m
 
 L, R = 1.0, 0.12
 
 doc = Doc()
 square = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)])
+    Node.polygon([
+        (Expr.length_in(0, m), Expr.length_in(0, m)),
+        (Expr.length_in(L, m), Expr.length_in(0, m)),
+        (Expr.length_in(L, m), Expr.length_in(L, m)),
+        (Expr.length_in(0, m), Expr.length_in(L, m)),
+    ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(square, L * m))
+cube = doc.insert(Node.extrude(square, Expr.length_in(L, m)))
 
 # The twelve names, as of THIS evaluation. Stored into the recipe,
 # they are frozen: the repair path for a moved edge is a rebind, not
 # a re-query.
 edges = evaluate(doc).all_edges(cube)
 assert len(edges) == 12
-blank = doc.insert(Node.fillet(cube, R * m, edges))
+blank = doc.insert(Node.fillet(cube, Expr.length_in(R, m), edges))
 
 # The tour's `diefillet` blank: a shrunk core, six slab faces, twelve
 # quarter-cylinders and eight sphere octants.
@@ -1003,7 +1186,7 @@ body.validate()
 assert abs(body.mass_properties().volume - want) < 1e-9 * want
 
 # An empty selection is refused by the node, not by the binding.
-empty = doc.insert(Node.fillet(cube, R * m, []))
+empty = doc.insert(Node.fillet(cube, Expr.length_in(R, m), []))
 try:
     evaluate(doc).value(empty)
     raise AssertionError("an empty selection should not blend")
@@ -1037,8 +1220,22 @@ they match neither filter, so the refusal falls out of the geometry.
 import math
 
 from pncad import (
-    BooleanOp, Bulge, CurveKind, Doc, EntityKind, GeomPred, NamePat,
-    Node, Open, Selector, SketchPlane, Start, SurfaceKind, evaluate, m,
+    BooleanOp,
+    Bulge,
+    CurveKind,
+    Doc,
+    EntityKind,
+    Expr,
+    GeomPred,
+    NamePat,
+    Node,
+    Open,
+    Selector,
+    SketchPlane,
+    Start,
+    SurfaceKind,
+    evaluate,
+    m,
     rad,
 )
 
@@ -1046,9 +1243,14 @@ R, H = 0.09, 0.05  # the pip ball's radius; how deep it dips in
 
 doc = Doc()
 square = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)])
+    Node.polygon([
+        (Expr.length_in(0, m), Expr.length_in(0, m)),
+        (Expr.length_in(1, m), Expr.length_in(0, m)),
+        (Expr.length_in(1, m), Expr.length_in(1, m)),
+        (Expr.length_in(0, m), Expr.length_in(1, m)),
+    ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(square, 1 * m))
+cube = doc.insert(Node.extrude(square, Expr.length_in(1, m)))
 
 # A ball, revolved as two quarter arcs, sunk H into the top face.
 half = (
@@ -1057,11 +1259,31 @@ half = (
     .arc_continue((0 * m, R * m))
     .line_to(Start)
 )
-plane = SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
-axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
-ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=plane)), axis, (2 * math.pi) * rad))
+frame = doc.sketch_frame(
+    plane=SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+)
+# The axis of revolution is written IN that frame, in its own two
+# coordinates: the frame's v is world +z, so the pole axis is its +y
+# through (0, 0). A revolve takes this and not a `datum_axis` — an
+# axis written in the frame cannot leave the plane it turns.
+axis = doc.insert(Node.datum_axis_in_plane(frame, (
+    Expr.length_in(0, m),
+    Expr.length_in(0, m),
+), (
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
+ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, Expr.angle_in(2 * math.pi, rad)))
 pip = doc.insert(
-    Node.transform(ball, (0.5 * m, 0.5 * m, (1.0 + R - H) * m), (0.0, 0.0, 1.0), 0 * rad)
+    Node.transform(ball, (
+        Expr.length_in(0.5, m),
+        Expr.length_in(0.5, m),
+        Expr.length_in(1.0 + R - H, m),
+    ), (
+        Expr.literal(0.0),
+        Expr.literal(0.0),
+        Expr.literal(1.0),
+    ), Expr.angle_in(0, rad))
 )
 pipped = doc.insert(Node.boolean(BooleanOp.Subtract, cube, pip))
 
@@ -1083,9 +1305,341 @@ meridians = ev.select_where(
 assert len(meridians) == 2 and len(ev.all_edges(pipped)) == 16
 
 # One fillet takes both selections — stored, frozen, never re-queried.
-blended = doc.insert(Node.fillet(pipped, 0.05 * m, straight + rims))
+blended = doc.insert(Node.fillet(pipped, Expr.length_in(0.05, m), straight + rims))
 body = evaluate(doc).value(blended).body()
 body.validate()
+```
+
+### Chamfering the same edges: fillet's twin
+
+A chamfer takes the selection a fillet takes — edge names as opaque
+text, materialized off an evaluation and FROZEN into the recipe — so
+everything the fillet step said about naming holds here word for word.
+`Node.chamfer(target, distance, selection)` is the door, and Rust
+spells it `Node::chamfer`.
+
+Two things differ, and they are the whole difference. **`distance` is
+a SETBACK, not a radius**: it is measured along each support away from
+the edge, so a chamfer of the same number as a fillet cuts the corner
+the rolling ball would ride around and takes more material.  And **both
+supports must be planes** — an edge between curved faces refuses typed
+at `evaluate` rather than being blended some other way. The refusals
+are the chamfer's own words (`chamfer_selection_empty`), not the
+fillet's: one ladder, but the tag says which verb asked.
+
+```python
+from pncad import Doc, EvaluationError, Expr, Node, evaluate, m
+
+L, D = 1.0, 0.12
+
+doc = Doc()
+square = doc.insert(
+    Node.polygon([
+        (Expr.length_in(0, m), Expr.length_in(0, m)),
+        (Expr.length_in(L, m), Expr.length_in(0, m)),
+        (Expr.length_in(L, m), Expr.length_in(L, m)),
+        (Expr.length_in(0, m), Expr.length_in(L, m)),
+    ], plane=doc.sketch_frame())
+)
+cube = doc.insert(Node.extrude(square, Expr.length_in(L, m)))
+
+# The same twelve names the fillet step stored, carried unread.
+edges = evaluate(doc).all_edges(cube)
+assert len(edges) == 12
+flat = doc.insert(Node.chamfer(cube, Expr.length_in(D, m), edges))
+round_ = doc.insert(Node.fillet(cube, Expr.length_in(D, m), edges))
+
+# A cube of side L set back by d is the cube less twelve edge wedges
+# and eight corner patches, which integrates to a closed form.
+want = L**3 - 6 * L * D**2 + (16 / 3) * D**3
+ev = evaluate(doc)
+body = ev.value(flat).body()
+body.validate()
+assert abs(body.mass_properties().volume - want) < 1e-9 * want
+
+# Setback against radius, at the same number: the flat strip cuts the
+# corner the ball rides around.
+assert (
+    body.mass_properties().volume
+    < ev.value(round_).body().mass_properties().volume
+)
+
+# The result is a NODE, so its faces are named and a downstream
+# selection can reach them: 6 supports, 12 strips, 8 corner patches.
+assert len(ev.all_faces(flat)) == 26
+
+# An empty selection is refused by the node, in the chamfer's own word.
+nothing = doc.insert(Node.chamfer(cube, Expr.length_in(D, m), []))
+try:
+    evaluate(doc).value(nothing)
+    raise AssertionError("an empty selection should not chamfer")
+except EvaluationError as refusal:
+    assert refusal.kind == "chamfer_selection_empty"
+```
+
+### Tubes: a ring from its intent, and the same ring with a wall
+
+A tube is authored from what you MEAN by it, not from a section
+profile you sweep yourself. `Node.tube(spine, u_ref, major_radius,
+window, minor_radius)` takes five things: `spine` is a
+`Node.datum_axis` whose origin is the ring's centre and whose
+direction is the axis the section turns about; `u_ref` is the
+reference direction the window's angles are measured from;
+`major_radius` is the centre-line radius, `minor_radius` the section's;
+and `window` is `TubeWindow.full()` for the whole ring or
+`TubeWindow.arc(t0, t1)` for an elbow of it. Every number is STORED
+rather than reconstructed, so what you wrote is what comes back out.
+
+There is no wall argument. **A tube with a wall is `Node.hollow_tube`,
+a different node kind**, and its `wall` is REQUIRED — not an optional
+argument on one door, because a solid ring and a pipe are different
+artifacts and a caller should have to say which one they mean. There
+`minor_radius` is the OUTER radius and the bore is
+`minor_radius - wall`; a full window closes that bore into a CAVITY,
+an arc leaves an open elbow of annular section.
+
+```python
+import math
+
+from pncad import Doc, Expr, Node, TubeWindow, evaluate, m, rad
+
+R, OUTER, WALL = 2.0, 0.5, 0.125
+T0, T1 = 0.0, 1.5
+
+doc = Doc()
+# The spine: centre at the origin, section turning about +z.
+spine = doc.insert(Node.datum_axis((
+    Expr.length_in(0, m),
+    Expr.length_in(0, m),
+    Expr.length_in(0, m),
+), (
+    Expr.literal(0.0),
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
+
+# The solid ring. Pappus meters it: V = 2 pi^2 R r^2.
+ring = doc.insert(
+    Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(R, m), TubeWindow.full(), Expr.length_in(OUTER, m))
+)
+solid = evaluate(doc).value(ring).body()
+solid.validate()
+assert abs(solid.mass_properties().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-9
+
+# The same ring with a wall: a torus SHELL, its bore a cavity.
+inner = OUTER - WALL
+torus = doc.insert(
+    Node.hollow_tube(
+        spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(R, m), TubeWindow.full(), Expr.length_in(OUTER, m), Expr.length_in(WALL, m)
+    )
+)
+walled = evaluate(doc).value(torus).body()
+walled.validate()
+want = 2 * math.pi**2 * R * (OUTER**2 - inner**2)
+assert abs(walled.mass_properties().volume - want) < 1e-9
+
+# An ARC of the same pipe: an open elbow of annular section, whose
+# volume is the annulus swept through the window's angle.
+elbow = doc.insert(
+    Node.hollow_tube(
+        spine,
+        (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
+        Expr.length_in(R, m),
+        TubeWindow.arc(Expr.angle_in(T0, rad), Expr.angle_in(T1, rad)),
+        Expr.length_in(OUTER, m),
+        Expr.length_in(WALL, m),
+    )
+)
+annulus = math.pi * (OUTER**2 - inner**2)
+body = evaluate(doc).value(elbow).body()
+body.validate()
+assert abs(body.mass_properties().volume - (T1 - T0) * R * annulus) < 1e-9
+
+# The two doors, differenced over one document: what the wall took out
+# is exactly the bore, which is only true if each node reached its own
+# kernel door.
+open_ring = doc.insert(
+    Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(R, m), TubeWindow.arc(Expr.angle_in(T0, rad), Expr.angle_in(T1, rad)), Expr.length_in(OUTER, m))
+)
+ev = evaluate(doc)
+bore = (T1 - T0) * R * math.pi * inner**2
+assert (
+    abs(
+        ev.value(open_ring).body().mass_properties().volume
+        - ev.value(elbow).body().mass_properties().volume
+        - bore
+    )
+    < 1e-9
+)
+```
+
+### Hollowing a body: shell, with the faces you open named
+
+A shell offsets every face of a body inward by a wall thickness and
+inserts the offset boundary as a cavity; the faces you name in `open`
+are re-authored as annular RIMS instead, so a box opened at its top
+is a cup. `Node.shell(target, thickness, open)` is the door, and
+`open` is face names as text exactly as `Node.fillet` takes edge
+names — carried, never read, frozen at authoring time.
+
+One thing the blend selection does not have: **`open` is ordered.** A
+chart's rim is its FIRST designated face (the chart's other faces
+merge onto it and the rim's name is that face's), so name first the
+face you want to carry the rim's identity. An empty list is the
+SEALED hollow — a closed thin solid with a cavity and no rim — which
+is legal and not a refusal. And a face is designated together with
+every face on its chart: a full revolve's cap is two half-faces on
+one plane, and naming one of them refuses (`shell`, the kernel's
+partial-chart gate) rather than silently opening both.
+
+```python
+from pncad import (
+    CapEnd,
+    Doc,
+    EntityKind,
+    EvaluationError,
+    Expr,
+    NamePat,
+    Node,
+    OpGroup,
+    SegPat,
+    SegTag,
+    Selector,
+    evaluate,
+    m,
+)
+
+L, T = 1.0, 0.125
+
+doc = Doc()
+square = doc.insert(
+    Node.polygon([
+        (Expr.length_in(0, m), Expr.length_in(0, m)),
+        (Expr.length_in(L, m), Expr.length_in(0, m)),
+        (Expr.length_in(L, m), Expr.length_in(L, m)),
+        (Expr.length_in(0, m), Expr.length_in(L, m)),
+    ], plane=doc.sketch_frame())
+)
+box = doc.insert(Node.extrude(square, Expr.length_in(L, m)))
+
+# The top, by ROLE: the extrude's end cap. One name, carried to the
+# door unread.
+faces = NamePat.of_kind(EntityKind.Face)
+top = evaluate(doc).select(box, Selector.of(faces.seg(SegPat.tag(SegTag.Cap).side(CapEnd.End))))
+assert len(top) == 1
+cup = doc.insert(Node.shell(box, Expr.length_in(T, m), top))
+
+# The cavity is (L-2T) x (L-2T) x (L-T): the opened top loses no wall.
+body = evaluate(doc).value(cup).body()
+body.validate()
+inner = L - 2 * T
+assert body.mass_properties().volume == L**3 - inner * inner * (L - T)
+
+# The cup's own vocabulary: one rim (named for the top it replaced)
+# and five cavity twins group as the SHELL's; the five outer faces are
+# carried through and speak as `FromTarget`, the blend's group, because
+# the tag names the shape and the minting node says which op.
+ev = evaluate(doc)
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))) == 1
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))) == 6
+assert len(ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))) == 5
+
+# A wall that is not a wall is the kernel's refusal, not the binding's.
+flat = doc.insert(Node.shell(box, Expr.length_in(0, m), top))
+try:
+    evaluate(doc).value(flat)
+    raise AssertionError("a zero wall should not hollow")
+except EvaluationError as refusal:
+    assert refusal.kind == "shell"
+```
+
+### Naming a role before the body exists
+
+Both doors above took names an evaluation had already answered. That
+is the ordinary case, and it has a hole: the first time you author a
+recipe there is nothing to select against, and a name you cannot name
+is a name you would have to hand-write — the serialized form, field by
+field, with no compiler and no door checking any of it.
+
+So a revolve's roles have MINTING doors, the same five `pncad::select`
+gives Rust: `band(node, loop_index, seg)` and `band_pi(node,
+loop_index, seg)` are the two halves of the face swept from meridian
+segment `seg`, `band_rim(node, loop_index, vertex)` is the latitude
+rim standing at a meridian vertex, `meridian_vertex(end, node,
+loop_index, vertex)` is that vertex itself, and `carried(node, inner)`
+is the name a survivor of `node` wears one op later. Each answers the
+SAME opaque text a materializer answers for that entity, so a
+selection authored this way and one selected off an evaluation are the
+same bytes.
+
+`loop_index` names the profile loop — 0 the outer one, then the holes
+in the order the profile describes them — and `seg` and `vertex` index
+that loop's canonical chain, so a hole's band is spelled exactly like
+the outer one at its own loop. And the text is still never read or
+assembled — you name a ROLE, and the door does the rest.
+
+```python
+import math
+
+from pncad import (
+    Doc,
+    EntityKind,
+    Expr,
+    NamePat,
+    Node,
+    Open,
+    SegPat,
+    SegTag,
+    Selector,
+    Start,
+    band,
+    band_rim,
+    carried,
+    evaluate,
+    m,
+    rad,
+)
+
+RI, RO, H, T = 1.0, 2.0, 1.0, 0.125
+
+doc = Doc()
+frame = doc.sketch_frame()
+section = (
+    Open.at((RI * m, 0 * m))
+    .line_to((RO * m, 0 * m))
+    .line_to((RO * m, H * m))
+    .line_to((RI * m, H * m))
+    .line_to(Start)
+)
+ring = doc.insert(
+    Node.revolve(
+        doc.insert(Node.profile(section, plane=frame)),
+        doc.insert(Node.datum_axis_in_plane(frame, (
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        ))),
+        Expr.angle_in(2 * math.pi, rad),
+    )
+)
+
+# Segment 2 is the top annulus and vertex 2 the rim standing on it —
+# read off the profile as written, with nothing evaluated yet. The
+# section has one loop, so every name below is on loop 0.
+cup = doc.insert(Node.shell(ring, Expr.length_in(T, m), [band(ring, 0, 2)]))
+rolled = doc.insert(Node.fillet(ring, Expr.length_in(T, m), [band_rim(ring, 0, 2), band_rim(ring, 0, 3)]))
+
+ev = evaluate(doc)
+ev.value(cup).body().validate()
+ev.value(rolled).body().validate()
+
+# The minted names are the evaluation's own: the three bands that
+# survived the hollowing wear exactly `carried` of what they were.
+faces = NamePat.of_kind(EntityKind.Face)
+survivors = ev.select(cup, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
+assert sorted(survivors) == sorted(carried(cup, band(ring, 0, s)) for s in (0, 1, 3))
 ```
 
 ## 3. Parametric models
@@ -1099,8 +1653,8 @@ The **document layer** records it. A document is a DAG of nodes — a
 recipe — and `evaluate` turns the recipe into values. Edits are data
 (`DocEdit`), so the history is inspectable, persistable, undoable, and
 replayable, and evaluation reuses everything an edit did not touch.
-This is the same surface the Python bindings speak and the future GUI
-will speak; there is deliberately only one.
+This is the same surface the Python bindings and the GUI speak;
+there is deliberately only one.
 
 Since the profiles-as-programs switch, **a profile's geometry is a
 program too**: the loops are `LoopProgram` values whose coordinates
@@ -1115,6 +1669,7 @@ let tol = Tol::witness();
 // Author a plate with a round hole. Both the outline and the hole
 // are programs; every coordinate is an expression.
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
 let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
     .expect("finite corners");
 let hole = LoopProgram::Circle {
@@ -1128,10 +1683,22 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
+// The frame the plate is drawn on. A profile names a frame NODE:
+// the plane is an authoring step, a row in the tree, and something
+// you can edit after drawing on it.
+let (next, frame) = insert(
+    &doc,
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+);
+doc = next;
 let (next, profile) = insert(
     &doc,
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![outline, hole],
     }),
 );
@@ -1140,7 +1707,7 @@ let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-assert_eq!(ev.recomputed, 2);
+assert_eq!(ev.recomputed, 3); // the frame, the profile, the plate
 assert_eq!(ev.reused, 0);
 
 // Reach the body the same way the export door does.
@@ -1172,7 +1739,10 @@ use pncad::prelude::*;
 #     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![outline, hole] }));
+# let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+# let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
+# doc = next;
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole] }));
 # doc = next;
 # let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
 # doc = next;
@@ -1184,11 +1754,12 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     expr: len(1.0),
 }, tol)?.doc;
 
-// Pass the PRIOR evaluation: the profile is untouched, so its value
-// is reused by content key and only the extrude re-runs.
+// Pass the PRIOR evaluation: the frame and the profile are
+// untouched, so their values are reused by content key and only the
+// extrude re-runs.
 let ev2 = evaluate::<f64>(&thicker, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 1);
-assert_eq!(ev2.reused, 1);
+assert_eq!(ev2.reused, 2);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
@@ -1260,7 +1831,7 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // undoable like any other.
 doc = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
-    value: DocParam::Continuous { dim: Dimension::Length, value: 0.25 },
+    value: DocParam::continuous(Dimension::Length, 0.25),
 }, tol)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -1271,8 +1842,18 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 // The plate: outline plus both parametric holes, one profile.
 let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
     .expect("finite corners");
+let sc = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+// The plate's frame. The tab below is sketched at a different
+// height, so it gets its OWN frame — two planes, visible as two
+// rows, rather than two poses frozen inside two sketches.
+let (next, base_frame) = insert(&doc, Node::Datum(Datum::Frame {
+    origin: [lit(0.0), lit(0.0), lit(0.0)],
+    u: [sc(1.0), sc(0.0), sc(0.0)],
+    v: [sc(0.0), sc(1.0), sc(0.0)],
+}));
+doc = next;
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: SketchPlane::xy(),
+    plane: base_frame,
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
 }));
 doc = next;
@@ -1281,8 +1862,14 @@ doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
 // re-evaluation below has a sibling to REUSE.
+let (next, tab_frame) = insert(&doc, Node::Datum(Datum::Frame {
+    origin: [lit(0.0), lit(0.0), lit(0.125)],
+    u: [sc(1.0), sc(0.0), sc(0.0)],
+    v: [sc(0.0), sc(1.0), sc(0.0)],
+}));
+doc = next;
 let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.125))),
+    plane: tab_frame,
     loops: vec![
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
             .expect("finite corners"),
@@ -1323,11 +1910,12 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 // One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
-    value: DocParam::Continuous { dim: Dimension::Length, value: 0.4 },
+    value: DocParam::continuous(Dimension::Length, 0.4),
 }, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
-assert_eq!(ev2.reused, 2);     // the tab's whole branch, by content key
+assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
+                               // branch, by content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -1347,6 +1935,182 @@ the holes above are `LoopProgram::Circle { radius: Expr::param(…) }`,
 and `pncad.circle(centre, radius)` takes a `Length`, so the radius
 crosses as a number and the parameter link is lost.
 
+### 3.3 Distributions: saying how much a parameter varies
+
+A parameter's value is one number. What a real part has is a number
+*and* a spread, and `DocParam::Continuous` carries an optional
+`Distribution` to say so — offsets from the parameter's own nominal, in
+the parameter's own dimension. Four forms, and the differences between
+them are claims, not conveniences:
+
+| form | what it claims |
+| --- | --- |
+| `Band { lo, hi }` | limits, and **no shape** — "I know the extremes, not the distribution" |
+| `Uniform { lo, hi }` | limits, and every value between them equally likely |
+| `Normal { sigma }` | zero-mean normal, unbounded support |
+| `TruncatedNormal { sigma, lo, hi }` | that normal, restricted to `[lo, hi]` and renormalized |
+
+Annotating is opt-in and it means something: a continuous parameter
+with **no** distribution is FIXED — the analysis varies exactly what you
+declared variable, and never guesses a spread you did not state.
+`Count` parameters cannot be annotated at all; there is no spelling for
+it, because a structural count is fixed under any error analysis.
+
+Reading an annotation is `pncad::analysis`'s job and nobody else's: the
+kernel and the geometry lanes never see a probability. Three
+consumables come out of it — the **analyzed box** (the offset interval
+the analysis varies each parameter over), the **tail mass** (what the
+box left out), and the **leaf mass** (what the distribution puts inside
+any sub-interval).
+
+```
+use pncad::prelude::*;
+use pncad::analysis::{AnalysisPolicy, MeasureUnavailable, analyzed_box, box_mass, tail_mass};
+use pncad::document::{Distribution, DocParamValue};
+
+let tol = Tol::witness();
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
+
+let declare = |doc: &Doc<ProfileProgram>, name: &str, value: DocParam| {
+    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol)
+        .expect("the declaration applies").doc
+};
+
+// A measured bore: 4 mm, one micron of spread, normal.
+doc = declare(&doc, "bore_r", DocParam::continuous_with(
+    Dimension::Length, 0.004, Distribution::Normal { sigma: 1e-6 }));
+// Vendor stock: the catalogue gives limits and states no shape.
+doc = declare(&doc, "plate_t", DocParam::continuous_with(
+    Dimension::Length, 0.010, Distribution::Band { lo: -1e-4, hi: 1e-4 }));
+// Unannotated: FIXED, on purpose.
+doc = declare(&doc, "web_t", DocParam::continuous(Dimension::Length, 0.003));
+
+// The box, under the ±3σ default policy (0.9973 per parameter).
+let policy = AnalysisPolicy::default();
+let boxed = analyzed_box(&doc, &policy);
+
+// The normal's box is the symmetric quantile interval, so it is
+// roughly ±3σ and it leaves the rest OUTSIDE.
+let bore = boxed.get(&ParamName::new("bore_r")).expect("an axis");
+assert!((bore.offsets.hi / 1e-6 - 3.0).abs() < 0.01);
+let tail = tail_mass(&ParamName::new("bore_r"),
+                     &bore.distribution.expect("annotated"), &bore.offsets)
+    .expect("a normal prices");
+assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
+
+// The band's box IS its support, so nothing escapes it...
+let plate = boxed.get(&ParamName::new("plate_t")).expect("an axis");
+assert_eq!(plate.offsets.lo, -1e-4);
+// ...and the unannotated parameter is a width-zero axis at its nominal.
+assert!(boxed.get(&ParamName::new("web_t")).expect("an axis").offsets.is_fixed());
+assert_eq!(boxed.varying().count(), 2);
+
+// The band refuses to price anything its shape would decide, and the
+// refusal NAMES the parameter rather than quietly assuming uniform.
+let refusal = box_mass(&ParamName::new("plate_t"),
+                       &plate.distribution.expect("annotated"), (-5e-5, 5e-5));
+assert!(matches!(refusal, Err(MeasureUnavailable::BandHasNoMeasure { .. })));
+assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
+
+// Moving a value KEEPS the annotation — use the value door, never a
+// rebuilt `DocParam`.
+doc = apply(&doc, &DocEdit::SetDocParamValue {
+    name: ParamName::new("bore_r"),
+    value: DocParamValue::Continuous(0.0045),
+}, tol)?.doc;
+assert!(doc.params()[&ParamName::new("bore_r")].distribution().is_some());
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Three things in that listing are the whole design, and each is a
+decision you can rely on:
+
+- **The box is the analysis's knob, not the distribution's property.**
+  A normal has unbounded support; `quantile_mass` decides how much of
+  it to analyze. Moving the knob moves mass between the analyzed and
+  the tail columns — it never moves truth, and the tail is *reported*,
+  never dropped.
+- **A band prices nothing whose answer depends on its shape.** It will
+  answer the two set-theoretic cases (an interval covering its whole
+  support holds mass 1; a disjoint one holds 0), because every measure
+  consistent with the band agrees on those. Anything finer refuses,
+  typed, naming the parameter. Promoting a band to a uniform would be a
+  strictly stronger claim than the author made.
+- **Value edits carry the annotation.** `SetDocParam` is
+  create-or-replace: handing it a `DocParam` you rebuilt from a
+  dimension and a number replaces the declaration and silently deletes
+  the distribution. `SetDocParamValue` writes the number and carries
+  the declaration forward, which is why the panel, the drag gesture and
+  the Python binding (`DocEdit.set_doc_param_value`) all speak it.
+
+The same three consumables are the Python surface, with one difference
+that is a decision rather than a translation: the offsets are TYPED
+quantities in the parameter's own dimension, and the mass columns hang
+off the box rather than being free functions, so the name, the
+distribution and the interval always come from one axis.
+
+```python
+from pncad import (AnalysisPolicy, DEFAULT_QUANTILE_MASS, Distribution, Doc,
+                   DocEdit, DocParam, DocParamValue, MeasureUnavailable,
+                   ParamName, analyzed_box, mm)
+
+doc = Doc("guide-distributions")
+# A measured bore: 4 mm, one micron of spread, normal.
+doc.apply(DocEdit.set_doc_param(ParamName("bore_r"),
+    DocParam.length(4 * mm, Distribution.normal(0.001 * mm))))
+# Vendor stock: the catalogue gives limits and states no shape.
+doc.apply(DocEdit.set_doc_param(ParamName("plate_t"),
+    DocParam.length(10 * mm, Distribution.band(-0.1 * mm, 0.1 * mm))))
+# Unannotated: FIXED, on purpose.
+doc.apply(DocEdit.set_doc_param(ParamName("web_t"), DocParam.length(3 * mm)))
+
+boxed = analyzed_box(doc, AnalysisPolicy())          # or analyzed_box(doc)
+bore = boxed.get(ParamName("bore_r"))
+assert abs(bore.offsets[1].in_unit(mm) / 0.001 - 3.0) < 0.01
+assert abs(boxed.tail_mass(ParamName("bore_r")) - (1.0 - DEFAULT_QUANTILE_MASS)) < 1e-12
+assert boxed.get(ParamName("plate_t")).offsets[0] == -0.1 * mm
+assert boxed.get(ParamName("web_t")).is_fixed       # unannotated is FIXED
+assert [n.name for n in boxed.varying] == ["bore_r", "plate_t"]
+
+# The band refuses to price anything its shape would decide, and the
+# refusal NAMES the parameter rather than quietly assuming uniform.
+try:
+    boxed.box_mass(ParamName("plate_t"), -0.05 * mm, 0.05 * mm)
+    raise AssertionError("a band prices nothing shape-dependent")
+except MeasureUnavailable as refused:
+    assert refused.param == "plate_t"
+
+# Moving a value KEEPS the annotation; `Doc.params` reads it back.
+doc.apply(DocEdit.set_doc_param_value(ParamName("bore_r"), DocParamValue.length(4.5 * mm)))
+assert doc.params.get(ParamName("bore_r")).distribution == Distribution.normal(0.001 * mm)
+```
+
+`Distribution`'s constructors run the same `check` the edit and load
+doors run, so a broken invariant refuses where it is written, as
+`DistributionFault`.
+
+The fourth door is the **advisory** one, and it is here because the
+certified half is not: `monte_carlo(doc, boxed, McConfig(samples=…,
+seed=…))` replays the document at `f64` over draws from its own
+distributions and answers an `McReport` — a `McMeasure` row per
+measure node, a `McAssertion` row per assertion with its empirical
+`violation_fraction`, and the fraction of draws that fell outside the
+box, which is the empirical twin of the tail column above. Every
+number in it is an estimate and none of it gates; the sample count and
+the seed ride on the report and on every line `McReport.render`
+writes, so a number copied out of one carries its label. `McConfig`'s
+`parallel` switch is there to be checked rather than tuned — the two
+schedules produce bit-identical reports. A band refuses the whole run
+(`McRefusal`, `variant == "band_has_no_measure"`), and
+`sample_offset(name, distribution, u)` is the single draw underneath,
+answering an offset in the distribution's own dimension.
+
+What does NOT cross is the certified half — the E6 driver, the E4/E5
+stackup, the E10 reports — which lives behind the `interval` feature
+the wheel is not built with. That is the whole reason the advisory
+lane is un-gated in the kernel: a caller with no certified scalar
+still gets the labeled estimate.
+
 ## 4. The rest of the documentation
 
 - **`docs/guide/examples.md`** — the corpus as the example set: every
@@ -1360,6 +2124,13 @@ crosses as a number and the parameter link is lost.
   materializers, the structural pattern language, the geometric
   filters, the doors from a name back to geometry, and the
   detect/declare protocol for flush contact.
+- **`docs/guide/meshing.md`** — the tessellate and cross-check rungs
+  from the bindings' side: what a mesh carries across the boundary,
+  how a caller re-derives closure and volume from it, and STL.
+- **`docs/guide/assembly.md`** — assemblies: the workspace store and
+  the identity/pin/reference split, instances and mates, `evaluate`'s
+  resolver and its memo, the solve and the at-rest gate, split/inline
+  and the pin-update door.
 - **`docs/guide/north-star-audit.md`** — which demos are authorable
   through the Python bindings today, and the named gap for each that
   is not.

@@ -5,18 +5,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::intersect::{PlaneCylinderSection, plane_cylinder_section};
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane, implicit_residual};
-use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
+/// **Deliberately not `shared::surf::cylinder`.** The axis is at
+/// `(1, 2, 3)` and the radius is 2: the conic rows need the surface
+/// away from the origin so a pcurve's chart coordinates cannot agree
+/// with world ones by accident.
 fn cyl() -> Surface<f64> {
     Surface::Cylinder {
         origin: Point3::new(1.0, 2.0, 3.0),
@@ -398,12 +398,18 @@ fn ellipse_differential_interval_lane() {
 /// doc-note on `route`, not a committed test).
 #[test]
 fn route_table_has_no_wildcard_arm() {
-    let src = include_str!("../src/intersect.rs");
+    // Comments and literal bodies blanked: the needles are match-arm
+    // TOKENS, so a comment inside `route` naming a wildcard shape is
+    // not an arm and each arm's `note:` string cannot manufacture one.
+    let src = test_utils::source::code_only(include_str!("../src/intersect.rs"));
     let start = src.find("pub fn route(").expect("route fn present");
-    let end = src[start..]
-        .find("\n}\n")
-        .map(|i| start + i)
-        .expect("route fn closes");
+    // Brace-matched, not cut at the first `\n}\n`: that slice is a
+    // guess about formatting that ends the table at the first nested
+    // block closing in column zero. In the blanked view a brace is
+    // always a brace, which is the precondition
+    // `test_utils::source::balanced_end` is documented on.
+    let open = start + src[start..].find('{').expect("route fn has a body");
+    let end = test_utils::source::balanced_end(&src, open).expect("route fn closes");
     let table = &src[start..end];
     for forbidden in ["_ =>", "(_,", ", _)", "| _", "_ |"] {
         assert!(

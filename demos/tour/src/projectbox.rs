@@ -95,39 +95,60 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
     (acc, vol)
 }
 
-/// The tour stop; returns it with a clone of the final body (the
-/// cutaway stop splits it).
-pub fn stop(tol: Tol) -> (Stop, pncad::topo::Body<f64>) {
+/// The tour stop — the whole enclosure and, beside it, the same body
+/// sectioned. ONE cell: the section is not a second part, it is this
+/// part with its interior shown, and two independently-scaled panels
+/// are the one arrangement that stops a reader laying the halves back
+/// onto the whole.
+pub fn stop(tol: Tol) -> Stop {
     let (acc, vol) = build::<f64>(tol);
-    let body_for_cutaway = acc.body.clone();
+    let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&acc.body, tol);
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
          4 boss unions -> 4 pocket subtracts), volume matching the dyadic oracle \
          after every op (observed bit-exact, gated 1e-9), final V = {vol}; square-only honesty: round bosses/pilot holes are not \
          attempted here (curved operands are gated per C5 arm, not by a blanket \
          operand gate); no two operand planes coincide \
-         anywhere in the chain (the #91 design rule)"
+         anywhere in the chain (the #91 design rule). SECTIONED: {section_note}"
     );
-    let s = Stop {
+    Stop {
         name: "projectbox",
-        caption: "project box".to_string(),
+        caption: "project box — whole, and sectioned".to_string(),
         montage: true,
         story: "electronics enclosure: cavity, 6 vent through-slots, 4 floor bosses, \
-                4 pilot pockets — the tour's longest boolean-of-boolean chain",
-        ops: "extrude 15 cutters/bosses -> 15 sequential subtract/union nodes",
+                4 pilot pockets — the tour's longest boolean-of-boolean chain — and \
+                beside it the SAME body split by a tilted plane and pulled apart, a \
+                machinist's section showing the bosses, pockets and wall sections the \
+                whole one hides",
+        ops: "extrude 15 cutters/bosses -> 15 sequential subtract/union nodes; \
+              topo::split(tilted plane) -> 2 bodies -> 2 transform nodes",
         delta: 1e-2,
         note: Some(note),
+        // The SECTION's camera, not the box's. A merged cell has one
+        // camera, and the two subjects do not want the same one: the
+        // box alone was framed at elev 33 / azim -125, which puts the
+        // cut faces 2.5 degrees off EDGE-ON (foreshortening 0.044) and
+        // makes a machinist's section into a pair of slivers. The
+        // cutaway's own choice — "the section normal ~48 degrees off
+        // the view direction" (#91 revision note 6) — is the demanding
+        // constraint, so it wins: at elev 20 / azim 55 the section
+        // normal is 44.8 degrees off the view, foreshortening 0.705,
+        // and the below half's cut faces the camera with the cavity,
+        // vents and boss sections open to it. The whole box is a box
+        // from any azimuth; the section is only a section from this
+        // one.
         view: View {
-            elev: 33.0,
-            azim: -125.0,
+            elev: 20.0,
+            azim: 55.0,
             up: 'z',
         },
-        bodies: vec![SceneBody::seamed(
+        bodies: core::iter::once(SceneBody::seamed(
             "projectbox",
             [0.40, 0.60, 0.72],
             acc.body,
             acc.contacts,
-        )],
-    };
-    (s, body_for_cutaway)
+        ))
+        .chain(section_bodies)
+        .collect(),
+    }
 }

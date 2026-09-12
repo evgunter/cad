@@ -2,7 +2,11 @@
 # Temporary investigation script (NOT for merge): battery 3.
 # Re-tests the #52/#53 decision (opt-0 on CI) now that its two premises
 # have changed: #179/#387 took the workspace from 261 to 14 test binaries,
-# and test EXECUTION has grown to ~79% of CI run wall.
+# and test EXECUTION has grown to a large share of CI run wall. The share
+# is NOT restated here — `local-scripts/test-fast.sh`'s header is its one
+# home, beside the rest of that argument and beside the note saying which
+# half of it a register re-takes. A second copy of a number nothing checks
+# drifts from the first in silence, which is the whole subject of #681.
 # Uses exactly local-scripts/test-fast.sh's configuration: whole-graph
 # opt-2 with debug-assertions and overflow-checks still ON.
 set -u

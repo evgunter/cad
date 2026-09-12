@@ -1,5 +1,7 @@
-//! Typed import failure (closed enum, D4 ¶3). Every variant names the
-//! offending entity id or line — the reader never panics and never
+//! Typed import failure (closed enum, D4 ¶3). Every variant names its
+//! subject as precisely as the failure has one — the offending entity
+//! id or line where the failure is a FILE's, the anchor or the
+//! verdicts where it is not — and the reader never panics and never
 //! silently degrades a file into a different model.
 
 use core::fmt;
@@ -15,7 +17,7 @@ pub struct AdoptionAttempt {
 }
 
 /// The intensional interpretations the edge-adoption ladder can try
-/// (D7 stage 2's vocabulary — `geom_brep::EdgeGeometry`'s variants,
+/// (D7 stage 2's vocabulary — `geom_brep::EdgeDescription`'s variants,
 /// named as data for future remedy flows).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AdoptionCandidate {
@@ -146,9 +148,31 @@ pub enum StepImportError {
     DeclarationUnresolved {
         /// The anchor position that failed to resolve.
         at: [f64; 3],
-        /// How many candidate vertices were found within the gate
-        /// band (a vertex-rest anchor needs exactly two).
+        /// How many candidate vertices were found within ε_in of the
+        /// anchor (a vertex-rest anchor needs exactly two).
         found: usize,
+    },
+    /// A vertex of the assembled body carries a point key that does
+    /// not resolve in that body's own point arena, found while
+    /// resolving a position-anchored declaration
+    /// ([`crate::ImportContact`]).
+    ///
+    /// Such a vertex has no position to compare against the anchor,
+    /// and passing over it would understate the anchor's coincidence
+    /// count — a resolvable anchor would report as
+    /// [`StepImportError::DeclarationUnresolved`] with the wrong
+    /// `found`, and a three-way coincidence would resolve as exactly
+    /// two. The resolution refuses instead: a corrupt body is
+    /// announced, never silently miscounted.
+    VertexWithoutPoint {
+        /// The offending vertex — the only name the assembled body has
+        /// for it, and the half of this diagnosis that can be acted
+        /// on. Rendered like the arena keys `TierInvalid` already
+        /// forwards from the kernel's own validator.
+        vertex: topo::VertexKey,
+        /// The anchor position being resolved when the dangling point
+        /// key was found.
+        anchor: [f64; 3],
     },
     /// A real token failed to parse as an f64.
     MalformedReal {
@@ -201,6 +225,43 @@ pub enum StepImportError {
         /// distance to the rim's circle locus, or arc-length excess
         /// outside the rim's parameter range, whichever is larger.
         residual: f64,
+    },
+    /// A described NURBS wall's own boundary column would not re-wrap
+    /// as a curve while an edge was being adopted against it:
+    /// **a weight on that column is not a positive finite number**,
+    /// which no surface that passed `geom::NurbsSurface::new` can
+    /// hold. Unreachable from any body this reader assembles, and
+    /// surfaced rather than swallowed (D4 ¶2, and
+    /// [`geom_brep::boundary_iso_u`]'s own `# Errors` contract): the
+    /// payload names the offending weight and its position, and a
+    /// discarded one would leave a kernel-bug report saying only that
+    /// a kernel bug happened.
+    ///
+    /// **A weight violation is the only payload this arm can carry**,
+    /// which is narrower than [`geom_core::spline::SplineError`]'s
+    /// vocabulary and is a fact about the doors rather than about this
+    /// reader. Extraction slices `control` and `weights` to the same
+    /// length and re-wraps them over the surface's own `knots_v` (or
+    /// `knots_u`), so `WeightCountMismatch` cannot arise at all; and a
+    /// net whose length disagrees with those knots panics in the slice
+    /// before any refusal is built, so `ControlCountMismatch` cannot
+    /// reach here either. Both were measured against a
+    /// validation-bypassed surface.
+    ///
+    /// It is **not** a "this edge is not that shape" answer. The
+    /// recognizers state their negatives some other way — a wall that
+    /// is not a described NURBS, a column the parsed carrier does not
+    /// match bitwise, a rim whose metered deviation exceeds the
+    /// ambient tolerance — and each of those returns a candidate list
+    /// or a residual, never this.
+    WallColumnStructure {
+        /// The `EDGE_CURVE` entity instance being adopted.
+        id: u64,
+        /// The extraction door's refusal, carried rather than
+        /// discarded: which weight of the extracted column is not a
+        /// positive finite number. Its `index` counts along that
+        /// COLUMN, not through the wall's net.
+        source: geom_core::spline::SplineError,
     },
     /// D7's typed ambiguity at ε_in (stage-1 surface recognition,
     /// ruling #256): a face that cannot import WITHOUT promotion (a
@@ -342,6 +403,13 @@ impl fmt::Display for StepImportError {
                  exactly two) — fix the anchor or remove the declaration; unresolved \
                  intent never silently drops"
             ),
+            Self::VertexWithoutPoint { vertex, anchor } => write!(
+                f,
+                "step import: resolving the declared contact anchored at {anchor:?} found \
+                 vertex {vertex:?} of the assembled body, whose point key does not resolve — \
+                 the body is corrupt, and skipping the vertex would miscount the anchor's \
+                 coincidences"
+            ),
             Self::MalformedReal { id, token } => write!(
                 f,
                 "step import: entity #{id}: token '{token}' is not a Part 21 real"
@@ -373,6 +441,13 @@ impl fmt::Display for StepImportError {
                  {residual:e} m (ambient tolerance exceeded). On a rational wall this \
                  residual gate is the rim's only certification, so the file is refused \
                  rather than adopted wrong"
+            ),
+            Self::WallColumnStructure { id, source } => write!(
+                f,
+                "step import: edge #{id}: an adjacent NURBS wall's own boundary column \
+                 will not re-wrap as a curve — {source}. No validated surface can be in \
+                 that state, so the file is refused rather than adopted against a wall \
+                 whose stored structure is corrupt"
             ),
             Self::RecognitionAmbiguous {
                 id,

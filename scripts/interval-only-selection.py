@@ -6,14 +6,18 @@ outputs.
 WHY THIS EXISTS. The `interval` cargo feature is ADDITIVE: every
 `#[cfg(feature = "interval")]` item in `crates/*/src` is an `impl ... for
 Interval`, a `mod`/`use`/`type` for `Interval`, or a test-only item, and
-there is no `cfg(not(feature = "interval"))` anywhere in the tree (both
-properties are GATED by scripts/check-interval-cfg-additive.py, which
-fails loudly the moment either stops holding). Rust has no
-specialization, so adding impls cannot change how the f64 paths
-monomorphize. A test that is present in BOTH builds therefore executes
-the same machine code in both, and running it in the interval legs
-re-proves, at the same two epsilon values, exactly what the default legs
-already proved.
+nothing under `crates/*/src` is compiled `cfg(not(feature =
+"interval"))` (both properties are GATED by
+scripts/check-interval-cfg-additive.py, which fails loudly the moment
+either stops holding). Under `crates/*/tests` that gate deliberately
+ALLOWS negation and requires whole-item gating instead — the loud-skip
+marker rows this file's own reverse-direction note below relies on are
+exactly that — and whole-item gating is what carries the argument here.
+Rust has no specialization, so adding impls cannot change how the f64
+paths monomorphize. A test that is present in BOTH builds therefore
+executes the same machine code in both, and running it in the interval
+legs re-proves, at the same two epsilon values, exactly what the default
+legs already proved.
 
 Measured on CI run 31665082966: of the 2995 tests in the interval legs,
 214 are cfg-gated (168.7 cpu-s of coverage the default legs cannot
@@ -200,7 +204,7 @@ def term(kind, s):
     `test(foo)` is a SUBSTRING match in nextest's grammar, so a test
     named `foo` would also drag in `foo_and_more`. And the value is
     unquoted because nextest 0.9.140's quoted form does not match here
-    (verified against the pinned binary: `binary_id(=geom-core::all)`
+    (verified against that binary: `binary_id(=geom-core::all)`
     matches, `binary_id(="geom-core::all")` reports "no binary IDs
     matched"). Unquoted is safe for Rust test paths — but only for
     those, so anything outside the safe alphabet is a hard error rather

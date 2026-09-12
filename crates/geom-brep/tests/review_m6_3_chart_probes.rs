@@ -12,16 +12,13 @@
 )]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+use core::num::NonZeroUsize;
 
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
-use geom_core::Tol;
-use geom_core::{Band, Point2, Point3, Vec2, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{Point2, Point3, Vec2, Vec3};
 
 fn wide() -> ChartWindow<f64> {
     ChartWindow {
@@ -32,6 +29,10 @@ fn wide() -> ChartWindow<f64> {
     }
 }
 
+/// **Deliberately not `shared::surf::sphere`.** This sphere is placed
+/// OFF the origin, at `(0.3, -0.2, 1.1)`: these rows are about a chart
+/// window on a surface the frame does not privilege, and a centred one
+/// would make the claim vacuous.
 fn sphere(r: f64) -> Surface<f64> {
     Surface::Sphere {
         center: Point3::new(0.3, -0.2, 1.1),
@@ -263,7 +264,7 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
     use geom_core::spline::KnotVector;
     let band = band();
     let eps = 1e-9;
-    let kv = KnotVector::unit_segment(3);
+    let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).unwrap() });
     let p = |x: f64, y: f64, z: f64| {
         [
             RingInterval::point(x),
@@ -351,6 +352,27 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
         out.area.lo(),
         out.area.hi()
     );
+    // A deliberate LOWER bound, and the only row in the tree that
+    // reads the area enclosure's width directly. It says the O(h) cost
+    // is REPORTED rather than hidden, so it goes red if the width ever
+    // silently collapses.
+    //
+    // Re-derived on the post-CERT-5 tree: the width is 2.6340 on an
+    // enclosure of [1.8587, 4.4927] against a 2.9726 oracle, clearing
+    // this floor by 2634x. It was scheduled to be invalidated by an
+    // area-refining funnel — S-CERT Q1 ruled that funnel out (a
+    // wide-but-sound bracket is sound; an ε-scale area target is a
+    // 10³–10⁴x piece-count multiplier), so nothing is now queued to
+    // drive this width down and the row is a standing invariant rather
+    // than a dependency waiting on a fix.
+    //
+    // A row that must stay WIDE and a tripwire for widths that mean a
+    // bug are not in tension: this face is among the widest brackets in
+    // the corpus the A2 gauge is calibrated on, and the gauge is silent
+    // on it by well over an order of magnitude. That separation is what
+    // the ceiling's generosity buys. The gauge's figures live at
+    // `props/quad.rs`'s `area_gauge_ok` and are deliberately not
+    // restated here.
     assert!(
         out.area.width() > 1e-3,
         "a violent patch at fixed resolution must pay a visible O(h) width, got {}",

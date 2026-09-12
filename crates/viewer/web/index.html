@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- `user-scalable=no` kills double-tap/pinch page zoom so a two-finger
+     drag reaches egui as a gesture instead of zooming the document.
+     `viewport-fit=cover` lets the canvas fill a notched screen edge to
+     edge; the status box below re-inserts the safe-area padding for the
+     one thing that must never land under a notch — the error text. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>pncad (wasm spike)</title>
+<style>
+  /* No margins, no scroll. A canvas defaults to `display: inline`, which
+     puts a baseline gap under it and makes the page a few pixels taller
+     than the viewport — enough for a scrollbar and, on a phone, enough
+     for a rubber-band drag that steals the gesture. `display: block` on
+     the canvas is what actually removes it; the `overflow: hidden` here
+     is the belt to that braces. */
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #101214;
+    color: #d8dde3;
+    font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    /* Stops Android Chrome's pull-to-refresh and iOS rubber-band from
+       competing with a drag that starts near an edge. */
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    /* 100dvh, not 100vh: `vh` on mobile is measured against the LARGEST
+       viewport (chrome hidden), so at rest the page is taller than what
+       is visible and the bottom of the canvas sits under the URL bar.
+       `dvh` tracks the live viewport. The `vh` line before it is the
+       fallback for engines without `dvh`. */
+    height: 100vh;
+    height: 100dvh;
+    width: 100%;
+    /* eframe's text agent (the hidden <input> it uses for the on-screen
+       keyboard and IME) is inserted as a SIBLING of the canvas and
+       positioned `absolute` at the canvas' offsetLeft/offsetTop — see
+       eframe 0.36.1 src/web/text_agent.rs. Making <body> the positioned
+       ancestor means those offsets and that `absolute` resolve against
+       the same box, so the input lands exactly over the canvas corner
+       rather than somewhere that can scroll the page. */
+    position: relative;
+  }
+
+  #viewer_canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* THE LOAD-BEARING LINE. Without it the browser claims touch
+       sequences for scroll/pinch and only tells the page afterwards, so
+       egui sees a truncated stream and orbit/pan/zoom feel dead. eframe
+       calls preventDefault on the touch events it handles, but that is
+       too late for a gesture the compositor has already taken. */
+    touch-action: none;
+    /* No border. eframe's `canvas_content_rect` subtracts padding when it
+       maps client coordinates into egui, but NOT border width, so a
+       bordered canvas offsets every pointer position by the border. */
+    border: 0;
+    /* Suppress the iOS selection callout / grey tap flash during drags. */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Deliberately NOT set here: the canvas' `width`/`height` attributes.
+     eframe owns the backing store — it drives a ResizeObserver on the
+     content box and writes `canvas.width/height` in device pixels
+     (preferring `devicePixelContentBoxSize`, else contentBoxSize x DPR),
+     and re-scales them when the device pixel ratio changes. Sizing the
+     backing store from here only fights it. eframe likewise sets
+     `tabindex` and `outline: none` on the canvas itself. */
+
+  #status {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Keep the message clear of notch and home indicator. */
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    background: #101214;
+    /* The box is the only interactive part; the backdrop must never
+       swallow a touch meant for the canvas if this is ever left up. */
+    pointer-events: none;
+  }
+  #status[hidden] { display: none; }
+  #status .box {
+    pointer-events: auto;
+    max-width: 46rem;
+    max-height: 100%;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #status h1 {
+    margin: 0 0 .6em;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  #status.error { background: #1a0f10; color: #ffb4ac; }
+  #status.error h1 { color: #ff6b5e; }
+  #status pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: .8rem;
+    opacity: .85;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="viewer_canvas"></canvas>
+
+<div id="status"><div class="box"><h1 id="status-title">loading pncad…</h1><pre id="status-detail">compiling and starting the wasm module</pre></div></div>
+
+<!-- A module script is silently ignored by an engine with no ES-module
+     support, which on a phone looks exactly like a hung load. -->
+<script nomodule>
+  document.getElementById("status").className = "error";
+  document.getElementById("status-title").textContent = "browser too old";
+  document.getElementById("status-detail").textContent =
+    "This browser does not support ES modules, which wasm-bindgen's --target web output requires.";
+</script>
+
+<script type="module">
+  const statusEl = document.getElementById("status");
+  const detailEl = document.getElementById("status-detail");
+  const canvas = document.getElementById("viewer_canvas");
+
+  // Once an error is on screen it stays: the FIRST failure is the one
+  // that explains the rest, and a later cascade would bury it.
+  let failed = false;
+
+  function fail(title, detail) {
+    if (failed) return;
+    failed = true;
+    statusEl.hidden = false;
+    statusEl.className = "error";
+    document.getElementById("status-title").textContent = title;
+    detailEl.textContent = detail + "\n\n" + environment();
+  }
+
+  // What a phone can actually tell us about why wgpu might have no
+  // adapter. WebGPU is gated on a SECURE CONTEXT, so over plain http to
+  // a LAN address `navigator.gpu` is absent no matter how new the phone
+  // is and wgpu must fall back to WebGL2 — printing all three lines
+  // turns that from a blank screen into a diagnosis.
+  function environment() {
+    let webgl2 = "no";
+    try {
+      webgl2 = document.createElement("canvas").getContext("webgl2") ? "yes" : "no";
+    } catch (e) {
+      webgl2 = "no (" + e + ")";
+    }
+    return [
+      "secureContext: " + window.isSecureContext + "   (WebGPU requires it)",
+      "navigator.gpu: " + (navigator.gpu ? "present" : "absent"),
+      "webgl2:        " + webgl2,
+      "devicePixelRatio: " + window.devicePixelRatio,
+      "canvas backing store: " + canvas.width + "x" + canvas.height,
+      "userAgent: " + navigator.userAgent,
+    ].join("\n");
+  }
+
+  // A Rust panic unwinds out as a JS exception. If it happens inside a
+  // callback eframe installed — a paint, a touch handler — nothing we
+  // await ever rejects, so these two listeners are the only channel that
+  // puts the panic text on the screen instead of only in a console we
+  // cannot open on a phone.
+  addEventListener("error", (e) => fail("uncaught error", String(e.message || e.error || e)));
+  addEventListener("unhandledrejection", (e) =>
+    fail("unhandled rejection", String((e.reason && e.reason.stack) || e.reason || e)));
+
+  // eframe writes `canvas.width`/`height` from its ResizeObserver
+  // callback, immediately before the first paint. A non-zero backing
+  // store is therefore the earliest honest evidence that the app is
+  // actually running — `init()` resolving is not, because `main` hands
+  // the async `WebRunner::start` to the browser's event loop and
+  // returns, so adapter-request and surface-creation failures land
+  // AFTER the promise has already settled.
+  function awaitFirstFrame(timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const deadline = performance.now() + timeoutMs;
+      (function poll() {
+        if (failed) return;
+        if (canvas.width > 0 && canvas.height > 0) return resolve();
+        if (performance.now() > deadline) return reject(new Error("timeout"));
+        requestAnimationFrame(poll);
+      })();
+    });
+  }
+
+  (async () => {
+    let init;
+    try {
+      // Imported dynamically rather than with a static `import` at the
+      // top: a static import that 404s or is served with the wrong MIME
+      // type aborts this whole module before a single line of it runs,
+      // leaving "loading pncad…" on screen forever with no way to say
+      // why. Inside a try/catch, the same failure is legible.
+      ({ default: init } = await import("./viewer.js"));
+    } catch (err) {
+      fail("could not load ./viewer.js",
+        String((err && err.stack) || err) +
+        "\n\nExpected viewer.js and viewer_bg.wasm beside this page. " +
+        "Serve the wasm-bindgen output directory over http — a module " +
+        "cannot be imported from a file:// URL.");
+      return;
+    }
+
+    try {
+      // No exported start function to call: the bin target's `main` is
+      // in the wasm start section, so it has already run by the time
+      // this resolves.
+      await init();
+    } catch (err) {
+      fail("the wasm module failed to start", String((err && err.stack) || err));
+      return;
+    }
+
+    try {
+      await awaitFirstFrame(10000);
+    } catch {
+      fail("started, but never painted",
+        "The wasm module loaded and main() ran, but eframe never sized the " +
+        "canvas, so no frame was drawn within 10s. The usual cause is wgpu " +
+        "finding no adapter.");
+      return;
+    }
+
+    statusEl.hidden = true;
+  })();
+</script>
+
+</body>
+</html>

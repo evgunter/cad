@@ -28,6 +28,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/topo/src/euler.rs",
+    "crates/topo/src/euler_ring.rs",
+    "crates/topo/src/euler_kill.rs",
+    "crates/topo/src/body.rs",
+    "crates/topo/src/entity.rs",
+    "crates/topo/src/fixtures.rs",
+];
+
 use geom_core::Point3;
 
 use crate::entity::{EntityId, HalfEdgeKey};
@@ -248,13 +257,17 @@ fn d18_torn_body_fixture_leaves_every_prev_live() {
 /// row-4 arm: it asserts the panic it caught said `"postcondition"`,
 /// on the stated premise that *"Both `assert_euler_postcondition`
 /// messages carry the literal asserted below; no `unreachable!` message
-/// does."* The premise is true today and is held by nothing — one
+/// does."* Every postcondition message in the crate carries it — the
+/// operator's delta message, the shared tier-1 one, and the
+/// door-level sweep in [`crate::surgery`]. The premise is true today
+/// and is held by nothing — one
 /// `unreachable!` whose message happens to contain the word would make
 /// the discriminator pass on exactly the failure it exists to catch,
 /// silently. This row is that premise as a gate.
 ///
 /// It reads the crate's own sources (the `source_walk::crate_sources`
-/// walk), so it costs a directory walk and no fixture.
+/// walk) through `test_utils::source::code_and_literals`, so it costs
+/// a directory walk and no fixture.
 #[test]
 fn d18_no_unreachable_message_can_impersonate_the_postcondition() {
     let mut offenders: Vec<String> = Vec::new();
@@ -264,17 +277,23 @@ fn d18_no_unreachable_message_can_impersonate_the_postcondition() {
             continue; // this row quotes the literal it forbids
         }
         let text = std::fs::read_to_string(&path).unwrap();
-        for (i, line) in text.lines().enumerate() {
+        // Calls only, and the MESSAGE is what is read: the literal
+        // view blanks every comment and keeps every literal, which is
+        // the one combination this row can use. Under the code view
+        // the message it judges would be spaces; over raw text a
+        // commented-out `unreachable!` still reads as a site, and so
+        // does prose after code on the same line. Line structure
+        // survives blanking, so `i` is still the file's line number.
+        let code = test_utils::source::code_and_literals(&text);
+        for (i, line) in code.lines().enumerate() {
             if line.contains("postcondition:") && line.contains('"') {
                 postcondition_messages += 1;
             }
-            let trimmed = line.trim_start();
-            // Calls only: doc prose that mentions the macro is not one.
-            if trimmed.starts_with("//") || !line.contains("unreachable!(") {
+            if !line.contains("unreachable!(") {
                 continue;
             }
             // The message may sit on the next lines (rustfmt wraps).
-            let window: String = text.lines().skip(i).take(4).collect::<Vec<_>>().join(" ");
+            let window: String = code.lines().skip(i).take(4).collect::<Vec<_>>().join(" ");
             let head = window.split("unreachable!(").nth(1).unwrap_or("");
             let msg = head.split(')').next().unwrap_or("");
             if msg.contains("postcondition") {
@@ -285,8 +304,9 @@ fn d18_no_unreachable_message_can_impersonate_the_postcondition() {
     assert!(
         postcondition_messages >= 2,
         "the walk found {postcondition_messages} postcondition assertion \
-         message(s); expected at least the two in \
-         `assert_euler_postcondition` — the walk is not reading topo/src"
+         message(s); expected at least the operators' delta and tier-1 \
+         messages (`assert_euler_postcondition` and the shared helper it \
+         calls in `crate::surgery`) — the walk is not reading topo/src"
     );
     assert!(
         offenders.is_empty(),

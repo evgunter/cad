@@ -5,7 +5,7 @@ a thin YAML wrapper) and local-scripts/ci-local.sh. There is no second copy of
 these rules anywhere; hosted and local runs are gated identically, and the
 synthetic-diff tests exercise the one script both of them call.
 
-Three tiers (Evan's ask: "changing a core crate runs everything, adding a
+Three tiers (Ev's ask: "changing a core crate runs everything, adding a
 new crate only runs that new crate's tests" — dependency-AWARE, not naive
 per-crate):
 
@@ -17,10 +17,14 @@ per-crate):
                 convention: floors apply to CODE PRs.)
   TIER=all      a workspace-level file changed — the change can move any
                 crate's build, so everything runs, unscoped.
-  TIER=closure  only crate sources changed. PKGS is the DEPENDENT CLOSURE:
-                the changed members plus every member that transitively
-                depends on them, dev-dependencies INCLUDED (a dev-dep edge
-                is a real build edge for `cargo test`).
+  TIER=closure  only crate sources changed. PKGS is the DEPENDENT CLOSURE
+                PLUS THE READ REACH: the changed members, every member that
+                transitively depends on them (dev-dependencies INCLUDED — a
+                dev-dep edge is a real build edge for `cargo test`), and every
+                member whose own sources READ outside their crate. The second
+                half is Ev's ruling of 2026-09-05, *"the closure should reach
+                tree wide guards"*, and its derivation is at THE READ REACH
+                below; `REACHED` names what it added.
 
 Classification is an ALLOWLIST, so it fails CLOSED by construction: a path
 is scopable only if `_is_docs` recognises it as non-triggering or it lives
@@ -49,68 +53,332 @@ Usage:
   ci-filter.py --base <ref>        classify `git diff --name-only <ref>...HEAD`
   ci-filter.py --files <path|->    classify an explicit newline-separated list
   ci-filter.py --selftest          run the fixture battery below and exit
-  ci-filter.py ... --seed <sha>    also SAMPLE the configuration matrix (below)
+  ci-filter.py ... --config lane=interval eps=1e-12 klint=dev-probe
+                                   NARROW the run to those points (below)
+  ci-filter.py ... --config-from-message <file>
+                                   read that same request out of a commit message
+  ci-filter.py ... --notices <file>
+                                   also write the human notices (a pin's
+                                   reason, the interval advisory) to <file>,
+                                   for a caller that relays them verbatim
+  ci-filter.py --force-all         take no diff at all; return the `all` tier
+  ci-filter.py --gated-set         print ONE nextest filterset expression
+                                   selecting every gated suite in the tree
+                                   (the nightly's ungated re-take), or
+                                   `none()`; not the KEY=value stream
 
 Output: KEY=value lines on stdout, one per line, safe to append to
 $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
 
   TIER=docs|all|closure
   PKGS=<comma-separated members, empty for docs, all members for `all`>
+  REACHED=<the members PKGS holds for what they READ rather than for what they
+                depend on — the read reach's addition to the dependent closure,
+                empty on tiers docs and all and on a closure that already held
+                them. `decorate` subtracts it again before keying JOB_ROOTS, so
+                pinning a guard cannot silently switch a named job row on>
   CARGO_SCOPE=--workspace | -p a -p b ...
   RUN_BUILD=true|false          any cargo/grep row at all (false only for docs)
   RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
   RUN_STL=true|false            watertight (admesh) row
   RUN_STEP_EXPORT=true|false    step import (freecad) row
-  RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row
+  RUN_PNCAD_PY=true|false       whether this diff's SEEDS reach the members a
+                                BUILD OF THE WHEEL compiles (pncad-py's non-dev
+                                dependency closure; see `pncad_py_seeds`).
+                                REPORTED, GATES NOTHING — the python suite runs
+                                on every code-tier run in both halves
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
   RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
   RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row
   RUN_K_LINT=true|false         k-lint (gate) row
-  LANE=default|interval|both    which COMPILE MODE this run gates (see below)
-  EPS=default|<value>|all       which tolerance row this run gates
+  LANE_ADVISORY=true|false      this diff touches `*interval*` files and this
+                                run was NARROWED to the default lane by a
+                                request, so if interval semantics changed the
+                                author narrowed away the axis they were
+                                changing. Advisory: nothing reads it to
+                                decide what runs (see below)
+  LANE=default|interval|both    which COMPILE MODE this run gates. `both`
+                                unless a request narrows it (see below)
+  EPS=default|<value>|all       which tolerance row(s) this run gates. `all`
+                                unless a request narrows it
   KLINT_ROW=<unification>|all   which of `k-lint (gate)`'s five feature
-                                unifications this run gates (see below)
+                                unifications this run gates. `all` unless a
+                                request narrows it, and ci.yml fans `all` out
+                                as five matrix legs the way it fans `EPS=all`
+                                out as three
+  SEEDS=<comma-separated members whose OWN files changed, empty for
+                                docs and for `all`>
+  CONFIG_SOURCE=lane:<src> eps:<src> klint:<src>
+                                where each of the three values above came
+                                from: `unsampled` (the whole dimension runs,
+                                which is now every dimension's default) or
+                                `requested` (--config, which is where ci.yml's
+                                `workflow_dispatch` inputs land). There is no
+                                third source: the vocabulary names what can
+                                happen and nothing else
+  TEST_FILTER=<nextest filterset expression>|<empty>
+                                the GATED SUITES this run does not execute,
+                                as one `-E` expression EXCLUDING them
+                                (`not (A | B | ...)`), or empty for the
+                                ordinary whole-suite run. Both run legs
+                                append it; see THE PER-FILE TEST GATE below
+  RUN_VIEWER_TOOLKIT=true|false the eframe/wgpu rows (`clippy -p viewer
+                                --features app`, the doc gate's
+                                --all-features pass over viewer) — keyed on
+                                SEEDS, not on the closure; see
+                                `VIEWER_TOOLKIT_SEEDS`
 
-CONFIGURATION SAMPLING (2026-08-22, Evan's ask after the minutes audit).
-The hosted gate used to run every point of {default, interval} x {default,
-1e-6, 1e-12}. Those points almost always agree — that is the premise the
-`interval` feature's additivity gate and the runtime-eps contract both
-already assert — so the hosted gate now runs ONE point per run and lets
-repetition cover the matrix: with 60 runs/hour during active work, a
-break confined to one of the six points surfaces in minutes, and nothing
-is shipped, so a briefly red main is affordable.
+CONFIGURATION COVERAGE. NOTHING HERE IS SAMPLED (2026-09-04, two
+authorisations from Ev in chat: "feel free to reinstate full runs instead of
+sampling" for the lane and the eps row, then "you can un-sample k-lint" for the
+row that was left).
 
-SEEDED FROM THE COMMIT, NOT FROM RANDOMNESS. `--seed` takes the head SHA
-and the choice is `sha256(salt + seed) % len(choices)`. Two properties
-follow, and both are the point rather than side effects:
+THE LANE AND THE EPS ROW ARE NOT SAMPLED.
 
-  * A RE-RUN OF THE SAME COMMIT PICKS THE SAME POINT. True randomness
-    would let a re-run of a red gate come back green on a different
-    point, which reads as a flake and teaches a re-run habit that
-    launders real failures. Here a red commit stays red until someone
-    changes the tree.
-  * THE POINT IS RECOVERABLE FROM THE SHA ALONE, so "which configuration
-    gated this commit" is answerable after the fact, during a bisect,
-    without the run's logs.
+WHAT THAT UNDOES. From 2026-08-22 to 2026-09-04 a run drew ONE of those six
+points from the head SHA and let repetition cover the rest. The premise was a
+scarce billed resource — `docs/CI-MINUTES-2026-08.md` opens with the Actions
+allowance being consumed faster than the work justified — and that premise
+died when the repository went public on 2026-09-03: standard-runner minutes
+are free and the runner is 4 vCPU / 16 GB (was 2 / 7). The sampling argument
+was sound and it was never free: each point gated about one run in six, so a
+break confined to one of them merged green and surfaced later, on a branch
+belonging to whoever next drew it. Nothing about the soundness argument
+changed; the thing it bought stopped having a price.
 
-`hashlib`, not `hash()`: the builtin is salted per process (PYTHONHASHSEED)
-and would break both properties on the first re-run.
+WHY THIS IS AFFORDABLE, AND IT IS NOT A 6x MULTIPLIER. The nextest archive is
+built once per COMPILE MODE, and eps is RUNTIME env (CAD_TOLERANCE_EPS) read
+by bit-identical binaries — so six points are TWO builds and TWELVE test jobs,
+not six builds. Builds dominate; test legs are the cheap half. Measured on the
+4-vCPU runner, over the 72 code-tier runs of one 3.9-hour window: the whole
+matrix costs about **+15 job-minutes on a TIER=closure run and +19 on a
+TIER=all one**, against medians of 22 and 31.
 
-THE THIRD SAMPLED DIMENSION (2026-08-22) is `k-lint (gate)`'s five FEATURE
-UNIFICATIONS — see `KLINT_ROWS`. It is drawn under a salt of its own, like
-lane and eps, so all thirty points of the matrix stay reachable.
+WALL CLOCK IS NOT FREE AND THE FIRST VERSION OF THIS NOTE SAID IT WAS. The eps
+legs do start together behind an archive that was already being built, but a
+run's wall follows their MAXIMUM, and the maximum of six legs is larger than
+the maximum of two. THE SIZE OF THAT WAS FIRST WRITTEN AS ~+20 s OF CRITICAL
+PATH on a run that would have drawn `interval` anyway, and the 2026-09-12
+shard measurement falsifies it: the eps rows' cost on that lane is the
+ε = 1e-12 leg, which runs several times the ε = default leg beside it, so the
+term is hundreds of seconds and not tens. The "+96 s in expectation on a
+TIER=all run" that was composed from it — with the ~+172 s the interval
+archive adds to a run that would have drawn `default`, which nothing here
+re-took — goes with it. Neither figure is re-derived here: the readings that
+replace the first term are on
+`work/tcost/one-test-is-the-whole-ci-critical-path`.
 
-NO SEED MEANS NO SAMPLING — LANE=both, EPS=all, KLINT_ROW=all. Fails OPEN into MORE work,
-matching every other signal here. local-scripts/ci-local.sh passes no seed
-and therefore still runs the whole matrix: it is not billed by the minute,
-and with the hosted gate sampling, the local gate is now the only lane that
-runs every point of the matrix on one tree.
+THE LAST JOB ON THAT PATH IS THE eps = 1e-12 INTERVAL LEG, AND IT USED TO BE
+NAMED AS `test (interval, eps = default, 1/2)` HERE (corrected 2026-09-12).
+That naming was right when every interval leg cost about the same; it is not
+now. The ε = 1e-12 row carries `editor-core::all
+r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`,
+which is most of its leg at that ε and a rounding error at the other two, so
+the leg holding it finishes last on EVERY code-tier run measured — 30 of them,
+18 at the live count of 2 and 12 more across counts 2, 3, 4 and 6. THE
+DURATIONS ARE NOT RESTATED HERE, because this note would be their fifth home
+and three of the four disagreed on the day they were written: they live once,
+on `work/tcost/one-test-is-the-whole-ci-critical-path`, with the per-run
+readings behind them on `work/tcost/nextest-shard-count-needs-remeasure`.
+WHICH shard of that row holds the test is not fixed: the count partition reads
+no timings, so it moves with the test list. Separately, and unchanged, the two
+editor-core steps ride on shard 1 of the FIRST eps row — that is where they
+are wired, not where the wall is.
+
+THE JOB-MINUTE FIGURES ARE FLOORS, NOT FORECASTS: three un-sampled runs came in
+at 54.0 / 44.4 / 49.7 job-minutes against a 30.6-minute TIER=all median. The
+population, the arithmetic and both corrections are in
+`docs/CI-MINUTES-2026-08.md`, under the 2026-08-22 sampling section this
+supersedes.
+
+THE K-LINT ROW IS NOT SAMPLED EITHER, AND IT WAS THE LAST ONE (2026-09-04,
+Ev in chat: "you can un-sample k-lint"). `k-lint (gate)`'s five FEATURE
+UNIFICATIONS (see `KLINT_ROWS`) were drawn one per run under a salt of their
+own. This script now prints `KLINT_ROW=all` on every run and ci.yml fans that
+out as FIVE MATRIX LEGS, one per unification, exactly as it fans `EPS=all` out
+into three.
+
+THE COST SHAPE ARGUMENT WAS RIGHT AND IS NOT WHY THIS STAYED SAMPLED. Three eps
+rows are ONE nextest archive replayed under a different env var; five
+unifications are five COMPILES of demos/tour and the kernel crates that share
+almost no artifacts, because `--release` and dev are different profiles and
+`budget` and `probe` are opt-in features gated at a module boundary, so each is
+its own fingerprint for every crate that sees it. That is a real difference and
+it is why this dimension was scoped out of the lane/eps unit. What it never
+was, until 2026-09-04, is a cost with something on the other side of it.
+
+WHAT PUT SOMETHING ON THE OTHER SIDE: `#1756` -> `#1775`. On run 33834607784,
+`k-lint (gate)` concluded SUCCESS with `demos tour fmt + clippy` SKIPPED — the
+run drew `release-budget`, and 12 of that job's 14 row steps did not execute.
+(14 is the row-gated set; 19 was the highest step NUMBER in that job's step
+list, which also counts checkout, the prune, the toolchain and the cache.)
+The clippy break that step would have caught reached main and stayed there
+until a separate PR repaired it, and three lanes read the identical green in
+three different ways, one of them concluding main had been fixed when it had
+not. `demos/tour` and `demos/wild` are EXCLUDED workspaces, so no
+`--workspace` check reaches them and the drawn row was their only gate.
+A green job name over a skipped step is what the draw actually cost.
+
+FIVE LEGS, NOT ONE JOB FIVE TIMES OVER. ci.yml's own header used to argue
+against a matrix here on the grounds that it "would pay this job's setup and
+cache restore five times to run one row's worth of work". That argument dies
+with the draw and not before it: un-sampled, the work IS five rows' worth, so
+five setups buy parallelism rather than paying for nothing. The rows are
+self-contained — the two that consume a CSV consume one the step above them in
+the SAME row wrote — which is what makes the row the matrix axis. The two cache
+lanes survive and get sharper: the key is still the row's first token, so each
+leg restores its own profile's lane instead of one lane thrashing between
+profiles.
+
+THE PATH PIN WENT WITH THE DRAW, the way `_forces_interval` went with the
+lane's. `_forces_klint` substituted the row that RUNS a changed `tools/` crate's
+own suite ahead of the seeded draw (Ev's ruling, 2026-08-29), and failed closed
+into `all` when the file list could not be resolved. A run that gates every row
+has nothing left to pin: the pin could only re-state the default or narrow it,
+and narrowing on a path is the one thing this file will not do. So
+`KLINT_PATH_ROWS`, `KLINT_PIN_ROOTS` and `KLINT_PIN_FALLBACK` are deleted with
+it. The ruling's subject — a tool crate's guard living in that crate's own test
+suite, reached by exactly one row — is now satisfied on every run rather than
+on the runs a mapping remembered to cover.
+
+NOTHING READS A SEED. `--seed` and `_sample` are gone: the lane and the eps row
+stopped reading the seed on 2026-09-04 and the k-lint row was the only caller
+left. A `--seed` on the command line is now an unrecognised option and reds,
+which is this file's standing answer to an input it cannot make sense of. Both
+properties the seeding bought — a re-run of the same commit picks the same row,
+and the row is recoverable from the SHA alone — are answered instead by there
+being no row to pick.
+
+LOCAL AND HOSTED NOW GATE THE SAME CONFIGURATION SET, and this sentence has
+moved twice in three days. `ci-local.sh` runs both lanes, all three eps rows and
+all five k-lint unifications; so does a hosted run. What local still adds over
+hosted is its opt-in `--nightly` row, and nothing else.
+
+A NOTICE IS NOT A MATRIX POINT AND MUST NOT ENTER THE KEY=value STREAM. What is
+left to announce here is the interval advisory and the gated-suite skips, and
+both go to STDERR and into `--notices` when a caller asks for it — never to
+stdout, where both halves append to $GITHUB_OUTPUT or read with
+`IFS='=' read -r k v` and one extra line would be one bogus output key. THE
+WORDING LIVES HERE AND ONLY HERE. ci.yml used to restate the notices in its own
+prose so it could print them where a reader looks, and the two copies drifted
+twice — one claimed a pin's reason always names a file (the fail-closed arm
+named none), the other said "DEFAULT LANE DRAWN" over a lane that had been
+requested. `--notices` is the relay that removed the second copy.
+
+THE LANE IS NEITHER DRAWN NOR PINNED (2026-09-04). `_forces_interval` is gone
+with the draw it existed to pre-empt: it pinned `LANE=interval` for a change
+under `interval-transcendentals/` or an unresolvable file list, and a lane
+that always runs both compile modes has nothing left to pin. `#1122`'s ruling
+survives it in the only form that still has work to do — a filename is not
+evidence about semantics — as `_advises_interval`, which now fires in exactly
+one case: a run a REQUEST narrowed to `lane=default` over a diff touching
+`*interval*` files. Someone who narrowed away the axis their diff touches is
+the one reader that notice is still for. It changes nothing about what runs.
+
+NARROWING A RUN TO ONE POINT (2026-08-28, Ev's ask; repurposed 2026-09-04 when
+the draws went, and reduced to ONE SPELLING on 2026-09-04). While the draws
+existed, this was how someone ASKED for the point a draw kept missing. There is
+now exactly one way to say it:
+
+  --config lane=interval eps=1e-12 klint=dev-probe   THE INVOCATION says it,
+      and it MAY NARROW. ci.yml's `workflow_dispatch` inputs land here, so a
+      run can be aimed at a configuration with no commit and no push — typed
+      by whoever is standing there now, which is what a deliberate narrowing
+      is.
+
+THERE WAS A SECOND SPELLING AND IT IS DELETED (2026-09-04, Ev: *"i see in 1855
+it's still talking about the ci config trailer; that code should be deleted
+since it's no longer live"*). `--config-from-message` read a `CI-Config:`
+trailer out of the head commit's message and was ADDITIVE-ONLY: it could not
+gate less than an unmarked run, because a trailer is COPIED rather than typed
+and rides one push with nobody standing over it. Once un-sampling reached the
+last dimension, "additive-only" and "every dimension already runs whole" met:
+the only values a trailer could legally name were `lane=both`, `eps=all` and
+`klint=all`, each of which changed nothing, and every other value red the
+classify step. NO INPUT MADE IT USEFUL — it could restate the default or fail —
+so the path is gone rather than kept as a spelling whose entire legal
+vocabulary is a no-op. What it was for survives in the dispatch input, which
+is the deliberate act it was never a good shape for.
+
+The request does nothing but replace a value before it is printed — no job
+condition, no matrix and no cache key reads anything but the LANE / EPS /
+KLINT_ROW lines, so a narrowed run runs the identical gate that point runs
+inside a full one. A NARROWED RUN ANNOUNCES ITSELF ON THE RUN PAGE: ci.yml's
+`the configuration this run gates` step emits a `::warning::` annotation
+whenever LANE, EPS or KLINT_ROW is not the whole dimension, which is the one
+channel that reaches a reader who never opens a job log.
+
+WHICH CONFIGURATION GATED THIS COMMIT is recoverable from CONFIG_SOURCE, which
+ci.yml prints in a step that always runs. A dispatch's answer lives in one
+run's inputs and not in the commit, and that is now the only answer there is;
+the trailer's one advantage over it died with the values that made it a no-op.
+
+PRECEDENCE is the invocation over the default, PER DIMENSION. A dimension
+nobody names keeps its default, and every default is now the WHOLE dimension —
+every lane, every eps row and every k-lint unification — so `--config
+eps=1e-12` narrows one axis and leaves the rest whole.
+
+A REQUEST THAT NAMES NO REAL POINT IS A HARD FAILURE, not a fallback to the
+default: an unknown key, an unknown value, a repeated key, a token that is not
+`key=value`. This is the one place in this script that does not fail into
+more work, and the asymmetry is the point — every other failure here is an
+inability to classify, where running everything is the safe answer, while
+this one is an INPUT ERROR whose author is standing there reading the result.
+Failing open would hand them a green run over a configuration they did not
+ask for, which is exactly the question they were asking.
+
+`eps=all` IS A LEGAL REQUEST, AND WAS NOT BEFORE 2026-09-04. It used to mean
+"every row" to the local half, which loops over them, while the hosted eps
+rows put the value straight into CAD_TOLERANCE_EPS, where `all` is a parse
+error by design. The hosted half now expands `all` into three matrix legs
+before any value reaches that variable, and `all` is what this script prints
+when nobody narrows the dimension — so refusing it as a request while emitting
+it as the default would be incoherent. `lane=both` and `klint=all` are legal
+on the same terms; all three spell "every row of that dimension".
+
+THE PER-FILE TEST GATE (2026-09-02, S-TCOST lever 3; work/tcost/TCOST-1.md).
+A suite that exercises the logic of a few named source files runs on a
+pull-request gate only when one of those files, or the suite's own file, is
+in the diff — rather than whenever any crate in its dependency closure moved,
+which is what TIER=closure alone says. The suite names those paths ITSELF, in
+a `test_utils::gated_to!` marker at the top of its file, and `TEST_FILTER`
+above is the nextest expression that subtracts the untouched ones.
+
+WHY A SUITE MAY BE SKIPPED AT ALL, since a skipped detector is normally the
+thing this file refuses. `docs/CI-MINUTES-2026-08.md` §*What is NOT sampled*
+draws the line at PERSISTENCE: skipping is sound for a detector whose subject
+persists in the tree, and unsound for a detector of ABSENCE, which leaves no
+future red behind. A gated suite's break persists — the code it was written
+against is still wrong tomorrow — and the nightly's `--gated-set` row runs the
+WHOLE gated set ungated on any day main moved, so the longest a break confined
+to an unnamed path can hide is a day. This is the same argument the k-lint
+draw rests on, at a longer period, and `memories/test-suite-cost.md`
+already RULED the case for the first users: a fuzzer must be *"MARKED to run
+only on changes to the code it was written to test"*, and one that is not
+gated is a defect in the fuzzer.
+
+RECORDED, NEVER SILENT, like every other skip here: one notice line per
+skipped suite naming the suite and the paths that were not in the diff,
+relayed by ci.yml's `the configuration this run gates` step, and both run legs
+echo `TEST_FILTER` before invoking nextest.
+
+The derivation, the marker's spelling and every fail-open arm are at THE
+PER-FILE TEST GATE section further down this file, beside the code.
+
+`--force-all` TAKES NO DIFF AT ALL and returns the `all` tier: everything
+runs, unscoped. It is for the dispatch aimed at a ref whose diff against a
+base is not the question — main after a merge, most often — where classifying
+against the default branch comes back empty. It is not a workaround for a
+base that is hard to name: with no file list the path-keyed signals fail
+CLOSED, so such a run certifies the oracle. Neither the lane nor the k-lint row
+is among those signals any more — every run gates both compile modes and all
+five unifications, so there is nothing left for an unresolvable file list to
+fail closed INTO.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -208,6 +476,15 @@ def _compiled_markdown(root: str) -> frozenset[str]:
     source does the same. The scan is a regex over every `.rs` file outside
     `target/` — measured 0.43 s on this tree, against a whole classification
     of 0.65 s — and it runs before the docs branch is taken.
+
+    BOTH SECONDS ARE ONE UNDATED LOCAL READING, re-taken by nothing, and
+    they are here as a SHAPE rather than as a budget: the point is that the
+    scan is a fraction of a classification that itself runs in under a
+    second, so no tier's latency turns on it. Nothing asserts either, and a
+    guard would be a wall-clock pin inside the filter that decides what CI
+    runs — the one place a timing flake must not be able to change what a
+    run gates. The figure that IS tracked, because it is the one anyone
+    acts on, is the job's billed minute in docs/CI-MINUTES-2026-08.md.
     """
     out: set[str] = set()
     for tree in _RUST_TREES:
@@ -347,18 +624,485 @@ def _markdown_read_by_python(root: str) -> frozenset[str]:
     return frozenset(out)
 
 
+# ------------------------------------------------------------------ THE READ
+# REACH: a guard whose subject is the TREE, reached because of what it reads.
+#
+# WHAT THIS IS FOR (Ev, 2026-09-05: *"the closure should reach tree wide
+# guards"*). TIER=closure's `PKGS` is the DEPENDENT closure, so a crate enters
+# a run's scope only when it is touched or something it depends on is. That is
+# the right answer for a suite whose subject is its own crate and the WRONG one
+# for a suite whose subject is the repository: `crates/test-utils/Cargo.toml`
+# says the leaf has *"ZERO dependencies, deliberately"*, which is exactly right
+# for the layering and puts the tree's most tree-wide guard —
+# `reader_census.rs`'s `every_site_that_reads_rust_source_is_in_the_ledger` —
+# in scope for 1 of 18 members. It reddened `main` twice on 2026-09-04, both
+# times from a PR that was fully green because the guard was never built in it
+# (work/ciw/tree-wide-guards-outside-the-change-closure.md measures both).
+#
+# THE RULE, AND IT IS DERIVED RATHER THAN LISTED. A source file that reads a
+# path outside its own crate has a BUILD EDGE ITS MANIFEST DOES NOT DECLARE,
+# and this resolves those edges by reading them:
+#
+#   lands at the repository root, or at `crates/` itself
+#       -> the file reads EVERY member, so its crate is pinned into every
+#          non-docs closure. That is a tree-wide guard.
+#   lands inside another MEMBER
+#       -> a read edge: the reader's crate joins the closure when that
+#          member's own files change (SEEDS, not the closure — the subject is
+#          the other crate's TEXT, which only its own seeds move).
+#   lands anywhere else that is tracked (`docs/`, `demos/`, a root file)
+#       -> a path edge, checked against the diff. A `.md` reached this way is
+#          also a page a SUITE CONSUMES, so `_consumed_markdown` takes it and
+#          it leaves the docs tier — the same disposition an `include_str!`ed
+#          page already gets, for the same reason.
+#   lands under `target/`
+#       -> nothing is tracked there, so no diff can name it. Ignored.
+#
+# A HAND-MAINTAINED ROSTER WAS THE ALTERNATIVE AND IS THE ONE SHAPE THE RULING
+# EXISTS TO REMOVE. The five guards this was written for were found by a sweep,
+# a sixth (`crates/bvh/tests/aggregator_headers.rs`, whose own header says
+# *"its subject is workspace-wide, so no crate owns it and any home is
+# arbitrary"*) was found by this scanner and not by the sweep, and a seventh
+# written next week would be found by neither. Nothing here names a guard.
+#
+# WHAT IT READS, AND WHAT IT CANNOT. Resolution follows `join`/`push` with a
+# string literal, `parent`/`pop`, `ancestors`, the `concat!` and array
+# spellings, and ONE level of `let`/`fn` binding — every spelling in this tree,
+# which spells the same ascent five different ways across six files. It FAILS
+# CLOSED on the rest: a chain it cannot resolve, and any `..`-bearing literal
+# in an anchor-carrying file that no resolved chain consumed, are measured from
+# the crate directory, so an unfollowable ascent lands at the root and pins the
+# crate rather than going missing. What it does not see is an ascent whose base
+# is an expression it cannot follow AND whose literal climbs no further than a
+# sibling; that residue is what the empty-set check below is the floor under.
+_ANCHOR_RE = re.compile(
+    r'env!\s*\(\s*"CARGO_MANIFEST_DIR"\s*\)'
+    r'|env!\s*\(\s*"CARGO_(?:WORKSPACE_DIR|RUSTC_CURRENT_DIR)"\s*\)'
+    r"|env::current_dir\s*\(\s*\)"
+)
+# The two that name the WORKSPACE root rather than the crate's own directory.
+_ROOT_ANCHOR_RE = re.compile(r"CARGO_(?:WORKSPACE_DIR|RUSTC_CURRENT_DIR)")
+_METHOD_RE = re.compile(r"\.\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+_STR_LIT_RE = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+_BIND_RE = re.compile(
+    r"(?:let\s+(?:mut\s+)?([A-Za-z_][A-Za-z0-9_]*)|fn\s+([A-Za-z_][A-Za-z0-9_]*))"
+)
+# The macros and literals whose elements are PATH FRAGMENTS rather than
+# arguments. `assert!(p.join(x), "…")` must not read its message as a fragment,
+# which is what a comma-blind scan does.
+_GROUP_HEAD_RE = re.compile(r"(concat|format|vec)!\s*$")
+
+
+def _rust_code_view(text: str) -> str:
+    """Comments blanked, string literals kept — the same view this tree's own
+    source-text guards read through `test_utils::source::code_and_literals`.
+    A path spelled in a doc comment is prose, not a read."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            j = i + 1
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == '"':
+                    j += 1
+                    break
+                j += 1
+            out.append(text[i:j])
+            i = j
+            continue
+        if text.startswith("//", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
+            continue
+        if text.startswith("/*", i):
+            depth, j = 0, i
+            while j < n:
+                if text.startswith("/*", j):
+                    depth += 1
+                    j += 2
+                    continue
+                if text.startswith("*/", j):
+                    depth -= 1
+                    j += 2
+                    if depth == 0:
+                        break
+                    continue
+                j += 1
+            out.append(" " * (j - i))
+            i = j
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _skip_space(s: str, i: int) -> int:
+    while i < len(s) and s[i].isspace():
+        i += 1
+    return i
+
+
+_BRACKETS = {"(": ")", "[": "]", "{": "}"}
+
+
+def _past_close(s: str, i: int) -> int:
+    """`s[i]` is an opening bracket; the index just past its match."""
+    stack = [_BRACKETS[s[i]]]
+    i += 1
+    while i < len(s) and stack:
+        c = s[i]
+        if c == '"':
+            i += 1
+            while i < len(s):
+                if s[i] == "\\":
+                    i += 2
+                    continue
+                if s[i] == '"':
+                    break
+                i += 1
+        elif c in _BRACKETS:
+            stack.append(_BRACKETS[c])
+        elif c == stack[-1]:
+            stack.pop()
+        i += 1
+    return i
+
+
+# The verdict of a resolution: a list of repo-relative components, or None for
+# "this climbed somewhere I cannot name", which is the tree.
+_UNRESOLVED = None
+
+
+def _walk_fragment(comps: list[str] | None, lit: str) -> list[str] | None:
+    if comps is _UNRESOLVED:
+        return _UNRESOLVED
+    out = list(comps)
+    for part in lit.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if not out:
+                # Above the repository root: unnameable, so the tree.
+                return _UNRESOLVED
+            out.pop()
+        elif "{" in part or "}" in part:
+            # A `format!` placeholder. It is ONE component and it cannot be an
+            # ascent — `..` is spelled literally — so it goes down, unnamed.
+            out.append("*")
+        else:
+            out.append(part)
+    return out
+
+
+def _group_is_path_list(code: str, pos: int) -> bool:
+    """Is the expression at `pos` an element of a `concat!`/array path list?
+
+    Scanning backwards for the innermost unclosed opener is what tells
+    `concat!(MANIFEST_DIR, "/../x")` — where the neighbour IS a fragment —
+    from `assert!(p.join(x), "message")`, where it is prose.
+    """
+    depth = 0
+    i = pos - 1
+    while i >= 0:
+        c = code[i]
+        if c in ")]}":
+            depth += 1
+        elif c in "([{":
+            if depth == 0:
+                if c == "[":
+                    return True
+                return bool(_GROUP_HEAD_RE.search(code[max(0, i - 12):i]))
+            depth -= 1
+        i -= 1
+    return False
+
+
+def _resolve_chain(
+    code: str, i: int, comps: list[str] | None, consumed: list[tuple[int, int]]
+) -> list[str] | None:
+    """Follow the path-building chain at `code[i:]`, recording the spans of the
+    ascent tokens it accounted for."""
+    in_group = _group_is_path_list(code, i)
+    while True:
+        i = _skip_space(code, i)
+        if i >= len(code):
+            return comps
+        c = code[i]
+        if c in ")]":
+            # Closing a wrapper the anchor sits inside — `Path::new(…)`,
+            # `PathBuf::from(…)`, `test_utils::source::crate_dir(…)`. The chain
+            # continues on the far side of it.
+            in_group = False
+            i += 1
+            continue
+        if c == "," and in_group:
+            i += 1
+            while True:
+                i = _skip_space(code, i)
+                m = _STR_LIT_RE.match(code, i)
+                if m:
+                    if ".." in m.group(1):
+                        consumed.append((m.start(), m.end()))
+                    comps = _walk_fragment(comps, m.group(1))
+                    i = m.end()
+                else:
+                    j = i
+                    while j < len(code):
+                        ch = code[j]
+                        if ch in "([{":
+                            j = _past_close(code, j)
+                            continue
+                        if ch in ",)]":
+                            break
+                        j += 1
+                    if j == i:
+                        break
+                    comps = _walk_fragment(comps, "{}")
+                    i = j
+                i = _skip_space(code, i)
+                if i < len(code) and code[i] == ",":
+                    i += 1
+                    continue
+                break
+            continue
+        if c == ".":
+            m = _METHOD_RE.match(code, i)
+            if not m:
+                return comps
+            name = m.group(1)
+            opener = m.end() - 1
+            end = _past_close(code, opener)
+            arg = code[opener + 1 : end - 1]
+            if name in ("join", "push"):
+                lits = _STR_LIT_RE.findall(arg)
+                if lits:
+                    for lit in lits:
+                        if ".." in lit:
+                            consumed.append((opener, end))
+                        comps = _walk_fragment(comps, lit)
+                elif arg.strip():
+                    comps = _walk_fragment(comps, "{}")
+            elif name in ("parent", "pop"):
+                consumed.append((i, end))
+                comps = (
+                    _UNRESOLVED
+                    if comps is _UNRESOLVED or not comps
+                    else comps[:-1]
+                )
+            elif name == "ancestors":
+                consumed.append((i, end))
+                return _UNRESOLVED
+            i = end
+            continue
+        return comps
+
+
+def _file_destinations(text: str, crate_dir: str) -> set[str]:
+    """Every place outside its own crate that this file's crate-anchored path
+    expressions reach, `/`-joined and repo-relative; `""` for the root."""
+    # THE CHEAP REFUSAL FIRST, AND IT IS A LATENCY DECISION, NOT A STYLE ONE.
+    # This runs over every `.rs` file in `crates/` on every classification —
+    # including a docs-tier one, because `_consumed_markdown` reads it — and
+    # about 95 % of those files never name a crate root at all. Building the
+    # comment-blanked view for them cost 3.4 s of a job whose whole fixed cost
+    # is 21-27 s; a substring test over the raw text costs nothing and cannot
+    # be wrong in the dangerous direction, since the anchors below are spelled
+    # with these tokens and a file without them has no chain to follow. (A
+    # mention inside a COMMENT survives this test and is dropped by the view.)
+    if "CARGO_MANIFEST_DIR" not in text and "current_dir" not in text and (
+        "CARGO_WORKSPACE_DIR" not in text and "CARGO_RUSTC_CURRENT_DIR" not in text
+    ):
+        return set()
+    code = _rust_code_view(text)
+    if not _ANCHOR_RE.search(code):
+        return set()
+    here = ["crates", crate_dir]
+    dests: set[str] = set()
+    consumed: list[tuple[int, int]] = []
+    bindings: dict[str, list[str] | None] = {}
+    for _ in range(4):
+        before = dict(bindings)
+        starts: list[tuple[int, int, list[str] | None]] = []
+        for m in _ANCHOR_RE.finditer(code):
+            starts.append(
+                (m.start(), m.end(), [] if _ROOT_ANCHOR_RE.search(m.group(0)) else here)
+            )
+        for name, bound in bindings.items():
+            for m in re.finditer(r"\b" + re.escape(name) + r"\b\s*(?:\(\s*\))?", code):
+                if m.start() and code[m.start() - 1] == ".":
+                    continue
+                starts.append((m.start(), m.end(), bound))
+        for at, after, start in starts:
+            comps = _resolve_chain(
+                code, after, _UNRESOLVED if start is _UNRESOLVED else list(start), consumed
+            )
+            dests.add("" if comps is _UNRESOLVED else "/".join(comps))
+            stop = max(
+                code.rfind(";", 0, at) + 1,
+                code.rfind("{", 0, at) + 1,
+                code.rfind("}", 0, at) + 1,
+            )
+            b = _BIND_RE.search(code, stop, at)
+            if b:
+                nm = b.group(1) or b.group(2)
+                cur = _UNRESOLVED if comps is _UNRESOLVED else list(comps)
+                if nm not in bindings or (
+                    bindings[nm] is not _UNRESOLVED and cur is _UNRESOLVED
+                ):
+                    bindings[nm] = cur
+        if bindings == before:
+            break
+    # AN `include!` ARGUMENT IS NOT A RUNTIME READ and is accounted for
+    # elsewhere. It resolves against the FILE's directory rather than against
+    # any path expression here, `_compiled_markdown` already reads the whole
+    # family for the docs tier, and what it names is compiled in rather than
+    # opened — so leaving it in the sweep below would measure a
+    # `include_str!("../../../docs/guide/north-star-audit.md")` from the crate
+    # root and pin `pncad` for a page rustdoc pulls in.
+    for m in _INCLUDE_RE.finditer(code):
+        end = _past_close(code, code.index("(", m.start()))
+        consumed.append((m.start(), end))
+    # THE FAIL-CLOSED HALF. Every `..`-bearing literal no chain above accounted
+    # for is measured FROM THE CRATE DIRECTORY, which is the most it could be
+    # anchored at. A spelling this cannot follow therefore lands somewhere real
+    # — at a sibling crate, or at the root, where it pins — rather than being
+    # skipped for being unreadable.
+    for m in _STR_LIT_RE.finditer(code):
+        body = m.group(1)
+        if ".." not in body.split("/"):
+            continue
+        if any(a <= m.start() and m.end() <= b for a, b in consumed):
+            continue
+        comps = _walk_fragment(list(here), body)
+        dests.add("" if comps is _UNRESOLVED else "/".join(comps))
+    # WITHIN ITS OWN CRATE IS NOT A DESTINATION, compared by PATH COMPONENT
+    # and not by string prefix: `crates/geom` is a prefix of
+    # `crates/geom-core/src/lib.rs` and this workspace has both, so a prefix
+    # test would silently drop a real cross-crate read from `geom` into
+    # `geom-core`.
+    mine = ("crates", crate_dir)
+    return {d for d in dests if tuple(d.split("/")[:2]) != mine}
+
+
+class Reach:
+    """What each crate DIRECTORY reads outside itself.
+
+    Directory names, not package names: the mapping between them needs
+    `cargo metadata`, and the docs tier must not start depending on cargo to
+    decide whether anything builds.
+    """
+
+    def __init__(self) -> None:
+        self.tree: set[str] = set()
+        self.crates: dict[str, set[str]] = {}
+        self.paths: dict[str, set[str]] = {}
+
+
+_REACH_CACHE: dict[str, Reach] = {}
+
+
+def _read_reach(root: str) -> Reach:
+    if root in _REACH_CACHE:
+        return _REACH_CACHE[root]
+    reach = Reach()
+    crates_dir = os.path.join(root, "crates")
+    if not os.path.isdir(crates_dir):
+        raise Bail("no crates/ directory to read the tree-wide guards out of")
+    for member in sorted(os.listdir(crates_dir)):
+        here = os.path.join(crates_dir, member)
+        if not os.path.isdir(here):
+            continue
+        for base, dirs, names in os.walk(here):
+            dirs[:] = [d for d in dirs if d != "target"]
+            for name in sorted(names):
+                if not name.endswith(".rs"):
+                    continue
+                src = os.path.join(base, name)
+                try:
+                    with open(src, encoding="utf-8") as fh:
+                        text = fh.read()
+                except OSError as exc:
+                    raise Bail(f"cannot read {src}: {exc}") from exc
+                for dest in _file_destinations(text, member):
+                    if dest in ("", "crates"):
+                        reach.tree.add(member)
+                    elif "*" in dest or any(c.isspace() for c in dest):
+                        # A family rather than a path: it names no file a diff
+                        # can name either.
+                        continue
+                    elif dest.startswith("target/") or dest == "target":
+                        continue
+                    elif dest.startswith("crates/"):
+                        other = dest.split("/")[1]
+                        # A directory that is not there is not a member. The
+                        # fail-closed sweep measures every unattributed ascent
+                        # from the crate root, so it manufactures plausible
+                        # non-paths (`crates/src/lib.rs` out of a
+                        # `"../src/lib.rs"` that was relative to `tests/`);
+                        # those name nothing a diff can name either.
+                        if other != member and os.path.isdir(
+                            os.path.join(crates_dir, other)
+                        ):
+                            reach.crates.setdefault(member, set()).add(other)
+                    else:
+                        reach.paths.setdefault(member, set()).add(dest)
+    _REACH_CACHE[root] = reach
+    return reach
+
+
+def _suite_read_markdown(root: str) -> frozenset[str]:
+    """Repo-relative `.md` paths a RUST SUITE opens at run time.
+
+    The third half of `_consumed_markdown`, and the same argument as the other
+    two one language over: `crates/geom-core/tests/flagged_census.rs` reads
+    `docs/predicate-dimension-audit.md` and fails when a shipped
+    `decide_flagged` site has no row in it, so an edit to that page can turn a
+    suite red exactly as an edit to an `include_str!`ed page can turn a doctest
+    red. Neither of the other two halves can see it: there is no `include!` to
+    match and it is not python.
+    """
+    reach = _read_reach(root)
+    return frozenset(
+        dest
+        for dests in reach.paths.values()
+        for dest in dests
+        if dest.endswith(".md")
+    )
+
+
 def _consumed_markdown(root: str) -> frozenset[str]:
     """Markdown a BUILD OR A SUITE consumes, from both directions.
 
-    Both halves fail closed on every consumption they can see, which is what
+    THREE HALVES NOW, and the third arrived with the read reach above
+    (2026-09-05): a `.md` a RUST SUITE opens at run time is consumed exactly as
+    one an `include_str!` compiles in is. `crates/geom-core/tests/flagged_census.rs`
+    reads `docs/predicate-dimension-audit.md` and reds when a shipped site has
+    no row in it — a page that classified as documentation, on a tier that
+    builds nothing, so the one edit that could break that guard was the one
+    edit guaranteed not to run it. **THIS MOVES A PAGE OUT OF THE DOCS TIER**,
+    which is the same disposition `docs/GUIDE.md` already has and is reached by
+    the same rule: what a build or a suite reads is not prose.
+
+    Every half fails closed on every consumption it can see, which is what
     makes the union safe to take: an `include!` that cannot be resolved and a
-    `.md` literal that cannot be resolved each raise `Bail`, so a consumer
-    re-spelled out of one parser's reach becomes TIER=all rather than becoming
-    a page in the docs tier. Neither half can see a page whose name is never
-    written down; that residue is `_markdown_read_by_python`'s to state and it
-    does.
+    `.md` literal that cannot be resolved each raise `Bail`, and a path
+    expression the reach cannot follow is measured from the crate directory
+    rather than dropped — so a consumer re-spelled out of one parser's reach
+    becomes TIER=all rather than becoming a page in the docs tier. No half can
+    see a page whose name is never written down; that residue is
+    `_markdown_read_by_python`'s to state and it does.
     """
-    return _compiled_markdown(root) | _markdown_read_by_python(root)
+    return (
+        _compiled_markdown(root)
+        | _markdown_read_by_python(root)
+        | _suite_read_markdown(root)
+    )
 
 
 def _run(cmd: list[str], cwd: str) -> str:
@@ -375,20 +1119,43 @@ def _repo_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def _members(root: str) -> tuple[dict[str, str], dict[str, set[str]]]:
-    """Return (dir-name -> package name, package -> set of member deps).
+_MEMBERS_CACHE: dict[
+    str, tuple[dict[str, str], dict[str, set[str]], dict[str, set[str]]]
+] = {}
+
+
+def _member_graph(
+    root: str,
+) -> tuple[dict[str, str], dict[str, set[str]], dict[str, set[str]]]:
+    """Return (dir-name -> package name, every member dep, the non-dev ones).
+
+    MEMOISED PER ROOT. Three callers now want the member map in one process —
+    the change closure, the gated-suite terms' binary ids, and the python
+    suite's seed set — and `cargo metadata` is a subprocess. The cache is keyed
+    on the root and holds for the life of the process, which is one
+    classification.
 
     `--no-deps` reads the workspace manifests only: no registry resolution,
-    no network, no lockfile update. Dependency kinds are all kept — normal,
-    build, AND dev — because `cargo test -p X` builds X's dev-dependencies,
-    so a dev-dep edge propagates a change just as a normal one does.
+    no network, no lockfile update.
+
+    TWO EDGE SETS, BECAUSE THE TWO DIRECTIONS DISAGREE ABOUT DEV EDGES.
+    `_closure` walks UPWARD, from a changed crate to what a TEST of the
+    workspace rebuilds, and there every kind counts — `cargo test -p X` builds
+    X's dev-dependencies, so a dev-dep edge propagates a change just as a
+    normal one does. `_dependency_closure` walks DOWNWARD, from one crate to
+    what a BUILD of that crate compiles, and `maturin build` compiles no
+    dev-dependency at all — so a dev edge followed downward names a crate the
+    thing being built never sees.
     """
+    if root in _MEMBERS_CACHE:
+        return _MEMBERS_CACHE[root]
     meta = json.loads(
         _run(["cargo", "metadata", "--no-deps", "--format-version", "1"], root)
     )
     names = {p["name"] for p in meta["packages"]}
     dir_of: dict[str, str] = {}
     deps: dict[str, set[str]] = {}
+    normal: dict[str, set[str]] = {}
     for pkg in meta["packages"]:
         manifest = os.path.abspath(pkg["manifest_path"])
         rel = os.path.relpath(os.path.dirname(manifest), root)
@@ -397,12 +1164,39 @@ def _members(root: str) -> tuple[dict[str, str], dict[str, set[str]]]:
             # A member outside crates/<name>/ breaks the path mapping below.
             raise Bail(f"member {pkg['name']} lives at {rel}, not crates/<name>")
         dir_of[parts[1]] = pkg["name"]
-        deps[pkg["name"]] = {
-            d["name"] for d in pkg["dependencies"] if d["name"] in names
-        }
+        member_deps = [d for d in pkg["dependencies"] if d["name"] in names]
+        deps[pkg["name"]] = {d["name"] for d in member_deps}
+        # `cargo metadata` spells a normal dependency's kind as null and names
+        # the others ("dev", "build"); the fixture stub spells it "normal".
+        normal[pkg["name"]] = {d["name"] for d in member_deps if d.get("kind") != "dev"}
     if not dir_of:
         raise Bail("no workspace members found")
+    _MEMBERS_CACHE[root] = (dir_of, deps, normal)
+    return dir_of, deps, normal
+
+
+def _members(root: str) -> tuple[dict[str, str], dict[str, set[str]]]:
+    """(dir-name -> package name, package -> every member dep). See `_member_graph`."""
+    dir_of, deps, _ = _member_graph(root)
     return dir_of, deps
+
+
+def _dependency_closure(root_pkg: str, deps: dict[str, set[str]]) -> frozenset[str]:
+    """One member + everything it transitively DEPENDS ON — the other direction.
+
+    `_closure` answers "what does this change reach"; this answers "what does
+    building this crate compile". Pass the non-dev edge set for a build that
+    compiles no test targets."""
+    if root_pkg not in deps:
+        raise Bail(f"{root_pkg} is not a workspace member")
+    out = {root_pkg}
+    stack = [root_pkg]
+    while stack:
+        for dep in sorted(deps.get(stack.pop(), ())):
+            if dep not in out:
+                out.add(dep)
+                stack.append(dep)
+    return frozenset(out)
 
 
 def _closure(seeds: set[str], deps: dict[str, set[str]]) -> list[str]:
@@ -430,7 +1224,8 @@ def classify(files: list[str], root: str) -> dict[str, str]:
 
     consumed = _consumed_markdown(root)
     if all(_is_docs(f, consumed) for f in files):
-        return {"TIER": "docs", "PKGS": "", "CARGO_SCOPE": ""}
+        return {"TIER": "docs", "PKGS": "", "SEEDS": "", "REACHED": "",
+                "CARGO_SCOPE": ""}
 
     dir_of, deps = _members(root)
     seeds: set[str] = set()
@@ -461,10 +1256,65 @@ def classify(files: list[str], root: str) -> dict[str, str]:
 
     if not seeds:
         raise Bail("no member attributed")
-    pkgs = _closure(seeds, deps)
+    closed = set(_closure(seeds, deps))
+
+    # THE READ REACH, ADDED TO THE DEPENDENT CLOSURE AND REPORTED SEPARATELY
+    # (Ev, 2026-09-05: *"the closure should reach tree wide guards"*). The
+    # derivation is at `_read_reach`; this is where it lands.
+    #
+    # A WALK THAT MATCHED NOTHING IS NOT A PASS, which is `reader_census.rs`'s
+    # own sentence about its own walk and is the floor under this one. If the
+    # reach comes back with no tree-wide guard at all, the scanner has stopped
+    # reading rather than the tree having stopped having them — and the failure
+    # mode of a silently empty reach is EXACTLY the defect this closes,
+    # restored without a tell. So it bails, and the run is TIER=all: loud, and
+    # everything runs.
+    reach = _read_reach(root)
+    if not reach.tree:
+        raise Bail(
+            "the read reach found no tree-wide guard in crates/ — this tree has "
+            "several, so the scan has stopped reading rather than the tree "
+            "having stopped guarding"
+        )
+    pinned: set[str] = set()
+    for member, pkg in dir_of.items():
+        if member in reach.tree:
+            # Its subject is the repository, so every seed can invalidate it.
+            pinned.add(pkg)
+            continue
+        # A read edge fires on SEEDS, not on the closure: what this crate reads
+        # is another crate's TEXT, and only that crate's own files move it.
+        #
+        # A DESTINATION OUTSIDE `crates/` NEEDS NO BRANCH HERE and must not
+        # have one: the allowlist above already makes every tracked path that
+        # is not inside a member unscopable, so a change to `demos/tour/src`,
+        # to the workspace manifest or to a page a suite reads is TIER=all
+        # before this runs. `reach.paths` is read by `_suite_read_markdown`
+        # instead, which is the one place a destination like that decides
+        # anything — and what it decides is that the page is not documentation.
+        if {dir_of[o] for o in reach.crates.get(member, ()) if o in dir_of} & seeds:
+            pinned.add(pkg)
+    pkgs = sorted(closed | pinned)
     return {
         "TIER": "closure",
         "PKGS": ",".join(pkgs),
+        # WHAT THE REACH ADDED, and nothing the dependent closure already held.
+        # RECORDED, NEVER SILENT, like every other widening here: a reader of
+        # the filter's output can see which crates are in scope for what they
+        # READ rather than for what they depend on, and `decorate` subtracts
+        # this set again so that no job axis keyed on the closure flips
+        # because a guard was pinned.
+        "REACHED": ",".join(sorted(pinned - closed)),
+        # THE SEEDS, kept and reported alongside the closure they generate.
+        # The closure answers "what must be rebuilt"; the seeds answer "what
+        # did the author actually touch", and those are different questions
+        # with different consumers. `pncad` is in almost every kernel change's
+        # CLOSURE (it re-exports everything) and in almost none of their
+        # SEEDS, which is exactly the distinction the viewer-toolkit axis in
+        # `decorate` is keyed on. Reported rather than derived-and-discarded
+        # so a reader of the filter's output can see the input to that
+        # decision, not only its verdict.
+        "SEEDS": ",".join(sorted(seeds)),
         "CARGO_SCOPE": " ".join(f"-p {p}" for p in pkgs),
     }
 
@@ -481,7 +1331,13 @@ def _all_tier(root: str) -> dict[str, str]:
     # by taking this branch.
     except Exception:  # noqa: BLE001 — fail CLOSED, like the caller below
         pkgs = ""
-    return {"TIER": "all", "PKGS": pkgs, "CARGO_SCOPE": "--workspace"}
+    # SEEDS is empty at tier `all` and that is not "nothing was
+    # touched": the tier means the change is unscopable, so every
+    # seed-keyed axis must read it as "all seeds", not as none. Each
+    # such axis in `decorate` branches on the tier FIRST, before it
+    # looks at this field.
+    return {"TIER": "all", "PKGS": pkgs, "SEEDS": "", "REACHED": "",
+            "CARGO_SCOPE": "--workspace"}
 
 
 # Root packages per pipeline job. A job runs iff one of its roots is in the
@@ -507,22 +1363,24 @@ def _all_tier(root: str) -> dict[str, str]:
 #               for exactly those modules), and `rebuild latency` moved to
 #               nightly.yml. What still reads this is ci.yml's `test-interval`
 #               job — its two named interval rows — plus ci-local.sh.
-# pncad-py      the python-suite row builds the wheel from pncad-py, whose
-#               dependency graph is the whole façade stack (pncad ->
-#               editor-core -> ... ), so `pncad-py in closure` is exactly
-#               "something the wheel compiles moved"; the crate's own .py
-#               test/stub files live under its member directory, so they
-#               seed the same closure.
+# pncad-py      NOT HERE, AND NOT A GATE ANYWHERE. `RUN_PNCAD_PY` is
+#               computed in `decorate` off the SEEDS and is REPORTING:
+#               the python suite runs on every code-tier run in both
+#               halves, so no job reads the key. A closure entry here
+#               would not have gated anything either — the wheel
+#               compiles pncad-py's whole dependency graph, the entire
+#               façade stack, so "something the wheel compiles moved" is
+#               true of nearly every kernel change.
 # topo          the release-profile corrupt-input row compiles
 #               `-p topo --lib`, so topo's own closure membership is
 #               exactly the condition under which anything it runs can
-#               have moved. It is the one job whose root is the crate the
-#               suite lives in rather than a downstream consumer.
+#               have moved. It is the one root whose crate is where the
+#               suite lives rather than a downstream consumer. Both
+#               halves read it.
 JOB_ROOTS = {
     "RUN_EDITOR_CORE": {"editor-core"},
     "RUN_STL": {"stl"},
     "RUN_STEP_EXPORT": {"step-export"},
-    "RUN_PNCAD_PY": {"pncad-py"},
     "RUN_TOPO_RELEASE": {"topo"},
 }
 
@@ -563,28 +1421,106 @@ def _touches_oracle(files: list[str] | None) -> bool:
     return any(f.startswith(ORACLE_PATHS) for f in files)
 
 
-# THE SAMPLED MATRIX. Both lists are the full set the hosted gate used to
-# run on every push; sampling picks one member of each per run.
+# THE SEEDS THAT BUY THE GUI TOOLKIT ROWS (Ev's viewer-CI-posture ruling,
+# 2026-08-27, which was recorded in the closed GUI program's log; that log left
+# the tracker with the program's directory in DOC-LEDGER sweep 5 and reads at
+# `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
+# SEEDS, not the closure — the argument is at
+# `RUN_VIEWER_TOOLKIT` in `decorate`, and it is the whole of why this is a
+# three-name set rather than "anything viewer depends on".
 #
-# LANES are the two COMPILE MODES. `interval` is not a subset lane: when it
-# is drawn it runs the WHOLE suite, not the interval-gated difference, because
-# the default lane is not running that round and ~95% of the tests are shared.
-# (That is the opposite of what the pre-sampling gate wanted, where both lanes
-# ran and the overlap was pure re-execution.)
+# Adding a name here is a decision about what can break the eframe/wgpu half
+# without touching viewer's own sources; it is not a convenience. The nightly
+# lane re-takes the whole row daily, which is what makes the set safe to keep
+# small.
+VIEWER_TOOLKIT_SEEDS: frozenset[str] = frozenset({"viewer", "pncad", "bvh"})
+
+# THE MEMBER THE PYTHON SUITE IS ABOUT. The seed set below is derived from it
+# and nothing else names it.
+PNCAD_PY = "pncad-py"
+
+
+def pncad_py_seeds(root: str) -> frozenset[str]:
+    """The members whose own sources can move what the python suite observes.
+
+    THE CONDITION IS THE DEPENDENCY GRAPH, not a list and not a text. `pncad`
+    re-exports the kernel and the bindings wrap what it hands them, so the
+    question "can a change to crate X reach the wheel's Python surface" has
+    the same answer as "does building the wheel compile X" — and that answer
+    lives in `cargo metadata`, where nothing can spell it wrong.
+
+    WHY NOT THE FAÇADE'S OWN TEXT, which is the reading this replaced and the
+    reason it had to. A crate reaches Python through any path the re-exports
+    take, not only through a whole-crate `pub use` at the façade's top level:
+    `bvh::Ray` arrives via `editor_core`'s `pub use bvh::Ray`
+    (`crates/editor-core/src/lib.rs`), `pncad::select`'s re-export of it, and
+    a `#[pyclass] Ray` in `crates/pncad-py/src/py/pick.rs` that
+    `tests/test_picking.py` drives through `pick_face`. Top-level naming is
+    SUFFICIENT for reach and not necessary, so a rule keyed on it calls a
+    crate unreachable that the suite calls in 37 places.
+
+    THIS MAKES THE AXIS the closure condition `RUN_PNCAD_PY` carried before
+    S-TCOST C3, up to dev edges — `seed in deps(pncad-py)` and
+    `pncad-py in dependents(seed)` are one statement read from two ends. C3
+    withdrew it on cost: a second compile of the kernel under the `python`
+    feature, bought on nearly every code-tier run. That cost was re-measured
+    on 2026-09-06 and does not survive the reading this repository actually
+    uses — see the wall-clock figures at `RUN_PNCAD_PY` in `decorate`.
+
+    DEV EDGES ARE NOT FOLLOWED, so `test-utils` — a dev-dependency of
+    `pncad-py` and of half the workspace — stays out: `maturin build` compiles
+    no test target, so nothing it contains can reach the wheel. `viewer` stays
+    out because nothing under `pncad-py` depends on it.
+
+    FAILS CLOSED — uncertain means the row RUNS, which is the conservative
+    action for a gate. A workspace with no `pncad-py` in it is a reader that
+    has stopped reading, not a wheel that compiles nothing, and
+    `_dependency_closure`'s `Bail` puts the suite back on."""
+    _, _, normal = _member_graph(root)
+    return _dependency_closure(PNCAD_PY, normal)
+
+
+# THE MATRIX. Every point of LANES x EPS_ROWS runs on every hosted code-tier
+# run (2026-09-04); these two lists are also the legal values a request may
+# narrow a run to, and ci.yml's eps matrix legs are the same three rows.
+#
+# LANES are the two COMPILE MODES. `interval` is not a subset lane here: it
+# runs the WHOLE suite, not the interval-gated difference that
+# `scripts/interval-only-selection.py` computes for the local half. That
+# subtraction was correct when both lanes ran on every hosted push and the
+# overlap was pure re-execution; it was reverted for hosted on 2026-08-22
+# because a sampled run drew ONE lane and the subtracted ~93% would then have
+# been gated by nothing. Both lanes run again — so the subtraction's original
+# premise holds again and its reversal's does not. It stays reverted here:
+# restoring it would REDUCE what a run gates, which is a cost lever with its
+# own argument to make and not part of un-sampling. Filed as
+# work/ciw/interval-only-selection-premise-restored.md.
 LANES: tuple[str, ...] = ("default", "interval")
 
 # EPS rows straddle the compiled default (DEFAULT_EPS = 1e-9) three orders
 # either side, and `default` means the variable genuinely UNSET — an empty
 # CAD_TOLERANCE_EPS is a parse error by design (geom-core/src/tolerance.rs).
+# All three run on every hosted run, as three matrix legs over ONE archive:
+# eps is runtime env, so they execute bit-identical binaries.
 EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 
-# `k-lint (gate)`'s FIVE FEATURE UNIFICATIONS, sampled one per run
-# (2026-08-22). That job bills 8-10 minutes and the reason is not one slow
-# check: it compiles demos/tour and the kernel crates FIVE TIMES OVER, once
-# per unification below, and those five share almost no artifacts —
-# `--release` and dev are different profiles, and `budget` and `probe` are
-# opt-in features gated at a module boundary, so each is its own fingerprint
-# for every crate that sees it.
+# `k-lint (gate)`'s FIVE FEATURE UNIFICATIONS. ALL FIVE RUN ON EVERY RUN
+# (2026-09-04); until that day one was drawn per run from the head SHA. ci.yml
+# expands `KLINT_ROW=all` into five matrix legs, one per row below, and the
+# CONFIGURATION COVERAGE note at the top of this file carries the argument and
+# the miss that ended the draw.
+#
+# NO COST FIGURE IS RESTATED HERE. This comment used to say the job "bills 8-10
+# minutes", and so did ci.yml's `k-lint` header; both were quoting a
+# PRE-SAMPLING column of docs/CI-MINUTES-2026-08.md as though it were current,
+# and that document's 2026-08-31 addendum states the rule that settles it — a
+# billed-minute figure there is maintained BY HAND and is only true as of the
+# measurement it names a run id for. What matters at this site is the SHAPE:
+# five unifications that share almost no artifacts, because `--release` and dev
+# are different profiles and `budget` and `probe` are opt-in features gated at a
+# module boundary, so each is its own fingerprint for every crate that sees it.
+# That shape is why the rows are five parallel matrix legs rather than five
+# passes through one job, and why no cache configuration collapses them.
 #
 #   dev-default      demos/tour + demos/wild + the three tools/ crates,
 #                    `cargo fmt --check` / `clippy --all-targets` / `cargo
@@ -602,78 +1538,892 @@ EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 #                    large-K lint over the CSVs it writes
 #
 # THE PROFILE IS THE FIRST TOKEN, deliberately: ci.yml keys this job's
-# `Swatinem/rust-cache` entry on it, so the two dev draws and the two release
-# draws each share a cache lane instead of one lane thrashing between
-# profiles. Renaming a row means reading that expression.
+# `Swatinem/rust-cache` entry on it, so the two dev legs and the two release
+# legs each share a cache lane instead of one lane thrashing between profiles.
+# Renaming a row means reading that expression.
 #
-# SOUND FOR THE SAME REASON THE ε DRAW IS, and it was checked ROW BY ROW
-# rather than assumed (2026-08-22). Sampling covers a detector whose subject
-# PERSISTS in the tree — a clippy finding, a failed assertion, a grown
-# triangle budget, a probe suite that stopped compiling all stay broken until
-# someone fixes them, so a later draw finds them. It is unsound for a
-# detector of ABSENCE, whose subject merges once and leaves no future red.
-# None of the five is one: the census gate that would notice a probe suite
-# DISAPPEARING (`probe-suite-census.sh` in its default mode, with its
-# CENSUS_FLOOR) is sited in `discipline`, which is unconditional and not
-# sampled — what rides here is only the behavioural half, and a suite that
-# stops being built stays unbuilt.
+# WHAT SAMPLING THEM COST, kept because it is the argument against putting the
+# draw back. The five are all PERSISTENCE-detectors — a clippy finding, a
+# failed assertion, a grown triangle budget, a probe suite that stopped
+# compiling all stay broken until someone fixes them — which is what licensed
+# drawing one, and each was audited against that rule individually (2026-08-22)
+# rather than as a group. The rule is sound and it was never the whole story:
+# what a draw gives up is WHOSE merge finds the break, and the answer was
+# whoever next drew the row. `#1756` -> `#1775` is that bill paid in full, and
+# `demos/` is where it landed, because the demo roots are excluded workspaces
+# that no `--workspace` check reaches and the drawn row was their only gate.
 #
-# WHAT IT COSTS, said out loud because two ratified review outcomes name
-# these rows as UNCONDITIONAL and this makes them 1-in-5: MIN-1's certificate
-# falsifier (dev-budget) and `crates/sweep/tests/k_report.rs` +
-# docs/K-REPORT.md's "on every building merge" (dev-probe). Neither claim is
-# checked by any gate — the census greps for the STEP NAME, not for how often
-# it runs — so nothing goes red; the sentences simply become false in that
-# one word, and are owed a correction.
+# TWO RATIFIED REVIEW OUTCOMES NAMED ROWS HERE AS UNCONDITIONAL, and from
+# 2026-08-22 to 2026-09-04 they were not. Both are unconditional again: MIN-1's
+# per-triangle certificate falsifier (`dev-budget`), and
+# `crates/sweep/tests/k_report.rs` + docs/K-REPORT.md's "on every building
+# merge" (`dev-probe`). No gate reds on a frequency claim — the census greps for
+# the STEP NAME, not for how often it runs — so every one of those sites is
+# corrected by hand, in the same PR that makes the correction true.
 KLINT_ROWS: tuple[str, ...] = (
     "dev-default", "release-default", "release-budget", "dev-budget", "dev-probe",
 )
 
-# WHEN THE INTERVAL LANE IS NOT LEFT TO CHANCE. A change to interval code is
-# exactly the change whose interval lane a sampled run must not skip, and
-# waiting an expected two runs to find that out is the one case where the
-# sampling's latency lands on the author who could have been told immediately.
-#
-# The rule is PATH-SHAPED and rests on a naming convention this repo already
-# keeps: every interval-specific test file in crates/*/tests carries
-# `interval` in its basename (28 files at the time of writing), the two
-# interval sources in geom-core are `interval.rs` and `ring_interval.rs`, and
-# the backend is its own workspace root. It is a HEURISTIC over names, not a
-# proof over the feature graph: a change to an interval-gated block inside a
-# file with an ordinary name is not matched, and falls back to the sampling
-# like anything else. That residue is acceptable precisely because the
-# sampling is the floor — the rule only ever ADDS certainty, never removes it.
-def _forces_interval(files: list[str] | None) -> bool:
-    # Fail CLOSED like every other signal here: an unresolved file list cannot
-    # prove interval code held still, so pin the lane rather than sample it.
-    if not files:
-        return True
-    for f in files:
-        if f.startswith("interval-transcendentals/"):
-            return True
-        if "interval" in f.rsplit("/", 1)[-1]:
-            return True
-    return False
 
+# THE `tools/` PATH PIN STOOD HERE AND IS DELETED (2026-09-04), with
+# `KLINT_PATH_ROWS`, `KLINT_PIN_ROOTS`, `KLINT_PIN_FALLBACK` and
+# `_forces_klint`. It substituted the row that RUNS a changed tool crate's own
+# suite ahead of the seeded draw (Ev's ruling, 2026-08-29) and failed closed
+# into `all` on an unresolvable file list. A run that gates every row has
+# nothing left for it to do: a pin over an un-sampled dimension can only
+# re-state the default or narrow it, and no path in this file narrows a gate.
+# The ruling's subject — a guard living in a tool crate's own tests, executed
+# by exactly one of the five rows — now holds on every run instead of on the
+# runs a hand-derived mapping remembered to cover. This is `_forces_interval`'s
+# tombstone one dimension over, and for the same reason.
 
-def _sample(seed: str, salt: str, choices: tuple[str, ...]) -> str:
-    """Deterministic choice from `choices`, keyed on (salt, seed).
+# THE LANE'S PIN STOOD HERE AND IS DELETED (2026-09-04). `_forces_interval`
+# substituted `LANE=interval` ahead of the seeded draw for a change under
+# `interval-transcendentals/`, or for a file list nothing could resolve. It
+# existed to stop a DRAW from missing the axis a change was about, and the
+# draw is gone: every run gates both compile modes, so the pin could only ever
+# re-state what the default already says, and a request naming `lane` beat it
+# anyway. What it can no longer do is what #1122 caught it doing — gate a
+# whole branch on one axis for its entire life, invisibly. `_advises_interval`
+# below is what survives of that ruling.
 
-    Salted per dimension so lane and eps are drawn independently — an
-    unsalted second draw off the same seed would tie eps to lane and leave
-    2 of the 6 matrix points unreachable forever.
+# THE ADVICE THAT REPLACED THE PIN. Same name-shaped observation, stripped of
+# the authority it should never have had: this changes NOTHING about what runs.
+# ITS POPULATION NARROWED TO ONE CASE WHEN THE LANE STOPPED BEING SAMPLED
+# (2026-09-04) and it is kept for that case rather than retired with the draw.
+# A default run gates both compile modes, so nobody can miss the interval lane
+# by accident any more; what remains is missing it ON PURPOSE — a dispatch
+# aimed at `lane: default` over a diff whose filenames say interval, which is
+# the only spelling of that left. That is someone narrowing away the
+# axis their own diff touches, and it is worth one line of stderr. A name can
+# raise the question; only the author can answer it.
+def _advises_interval(files: list[str] | None) -> list[str]:
+    """EVERY changed file whose basename carries `interval`; empty if none.
+
+    Advisory only. Nothing reads this to decide what runs.
+
+    ALL OF THEM, not the first. The reader's question is "did I change
+    interval semantics", and one filename out of nine answers it for one file
+    while implying it is the only one — the notice would then be quietly wrong
+    about the size of what it is asking about.
     """
-    digest = hashlib.sha256(f"{salt}\x00{seed}".encode()).digest()
-    return choices[int.from_bytes(digest, "big") % len(choices)]
+    return [f for f in (files or []) if "interval" in f.rsplit("/", 1)[-1]]
+
+
+# ----------------------------------------------------- the per-file test gate
+#
+# WHAT A MARKER IS. A gated suite names, in its own file, the source paths it
+# was written to exercise:
+#
+#     test_utils::gated_to!["crates/geom-core/src/ring.rs", "crates/geom-core/src/interval/"];
+#
+# The suite then runs on a pull-request gate only when one of those paths, or
+# the suite's own file, is in the diff. `crates/test-utils/src/lib.rs` carries
+# the macro and the rules a marker's AUTHOR needs; what follows is what the
+# READER of this file needs, which is how the set becomes a nextest expression
+# and every way that derivation is allowed to fail.
+#
+# WHY THIS IS READ FROM THE TEXT AND NOT FROM A ROSTER. The same argument
+# `scripts/nightly-only-selection.py` makes for the demoted set and
+# `check-ci-mirror-parity.py` makes for its citations: a central list of which
+# suites are gated is a second copy of a fact the tree already holds, free to
+# drift from it, while a mark at the test cannot. The set below is DERIVED on
+# every run, from the tree that is about to be tested.
+#
+# WHY IT IS A MACRO AND NOT A COMMENT, given that this script reads text
+# either way. A comment can be misspelt and stay a comment; the misspelling
+# then reads as "this suite is not gated", which is the safe direction for
+# COVERAGE and the wrong one for a reader who believes their fuzzer is gated.
+# `gated_to!` is a real path into a real crate, so the same typo is a compile
+# error. The macro expands to nothing and costs no build time.
+#
+# `crates/test-utils/` IS NOT SCANNED. It is the marker's home, its docs quote
+# the spelling, and a diff touching it empties this filter outright (below) —
+# so a marker there could never gate anything and would only make this scan's
+# own fixtures ambiguous.
+
+# `gated_to!` with any of the three delimiters a macro call may use, whether or
+# not it is written through the `test_utils::` path. The literals are pulled
+# out of the balanced text that follows, so a call rustfmt has wrapped across
+# lines reads exactly like a one-line one.
+_GATED_CALL_RE = re.compile(r"\bgated_to!\s*([\[({])")
+_GATED_CLOSER = {"[": "]", "(": ")", "{": "}"}
+_GATED_LITERAL_RE = re.compile(r'"([^"\n\\]*)"')
+# `#[path = "curves/lt_r1_probes.rs"]` immediately above `mod curves_lt_r1_probes;`
+# in a crate's aggregated `tests/all.rs`. That pair is the only place the
+# module prefix a nextest test id carries is written down.
+_ALL_RS_PATH_RE = re.compile(r'#\s*\[\s*path\s*=\s*"([^"\n]+)"\s*\]')
+_ALL_RS_MOD_RE = re.compile(r"^\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;")
+# What may go into `test(/^<module>::/)` unquoted and unescaped. A Rust module
+# path cannot contain anything else; a path that does is not silently emitted
+# as a malformed filterset, it fails open (below).
+_MODULE_PATH_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$")
+# A suite's dependency on a SIBLING module of its own test binary. `crate::`
+# and `super::` are the two spellings that reach one; a `use` of the crate
+# under test goes through its package name and is not this.
+_USE_SIBLING_RE = re.compile(
+    r"^[ \t]*(?:pub[ \t]+)?use[ \t]+(?:crate|super)[ \t]*::[ \t]*(\{|[A-Za-z_][A-Za-z0-9_]*)",
+    re.M,
+)
+_IDENT_HEAD_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)")
+# An attribute or a doc line, which may sit BETWEEN a `#[path]` and the `mod`
+# it decorates — `crates/mesh/src/lib.rs` writes `#[allow(...)]` there — and
+# must not break the pair for a reader looking for one.
+_ATTRIBUTE_LINE_RE = re.compile(r"^\s*(?:#!?\[|///|//!)")
+_BINARY_ID_RE = re.compile(r"^[A-Za-z0-9_-]+(?:::[A-Za-z0-9_-]+)?$")
+
+# A diff touching one of these empties the whole filter: they are the inputs
+# the derivation itself is made of, and a run that changed how the gate is
+# COMPUTED has no business trusting the gate's answer about itself.
+#
+#   crates/test-utils/ — the macro, and the harness every gated suite draws
+#     its RNG and its EFFORT dial from. A change here can move what any of
+#     them does.
+#   scripts/ci-filter.py — this file.
+#   */tests/all.rs — the aggregation file each `tests/` term's module prefix
+#     is read out of. A suite renamed there is a term pointing at nothing, and
+#     a term that matches no test EXCLUDES no test, which is silent.
+#
+# The first two are already unscopable by `classify` (a `scripts/` path forces
+# TIER=all, a test-utils change seeds a closure that is nearly the workspace),
+# so this is belt and braces for those; `tests/all.rs` is not, and is the one
+# that earns the arm.
+def _gate_fails_open(files: list[str] | None) -> str | None:
+    for f in files or ():
+        if f.startswith("crates/test-utils/"):
+            return f
+        if f == "scripts/ci-filter.py":
+            return f
+        if f.endswith("/tests/all.rs"):
+            return f
+    return None
+
+
+class GatedSuite:
+    """One marked file: what it declared, and the nextest term that selects it.
+
+    `problem` is set when the term could not be derived or a declared path
+    does not resolve. Such a suite is never excluded — it runs — and says so
+    in a notice. The LOUD half of that is `scripts/gates/gated-suite-paths.sh`
+    in the `discipline` row: this script's job is to keep the gate honest, and
+    a gate that reds the run is the gate's job.
+    """
+
+    def __init__(self, path: str, paths: list[str], term: str | None, problem: str | None):
+        self.path = path
+        self.paths = paths
+        self.term = term
+        self.problem = problem
+
+    def selected_by(self, changed: set[str]) -> bool:
+        """Is one of this suite's paths — its OWN FILE INCLUDED — in the diff?"""
+        if self.path in changed:
+            return True
+        for want in self.paths:
+            if want.endswith("/"):
+                if any(f.startswith(want) for f in changed):
+                    return True
+            elif want in changed:
+                return True
+        return False
+
+
+def _gated_code_only(text: str) -> str:
+    """`text` with `//`-to-end-of-line comments removed.
+
+    A MARKER IS AN ITEM AND NEVER A COMMENT, and the difference has to be
+    drawn or the macro's own documentation reads as a marker: three files here
+    quote the spelling in prose without calling it (the macro's docs, the gate
+    that describes it, the reader census that subtracts what a marker
+    declares). This is a line cut, not a lexer — a `//` inside a string
+    literal truncates the line early, which can only LOSE a call and never
+    invent one, and losing one leaves its suite running.
+    """
+    return "\n".join(
+        line if (i := line.find("//")) < 0 else line[:i] for line in text.splitlines()
+    )
+
+
+def _marker_paths(text: str) -> list[str] | None:
+    """The literals of the ONE `gated_to!` call in `text`, or None if there is
+    no call. Raises `Bail` on a second call in one file, and on a call this
+    reader cannot bracket-match — both of which mean the file says something
+    this script would otherwise answer by ignoring half of it."""
+    calls = list(_GATED_CALL_RE.finditer(text))
+    if not calls:
+        return None
+    if len(calls) > 1:
+        raise Bail(
+            "more than one gated_to! call: one marker per file, so that the "
+            "path set a reader sees at the top is the whole set"
+        )
+    match = calls[0]
+    opener = match.group(1)
+    closer = _GATED_CLOSER[opener]
+    depth = 0
+    end = None
+    for i in range(match.end() - 1, len(text)):
+        ch = text[i]
+        if ch == opener:
+            depth += 1
+        elif ch == closer:
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    if end is None:
+        raise Bail("a gated_to! call whose delimiters do not close")
+    return [m.group(1) for m in _GATED_LITERAL_RE.finditer(text[match.end() : end])]
+
+
+def _all_rs_modules(root: str, crate_dir: str) -> dict[str, str]:
+    """`tests/<file>.rs` -> the module name `tests/all.rs` includes it under.
+
+    The module name is what a nextest test id is prefixed with, and it is NOT
+    derivable from the filename: `crates/geom/tests/all.rs` includes
+    `curves/lt_r1_probes.rs` as `curves_lt_r1_probes`. Read the pair, never
+    guess it.
+    """
+    all_rs = os.path.join(root, "crates", crate_dir, "tests", "all.rs")
+    out: dict[str, str] = {}
+    try:
+        with open(all_rs, encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return out
+    pending: str | None = None
+    for line in lines:
+        found = _ALL_RS_PATH_RE.search(line)
+        if found:
+            pending = found.group(1)
+            continue
+        mod = _ALL_RS_MOD_RE.match(line)
+        if mod and pending is not None:
+            out[pending] = mod.group(1)
+        if line.strip():
+            pending = None
+    return out
+
+
+def _src_path_mounts(root: str) -> dict[str, str]:
+    """Mounted file -> `"<mounting file>:<line>"`, over `crates/*/src`.
+
+    `_suite_term`'s `src/` arm assumes THE MODULE PATH IS THE FILE PATH, and
+    that is false for a `#[cfg(test)]` module mounted from a sibling with
+    `#[path]`: `crates/topo/src/boolean/r1_probes.rs` is
+    `boolean::solid_contain::r1_probes::`, not `boolean::r1_probes::`. A term
+    built from the file path would match no test at all — and a term matching
+    nothing EXCLUDES nothing, so the suite runs on every pull request while
+    reading, in the file, as a gate. It is also the one direction
+    `--gated-set` cannot catch: the nightly runs what it derives, so such a
+    term quietly SHRINKS the re-take instead of reddening it, and the tree
+    reports two green gates over a suite that is neither gated nor re-taken.
+
+    So a marker on a mounted file is refused, by name, here. Resolving the
+    mount instead was weighed and is the larger fix: a mount can nest, and the
+    module path depends on where the mounting `mod` sits in its own file's
+    module tree, so a reader that resolves one level and stops derives a wrong
+    prefix and goes back to selecting nothing — this defect one level deeper.
+    Refusing is exact; deriving would have to be right.
+
+    INTERVENING ATTRIBUTES ARE THE LIVE SHAPE, not a hypothetical:
+    `crates/mesh/src/lib.rs` writes `#[cfg(test)]`, `#[path = "..."]`,
+    `#[allow(...)]`, then `mod`. A reader that required the two to be adjacent
+    would miss it and report a clean tree.
+    """
+    out: dict[str, str] = {}
+    crates = os.path.join(root, "crates")
+    for crate_dir in sorted(os.listdir(crates)):
+        base = os.path.join(crates, crate_dir, "src")
+        for dirpath, dirs, names in os.walk(base):
+            dirs.sort()
+            for name in sorted(names):
+                if not name.endswith(".rs"):
+                    continue
+                full = os.path.join(dirpath, name)
+                here = os.path.relpath(full, root).replace(os.sep, "/")
+                with open(full, encoding="utf-8", errors="replace") as fh:
+                    lines = _gated_code_only(fh.read()).splitlines()
+                pending: tuple[str, int] | None = None
+                for lineno, line in enumerate(lines, 1):
+                    found = _ALL_RS_PATH_RE.search(line)
+                    if found:
+                        pending = (found.group(1), lineno)
+                        continue
+                    if pending is not None and _ATTRIBUTE_LINE_RE.match(line):
+                        continue
+                    mod = _ALL_RS_MOD_RE.match(line)
+                    if mod and pending is not None:
+                        target = os.path.normpath(os.path.join(dirpath, pending[0]))
+                        rel = os.path.relpath(target, root).replace(os.sep, "/")
+                        out.setdefault(rel, f"{here}:{pending[1]}")
+                    if line.strip():
+                        pending = None
+    return out
+
+
+def _tests_sibling_files(root: str, crate_dir: str) -> dict[str, str]:
+    """Module name -> the `tests/`-relative file `tests/all.rs` mounts it from.
+
+    `_all_rs_modules` READS THE OTHER HALF OF THIS FILE and cannot stand in for
+    it. It records `#[path = "..."] mod x;` pairs, because a suite's test-id
+    prefix is not derivable from its filename; the HELPER modules are declared
+    as a bare `mod common;` with no attribute at all, and are invisible to it.
+    That is not a quirk of one crate — it is how every helper tree in the repo
+    is mounted, and reusing the term reader here would have made this check
+    resolve nothing and pass every tree, silently and in green.
+
+    So: the `#[path]` pairs, plus the bare `mod x;` declarations resolved by
+    Rust's own rule — `x/mod.rs` first, then `x.rs`. A name that resolves to
+    neither is left out rather than guessed at.
+    """
+    out = {mod: inner for inner, mod in _all_rs_modules(root, crate_dir).items()}
+    tests_dir = os.path.join(root, "crates", crate_dir, "tests")
+    try:
+        with open(os.path.join(tests_dir, "all.rs"), encoding="utf-8", errors="replace") as fh:
+            lines = _gated_code_only(fh.read()).splitlines()
+    except OSError:
+        return out
+    attributed = False
+    for line in lines:
+        if _ALL_RS_PATH_RE.search(line):
+            attributed = True
+            continue
+        mod = _ALL_RS_MOD_RE.match(line)
+        if mod:
+            name = mod.group(1)
+            if not attributed and name not in out:
+                for candidate in (f"{name}/mod.rs", f"{name}.rs"):
+                    if os.path.isfile(os.path.join(tests_dir, candidate)):
+                        out[name] = candidate
+                        break
+            attributed = False
+            continue
+        if line.strip():
+            attributed = False
+    return out
+
+
+def _sibling_module_heads(text: str) -> set[str]:
+    """The head identifiers of every `use crate::<h>` / `use super::<h>` in `text`.
+
+    The HEAD is the whole question: `use crate::common::bodies::brick` depends
+    on the `common` module, and which item it reaches inside it is a fact about
+    Rust and not about the change filter. A brace list is split on its TOP-LEVEL
+    commas only — `use crate::{common::{a, b}, corpus}` is `common` and `corpus`
+    and never `a` — because an over-matched head that happened to collide with a
+    real module name would demand a path the suite does not depend on, and that
+    reds a correct tree. This check may only ever be wrong in the direction of
+    missing an import.
+    """
+    heads: set[str] = set()
+    for match in _USE_SIBLING_RE.finditer(text):
+        if match.group(1) != "{":
+            heads.add(match.group(1))
+            continue
+        start = text.index("{", match.start())
+        depth = 0
+        end = None
+        for i in range(start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        if end is None:
+            continue
+        depth = 0
+        entry: list[str] = []
+        for ch in text[start + 1 : end] + ",":
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+            if ch == "," and depth == 0:
+                found = _IDENT_HEAD_RE.match("".join(entry).strip())
+                if found:
+                    heads.add(found.group(1))
+                entry = []
+            else:
+                entry.append(ch)
+    return heads
+
+
+def _unnamed_helper_imports(root: str, suite: "GatedSuite") -> list[str]:
+    """The sibling helper modules `suite` imports and its marker does not name.
+
+    THE CONVERSE OF THE PATH CHECK, and the hole it closes is silent and green.
+    A marker's own file is an implicit member of its path set; a sibling helper
+    module is NOT. A suite that writes `use crate::common;` takes its fixtures,
+    its bodies and often its tolerance from that directory — so a pull request
+    editing `crates/<c>/tests/common/mod.rs` seeds the crate, and the filter
+    then SKIPS every gated suite whose set omits it, on the one diff most
+    likely to have broken them. Nothing reds, and the notice line reads exactly
+    like a correct skip.
+
+    That is not hypothetical. TCOST-9 swept all 54 markers in the tree for this
+    and found TEN — seven of them written under TCOST-1's review and three
+    under its own, whose stated bar in both cases WAS the path set. Every
+    author made the same omission. The ten were widened by hand; this is the
+    arm that stops the eleventh.
+
+    `tests/` shape only. A `src/` marker's `use crate::<m>` names a crate
+    SOURCE module, where whether the suite is specific to it is the ordinary
+    path-set judgement a reviewer makes and not a fact this script can derive.
+    """
+    parts = suite.path.split("/")
+    if len(parts) < 4 or parts[2] != "tests":
+        return []
+    crate_dir = parts[1]
+    file_of = _tests_sibling_files(root, crate_dir)
+    try:
+        with open(os.path.join(root, suite.path), encoding="utf-8", errors="replace") as fh:
+            text = _gated_code_only(fh.read())
+    except OSError:
+        return []
+    missing: list[str] = []
+    for head in sorted(_sibling_module_heads(text)):
+        inner = file_of.get(head)
+        if inner is None:
+            # Not a module `tests/all.rs` mounts, so not a sibling of this
+            # suite at all — a re-export through the crate's own lib, or a
+            # name this reader cannot resolve. Silence is the safe answer.
+            continue
+        resolved = f"crates/{crate_dir}/tests/{inner}"
+        if resolved == suite.path:
+            continue
+        # THE SAME MATCH `selected_by` MAKES, and it has to be: a check that
+        # accepted a spelling the filter would not honour would pass a marker
+        # that still skips on the diff it must run for.
+        covered = any(
+            resolved.startswith(want) if want.endswith("/") else want == resolved
+            for want in suite.paths
+        )
+        if not covered:
+            missing.append(f"`use crate::{head};` -> {resolved}")
+    return missing
+
+
+def _suite_term(root: str, rel: str, dir_of: dict[str, str] | None) -> tuple[str | None, str | None]:
+    """`(term, problem)` — the nextest filterset term selecting `rel`'s tests.
+
+    Two shapes, because the tree has two. A `tests/` suite is one `#[path]`
+    module of its crate's single aggregated test binary, so the term names
+    that binary and the module prefix. A `src/` file's tests are in the
+    crate's LIB test binary, whose binary id is the package name alone, and
+    the module prefix is the file's own module path.
+    """
+    parts = rel.split("/")
+    crate_dir = parts[1]
+    pkg = (dir_of or {}).get(crate_dir, crate_dir)
+    if not _BINARY_ID_RE.match(pkg):
+        return None, f"package name {pkg!r} cannot go into a filterset unquoted"
+    if parts[2] == "tests":
+        inner = "/".join(parts[3:])
+        modules = _all_rs_modules(root, crate_dir)
+        mod = modules.get(inner)
+        if mod is None:
+            return None, (
+                f"crates/{crate_dir}/tests/all.rs declares no `#[path = \"{inner}\"]` "
+                "module, so the test-id prefix this suite's tests carry is unknown"
+            )
+        return f"(binary_id({pkg}::all) & test(/^{mod}::/))", None
+    # src/: the module path IS the file path. `mod.rs` names its directory.
+    inner = parts[3:]
+    if inner[-1] == "mod.rs":
+        inner = inner[:-1]
+    else:
+        inner[-1] = inner[-1][: -len(".rs")]
+    mod = "::".join(inner)
+    if not mod or not _MODULE_PATH_RE.match(mod):
+        return None, f"module path {mod!r} is not a plain Rust path"
+    return f"(binary_id({pkg}) & test(/^{mod}::/))", None
+
+
+def _scan_gated(root: str, dir_of: dict[str, str] | None = None) -> list[GatedSuite]:
+    """Every marked file under `crates/`, in path order.
+
+    Walks `crates/*/src` and `crates/*/tests` only: a marker anywhere else is
+    not a suite this gate can name a binary for, and `gated-suite-paths.sh`
+    reds the run on one.
+    """
+    out: list[GatedSuite] = []
+    crates = os.path.join(root, "crates")
+    for crate_dir in sorted(os.listdir(crates)):
+        if crate_dir == "test-utils":
+            continue
+        for sub in ("src", "tests"):
+            base = os.path.join(crates, crate_dir, sub)
+            for dirpath, dirs, names in os.walk(base):
+                dirs.sort()
+                for name in sorted(names):
+                    if not name.endswith(".rs"):
+                        continue
+                    full = os.path.join(dirpath, name)
+                    rel = os.path.relpath(full, root).replace(os.sep, "/")
+                    with open(full, encoding="utf-8", errors="replace") as fh:
+                        text = fh.read()
+                    if "gated_to!" not in text:
+                        continue
+                    paths = _marker_paths(_gated_code_only(text))
+                    if paths is None:
+                        continue
+                    problem = None
+                    if not paths:
+                        problem = "the marker names no path at all"
+                    for want in paths:
+                        if want.startswith("/") or ".." in want.split("/"):
+                            problem = f"{want!r} is not a repo-relative path"
+                            break
+                        target = os.path.join(root, want)
+                        if want.endswith("/"):
+                            if not os.path.isdir(target):
+                                problem = f"{want!r} does not exist in the tree as a directory"
+                                break
+                        elif not os.path.isfile(target):
+                            # A DIRECTORY WRITTEN WITHOUT ITS TRAILING SLASH is
+                            # the one near-miss that would otherwise pass a
+                            # bare existence test and then match no changed
+                            # file ever — the path is compared for EQUALITY
+                            # unless it ends in `/`, and no changed file equals
+                            # a directory.
+                            extra = (
+                                " — it is a DIRECTORY: name it with a trailing `/`, which is "
+                                "what makes it match everything under it"
+                                if os.path.isdir(target)
+                                else ""
+                            )
+                            problem = f"{want!r} does not exist in the tree{extra}"
+                            break
+                    term, term_problem = _suite_term(root, rel, dir_of)
+                    out.append(GatedSuite(rel, paths, term, problem or term_problem))
+    return out
+
+
+def gated_filter(
+    root: str,
+    files: list[str] | None,
+    tier: str,
+    dir_of: dict[str, str] | None = None,
+) -> tuple[str, list[str]]:
+    """`(TEST_FILTER, notices)` for this run.
+
+    FAILS OPEN, ALWAYS TOWARD RUNNING, and the empty string is what that looks
+    like: it is the ordinary whole-suite run, byte for byte what ran before
+    this key existed. Every arm below returns it —
+    tier `docs` (nothing runs at all), tier `all` (no diff to read, so nothing
+    can be proven still), a diff with no file list, a diff touching the
+    derivation's own inputs, and any exception anywhere in the scan.
+    A suite whose own marker cannot be resolved fails open ALONE, so one
+    broken marker cannot un-gate the rest.
+    """
+    if tier != "closure" or files is None:
+        return "", []
+    touched = _gate_fails_open(files)
+    if touched is not None:
+        return "", [
+            f"gated suites: the whole gated set RUNS — this diff touches {touched}, "
+            "which is an input to the gate's own derivation.\n"
+            "  A change to the marker macro, to the fuzz harness, to this filter or to a "
+            "crate's tests/all.rs can move what a gated suite DOES or which tests its term "
+            "names, so the gate does not get to answer a question about itself."
+        ]
+    try:
+        suites = _scan_gated(root, dir_of)
+    except Exception as exc:  # noqa: BLE001 — fail OPEN, like every other arm here
+        return "", [
+            f"gated suites: the whole gated set RUNS — the marker scan failed ({exc}).\n"
+            "  Nothing is excluded on a scan this script could not complete; "
+            "scripts/gates/gated-suite-paths.sh is the row that reds for it."
+        ]
+    changed = set(files)
+    notices: list[str] = []
+    excluded: list[str] = []
+    for suite in suites:
+        if suite.selected_by(changed):
+            continue
+        if suite.problem is not None or suite.term is None:
+            notices.append(
+                f"gated: {suite.path} RUNS despite an untouched path set — {suite.problem}.\n"
+                "  A marker this script cannot resolve never skips its suite. Fix the marker; "
+                "scripts/gates/gated-suite-paths.sh reds the discipline row until it is fixed."
+            )
+            continue
+        excluded.append(suite.term)
+        shown = ", ".join(suite.paths) or "(no paths)"
+        notices.append(f"gated: {suite.path} skipped — none of {shown} in the diff")
+    if not excluded:
+        return "", notices
+    return "not (" + " | ".join(excluded) + ")", notices
+
+
+def gated_set(root: str) -> int:
+    """`--gated-set`: the union of EVERY gated suite's term, for the nightly.
+
+    NOT the KEY=value stream — one filterset expression on stdout, the shape
+    `nightly-only-selection.py` emits, because the caller passes it straight
+    to `nextest -E`.
+
+    AN EMPTY SET IS LEGITIMATE AND IS STILL NOT ACCEPTED BLINDLY, exactly as
+    the demoted lane's is: a tree with no marker anywhere has no gated set,
+    and `none()` is the honest answer. Markers PRESENT with nothing derivable
+    is a broken rig — the shape that would report green having executed
+    nothing, every night — and it exits 1.
+    """
+    try:
+        dir_of, _ = _members(root)
+    except Exception as exc:  # noqa: BLE001
+        print(f"ci-filter: cargo metadata unavailable ({exc}); using directory names", file=sys.stderr)
+        dir_of = None
+    suites = _scan_gated(root, dir_of)
+    if not suites:
+        sys.stderr.write(
+            "NOTE: no gated suites — not one file under crates/ carries a "
+            "`test_utils::gated_to!` marker, so this tree HAS none and the nightly has "
+            "nothing of this kind to re-take. Emitting `none()`.\n"
+        )
+        print("none()")
+        return 0
+    broken = [s for s in suites if s.problem is not None or s.term is None]
+    if broken:
+        for s in broken:
+            sys.stderr.write(f"    {s.path}: {s.problem}\n")
+        raise SystemExit(
+            "error: {} of {} gated suite(s) could not be resolved to a nextest term. This lane "
+            "exists to run the set the pull-request gate skipped, so emitting a filter that "
+            "silently omits them would report green over exactly the suites nothing else "
+            "runs. Fix the markers (scripts/gates/gated-suite-paths.sh names them "
+            "individually).".format(len(broken), len(suites))
+        )
+    sys.stderr.write("gated suites: {} selected\n".format(len(suites)))
+    for s in suites:
+        sys.stderr.write("    {} -> {}\n".format(s.path, s.term))
+    print(" | ".join(s.term for s in suites))
+    return 0
+
+
+def gated_check(root: str) -> int:
+    """`--gated-check`: every marker in the tree resolves. The LOUD half.
+
+    THE FILTER FAILS OPEN AND THIS DOES NOT, and that division is the whole
+    design. A marker whose paths have been renamed out from under it still
+    RUNS its suite — nothing is lost, only minutes are spent — which means
+    nothing about the run says the marker is broken. Left there, the marker
+    would stay broken, and the next reader would believe a gate that had
+    quietly become "always runs". So the state is made loud somewhere it stops
+    a merge instead: `scripts/gates/gated-suite-paths.sh`, in the `discipline`
+    row of both halves.
+
+    It is also what stops a rename going the OTHER way. A marker naming a path
+    that no longer exists is one edit away from naming a path that never runs,
+    and `--gated-set`'s nightly row refuses such a tree outright — so without
+    this row a renamed source file would red the NIGHTLY, hours later and in
+    someone else's lane.
+    """
+    problems: list[str] = []
+    try:
+        dir_of, _ = _members(root)
+    except Exception as exc:  # noqa: BLE001 — the directory name stands in
+        print(f"ci-filter: gated-check: no member map ({exc})", file=sys.stderr)
+        dir_of = None
+
+    # MARKERS SITED WHERE NOTHING WILL EVER READ THEM. `_scan_gated` walks
+    # `crates/*/{src,tests}` because those are the two shapes a nextest term
+    # can be derived for; a marker anywhere else is not a narrower gate, it is
+    # a comment, and it reads exactly like the real thing to its author.
+    for dirpath, dirs, names in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if d not in (".git", "target", "node_modules"))
+        for name in sorted(names):
+            if not name.endswith(".rs"):
+                continue
+            full = os.path.join(dirpath, name)
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            parts = rel.split("/")
+            sited = (
+                len(parts) > 3
+                and parts[0] == "crates"
+                and parts[1] != "test-utils"
+                and parts[2] in ("src", "tests")
+            )
+            if sited:
+                continue
+            with open(full, encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+            # THE SAME RECOGNISER THE SCANNER USES, and it has to be. A bare
+            # substring test fires on the macro's own NAME, which is written
+            # without being called in three legitimate places — the macro's
+            # docs, its definition, and `reader_census.rs`, which counts the
+            # paths a marker declares so it can subtract them. A gate that
+            # reds on a file for saying the word is a gate authors route
+            # around.
+            if not _GATED_CALL_RE.search(_gated_code_only(text)):
+                continue
+            if rel.startswith("crates/test-utils/"):
+                problems.append(
+                    f"{rel}: a gated_to! call inside crates/test-utils/, which is the "
+                    "marker's own home and is never scanned — nothing would ever read it"
+                )
+            else:
+                problems.append(
+                    f"{rel}: a gated_to! call outside crates/<crate>/src/ and "
+                    "crates/<crate>/tests/. Those are the two shapes a nextest term can "
+                    "be derived for, so a marker here gates nothing while reading like "
+                    "one that does"
+                )
+
+    mounts = _src_path_mounts(root)
+    suites = _scan_gated(root, dir_of)
+    for suite in suites:
+        if suite.problem is not None:
+            problems.append(f"{suite.path}: {suite.problem}")
+        # A MARKER ON A FILE THAT HOLDS NO TEST gates an empty set. Harmless to
+        # the run and misleading to every reader of it, which is the class this
+        # whole unit is about.
+        with open(os.path.join(root, suite.path), encoding="utf-8", errors="replace") as fh:
+            body = fh.read()
+        if "#[test]" not in body and "#[cfg(test)]" not in body:
+            problems.append(
+                f"{suite.path}: carries a marker and no `#[test]` or `#[cfg(test)]`. "
+                "The term it derives selects nothing, so the marker gates nothing and "
+                "says otherwise"
+            )
+        # A MARKER ON A `#[path]`-MOUNTED FILE. Its term is derived from the
+        # file path and the compiler's module path is the MOUNTING module's,
+        # so the term selects nothing — the suite runs on every run while
+        # reading as gated, and drops out of the nightly re-take silently.
+        if suite.path in mounts:
+            problems.append(
+                f"{suite.path}: carries a marker and is `#[path]`-mounted from "
+                f"{mounts[suite.path]}, so its module path is the MOUNTING module's "
+                "and the term derived from this file's path selects no test. Move the "
+                "gated rows to a file whose path matches its module path, and mark that"
+            )
+
+        # A HELPER THE SUITE IMPORTS AND THE MARKER DOES NOT NAME. Everything
+        # above asks whether what the marker SAYS resolves; this asks the
+        # converse — whether what the suite DEPENDS ON is said — for the one
+        # dependency the tree makes mechanically checkable.
+        for missing in _unnamed_helper_imports(root, suite):
+            problems.append(
+                f"{suite.path}: imports {missing}, which its marker does not name. "
+                "A diff editing that helper would SKIP this suite — its fixtures "
+                "change and it does not run"
+            )
+
+    if problems:
+        for p in problems:
+            sys.stderr.write(f"    {p}\n")
+        sys.stderr.write(
+            "\nA marker names the source paths its suite is SPECIFIC TO, repo-relative, "
+            "files or directories with a trailing `/`; the suite's own file is implicit "
+            "and is never listed. Fix the path, or delete the marker deliberately — an "
+            "unresolvable one leaves the suite running on every pull request while "
+            "reading as gated, and reds the nightly's ungated re-take.\n"
+            "\nAn UNNAMED HELPER IMPORT is the other direction and fails the other "
+            "way: the suite is skipped on the diff that moved its fixtures, silently "
+            "and in green. Add the helper's directory to the marker with a trailing "
+            "`/` — `crates/<crate>/tests/common/` — which is what makes it match "
+            "everything under it.\n"
+        )
+        raise SystemExit(
+            "error: {} problem(s) in {} gated-suite marker(s)".format(len(problems), len(suites))
+        )
+    print(
+        "gated-suite markers OK: {} suite(s), every named path resolves in the tree "
+        "and every term derives".format(len(suites))
+    )
+    return 0
+
+
+# `_sample` STOOD HERE AND IS DELETED (2026-09-04). It was the seeded draw —
+# `sha256(salt + seed) % len(choices)`, salted per dimension so that two draws
+# off one seed were not the same number — and the k-lint row was its last
+# caller. Nothing in this file is chosen for anyone any more, so there is no
+# salt to keep independent and no seed to keep. What the salt cost when it was
+# missing is written into the record rather than into a helper nobody calls:
+# lane, eps and k-lint off one unsalted digest would have been the SAME number,
+# making 20 of those 30 points unreachable forever. Whoever adds a draw back
+# owes that argument again, from scratch.
+
+
+class ConfigError(Exception):
+    """A configuration request that names no real point of the matrix."""
+
+
+# THE DIMENSIONS A HUMAN CAN NAME: what they write -> (output key, legal
+# values). The legal sets are NOT the sampled tuples: each is the sampled
+# tuple plus whatever "every row of this dimension" is spelled as in the job
+# conditions that read it — `both` for the lane, `all` for the k-lint row.
+#
+# EPS GAINED ITS MEMBER ON 2026-09-04, and the asymmetry it used to have is
+# worth recording because it was real rather than an oversight. `EPS=all` was
+# a LOCAL word: ci-local.sh loops the rows, while the hosted rows interpolated
+# the value straight into CAD_TOLERANCE_EPS, where `all` is a parse error by
+# design (geom-core/src/tolerance.rs) — so requesting it hosted asked for a run
+# whose test rows could not start. ci.yml now expands `all` into three matrix
+# legs and interpolates one ROW per leg, so nothing ever puts the word in the
+# variable, and `all` is what an un-narrowed run prints.
+CONFIG_DIMENSIONS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "lane": ("LANE", (*LANES, "both")),
+    "eps": ("EPS", (*EPS_ROWS, "all")),
+    "klint": ("KLINT_ROW", (*KLINT_ROWS, "all")),
+}
+
+
+def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
+    """`["lane=interval", ...]` -> `{"LANE": ("interval", source)}`, or raise.
+
+    Raises rather than skipping: see the docstring's REQUEST section — an
+    input error is the one failure here that must not fail open.
+
+    ONE CALLER, ONE AUTHORITY (2026-09-04). This used to take `additive_only`
+    for the commit-trailer spelling, which could add but never narrow; that
+    spelling is deleted, so every request reaching here was typed by whoever is
+    standing there now and MAY narrow.
+    """
+    legal_keys = ", ".join(sorted(CONFIG_DIMENSIONS))
+    out: dict[str, tuple[str, str]] = {}
+    for token in tokens:
+        key, sep, value = token.partition("=")
+        if not sep or not key or not value:
+            raise ConfigError(
+                f"{source}: {token!r} is not `key=value` (keys: {legal_keys})"
+            )
+        if key not in CONFIG_DIMENSIONS:
+            raise ConfigError(f"{source}: no configuration dimension {key!r} (keys: {legal_keys})")
+        out_key, choices = CONFIG_DIMENSIONS[key]
+        if value not in choices:
+            raise ConfigError(
+                f"{source}: {key}={value!r} is not one of {', '.join(choices)}"
+            )
+        if out_key in out:
+            raise ConfigError(f"{source}: {key} named twice; say it once")
+        out[out_key] = (value, source)
+    return out
 
 
 def decorate(
     res: dict[str, str],
     files: list[str] | None = None,
-    seed: str | None = None,
+    config: dict[str, tuple[str, str]] | None = None,
+    wheel_members: frozenset[str] | None = None,
 ) -> dict[str, str]:
     tier = res["TIER"]
     pkgs = set(p for p in res["PKGS"].split(",") if p)
+    # THE DEPENDENT CLOSURE, WITH THE READ REACH TAKEN BACK OFF. `PKGS` is the
+    # archive's scope and the reach widens it; `JOB_ROOTS` below asks a
+    # different question — whether a NAMED job's own subject can have moved —
+    # and the answer to that is still the dependency graph. `editor-core` is
+    # pinned into every code-tier closure by `fix_loop_polygon_expr.rs`, whose
+    # subject is `crates/*/src`; that is no reason to run the two named
+    # `cargo test -p editor-core --test …` interval rows, whose subject is
+    # editor-core's own behaviour and which ride the ordinary closure. Keying
+    # these on `PKGS` would have flipped all four of them permanently true as a
+    # SIDE EFFECT of pinning a guard, which is a cost change nobody asked for
+    # and nothing would have announced.
+    closed = pkgs - set(p for p in res.get("REACHED", "").split(",") if p)
     res["RUN_BUILD"] = "false" if tier == "docs" else "true"
     for key, roots in JOB_ROOTS.items():
         if tier == "docs":
@@ -681,7 +2431,7 @@ def decorate(
         elif tier == "all":
             res[key] = "true"
         else:
-            res[key] = "true" if pkgs & roots else "false"
+            res[key] = "true" if closed & roots else "false"
     # interval-transcendentals is its OWN workspace, so no file under it can
     # appear in TIER=closure (any such change is TIER=all). Its job therefore
     # has nothing to verify in the closure tier.
@@ -692,23 +2442,138 @@ def decorate(
     # probe sweep records predicate margins from every kernel crate. Any
     # member change can break it, so it runs whenever anything builds.
     res["RUN_K_LINT"] = "false" if tier == "docs" else "true"
-    # Sampling is the LAST word and reads nothing above it: which point of
-    # the matrix a run gates is independent of which rows the change filter
-    # selected, and keeping the two apart is what lets the local gate consume
-    # the same output while ignoring these two keys entirely.
-    if seed is None:
-        res["LANE"], res["EPS"], res["KLINT_ROW"] = "both", "all", "all"
+    # THE VIEWER TOOLKIT AXIS — SEED-KEYED, NOT CLOSURE-KEYED (Ev,
+    # 2026-08-27, ruling recorded in the closed GUI program's log: "the GUI is
+    # treated as a third-party consumer of the API"; that log left the tracker
+    # with the program's directory in DOC-LEDGER sweep 5 and reads at
+    # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
+    #
+    # What it gates: the two rows that compile eframe + wgpu + naga + winit —
+    # `clippy -p viewer --features app` and the rustdoc gate's `--all-features`
+    # pass over `viewer`. Roughly 140 crates that no other row in this workflow
+    # needs, and a permanent per-PR bill if every kernel change pays it.
+    #
+    # WHY SEEDS AND NOT THE CLOSURE, which is the whole substance of the
+    # ruling. `viewer` sits downstream of `pncad`, which re-exports the entire
+    # kernel — so `viewer` is in the dependent CLOSURE of nearly every kernel
+    # change, and a closure-keyed test would be true almost always and would
+    # gate nothing. The SEEDS are the members whose own files moved. `pncad` is
+    # in every kernel change's closure and in almost none of their seeds, which
+    # is exactly the difference that makes this axis mean something.
+    #
+    # WHY THESE THREE. `viewer` — its own code. `pncad` — the façade the
+    # viewer's whole public-API path goes through, and the one crate whose own
+    # source can break the app half without any kernel crate moving. `bvh` —
+    # `Camera` speaks `bvh::Aabb` in its public signatures, the one direct
+    # non-façade edge the crate has. A kernel crate that `pncad` merely
+    # re-exports is deliberately NOT here: a breaking change to a re-exported
+    # type still reaches viewer's DEFAULT-feature rows, which stay in the
+    # ordinary closure below and put that breakage on the offending PR.
+    #
+    # WHAT THIS DOES NOT GATE, and the reason the ruling is affordable:
+    # viewer's default-feature build and its headless suites — the camera,
+    # input-mapping and scene rows, including the volume/winding tripwires —
+    # ride the ordinary dependent closure like any other crate. This axis
+    # skips the TOOLKIT only.
+    #
+    # THE COVERAGE THE SKIP GIVES UP is re-taken daily: nightly.yml runs the
+    # app-feature clippy row ungated, so toolkit-dependency drift surfaces
+    # within a day rather than at whichever unlucky PR next touches viewer.
+    #
+    # RECORDED, NEVER SILENT (the KLINT_ROW lesson): this is an output key, the
+    # filter echoes it with the seeds it was computed from, and the workflow
+    # prints the verdict in a step that always runs. A green job name over a
+    # skipped step is the failure mode this shape exists to avoid.
+    if tier == "docs":
+        res["RUN_VIEWER_TOOLKIT"] = "false"
+    elif tier == "all":
+        # Unscopable: no seed information, so the axis fails OPEN like every
+        # other signal here.
+        res["RUN_VIEWER_TOOLKIT"] = "true"
     else:
-        res["LANE"] = (
-            "interval" if _forces_interval(files) else _sample(seed, "lane", LANES)
-        )
-        res["EPS"] = _sample(seed, "eps", EPS_ROWS)
-        # A THIRD SALT, drawn off the same seed and independent of the other
-        # two. `_sample`'s docstring says why the salt is not optional: two
-        # dimensions off one unsalted digest are the same number, which would
-        # tie the k-lint row to the lane and leave 20 of the 30 points of this
-        # matrix unreachable for the rest of the project's life.
-        res["KLINT_ROW"] = _sample(seed, "klint", KLINT_ROWS)
+        seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
+        res["RUN_VIEWER_TOOLKIT"] = "true" if seeds & VIEWER_TOOLKIT_SEEDS else "false"
+    # THE PYTHON SUITE'S SEED REACH — REPORTED, NOT A GATE. What this
+    # computes is whether the diff's SEEDS reach the members a BUILD OF THE
+    # WHEEL compiles; `pncad_py_seeds` derives that set from `cargo metadata`
+    # and its dev-edge rule is argued there.
+    #
+    # NO JOB READS IT. `python suite (wheel + guide + north-star)` runs on
+    # every code-tier run of ci.yml and unconditionally in ci-local.sh: the
+    # job hangs off `filter` in parallel beside the serial build -> test chain
+    # that sets a run's length, so narrowing it returns nothing to the
+    # contributor waiting on the gate while costing the attribution a per-PR
+    # row buys. What it gates is the ONLY execution of
+    # `crates/pncad-py/tests/*.py` and the only compile of the kernel under
+    # the non-default `python` feature that any run has.
+    #
+    # WHAT IT IS STILL FOR: the value is echoed with the seeds it was computed
+    # from, so the filter's log answers "did this change reach the bindings"
+    # for a reader triaging a python-suite red — a question about the diff,
+    # which this file is the one place that can answer.
+    #
+    # THE ARMS BELOW KEEP THEIR FAIL-CLOSED DIRECTION, so the reported value
+    # never reads narrower than the truth: unscopable tiers and an unreadable
+    # graph both report `true`.
+    if tier == "docs":
+        res["RUN_PNCAD_PY"] = "false"
+    elif tier == "all":
+        # Unscopable: no seed information, so the axis fails CLOSED —
+        # uncertain means the row RUNS — as every signal here does.
+        res["RUN_PNCAD_PY"] = "true"
+    elif wheel_members is None:
+        # The graph could not be read, so what the wheel compiles is unknown,
+        # and an unknown reach fails CLOSED exactly as an unresolvable diff
+        # does above. `main` says on stderr which way it went and why.
+        res["RUN_PNCAD_PY"] = "true"
+    else:
+        seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
+        res["RUN_PNCAD_PY"] = "true" if seeds & wheel_members else "false"
+    # THE CONFIGURATION IS THE LAST WORD AND READS NOTHING ABOVE IT: which
+    # points of the matrix a run gates is independent of which rows the change
+    # filter selected, and keeping the two apart is what lets the local gate
+    # consume the same output while ignoring these keys entirely.
+    #
+    # NOTHING HERE READS A SEED (2026-09-04). Every run gates every compile
+    # mode, every tolerance row and every k-lint unification; a request below is
+    # the only thing that narrows any of them, and ci.yml expands the two `all`s
+    # into matrix legs.
+    res["LANE"], res["EPS"], res["KLINT_ROW"] = "both", "all", "all"
+    # THE REQUEST IS THE LAST WORD OF THE LAST WORD, and it is recorded in the
+    # same breath. A run that gates less than the whole matrix is only honest
+    # if the output says so: CONFIG_SOURCE is per-dimension because the mixed
+    # case is the common one — one dimension narrowed, the others whole.
+    #
+    # `unsampled` IS THE WORD FOR "THE WHOLE DIMENSION RUNS", and it is now the
+    # standing value for lane and eps on every hosted run, not just the local
+    # half's seedless one. It was already that word before 2026-09-04 and is
+    # not re-spelled: a reader who learned it on a `ci-local.sh` run reads the
+    # same thing here, and the value beside it (`LANE=both`, `EPS=all`) says
+    # the same in the machine-readable half.
+    source = dict.fromkeys(
+        (key for key, _ in CONFIG_DIMENSIONS.values()), "unsampled"
+    )
+    for out_key, (value, src) in (config or {}).items():
+        res[out_key] = value
+        source[out_key] = src
+    res["CONFIG_SOURCE"] = " ".join(
+        f"{name}:{source[out_key]}" for name, (out_key, _) in CONFIG_DIMENSIONS.items()
+    )
+    # THE ADVISORY, AND WHY IT IS COMPUTED LAST. It fires only when this run is
+    # NOT going to gate the interval lane, which is knowable only after the
+    # request has had its say — advising someone to ask for a lane the run
+    # already gates is noise, and noise is how a real notice stops being read.
+    # Since 2026-09-04 `LANE` is `default` only when a request made it so, so
+    # this condition now selects exactly the narrowed run; it is left as a test
+    # of the VALUE rather than of the source, because what makes the notice
+    # worth printing is that the interval lane is not running.
+    # A BOOLEAN, not the reason: the reason is a path, and a path has no
+    # business in a stream both halves parse as KEY=value.
+    res["LANE_ADVISORY"] = (
+        "true"
+        if res["LANE"] == "default" and _advises_interval(files)
+        else "false"
+    )
     return res
 
 
@@ -746,7 +2611,214 @@ _FIXTURE_PKGS = {
     "geom-core": [],
     "topo": [("geom-core", "normal")],
     "stl": [("topo", "dev")],
+    # `verbs` DEPENDS ON NOTHING AND NOTHING DEPENDS ON IT, so it is in no
+    # dependent closure this fixture can draw and it moves none of the
+    # expectations below. Its only route into a run is the READ EDGE
+    # `_plant_reach` gives it — which is what makes it able to tell a read edge
+    # from the closure, and to tell a SEED from a closure member.
+    "verbs": [],
+    # `geom` IS HERE FOR ITS NAME. It is a string PREFIX of `geom-core`, which
+    # is the shape this workspace actually has twice (`geom`/`geom-core`,
+    # `step-export`/`step-import`), and it reads `geom-core`'s source. A
+    # within-own-crate test written as a string prefix rather than over path
+    # COMPONENTS drops that read silently, and every other case here stays
+    # green. Same graph position as `verbs`: no deps, no dependents.
+    "geom": [],
 }
+
+
+# A SECOND, SMALLER FIXTURE, for the seed-vs-closure axis only.
+#
+# It is separate from `_FIXTURE_PKGS` on purpose: adding `pncad` and `viewer`
+# to that graph would move the expected closures of half the cases above, so
+# the battery would be re-stating the fixture rather than the rule. Here the
+# shape is the minimum that can tell the two questions apart —
+#
+#   viewer -> pncad -> topo      (and viewer -> bvh)
+#
+# so a `topo` change puts `pncad` and `viewer` in the CLOSURE while seeding
+# neither, which is precisely the case a closure-keyed test would get wrong.
+_VIEWER_FIXTURE_PKGS = {
+    "topo": [],
+    "bvh": [],
+    "pncad": [("topo", "normal")],
+    "viewer": [("pncad", "normal"), ("bvh", "normal")],
+}
+
+
+# THE PYTHON SUITE'S FIXTURE, the wheel's graph in miniature:
+#
+#   pncad-py -> pncad -> editor-core -> {topo, bvh}
+#   pncad-py -(dev)-> test-utils
+#   viewer   -> pncad                      (over the wheel, not under it)
+#
+# `bvh` is in it BY THE REAL CHAIN it travels here: `editor-core` re-exports
+# `bvh::Ray`, `pncad::select` re-exports that, and the bindings wrap it as a
+# `#[pyclass]`. `viewer` and `test-utils` are the two members that must not
+# buy the suite, and they fail it for different reasons — one is not under the
+# wheel at all, the other reaches it only along a dev edge no wheel build
+# follows — so a rule that got either reason wrong would still be caught.
+_PY_FIXTURE_PKGS = {
+    "topo": [],
+    "bvh": [],
+    "test-utils": [],
+    "editor-core": [("topo", "normal"), ("bvh", "normal")],
+    "pncad": [("editor-core", "normal")],
+    "pncad-py": [("pncad", "normal"), ("test-utils", "dev")],
+    "viewer": [("pncad", "normal")],
+}
+
+def _plant_seed_axis_fixture(
+    t: str,
+    pkgs: dict[str, list] = _VIEWER_FIXTURE_PKGS,
+    tree_reaching: str = "viewer",
+) -> str:
+    """A minimal workspace exercising a SEED-keyed axis — `RUN_VIEWER_TOOLKIT`
+    by default, `RUN_PNCAD_PY` with `_PY_FIXTURE_PKGS`.
+
+    ONE PLANTER, TWO GRAPHS, and they stay separate graphs deliberately: the
+    viewer cases assert an exact PKGS closure, so growing one fixture to serve
+    both axes would make every one of those expectations a statement about the
+    other axis's dependency edges.
+    """
+    import shutil
+
+    for pkg in pkgs:
+        os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
+        open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
+        open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w").close()
+    # EVERY FIXTURE NEEDS ONE, because `classify` bails when the reach finds no
+    # tree-wide guard at all — a tree that has none is a scanner that has
+    # stopped reading. It goes in the SINK crate of each graph here, the one
+    # already in every closure these cases assert, so this battery keeps
+    # testing the axis it is about rather than restating the reach.
+    os.makedirs(os.path.join(t, "crates", tree_reaching, "tests"), exist_ok=True)
+    with open(
+        os.path.join(t, "crates", tree_reaching, "tests", "tree_census.rs"), "w"
+    ) as fh:
+        fh.write(
+            "#[test]\n"
+            "fn every_crate_is_walked() {\n"
+            '    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");\n'
+            "    let _ = root;\n"
+            "}\n"
+        )
+    os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
+    os.makedirs(os.path.join(t, "bin"), exist_ok=True)
+    shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
+    meta = {
+        "packages": [
+            {
+                "name": pkg,
+                "manifest_path": os.path.join(t, "crates", pkg, "Cargo.toml"),
+                "dependencies": [{"name": d, "kind": k} for d, k in deps],
+            }
+            for pkg, deps in pkgs.items()
+        ]
+    }
+    stub = os.path.join(t, "bin", "cargo")
+    with open(stub, "w") as fh:
+        fh.write("#!/bin/sh\n")
+        fh.write('[ "$1" = metadata ] || { echo "stub cargo: $*" >&2; exit 1; }\n')
+        fh.write("cat <<'JSON'\n" + json.dumps(meta) + "\nJSON\n")
+    os.chmod(stub, 0o700)
+    return t
+
+
+# THE READ REACH'S FIXTURE FILES, planted into `_plant_fixture`'s miniature
+# workspace. They are the shapes this tree actually spells, one arm each, and
+# the pinning one is deliberately in the LEAF: `geom-core` here sits below
+# `topo` and `stl` exactly as `test-utils` sits below everything, so a case
+# that seeds `stl` and expects `geom-core` in its scope is the real defect in
+# miniature. Remove the reach from `classify` and that case is the one that
+# reds.
+def _plant_reach(t: str) -> None:
+    def write(rel: str, body: str) -> None:
+        path = os.path.join(t, *rel.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write(body)
+
+    # THE TREE-WIDE GUARD, through the shared `crate_dir` wrapper and the
+    # `../..` ascent — the spelling four of this repo's six real ones use.
+    write(
+        "crates/geom-core/tests/tree_census.rs",
+        'fn repo_root() -> PathBuf {\n'
+        '    test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("../..")\n'
+        "}\n"
+        "#[test]\n"
+        "fn every_crate_is_walked() {\n"
+        "    let root = repo_root();\n"
+        '    for f in rust_sources(&root.join("crates")) { let _ = f; }\n'
+        "}\n",
+    )
+    # A READ EDGE, in the crate that has no other way in. `verbs` reads `stl`'s
+    # source and neither depends on it nor is depended on by anything, so this
+    # edge is the ONLY thing that can put `verbs` in a scope — and it must fire
+    # on `stl` being a SEED, not on `stl` being in the closure.
+    write(
+        "crates/verbs/tests/reads_stl.rs",
+        "#[test]\n"
+        "fn the_writer_spells_it_once() {\n"
+        '    let lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../stl/src/lib.rs");\n'
+        "    let _ = std::fs::read_to_string(lib);\n"
+        "}\n",
+    )
+    # THE PREFIX PAIR. `geom` reads `geom-core`'s source, and `crates/geom` is
+    # a string prefix of `crates/geom-core/src/lib.rs`.
+    write(
+        "crates/geom/tests/reads_geom_core.rs",
+        "#[test]\n"
+        "fn the_kernel_lib_still_re_exports_it() {\n"
+        '    let lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../geom-core/src/lib.rs");\n'
+        "    let _ = std::fs::read_to_string(lib);\n"
+        "}\n",
+    )
+    # A PAGE A SUITE READS. Same shape as `flagged_census.rs` reading
+    # `docs/predicate-dimension-audit.md`: the page leaves the docs tier.
+    write("docs/AUDIT.md", "- **F1** a row\n")
+    write(
+        "crates/stl/tests/reads_page.rs",
+        "#[test]\n"
+        "fn every_site_cites_a_row() {\n"
+        '    let page = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))\n'
+        '        .join("../../docs/AUDIT.md");\n'
+        "    let _ = std::fs::read_to_string(page);\n"
+        "}\n",
+    )
+    # THE NEGATIVES, one per way a path expression stays put. Without these the
+    # reach could widen to "any file naming a path" and every case above would
+    # still pass, which is the shape that turns a scoped run into TIER=all.
+    write(
+        "crates/topo/tests/fixture_path.rs",
+        "#[test]\n"
+        "fn a_golden_is_read_from_this_crate() {\n"
+        '    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");\n'
+        "    let _ = dir;\n"
+        "}\n",
+    )
+    write(
+        "crates/topo/tests/scratch_path.rs",
+        "#[test]\n"
+        "fn a_scratch_file_is_written_under_target() {\n"
+        '    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/scratch");\n'
+        "    let _ = dir;\n"
+        "}\n",
+    )
+    # THE BINDING SHAPE, and it is the one a statement-local reader gets wrong:
+    # the anchor is bound in one statement and the ascent happens in the next.
+    # `crates/mesh/tests/profile_overrides.rs` is spelled exactly like this, and
+    # what it reaches is the workspace manifest — a root FILE, which is
+    # unscopable already and is not the tree.
+    write(
+        "crates/topo/tests/manifest_probe.rs",
+        "#[test]\n"
+        "fn the_dev_profile_still_optimises() {\n"
+        '    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));\n'
+        '    let root = manifest_dir.join("..").join("..").join("Cargo.toml");\n'
+        "    let _ = std::fs::read_to_string(root);\n"
+        "}\n",
+    )
 
 
 def _plant_fixture(t: str) -> str:
@@ -785,6 +2857,7 @@ def _plant_fixture(t: str) -> str:
     os.makedirs(os.path.join(t, "crates", "stl", "tests"), exist_ok=True)
     with open(os.path.join(t, "crates", "stl", "tests", "test_pages.py"), "w") as fh:
         fh.write('PAGE = ROOT / "docs" / "guide" / "PYPAGE.md"\n')
+    _plant_reach(t)
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
     shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
@@ -809,15 +2882,31 @@ def _plant_fixture(t: str) -> str:
     return t
 
 
-def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]:
+def _selftest_run(t: str, argv: list[str], stdin: str = "", allow_fail: bool = False):
+    """One invocation of this script as a SUBPROCESS, both streams kept.
+
+    Separate from `_selftest_invoke` because stdout and stderr carry
+    different contracts here — stdout is the machine-readable KEY=value
+    stream, stderr is what a human reads — and the advisory battery is the one
+    case that has to look at the second.
+
+    `allow_fail` returns the completed process instead of raising, for the one
+    kind of case that is ABOUT a refusal: a retired option, whose whole point
+    is that it exits non-zero rather than being ignored.
+    """
     env = dict(os.environ)
     env["PATH"] = os.path.join(t, "bin") + os.pathsep + env.get("PATH", "")
     r = subprocess.run(
         [sys.executable, os.path.join(t, "scripts", "ci-filter.py"), *argv],
         input=stdin, capture_output=True, text=True, env=env, cwd=t,
     )
-    if r.returncode != 0:
+    if r.returncode != 0 and not allow_fail:
         raise SystemExit(f"SELFTEST FAILED: {argv} exited {r.returncode}\n{r.stdout}{r.stderr}")
+    return r
+
+
+def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]:
+    r = _selftest_run(t, argv, stdin)
     out: dict[str, str] = {}
     for line in r.stdout.splitlines():
         k, _, v = line.partition("=")
@@ -826,6 +2915,26 @@ def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]
         if key not in out:
             raise SystemExit(f"SELFTEST FAILED: {argv} printed no {key} line\n{r.stdout}{r.stderr}")
     return out
+
+
+def _selftest_invoke_must_fail(t: str, argv: list[str], stdin: str = "") -> str:
+    """The other half of `_selftest_invoke`: an invocation that must NOT be
+    served. Returns stderr, so the caller can require the message to name the
+    thing that was wrong — a nonzero exit that says nothing is a worse gate
+    than the one that fails open, because it fails in front of someone who now
+    has to guess what to type instead."""
+    env = dict(os.environ)
+    env["PATH"] = os.path.join(t, "bin") + os.pathsep + env.get("PATH", "")
+    r = subprocess.run(
+        [sys.executable, os.path.join(t, "scripts", "ci-filter.py"), *argv],
+        input=stdin, capture_output=True, text=True, env=env, cwd=t,
+    )
+    if r.returncode == 0:
+        raise SystemExit(
+            f"SELFTEST FAILED: {argv} was served (exit 0) — a configuration request "
+            f"that names no real point must red the step, not fall back to the draw\n{r.stdout}"
+        )
+    return r.stderr
 
 
 def _expect(what: str, got: dict[str, str], want: dict[str, str]) -> None:
@@ -938,12 +3047,75 @@ def selftest() -> None:
                 {"TIER": "all", "RUN_BUILD": "true", "RUN_INTERVAL_ORACLE": "true"})
 
         # --- the dependent closure, including the dev-dependency edge.
+        #
+        # `geom-core` HOUSES THIS FIXTURE'S TREE-WIDE GUARD, so it is in every
+        # closure below and `REACHED` is what says whether the closure or the
+        # reach put it there. It is the leaf here for the same reason
+        # `test-utils` is the leaf in the real tree.
         _files_case(t, "a leaf crate seeds its dependents", ["crates/geom-core/src/lib.rs"],
-                    TIER="closure", PKGS="geom-core,stl,topo", RUN_STL="true",
-                    CARGO_SCOPE="-p geom-core -p stl -p topo")
+                    TIER="closure", PKGS="geom,geom-core,stl,topo", REACHED="geom",
+                    RUN_STL="true",
+                    CARGO_SCOPE="-p geom -p geom-core -p stl -p topo")
         _files_case(t, "a dependent crate does not seed its dependencies",
-                    ["crates/stl/src/lib.rs"], TIER="closure", PKGS="stl",
-                    RUN_STL="true", RUN_TOPO_RELEASE="false")
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,verbs", RUN_STL="true",
+                    RUN_TOPO_RELEASE="false")
+
+        # --- THE READ REACH (Ev, 2026-09-05: the closure reaches tree-wide
+        # guards). Every case here is a change that the DEPENDENT closure alone
+        # gets wrong, which is the whole population the ruling is about.
+        #
+        # THE DEFECT, IN MINIATURE. `geom-core` is this fixture's leaf: nothing
+        # it depends on can change, so a dependent closure puts it in scope for
+        # exactly one member's changes. Its `tree_census.rs` walks the
+        # repository. Delete the reach from `classify` and this is the case
+        # that reds — and it is the same case, one crate over, as
+        # `test-utils::reader_census` sitting out both of 2026-09-04's breaks.
+        _files_case(t, "a tree-wide guard is in scope for a change that cannot reach it",
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,verbs", REACHED="geom-core,verbs",
+                    CARGO_SCOPE="-p geom-core -p stl -p verbs")
+        # THE READ EDGE, and the SEED keying that makes it mean something.
+        # `verbs` reads `crates/stl/src/lib.rs` and has no dependency relation
+        # to anything, so the first case is the edge firing and the second is
+        # it correctly not firing: a `geom-core` change puts `stl` in the
+        # CLOSURE without seeding it, and what `verbs` reads is `stl`'s TEXT,
+        # which only `stl`'s own files move. Without the second case a
+        # closure-keyed edge passes this battery.
+        _files_case(t, "a crate that reads another crate's source rides its seeds",
+                    ["crates/stl/src/lib.rs"], TIER="closure", SEEDS="stl",
+                    PKGS="geom-core,stl,verbs")
+        _files_case(t, "a read edge does NOT fire on a crate that is only in the closure",
+                    ["crates/geom-core/src/lib.rs"], TIER="closure", SEEDS="geom-core",
+                    PKGS="geom,geom-core,stl,topo")
+        # THE PREFIX PAIR, and it is a case rather than a comment because the
+        # bug it catches is invisible: `geom` reads `crates/geom-core/src/lib.rs`,
+        # and a within-own-crate test spelled `d.startswith("crates/" + mine)`
+        # reads that destination as `geom`'s own and drops the edge. `geom`
+        # then never appears and every other case here is still green.
+        _files_case(t, "a crate whose name prefixes another's still reads across the boundary",
+                    ["crates/geom-core/src/lib.rs"], TIER="closure", REACHED="geom")
+        # THE NEGATIVES. `topo` carries three anchored path expressions and not
+        # one of them leaves the crate: a fixture directory under its own
+        # `tests/`, a scratch file under `target/` (nothing tracked lives
+        # there), and the workspace manifest reached through a BINDING — the
+        # anchor in one statement and the ascent in the next, which is how
+        # `crates/mesh/tests/profile_overrides.rs` spells it and what a
+        # statement-local reader gets wrong. `topo` must therefore be in a
+        # scope only when the closure puts it there. Widen the reach — read a
+        # `..` anywhere in an anchored file as an escape — and `topo` appears
+        # in the case above, where it does not belong.
+        _files_case(t, "a within-crate, a target/ and a bound-then-ascended path do not pin",
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,verbs")
+        # A PAGE A RUST SUITE READS IS NOT DOCUMENTATION, the same disposition
+        # `docs/GUIDE.md` gets from `include_str!` and for the same reason:
+        # editing it can red a suite. `crates/stl/tests/reads_page.rs` opens
+        # `docs/AUDIT.md` the way `flagged_census.rs` opens
+        # `docs/predicate-dimension-audit.md`. `docs/PROSE.md`, which nothing
+        # reads, stays in the docs tier one case above.
+        _files_case(t, "a page a Rust suite reads must not classify docs",
+                    ["docs/AUDIT.md"], TIER="all", RUN_BUILD="true")
 
         # --- the oracle signal, which is keyed on PATHS and not on the tier.
         _files_case(t, "certified sources re-certify",
@@ -979,13 +3151,14 @@ def selftest() -> None:
         _git(t, "commit", "-qm", "rename out of a crate")
         _expect("a crate source renamed to a .md must not classify docs",
                 _selftest_invoke(t, ["--base", "HEAD~1"]),
-                {"TIER": "closure", "PKGS": "stl,topo", "RUN_BUILD": "true"})
+                {"TIER": "closure", "PKGS": "geom-core,stl,topo",
+                 "REACHED": "geom-core", "RUN_BUILD": "true"})
 
         _git(t, "rm", "-q", "crates/geom-core/src/lib.rs")
         _git(t, "commit", "-qm", "delete")
         _expect("a deleted crate source is still a crate change",
                 _selftest_invoke(t, ["--base", "HEAD~1"]),
-                {"TIER": "closure", "PKGS": "geom-core,stl,topo"})
+                {"TIER": "closure", "PKGS": "geom,geom-core,stl,topo", "REACHED": "geom"})
 
         _expect("a base that does not resolve runs everything",
                 _selftest_invoke(t, ["--base", "0000000000000000000000000000000000000000"]),
@@ -993,6 +3166,182 @@ def selftest() -> None:
         _expect("a base equal to HEAD is an empty diff, not a docs change",
                 _selftest_invoke(t, ["--base", "HEAD"]),
                 {"TIER": "all", "RUN_BUILD": "true"})
+
+    # --- THE VIEWER TOOLKIT AXIS, on its own fixture (`_VIEWER_FIXTURE_PKGS`).
+    #
+    # The rule under test is SEED keying, and the only way to see it is a case
+    # where the seeds and the closure disagree. Both directions are here: a
+    # crate that seeds the axis, and a crate that reaches it only through the
+    # closure. Without the second case a closure-keyed implementation passes
+    # this battery, which would make the ruling unenforced.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_seed_axis_fixture(t)
+        _files_case(t, "viewer's own sources buy the toolkit rows",
+                    ["crates/viewer/src/app.rs"],
+                    TIER="closure", SEEDS="viewer", RUN_VIEWER_TOOLKIT="true")
+        _files_case(t, "the facade's own sources buy them",
+                    ["crates/pncad/src/lib.rs"],
+                    TIER="closure", SEEDS="pncad", RUN_VIEWER_TOOLKIT="true")
+        _files_case(t, "bvh's own sources buy them (Camera speaks bvh::Aabb)",
+                    ["crates/bvh/src/aabb.rs"],
+                    TIER="closure", SEEDS="bvh", RUN_VIEWER_TOOLKIT="true")
+        # THE CASE THAT MATTERS. `topo` is under `pncad`, so `pncad` and
+        # `viewer` are both in the closure — and neither is a seed. A
+        # closure-keyed axis would say true here and gate nothing, which is
+        # the whole reason the ruling says "seeds".
+        _files_case(t, "a kernel crate reaching viewer only through the closure does NOT",
+                    ["crates/topo/src/lib.rs"],
+                    TIER="closure", PKGS="pncad,topo,viewer", SEEDS="topo",
+                    RUN_VIEWER_TOOLKIT="false")
+        # Fails OPEN with the rest of the filter: an unscopable change has no
+        # seeds to read, and "no seeds" must not read as "no toolkit".
+        _files_case(t, "an unscopable change runs the toolkit rows",
+                    ["Cargo.toml"], TIER="all", SEEDS="", RUN_VIEWER_TOOLKIT="true")
+        _files_case(t, "a docs-only change runs nothing, toolkit included",
+                    ["README.md"], TIER="docs", SEEDS="", RUN_VIEWER_TOOLKIT="false")
+        # THE PYTHON AXIS'S FAILURE ARM, sited here because this workspace has
+        # NO `pncad-py` in it — so `pncad_py_seeds` cannot say what a wheel
+        # build compiles, and the arm that answers when it cannot is the one
+        # with the most prose and the least exercise. A run that cannot scope
+        # the axis must RUN the suite, not skip it: the alternative is a green
+        # gate over a job nothing decided to skip. Asserting the OTHER key
+        # here is what left this hole open before.
+        _files_case(t, "a workspace the wheel's graph cannot be read from runs the suite",
+                    ["crates/topo/src/lib.rs"],
+                    TIER="closure", SEEDS="topo", RUN_PNCAD_PY="true")
+
+    # --- THE PYTHON SUITE AXIS, on `_PY_FIXTURE_PKGS`. SEED-keyed against
+    # what a BUILD OF THE WHEEL compiles, so the two directions this battery
+    # has to walk are "under the wheel" and "not under it" — and the second
+    # has two distinct shapes, a crate over the wheel and a crate reachable
+    # only along a dev edge.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_seed_axis_fixture(t, _PY_FIXTURE_PKGS, tree_reaching="guards")
+        _files_case(t, "the binding crate's own sources buy the python suite",
+                    ["crates/pncad-py/src/lib.rs"],
+                    TIER="closure", SEEDS="pncad-py", RUN_PNCAD_PY="true")
+        # THE SUITE'S OWN FILES. They are .py and .pyi under the member
+        # directory, so they are neither docs nor Rust — and they seed the
+        # member like any other source, which is the arm that keeps a
+        # test-only edit from skipping the job that runs it.
+        _files_case(t, "the suite's own .py files buy it",
+                    ["crates/pncad-py/tests/test_guide.py"],
+                    TIER="closure", SEEDS="pncad-py", RUN_PNCAD_PY="true")
+        _files_case(t, "the facade's own sources buy it",
+                    ["crates/pncad/src/lib.rs"],
+                    TIER="closure", SEEDS="pncad", RUN_PNCAD_PY="true")
+        _files_case(t, "the document model's own sources buy it",
+                    ["crates/editor-core/src/doc.rs"],
+                    TIER="closure", SEEDS="editor-core", RUN_PNCAD_PY="true")
+        # A KERNEL CRATE THE WHEEL COMPILES. `topo` seeds nothing else the
+        # suite names, and the wheel still compiles it, so a change to it can
+        # move a number the .py assertions pin — the only job that runs them.
+        _files_case(t, "a kernel crate two hops under the wheel buys it",
+                    ["crates/topo/src/lib.rs"],
+                    TIER="closure", SEEDS="topo", RUN_PNCAD_PY="true")
+        # THE CASE THIS AXIS WAS GETTING WRONG. `bvh` reaches Python by the
+        # chain it travels in the real tree — `editor-core` re-exports
+        # `bvh::Ray`, `pncad::select` re-exports that, and the bindings wrap
+        # it as a `#[pyclass]` that `tests/test_picking.py` drives — and no
+        # line of the façade names `bvh`. A rule keyed on the façade's own
+        # text calls this false; the graph does not.
+        _files_case(t, "a crate reaching Python through a re-export chain buys it",
+                    ["crates/bvh/src/lib.rs"],
+                    TIER="closure", SEEDS="bvh", RUN_PNCAD_PY="true")
+        # NOT A CLOSURE KEY IN DISGUISE, first shape: `viewer` is OVER the
+        # wheel, not under it. Nothing a wheel build compiles moved.
+        _files_case(t, "a crate above the wheel does NOT buy it",
+                    ["crates/viewer/src/lib.rs"],
+                    TIER="closure", PKGS="viewer", SEEDS="viewer",
+                    RUN_PNCAD_PY="false")
+        # NOT A CLOSURE KEY IN DISGUISE, second shape and the sharper one:
+        # `test-utils` reaches `pncad-py` along a DEV edge, so `pncad-py` IS
+        # in the dependent closure here — `cargo test -p pncad-py` rebuilds —
+        # and `maturin build` compiles no test target, so the wheel does not.
+        # A key that read the closure, or that followed dev edges downward,
+        # says true here.
+        _files_case(t, "a dev-only dependency of the binding crate does NOT buy it",
+                    ["crates/test-utils/src/lib.rs"],
+                    TIER="closure", PKGS="pncad-py,test-utils", SEEDS="test-utils",
+                    RUN_PNCAD_PY="false")
+        # Fails OPEN with the rest of the filter.
+        _files_case(t, "an unscopable change runs the python suite",
+                    ["Cargo.toml"], TIER="all", SEEDS="", RUN_PNCAD_PY="true")
+        _files_case(t, "a docs-only change runs nothing, the python suite included",
+                    ["README.md"], TIER="docs", SEEDS="", RUN_PNCAD_PY="false")
+
+    # --- THE REACH FAILING CLOSED, on its own fixture because it pins a crate
+    # the battery above requires NOT to be pinned. An ascent the chain resolver
+    # cannot follow — here `"../.."` reached through a `const`, which is
+    # anchored to nothing this reads — is measured FROM THE CRATE DIRECTORY, so
+    # it lands at the repository root and pins. A scan that skipped what it
+    # could not follow would leave the next tree-wide guard exactly where the
+    # last five were.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        with open(os.path.join(t, "crates", "topo", "tests", "odd_spelling.rs"), "w") as fh:
+            fh.write(
+                'const UP: &str = "../..";\n'
+                "#[test]\n"
+                "fn it_walks_something() {\n"
+                '    let here = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));\n'
+                "    let _ = here.join(UP);\n"
+                "}\n"
+            )
+        # `RUN_TOPO_RELEASE` IS THE OTHER HALF OF THIS CASE. `topo` is in
+        # `PKGS` here only because the reach pinned it, and `JOB_ROOTS` asks a
+        # different question — whether the named `topo` row's own subject
+        # moved. Key those on `PKGS` instead of on the dependent closure and
+        # pinning a guard silently turns four named job rows permanently on;
+        # this is the assertion that reds when it does.
+        _files_case(t, "an ascent the resolver cannot follow pins the crate anyway",
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,topo,verbs", REACHED="geom-core,topo,verbs",
+                    RUN_TOPO_RELEASE="false")
+
+    # --- `crates/` IS THE TREE TOO, and it is a separate arm because it is a
+    # separate spelling: `crates/bvh/tests/aggregator_headers.rs` and
+    # `crates/geom-core/tests/flagged_census.rs` both reach every member by
+    # taking the PARENT of their own crate directory and listing it, never by
+    # naming the repository root. Narrow the rule to the root alone and both of
+    # those fall out of scope with every other case here still green — which is
+    # how the population this fixes came to be five guards rather than one.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        with open(os.path.join(t, "crates", "topo", "tests", "crates_walk.rs"), "w") as fh:
+            fh.write(
+                "fn crates_dir() -> PathBuf {\n"
+                '    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))\n'
+                "        .parent()\n"
+                '        .expect("crates/topo has a parent")\n'
+                "        .to_path_buf()\n"
+                "}\n"
+                "#[test]\n"
+                "fn every_crate_carries_the_header() {\n"
+                "    for e in std::fs::read_dir(crates_dir()).unwrap() { let _ = e; }\n"
+                "}\n"
+            )
+        _files_case(t, "a guard that reaches every member through crates/ is pinned too",
+                    ["crates/stl/src/lib.rs"], TIER="closure",
+                    PKGS="geom-core,stl,topo,verbs", REACHED="geom-core,topo,verbs",
+                    RUN_TOPO_RELEASE="false")
+
+    # --- A REACH THAT MATCHED NOTHING IS NOT A PASS, which is
+    # `reader_census.rs`'s own sentence about its own walk. A tree with no
+    # tree-wide guard in it is a scanner that has stopped reading, and the
+    # failure mode of a silently empty reach is this defect restored with no
+    # tell — so it bails, loudly, into the tier where everything runs.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        for rel in (
+            "crates/geom-core/tests/tree_census.rs",
+            "crates/verbs/tests/reads_stl.rs",
+            "crates/stl/tests/reads_page.rs",
+        ):
+            os.remove(os.path.join(t, *rel.split("/")))
+        got = _selftest_invoke(t, ["--files", "-"], "crates/stl/src/lib.rs\n")
+        _expect("a tree the reach finds no tree-wide guard in must run everything",
+                got, {"TIER": "all", "RUN_BUILD": "true"})
 
     # An `include!` this reader cannot resolve could name a .md, so it takes
     # the whole change set to TIER=all rather than guessing. Its own fixture:
@@ -1024,8 +3373,58 @@ def selftest() -> None:
                 _selftest_invoke(t, ["--files", "-"], "docs/guide/PYPAGE.md\n"),
                 {"TIER": "all", "RUN_BUILD": "true"})
 
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        _selftest_lane_unsampled(t)
+    # --- THE REQUEST PATH THROUGH THE CLI. `_selftest_config` covers the
+    # applier as a function; what only a subprocess can show is the wiring —
+    # that the flag reaches it, that a bad request exits NONZERO rather than
+    # printing a fallback, that the DELETED second spelling reds rather than
+    # being quietly ignored, and that `--force-all` returns a tier without
+    # touching a diff. All of it is what ci.yml actually invokes.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        _expect("a requested point must reach the output through the flag",
+                _selftest_invoke(t, ["--files", "-",
+                                     "--config", "lane=interval", "eps=1e-12"],
+                                 "crates/geom-core/src/lib.rs\n"),
+                {"LANE": "interval", "EPS": "1e-12",
+                 "CONFIG_SOURCE": "lane:requested eps:requested klint:unsampled"})
+        # `--config-from-message` IS AN ERROR NOW, on the same terms as
+        # `--seed`: the trailer spelling is deleted, and an option that took a
+        # commit message and ignored it would read, to every caller copied from
+        # an older brief or an older ci.yml, as a trailer that still configures
+        # the run. There is nothing left for it to mean.
+        with open(os.path.join(t, "msg.txt"), "w") as fh:
+            fh.write("topo: a commit\n\nCI-Config: lane=both\n")
+        stale = _selftest_run(t, ["--files", "-", "--config-from-message", "msg.txt"],
+                              "crates/geom-core/src/lib.rs\n", allow_fail=True)
+        if stale.returncode == 0:
+            raise SystemExit("SELFTEST FAILED: `--config-from-message` was accepted. The commit "
+                             "trailer is deleted; accepting the flag tells a caller their "
+                             f"trailer still configures the run\n{stale.stdout}")
+        err = _selftest_invoke_must_fail(
+            t, ["--files", "-", "--config", "eps=1e-13"],
+            "crates/geom-core/src/lib.rs\n")
+        if "1e-13" not in err:
+            raise SystemExit(f"SELFTEST FAILED: the refusal must name the value refused: {err!r}")
+        # `--force-all` takes no diff, so the path-keyed signals fail CLOSED:
+        # the oracle tier runs. Neither LANE nor KLINT_ROW is one of those
+        # signals any more — they are `both` and `all` because they always are,
+        # which is what the old `interval` and pinned-`all` expectations here
+        # were standing in for.
+        _expect("--force-all must return the all tier with no diff taken",
+                _selftest_invoke(t, ["--force-all"]),
+                {"TIER": "all", "RUN_BUILD": "true", "RUN_INTERVAL_ORACLE": "true",
+                 "LANE": "both", "KLINT_ROW": "all"})
+
     _selftest_docs_premise()
-    _selftest_sampling()
+    _selftest_wheel_members_premise()
+    _selftest_eps_rows_workflow()
+    _selftest_klint_workflow()
+    _selftest_unsampled()
+    _selftest_config()
+    _selftest_gated()
     print(
         "ci-filter selftest OK: the docs tier is reached by prose, memories/, "
         "local-scripts/ and .claude/ and by nothing else here — not a .rs beside a .md, "
@@ -1038,60 +3437,731 @@ def selftest() -> None:
         "in — by any include! spelling, from any rust tree — or that a python suite "
         "executes, including one named by a spelling the scan cannot resolve; "
         "the closure follows dev-dependency "
-        "edges upward only; the oracle signal fires on certified sources and lockfile and "
-        "not on their prose; and the three sampled dimensions fail open with no seed, "
-        "repeat under the same seed, and are drawn independently enough that every one "
-        "of the 30 matrix points is reachable"
+        "edges upward only; THE READ REACH puts a crate in scope for what its sources READ "
+        "rather than for what they depend on — a guard that walks the repository from its "
+        "own crate root or that lists crates/ pins its home crate into every non-docs "
+        "closure, a crate that reads another crate's source rides that crate's SEEDS and "
+        "not its closure, an ascent the chain resolver cannot follow is measured from the "
+        "crate root and pins anyway, a page a Rust suite opens leaves the docs tier, and a "
+        "reach that finds no tree-wide guard at all bails to TIER=all rather than passing — "
+        "while a path that stays inside its own crate, one under target/ and one bound in "
+        "a let and ascended in the next statement pin nothing, and none of it reaches "
+        "JOB_ROOTS; THE PYTHON SUITE'S SEEDS are every member A BUILD OF THE WHEEL COMPILES, "
+        "read off the member graph rather than listed here or spelled in the façade — the "
+        "binding crate and its own .py files, the façade, the document model and a kernel "
+        "crate two hops under it all buy the suite, a crate that reaches Python only through "
+        "a re-export chain no façade line names buys it too, while a crate ABOVE the wheel "
+        "and a DEV-ONLY dependency of the binding crate do not though the latter puts "
+        "pncad-py in the dependent closure, and a workspace whose wheel graph cannot be read "
+        "at all runs the suite rather than skipping it; the oracle signal fires on certified "
+        "sources and lockfile and "
+        "not on their prose; NO CONFIGURATION DIMENSION IS SAMPLED OR PINNED — LANE=both, "
+        "EPS=all and KLINT_ROW=all over an ordinary diff, over the two file lists that used "
+        "to pin the lane or the k-lint row, over the demo roots the k-lint pin left alone "
+        "and over an unresolvable change set, each recorded as "
+        "`lane:unsampled eps:unsampled klint:unsampled` so the value and the source agree, "
+        "and `--seed` is refused rather than ignored; ci.yml's eps and k-lint matrix "
+        "literals are both re-derived against EPS_ROWS and KLINT_ROWS rather than kept in "
+        "step by a comment, and the k-lint job's step conditions are required to name every "
+        "row of that matrix and no others — read off `if:` keys alone, so a row named only "
+        "in a comment does not count as gating anything — while the job's matrix axis is "
+        "required to read `needs.filter.outputs.klint_rows`, so the literal re-derived is "
+        "the list the job expands and a leg cannot report green over no steps; a "
+        "request NARROWS any one dimension, leaves the rest whole, is recorded as "
+        "`requested`, and `eps=all` / `klint=all` are legal because they are what an "
+        "un-narrowed run prints; LANE_ADVISORY fires on exactly the run a request "
+        "narrowed to the default lane over interval-named files — naming every such "
+        "file rather than the first and saying it was narrowed — and stays silent on "
+        "an un-narrowed run and a diff naming no such file, while --notices carries it "
+        "to a relay file and is truncated when there is none; and a "
+        "configuration REQUESTED by hand — by the one spelling left, `--config`, where "
+        "ci.yml's workflow_dispatch inputs land — reaches the dimension it names "
+        "and only that one, is recorded in CONFIG_SOURCE, and "
+        "reds the step rather than falling back when it names no real point, "
+        "while `--config-from-message` is refused rather than ignored; "
+        "and the per-file test gate excludes a gated suite whose named paths and own file "
+        "are all untouched — reading the module prefix out of the crate\'s tests/all.rs "
+        "rather than off the filename, and the src/ shape off the module path — while "
+        "running it on any of them, on tier all, on tier docs, on a change to the "
+        "test-utils harness or to a tests/all.rs, and on a marker whose path is not in "
+        "the tree, which is named in a notice and does not un-gate its healthy "
+        "siblings; --gated-set prints every marked suite for the nightly, `none()` for a "
+        "tree that has none, and reds rather than a short filter when a marker cannot be "
+        "resolved"
     )
 
 
-def _selftest_sampling() -> None:
-    """THE THREE DRAWS, and the one property that cannot be seen by reading a
-    single run's output: INDEPENDENCE.
+# A THIRD FIXTURE, for the per-file test gate. Separate from the two above for
+# the reason the viewer one is separate from the docs one: this one needs a
+# `tests/all.rs`, a `#[path]` module whose name is NOT its filename, a `src/`
+# file whose module path is its file path, and a marker that names a directory
+# — none of which the other fixtures have any use for, and all of which would
+# move the closures those cases assert.
+_GATED_FIXTURE_PKGS = {
+    "geom-core": [],
+    "stl": [("geom-core", "normal")],
+    "topo": [("geom-core", "normal")],
+}
 
-    A wrong salt here does not fail loudly. Every run still prints a lane, an
-    ε and a k-lint row, every one of them is a legal value, and the gate goes
-    green for as long as anyone cares to look — but the same digest feeding
-    two dimensions makes them one dimension, and the points that pairing
-    excludes are then unreachable FOREVER rather than rare. That is the exact
-    shape of failure the sampling premise cannot survive: "repetition covers
-    the matrix" is false about a point no seed can draw.
+# The two terms the fixture's healthy markers derive to, written out here
+# rather than rebuilt by the cases: a case that computed its own expectation
+# from the same rule the code uses would assert that the rule is applied
+# consistently, not that it is right.
+_GATED_TERM_RING = "(binary_id(geom-core::all) & test(/^ring_fuzz::/))"
+_GATED_TERM_PROBE = "(binary_id(topo) & test(/^review_probe::/))"
 
-    So this walks synthetic seeds and requires the whole product to appear.
-    It is deterministic — the seeds are counted, not random — so it cannot
-    flake, and it is in-process because `decorate` is a pure function of
-    (result, files, seed) and a subprocess would only be slower.
+
+def _plant_gated_fixture(t: str) -> str:
+    """A miniature workspace carrying three markers: a healthy `tests/` suite,
+    a healthy `src/` one, and one naming a path that is not there."""
+    import shutil
+
+    for pkg in _GATED_FIXTURE_PKGS:
+        os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
+        os.makedirs(os.path.join(t, "crates", pkg, "tests"), exist_ok=True)
+        open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
+        open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w").close()
+    # The code the gated suites are about.
+    open(os.path.join(t, "crates", "geom-core", "src", "ring.rs"), "w").close()
+    os.makedirs(os.path.join(t, "crates", "geom-core", "src", "interval"), exist_ok=True)
+    open(os.path.join(t, "crates", "geom-core", "src", "interval", "scalar.rs"), "w").close()
+    open(os.path.join(t, "crates", "topo", "src", "euler.rs"), "w").close()
+    # THE MODULE NAME IS NOT THE FILENAME, deliberately: `geom`'s real
+    # `tests/all.rs` includes `curves/lt_r1_probes.rs` as
+    # `curves_lt_r1_probes`, so a fixture whose two agreed would pass with the
+    # `#[path]` pair unread.
+    with open(os.path.join(t, "crates", "geom-core", "tests", "all.rs"), "w") as fh:
+        fh.write('#[path = "ring_fuzz.rs"]\nmod ring_fuzz;\n')
+        fh.write('#[path = "sub/orphan_fuzz.rs"]\nmod sub_orphan_fuzz;\n')
+    with open(os.path.join(t, "crates", "geom-core", "tests", "ring_fuzz.rs"), "w") as fh:
+        fh.write(
+            'test_utils::gated_to![\n'
+            '    "crates/geom-core/src/ring.rs",\n'
+            '    "crates/geom-core/src/interval/",\n'
+            '];\n'
+        )
+    # THE MARKER THAT CANNOT RESOLVE, and it is a live shape rather than an
+    # invented one: a suite whose subject was renamed away under it.
+    os.makedirs(os.path.join(t, "crates", "geom-core", "tests", "sub"), exist_ok=True)
+    with open(os.path.join(t, "crates", "geom-core", "tests", "sub", "orphan_fuzz.rs"), "w") as fh:
+        fh.write('test_utils::gated_to!["crates/geom-core/src/renamed_away.rs"];\n')
+    with open(os.path.join(t, "crates", "topo", "src", "review_probe.rs"), "w") as fh:
+        fh.write('test_utils::gated_to!["crates/topo/src/euler.rs"];\n')
+    os.makedirs(os.path.join(t, "crates", "test-utils", "src"), exist_ok=True)
+    open(os.path.join(t, "crates", "test-utils", "Cargo.toml"), "w").close()
+    with open(os.path.join(t, "crates", "test-utils", "src", "lib.rs"), "w") as fh:
+        fh.write("// the marker's home; never scanned\n")
+    # One tree-wide guard, for the reason stated at `_plant_seed_axis_fixture`.
+    with open(
+        os.path.join(t, "crates", "geom-core", "tests", "tree_census.rs"), "w"
+    ) as fh:
+        fh.write(
+            "#[test]\n"
+            "fn every_crate_is_walked() {\n"
+            '    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");\n'
+            "    let _ = root;\n"
+            "}\n"
+        )
+    os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
+    os.makedirs(os.path.join(t, "bin"), exist_ok=True)
+    shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
+    meta = {
+        "packages": [
+            {
+                "name": pkg,
+                "manifest_path": os.path.join(t, "crates", pkg, "Cargo.toml"),
+                "dependencies": [{"name": d, "kind": k} for d, k in deps],
+            }
+            for pkg, deps in _GATED_FIXTURE_PKGS.items()
+        ]
+    }
+    stub = os.path.join(t, "bin", "cargo")
+    with open(stub, "w") as fh:
+        fh.write("#!/bin/sh\n")
+        fh.write('[ "$1" = metadata ] || { echo "stub cargo: $*" >&2; exit 1; }\n')
+        fh.write("cat <<'JSON'\n" + json.dumps(meta) + "\nJSON\n")
+    os.chmod(stub, 0o700)
+    return t
+
+
+def _selftest_gated() -> None:
+    """The per-file test gate, from both directions.
+
+    WEIGHTED AT THE DIRECTION THAT LOSES COVERAGE, the way the docs battery
+    above is. Emitting an expression that excludes a suite the diff SHOULD
+    have run is the failure that ships a break; emitting nothing is the
+    ordinary whole-suite run and costs only minutes. So every case that must
+    RUN a suite asserts the term is absent, and the one case that skips
+    asserts the exact expression and the notice a reader will look for.
     """
-    # A file list that does not PIN the lane: `_forces_interval` is a floor
-    # over the sampling and would make every draw here `interval`.
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as t:
+        _plant_gated_fixture(t)
+
+        def case(what: str, files: list[str], **want: str) -> None:
+            _expect(
+                what,
+                _selftest_invoke(t, ["--files", "-"], "\n".join(files) + "\n"),
+                want,
+            )
+
+        # UNTOUCHED: both healthy suites are excluded, the unresolvable one is
+        # not. Full-string, because the shape of the expression is the
+        # contract with nextest and a substring test would pass on a filter
+        # that had lost its `not`.
+        case(
+            "a change touching neither suite's paths",
+            ["crates/stl/src/lib.rs"],
+            TIER="closure",
+            TEST_FILTER=f"not ({_GATED_TERM_RING} | {_GATED_TERM_PROBE})",
+        )
+        # A NAMED FILE moved: that suite runs, the other stays skipped.
+        case(
+            "a named file in the diff",
+            ["crates/geom-core/src/ring.rs"],
+            TEST_FILTER=f"not ({_GATED_TERM_PROBE})",
+        )
+        # A NAMED DIRECTORY's descendant moved. `crates/geom-core/src/interval/`
+        # means anything under it, at any depth.
+        case(
+            "a named directory's descendant in the diff",
+            ["crates/geom-core/src/interval/scalar.rs"],
+            TEST_FILTER=f"not ({_GATED_TERM_PROBE})",
+        )
+        # THE SUITE'S OWN FILE is an implicit member of its own path set —
+        # editing a fuzzer is the one change certain to be about it.
+        case(
+            "the suite's own file in the diff",
+            ["crates/geom-core/tests/ring_fuzz.rs"],
+            TEST_FILTER=f"not ({_GATED_TERM_PROBE})",
+        )
+        # The `src/`-module shape, from its own side.
+        case(
+            "a src/ marker's named file in the diff",
+            ["crates/topo/src/euler.rs"],
+            TEST_FILTER=f"not ({_GATED_TERM_RING})",
+        )
+        # TIER=all — no diff that can prove anything held still.
+        case(
+            "an unscopable change",
+            ["Cargo.lock"],
+            TIER="all",
+            TEST_FILTER="",
+        )
+        # THE DERIVATION'S OWN INPUTS. A test-utils change can move what every
+        # gated suite DOES; a tests/all.rs change can move which tests a term
+        # NAMES, and a term that names nothing excludes nothing, silently.
+        case(
+            "a test-utils change",
+            ["crates/test-utils/src/fuzz.rs"],
+            TEST_FILTER="",
+        )
+        case(
+            "a tests/all.rs change",
+            ["crates/geom-core/tests/all.rs", "crates/stl/src/lib.rs"],
+            TEST_FILTER="",
+        )
+        # A DOCS-TIER RUN RUNS NO TESTS AT ALL, so the key is empty rather
+        # than an expression nothing will consume.
+        case("a docs-tier change", ["README.md"], TIER="docs", TEST_FILTER="")
+
+        # THE UNRESOLVABLE MARKER, and both halves of what it must do: never
+        # skip its own suite, and say why in the notices a reader of the run
+        # is handed. The healthy sibling is still skipped in the same run —
+        # one broken marker does not un-gate the tree.
+        run = _selftest_run(
+            t, ["--files", "-"], "crates/stl/src/lib.rs\n"
+        )
+        for want in (
+            "crates/geom-core/tests/sub/orphan_fuzz.rs RUNS despite an untouched path set",
+            "'crates/geom-core/src/renamed_away.rs' does not exist in the tree",
+            "gated: crates/topo/src/review_probe.rs skipped — none of "
+            "crates/topo/src/euler.rs in the diff",
+        ):
+            if want not in run.stderr:
+                raise SystemExit(
+                    f"SELFTEST FAILED: the gate's notices did not carry {want!r}\n{run.stderr}"
+                )
+
+        # --gated-set: EVERY marked suite, and a tree whose markers cannot all
+        # be resolved is a RED step rather than a short filter — the nightly
+        # runs only what this prints.
+        broken = _selftest_invoke_must_fail(t, ["--gated-set"])
+        if "could not be resolved to a nextest term" not in broken:
+            raise SystemExit(f"SELFTEST FAILED: --gated-set was not loud about a broken marker\n{broken}")
+        os.remove(os.path.join(t, "crates", "geom-core", "tests", "sub", "orphan_fuzz.rs"))
+        run = _selftest_run(t, ["--gated-set"])
+        want_set = f"{_GATED_TERM_RING} | {_GATED_TERM_PROBE}"
+        if run.stdout.strip() != want_set:
+            raise SystemExit(
+                f"SELFTEST FAILED: --gated-set printed {run.stdout.strip()!r}, wanted {want_set!r}"
+            )
+
+    # AND THE EMPTY TREE, which is legitimate and is still not accepted
+    # blindly — the same distinction `nightly-only-selection.py` draws. Here
+    # `none()` is provable from the source: no marker anywhere under crates/.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        run = _selftest_run(t, ["--gated-set"])
+        if run.stdout.strip() != "none()":
+            raise SystemExit(
+                f"SELFTEST FAILED: --gated-set on a marker-free tree printed "
+                f"{run.stdout.strip()!r}, wanted 'none()'"
+            )
+        if "no gated suites" not in run.stderr:
+            raise SystemExit(
+                f"SELFTEST FAILED: --gated-set said nothing about the empty case\n{run.stderr}"
+            )
+
+
+def _selftest_unsampled() -> None:
+    """THAT NOTHING HERE IS CHOSEN FOR YOU, which is the claim no single run's
+    output can support.
+
+    A RE-INTRODUCED DRAW WOULD NOT FAIL LOUDLY. Every run would still print a
+    legal `LANE=`, `EPS=` and `KLINT_ROW=`, every job condition would still read
+    them, and the gate would stay green while covering a fraction of what it
+    says it covers — one point in six for the lane and eps, one row in five for
+    k-lint. That is what this walks: the classification is required to come back
+    whole over a spread of file lists, including the two that used to PIN a
+    dimension and the tools/ path whose pin was deleted on 2026-09-04.
+
+    THE SEED IS NOT PASSED BECAUSE THERE IS NOWHERE TO PASS IT. `decorate` no
+    longer takes one, so a draw could only come back by someone adding a
+    parameter — and the values below are what would catch it if they did.
+
+    Deterministic and in-process: `decorate` is a pure function of (result,
+    files, config), so a subprocess would only be slower."""
+    base = {"TIER": "closure", "PKGS": "geom-core", "CARGO_SCOPE": "-p geom-core"}
+    lists: list[tuple[str, list[str] | None]] = [
+        ("an ordinary crate change", ["crates/geom-core/src/lib.rs"]),
+        ("the tree the lane pin used to read", ["interval-transcendentals/src/lib.rs"]),
+        ("an interval-NAMED source", ["crates/topo/src/ring_interval.rs"]),
+        ("the tree the k-lint pin used to read", ["tools/tess-meter/src/main.rs"]),
+        ("a tools/ path no mapping ever named", ["tools/notyet/src/main.rs"]),
+        ("the demo roots the pin deliberately left alone", ["demos/tour/src/main.rs"]),
+        ("an unresolvable change set", None),
+    ]
+    for label, files in lists:
+        got = decorate(dict(base), files)
+        for key, want in (("LANE", "both"), ("EPS", "all"), ("KLINT_ROW", "all")):
+            if got[key] != want:
+                raise SystemExit(
+                    f"SELFTEST FAILED: {label} gated {key}={got[key]!r}, want {want!r}. No "
+                    "dimension here is sampled or pinned (2026-09-04, Ev's two authorisations): "
+                    "every run gates every compile mode, every tolerance row and all five k-lint "
+                    "unifications, and a draw or a pin returning here would silently hand back a "
+                    "gate that covers a fraction of what its job names say")
+        if got["CONFIG_SOURCE"] != "lane:unsampled eps:unsampled klint:unsampled":
+            raise SystemExit(
+                f"SELFTEST FAILED: {label} reported {got['CONFIG_SOURCE']!r}. The value and the "
+                "source have to agree, or a reader answering `which configuration gated this "
+                "commit` off the outputs gets two different answers")
+
+
+def _selftest_lane_unsampled(t: str) -> None:
+    """THAT THE LANE AND THE EPS ROW ARE NOT CHOSEN FOR YOU, AND THE ONE NOTICE
+    THAT SURVIVED THEIR DRAW.
+
+    THE PIN AND THE DRAW ARE BOTH GONE (2026-09-04). `_forces_interval` used to
+    run BEFORE the seeded draw and short-circuit it, so a branch that tripped
+    it was on the interval lane for every push it ever made; #1122 is what that
+    cost when the trip was a filename. Both are now unreachable states rather
+    than removed code paths, and an unreachable state is exactly what a reading
+    of this file cannot confirm — every run still prints a `LANE=` line, and a
+    restored pin or draw would print a legal one. So the cases below assert the
+    NEGATIVE, on the two file lists that used to trip the pin and the advisory:
+    `interval-transcendentals/` and an interval-named source.
+
+    WHAT SURVIVES IS THE ADVISORY, on a population of one: a run someone
+    NARROWED to `lane=default` over a diff whose filenames say interval. It
+    changes nothing about what runs and never did; what changed is that it can
+    no longer be talking to someone who did not choose the lane.
+    """
+    # NO SEED IS PASSED AND NONE CAN BE: `--seed` was deleted with the last
+    # draw (2026-09-04) and is now an unrecognised option. These cases run the
+    # CLI exactly as ci.yml does.
+    exact = _selftest_run(t, ["--files", "-"],
+                          "interval-transcendentals/src/lib.rs\n")
+    if "LANE=both" not in exact.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a change under interval-transcendentals/ did not gate "
+                         f"both lanes — this run gates one\n{exact.stdout}")
+    if "PINNED" in exact.stderr or "lane:pinned" in exact.stdout:
+        raise SystemExit("SELFTEST FAILED: the lane was PINNED. `_forces_interval` was deleted "
+                         "with the draw it pre-empted; a pin here means a run gating one compile "
+                         f"mode again\n{exact.stdout}\nstderr: {exact.stderr!r}")
+    if "CONFIG_SOURCE=lane:unsampled eps:unsampled klint:unsampled" not in exact.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a run reported a dimension as sampled or pinned — "
+                         f"nothing here is either\n{exact.stdout}")
+
+    # THE BASENAME CASE, ASSERTED TWICE OVER. `ring_interval.rs` is the shape
+    # the deleted arm matched — an interval-named source, not a rename victim —
+    # so if anything ever pins on a basename again, it pins here. And the
+    # advisory must stay QUIET: this run gates the interval lane, and an
+    # advisory that fires where it has nothing to say is one nobody reads where
+    # it does.
+    named = _selftest_run(t, ["--files", "-"],
+                          "crates/topo/src/ring_interval.rs\n")
+    if "LANE=both" not in named.stdout.splitlines() or "lane:pinned" in named.stdout:
+        raise SystemExit("SELFTEST FAILED: a basename carrying `interval` moved the lane — that "
+                         f"arm was REMOVED by the #1122 ruling and the draw is gone\n{named.stdout}")
+    if "LANE_ADVISORY=false" not in named.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: the advisory fired on a run already gating the interval "
+                         f"lane\n{named.stdout}")
+
+    # THE ONE POPULATION THE ADVISORY HAS LEFT: a narrowed run. It fires, it
+    # names EVERY interval-named file rather than the first, and it says how to
+    # stop narrowing — all three are things only this script can see, which is
+    # why the wording lives here and not in ci.yml's relay.
+    notes = os.path.join(t, "notices.txt")
+    narrowed = _selftest_run(
+        t, ["--files", "-", "--config", "lane=default", "--notices", notes],
+        "crates/topo/src/ring_interval.rs\ncrates/sweep/tests/extrude_interval.rs\n")
+    if "LANE=default" not in narrowed.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a requested lane did not narrow the run\n"
+                         f"{narrowed.stdout}")
+    if "LANE_ADVISORY=true" not in narrowed.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a run narrowed to the default lane over a diff of "
+                         f"interval-named files raised no advisory\n{narrowed.stdout}")
+    if ("ring_interval.rs" not in narrowed.stderr or "extrude_interval.rs" not in narrowed.stderr
+            or "2 file(s)" not in narrowed.stderr):
+        raise SystemExit("SELFTEST FAILED: the advisory named fewer than all the interval files "
+                         f"it matched\nstderr: {narrowed.stderr!r}")
+    if "NARROWED" not in narrowed.stderr or "lane=default" not in narrowed.stderr:
+        raise SystemExit("SELFTEST FAILED: the advisory did not say the lane was NARROWED BY A "
+                         "REQUEST, which is the only way this run can be on one lane\n"
+                         f"stderr: {narrowed.stderr!r}")
+
+    # THE RELAY FILE, which is the only reason ci.yml no longer restates these
+    # notices in its own prose. Two properties, and the second is the one a
+    # reader would never think to check: the file CARRIES the notice, and it is
+    # TRUNCATED when there is none — a relay that leaves the previous run's
+    # notice in place announces something this run does not have, and the
+    # consumer `cat`s it unconditionally.
+    with open(notes) as fh:
+        relayed = fh.read()
+    if "ring_interval.rs" not in relayed:
+        raise SystemExit("SELFTEST FAILED: --notices did not carry the advisory, so ci.yml's "
+                         f"relay would print nothing where it used to print prose\n{relayed!r}")
+    _selftest_run(t, ["--files", "-", "--notices", notes],
+                  "crates/topo/src/lib.rs\n")
+    with open(notes) as fh:
+        if fh.read() != "":
+            raise SystemExit("SELFTEST FAILED: --notices was not truncated on a run with no "
+                             "notice — the relay would announce the PREVIOUS run's advisory")
+
+    # THE EPS ROW, ON THE SAME TERMS. It is the dimension with no pin and no
+    # advisory, so nothing else in this file would notice a draw returning to
+    # it; `_selftest_unsampled` walks the file lists for that, and this is the
+    # request half — narrowing works, and says it was a request.
+    one_row = _selftest_run(t, ["--files", "-", "--config", "eps=1e-12"],
+                            "crates/topo/src/lib.rs\n")
+    if "EPS=1e-12" not in one_row.stdout.splitlines() or "eps:requested" not in one_row.stdout:
+        raise SystemExit("SELFTEST FAILED: a requested eps row did not narrow the run, or did not "
+                         f"say it was requested\n{one_row.stdout}")
+    every_row = _selftest_run(t, ["--files", "-", "--config", "eps=all"],
+                              "crates/topo/src/lib.rs\n")
+    if "EPS=all" not in every_row.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: `eps=all` was refused. It became legal when the hosted "
+                         "half started expanding it into three matrix legs, and refusing a value "
+                         f"this script PRINTS as its own default is incoherent\n{every_row.stdout}")
+
+    # `--seed` IS AN ERROR NOW, and that is deliberate rather than a leftover:
+    # an option that accepted the head SHA and ignored it would read, to every
+    # caller copied from an older brief, as a run that still draws.
+    stale = _selftest_run(t, ["--files", "-", "--seed", "deadbeef"],
+                          "crates/topo/src/lib.rs\n", allow_fail=True)
+    if stale.returncode == 0:
+        raise SystemExit("SELFTEST FAILED: `--seed` was accepted. It was deleted with the last "
+                         "draw; silently ignoring it tells a caller their run still draws a "
+                         f"k-lint row\n{stale.stdout}")
+
+
+# THE JOB WHOSE ROWS THIS TUPLE FEEDS, and the one string in this file that
+# names it. `_selftest_klint_workflow` reads the workflow's TEXT — the census
+# gate reads ci.yml the same way, for the same reason: a claim nobody re-runs
+# against its source is a transcription with a date on it.
+KLINT_JOB_KEY = "k-lint"
+KLINT_WORKFLOW = ".github/workflows/ci.yml"
+# ONE ROW PER MATRIX LEG SINCE 2026-09-04, so a step names its row with a plain
+# equality against `matrix.row` rather than with a `contains(fromJSON([...]))`
+# list that had to carry `all` as its escape hatch. The set a step is gated on
+# is still what this returns, so everything below reads the same way.
+#
+# ANCHORED TO `if:`, because the row set is read off CONDITIONS and not off
+# mentions. An unanchored scan over a step's whole text counts a row named in
+# a COMMENT inside that step, so a careless edit that deletes a real `if:` and
+# leaves the comment behind still satisfies the union check below — which is
+# the one failure this case exists to catch.
+_KLINT_IF_RE = re.compile(r"matrix\.row\s*==\s*'([a-z0-9-]+)'")
+_KLINT_MATRIX_RE = re.compile(r"^\s*klint_rows:.*?'(\[[^\]]*\])'", re.M)
+# THE WIRE BETWEEN THE TWO ENDS. The matrix literal is checked above and the
+# step conditions below, and neither of them reads `strategy.matrix.row` — so
+# without this, rewriting line 3807 to a hand-typed `['dev-default']` leaves
+# both halves green while three rows silently run nothing.
+_KLINT_AXIS_RE = re.compile(
+    r"^\s*row:\s*\$\{\{\s*fromJSON\(\s*needs\.filter\.outputs\.klint_rows\s*\)\s*\}\}\s*$",
+    re.M)
+
+
+def _klint_job_block(text: str) -> str:
+    """The `k-lint` job's own block of ci.yml, and nothing else.
+
+    Every job in this workflow indents identically, so a scan that is not
+    bounded to one block attributes a neighbour's text to this job and the
+    assertions built on it are then about the wrong file.
+    """
+    lines = text.split("\n")
+    try:
+        start = next(i for i, ln in enumerate(lines) if ln == f"  {KLINT_JOB_KEY}:")
+    except StopIteration:
+        raise SystemExit(
+            f"SELFTEST FAILED: {KLINT_WORKFLOW} has no `{KLINT_JOB_KEY}:` job. KLINT_ROWS is "
+            "the matrix that job fans out over; if it was renamed, re-derive against whatever "
+            "replaced it rather than repointing this name"
+        ) from None
+    end = next(
+        (i for i in range(start + 1, len(lines)) if re.match(r"^  [A-Za-z0-9_-]+:\s*$", lines[i])),
+        len(lines),
+    )
+    return "\n".join(lines[start:end])
+
+
+def _klint_job_steps(text: str) -> list[tuple[frozenset[str], str]]:
+    """`(rows this step is gated on, the step's text)` for the k-lint job.
+
+    Bounded to that job's own block: every other job in this workflow indents
+    its steps identically, so an unbounded scan would attribute a neighbour's
+    row to this one and the assertions below would be about the wrong file.
+    A step with no `klint_row` condition comes back with an EMPTY row set
+    rather than being dropped — "gated on nothing" is a real answer here (the
+    checkout and cache steps are), and dropping it would let a row condition
+    that was DELETED read as a step that never had one.
+
+    ONLY the step's `if:` key is read for rows, never its comments or its
+    `run:` body: a row is what GATES a step, and a mention of one is not.
+    """
+    steps: list[list[str]] = []
+    for ln in _klint_job_block(text).split("\n"):
+        if re.match(r"^      - \S", ln):
+            steps.append([])
+        if steps:
+            steps[-1].append(ln)
+    out: list[tuple[frozenset[str], str]] = []
+    for body in steps:
+        blob = "\n".join(body)
+        out.append((frozenset(_KLINT_IF_RE.findall(_step_conditions(body))), blob))
+    return out
+
+
+def _step_conditions(body: list[str]) -> str:
+    """The text of a step's `if:` key(s) and nothing else.
+
+    A block or folded `if:` continues onto the lines indented deeper than the
+    key itself, so those are taken too; anything at the key's indent or
+    shallower ends it. Everything outside — comments, `name:`, `run:` — is
+    dropped, so a row named anywhere but in a condition does not count as
+    gating a step.
+    """
+    out: list[str] = []
+    depth: int | None = None
+    for ln in body:
+        stripped = ln.lstrip()
+        indent = len(ln) - len(stripped)
+        if depth is not None:
+            if stripped and indent <= depth:
+                depth = None
+            else:
+                out.append(ln)
+                continue
+        if re.match(r"if:\s", stripped) or stripped == "if:":
+            out.append(ln)
+            depth = indent
+    return "\n".join(out)
+
+
+def _selftest_klint_workflow() -> None:
+    """THE FIVE ROWS, CHECKED AGAINST THE JOB THAT RUNS THEM.
+
+    `KLINT_ROWS` is printed by this script and validated against by every
+    request; ci.yml carries the same five AGAIN, as the JSON array it expands
+    `KLINT_ROW=all` into, because a matrix dimension has to be a list and this
+    script's output is a stream of words. `EPS_ROWS` has exactly this problem
+    and exactly this answer — read the workflow's TEXT and re-derive.
+
+    THREE CLAIMS, and each is a sentence written elsewhere in this file that
+    would otherwise be true only on the day it was typed:
+
+      * THE MATRIX. ci.yml's `klint_rows` literal names exactly `KLINT_ROWS`.
+        A row in the tuple and not in the literal is a row this script will
+        accept as a request and the workflow will expand into nothing; a row in
+        the literal and not in the tuple is a leg no request can name and no
+        `--selftest` here has ever seen.
+      * THE WIRE. The k-lint job's matrix axis reads
+        `fromJSON(needs.filter.outputs.klint_rows)` — i.e. the literal checked
+        above is the literal the job actually expands. Without this the other
+        two claims hold over a job whose axis was rewritten to a hand-typed
+        list, and three rows run nothing while both ends read green.
+      * THE STEPS. The set of rows the job's own step conditions name is
+        exactly `KLINT_ROWS` too. This is the half that catches the failure the
+        draw used to hide in plain sight: a leg that runs with no step gated on
+        it is a green job reporting on nothing, and a row named by a step but
+        absent from the matrix is a step that can never run — which is what
+        `demos tour fmt + clippy` effectively was on four runs in five.
+
+    WHAT IT STILL CANNOT SEE: whether the steps gated on a row are the RIGHT
+    steps for it. That is the roster at `KLINT_ROWS` and the job's own
+    comments; this is the mechanical shadow of it."""
+    path = os.path.join(_repo_root(), KLINT_WORKFLOW)
+    try:
+        with open(path) as fh:
+            text = fh.read()
+    except OSError as exc:
+        raise SystemExit(f"SELFTEST FAILED: {KLINT_WORKFLOW} cannot be read ({exc}); the k-lint "
+                         "rows have no source to be re-derived against") from exc
+
+    found = _KLINT_MATRIX_RE.findall(text)
+    if len(found) != 1:
+        raise SystemExit(
+            f"SELFTEST FAILED: expected exactly ONE `klint_rows:` output carrying a JSON array "
+            f"literal in {KLINT_WORKFLOW}; found {len(found)}. Two would be two lists to keep in "
+            "step with KLINT_ROWS, which is the thing this case exists to prevent")
+    try:
+        rows = json.loads(found[0])
+    except ValueError as exc:
+        raise SystemExit(f"SELFTEST FAILED: {KLINT_WORKFLOW}'s k-lint matrix literal {found[0]!r} "
+                         f"is not JSON ({exc}); the matrix would expand to nothing") from exc
+    if tuple(rows) != KLINT_ROWS:
+        raise SystemExit(
+            f"SELFTEST FAILED: {KLINT_WORKFLOW} expands KLINT_ROW=all into {rows} and this "
+            f"script's KLINT_ROWS is {list(KLINT_ROWS)}. One of them gates unifications the other "
+            "does not name — change both, in the same commit")
+
+    block = _klint_job_block(text)
+    if not _KLINT_AXIS_RE.search(block):
+        raise SystemExit(
+            f"SELFTEST FAILED: the `{KLINT_JOB_KEY}` job in {KLINT_WORKFLOW} does not take its "
+            "matrix axis from `${{ fromJSON(needs.filter.outputs.klint_rows) }}`. The literal "
+            "re-derived above is then not the list the job expands, and a dispatch narrowing "
+            "the `klint` input reaches nothing")
+
+    steps = _klint_job_steps(text)
+    in_workflow = frozenset().union(*(rows for rows, _ in steps)) if steps else frozenset()
+    if in_workflow != frozenset(KLINT_ROWS):
+        raise SystemExit(
+            f"SELFTEST FAILED: KLINT_ROWS is {sorted(KLINT_ROWS)} and the `{KLINT_JOB_KEY}` job's "
+            f"own step conditions name {sorted(in_workflow)}. A row in the matrix with no step "
+            "gated on it is a leg that reports green over nothing; a row named by a step and not "
+            "in the matrix is a step that can never run")
+
+    gated = {row: sum(1 for rows, _ in steps if row in rows) for row in KLINT_ROWS}
+    if min(gated.values()) < 1:
+        raise SystemExit(
+            f"SELFTEST FAILED: this job gates {gated}; a row with no steps is a matrix leg whose "
+            "whole product is a green name")
+    print(f"ci-filter selftest: {KLINT_WORKFLOW}'s k-lint matrix literal re-derives against "
+          f"KLINT_ROWS — {', '.join(KLINT_ROWS)}; steps gated per row {gated}")
+
+
+# THE ε ROWS HAVE TWO SPELLINGS AND THIS IS THE ONE THAT RECONCILES THEM.
+# `EPS_ROWS` above is the tuple this script prints and validates requests
+# against; ci.yml's `filter` job carries the same three rows AGAIN, as a JSON
+# array literal, because a matrix dimension has to be a list and this script's
+# output is a stream of words. A comment saying "keep these in sync" is what
+# that arrangement usually gets, and a comment has never stopped a list
+# drifting. `_selftest_klint_workflow` does the same thing one dimension over,
+# against the same file, for the same reason.
+#
+# WHAT DRIFT WOULD LOOK LIKE WITHOUT IT: adding a fourth ε row here would print
+# `EPS=all`, accept `eps=<new row>` as a request, and run three legs; deleting
+# one would leave the workflow expanding a row this script refuses to name. Both
+# are green runs gating a matrix nobody wrote down.
+EPS_ROWS_WORKFLOW = ".github/workflows/ci.yml"
+_EPS_ROWS_RE = re.compile(r"^\s*eps_rows:.*?'(\[[^\]]*\])'", re.M)
+
+
+def _selftest_eps_rows_workflow() -> None:
+    """ci.yml's eps matrix literal must name exactly `EPS_ROWS`."""
+    path = os.path.join(_repo_root(), EPS_ROWS_WORKFLOW)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError as exc:
+        raise SystemExit(f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW} cannot be read ({exc}); the eps "
+                         "matrix literal is derived from that file and cannot be checked") from exc
+    found = _EPS_ROWS_RE.findall(text)
+    if len(found) != 1:
+        raise SystemExit(
+            f"SELFTEST FAILED: expected exactly ONE `eps_rows:` output carrying a JSON array "
+            f"literal in {EPS_ROWS_WORKFLOW}; found {len(found)}. Two would be two lists to keep "
+            "in step with EPS_ROWS, which is the thing this case exists to prevent")
+    try:
+        rows = json.loads(found[0])
+    except ValueError as exc:
+        raise SystemExit(f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW}'s eps matrix literal {found[0]!r} "
+                         f"is not JSON ({exc}); the matrix would expand to nothing") from exc
+    if tuple(rows) != EPS_ROWS:
+        raise SystemExit(
+            f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW} expands EPS=all into {rows} and this script's "
+            f"EPS_ROWS is {list(EPS_ROWS)}. One of them gates rows the other does not name — "
+            "change both, in the same commit")
+    print(f"ci-filter selftest: {EPS_ROWS_WORKFLOW}'s eps matrix literal re-derives against "
+          f"EPS_ROWS — {', '.join(EPS_ROWS)}")
+
+
+def _selftest_config() -> None:
+    """THE REQUEST PATH, in-process where it is a pure function and through the
+    CLI where the wiring is.
+
+    WHAT IS ACTUALLY AT RISK HERE, and it is not "does an override override".
+    It is the SILENT failure a request can have: one that is READ BUT NOT
+    APPLIED, or applied to the wrong dimension. Nothing reds; the run gates
+    the wrong point and reports a green that answers a question nobody asked.
+
+    So every legal value of every dimension is requested and checked, and the
+    dimensions nobody named are required to still be the whole dimension.
+
+    THE COMMIT-TRAILER SPELLING'S CASES STOOD HERE AND ARE DELETED WITH IT
+    (2026-09-04): the regex near-misses, the case-insensitivity, the
+    precedence pair and the additive-only refusals all asserted properties of
+    a path that no longer exists. Its wiring is now covered by the one thing
+    left to say about it — `--config-from-message` reds — in `selftest`."""
     files = ["crates/geom-core/src/lib.rs"]
     base = {"TIER": "closure", "PKGS": "geom-core", "CARGO_SCOPE": "-p geom-core"}
+    unasked = decorate(dict(base), files)
+    keys = [out_key for out_key, _ in CONFIG_DIMENSIONS.values()]
 
-    got = decorate(dict(base), files, None)
-    for key, want in (("LANE", "both"), ("EPS", "all"), ("KLINT_ROW", "all")):
-        if got[key] != want:
-            raise SystemExit(f"SELFTEST FAILED: no seed must fail open into more work — "
-                             f"{key} is {got[key]!r}, want {want!r}")
+    if unasked["CONFIG_SOURCE"] != "lane:unsampled eps:unsampled klint:unsampled":
+        raise SystemExit("SELFTEST FAILED: a run nobody narrowed must record every dimension as "
+                         f"unsampled — CONFIG_SOURCE is {unasked['CONFIG_SOURCE']!r}")
 
-    one = decorate(dict(base), files, "deadbeef")
-    two = decorate(dict(base), files, "deadbeef")
-    if (one["LANE"], one["EPS"], one["KLINT_ROW"]) != (two["LANE"], two["EPS"], two["KLINT_ROW"]):
-        raise SystemExit("SELFTEST FAILED: the same seed drew two different points — the draw is "
-                         "not a function of the SHA, so a re-run of a red gate can come back green")
+    for name, (out_key, choices) in CONFIG_DIMENSIONS.items():
+        for value in choices:
+            got = decorate(dict(base), files, parse_config([f"{name}={value}"], "requested"))
+            if got[out_key] != value:
+                raise SystemExit(f"SELFTEST FAILED: {name}={value} was requested and {out_key} came "
+                                 f"back {got[out_key]!r} — the request is being read and dropped")
+            if f"{name}:requested" not in got["CONFIG_SOURCE"]:
+                raise SystemExit(f"SELFTEST FAILED: {name}={value} was requested and CONFIG_SOURCE "
+                                 f"says {got['CONFIG_SOURCE']!r} — an unrecorded override is a run "
+                                 "that cannot be read back")
+            for other in keys:
+                if other != out_key and got[other] != unasked[other]:
+                    raise SystemExit(f"SELFTEST FAILED: requesting {name} moved {other} as well "
+                                     "— the dimensions nobody named must keep their default")
 
-    seen: set[tuple[str, str, str]] = set()
-    for i in range(4000):
-        d = decorate(dict(base), files, f"{i:040x}")
-        seen.add((d["LANE"], d["EPS"], d["KLINT_ROW"]))
-    want_points = {(ln, e, k) for ln in LANES for e in EPS_ROWS for k in KLINT_ROWS}
-    missing = want_points - seen
-    if missing:
-        raise SystemExit(
-            "SELFTEST FAILED: over 4000 seeds these matrix points were never drawn: "
-            f"{sorted(missing)}. Two dimensions sharing a salt (or one drawn without "
-            "one) collapse into a single number and make part of the product "
-            "unreachable — check `_sample`'s salt argument at every call site in "
-            "`decorate`")
+    # LOUD ON EVERY MALFORMED REQUEST.
+    # `eps=all` is NOT in this list any more (2026-09-04): it became legal
+    # when the hosted half started expanding it into three matrix legs. What
+    # replaces it here is `eps=every`, a value that is still not one.
+    for bad in (["lane"], ["lane="], ["=interval"], ["mode=interval"], ["lane=fast"],
+                ["eps=every"], ["lane=default", "lane=interval"]):
+        try:
+            parse_config(bad, "requested")
+        except ConfigError:
+            continue
+        raise SystemExit(f"SELFTEST FAILED: {bad} was accepted as a configuration request")
 
 
 def _selftest_docs_premise() -> None:
@@ -1128,24 +4198,152 @@ def _selftest_docs_premise() -> None:
           "tier: " + (", ".join(sorted(consumed)) or "(none)"))
 
 
+def _selftest_wheel_members_premise() -> None:
+    """THE PYTHON SUITE'S SEED SET, read off the REAL member graph — the
+    fixture battery proves the RULE, and this proves the rule still reads
+    THIS tree.
+
+    WHAT IT PROVES AND WHAT IT DOES NOT. It proves the set comes back on this
+    tree, that the dev-edge rule bites here rather than only in a fixture, and
+    that `bvh` — the member the previous, text-keyed reading of this axis
+    wrongly excluded — is in it. It does NOT prove the set is RIGHT for the
+    suite: the graph answers "does a wheel build compile this crate", and a
+    crate the wheel compiles but no binding path can observe is a false TRUE,
+    which costs a job run and never a missed failure. The set is therefore
+    over-approximate on purpose, and the complement printed below is the whole
+    of what it excludes."""
+    root = _repo_root()
+    try:
+        seeds = pncad_py_seeds(root)
+    except Bail as exc:
+        raise SystemExit(
+            f"SELFTEST FAILED: this tree's python-suite seed set cannot be derived: {exc}"
+        ) from exc
+    # `bvh` is the regression this axis carried: no line of the façade names
+    # it, and it still reaches Python — `crates/editor-core/src/lib.rs` does
+    # `pub use bvh::Ray`, `crates/pncad/src/select.rs` re-exports it, and
+    # `crates/pncad-py/src/py/pick.rs` wraps it as a `#[pyclass]` that
+    # `crates/pncad-py/tests/test_picking.py` drives through `pick_face`.
+    if "bvh" not in seeds:
+        raise SystemExit(
+            "SELFTEST FAILED: bvh is not in the python suite's seed set. Its `Ray` crosses "
+            "into Python as a #[pyclass] and tests/test_picking.py drives it, so a change to "
+            "it can red the suite while every other row stays green")
+    # THE DEV-EDGE RULE, CHECKED AGAINST THE REAL MANIFESTS rather than
+    # restated: `test-utils` is in `pncad-py`'s dependency closure when every
+    # kind is followed and out of it when dev edges are not, so the two edge
+    # sets have to disagree here or the rule is not being applied.
+    dir_of, deps, _ = _member_graph(root)
+    if "test-utils" not in _dependency_closure(PNCAD_PY, deps):
+        raise SystemExit(
+            "SELFTEST FAILED: test-utils is not a dependency of pncad-py at any kind, so this "
+            "tree can no longer tell a dev edge from a normal one and the check below is "
+            "vacuous. Re-site it on whatever dev-dependency the binding crate now has")
+    if "test-utils" in seeds:
+        raise SystemExit(
+            "SELFTEST FAILED: test-utils is in the python suite's seed set. It reaches pncad-py "
+            "along a DEV edge only, and `maturin build` compiles no test target, so nothing in "
+            "it can reach the wheel")
+    outside = sorted(set(dir_of.values()) - seeds)
+    print("ci-filter selftest: the python suite's seeds on this tree — every member a wheel "
+          "build compiles: " + ", ".join(sorted(seeds)))
+    print("ci-filter selftest: members outside them, the whole of what this axis skips: "
+          + (", ".join(outside) or "(none)"))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--base", help="git ref/sha to diff HEAD against")
     src.add_argument("--files", help="file with a newline-separated list, or -")
     src.add_argument("--selftest", action="store_true", help="run the fixture battery")
-    # NOT in the mutually-exclusive `src` group: the seed selects a matrix
-    # point and is orthogonal to how the file list was obtained, so it rides
-    # alongside --base or --files rather than instead of them.
+    # In the `src` group for the same reason `--force-all` is: it takes no
+    # diff. The gated SET is a property of the tree alone — every marked
+    # suite, whether or not anything changed — which is exactly the question
+    # the nightly re-take asks.
+    src.add_argument(
+        "--gated-check",
+        nargs="?",
+        const="",
+        metavar="DIR",
+        help="check every gated-suite marker in DIR (default: this repo) — "
+        "paths resolve, terms derive, markers are sited where they are read; "
+        "reds on the first problem. scripts/gates/gated-suite-paths.sh is its "
+        "wrapper under lib.sh's two-mode contract",
+    )
+    src.add_argument(
+        "--gated-set",
+        action="store_true",
+        help="print one nextest filterset expression selecting EVERY gated "
+        "suite in the tree (the nightly's ungated re-take), or `none()` when "
+        "the tree carries no marker; not the KEY=value stream",
+    )
+    # In the `src` group because it is the third way to answer "what changed":
+    # by declining to ask. It takes no diff, so it cannot be combined with one.
+    src.add_argument(
+        "--force-all",
+        action="store_true",
+        help="take no diff at all and return the `all` tier (everything runs, "
+        "unscoped; the path-keyed signals then fail closed)",
+    )
+    # `--seed` STOOD HERE AND IS DELETED (2026-09-04). It carried the head SHA
+    # the k-lint row was drawn from; nothing is drawn any more, and an option
+    # that accepted a value and ignored it would be worse than one that reds.
     ap.add_argument(
-        "--seed",
-        help="head SHA to key the configuration sample on; omit to run the "
-        "whole matrix (LANE=both, EPS=all, KLINT_ROW=all)",
+        "--config",
+        action="extend",
+        nargs="+",
+        metavar="KEY=VALUE",
+        help="narrow this run to a named point, e.g. "
+        "`--config lane=interval eps=1e-12 klint=dev-probe`; unnamed "
+        "dimensions keep their default, which is the WHOLE dimension (every "
+        "lane, every eps row, every k-lint unification)",
+    )
+    # `--config-from-message` STOOD HERE AND IS DELETED (2026-09-04), on the
+    # same terms as `--seed`. It read a `CI-Config:` trailer out of the head
+    # commit's message, and once every dimension ran whole by default the
+    # additive-only rule left it no value it could name that changed anything.
+    # An option that read a message and ignored it would tell every caller
+    # copied from an older brief that their trailer still configures the run.
+    ap.add_argument(
+        "--notices",
+        metavar="FILE",
+        help="also write the human notices (the interval advisory, the gated "
+        "suites this run skips) to FILE, so a caller can relay them verbatim "
+        "instead of restating them; truncated to empty when there are none",
     )
     args = ap.parse_args()
     if args.selftest:
         selftest()
         return 0
+
+    if args.gated_check is not None:
+        # Outside the fail-closed wrapper, like `--gated-set` and for the twin
+        # reason: this mode's whole product is a verdict about the markers, so
+        # a failure to reach one is the verdict, not a fallback.
+        return gated_check(args.gated_check or _repo_root())
+
+    if args.gated_set:
+        # NOT under the fail-closed wrapper below, and that is the whole
+        # difference between this mode and the filter. The filter's failure
+        # answer is "run everything", which is safe because everything then
+        # runs; this mode's caller runs ONLY what it prints, so its failure
+        # answer has to be a red step. An empty answer it cannot prove is the
+        # silent-zero-coverage shape `nightly-only-selection.py` was written
+        # against, one lane over.
+        return gated_set(_repo_root())
+
+    # BEFORE ANY WORK, AND OUTSIDE THE FAIL-CLOSED WRAPPER BELOW. A malformed
+    # request is not a classification that could not be made, so it does not
+    # become TIER=all — it becomes a red step under the person who typed it.
+    config: dict[str, tuple[str, str]] = {}
+    try:
+        if args.config:
+            config.update(parse_config(args.config, "requested"))
+    except (ConfigError, OSError) as exc:
+        print(f"ci-filter: {exc}", file=sys.stderr)
+        return 2
+
     root = _repo_root()
 
     # `None` until a file list is actually in hand, so that a failure ANYWHERE
@@ -1153,8 +4351,15 @@ def main() -> int:
     # reaches the path-keyed signals as "unknown", which they read as run.
     files: list[str] | None = None
     try:
-        if args.files:
+        if args.force_all:
+            # `files` stays None, and that is the honest reading: nothing was
+            # diffed, so nothing here can prove the oracle sources or the
+            # interval lane held still. Both signals run.
+            res = _all_tier(root)
+        elif args.files:
             raw = sys.stdin.read() if args.files == "-" else open(args.files).read()
+            files = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+            res = classify(files, root)
         else:
             try:
                 raw = _run(["git", "diff", *_DIFF_FLAGS, f"{args.base}...HEAD"], root)
@@ -1162,8 +4367,8 @@ def main() -> int:
                 # Unrelated histories / shallow clone: fall back to the
                 # two-dot form rather than guessing.
                 raw = _run(["git", "diff", *_DIFF_FLAGS, args.base, "HEAD"], root)
-        files = [ln.strip() for ln in raw.splitlines() if ln.strip()]
-        res = classify(files, root)
+            files = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+            res = classify(files, root)
     except Exception as exc:  # noqa: BLE001 — fail CLOSED on anything at all
         print(f"ci-filter: falling back to TIER=all: {exc}", file=sys.stderr)
         res = _all_tier(root)
@@ -1174,7 +4379,99 @@ def main() -> int:
     # allowlist, so the very changes the oracle cares about arrive here as
     # TIER=all with a perfectly good file list. Only a failure to resolve
     # the diff at all leaves `files` None, and that is the case that runs.
-    for key, val in decorate(res, files, args.seed).items():
+
+    # THE PYTHON SUITE'S SEED SET IS READ OFF THE MEMBER GRAPH, HERE AND NOT
+    # IN `decorate`, which stays a pure function of its arguments.
+    # `_member_graph` is memoised, so on the ordinary path this costs nothing.
+    #
+    # RECORDED, NEVER SILENT: the set is printed either way, so the filter
+    # job's log says which members bought the suite — or that the graph could
+    # not be read and the suite runs unconditionally because of it.
+    wheel_members: frozenset[str] | None = None
+    try:
+        wheel_members = pncad_py_seeds(root)
+        print(
+            "ci-filter: python-suite seeds: " + ",".join(sorted(wheel_members)),
+            file=sys.stderr,
+        )
+    except Exception as exc:  # noqa: BLE001 — fail OPEN on this axis
+        print(
+            f"ci-filter: the python-suite seed set is underivable, so the suite runs: {exc}",
+            file=sys.stderr,
+        )
+
+    out = decorate(res, files, config, wheel_members)
+
+    # THE NOTICES ARE COMPOSED HERE AND WRITTEN TWICE, TO ONE WORDING. They go
+    # to stderr, where the local half and anyone running this by hand sees
+    # them, and — when `--notices` names a file — to that file, which ci.yml's
+    # always-run configuration step relays VERBATIM. Before that relay existed
+    # ci.yml restated the notices in its own prose, and the two copies had
+    # already drifted twice: one said a pin's reason names a file, which the
+    # fail-closed arm could not, and the other said "DEFAULT LANE DRAWN" over a
+    # lane that had been requested. There is one wording now, and it is the one
+    # that can see the values it is describing.
+    #
+    # THE PIN NOTICE STOOD HERE AND IS DELETED (2026-09-04) with `_forces_klint`
+    # — the last pinned dimension — and with the `CONFIG_DIMENSIONS` loop that
+    # composed it. `decorate` stays free of I/O either way, which is what let
+    # `_selftest_sampling` call it thousands of times in-process.
+    notices: list[str] = []
+
+    # THE ADVISORY. It names EVERY interval-named file, and it fires only on a
+    # run someone NARROWED to the default lane — an un-narrowed run gates both
+    # compile modes and has nothing to advise about. It used to also report
+    # whether that lane was drawn or asked for; there is no draw left, so the
+    # word is gone rather than kept as a branch that can only take one arm.
+    if out["LANE_ADVISORY"] == "true":
+        hits = _advises_interval(files)
+        shown = ", ".join(hits[:5]) + (f" (+{len(hits) - 5} more)" if len(hits) > 5 else "")
+        notices.append(
+            f"This diff touches {len(hits)} file(s) whose basenames carry `interval` "
+            f"— {shown} — and this run was NARROWED to LANE=default by a request.\n"
+            "  An un-narrowed run gates both compile modes, so this is the one way "
+            "left to miss the interval lane, and you chose it.\n"
+            "  IF INTERVAL SEMANTICS CHANGED, DROP THE NARROWING: re-run the "
+            "workflow_dispatch without the `lane=default` input, or aim it at "
+            "`lane: both`.\n"
+            "  If they did not change, this notice is noise and you can ignore it. "
+            "The convention is in docs/prompts/implementer-discipline.md."
+        )
+
+    # THE GATED-SUITE FILTER, COMPUTED LAST AND FAILING OPEN INTO THE EMPTY
+    # STRING. It reads the tier `decorate` has already settled and the same
+    # file list every other path-keyed signal here reads, and it is the one
+    # output key whose value is a nextest expression rather than a word — so
+    # it is composed here, beside the notices that explain it, rather than in
+    # `decorate`, which does no I/O and cannot open a source file.
+    #
+    # THE MEMBER MAP IS BEST-EFFORT. It supplies the PACKAGE name for a term's
+    # binary id; without it the directory name stands in, which is the same
+    # string for every member of this workspace and is checked by the local
+    # verification the gate's own `--selftest` cannot do (a term that matches
+    # no test excludes no test). A cargo that cannot run is therefore not a
+    # reason to skip the gate, and not a reason to trust it either: the
+    # `gated: … skipped` notices name every suite the run did not execute.
+    try:
+        gate_dir_of, _ = _members(root)
+    except Exception as exc:  # noqa: BLE001 — the directory name stands in
+        print(f"ci-filter: gated suites: no member map ({exc})", file=sys.stderr)
+        gate_dir_of = None
+    test_filter, gate_notices = gated_filter(root, files, out["TIER"], gate_dir_of)
+    out["TEST_FILTER"] = test_filter
+    notices.extend(gate_notices)
+
+    for note in notices:
+        print(f"ci-filter: {note}", file=sys.stderr)
+    if args.notices:
+        # Truncated even when empty: the relay `cat`s this file unconditionally,
+        # and a stale one from an earlier invocation would announce a pin this
+        # run does not have.
+        with open(args.notices, "w") as fh:
+            for note in notices:
+                fh.write(f"ci-filter: {note}\n")
+
+    for key, val in out.items():
         print(f"{key}={val}")
     return 0
 

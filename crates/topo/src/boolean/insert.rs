@@ -298,7 +298,14 @@ fn record_germ_dir<T: Decide>(
         Err(super::rest::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::Escalated { diag });
         }
-        Err(_) => {
+        // Both remaining arms mean the same thing to this door: the
+        // declaration promised a locus the closed-form lane does not
+        // produce. Listed rather than wildcarded, so a new
+        // `TangentLocusError` arm is classified here deliberately.
+        Err(
+            super::rest::TangentLocusError::NotTangent { .. }
+            | super::rest::TangentLocusError::Unsupported { .. },
+        ) => {
             return Err(BooleanError::ClassificationInvariant {
                 what: "declared-Tangent germ without a closed-form locus",
             });

@@ -18,9 +18,10 @@
 //! methods, not inherent ones. `profile::RawLoop` carries `new` and
 //! `polygon`; inherent methods would have travelled with the type
 //! through any re-export that made it nameable, and the type must be
-//! nameable. This module re-exports everything in `profile`'s root
-//! EXCEPT `RawLoop`, so `pncad::profile::ProfileLoop::polygon(…)` does
-//! not resolve: the trait is not in scope and there is no path to it.
+//! nameable. This module re-exports everything in `profile`'s root,
+//! and `RawLoop` is not in that root to re-export: the trait is gated
+//! behind `profile`'s `test-support` feature, so a build that is not
+//! some crate's tests does not compile it at all.
 //!
 //! What this module removes is the *authoring tier*: the named,
 //! documented, prelude-carried way to mint a loop from a coordinate
@@ -34,11 +35,27 @@
 //!
 //! Stated honestly, because it is a crate boundary and not a module
 //! one: `profile`'s own internals build loops directly and hold the
-//! invariant by their sealed-verbs discipline, not by privacy. And a
-//! consumer willing to depend on `profile` directly still reaches
-//! `RawLoop` — the door is off the PRESENTED surface, not out of
-//! existence. `demos/tour` does exactly that, in one scene, on purpose
-//! (its manifest says why).
+//! invariant by their sealed-verbs discipline, not by privacy.
+//!
+//! What a consumer willing to depend on `profile` directly reaches was
+//! once the honest limit of this module's claim — the door was off the
+//! PRESENTED surface, not out of existence, and `demos/tour` took that
+//! route in one scene on purpose. Both halves of that sentence are
+//! spent: the tour authors through the lattice in every scene and no
+//! longer depends on `profile` at all, and the door is now gated out of
+//! every shipped build, so a downstream crate cannot reach it however
+//! it depends: in a build satisfying neither `test` nor `test-support`
+//! the trait ITEM is declared `pub(crate)`, so there is no re-export of
+//! it that compiles and nothing to reach.
+//!
+//! What says so, precisely, because an earlier draft of this sentence
+//! overclaimed: `profile`'s `raw_door_census` suite reads source and
+//! manifests — it compiles no downstream crate. The compiling
+//! instruments are CI's wasm32 row, a non-dev `cargo check` of the
+//! kernel and `editor-core` on every code run, and the E0365 a
+//! re-export of the shut arm's trait now produces. A gate that compiles
+//! a downstream witness is filed, not built
+//! (`work/bool/raw-door-compile-proof-needs-a-gate.md`).
 //!
 //! Authoring goes through the lattice: [`Open`], [`Start`], the
 //! binders, [`circle`], [`circle_split`].
@@ -51,9 +68,11 @@ pub use ::profile::{lift, path};
 
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{
-    ArcCarrierScalar, ArcData, ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open,
-    PartialPath, PathError, PointLeg, Radius, ReplayError, ReplayErrorKind, Start, Step, Sweep,
-    TangentArcTarget, Target, TipState, Verb, Via, circle, circle_split, replay,
+    ArcCarrierScalar, ArcData, ArcLen, ArcMode, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop,
+    ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LineTarget, Open, PartialPath,
+    PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, ReplayError, ReplayErrorKind,
+    Start, Step, Sweep, TangentArcTarget, Target, TargetKind, TipState, Verb, Via, circle,
+    circle_split, replay,
 };
 // The §2c family's traits and arrival builders: the admissibility
 // matrix (one impl per admissible (state, mode) pair) and the states a
@@ -72,9 +91,27 @@ pub use ::profile::{
 };
 
 // Validation: the gate, its typed refusals, and the canonical output.
+// `BlendArc` is in this family because it is what
+// `ValidatedLoop::blend_arcs` hands back — a read-back door on a type
+// this list carries, whose return type a caller must be able to name.
 pub use ::profile::{
-    ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
+    BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
+};
+
+// **The structure record and the guided doors.** One vocabulary, and
+// it is carried whole for a reason the split would break: a lifted
+// evaluation hands a caller a refusal that NAMES the decision it could
+// not confirm, so `StructureRefusal` and everything reachable from it
+// is already in that caller's hands — and a caller who can match a
+// refusal about a record but cannot name the record it refused about
+// has half a door. The record types are also the driver's input: a
+// bisecting lane records at f64 and replays guided at its own scalar
+// through exactly these two functions.
+pub use ::profile::{
+    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
+    ProfileStructure, ReplayStructure, SegmentShape, StructureRefusal, StructureRefusalKind,
+    replay_guided, replay_recording, structure,
 };
 
 // The lift door (recorded programs back to loops) and its verdicts.

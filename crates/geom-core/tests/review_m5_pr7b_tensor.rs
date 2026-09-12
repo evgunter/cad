@@ -31,7 +31,7 @@ type Curve = (KnotVector, Vec<f64>, Vec<Vec<f64>>);
 
 fn curve_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f64> {
     let span = kv.span_at(t);
-    let n = basis::basis_funs(kv, span, t);
+    let n = basis::basis_funs(span, t);
     let mut den = 0.0;
     let mut num = vec![0.0; coords.len()];
     for (j, nj) in n.iter().enumerate() {
@@ -49,8 +49,8 @@ fn surf_eval(s: &Surf, u: f64, v: f64) -> [f64; 3] {
     let (ku, kv, w, coords) = s;
     let nv = kv.control_count();
     let (su, sv) = (ku.span_at(u), kv.span_at(v));
-    let nu_b = basis::basis_funs(ku, su, u);
-    let nv_b = basis::basis_funs(kv, sv, v);
+    let nu_b = basis::basis_funs(su, u);
+    let nv_b = basis::basis_funs(sv, v);
     let mut den = 0.0;
     let mut num = [0.0f64; 3];
     for (a, na) in nu_b.iter().enumerate() {
@@ -517,7 +517,6 @@ fn the_missing_center_shift_costs_bound_quality_far_from_origin() {
     }
     let sup_far = sup_of(&s, &p, &c, &[]);
     eprintln!("[review] center-shift cost: sup {sup_near:.3e} near origin, {sup_far:.3e} at 1e6 m");
-    assert!(sup_far >= 0.0 || sup_far.is_nan(), "bound must stay sound");
     assert!(
         sup_far <= 1e-8,
         "center-shift regression: far-origin bound {sup_far:e} left the \

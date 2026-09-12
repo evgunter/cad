@@ -1,0 +1,4436 @@
+id: a8d79f40ddb79de569d778f1c0b832f9
+{
+  "snapshot": {
+    "id": "a8d79f40ddb79de569d778f1c0b832f9",
+    "next_id": 0,
+    "nodes": {},
+    "order": [],
+    "roots": [],
+    "placements": {},
+    "params": {},
+    "epsilon": 1e-9,
+    "witnesses": {},
+    "metadata": {},
+    "appearance": []
+  },
+  "edits": [
+    {
+      "InsertNode": {
+        "node": {
+          "Datum": {
+            "Frame": {
+              "origin": [
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                }
+              ],
+              "u": [
+                {
+                  "Literal": {
+                    "value": 1.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              ],
+              "v": [
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 1.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Profile": {
+            "plane": 0,
+            "loops": [
+              {
+                "Chain": [
+                  {
+                    "At": [
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "LineTo": {
+                      "Point": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Length",
+                            "unit": "m"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Length",
+                            "unit": "m"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "LineTo": {
+                      "Point": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Length",
+                            "unit": "m"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Length",
+                            "unit": "m"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "LineTo": {
+                      "Point": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Length",
+                            "unit": "m"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Length",
+                            "unit": "m"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "LineTo": "Start"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Extrude": {
+            "profile": 1,
+            "distance": {
+              "Literal": {
+                "value": 1.0,
+                "dim": "Length",
+                "unit": "mm"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Fillet": {
+            "target": 2,
+            "radius": {
+              "Literal": {
+                "value": 0.12,
+                "dim": "Length",
+                "unit": "mm"
+              }
+            },
+            "selection": [
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "RimEdge": [
+                      "End",
+                      {
+                        "loop_index": 0,
+                        "segment": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "RimEdge": [
+                      "End",
+                      {
+                        "loop_index": 0,
+                        "segment": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "RimEdge": [
+                      "End",
+                      {
+                        "loop_index": 0,
+                        "segment": 2
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "RimEdge": [
+                      "End",
+                      {
+                        "loop_index": 0,
+                        "segment": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "loop_index": 0,
+                        "segment": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "loop_index": 0,
+                        "segment": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "loop_index": 0,
+                        "segment": 2
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "loop_index": 0,
+                        "segment": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "LateralEdge": {
+                      "loop_index": 0,
+                      "vertex": 0
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "LateralEdge": {
+                      "loop_index": 0,
+                      "vertex": 1
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "LateralEdge": {
+                      "loop_index": 0,
+                      "vertex": 2
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 2,
+                "path": [
+                  {
+                    "LateralEdge": {
+                      "loop_index": 0,
+                      "vertex": 3
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Datum": {
+            "Frame": {
+              "origin": [
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                }
+              ],
+              "u": [
+                {
+                  "Literal": {
+                    "value": 1.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              ],
+              "v": [
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 1.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Datum": {
+            "AxisInPlane": {
+              "plane": 4,
+              "origin": [
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                }
+              ],
+              "direction": [
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 1.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Profile": {
+            "plane": 4,
+            "loops": [
+              {
+                "Chain": [
+                  {
+                    "At": [
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "mm"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": -0.09,
+                          "dim": "Length",
+                          "unit": "mm"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "ArcTo": {
+                      "Bulge": {
+                        "target": {
+                          "Point": [
+                            {
+                              "Literal": {
+                                "value": 0.0,
+                                "dim": "Length",
+                                "unit": "mm"
+                              }
+                            },
+                            {
+                              "Literal": {
+                                "value": 0.09,
+                                "dim": "Length",
+                                "unit": "mm"
+                              }
+                            }
+                          ]
+                        },
+                        "b": {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "LineTo": "Start"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Revolve": {
+            "profile": 6,
+            "axis": 5,
+            "angle": {
+              "Literal": {
+                "value": 6.283185307179586,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.5,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.5,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.04,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 0.0,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 3.141592653589793,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 3.141592653589793,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 3.141592653589793,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 3.141592653589793,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.5,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 3.141592653589793,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.5,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 3.141592653589793,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 1.04,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 1.04,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": -1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": -1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": -1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": -1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.5,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.5,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": -1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.04,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": -1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.04,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": -1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.5,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.04,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.5,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": -1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Transform": {
+            "input": 7,
+            "translation": [
+              {
+                "Literal": {
+                  "value": 0.28,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": -0.040000000000000036,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.72,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "rotation_axis": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "rotation_angle": {
+              "Literal": {
+                "value": 1.5707963267948966,
+                "dim": "Angle",
+                "unit": "deg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Union": {
+            "members": [
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28
+            ],
+            "declare": null
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Boolean": {
+            "op": "Subtract",
+            "a": 2,
+            "b": 29,
+            "declare": null
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Fillet": {
+            "target": 30,
+            "radius": {
+              "Literal": {
+                "value": 0.12,
+                "dim": "Length",
+                "unit": "mm"
+              }
+            },
+            "selection": [
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "RimEdge": [
+                            "End",
+                            {
+                              "loop_index": 0,
+                              "segment": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "RimEdge": [
+                            "End",
+                            {
+                              "loop_index": 0,
+                              "segment": 1
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "RimEdge": [
+                            "End",
+                            {
+                              "loop_index": 0,
+                              "segment": 2
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "RimEdge": [
+                            "End",
+                            {
+                              "loop_index": 0,
+                              "segment": 3
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "RimEdge": [
+                            "Start",
+                            {
+                              "loop_index": 0,
+                              "segment": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "RimEdge": [
+                            "Start",
+                            {
+                              "loop_index": 0,
+                              "segment": 1
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "RimEdge": [
+                            "Start",
+                            {
+                              "loop_index": 0,
+                              "segment": 2
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "RimEdge": [
+                            "Start",
+                            {
+                              "loop_index": 0,
+                              "segment": 3
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "LateralEdge": {
+                            "loop_index": 0,
+                            "vertex": 0
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "LateralEdge": {
+                            "loop_index": 0,
+                            "vertex": 1
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "LateralEdge": {
+                            "loop_index": 0,
+                            "vertex": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 30,
+                "path": [
+                  {
+                    "FromA": {
+                      "kind": "Edge",
+                      "node": 2,
+                      "path": [
+                        {
+                          "LateralEdge": {
+                            "loop_index": 0,
+                            "vertex": 3
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
+          "Fillet": {
+            "target": 31,
+            "radius": {
+              "Literal": {
+                "value": 0.02,
+                "dim": "Length",
+                "unit": "mm"
+              }
+            },
+            "selection": [
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "End"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 8,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "End"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 8,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 9,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 9,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 10,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 10,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 11,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 11,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 12,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 12,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 13,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 13,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 14,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Cap": "Start"
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 14,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 0
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 25,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 0
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 25,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 0
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 26,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 0
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 26,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 0
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 27,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 0
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 27,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 0
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 28,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 0
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 28,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 1
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 15,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 1
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 15,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 1
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 16,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 1
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 16,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 2
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 22,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 2
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 22,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 2
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 23,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 2
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 23,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 2
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 24,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 2
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 24,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 17,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 17,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 18,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 18,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 19,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 19,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 20,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 20,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 21,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "Band": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "Edge",
+                "node": 31,
+                "path": [
+                  {
+                    "FromTarget": {
+                      "kind": "Edge",
+                      "node": 30,
+                      "path": [
+                        {
+                          "Seam": {
+                            "a": {
+                              "kind": "Face",
+                              "node": 2,
+                              "path": [
+                                {
+                                  "Lateral": {
+                                    "loop_index": 0,
+                                    "segment": 3
+                                  }
+                                }
+                              ]
+                            },
+                            "b": {
+                              "kind": "Face",
+                              "node": 29,
+                              "path": [
+                                {
+                                  "FromMember": {
+                                    "member": 21,
+                                    "of": {
+                                      "kind": "Face",
+                                      "node": 7,
+                                      "path": [
+                                        {
+                                          "BandPi": {
+                                            "loop_index": 0,
+                                            "segment": 0
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "DeleteNode": {
+        "id": 3
+      }
+    }
+  ]
+}

@@ -103,10 +103,10 @@
 //!
 //! # [`crate::Bounds`] yes, [`crate::CertifiedEnclosure`] no
 //!
-//! A dual **carries a bracket** and **may not certify** — Wave 0 decision
-//! **D1** of `docs/SMELL-SCAN-2026-08.md` (Evan, 2026-08-19: *a `Dual` may
-//! not certify — at least for now — but it may have `Bounds`*), separable
-//! only because #643 (W1c/S41) made those two traits instead of one.
+//! A dual **carries a bracket** and **may not certify** — ruled by Ev,
+//! 2026-08-19: *a `Dual` may not certify — at least for now — but it may
+//! have `Bounds`* — separable only because #643 made those two traits
+//! instead of one.
 //! [`crate::Bounds`] is implemented and is the **value channel's** bracket
 //! with the tangent discarded; [`crate::CertifiedEnclosure`] is not. **The
 //! argument for both halves lives at the `impl Bounds for Dual` below, not
@@ -441,6 +441,21 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::zero())
     }
 
+    /// **The witness is the VALUE channel's** — a registered identity
+    /// is a claim about the two reals, and the dual's value channel is
+    /// bit-identical to the plain-`T` computation of the same recipe
+    /// (the module-level contract), so `T`'s own witness is the honest
+    /// one. The derivative channel is deliberately not consulted:
+    /// equal values with unequal derivatives would be a claim the door
+    /// does not make, and refusing on it would refuse registrations
+    /// that are true.
+    ///
+    /// Nothing is recorded — a `Dual` tracks no expression
+    /// ([`Real::register_equal`]).
+    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
+        self.value.register_equal(other.value)
+    }
+
     /// `(1, 0)`.
     fn one() -> Self {
         Self::constant(T::one())
@@ -696,7 +711,7 @@ impl<T> crate::spline::SpanLocate for Dual<T>
 where
     T: crate::spline::SpanLocate + KinkJacobian,
 {
-    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
         self.value.locate_spans(knots)
     }
 
@@ -731,11 +746,12 @@ where
 
 /// **The bracket is the value channel; the tangent is not in it.**
 ///
-/// Wave 0 decision **D1** of `docs/SMELL-SCAN-2026-08.md`, ruled by Evan
-/// 2026-08-19: *a `Dual` may not certify — at least for now — but it may
-/// have [`Bounds`].* The two halves are separable only because #643
-/// (W1c/S41) split them into two traits; this takes the first and leaves
-/// the second alone.
+/// Ruled by Ev, 2026-08-19: *a `Dual` may not certify — at least for
+/// now — but it may have [`Bounds`].* The two halves are separable only
+/// because #643 split them into two traits; this takes the first and
+/// leaves the second alone. ***At least for now* is part of the ruling**:
+/// the door is shut, not nailed shut, and reopening it is a decision with
+/// a name rather than an impl someone adds in passing.
 ///
 /// # The definition is read off an existing contract
 ///
@@ -756,7 +772,8 @@ where
 /// "refusal is decided solely by value-channel predicates and
 /// W-certificates" — and says nothing about [`Bounds::lo`]/[`Bounds::hi`],
 /// which did not exist for a dual when it was written. Calling that a
-/// ratification would be the exact move S44 exists to complain about.
+/// ratification would be reading a settled decision into a text that
+/// never addressed the question.
 ///
 /// The extension: E9's principle is that the derivative channel must never
 /// make the value channel's verdict worse. Hulling the tangent into
@@ -787,11 +804,12 @@ where
 /// boxes, pruning, the `f64` margin payloads a typed refusal reports,
 /// and **selections**, which are the ones with a condition on them: a
 /// frozen `f64` choice is free of the tangent only while the quantity
-/// chosen is locally constant in the input. `geom::projection::mid` is
+/// chosen is locally constant in the input. `geom::projection_policy::mid` is
 /// where that condition currently fails, and is issue **#874**.
 /// One `Decide + Bounds` door *grants* without that guard
 /// (`topo::separation`, sound at a dual by delegation); the scope rule in
-/// `real.rs` is the home for both that and the fillet seam's obligation.
+/// `real.rs` is the home for that, and its DL5 delegation rule is the
+/// standing criterion the fillet seam's audit discharged into.
 ///
 /// # On the spelling
 ///
@@ -2105,8 +2123,7 @@ mod tests {
         }
     }
 
-    /// **What the D1 ruling actually returns** (Evan, 2026-08-19; Wave 0
-    /// decision D1 of `docs/SMELL-SCAN-2026-08.md`). Every row here pins
+    /// **What the 2026-08-19 ruling actually returns.** Every row here pins
     /// the *value* of the bracket, not its existence: each one fails if
     /// [`Bounds`] for [`Dual`] is ever widened to see the tangent, or
     /// narrowed away from the base scalar's own bracket.

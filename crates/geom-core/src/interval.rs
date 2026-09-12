@@ -41,6 +41,11 @@
 //! endpoints is right, and containment properties written against
 //! `Bounds` depend on it.
 //!
+//! Both doors refuse below `Def`, so the backend's one operation whose
+//! result always carries `Trv` — `DInterval::intersection` — would be
+//! refused on every result if this scalar ever exposed it. It does not,
+//! and nothing here calls one.
+//!
 //! # Certification semantics: truth containment, not f64 containment
 //!
 //! An enclosure brackets the TRUE value — never, by contract, the `f64`
@@ -97,7 +102,7 @@
 //! same build on the same inputs yields bit-identical endpoints, and the
 //! `interval` feature imposes no instruction-set floor. (The historical
 //! repo-wide `-C target-cpu=x86-64-v3` rustflag was dropped after the
-//! swap — 2026-07-29, Evan's #127 review; `f64::mul_add` in the
+//! swap — 2026-07-29, Ev's #127 review; `f64::mul_add` in the
 //! backend's witness paths is correctly-rounded with or without
 //! hardware FMA, so results are unchanged.) This crate's
 //! `forbid(unsafe_code)` is untouched, and so is
@@ -316,6 +321,33 @@ impl Real for Interval {
 
     /// NaI and the empty interval are both poison (the [`Bounds`]
     /// convention: neither stands for any real number).
+    /// **The witness over a box** ([`Real::register_equal`]): two
+    /// certified enclosures of one real MEET, so a claim whose two
+    /// sides are disjoint over this leaf's box is refused typed. An
+    /// uncertified or empty enclosure witnesses nothing — the
+    /// computation was not defined on the whole box, so there is no
+    /// real there to be equal to anything
+    /// ([`crate::real::CertifiedEnclosure`], and clause 1 of the
+    /// symbolic tier's own theorem).
+    ///
+    /// Nothing is recorded here: an `Interval` carries no expression.
+    /// The recording half is [`crate::Sym::register_equal`], which asks
+    /// this first.
+    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
+        use crate::real::CertifiedEnclosure as _;
+        use crate::sym::SymRegistration;
+        let (Some((a_lo, a_hi)), Some((b_lo, b_hi))) =
+            (self.certified_bracket(), other.certified_bracket())
+        else {
+            return SymRegistration::Unwitnessed;
+        };
+        if a_hi >= b_lo && b_hi >= a_lo {
+            SymRegistration::Witnessed
+        } else {
+            SymRegistration::Contradicted
+        }
+    }
+
     fn is_poison(self) -> bool {
         self.0.is_nai() || self.0.is_empty()
     }
@@ -466,8 +498,10 @@ impl Real for Interval {
     }
 }
 
-/// Bound extraction (certification/driver scope — see [`Bounds`]):
-/// the enclosure's exact endpoints. Poison surfaces honestly: NaI **and**
+/// The enclosure's exact endpoints — a bracket read, never a
+/// certification: that door is [`crate::real::CertifiedEnclosure`],
+/// implemented just below, and where a `Bounds` bound may be written is
+/// [`Bounds`]'s scope rule. Poison surfaces honestly: NaI **and**
 /// the empty enclosure both yield NaN from both accessors, so either
 /// bracket fails every downstream `residual ≤ ε` certification loudly
 /// (D4 ¶2) — `NaN ≤ ε` is false under every comparison direction.
@@ -520,7 +554,7 @@ impl crate::real::CertifiedEnclosure for Interval {
 /// and lands on the first span deterministically — the poisoned `t`
 /// then propagates through the evaluation arithmetic as a value.
 impl crate::spline::SpanLocate for Interval {
-    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
         // `span_range` now answers in validated spans, which is exactly
         // what a `SpanSet` carries — so the locator is the range query
         // again, with no unpacking in between.
@@ -579,6 +613,11 @@ impl crate::spline::SpanLocate for Interval {
 /// subdivision — the violating sub-box shrinks away — while a NaI
 /// `Invalid` never cures.
 impl Decide for Interval {
+    fn enclosure_probe(self) -> Option<(f64, f64)> {
+        use crate::real::CertifiedEnclosure as _;
+        self.certified_bracket()
+    }
+
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
         if !self.is_certified() {
             return Err(Indeterminate {
@@ -651,10 +690,9 @@ fn tangent_hull(x: DInterval, y: DInterval) -> DInterval {
 /// (`Trv`) value is itself only `Trv`-trustworthy, and a tangent chosen
 /// by comparing `Trv` values likewise. In the clean (`Com`) case this is
 /// a no-op. Nothing in M0 branches on derivative decorations ([`Decide`]
-/// for duals classifies values only; `Bounds` for duals — implemented
-/// since the D1 ruling of 2026-08-19, where this sentence used to say it
-/// was not — is the **value channel's** bracket with the tangent
-/// discarded, so it does not read a derivative decoration either). The
+/// for duals classifies values only; `Bounds` for duals is the **value
+/// channel's** bracket with the tangent discarded, so it does not read a
+/// derivative decoration either). The
 /// conclusion is unchanged: this convention is about honest bookkeeping,
 /// not behavior.
 impl KinkJacobian for Interval {

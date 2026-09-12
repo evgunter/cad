@@ -15,9 +15,9 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, RoleSeg, evaluate, find_flush_candidates,
 };
 
-mod fixture;
+use crate::fixture;
 
-use fixture::{desc, fname, insert, len};
+use fixture::{fname, insert, len, on_frame};
 use geom_core::Tol;
 
 fn block(
@@ -27,14 +27,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     insert(
         doc,
@@ -129,11 +127,11 @@ fn an_authored_class_is_what_the_node_holds() {
     let node: Node<editor_core::ProfileProgram> = Node::Declare {
         pairs: vec![
             (
-                (cap(a, CapEnd::Top), cap(b, CapEnd::Bottom)),
+                (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
                 ContactClass::Rest,
             ),
             (
-                (cap(a, CapEnd::Bottom), cap(b, CapEnd::Top)),
+                (cap(a, CapEnd::Start), cap(b, CapEnd::End)),
                 ContactClass::Tangent,
             ),
         ],
@@ -164,7 +162,7 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
     let (doc, a, b) = stacked();
     let declare = |class| -> Node<editor_core::ProfileProgram> {
         Node::Declare {
-            pairs: vec![((cap(a, CapEnd::Top), cap(b, CapEnd::Bottom)), class)],
+            pairs: vec![((cap(a, CapEnd::End), cap(b, CapEnd::Start)), class)],
         }
     };
     // Returns (ran_ok, debug rendering of the failure if any) — the

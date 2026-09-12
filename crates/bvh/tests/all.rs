@@ -14,10 +14,13 @@
 //! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
 //! its own crate root.
 //!
-//! WHY: on the CI runner (2 vCPU) each extra test binary cost ~1.9 s of
-//! codegen+link — measured at 494 of the 514 s of the workspace build job
-//! (see the LINK/DEBUGINFO note in .github/workflows/ci.yml). The suites
-//! are small; the per-binary constant was the bill.
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
 //!
 //! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
 //! below. `autotests = false` in Cargo.toml means a file that is not
@@ -28,49 +31,26 @@
 //! `round_trip`, under binary `all` rather than binary `export`); the set
 //! of tests is otherwise identical.
 
-// Each suite keeps its own verbatim `mod <helper>;`, so a shared helper is
-// loaded once per suite that uses it. That is deliberate — the alternative
-// is editing the suites — and it is what `duplicate_mod` is warning about.
-// Allowed HERE ONLY, by name: no blanket `#![allow]`, which would weaken
-// the lint gate for every suite module included below.
-#![allow(clippy::duplicate_mod)]
-
 #[path = "aggregator_headers.rs"]
 mod aggregator_headers;
 #[path = "determinism.rs"]
 mod determinism;
+#[path = "proximity.rs"]
+mod proximity;
+#[path = "proximity_r2.rs"]
+mod proximity_r2;
+#[path = "ray.rs"]
+mod ray;
+#[path = "ray_r2.rs"]
+mod ray_r2;
+#[path = "review_gui1_r1.rs"]
+mod review_gui1_r1;
 
-/// Guards the `autotests = false` hazard: a suite file added to `tests/`
-/// but not declared above would silently stop being compiled and run.
+/// The aggregation and ONE HOME checks, whose one home — the walk, the
+/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
 #[test]
-// Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
-// weaken the lint gate for every suite module included above.
-#[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
-    let mut missing: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-            continue;
-        }
-        let name = path
-            .file_name()
-            .expect("file has a name")
-            .to_string_lossy()
-            .to_string();
-        if name == "all.rs" {
-            continue;
-        }
-        if !src.contains(&format!("#[path = \"{name}\"]")) {
-            missing.push(name);
-        }
-    }
-    missing.sort();
-    assert!(
-        missing.is_empty(),
-        "tests/*.rs suites are not declared in tests/all.rs, so `autotests = false` \
-         is silently dropping them: {missing:?}. Add a `#[path]` line for each."
-    );
+    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }

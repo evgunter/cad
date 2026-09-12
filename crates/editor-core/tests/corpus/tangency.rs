@@ -7,13 +7,17 @@
 //! which #101 refuses `UndeclaredTangency` until the recipe states
 //! it).
 //!
-//! Note the two REFUSAL doors this document sits between: leaving the
-//! bracket's joints undeclared refuses `UndeclaredTangency`, and
-//! declaring a same-carrier continuation (two collinear straights)
-//! refuses `TangencyContradicted { same_carrier: true }` — declaring
-//! identity is not declaring tangency. Both are pinned in
-//! `profile/tests/declared_tangency.rs`; the corpus carries only the
-//! legal middle.
+//! Note the REFUSAL door this document sits beside: leaving the
+//! bracket's joints undeclared refuses `UndeclaredTangency`. It is
+//! pinned in `profile/tests/declared_tangency.rs`; the corpus carries
+//! the legal side.
+//!
+//! An earlier version of this note named a second door — declaring a
+//! same-carrier continuation, said to refuse
+//! `TangencyContradicted { same_carrier: true }`. That arm is retired
+//! (Ev, in-chat, 2026-09-02: every zero-turn joint is a declared
+//! tangent joint), and the refusal it named no longer exists in any
+//! form, so nothing pins it and nothing should.
 //!
 //! Vocabulary: Profile (arc-bearing, fillet-constructed and
 //! hand-declared), Extrude, `InsertNode`, `SetParam`.
@@ -30,9 +34,9 @@
 use editor_core::{
     Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId,
 };
-use profile::SketchPlane;
 
-use super::super::fixture::len;
+use crate::fixture::{frame, len, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The declared-tangency corpus document.
@@ -67,8 +71,9 @@ pub fn document() -> CorpusDoc {
         ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let fillet_plane = r.insert(xy_frame());
     let fillet_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: fillet_plane,
         loops: vec![filleted],
     }));
     let fillet_body = r.insert(Node::Extrude {
@@ -101,13 +106,10 @@ pub fn document() -> CorpusDoc {
         ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    // A parallel plane, so the two bodies never interact.
+    let tangent_plane = r.insert(frame([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tangent_p = r.insert(Node::Profile(ProfileProgram {
-        // A parallel plane, so the two bodies never interact.
-        plane: SketchPlane::from_frame(
-            geom_core::Point3::new(0.0, 0.0, 4.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        ),
+        plane: tangent_plane,
         loops: vec![bracket],
     }));
     let tangent_body = r.insert(Node::Extrude {

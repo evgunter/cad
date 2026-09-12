@@ -61,9 +61,19 @@
 //! assert the budget is D9's, genuinely overrun, at a finer-than-default
 //! ε before they announce.
 //!
-//! **This is not yet the tree's only spelling**: hand-rolled in-row
-//! stand-down `println!`s predate this module and are scheduled for
-//! conversion (S169 / D115).
+//! **The hand-rolled in-row `println!`s that predated this module are
+//! converted, so every in-row stand-down in `crates/` goes through this
+//! door.** Nothing guards that, so read it as a sweep result rather than
+//! an invariant: what the sweep matched is `SKIPPED (` / `SKIPPED:` over
+//! `crates/*/{src,tests}`, so it cannot see a stand-down announced
+//! without the word — an `eprintln!("standing down …")`, a `dbg!`, or a
+//! comment where a print should be — and it does not reach `demos/`,
+//! `tools/` or `interval-transcendentals/`.
+//!
+//! The four whole-binary
+//! `interval_lane_skipped_no_certified_coverage_here` rows are a
+//! different idiom and deliberately not converted: their entire body is
+//! the announcement, and `memories/test-suite-cost.md` names them.
 
 use std::collections::BTreeMap;
 
@@ -196,40 +206,7 @@ pub fn stood_down(label: &str, what_is_not_asserted: &str) {
 #[allow(clippy::panic, clippy::expect_used)]
 mod tests {
     use super::*;
-
-    thread_local! {
-        /// The last panic this module's hook saw, on THIS thread. The
-        /// hook runs on the panicking thread, so a thread-local keeps
-        /// two concurrent rows' messages apart without a lock.
-        static LAST_PANIC: core::cell::RefCell<Option<String>> =
-            const { core::cell::RefCell::new(None) };
-    }
-
-    /// The panic message a floor produces, or `None` if it passed. The
-    /// module's whole content is assertions that must fire, so every row
-    /// below drives one across its boundary in BOTH directions.
-    ///
-    /// The message is taken from a **panic hook**, not by downcasting
-    /// the unwind payload: `downcast_ref` is a second bit channel and
-    /// `scripts/gates/bit-identity-punning.sh` forbids it outside
-    /// `geom-core/src/bit_identity.rs`.
-    fn caught(f: impl FnOnce() + std::panic::UnwindSafe) -> Option<String> {
-        let hook = std::panic::take_hook();
-        std::panic::set_hook(Box::new(|info| {
-            let seen = info.to_string();
-            LAST_PANIC.with(|c| *c.borrow_mut() = Some(seen));
-        }));
-        let out = std::panic::catch_unwind(f);
-        std::panic::set_hook(hook);
-        match out {
-            Ok(()) => None,
-            Err(_) => Some(
-                LAST_PANIC
-                    .with(|c| c.borrow_mut().take())
-                    .unwrap_or_default(),
-            ),
-        }
-    }
+    use crate::panic_capture::caught;
 
     fn three() -> Exposure {
         let mut e = Exposure::new("row");

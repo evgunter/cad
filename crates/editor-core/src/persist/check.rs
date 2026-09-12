@@ -21,6 +21,18 @@
 //!   the tripwire. (Post-parse this walk cannot fire — JSON has no
 //!   non-finite tokens — which is the asymmetry being BYTE-level, not
 //!   a reason to fork the validator.)
+//! - [`first_distribution_fault`] — the E2 invariants of every doc
+//!   param's distribution beyond finiteness, by the same
+//!   `Distribution::check` the edit door runs. It walks the SNAPSHOT
+//!   only: a `SetDocParam` in the log carries its distribution through
+//!   `apply` on replay, which is the same door and the same check
+//!   (the shape the alignment and placement notes below already take).
+//! - [`first_display_unit_fault`] — every document parameter's
+//!   authored display unit measures the dimension it was declared
+//!   with. A literal needs no twin walk (`Expr::literal_with_unit`
+//!   makes the pairing at construction and the load side re-runs it);
+//!   a `DocParam` does, because its payload is `pub` and its dimension
+//!   is data. Snapshot only, for the reason above.
 //! - [`first_program_fault`] — profile PROGRAM structure: per-slot
 //!   dimension agreement (V2's role table) and a REPLAY PROBE under
 //!   the document's params whose LATTICE violations refuse (the
@@ -43,6 +55,7 @@
 //! [`crate::edit::apply`].
 
 use crate::appearance::AppearanceRecord;
+use crate::distribution::{DistributionFault, DistributionField};
 use crate::doc::{DocParam, ParamName};
 use crate::edit::DocEdit;
 use crate::expr::Dimension;
@@ -63,16 +76,12 @@ pub enum NonFiniteSite {
     DocParam {
         /// The parameter.
         name: ParamName,
-    },
-    /// A float of a profile node's PLANE PLACEMENT (snapshot), by
-    /// position among the 12 placement floats (columns c0, c1, c2,
-    /// translation; x, y, z each). Program arguments are `Expr`s and
-    /// carry the literal door's finiteness by construction.
-    Profile {
-        /// The profile node.
-        node: RecipeNodeId,
-        /// Index in the canonical float traversal.
-        index: usize,
+        /// Which distribution offset is not finite, when the defect
+        /// is in the ANNOTATION rather than in the nominal; `None`
+        /// when it is the nominal itself. The walk has to identify
+        /// the field to decide there is a defect at all, so it says
+        /// which one rather than discarding the answer.
+        field: Option<DistributionField>,
     },
     /// A float inside an appearance record's metadata (snapshot).
     Metadata {
@@ -82,13 +91,6 @@ pub enum NonFiniteSite {
         key: String,
         /// Path within the value tree (dot/index notation).
         path: String,
-    },
-    /// A float of a profile payload carried by an `InsertNode` edit
-    /// (the node id is minted only at replay, so the site is the
-    /// float's traversal index alone).
-    InsertedProfile {
-        /// Index in the canonical float traversal.
-        index: usize,
     },
     /// A float carried by an edit in the log; `index` is the edit's
     /// position, `inner` the site within that edit's payload.
@@ -100,10 +102,37 @@ pub enum NonFiniteSite {
     },
 }
 
+// The site prose. Each arm names WHERE the float sits, in the
+// vocabulary a document author reads — the recursive `Edit` arm
+// forwards the inner site rather than re-stating it.
+impl core::fmt::Display for NonFiniteSite {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Epsilon => f.write_str("the recorded ε"),
+            Self::DocParam { name, field: None } => {
+                write!(f, "document parameter {:?}", name.0)
+            }
+            Self::DocParam {
+                name,
+                field: Some(field),
+            } => write!(
+                f,
+                "document parameter {:?}, distribution field {field}",
+                name.0
+            ),
+            Self::Metadata { name, key, path } => {
+                write!(f, "metadata {key:?} on the {name}, at {path}")
+            }
+            Self::Edit { index, inner } => write!(f, "edit {index}, {inner}"),
+        }
+    }
+}
+
 /// The shared validator (module docs): every direction-independent
 /// document check, in one place, invoked by both doors. Check order
-/// is float walk → program walk → structural invariants (the save
-/// door's historical precedence, pinned by the refusal suite).
+/// is float walk → distribution walk → program walk → structural
+/// invariants (the save door's historical precedence, pinned by the
+/// refusal suite).
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
@@ -112,10 +141,54 @@ pub(crate) fn validate_document(
     if let Some(site) = first_non_finite(snapshot, edits) {
         return Err(super::PersistError::NonFinite { site });
     }
+    if let Some((name, fault)) = first_distribution_fault(snapshot) {
+        return Err(super::PersistError::Distribution { name, fault });
+    }
+    if let Some((name, unit, declared)) = first_display_unit_fault(snapshot) {
+        return Err(super::PersistError::DisplayUnit {
+            name,
+            unit,
+            declared,
+        });
+    }
     if let Some((node, fault)) = first_program_fault(snapshot, tol) {
         return Err(super::PersistError::ProfileProgram { node, fault });
     }
     validate_snapshot(snapshot).map_err(super::PersistError::Snapshot)
+}
+
+/// The first document parameter whose authored display unit does not
+/// MEASURE its declared dimension, as `(name, what the unit measures,
+/// what was declared)`, or `None`.
+///
+/// The SNAPSHOT only, for the reason `first_distribution_fault` walks
+/// it alone: a `SetDocParam` in the log carries its declaration through
+/// `apply` on replay, and a replayed document is a snapshot this same
+/// validator sees.
+///
+/// Expression literals need no twin walk — `Expr::literal_with_unit`
+/// checks the pairing at construction and the load side re-runs that
+/// same constructor, so a literal cannot reach a document mismatched.
+/// A `DocParam` has no such door to make total: its payload is `pub`
+/// and its dimension is data, which is exactly the asymmetry this walk
+/// covers.
+fn first_display_unit_fault(
+    snapshot: &ProfileDoc,
+) -> Option<(ParamName, crate::expr::Dimension, crate::expr::Dimension)> {
+    use crate::expr::Dimension;
+    snapshot.params.iter().find_map(|(name, p)| match p {
+        DocParam::Continuous {
+            dim, display_unit, ..
+        } => {
+            let measured = match display_unit.def().quantity() {
+                quantity::UnitQuantity::Length => Dimension::Length,
+                quantity::UnitQuantity::Angle => Dimension::Angle,
+                quantity::UnitQuantity::Scalar => Dimension::Scalar,
+            };
+            (measured != *dim).then(|| (name.clone(), measured, *dim))
+        }
+        DocParam::Count { .. } => None,
+    })
 }
 
 /// The first non-finite float in ε, the document params, the profile
@@ -138,13 +211,13 @@ fn first_non_finite(
             return Some(site);
         }
     }
-    for (&id, node) in &snapshot.nodes {
-        if let Node::Profile(desc) = node
-            && let Some(index) = profile_non_finite(desc)
-        {
-            return Some(NonFiniteSite::Profile { node: id, index });
-        }
-    }
+    // A PROFILE is no longer walked here, and the two sites it used to
+    // reach are gone with it: its payload carried twelve raw
+    // sketch-plane floats, and now carries a frame NODE reference. Its
+    // remaining content is `Expr`s, which the expression construction
+    // door already refuses non-finite, and the frame's own components
+    // are `Expr`s under the same door. There is no float left for this
+    // walk to find.
     for (name, rec) in &snapshot.appearance {
         if let Some((key, path)) = record_non_finite(rec) {
             return Some(NonFiniteSite::Metadata {
@@ -166,10 +239,23 @@ fn first_non_finite(
 }
 
 fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
+    let site = |field| NonFiniteSite::DocParam {
+        name: name.clone(),
+        field,
+    };
     match p {
-        DocParam::Continuous { value, .. } if !value.is_finite() => {
-            Some(NonFiniteSite::DocParam { name: name.clone() })
-        }
+        DocParam::Continuous { value, .. } if !value.is_finite() => Some(site(None)),
+        // The distribution's offsets are floats the format writes, so
+        // they belong to THIS walk rather than to a second spelling of
+        // the same defect; the shape invariants are
+        // `first_distribution_fault`'s. The offending field rides
+        // along: the walk computes it to answer at all, and a
+        // diagnostic that names `sigma` beats one that names only the
+        // parameter.
+        DocParam::Continuous {
+            distribution: Some(d),
+            ..
+        } if d.first_non_finite().is_some() => Some(site(d.first_non_finite())),
         // EXHAUSTIVE on purpose: a guarded arm does not count towards
         // exhaustiveness, so the finite `Continuous` case is spelled
         // out alongside the float-free ones rather than swept up by a
@@ -178,15 +264,23 @@ fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
     }
 }
 
-/// Walks the program payload's RAW floats — exactly the 12 plane
-/// placement values (program arguments are `Expr`s, whose literals
-/// are finite by the construction door).
-fn profile_non_finite(program: &ProfileProgram) -> Option<usize> {
-    let a = &program.plane.placement;
-    [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
+/// The first document parameter whose distribution breaks an E2
+/// invariant other than finiteness (`sigma > 0`; bounds containing the
+/// nominal), by the SAME [`crate::Distribution::check`] the edit door
+/// runs —
+/// so a hand-written file with `sigma: -1` refuses at LOAD with the
+/// diagnostics SAVE refuses with, and never loads best-effort.
+///
+/// Runs after the float walk, so a non-finite offset is reported as a
+/// non-finite float rather than as a shape fault.
+fn first_distribution_fault(snapshot: &ProfileDoc) -> Option<(ParamName, DistributionFault)> {
+    snapshot
+        .params
         .iter()
-        .flat_map(|v| [v.x, v.y, v.z])
-        .position(|f| !f.is_finite())
+        .find_map(|(name, p)| match p.distribution()?.check() {
+            Ok(()) => None,
+            Err(fault) => Some((name.clone(), fault)),
+        })
 }
 
 fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
@@ -199,10 +293,17 @@ fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
 /// is DATA — it has not necessarily been applied by this process).
 fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
     match edit {
-        DocEdit::InsertNode {
-            node: Node::Profile(program),
-        } => profile_non_finite(program).map(|index| NonFiniteSite::InsertedProfile { index }),
         DocEdit::SetDocParam { name, value } => param_site(name, value),
+        // The value door carries no distribution of its own — the
+        // declaration it writes into supplies that — but its
+        // continuous arm IS a raw float the format writes.
+        DocEdit::SetDocParamValue {
+            name,
+            value: crate::doc::DocParamValue::Continuous(v),
+        } if !v.is_finite() => Some(NonFiniteSite::DocParam {
+            name: name.clone(),
+            field: None,
+        }),
         DocEdit::SetAppearanceMeta { name, key, value } => {
             value
                 .first_non_finite()
@@ -232,7 +333,10 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         //   deliberately does not rely on for the rest of its list.
         // - The `Node` vocabulary is not closed here: this match is
         //   exhaustive on `DocEdit`, not on `Node`.
-        DocEdit::InsertNode { .. }
+        DocEdit::SetDocParamValue { .. }
+        | DocEdit::InsertNode { .. }
+        // A list of node ids carries no float.
+        | DocEdit::SetMembers { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }
@@ -256,11 +360,11 @@ pub enum SnapshotError {
     /// `order` and the node map disagree (missing, extra, or
     /// duplicated ids).
     OrderMismatch,
-    /// A `Node::Fillet` selection is not in canonical form (sorted
+    /// A blend node's selection is not in canonical form (sorted
     /// and deduplicated) — a corrupt file, refused rather than
     /// repaired (M6-5).
-    FilletSelectionNotCanonical {
-        /// The offending fillet node.
+    BlendSelectionNotCanonical {
+        /// The offending fillet or chamfer node.
         node: RecipeNodeId,
     },
     /// An id at or beyond the mint counter appears in the document.
@@ -284,6 +388,15 @@ pub enum SnapshotError {
         /// The referring node.
         node: RecipeNodeId,
         /// The forward input.
+        input: RecipeNodeId,
+    },
+    /// A node's `declare` input names a node that is not a
+    /// `Node::Declare` — the edit door's rule, asked of file data
+    /// (`Node::bad_declare_input`, one predicate, both doors).
+    DeclareInput {
+        /// The consuming node.
+        node: RecipeNodeId,
+        /// What its `declare` input names.
         input: RecipeNodeId,
     },
     /// A witness attached to a missing or non-sketch-bearing node.
@@ -349,6 +462,41 @@ pub enum SnapshotError {
         /// What is wrong with it.
         fault: crate::node::PlacementRuleFault,
     },
+    /// A measure node whose expression reads a reference the node does
+    /// not carry (E3). The expression indexes the reference list
+    /// positionally, so this is a corrupt file, not a stale reference:
+    /// `Rebind` cannot repair an index.
+    MeasureRefs {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// What is wrong with it.
+        fault: crate::node::MeasureNodeFault,
+    },
+    /// A node whose inputs are not pairwise distinct, or whose LIST
+    /// input holds fewer than two entries (DM5). Both edit doors
+    /// refuse them, so a file carrying one is corrupt — refused,
+    /// never repaired.
+    InputList {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// What is wrong with it.
+        fault: crate::node::InputFault,
+    },
+    /// An assertion whose bound is dimensioned differently from the
+    /// measure it constrains, or which references something that is
+    /// not a measure at all (E10). The edit door refuses both; a file
+    /// carrying one is data the edit door would never have produced.
+    AssertionBound {
+        /// The offending assertion.
+        node: RecipeNodeId,
+        /// What it references.
+        measure: RecipeNodeId,
+        /// The measure's dimension, absent when the reference is not a
+        /// measure at all.
+        measured: Option<crate::expr::Dimension>,
+        /// The bound's dimension.
+        bound: crate::expr::Dimension,
+    },
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
     MetadataUnversioned {
@@ -359,6 +507,126 @@ pub enum SnapshotError {
         /// The typed shape refusal.
         error: MetaVersionError,
     },
+}
+
+// The document layer's prose for a corrupt snapshot: each arm states
+// WHAT is wrong and WHERE, and forwards the payload's own `Display`
+// wherever the payload has one (`RootFault`, `PlacementRuleFault`,
+// `MetaVersionError`) — a site that re-states a payload it holds
+// invents a second vocabulary for a refusal that already has one. A
+// `StableName` renders through its own `Display` (kind plus minting
+// node), never a hand-rolled respelling.
+impl core::fmt::Display for SnapshotError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::OrderMismatch => f.write_str(
+                "the `order` list and the node map disagree — an id is missing, extra or \
+                 duplicated",
+            ),
+            Self::BlendSelectionNotCanonical { node } => write!(
+                f,
+                "blend node {}'s selection is not sorted and deduplicated — a corrupt \
+                 selection is refused, never repaired",
+                node.0
+            ),
+            Self::IdBeyondCounter { id, next_id } => write!(
+                f,
+                "node id {} is at or beyond the mint counter {next_id} — replay would \
+                 re-mint a referenced id",
+                id.0
+            ),
+            Self::DanglingInput { node, input } => write!(
+                f,
+                "node {} takes input from node {}, which is not live",
+                node.0, input.0
+            ),
+            Self::ForwardInput { node, input } => write!(
+                f,
+                "node {} takes input from node {}, which does not precede it in `order`",
+                node.0, input.0
+            ),
+            Self::DeclareInput { node, input } => write!(
+                f,
+                "node {}'s declare input names node {}, which is not a declaration",
+                node.0, input.0
+            ),
+            Self::WitnessSite { node } => write!(
+                f,
+                "a witness is attached to node {}, which is missing or bears no sketch",
+                node.0
+            ),
+            Self::CountContinuous { name } => write!(
+                f,
+                "continuous parameter {:?} is declared with the count dimension",
+                name.0
+            ),
+            Self::EpsilonInvalid { value } => write!(
+                f,
+                "the recorded ε {value:e} is not finite and strictly positive"
+            ),
+            Self::Roots(fault) => write!(f, "{fault}"),
+            Self::PlacementSite { node } => write!(
+                f,
+                "a placement is keyed by node {}, which does not instantiate a part",
+                node.0
+            ),
+            Self::PlacementFrame { node, determinant } => write!(
+                f,
+                "the placement frame on node {} is non-finite or improper (determinant \
+                 {determinant})",
+                node.0
+            ),
+            Self::PlacementNotGauge { node, gauge } => write!(
+                f,
+                "the placement keyed by node {} belongs on its cluster's gauge, node {}",
+                node.0, gauge.0
+            ),
+            Self::MateAlignment { node } => write!(
+                f,
+                "mate node {}'s alignment datum carries a non-finite coordinate",
+                node.0
+            ),
+            Self::PlacementRule { node, fault } => {
+                write!(f, "placement-rule node {}: {fault}", node.0)
+            }
+            Self::MeasureRefs { node, fault } => {
+                write!(f, "measure node {}: {fault}", node.0)
+            }
+            Self::InputList { node, fault } => write!(f, "node {}: {fault}", node.0),
+            Self::AssertionBound {
+                node,
+                measure,
+                measured: Some(measured),
+                bound,
+            } => write!(
+                f,
+                "assertion node {} bounds {} {measured} measure (node {}) with {} \
+                 {bound} expression",
+                node.0,
+                measured.article(),
+                measure.0,
+                bound.article()
+            ),
+            Self::AssertionBound {
+                node,
+                measure,
+                measured: None,
+                bound,
+            } => write!(
+                f,
+                "assertion node {} carries {} {bound} bound against node {}, which is not a \
+                 measure",
+                node.0,
+                bound.article(),
+                measure.0
+            ),
+            Self::MetadataUnversioned { name, key, error } => write!(
+                f,
+                "metadata {key:?} on the {name} does not carry the D7 integer \
+                 \"v\" version field: {error}"
+            ),
+        }
+    }
 }
 
 /// Re-checks the document invariants `apply` maintains — on a parsed
@@ -422,16 +690,23 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 check_id(n)?;
             }
         }
-        // The fillet selection carries one check of its own (M6-5): the
-        // canonical form. `Node::fillet` is the only construction door
-        // and it canonicalizes, so a non-canonical selection on the
-        // wire is a CORRUPT file — refused, never quietly re-sorted (a
-        // repair would change the node's content key behind the
-        // caller's back).
-        if let Node::Fillet { selection, .. } = node
+        // And every node a reference is READ AT that is not also an
+        // input (`Node::payload_read_sites` — a mate's two operands):
+        // an id past the counter inside an operand is as corrupt as
+        // one inside the name beside it, and as unrepairable.
+        for at in node.payload_read_sites() {
+            check_id(at)?;
+        }
+        // A blend's selection carries one check of its own (M6-5): the
+        // canonical form. `Node::fillet`/`Node::chamfer` are the only
+        // construction doors and they canonicalize, so a non-canonical
+        // selection on the wire is a CORRUPT file — refused, never
+        // quietly re-sorted (a repair would change the node's content
+        // key behind the caller's back).
+        if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = node
             && selection.windows(2).any(|w| w[0] >= w[1])
         {
-            return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
+            return Err(SnapshotError::BlendSelectionNotCanonical { node: id });
         }
         // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
         // same reason the A11 registry is below: a saved file is DATA,
@@ -440,6 +715,44 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // placement, and frames that are finite and proper.
         if let Some(fault) = node.placement_rule_fault() {
             return Err(SnapshotError::PlacementRule { node: id, fault });
+        }
+        // DM5's third caller, for the reason the placement rule above
+        // has one: a saved file is DATA, and a SNAPSHOT is the one way
+        // a node reaches a document without passing `apply`. The edit
+        // log replays through the doors and is covered by them; the
+        // snapshot beside it is not, so the rule is asked here, of the
+        // same function, in this door's vocabulary.
+        if let Some(fault) = node.input_fault() {
+            return Err(SnapshotError::InputList { node: id, fault });
+        }
+        // The measurement vocabulary's two structural re-checks, for
+        // the same reason the placement rule has one: a saved file is
+        // DATA, and both of these are refused at the edit door.
+        if let Some(fault) = node.measure_fault() {
+            return Err(SnapshotError::MeasureRefs { node: id, fault });
+        }
+        // The declaration edge's kind rule
+        // (`Node::bad_declare_input`, the same answer the edit door
+        // asks of), for the reason above it: the edit door refuses a
+        // `declare` input that is not a `Declare`, and a snapshot is
+        // the one way a node reaches a document without passing that
+        // door.
+        if let Some(input) = node.bad_declare_input(doc) {
+            return Err(SnapshotError::DeclareInput { node: id, input });
+        }
+        if let Node::Assertion { measure, bound, .. } = node {
+            let measured = match doc.nodes.get(measure) {
+                Some(Node::Measure { expr, .. }) => Some(expr.dim()),
+                _ => None,
+            };
+            if measured != Some(bound.dim()) {
+                return Err(SnapshotError::AssertionBound {
+                    node: id,
+                    measure: *measure,
+                    measured,
+                    bound: bound.dim(),
+                });
+            }
         }
     }
     for name in doc.appearance.keys() {
@@ -531,6 +844,62 @@ pub enum ProgramFault {
         /// The ill-typed verb (`None` for end-of-program).
         verb: Option<profile::Verb>,
     },
+}
+
+// The prose the document layer renders for a program fault. The
+// lattice arm states the walk failure in the same words
+// [`crate::ProgramRefusal::Transition`] does — that refusal is what
+// the probe raised — and then names the tip state and the verb that
+// could not follow it, keeping their `Debug` spellings for the reason
+// `profile`'s `ReplayError` rendering states: the pair is the
+// transition table's coordinate. The dimensions beside them are
+// quantity kinds, so they render as words (`Dimension`'s `Display`).
+// The typed variant remains the machine contract.
+impl core::fmt::Display for ProgramFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            // A program fault's slot is a program slot, whose address
+            // is spelled out rather than dumped: `SlotId::Profile`'s
+            // three fields are the location, and a derived rendering
+            // would put the struct's own braces in a user's message.
+            Self::SlotDimension {
+                slot: SlotId::Profile { loop_, step, arg },
+                expected,
+                found,
+            } => write!(
+                f,
+                "loop {loop_} step {step}'s {arg:?} argument needs {} {expected} \
+                 expression, got {} {found}",
+                expected.article(),
+                found.article()
+            ),
+            Self::SlotDimension {
+                slot,
+                expected,
+                found,
+            } => write!(
+                f,
+                "slot {slot:?} needs {} {expected} expression, got {} {found}",
+                expected.article(),
+                found.article()
+            ),
+            Self::Lattice {
+                loop_,
+                step,
+                state,
+                verb,
+            } => {
+                write!(
+                    f,
+                    "loop {loop_} step {step} is not a legal chain-lattice walk: "
+                )?;
+                match verb {
+                    Some(verb) => write!(f, "the {verb:?} verb at tip state {state:?}"),
+                    None => write!(f, "the chain is unclosed at tip state {state:?}"),
+                }
+            }
+        }
+    }
 }
 
 /// The first program fault in the SNAPSHOT's profile nodes (module

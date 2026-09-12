@@ -94,9 +94,12 @@ dependencies = [
 name = "editor-core"
 version = "0.0.0"
 dependencies = [
+ "bvh",
  "geom",
  "geom-brep",
  "geom-core",
+ "libm",
+ "mesh",
  "profile",
  "quantity",
  "rayon",
@@ -105,6 +108,7 @@ dependencies = [
  "sha2",
  "sweep",
  "topo",
+ "verbs",
 ]
 
 [[package]]
@@ -157,6 +161,9 @@ name = "geom-core"
 version = "0.0.0"
 dependencies = [
  "libm",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
 ]
 
 [[package]]
@@ -215,6 +222,25 @@ dependencies = [
  "geom-core",
  "spade",
  "topo",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
+dependencies = [
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-integer"
+version = "0.1.47"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ce2d95d4b3734dc35aa2f45e1aa22cd416814592a4f9d9205e11affd5b8e10b"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -457,6 +483,17 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "verbs"
+version = "0.0.0"
+dependencies = [
+ "geom-brep",
+ "geom-core",
+ "profile",
+ "sweep",
+ "topo",
+]
 
 [[package]]
 name = "version_check"

@@ -15,21 +15,19 @@
 //! be run against a tree where the doors carry three separate bodies and
 //! against one where they delegate, and the two compared.
 //!
-//! **ITS PROBE-GATED CODE IS NOT EXECUTED BY CI**, and its sibling IS
-//! executed: `every_door_names_its_own_sample_for_the_recording_scalar`
-//! carries the feature gate and no CI row passes it, while the ungated test
-//! here runs on every merge. The probe suites CI runs are rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run by
-//! `scripts/k_probe_sweep.sh`; this file is on neither list, so the
-//! name-channel claim is evidence for a reader rather than a gate. By hand:
+//! **CI EXECUTES BOTH HALVES.** The ungated test runs on every merge;
+//! `every_door_names_its_own_sample_for_the_recording_scalar` carries the
+//! `probe` gate, and this file is rostered in
+//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
+//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
+//! by `--check-executed`. The name-channel claim is therefore a gate. By
+//! hand:
 //! `cargo test -p geom-core --features probe --test all -- k_stats_doors::`.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::k_stats::{
-    Verdict, decide, decide_flagged, decide_invariant, start_verdict_log, take_verdict_log,
-};
+use geom_core::k_stats::{Bracket, Escalation, Verdict, decide, decide_flagged, decide_invariant};
 use geom_core::{Band, Margin, Sign};
 
 fn band() -> Band {
@@ -42,7 +40,7 @@ fn band() -> Band {
 fn the_three_doors_share_one_verdict_stream_in_decision_order() {
     let b = band();
     let mid = f64::midpoint(b.zero(), b.escalate());
-    start_verdict_log();
+    let bracket = Bracket::open();
     assert_eq!(decide("door_a", Margin::of(1.0f64), b), Ok(Sign::Positive));
     assert_eq!(decide_invariant("door_b", -1.0f64, b), Ok(Sign::Negative));
     assert_eq!(
@@ -50,17 +48,19 @@ fn the_three_doors_share_one_verdict_stream_in_decision_order() {
         Ok(Sign::Positive)
     );
     // One indeterminate per door: escalated outcomes are not verdicts,
-    // so none of these may appear or shift the positions after them.
-    assert!(decide("door_d", Margin::of(mid), b).is_err());
-    assert!(decide_flagged("door_e", mid, b, "test fixture: door interleaving").is_err());
-    assert!(decide_invariant("door_f", mid, b).is_err());
+    // so none of these may appear or shift the positions after them —
+    // they are the frame's OTHER channel, in their own decision order.
+    let d = decide("door_d", Margin::of(mid), b).unwrap_err();
+    let e = decide_flagged("door_e", mid, b, "test fixture: door interleaving").unwrap_err();
+    let f = decide_invariant("door_f", mid, b).unwrap_err();
     assert_eq!(
         decide_flagged("door_g", 0.0f64, b, "test fixture: door interleaving"),
         Ok(Sign::Zero)
     );
     assert_eq!(decide("door_h", Margin::of(-1.0f64), b), Ok(Sign::Negative));
+    let recorded = bracket.finish();
     assert_eq!(
-        take_verdict_log(),
+        recorded.verdicts,
         vec![
             Verdict {
                 predicate: "door_a",
@@ -83,6 +83,22 @@ fn the_three_doors_share_one_verdict_stream_in_decision_order() {
                 sign: Sign::Negative
             },
         ]
+    );
+    assert_eq!(
+        recorded.escalations,
+        vec![
+            Escalation { source: d },
+            Escalation { source: e },
+            Escalation { source: f },
+        ]
+    );
+    assert_eq!(
+        recorded
+            .escalations
+            .iter()
+            .map(Escalation::predicate)
+            .collect::<Vec<_>>(),
+        ["door_d", "door_e", "door_f"]
     );
 }
 

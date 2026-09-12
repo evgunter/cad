@@ -26,7 +26,7 @@
 //! the oracle's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::path::PathBuf;
 
@@ -68,32 +68,38 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // What refuses now is the SHARED AT-REST GATE, on the file's
     // rational cylinder walls: `VolumeUncomputable` /
     // `QuadratureBudget` — the exact-B-rep volume enclosure stalls at
-    // a mean boundary displacement of ~2.7·10⁻⁴ m against a 1.024·10⁻⁶
-    // m target. That is the **banked rational-patch-flux lane** this
-    // crate's own docs name ("Arc-bearing profiles export and read,
-    // but their rational walls have no volume quadrature yet"), it is
-    // the same lane a NATIVELY built rational-walled loft refuses on,
-    // and import refuses it for exactly the reason the crate promises
-    // to: an imported body is held to the same tiers, by the same
-    // function, as a native one. Retiring THAT is its own unit.
+    // a mean boundary displacement of ~1.9·10⁻⁶ m against a 1.024·10⁻⁶
+    // m target. The miss is not a floor: the enclosure quarters
+    // cleanly per refinement round (measured, round by round), so this
+    // wall is inside a factor of two of the target and one round short
+    // of the FIXED round budget. It is the
+    // same lane a NATIVELY built rational-walled loft refuses on, and
+    // import refuses it for exactly the reason the crate promises to:
+    // an imported body is held to the same tiers, by the same
+    // function, as a native one.
     //
     // **The fragment carries the stalled quadrature by name**, not the
     // gate's preamble: the preamble alone would also match a tier-1/2
     // structural verdict, which would be a regression rather than the
-    // banked lane. Still the class and not the prose — no widths, no
+    // quadrature. Still the class and not the prose — no widths, no
     // face key.
     //
     // **This fragment is checked elsewhere.** dm1 stays in the table —
     // the obligation sweep and the dialect pin read the whole corpus —
     // but `wild_refusals_are_typed_and_name_their_class` skips it (see
     // that row's `continue`): importing dm1 costs ~30× the other three
-    // refusal fixtures together, and the same fragment is already
-    // asserted by `tier_gate.rs`'s `RATIONAL_FLUX_STALL` at three ε_in
-    // values per run, with the coarse band's `#389` cell beside it, and
-    // structurally by `r1_dm1_probe`.
+    // refusal fixtures together, and the disposition is asserted by
+    // `tier_gate.rs`'s three ε_in cells and structurally by
+    // `r1_dm1_probe`.
+    //
+    // The fragment is the D7 ladder's, not the quadrature's. It was
+    // the at-rest gate's rational-flux stall until check 7 began
+    // certifying a SIGN: dm1's volume enclosure excludes zero at round
+    // 0 at every band, so the gate admits the solid and the import
+    // goes on to the ladder gap at edge `#389` that the stall masked.
     (
         "stepcode/dm1-id-214.stp",
-        "the certified quadrature enclosure stalled at",
+        "no intensional description certifies",
     ),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
@@ -234,7 +240,9 @@ fn wild_scale_gate(row: &str) -> bool {
         return true;
     }
     println!(
-        "{row}: outside the wild corpus's certifying window — ambient ε {eps:e} m is not in          [{WILD_EPS_FLOOR:e}, {WILD_EPS_CEILING:e}]. The every-ε obligation is asserted          over the whole corpus by `no_wild_file_panics` instead of this row's certifying one."
+        "{row}: outside the wild corpus's certifying window — ambient ε {eps:e} m is not in \
+         [{WILD_EPS_FLOOR:e}, {WILD_EPS_CEILING:e}]. The every-ε obligation is asserted \
+         over the whole corpus by `no_wild_file_panics` instead of this row's certifying one."
     );
     false
 }
@@ -536,7 +544,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
             // verdict inside names the kernel entity it is about —
             // the same "go and look at it" obligation, one layer in
             // (dm1 since #327: its D7 half is retired and what refuses
-            // is the banked rational-patch-flux lane).
+            // is the rational patch-flux round budget).
             StepImportError::TierInvalid { solid, errors } => {
                 solid.is_some_and(|id| id > 0) && !errors.is_empty()
             }

@@ -33,12 +33,12 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::{Bounds, Interval, Real};
@@ -48,14 +48,12 @@ use topo::{mass_properties, validate, validate_closed};
 fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     // ---- body 1: dyadic cube minus embedded pip; volume EXACTLY 8 - 1/128.
     let doc = ProfileDoc::empty_derived("review_m5_pr1_e2e_interval", Tol::witness());
-    let (doc, cube_p) = insert(
+    let (doc, cube_p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     );
     let (doc, cube) = insert(
         doc,
@@ -67,19 +65,17 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     // A second, ROTATED cutter well inside the cube: rotation angle 0.5 rad
     // pushes sin/cos (the swapped transcendentals) through the whole
     // evaluation path at T = Interval.
-    let (doc, cut_p) = insert(
+    let (doc, cut_p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.5],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (-0.25, -0.25),
-                (0.25, -0.25),
-                (0.25, 0.25),
-                (-0.25, 0.25),
-            ]],
-        )),
+        [0.0, 0.0, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (-0.25, -0.25),
+            (0.25, -0.25),
+            (0.25, 0.25),
+            (-0.25, 0.25),
+        ]],
     );
     let (doc, cut) = insert(
         doc,
@@ -194,14 +190,12 @@ fn a_non_finite_dimension_cannot_enter_the_document() {
 #[test]
 fn a_degenerate_document_refuses_typed_end_to_end() {
     let doc = ProfileDoc::empty_derived("review_m5_pr1_e2e_interval", Tol::witness());
-    let (doc, prof) = insert(
+    let (doc, prof) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     );
     let (doc, degenerate) = insert(
         doc,

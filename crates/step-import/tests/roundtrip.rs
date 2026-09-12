@@ -4,7 +4,7 @@
 //! see `common`'s module docs).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{SOLID_FIXTURES, census, expect_sidecar, fixture, import_body};
 use geom_core::Tol;

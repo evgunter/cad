@@ -10,11 +10,12 @@
 //! at all.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Point3, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::RawLoop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve};
@@ -38,10 +39,6 @@ fn offset_square_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {
@@ -158,7 +155,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     match body.set_edge_curve_nurbs_lane(
         edge,
         EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: plane,
                 s2: bowed,
                 witness: carrier.eval((t0 + t1) * 0.5),
@@ -309,7 +306,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
         .set_edge_curve_nurbs_lane(
             edge,
             EdgeCurveSpec {
-                description: EdgeGeometry::Intersection {
+                description: EdgeDescriptionSpec::Intersection {
                     s1: bowed,
                     s2: bowed,
                     witness: carrier.eval((t0 + t1) * 0.5),

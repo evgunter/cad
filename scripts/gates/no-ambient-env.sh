@@ -9,7 +9,10 @@
 # exists because one had been live — `mesh::probe_stats::armed()`
 # answered true for `NURBS_PROBE`, which switched on a 91-sample
 # resampling of every emitted triangle (measured 7.9 s -> 19.8 s
-# on the tour's release binary, same binary, same arguments) AND
+# on the tour's release binary, same binary, same arguments — an
+# undated reading of a channel this gate has since removed, so there
+# is nothing left to re-take: it is the RECORD of the indictment,
+# and what keeps the rule true today is this gate's own run) AND
 # put an `assert!` in the tessellation path, so an environment
 # variable converted `tessellate`'s typed error contract into a
 # panic.
@@ -62,6 +65,29 @@
 #    test-utils is a dev-only leaf no shipped build can reach.
 #    This one is discharged by REACHABILITY before the four rows
 #    are reached: there is no shipped behaviour to change.
+#  - viewer frame.rs — the GUI shell's PLATFORM PROBES (#1097
+#    first-light hardening): PATH + DBUS_SESSION_BUS_ADDRESS for
+#    the file-chooser-backend verdict, WSL_DISTRO_NAME/WSL_INTEROP
+#    for the WSLg X11 preference. The data flow is the REVERSE of
+#    NURBS_PROBE's: the environment is the SUBJECT being observed,
+#    not a knob into the model — no read can change what any
+#    document evaluates to; they adapt chrome affordances (disable
+#    a dialog with the reason attached, prefer the X11 backend
+#    where Wayland RAIL is broken). Against the rows: read once at
+#    startup and stored, never re-read under a running app
+#    (commit-once); the chooser verdict is rendered in the UI
+#    itself — the disabled control's tooltip IS the report — and
+#    the WSL preference is in the crate README (reported); the
+#    dialog's own outcome outranks the portal hint, which is
+#    documented as a hint and nothing stronger (reconciled).
+#    CONTRACT-RATIFIED holds vacuously: these are not model
+#    parameters at all, and the windowing/dialog stack underneath
+#    (winit, rfd) already reads WAYLAND_DISPLAY/DISPLAY and the
+#    portal environment ambiently on every start — the probes make
+#    a dependence that already exists visible instead of adding a
+#    new kind. ONE file on purpose: every ambient read the viewer
+#    performs lives in frame.rs, so this entry is a single door,
+#    not a pattern.
 #
 # `env!` is deliberately NOT matched: it is compile-time, baked
 # into the binary, and cannot be an ambient channel.
@@ -74,19 +100,55 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# THE RATIFIED READERS, as paths and held once: the filter's exemption,
+# `gate_require_homes`'s subject check and the clean fixture all read
+# this list, and what that buys is argued at that check.
+ALLOWLISTED_SUBJECT='the ratified environment readers, the only files that may read the environment at runtime'
+ALLOWLISTED_HOMES=(
+  crates/geom-core/src/tolerance.rs
+  crates/test-utils/src/fuzz.rs
+  crates/viewer/src/frame.rs
+)
+
 gate() {
   gate_require_crate_sources
+  gate_require_homes "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | grep -P '\benv::vars?(_os)?\s*\(' \
-    | grep -vE '^crates/geom-core/src/tolerance\.rs:' \
-    | grep -vE '^crates/test-utils/src/fuzz\.rs:' || true)
+    | gate_grep -P '\benv::vars?(_os)?\s*\(' \
+    | gate_grep -vE "$(gate_record_anchor_any "${ALLOWLISTED_HOMES[@]}")")
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "a kernel crate reads the environment at runtime — that is a back channel into shipped code, changing behaviour with no rebuild and no call site to review (NURBS_PROBE was exactly this). Arm it by an explicit call and gate it behind a feature, or ratify this file into the allowlist."
     exit 1
   fi
   gate_ok "no kernel crate reads the environment at runtime"
+}
+
+# THE ALLOWLIST IS IN THE CLEAN FIXTURE, which is `lib.sh`'s exact-skip
+# contract read for a whole-file skip: a skip no fixture exercises is
+# dead in every case, and an anchor that over-narrows is then noticed by
+# nobody. Each home carries the environment read it is exempted FOR, so
+# the clean case reds the moment one of them stops being covered.
+gate_plant_clean() {
+  gate_plant_clean_sources "$1"
+  local home
+  for home in "${ALLOWLISTED_HOMES[@]}"; do
+    mkdir -p "$1/${home%/*}"
+    printf 'pub fn armed() -> bool { std::env::var("PLANTED_PROBE").is_ok() }\n' \
+      > "$1/$home"
+  done
+}
+
+# The home followed by a colon that is not a line number — one of the
+# three shapes `gate_record_anchor`'s header enumerates, and the one a
+# skip that ends at `:` exempts.
+plant_colon_after_the_home_that_is_not_a_line_number() {
+  local home
+  for home in "${ALLOWLISTED_HOMES[@]}"; do
+    printf 'pub fn armed() -> bool { std::env::var("PLANTED_PROBE").is_ok() }\n' \
+      > "$1/$home:x.rs"
+  done
 }
 
 plant() {
@@ -118,10 +180,17 @@ plant_prose_only() {
 gate_selftest() {
   local want="a kernel crate reads the environment at runtime"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_after_block_comment
+  gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, a block comment and a string literal naming the call" plant_prose_only
-  printf '%s selftest OK: passes a clean fixture and prose/block-comment/string-literal mentions of the call; fires on a read, and on one hidden behind a block comment\n' "$(gate_name)"
+  gate_selftest_homes --subject "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
+  printf '%s selftest OK: passes a clean fixture carrying every allowlisted reader, and prose/block-comment/string-literal mentions of the call; fires on a read, on one hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

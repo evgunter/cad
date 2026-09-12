@@ -103,7 +103,7 @@ fn laundering_attempts_all_fail() {
 }
 
 /// **The door found while adopting the review harness — now CLOSED**
-/// (#126, Evan's option (a), fixed in the M5 PR 4 fix pass).
+/// (#126, Ev's option (a), fixed in the M5 PR 4 fix pass).
 ///
 /// `Dual::powi` at `n == 0` used to set `deriv = T::zero()`
 /// unconditionally — mathematically the constant 0, but a *fresh*

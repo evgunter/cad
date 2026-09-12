@@ -13,7 +13,12 @@ since a deleted path is invisible to anyone who does not know its name.
 
 **A pointer into `docs/` that finds nothing is not a wrong pointer.**
 Look the filename up in the ledger, then `git show <sweep-sha>:<path>`.
-Append-only logs and source comments both still cite deleted files by
-name, and are not edited in place to match.
+Append-only logs still cite deleted files by name and are not edited
+to match; a LIVE pointer (source comment, DESIGN.md, a tracker item)
+is re-pointed at the page that replaced the file, or dropped.
 
-Deleting a document and recording it in the ledger are one commit.
+What replaces a deleted design doc: a present-tense README beside the
+code it governs, keeping the clause ids (`CURVED-DESIGN C3` still
+names one clause). An exit walk is replaced by nothing but its ledger
+entry. Deleting a document and recording it in the ledger are one
+commit.

@@ -13,7 +13,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Point2, Point3, Real, Vec3};
 
 use super::SweptSeg;
@@ -72,7 +72,12 @@ pub(super) fn wall_surface<T: Real>(
 /// latitude circle. `axis_c` is the θ-signed carrier axis (forward
 /// interval `(0, |θ|]`; `u_ref` points at the start point `q` — the
 /// carrier-frame convention, distinct from the surfaces' shared `u₃`).
-pub(super) fn strut_spec<T: Real>(
+///
+/// Not `extrude`'s `extruded_strut_spec`, which mints the same
+/// topological edge out of the translation family: a line carrier over
+/// `0..w_norm` under an `ExtrudedPoint` description. Neither spec is
+/// derivable from the other, so they do not share a name.
+pub(super) fn revolved_strut_spec<T: Real>(
     point: Point2<T>,
     radius: T,
     q: Point3<T>,
@@ -81,8 +86,19 @@ pub(super) fn strut_spec<T: Real>(
     axis_c: Vec3<T>,
 ) -> EdgeCurveSpec<T> {
     let center = frame.foot3(point);
+    let rim = q - center;
+    // **The revolve's rim identity**, the same theorem at the same
+    // guarantee as the swept arc's (`swept::register_rim_identity`
+    // carries the argument): `center` is the FOOT of the perpendicular
+    // from the sketch point to the axis and `radius` is that point's
+    // radial extent from the same axis, both placed by the same rigid
+    // `frame.place`, so `‖q − center‖ = radius` at every parameter
+    // value. Only the RIM: the span identity needs the far endpoint,
+    // and this builder is handed the start point and the angle, never
+    // `q_to` — see `work/m10/revolve-carriers-state-only-the-rim`.
+    crate::swept::register_rim_identity(rim, radius);
     EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(MappedCurve::RevolvedPoint {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
             point,
             place: frame.place,
             axis_origin: frame.o3,
@@ -93,7 +109,7 @@ pub(super) fn strut_spec<T: Real>(
             center,
             axis: axis_c,
             radius,
-            u_ref: (q - center).normalize(),
+            u_ref: rim.normalize(),
         },
         param_start: T::zero(),
         param_end: theta.abs(),

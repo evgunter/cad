@@ -9,11 +9,11 @@
 
 use geom::Curve3;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeGeometry, classify_dihedral, curvature_lever_arm,
-    edge_extent, tangent_certificate_lane, tangent_jet,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, classify_dihedral, edge_extent,
+    tangent_certificate_lane,
 };
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, Decide, Margin, Point3, Real};
+use geom_core::{Band, Decide, Point3, Real};
 use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};
 
 use super::RevolveError;
@@ -83,9 +83,10 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
 /// Upgrades one edge to `Intersection { s1, s2, witness }` when the
 /// two surfaces are definitely transverse at the witness: cap–wall
 /// meridian rims, cap–cap axis edges (partial), and full-revolve
-/// latitude rims all funnel here. Smooth keeps the conventional
-/// description (the D2 split; tier 3 permits it); Indeterminate is the
-/// typed error built by `sliver`.
+/// latitude rims all funnel here. Smooth descends one order through
+/// the must-carry rule ([`geom_brep::tangent_second_order`], read at
+/// every interior sample of the certification schedule);
+/// Indeterminate is the typed error built by `sliver`.
 pub(super) fn upgrade_intersection<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -111,7 +112,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
     match classify_dihedral(&surf1, &surf2, data.witness, data.extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
-                description: EdgeGeometry::Intersection {
+                description: EdgeDescriptionSpec::Intersection {
                     s1,
                     s2,
                     witness: data.witness,
@@ -136,7 +137,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
         Ok(DihedralClass::Smooth) => {
             if jet_determinate(&surf1, &surf2, &data, band) {
                 let spec = EdgeCurveSpec {
-                    description: EdgeGeometry::TangentIntersection {
+                    description: EdgeDescriptionSpec::TangentIntersection {
                         s1,
                         s2,
                         witness: data.witness,
@@ -146,6 +147,15 @@ pub(super) fn upgrade_intersection<T: Decide>(
                     param_end: data.t1,
                 };
                 body.set_edge_curve(edge, spec, tol)?;
+            } else {
+                // The surfaces UNDER-determine the locus, so the
+                // description stays CONVENTIONAL — but the edge is at
+                // rest between two faces now, so it says where it
+                // rests: an image in `s1`'s chart (D3's transience
+                // fence). The pushforward it was scaffolded from stays
+                // beside it as the authority record, which is what
+                // keeps tier 3's prefer-intrinsic reading unchanged.
+                body.describe_at_rest(edge, s1, tol)?;
             }
             Ok(())
         }
@@ -174,18 +184,16 @@ fn jet_determinate<T: Decide>(
     if !tangent_certificate_lane(&data.carrier, s1, s2) {
         return false;
     }
-    let samples = 9u32;
-    for i in 1..samples - 1 {
-        let f = T::from_f64(f64::from(i) / f64::from(samples - 1));
-        let t = data.t0 + (data.t1 - data.t0) * f;
+    // The certification schedule's interior samples, read through the
+    // schedule's own count and its own parameter map: this walk asks
+    // its question at exactly the stations the certificate will re-ask
+    // it at, and a local `9` is how the two drift.
+    for i in 1..geom_brep::CERT_SAMPLES - 1 {
+        let t = geom_brep::sample_param(data.t0, data.t1, i);
         let p = data.carrier.eval(t);
-        let jet = tangent_jet(s1, s2, p, data.carrier.deriv(t));
-        let arm = curvature_lever_arm(s1, p)
-            .min(curvature_lever_arm(s2, p))
-            .min(data.extent);
-        let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
         if !matches!(
-            crate::swept::decide("tangent_second_order", margin, band),
+            geom_brep::tangent_second_order(s1, s2, p, data.carrier.deriv(t), data.extent, band)
+                .verdict,
             Ok(geom_core::Sign::Positive)
         ) {
             return false;
@@ -195,10 +203,11 @@ fn jet_determinate<T: Decide>(
 }
 
 /// Re-describes a full-revolve meridian as `Seam { surface }` when the
-/// wall surface is periodic; a plane wall's meridian keeps its
-/// conventional `MappedCurve` (module docs — `Seam` is malformed on a
-/// non-periodic chart, and the same-surface split is definitely
-/// smooth). Carrier and interval kept verbatim.
+/// wall surface is periodic; a plane wall's meridian becomes an image
+/// at rest in that wall's chart (module docs — `Seam` is malformed on
+/// a non-periodic chart, and one surface on both sides determines no
+/// locus, so D2's conventional split applies). Carrier and interval
+/// kept verbatim either way.
 pub(super) fn upgrade_meridian_seam<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -212,11 +221,17 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
         geom::Surface::Plane { .. }
     );
     if is_plane {
+        // A plane wall has no seam to be — but the meridian is still
+        // at rest in that wall's chart, and the scaffolding door it
+        // was minted through is for edges whose surfaces do not exist
+        // yet (D3's transience fence). So it is described where it
+        // rests, as an ordinary chart image owing the one meter.
+        body.describe_at_rest(edge, wall, tol)?;
         return Ok(());
     }
     let data = edge_data(body, edge)?;
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::Seam { surface: wall },
+        description: EdgeDescriptionSpec::seam(wall),
         carrier: data.carrier,
         param_start: data.t0,
         param_end: data.t1,

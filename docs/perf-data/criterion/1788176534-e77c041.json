@@ -1,0 +1,78 @@
+{
+ "benchmarks": {
+  "kernel/boolean/two_bricks": {
+   "mean_ns": 182396.41586281688,
+   "median_abs_dev_ns": 1232.425531496695,
+   "median_ci_ns": [
+    181063.79435483873,
+    181823.7127872128
+   ],
+   "median_ns": 181552.81596638658,
+   "samples": 50
+  },
+  "kernel/build/extrude": {
+   "mean_ns": 28576.399447558088,
+   "median_abs_dev_ns": 124.41876476973378,
+   "median_ci_ns": [
+    28406.746392496392,
+    28482.407347282344
+   ],
+   "median_ns": 28440.606076122203,
+   "samples": 50
+  },
+  "kernel/mass_props/washer": {
+   "mean_ns": 2157.0547052319066,
+   "median_abs_dev_ns": 10.276431911067233,
+   "median_ci_ns": [
+    2138.7695694692497,
+    2146.0640145985403
+   ],
+   "median_ns": 2142.482451683809,
+   "samples": 50
+  },
+  "kernel/validate/tier23_washer": {
+   "mean_ns": 31996.656710650655,
+   "median_abs_dev_ns": 77.59813653354318,
+   "median_ci_ns": [
+    31764.953467071755,
+    31831.786184210527
+   ],
+   "median_ns": 31786.258771929824,
+   "samples": 50
+  },
+  "tessellate/washer/1e-4": {
+   "mean_ns": 13166447.549166668,
+   "median_abs_dev_ns": 49250.15741163312,
+   "median_ci_ns": [
+    13105801.8,
+    13200955.025
+   ],
+   "median_ns": 13132106.926666666,
+   "samples": 10
+  },
+  "tessellate/washer/1e-6": {
+   "mean_ns": 811139648.7,
+   "median_abs_dev_ns": 1399394.6099057794,
+   "median_ci_ns": [
+    809174073.0,
+    812242427.75
+   ],
+   "median_ns": 810079778.0,
+   "samples": 10
+  }
+ },
+ "commit": "e77c041930f672b54f5cf6b2a5ddc81e3e1f41ef",
+ "environment": {
+  "arch": "x86_64",
+  "cargo_profile_overrides": [],
+  "debug_assertions": false,
+  "mem_total_kb": 8128880,
+  "nproc": 2,
+  "os": "linux",
+  "runner": "Linux/X64 ubuntu-latest",
+  "rustflags": "",
+  "rustup_toolchain": "1.97.0-x86_64-unknown-linux-gnu"
+ },
+ "measured_at_epoch_s": 1788176533,
+ "method": "criterion 0.8.2 over benches/benches/kernel.rs; per-row sample counts set in that file; bench profile (release, debug-assertions OFF \u2014 the manifest says why); times in nanoseconds, `median` is the figure to read and `median_ci` the interval criterion resolved WITHIN this run. Cross-run spread is wider than that interval: treat a move under ~10% as noise unless consecutive entries agree."
+}

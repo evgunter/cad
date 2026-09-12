@@ -15,15 +15,13 @@
 //!    that whole class rather than one case, at the cost of a longer
 //!    path for the few payloads that sit below their owner's root
 //!    (`geom_core::spline::KnotAlgebraError`,
-//!    `sweep::fillet::FilletError`, `topo::boolean::ContainError`,
+//!    `sweep::blend::BlendError`, `topo::boolean::ContainError`,
 //!    `mesh::validate::MeshError`) — a longer path, never a second
 //!    crate — and it required **zero kernel edits**, which is the
 //!    ruling other crates cite when they need a payload type and find
 //!    its owner does not re-export it: the answer is a direct edge on
 //!    the owning crate, never a new re-export added to somebody
-//!    else's root. The one stated exception is `MigrationStep`, whose
-//!    signature speaks `serde_json::Value`; [`document`] records why
-//!    it stays out. `tests/all.rs` is the pin: it matches on the
+//!    else's root. `tests/all.rs` is the pin: it matches on the
 //!    cross-crate payloads using only `pncad::` paths, and a guard
 //!    test there reads its own source and fails if any kernel crate
 //!    is named outside one.
@@ -52,10 +50,12 @@
 //!
 //! No geometry and no numeric behavior. The **authoring** surface is
 //! re-exports and thin wrappers that do nothing but call into the
-//! kernel: every [`authoring`] seam but one is a single kernel
-//! constructor call, and [`validated`] is that one — the two-call
-//! form (`Profile::new` then `Profile::validate`) the demo corpus
-//! wrote by hand at every scene.
+//! kernel: every [`authoring`] seam but two is a single kernel
+//! constructor call. The two are the fallible pair — [`validated`],
+//! the two-call form (`Profile::new` then `Profile::validate`) the
+//! demo corpus wrote by hand at every scene, and [`polygon`], the
+//! PATHS-lattice chain a coordinate table lowers to, which classifies
+//! every corner at authoring and so can refuse one.
 //!
 //! **[`workspace`] is not that, deliberately.** It is a real
 //! subsystem: it scans a directory of save files, reads each one's
@@ -87,6 +87,7 @@
 //! module is named in a section about what the façade contains.
 //!
 //! [`validated`]: authoring::validated
+//! [`polygon`]: authoring::polygon
 //!
 //! # Start here
 //!
@@ -103,6 +104,13 @@
 //!   materializers, the pattern language, the geometric filters, and
 //!   the detect/declare protocol. The worked examples for
 //!   [`select`].
+//! - [`guide::meshing`] — the ladder's tessellate and cross-check
+//!   rungs from the bindings' side: what a mesh carries across, and
+//!   how a caller re-derives closure and volume from it.
+//! - [`guide::assembly`] — parts, instances and mates: the workspace
+//!   store, the identity/pin/reference split, `evaluate`'s resolver
+//!   and memo, the solve and the at-rest gate, split/inline and the
+//!   pin-update door.
 //! - [`guide::north_star_audit`] — what the Python bindings can
 //!   author today, and the named gaps.
 //!
@@ -186,6 +194,7 @@ pub use topo;
 // document-layer path names it, and that measurement is what decides
 // the re-export. Re-export it the day a consumer needs it.
 
+pub mod analysis;
 pub mod authoring;
 pub mod document;
 pub mod export;

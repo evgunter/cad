@@ -24,8 +24,8 @@ use pncad::select as s;
 use pncad::topo::PlaneRelation as KPlaneRelation;
 
 /// The verify door's relation verdict a finding's evidence carries.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `topo::PlaneRelation` variant of the same name"
@@ -37,8 +37,8 @@ pub(crate) enum PlaneRelation {
 }
 
 /// The contact class a finding would verify as.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::ContactClass` variant of the same name"
@@ -49,8 +49,8 @@ pub(crate) enum ContactClass {
 }
 
 /// Which rung of the verify ladder decided a finding.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
     reason = "each variant mirrors the documented `editor_core::FlushRung` variant of the same name"
@@ -60,14 +60,16 @@ pub(crate) enum FlushRung {
     DecidedCoincident,
 }
 
-/// One flush-plane finding: "this face pair would verify as declared
+/// One flush finding: "this face pair would verify as declared
 /// contact" — a VALUE to inspect and pass to `Node.declare` /
 /// `Doc.declare` / `Doc.declare_all`, never itself a declaration.
+/// The detector's reach is the `Rest` ladder's, so the pair may be
+/// cosurface on a plane, a sphere, a cylinder or a torus.
 ///
 /// `a` and `b` are the pair's names as opaque text (`a` from the
 /// query's first node, `b` from its second); `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
-/// outward normals; `SameOriented` = flush walls, the merge-stage
+/// material sides; `SameOriented` = flush walls, the merge-stage
 /// flavor); `class_` names the contact class (trailing underscore:
 /// `class` is a Python keyword — the `or_` precedent); `rung` says
 /// which ladder rung decided (`SharedSource` = syntactic recipe
@@ -84,6 +86,24 @@ pub(crate) fn plane_relation(rel: KPlaneRelation) -> PlaneRelation {
         KPlaneRelation::SameOriented => PlaneRelation::SameOriented,
         KPlaneRelation::SameOpposite => PlaneRelation::SameOpposite,
         KPlaneRelation::Distinct => PlaneRelation::Distinct,
+    }
+}
+
+impl ContactClass {
+    /// The kernel class this mirror names.
+    ///
+    /// Total over the MIRROR, which is the safe direction: every
+    /// variant Python can spell has a kernel counterpart, so this
+    /// cannot fail today. It takes `py` and returns a `PyResult`
+    /// anyway, because the kernel enum is `#[non_exhaustive]` and a
+    /// class that lands there without a mirror variant would make
+    /// this a partial map — and a door that has to refuse later is
+    /// better than a signature that has to change.
+    pub(crate) fn to_kernel(self, _py: Python<'_>) -> PyResult<s::ContactClass> {
+        match self {
+            Self::Rest => Ok(s::ContactClass::Rest),
+            Self::Tangent => Ok(s::ContactClass::Tangent),
+        }
     }
 }
 
@@ -105,6 +125,14 @@ pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<
     match class {
         s::ContactClass::Rest => Ok(ContactClass::Rest),
         s::ContactClass::Tangent => Ok(ContactClass::Tangent),
+        // `Debug` because there is nothing else: the kernel enum has
+        // no `Display`, and an unknown variant has no tag either. It
+        // holds only while the unknown variant is FIELDLESS — a struct
+        // variant renders with the struct fingerprint
+        // `crate::errors::reads_as_prose` rejects, and this graceful
+        // refusal becomes a panic at the funnel. Whoever adds one
+        // decides then: give the kernel enum a `Display`, or render
+        // the name alone here.
         other => Err(crate::py::typed_err(
             py,
             crate::errors::ErrorClass::Select,

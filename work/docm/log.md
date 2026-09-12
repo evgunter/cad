@@ -1,0 +1,616 @@
+# DOCM log
+
+Newest entries at the bottom; the tail is the program's live status.
+Plan: `work/docm/plan.md`. A/B band 1800–1899
+(`docs/MODEL-AB-LOG.md` owns every live experiment number).
+
+## Opening state (2026-09-03)
+
+Opened on Ev's direction (in-chat, 2026-09-03: "proceed to actually
+creating these tracks with their own directories in work/") from the
+2026-09 work-track proposal, `docs/WORK-TRACKS-2026-09.md`, whose DOCM section is the
+charter this plan restates. Opens now. Items re-homed into this
+directory at opening, by header edit and `git mv` only (ids unchanged):
+
+- `capend-top-bottom-contradicted-by-negative-extrude` from `work/issues/`
+- `fused-step-slot-aliases-arrival-spec` from `work/issues/`
+- `sketch-frame-from-face` from `work/issues/`
+- `add-profile-mints-no-frame` from `work/issues/`
+- `add-profile-placement-on-picked-face-frame` from `work/issues/`
+- `split-side-and-pattern-instance-as-operand` from `work/issues/`
+- `no-docedit-splices-a-deleted-node` from `work/issues/`
+- `document-seam-no-in-session-change-detection` from `work/issues/`
+- `layer3-recipenodeid-aliases-across-rewinds` from `work/issues/`
+- `no-persistent-setplacement-session-op` from `work/issues/`
+- `revolve-pole-export-interior-on-axis-vertex` from `work/issues/`
+- `check-registry-gathers-product-twice` from `work/issues/`
+- `save-a-copy-duplicate-id-bricks-store` from `work/lib/`
+- `memo-admission-and-resolver-state` from `work/lib/`
+- `instantiation-seam-drops-mate-identity` from `work/mate/`
+- `no-door-mints-mate-frame-from-face` from `work/mate/`
+- `certify-locally-valid-range-instead-of-sampling` from `work/m10/`
+- `C6` from `work/code-quality/`
+- `D365` from `work/code-quality/`
+- `D366` from `work/code-quality/`
+- `debug-in-prose-residue-after-finding-sink` from `work/code-quality/`
+
+No unit is cut and no branch exists yet. The first dispatch claims its
+ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.
+
+## The two conversations, ratified in-chat (2026-09-04)
+
+Both axes ran as one chat conversation with Ev and are recorded as
+`docs/DOCM-REFERENCES-DESIGN.md` (DM1–DM6) and
+`docs/DOCM-IDENTITY-DESIGN.md` (DI1–DI5); the PR carrying them is the
+record, companion rows added to `docs/DESIGN.md`. Decisions made
+unilaterally on the way: reading Ev's free-move answer as the stronger
+form (DI5, release is the edit) — stated in the doc, stands unless
+corrected; parking splice on `DOCM-3` rather than closing it; closing
+`sketch-frame-from-face`, `memo-admission-and-resolver-state` and
+`split-side-and-pattern-instance-as-operand` with pointers at their
+units; converting the three E-class issues to units in place (ids
+kept). Seven items re-homed to CHROME (5), VIEW (1) and LIB (1) with a
+signed entry in each log. Question 1 collapsed out of the plan (already
+ruled). S-MATE's closing sweep is PR 1786, which opens `mate.rs` and
+`assembly.rs` here. Slate now: `DOCM-1`–`DOCM-4` (spec), the three
+E-class units, and the rest as the plan lists them.
+
+## First dispatch (2026-09-04)
+
+`DOCM-3` dispatched on `docm/3-union` against `docs/DOCM-3-SPEC.md`
+(pre-draw fields L / STRUCTURAL at the spec; block DOCM-B1's draw record
+is branch-side on `docm/b1-block` until the block concludes). Chosen first
+because it retires the die's chain, which every later naming-sensitive
+unit would otherwise inherit. The review ordinal is claimed on main at
+review dispatch, per the log's standing rule.
+
+## Second dispatch (2026-09-04)
+
+PR 1789 merged on Ev's sign-off ("1789 looks good"), so DI5's stronger
+reading stands. `DOCM-4` dispatched on `docm/4-evaluation-identity`
+against `docs/DOCM-4-SPEC.md` (pre-draw M / STRUCTURAL at the spec),
+concurrently with `DOCM-3` on disjoint files; the fence is in the spec's
+Constraints. Node-kind units (`DOCM-1`, `DOCM-2`) wait for `DOCM-3` to
+land, so two lanes never mint content-key tags at once.
+
+## DOCM-3 stop clause fired; DM4's key amended (2026-09-04)
+
+The lane stopped at the measured site: the die's 21 pips are
+`Transform`s of ONE revolve, a transform is pass-through under N1, so
+the 21 members carry identical name tables and `FromMember(inner)`
+collides (pinned executably on the lane's branch). Orchestrator ruling,
+a faithful elaboration of DM4's stated intent (identity-keyed,
+position-free), so recorded and merged without an `[ev]` round and
+reported to Ev in chat: the segment keys on the MEMBER EDGE —
+`FromMember { member: RecipeNodeId, of }` — the `Instance { i, of }`
+shape with an identity where it has an index. DM5 gains its third
+caller, the load validator, since a snapshot never passes an edit door
+(the lane's finding). Spec amended on the lane branch; the lane resumes
+as the same arm. Disclosed and accepted: `pncad-py`'s exhaustive
+`EditError` tag mirrors forced three rows (the S4 shape `C6`/`D366`
+carry); `SetMembers` generalized over `Loft` through `Node::list_input`.
+
+## DOCM-4 MERGED (2026-09-04, PR 1808)
+
+Ordinal 1800, sample #126, block DOCM-B1 slot 1. Implementer arm OPUS.
+v6 dual on frozen `e8d0022d`: R1 (fable) 0/3/4 APPROVE-WITH-FIXES,
+R2 (opus) 3/4/4 NOT-MERGEABLE-AS-IS. Adjudicated: two bilateral MAJORs
+(the `pncad-py` pages for `placement` and `product` contradicting the
+new A4; A4's "every door" universal false against six doors) gated and
+were fixed; R2's third MAJOR (the `tree.rs` edit inside DOCM-3's fence,
+forced by an exhaustive match, disclosed to the orchestrator but not in
+the PR) adjudicated MINOR, disclosure added. Unilateral-MAJOR tally +0
+(the fenced-file finding is process-class, excluded by v6 item 3b).
+Fix pass: nine items, all fixed; the prose fixes re-verified by the
+orchestrator on the head rather than by a re-review round. Filed at
+adjudication: `pair-doors-outside-the-three-do-not-check-document-identity`.
+Spec `docs/DOCM-4-SPEC.md` deleted at merge (DOC-LEDGER). Two spec
+errors were the orchestrator's (three constructor sites where there
+were two; the wrong Python test file).
+
+## DOCM-3 MERGED (2026-09-04, PR 1803)
+
+Ordinal 1801, sample #127, block DOCM-B1 slot 0. Implementer arm OPUS.
+Two phases: the lane stopped at DM4's false naming key, the orchestrator
+amended DM4/DM5 (#1807) and the spec, the lane resumed as the same arm.
+v6 dual on frozen `a713a02e`: R1 (fable) 0/3/4 APPROVE-WITH-FIXES, R2
+(opus) 1/7/5 APPROVE-WITH-FIXES. Adjudicated: one bilateral MAJOR (the
+fold's refusal named fold-internal rows no table holds; R1 rated it
+MINOR) fixed by collapsing refusal payloads through the union's own
+rule; two silent deviations (two wildcard arms; the list floor reaching
+the loft's insert and load doors) fixed and disclosed; the rest MINOR
+and NOTE, all fixed. Unilateral-MAJOR tally +0. R1 disclosed an
+accidental glimpse of R2's build-script PATHS through the shared session
+scratchpad — no content, no findings — so the pair stays FAIR under v6
+item 3e; the hazard is now a line in `memories/agent-lane-operations.md`
+and every later brief names a private scratch directory. Filed at
+adjudication: `n-ary-union-has-no-declaration-channel` (Ev's ruling).
+Spec `docs/DOCM-3-SPEC.md` deleted at merge (DOC-LEDGER). Both node-kind
+units (`DOCM-1`, `DOCM-2`) are now unblocked.
+
+## Third dispatch (2026-09-04)
+
+`DOCM-1` dispatched on `docm/1-face-frame` against `docs/DOCM-1-SPEC.md`
+(pre-draw L / STRUCTURAL at the spec; block DOCM-B1 slot 2, the last
+of the block), after `DOCM-3` merged so the new datum's content-key
+tag is chosen against a tree that holds tag 31. `DOCM-2` follows on a
+fresh block draw once `DOCM-1`'s tag is on main. Lane briefs now name a
+private scratch directory beside the private target dir.
+
+## DOCM-1 stop clause fired; PP6 amended on Ev's ruling (2026-09-04)
+
+The lane stopped at PP6's fence: a derived frame has no f64 elaboration
+in the document, so under the pinned lift its profile had nothing to
+place with at `Interval`/`Dual`. Three ways through were put to Ev
+(place at the lane value; refuse off f64; an f64 shadow of the upstream
+body); Ev ruled A (in-chat). PP6 and DM1 (new DM1c) carry it; the seam
+is announced in M10's log; the spec is amended on the lane branch and
+the lane resumes as the same arm. The three E-class units run as
+MECHANICAL units on Ev's "use your judgment" (in-chat): opus, no
+review lane, no row, merged on green CI plus the orchestrator's read —
+`docm/capend-ends`, `docm/spec2-slots`, `docm/revolve-pole-rule`.
+## revolve-pole-export-interior-on-axis-vertex MERGED (2026-09-04, PR 1839)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff). The rule as filed held on the
+first run of both rows. One note for the WORK-TRACKS doc, which still
+lists the question as open; that doc is a dated proposal and is not
+edited.
+## fused-step-slot-aliases-arrival-spec MERGED (2026-09-04, PR 1840)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff). One material deviation, disclosed:
+the `SetParam`/`SetExpression`/`expr_at` rows the item asked for cannot
+exist, because the VQ9 insert door and the snapshot walk refuse a
+program carrying an arrival `Sweep`/`ArcLen`/`Bulge` — the payload's
+`expr`/`expr_mut` half is pinned instead, and the door's refusal with it.
+No content-key tag was involved (`StepArg` feeds no key).
+## capend-top-bottom-contradicted-by-negative-extrude MERGED (2026-09-04, PR 1851)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff): `CapEnd::{End, Start}`, 76 files
+of which the substance is the enum, the emitter's two loops, the
+Python mirror, the corpus and seven digest pins re-taken through their
+own doors, and the adopted probe. Two judgement calls accepted: the
+variant declaration order kept (the derived `Ord` is every name
+table's row order) and the probe moved out of the review record rather
+than rewritten in place. Filed: the sweep crate's `top` field docs
+(`work/issues/`). Noted for CIW's ground, not filed: the k-lint job's
+byte-for-byte die-corpus step is SKIPPED on the tier this PR drew, so
+hosted CI did not re-derive the regenerated corpus itself.
+
+## DOCM-1 dual review dispatched (2026-09-04, PR 1829 frozen at 20f04189)
+
+Implementer lane reported the PR non-draft and green at `20f04189`
+(35 files, +2244/−79); the head predates the CapEnd rename now on main,
+so the fix pass carries that conflict. Ordinal 1802 claimed on main at
+dispatch (PR 1853); parity byte 83 ⇒ R1 = FABLE, R2 = OPUS; briefs
+hashed and diff-identical modulo lane names; private build AND private
+scratch directories per lane. Both lanes running concurrently on the
+frozen head. The unit's log entry waits for the dual's conclusion.
+
+## DOCM-1 MERGED (2026-09-04, PR 1829, ordinal 1802, sample #128)
+
+Block DOCM-B1 slot 2 (FABLE), concluded; the block is concluded with
+it and its record is on main. Three phases: the Phase-1 stop at PP6's
+f64 sketch-plane fence (Ev ruled option A; PP6/DM1c amended, #1837),
+the build under the amendment, then the v6 dual (R1 fable
+NOT-MERGEABLE-AS-IS 1/2/4, R2 opus APPROVE-WITH-FIXES 2/4/4) and its
+union fix pass. Adjudicated: one bilateral MAJOR (the tag-42 key-guard
+row could not fail — the feed was redundant and is gone) and two
+unilateral MAJORs by execution, one per slot: R1's symbolic-lane
+asymmetry (a derived frame's placement does not certify on
+`Sym<Interval>` under a widened upstream parameter; the fix pass
+diagnosed it to the kernel's symbolic budget and stopped at its
+clause — filed for M10 as
+`derived-frame-placement-freezes-on-the-symbolic-lane`) and R2's A3
+handedness gap (a surviving mutant, now caught by A3b). Both reviewers
+falsified the PR's "any width refuses" kernel claim; the measured
+floor (plain `Interval`, near ε/16) is the record now. Filed at merge:
+`LIB-B-FACE-FRAME` (the Python surface), the two issues the fix pass
+filed, and — from the tally read this merge required —
+`ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated` (Ev's).
+The spec is deleted into the ledger. Next: DOCM-2 (`Node::Part`,
+spec written) under a fresh block draw, DOCM-B2.
+
+## DOCM-2 dispatched (2026-09-04, block DOCM-B2 slot 0)
+
+Block DOCM-B2 drawn after DOCM-1's merge: pre-draw fields at the spec
+(M / STRUCTURAL, committed before the draw), byte 39 ⇒ fable at slot 0,
+so DOCM-2 = FABLE; slots 1–2 bank for the next kernel units once the
+open questions are ruled. Record branch-side on `docm/b2-block`. Unit
+branch `docm/2-part` cut from the orchestrator branch (it carries the
+spec and DOCM-1's state-sync, both headed to main in PR 1856). The
+implementer lane is running on it.
+
+## DOCM-2 stopped at its clause and resumed under an amendment (2026-09-04, PR 1860 draft)
+
+Two findings from the lane. (1) In-fence: `wire_split` stamped both
+halves' section planes `minted(split, 0)` — opposed planes with one
+source, a same-source-theorem violation unreachable before `Node::Part`
+could take two pieces of one split; the fix (one index space across
+both halves) stands and gets its own row. (2) Fenced: topo's two
+same-source assertions (`merge_faces.rs`, `boolean/plane_eq.rs`) read
+`eq_bits`'s `None` at a channel-less scalar (`Dual`, `Sym`) as `false`
+and panic on the corpus document's union of the halves at `Dual64`.
+Ruled option (a): the assertions read a channel-less scalar as no
+evidence (rung 1 decides by source identity; no verdict changes), the
+fence widened to exactly those two sites, the Dual-vs-f64 value-channel
+row as the proof the relaxation hides no wrong merge. Spec amended on
+the branch (§Amendment at the stop clause); the lane resumes as the
+same arm.
+
+## DOCM-2 dual review dispatched (2026-09-04, PR 1860 frozen at b59b2203)
+
+The lane reported the PR non-draft and green across the whole matrix
+at `b59b2203` (33 files, +1792/−91; one earlier red on a gate script's
+reader, fixed and pushed). Ordinal 1803 claimed on main at dispatch;
+parity byte 67 ⇒ R1 = FABLE, R2 = OPUS; briefs hashed and
+diff-identical modulo lane names; private build and scratch
+directories per lane. Both lanes running concurrently on the frozen
+head. The unit's log entry waits for the dual's conclusion. Filed at
+merge, not before: `LIB-B-PART` (the census family the unit chartered)
+and the bit-identity gate reader's finding.
+
+## DOCM-2 MERGED (2026-09-04, PR 1860, ordinal 1803, sample #129)
+
+Block DOCM-B2 slot 0 (FABLE), concluded; slots 1–2 (OPUS, OPUS) remain
+for the next kernel units. Three phases: the stop at `wire_split`'s
+one-source stamping (fixed in-fence — a latent kernel defect
+unreachable before a Part could take two pieces of one split) and at
+topo's two channel-less same-source assertions (ruled no evidence;
+fence widened to those two sites); the build under the amendment; then
+the v6 dual (R1 fable NOT-MERGEABLE-AS-IS 1/2/3, R2 opus
+APPROVE-WITH-FIXES 1/4/4) and its union fix pass. One MAJOR, bilateral,
+reproduced by the orchestrator: the table projection refused a tie
+straddling the two halves, which a pass-through tie carried into a
+split produces; ruled that the projection narrows survivors by the one
+rule the emitter's flush already writes by. No unilateral MAJOR — the
+pair adds nothing to the tally. Filed: `LIB-B-PART`; by the fix pass,
+the bit-identity gate's reader (`work/issues/`) and the two-Parts-at-
+one-boolean diagnosis (DOCM's slate). The spec is deleted into the
+ledger. Next: the remaining slate needs rulings before the next kernel
+unit — the union declaration channel (Ev's), then the instantiation
+seam, the check-registry subject and the certified range query.
+
+## DOCM-5 dispatched (2026-09-04, block DOCM-B2 slot 1, OPUS)
+
+The plan's ruled item 2 (the check registry's subject) cut as a unit:
+`docs/DOCM-5-SPEC.md` (pre-draw M / STRUCTURAL) — `run_checks_on` over
+a `Subject`, `assemble_gathered` over a gathered product with `assemble`
+as a logic-free wrapper, `DocSession::land` gathering once for its
+three consumers in the order fault → registry → A5 badge, a debug-only
+gather counter as the witness, the registry's cost re-measured with
+both terms separated and a Q6 disposition. The `product.rs` Dual arms
+stay M10's (stop clause). Unit branch `docm/5-check-subject` cut from
+the orchestrator branch (the spec rides PR 1863 to main). Slot 1's
+pre-draw fields recorded branch-side on `docm/b2-block`.
+
+## DOCM-5 dual review dispatched (2026-09-04, PR 1871 frozen at 4c727c88)
+
+The lane reported the PR non-draft and green across the drawn full
+matrix at `4c727c88` (13 files, +1013/−103; one earlier red on the
+binding census, fixed and pushed). No stop clause fired. Its
+measurement: at 161 solids / 991 faces the gather is ~30× the
+registry's own resident (248 ms vs 8 ms, dev profile), so the
+withdrawn sentence was right; the split is now a row of the
+rebuild-latency reporting lane with its size pinned by a test. Ordinal
+1804 claimed on main at dispatch; parity byte 123 ⇒ R1 = FABLE, R2 =
+OPUS; briefs hashed and diff-identical modulo lane names; private
+build and scratch directories per lane. Findings the lane reported for
+placement at merge: `scene.rs` gathers the same landed product twice
+more (VIEW's), and `docs/PERF-PLAN.md` is cited by thirty files and
+absent from the tree and the ledger (the spec itself among them).
+
+## DOCM-5 MERGED (2026-09-04, PR 1871, ordinal 1804, sample #130)
+
+Block DOCM-B2 slot 1 (OPUS), concluded; slot 2 (OPUS) remains. No
+stop; the v6 dual (R1 fable APPROVE-WITH-FIXES 1/4/3, R2 opus
+NOT-MERGEABLE-AS-IS 3/3/5) and its union fix pass. Adjudicated: one
+bilateral MAJOR (the release-profile claim — this workspace keeps
+debug assertions on in release until publish, the same fact DOCM-2's
+review found; prose) and TWO unilateral MAJORs, both R2's, both by red
+probe: the gather moved above the config read (a `Separation: Off` run
+gathered at 45× the door and a refusing gather raised where the base
+reported cleanly) and the subject door binding nothing to nothing (a
+crossed pair gave a measured wrong finding). Ruled: lazy gather by one
+definition, `Subject::Unavailable` carried into the door, DI3 at the
+door through `ident::mispaired`. Both enter the tally as candidates.
+The unit's own measurement replaced the withdrawn sentence with four
+separated terms and registered them nightly. Closed:
+`check-registry-gathers-product-twice`. Filed at merge or before: the
+scene's extra gather (VIEW), the absent `PERF-PLAN.md` (the repo's),
+the Python doors' double gather (LIB), debug-only counters' missing
+gate. The spec is deleted into the ledger. Next: the instantiation
+seam waits on Ev's inner-mint-refusal ruling; the certified range
+query waits on M10.
+
+## Announced seam from PROPS (2026-09-05): one hunk in `eval/parts.rs`
+
+The k-stats bracket (PR #1969, merged `3f8a91ff3`) shields the part
+cache's miss path in `PartCache::get` with its own verdict bracket whose
+frame is discarded — without it the instantiator's frame received
+430–505 of the part's decisions from whichever instance took the miss,
+making an instantiate node's log schedule-dependent. One binding
+(`let _shield = Bracket::open();`) with a two-sentence argument at the
+site; nothing else in `eval/parts.rs` moves. The bracket at `run_op` in
+`eval/mod.rs` was announced to SEAT at the spec. Signed (PROPS
+orchestrator).
+
+## Announced seam from PROPS (2026-09-06): a doc line at `Datum::FaceFrame::spin` with the sign-hull unit
+
+`docs/PROPS-SIGN-HULL-SPEC.md` (branch `props/sign-hull`) changes the
+frame `Vec3::orthonormal_basis` makes, so what `spin = 0` means on a
+wall or a cap changes with it; the unit adds one doc line at
+`Datum::FaceFrame::spin` (`crates/editor-core/src/node.rs:~704`)
+naming the axis order and tie-break, and re-points
+`docm1_face_frame.rs` where it named M10-5's retired `chart_frame`.
+No committed document carries a `FaceFrame` (#1939 census). Announced
+by the spec §Seams. Signed (PROPS orchestrator).
+
+## Three rulings from Ev (2026-09-06)
+
+1. **DOCM-6's fork**: an inner document's mint refusal IS the outer
+   document's error — refuse at the outermost gate, naming the inner
+   document and mate; no advisory channel. The spec's §Fork became
+   §Ruling; the unit dispatches to block DOCM-B2 slot 2 (OPUS).
+2. **The union's declaration channel**: a `declare` edge in member
+   space. DM4 amended (the 2026-09-06 bullet), the issue closed, the
+   build is `DOCM-7` (`docs/DOCM-7-SPEC.md`, M / STRUCTURAL), which
+   takes a fresh block, DOCM-B3.
+3. **The v6 stream**: the duals continue for the moment; recorded in
+   the log's protocol list, the readout still owed.
+
+## DOCM-6 and DOCM-7 dispatched concurrently (2026-09-06)
+
+DOCM-6 takes block DOCM-B2 slot 2 (OPUS per the byte-39 draw), branch
+`docm/6-seam`, the seam's mate-identity channel under the ruling that
+inner mint refusals refuse at the outermost gate. DOCM-7 opens block
+DOCM-B3: pre-draw fields at its spec (M / STRUCTURAL, committed at
+392a84d7 before the draw), byte 124 ⇒ fable at slot 1, so slot 0
+DOCM-7 = OPUS; branch `docm/7-union-declare`; record branch-side on
+`docm/b3-block`. Disjoint files (the assembly seam against the union's
+fold and naming); each lane's brief names the other's fence. Both
+lanes running.
+
+## DOCM-7 dual review dispatched (2026-09-06, PR 2028 frozen at 723c0f9f)
+
+The lane reported the PR non-draft and green across the full matrix at
+`723c0f9f` (19 files, +1316/−95; one earlier red Python leg fixed and
+pushed). No stop clause; eight measured deviations reported, among
+them: the pair boolean cannot declare between two placements of one
+prototype (`DeclareBothOperands`), so A1's `bit_eq` half moved to two
+distinct blocks; a declared merge is asymmetric in the operand roles
+(A2's reordered-list `bit_eq` is false — the pair verb's, inherited);
+the edit-door check for a non-`Declare` on a `declare` edge did not
+exist and was built for both nodes; the member count is fed to the
+key. Findings for placement at merge: a union's declaration is
+authorable only in two passes (a `Declare` in the union's own space
+cannot precede the union — a seat or an attach edit fixes it); DM4's
+"the result is not the order's" is narrower than it reads. Ordinal
+1805 claimed on main at dispatch; parity byte 165 ⇒ R1 = FABLE, R2 =
+OPUS; briefs hashed and diff-identical modulo lane names; private
+build and scratch directories per lane. Both lanes running. The box's
+disk hit 100% during the lane's run; the finished lanes' build
+directories are freed.
+
+## 2026-09-06 — DOCM-6 dual review dispatched
+
+DOCM-6's lane reported: PR #2035 (`docm/6-seam`) non-draft, full
+code-tier CI green at head `0b240444`; no stop clause fired; seven
+deviations disclosed (two files past the fence for the value channel,
+four `PartValue` fields, a `MintRefusal` `Display`, the `Uncertified`
+predicate widened to a carried decline, Python rows past "forced only",
+two baselines moved, one Python row unwritable behind a pre-existing
+`reads_as_prose` panic) and three findings outside the fence (the
+panic, the boolean asymmetry in the carry, the relation tags with no
+inventory row). v6 dual dispatched: ordinal 1806 claimed on main at
+dispatch; parity byte 76 ⇒ R1 = OPUS, R2 = FABLE; briefs hashed and
+diff-identical modulo lane names; private build and scratch
+directories per lane. Both lanes running. Block DOCM-B2's last slot:
+its record reaches main when this dual concludes.
+
+## 2026-09-06 — DOCM-7 dual adjudicated; fix pass dispatched
+
+Both reports in (R1 FABLE, R2 OPUS), both APPROVE-WITH-FIXES, no
+bilateral MAJOR, two unilateral-MAJOR candidates (one per slot). The
+finding that matters: R1 measured that a member-space declaration set
+across a CHAIN of members fuses or refuses by list order — a face
+merged away at an earlier step must be declared by its accumulation
+row, which is order-shaped — while the routing doc, the node doc and
+`names/role.rs` claim order-independence. The fix pass states the
+measured limit, pins it as a measurement, files it under `work/docm/`
+and discloses it; the semantics (constituent look-through, flattening
+nested `Merged`, or a narrowed contract) is a ruling for Ev, not this
+pass. Also ruled: the content-key member-count feed's "necessary" claim
+is false (memo keyed by node id; kept as key hygiene, claim corrected);
+in-space names that are no step's operands refuse `UnionDeclareStep`,
+never `Vanished`; the two A2 rows the spec owed are added; deviation 8's
+arm is reachable and rowed; the three unfiled findings are filed; the
+style union (three hand-kept segment lists → one predicate, dead
+`arrival` arm, copied payload door, twice-written predicate).
+
+## 2026-09-06 — DOCM-6 dual adjudicated; fix pass dispatched
+
+Both reports in (R1 OPUS, R2 FABLE), both APPROVE-WITH-FIXES, no
+bilateral MAJOR, one unilateral-MAJOR candidate (R1's: the widened
+`Uncertified` predicate moves the outermost gate's verdict on a
+grazing part instantiated once — `AtRest` on the base, `Uncertified`
+naming the carried mate on the head — with no row and no sentence;
+R2 rated the same finding MINOR). Ruled: the widening stands as the
+contract's ("nothing refuted, nothing undeclared"), rowed and said in
+`ASSEMBLY.md`. Also ruled: A1's oracle (any recorded pair) is replaced
+by R2's name-table oracle, which the three surviving mutants die at;
+both Python rows the PR called unwritable are written (a decline reads
+as prose; an angular contradiction carries no `Fit { gap }` steer); the
+boolean "asymmetry" is not a live bound (the pair boolean refuses a
+multi-solid operand) — narrative corrected, class filed; precedence
+between own and carried rows pinned; one `Route` type and one relation
+vocabulary; the Python doors carry `of`/`via` wherever a foreign mate
+appears (API-first); the success arm returns `carried`.
+
+## DOCM-7 MERGED (2026-09-06, PR 2028, ordinal 1805, sample #148)
+
+Block DOCM-B3 slot 0 (OPUS), concluded; slots 1 (FABLE) and 2 (OPUS)
+remain. No stop; the v6 dual (R1 fable APPROVE-WITH-FIXES 1/5/4, R2
+opus APPROVE-WITH-FIXES 1/5/3) and its union fix pass. Adjudicated: no
+bilateral MAJOR and two unilateral MAJORs, one per slot — R1's
+chained-order gap (member-space pairs across a chain fuse or refuse by
+member order, because a declared merge consumes the middle face before
+its later partner arrives; a contract gap DM4's amended bullet does
+not bound) and R2's content-key feed claim (the guard row cannot go
+red; the memo is keyed by node id). Ruled: the gap disclosed, pinned
+as a measurement, its three prose sites rewritten to the limit and
+filed for Ev with three options costed; the feed kept as key hygiene
+with its claim corrected; in-space names that are no step's operands
+refuse `UnionDeclareStep`; the two A2 rows the spec owed; one home
+each for the bucket rule, the segment lists and the payload door.
+Both enter the tally as candidates. Closed at merge:
+`n-ary-union-has-no-declaration-channel` (already, pointing here);
+`no-docedit-splices-a-deleted-node` unparked — it is DM6's design
+conversation, not a unit's. Filed by the fix pass: the chain gap, the
+stranded payload name, the pair verb's operand asymmetry (DOCM), the
+one-pass authoring hole (CHROME). The spec is deleted into the ledger;
+DM4 carries the measured limit pending the ruling. Next: DOCM-6's dual
+concludes block B2; the certified range query waits on M10.
+
+## DOCM-6 MERGED (2026-09-06, PR 2035, ordinal 1806, sample #149)
+
+Block DOCM-B2 slot 2 (OPUS), concluded — the block is complete (slot 0
+DOCM-2 fable, slot 1 DOCM-5 opus, slot 2 DOCM-6 opus) and its record
+reaches main with this sync. No stop; the v6 dual (R1 opus
+APPROVE-WITH-FIXES 1/8/4, R2 fable APPROVE-WITH-FIXES 0/5/3) and its
+union fix pass. Adjudicated: no bilateral MAJOR and one unilateral
+MAJOR, R1's — the widened `Uncertified` predicate moves the outermost
+gate's verdict on a grazing part instantiated once (`AtRest` on the
+base, `Uncertified` naming the carried mate on the head), unrowed and
+unsaid. Ruled: the widening stands as the contract's ("nothing
+refuted, nothing undeclared"), rowed and stated in `ASSEMBLY.md`;
+A1's any-recorded-pair oracle replaced by R2's name-table oracle
+(three surviving mutants die at the A1 row now); both carried
+relations rowed from Python (the panic blocks only offset-shaped
+contradictions); the boolean "asymmetry" corrected to what is true
+(the pair boolean refuses a multi-solid operand) and its class filed;
+one `Route`, one relation vocabulary; `of`/`via` at both Python
+foreign-mate doors; `carried` on the success arm. Unbuildable as
+ruled, pinned instead: the own-before-carried precedence fixture
+(`SelfMate` refuses first). Enters the tally as one candidate. Closed:
+`instantiation-seam-drops-mate-identity`. Filed: the boolean-remap
+class (DOCM), the prose-gate class's fourth instance (FIX). The spec
+is deleted into the ledger. Next: block B3's slots 1 (FABLE) and 2
+(OPUS) bank for the chained-order ruling's unit and the certified range
+query (waits on M10); the v6 readout stays owed.
+
+## 2026-09-06 — DOCM-8 ruled and dispatched (block DOCM-B3 slot 1, FABLE)
+
+Ev ruled the chained-order gap in chat: a nested `Merged` should never
+have existed — whatever mints a `Merged` mints it flat (N3's
+constituent set was already the contract), and `collapse` refuses the
+nested shape rather than flattening it. With flat sets the look-through
+is a membership test at the union's routing step before the shared
+resolver (the orchestrator's reading of DM4, stated in DM4 at the
+spec's commit). Spec `docs/DOCM-8-SPEC.md` (S/M / STRUCTURAL, logged
+before dispatch on `docm/b3-block` as slot 1's pre-draw fields; the arm
+was fixed by the block draw, byte 124 ⇒ fable at slot 1). Unit branch
+`docm/8-flat-merged` from main with the spec on it; spec PR #2068 to
+main. Lane running.
+
+## 2026-09-06 — DOCM-8 stop clause fired; spec amended; lane resumed as the same arm
+
+The lane built the flat mint, `collapse`'s refusal, the look-through
+and the prose, then measured the stop clause on a four-member chain: a
+merged face that passes through an untouched fold step is named
+through a `FromA` descent chain (`[FromA([FromA([Merged(cs)])])]`), so
+the spec's "operand face named exactly `Merged(cs)`" rule never fired
+there and the next merge nested again; the same pass-through shape
+already exists in the pair boolean's corpus (`corner_table` node 22).
+Scratch-measured by the lane: reading the name through its wrappers
+and re-wrapping each constituent by the same chain makes all 48
+orders fuse and moves one more `corner_table` name. Ruled by the
+orchestrator as the ruling's own rule applied through descents (not a
+space crossing — every constituent stays a face name of the table the
+chain descends into): spec item 1 and A2 amended, the stop clause
+resolved; the lane resumes on the same arm (the DOCM-2 precedent).
+Draft PR #2073.
+
+## 2026-09-06 — DOCM-8 dual review dispatched
+
+DOCM-8's lane reported after the amendment: PR #2073 non-draft, full
+code-tier CI green at head `6d433b6f`; five deviations disclosed (the
+stop clause and its resolution; DOCM-7's flipped measurement row
+deleted and its probe re-homed; the `lib_g16` pin-ledger sentence
+adjusted; `role.rs`'s asymmetry paragraph left; the same-row pair
+refusal pinned at the function because routing cannot reach it);
+seven `corner_table` names and two pins moved, the die corpus
+unchanged. v6 dual dispatched: ordinal 1807 claimed on main at
+dispatch; parity byte 14 ⇒ R1 = OPUS, R2 = FABLE; briefs hashed and
+diff-identical modulo lane names; private build and scratch
+directories per lane. Both lanes running.
+
+## 2026-09-07 — DOCM-8 dual: R1 reported; R2 restarted after an API credit outage
+
+DOCM-8's dual dispatched 2026-09-06 15:33Z on frozen head 6d433b6f
+(ordinal 1807 claimed on main at dispatch, PR #2078; parity byte 14 ⇒
+R1 = OPUS, R2 = FABLE; briefs hashed and diff-identical modulo lane
+names). R1 reported (~55 min; APPROVE-WITH-FIXES with one MAJOR: the
+order-independence prose is false when a declared member face is
+SPLIT rather than merged away — a strict improvement over the base,
+where every such order refused, but the sentence and the missing
+issue file are the finding). R2 was terminated before its first
+action by the account's API usage credits running out; restarted
+2026-09-07 10:28Z on the same frozen head with the same brief. A
+wall-clock asymmetry between the arms (R2 ran ~19 h later), not an
+instrument one: the head, the brief and the isolation are unchanged,
+and R2 saw nothing of R1. Disclosed here and in the row at merge.
+
+## 2026-09-07 — DOCM-8 dual adjudicated; fix pass dispatched
+
+Both reports in (R1 OPUS, R2 FABLE — R2 restarted after the credit
+outage, same frozen head), both APPROVE-WITH-FIXES, no bilateral
+MAJOR, one unilateral MAJOR each. R1's: the three rewritten prose
+sites say reordering never changes whether a declaration resolves,
+and a declared member face SPLIT by a later member (not merged away)
+still refuses in some orders — the base refused every such order, so
+the code is a strict improvement and the sentence is the defect;
+R2 rated the same finding MINOR. R2's: N3's offer is lost for a face
+an outer merge consumed — with the flat set the inner merged face is
+no longer a constituent, so `merge_offers` offers nothing where the
+base offered the outer row (red probe). Ruled: one home for "does this
+merged row cover this name" (constituent, or a merged foot whose set
+is a subset), serving the offers, the paint-follow hook and the
+look-through — a reader interpreting a flat set, not a consumer
+flattening; the prose bounded to merges with the split/containment/
+fragmented residue filed and pinned as a measurement; a fail-loud
+check at the mint site so N3 holds for both emitters in the kernel;
+and, first, R2's off-target measurement that a DECLARED pair is
+reported `UndeclaredContact` on a three-neighbour star in ten of 24
+orders — a silent drop in the routing if it is the union's, to be
+traced before anything else. Both enter the tally as candidates.
+
+## DOCM-8 MERGED (2026-09-07, PR 2073, ordinal 1807, sample #154)
+
+Block DOCM-B3 slot 1 (FABLE), concluded; slot 2 (OPUS) remains. One
+stop (the pass-through shape; spec amended, same arm); the v6 dual
+(R1 opus APPROVE-WITH-FIXES 1/4/6, R2 fable APPROVE-WITH-FIXES 1/2/5;
+R2 restarted ~19 h after R1 on the same frozen head after the account's
+API credits ran out) and its union fix pass. Adjudicated: no bilateral
+MAJOR and two unilateral MAJORs, one per slot — R1's prose over-claim
+(a split member face is still order-shaped; the base refused every
+such order) and R2's lost N3 offer (a consumed merged face was no
+longer a constituent of the outer flat row). Ruled: one `covers` home
+for reading a flat set behind the offers, the paint-follow hook and the
+look-through; the prose bounded to merges with the residue filed and
+pinned; a mint-site refusal so N3 holds for both emitters; the
+declared-pair report traced first — the kernel's (an area-overlap cap
+contact admitted without a merge), filed. Both enter the tally as
+candidates. Closed: `member-space-declarations-are-order-shaped-across-a-chain`.
+Filed by the fix pass: the look-through's residue (DOCM), two emitter
+refusals a legal declared union reaches (DOCM), the area-overlap
+contact (kernel), the star's `JoinDesync` (`topo`). The spec is deleted
+into the ledger; DM4 carries the bound. Next: block B3 slot 2 (OPUS)
+banks for the certified range query (waits on M10); the v6 readout
+stays owed.
+
+## Announced from LIB (2026-09-09): a derive word on `MateSide`, `AxisSense` and `MateRole`
+
+LIB-MIRROR (PR #2271) adds `Hash` to `MateSide` (`mate.rs:84`), `AxisSense` (`mate.rs:144`) and `MateRole` (`mate/solve.rs:43`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; the serde attributes and every other line in both files are unchanged.

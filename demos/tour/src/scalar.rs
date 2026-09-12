@@ -22,7 +22,7 @@ use pncad::geom_core::Probe;
 /// evaluable (the heat-sink recipe), and exactly f64-extractable for
 /// narration.
 pub trait Scalar:
-    Decide + Bounds + ContentBits + pncad::topo::PropsQuadLane + Send + Sync + Copy + 'static
+    Decide + Bounds + ContentBits + pncad::topo::AtRestPolicy + Send + Sync + Copy + 'static
 {
     /// The exact f64 value (narration/oracles only — never decisions).
     fn f(self) -> f64;

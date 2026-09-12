@@ -55,12 +55,47 @@
 //!    taken only on a *definite* off-axis decision, and both the
 //!    coincident and the ambiguous outcomes advance to the next rung
 //!    (an ambiguous reference is not a usable reference).
-//! 4. **True degeneracy refuses, typed.** A zero-length or poisoned
-//!    tangent refuses [`FrameInput::Tangent`]; a unit tangent can
-//!    never miss both ladder rungs (world +Z and +X are orthogonal),
-//!    so [`FrameInput::ReferenceLadder`] is reachable only for input
-//!    that is not a direction at all — and it refuses rather than
-//!    inventing a frame.
+//! 4. **True degeneracy refuses, typed.** A zero-length tangent
+//!    refuses [`FrameInput::Tangent`] — a tangent that merely
+//!    MEASURES zero because its length underflowed is clause 5's, not
+//!    this one's; a unit tangent at a
+//!    POINT scalar can never miss both ladder rungs (world +Z and +X
+//!    are orthogonal), so [`FrameInput::ReferenceLadder`] refuses
+//!    rather than inventing a frame and no input is known to reach
+//!    it. "Known" is doing real work there — see the variant's docs
+//!    for the enclosure that is not ruled out.
+//! 5. **Both format questions are asked before sign.** Every length
+//!    here is classified by `definitely_positive`, which asks
+//!    [`is_finite_length`] first: a direction past
+//!    [`Vec3::normalize`]'s ~1e154 overflow band has an infinite
+//!    norm, which is maximally DEFINITE to the classifier and
+//!    normalizes to the zero vector, so deciding the sign first
+//!    returns a frame built from nothing. That refusal is
+//!    [`FrameError::NonFiniteLength`], and it names the
+//!    [`FrameVector`] whose length is not a number.
+//!
+//!    It then asks [`is_underflowed_length`], against that vector's
+//!    largest `|component|` as the witness ([`Vec3::norm_witness`]).
+//!    A direction below [`Vec3::normalize`]'s ~1e-162 underflow band
+//!    squares to zero, so its norm is EXACTLY zero and the sign
+//!    decision answers `Zero` definitely — a true statement about the
+//!    arithmetic and a false one about the input, which has a
+//!    perfectly good direction the format cannot measure. That
+//!    refusal is [`FrameError::UnderflowedLength`], separated from
+//!    clause 4's degeneracy because its recourse is the overflow
+//!    end's (scale the geometry) and no band reaches it.
+//!
+//!    **Both gates are POINT-scalar gates.** They ask through the
+//!    value channel, and at `T = Interval` neither bites:
+//!    `Interval::is_poison` is `is_nai() || is_empty()`, so
+//!    `[1e200, ∞] − [1e200, ∞]` is `[−∞, ∞]`, which answers
+//!    finite; and a norm whose lower end underflowed still ENCLOSES
+//!    the true length, so the underflow ratio is an unbounded
+//!    enclosure rather than poison and the question answers `false`.
+//!    So clause 5 bites at `f64` and `Probe` and waves an enclosure
+//!    through to the sign decision below. No live caller instantiates
+//!    this module at `Interval` today; the honest scope is stated at
+//!    [`is_finite_length`] itself.
 //!
 //! The ladder is a *convention*, and conventions are discontinuous:
 //! the frame flips as the tangent crosses the ladder's switch-over.
@@ -98,7 +133,7 @@ use crate::linalg::{Affine3, Mat3, Point3, Vec3};
 use crate::predicate::{
     Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Sign,
 };
-use crate::real::Real;
+use crate::real::{Real, is_finite_length, is_underflowed_length};
 use crate::tolerance::Tol;
 
 /// Which input a [`FrameError::Degenerate`] refusal is about.
@@ -116,25 +151,35 @@ pub enum FrameInput {
     /// antiparallel to the aim, too short to state a direction, or
     /// poisoned.
     ///
-    /// **The name reports the decision that refused, not always the
-    /// input that caused it.** One aggregated case: an *aim* beyond
-    /// [`Vec3::normalize`]'s ~1e154 overflow band passes the aim
-    /// decision on an infinite norm and then normalizes to the ZERO
-    /// vector, so every reference's offset from it is zero and the
-    /// refusal surfaces here rather than as [`FrameInput::Aim`]. This
-    /// is [`FrameInput::ReferenceLadder`]'s class arriving through
-    /// `point_at`'s single-reference door, which has no separate
-    /// variant for it; the situation is unreachable inside the session
-    /// box (D4 ¶4), and the refusal is loud either way.
+    /// It also names a reference whose own perpendicular offset has no
+    /// finite length — a reference past [`Vec3::normalize`]'s ~1e154
+    /// overflow band, whose cross product with the unit aim overflows
+    /// — through [`FrameError::NonFiniteLength`]. That is this
+    /// input's own failure, decided here: the aim is asked about
+    /// first, at its own name.
     RollReference,
     /// [`path_start_frame`]'s reference ladder ran out: neither world
-    /// +Z nor world +X was definitely off the tangent line. The two
-    /// are orthogonal, so no unit tangent can do this: the reachable
-    /// class is a tangent whose components exceed
-    /// [`Vec3::normalize`]'s ~1e154 overflow band, where the length
-    /// decision sees an infinite norm and normalization then collapses
-    /// the direction to zero. Refused rather than returned as an
-    /// all-zero frame.
+    /// +Z nor world +X was definitely off the tangent line. The
+    /// overflow class that used to arrive here — a tangent past
+    /// [`Vec3::normalize`]'s ~1e154 band, which normalizes to the zero
+    /// vector after passing a decision taken on an infinite norm — is
+    /// now refused at the tangent's own name as
+    /// [`FrameError::NonFiniteLength`].
+    ///
+    /// **No input is known to reach this variant, and that is weaker
+    /// than "it is dead".** At a point scalar the two rungs are
+    /// orthogonal, so a unit tangent is definitely off at least one of
+    /// them. That argument does not carry to every `T: Decide`: a wide
+    /// enclosure whose norm is definitely positive but whose
+    /// components each straddle zero escalates BOTH rungs and lands
+    /// here. So the variant is kept and refuses rather than inventing
+    /// a frame — deleting it would be a claim about the generic
+    /// signature that this module cannot make.
+    ///
+    /// What IS provably dead is the combination of this input with
+    /// [`FrameError::NonFiniteLength`], because the ladder decides its
+    /// rungs with a bare `decide` rather than through the funnel that
+    /// raises that arm. [`FrameVector`] is the type that removes it.
     ReferenceLadder,
     /// [`mirror_across_plane`]'s plane normal, whose length was not
     /// definitely nonzero.
@@ -154,6 +199,60 @@ impl FrameInput {
     }
 }
 
+/// **Which CALLER-SUPPLIED vector had no finite length** — the
+/// payload of [`FrameError::NonFiniteLength`], and deliberately a
+/// smaller type than [`FrameInput`].
+///
+/// [`FrameInput`] has a fifth member, [`FrameInput::ReferenceLadder`],
+/// which names a pair of unit CONSTANTS rather than anything a caller
+/// hands in. Structurally the ladder never asks this question at all:
+/// it decides its rungs with a bare [`decide`] rather than through
+/// `definitely_positive`, which is the only site that raises
+/// [`FrameError::NonFiniteLength`] — so nothing can construct a
+/// non-finite refusal naming the ladder. Reusing [`FrameInput`] here
+/// would make that dead combination REPRESENTABLE, and — because the
+/// payload crosses to Python as a tag word — would mint
+/// `non_finite_reference_ladder`, an FFI word for a state no input
+/// produces, on a public surface where a caller could branch on it
+/// forever. The four members below are exactly the four vectors the
+/// four doors take.
+///
+/// This is NOT a claim that [`FrameInput::ReferenceLadder`] is dead.
+/// It is not: that variant's own docs record why no unit tangent is
+/// known to reach it and why it is kept anyway. What is provably dead
+/// is the COMBINATION, and that is what this type removes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FrameVector {
+    /// [`point_at`]'s aim, `target − eye`.
+    Aim,
+    /// [`path_start_frame`]'s tangent.
+    Tangent,
+    /// [`point_at`]'s roll reference — specifically, its
+    /// perpendicular offset from the aim line.
+    RollReference,
+    /// [`mirror_across_plane`]'s plane normal.
+    MirrorNormal,
+}
+
+impl FrameVector {
+    /// The vector's name, for messages and pins — the same words
+    /// [`FrameInput::name`] uses for the same four inputs.
+    pub fn name(self) -> &'static str {
+        FrameInput::from(self).name()
+    }
+}
+
+impl From<FrameVector> for FrameInput {
+    fn from(v: FrameVector) -> Self {
+        match v {
+            FrameVector::Aim => FrameInput::Aim,
+            FrameVector::Tangent => FrameInput::Tangent,
+            FrameVector::RollReference => FrameInput::RollReference,
+            FrameVector::MirrorNormal => FrameInput::MirrorNormal,
+        }
+    }
+}
+
 /// A typed frame-construction refusal (D9: fail loud, never a guess,
 /// never a panic).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -168,6 +267,46 @@ pub enum FrameError {
         input: FrameInput,
         /// The in-band classification, when that is what happened.
         indeterminate: Option<Indeterminate>,
+    },
+    /// An input direction's length is **not a finite number**, so no
+    /// sign decision about it means anything — see [`FrameVector`]
+    /// for which one. Distinct from [`FrameError::Degenerate`] on
+    /// purpose: the direction is not zero and no tolerance lever
+    /// reaches it.
+    ///
+    /// The payload is [`FrameVector`], NOT the [`FrameInput`] its
+    /// sibling carries, and the narrowing is the point: only a
+    /// caller-supplied vector can be non-finite, so
+    /// [`FrameInput::ReferenceLadder`] — a pair of unit constants
+    /// decided outside this question's only door — is not
+    /// representable here. See [`FrameVector`] for the whole argument.
+    NonFiniteLength {
+        /// The offending vector.
+        input: FrameVector,
+    },
+    /// An input direction's length **underflowed out of the format**:
+    /// its components are small enough (below ~1e-162 at `f64`) that
+    /// `norm_squared` flushed to zero, so the norm is exactly zero for
+    /// a vector that has a perfectly good direction.
+    ///
+    /// Distinct from [`FrameError::Degenerate`] on purpose, and the
+    /// distinction is what carries the recourse: a degenerate input
+    /// names no direction, and the answer is to move the geometry or
+    /// to widen the band; this one names a direction the format cannot
+    /// measure, and **no tolerance lever reaches it** — the squared
+    /// norm is zero at every eps. The recourse is the overflow end's,
+    /// scale, which is why this variant sits beside
+    /// [`FrameError::NonFiniteLength`] rather than beside the
+    /// degenerate arm it used to be reported as.
+    ///
+    /// The payload is [`FrameVector`] for the same reason its sibling's
+    /// is: only a caller-supplied vector can underflow, so
+    /// [`FrameInput::ReferenceLadder`] — a pair of unit constants
+    /// decided outside this question's only door — is not
+    /// representable here.
+    UnderflowedLength {
+        /// The offending vector.
+        input: FrameVector,
     },
     /// The run's tolerance does not yield a usable band (see
     /// [`Band::linear`]) — reported, not worked around.
@@ -187,6 +326,21 @@ impl core::fmt::Display for FrameError {
                 }
                 write!(f, "; {COINCIDENCE_RECOURSE}")
             }
+            FrameError::NonFiniteLength { input } => write!(
+                f,
+                "frame: {} has no finite length \u{2014} its components overflow the \
+                 norm, or one of them is not a number; scale the geometry into the \
+                 session's range",
+                input.name()
+            ),
+            FrameError::UnderflowedLength { input } => write!(
+                f,
+                "frame: {}'s length underflowed out of the format \u{2014} its components \
+                 are too small for the norm to hold, so it measures exactly zero while \
+                 still naming a direction; no tolerance reaches this, scale the geometry \
+                 into the session's range",
+                input.name()
+            ),
             FrameError::Band(e) => write!(f, "frame: {e}"),
         }
     }
@@ -202,20 +356,66 @@ impl core::error::Error for FrameError {}
 /// the perpendicular distance from the vector's tip to the unit
 /// vector's line) — so [`Margin::of`] is the honest door and the
 /// metre band applies without a lever.
+///
+/// **Three questions, in this order.** Is the length a finite NUMBER
+/// ([`is_finite_length`]); did it UNDERFLOW out of the format
+/// ([`is_underflowed_length`]); and only then which side of zero is it
+/// on. An infinite length is maximally definite to [`Decide`], so
+/// asking the sign first answers `Positive`, and the caller's
+/// `normalize` then divides by ∞ and hands back the zero vector —
+/// every site below normalizes exactly the quantity it decided here,
+/// which is what makes one gate at this one funnel cover all four.
+///
+/// The underflowed length is the same failure at the other end, and it
+/// is not loud: the norm is exactly zero, the decision below answers
+/// `Zero` DEFINITELY at every eps, and the refusal names a degenerate
+/// input whose recourse — move the geometry, widen the band — cannot
+/// work, because the squared norm is zero at every tolerance. Asked
+/// second because a poisoned or overflowed length makes
+/// [`is_underflowed_length`]'s two ratios non-finite for a reason that
+/// has nothing to do with underflow.
+///
+/// `witness` is the largest `|component|` of the vector `length` is the
+/// norm of — [`Vec3::norm_witness`], and that pairing is the
+/// predicate's whole contract. The two arrive as separate scalars
+/// rather than as the vector itself because `length` is the quantity
+/// each caller goes on to decide and normalize, evaluated once at the
+/// call site; the pair is spelled on adjacent lines at all four.
+///
+/// **Both gates are POINT-scalar gates**, exactly as the module docs'
+/// clause 5 says of the first: at `T = Interval` the finiteness
+/// question is a no-op and the underflow question answers `false` by
+/// construction, because a norm whose lower end underflowed still
+/// ENCLOSES the true length.
+///
+/// **K consequence.** Both arms refuse BEFORE [`decide`], so neither a
+/// non-finite nor an underflowed length contributes a sample to the
+/// funnel under any of this module's four predicate names. That is the
+/// intent for the second exactly as for the first: the sample it used
+/// to contribute was an exactly-zero margin recorded as a definite
+/// `Zero`, which is telemetry about a length the format failed to hold
+/// rather than about a direction the caller does not have.
 fn definitely_positive<T: Decide>(
     name: &'static str,
     length: T,
+    witness: T,
     band: Band,
-    input: FrameInput,
+    input: FrameVector,
 ) -> Result<(), FrameError> {
+    if !is_finite_length(length) {
+        return Err(FrameError::NonFiniteLength { input });
+    }
+    if is_underflowed_length(length, witness) {
+        return Err(FrameError::UnderflowedLength { input });
+    }
     match decide(name, Margin::of(length), band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(_) => Err(FrameError::Degenerate {
-            input,
+            input: input.into(),
             indeterminate: None,
         }),
         Err(i) => Err(FrameError::Degenerate {
-            input,
+            input: input.into(),
             indeterminate: Some(i),
         }),
     }
@@ -270,11 +470,14 @@ fn frame_from_unit_aim<T: Real>(
 ///   rather than substituting a reference** — the caller stated the
 ///   roll, and a silent substitution would answer a different
 ///   question. Callers wanting a conventional roll want
-///   [`path_start_frame`], whose ladder is the stated policy. This
-///   variant also absorbs an *aim* past the ~1e154 overflow band,
-///   which normalizes to zero after passing its own decision — see
-///   [`FrameInput::RollReference`]'s docs for that aggregation, stated
-///   there rather than hidden.
+///   [`path_start_frame`], whose ladder is the stated policy.
+/// - [`FrameError::NonFiniteLength`] when the aim's length, or the
+///   reference's perpendicular offset from the aim line, is not a
+///   finite number — each at its own [`FrameInput`].
+/// - [`FrameError::UnderflowedLength`] when either of those lengths
+///   underflowed out of the format, at the same two [`FrameInput`]s.
+///   Asked before the sign, so it precedes the degenerate rows above:
+///   the input has a direction, and only scale recovers it.
 /// - [`FrameError::Band`] from [`Band::linear`].
 pub fn point_at<T: Decide>(
     eye: Point3<T>,
@@ -284,15 +487,22 @@ pub fn point_at<T: Decide>(
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
     let aim = target - eye;
-    definitely_positive("frame_point_at_aim", aim.norm(), band, FrameInput::Aim)?;
+    definitely_positive(
+        "frame_point_at_aim",
+        aim.norm(),
+        aim.norm_witness(),
+        band,
+        FrameVector::Aim,
+    )?;
     let unit = aim.normalize();
     let perp = roll_reference.cross(unit);
     let len = perp.norm();
     definitely_positive(
         "frame_point_at_roll_offset",
         len,
+        perp.norm_witness(),
         band,
-        FrameInput::RollReference,
+        FrameVector::RollReference,
     )?;
     Ok(frame_from_unit_aim(eye, unit, perp, len))
 }
@@ -320,6 +530,13 @@ pub fn point_at<T: Decide>(
 /// - [`FrameInput::ReferenceLadder`] when neither rung is definitely
 ///   off the tangent line — unreachable for an actual direction; see
 ///   the variant's docs.
+/// - [`FrameError::NonFiniteLength`] at [`FrameInput::Tangent`] when
+///   the tangent's length is not a finite number — asked before the
+///   sign, so it precedes the [`FrameInput::Tangent`] row above.
+/// - [`FrameError::UnderflowedLength`] at [`FrameInput::Tangent`] when
+///   that length underflowed out of the format — a tangent of
+///   `(0, 0, 1e-200)` names the +Z direction perfectly well and
+///   measures exactly zero. Also asked before the sign.
 /// - [`FrameError::Band`] from [`Band::linear`].
 pub fn path_start_frame<T: Decide>(
     origin: Point3<T>,
@@ -330,8 +547,9 @@ pub fn path_start_frame<T: Decide>(
     definitely_positive(
         "frame_path_start_tangent",
         tangent.norm(),
+        tangent.norm_witness(),
         band,
-        FrameInput::Tangent,
+        FrameVector::Tangent,
     )?;
     let unit = tangent.normalize();
     // The ladder, in order. A rung is taken only on a DEFINITE
@@ -392,14 +610,56 @@ pub fn path_start_frame<T: Decide>(
 ///
 /// Evaluation order (fixed, D9): decide `|normal|`; `n̂ = normal /
 /// |normal|`; `t = n̂ · 2`; columns `e_j − t·n̂_j` in index order;
-/// translation `q − L·q` for `q = point − O`, exactly as
-/// [`Affine3::rotation_about_axis`] computes its own.
+/// translation `n̂ · (2·(n̂·q))` for `q = point − O` — the dot product
+/// first, in [`Vec3::dot`]'s own association, then the factor 2 on that
+/// scalar, then the componentwise scale of `n̂`.
+///
+/// That last step is a projection onto a UNIT direction written out
+/// here rather than routed through [`Vec3::project_onto`], which is the
+/// one regrouping that method's own contract permits: `project_onto`
+/// divides by `|onto|²` in every case, one code path and one rounding
+/// story, and `n̂` is already unit — so the division would be by a
+/// quantity that is 1 up to rounding and could only add a rounding to
+/// an otherwise exact scale. The doubling and the scale are both exact
+/// in the binary sense; going through the door would not be.
+///
+/// **The anchor is mentioned once.** A Householder reflection has
+/// `I − L = 2·n̂n̂ᵀ`, so the translation that fixes `point` is
+/// `2·n̂(n̂·q)`. At `T = Interval` a repeated operand does not cancel, so
+/// a spelling that subtracts the anchor and adds it back charges
+/// `2·width(point)` to EVERY component — including the components where
+/// the plane's normal vanishes and the translation is exactly zero.
+/// This spelling attains the width of the IMAGE of the anchor's
+/// enclosure under the map, up to its own rounding floor; no sound
+/// enclosure of that image is narrower, though the floor itself is a
+/// rounding accident and can fall either way. Reflecting an anchor box
+/// of half-width 1e-9 across the `xy` plane gives a translation of width
+/// `[0, 0, 4e-9]` rather than `[4e-9, 4e-9, 4e-9]`; per component, over
+/// the corpus in `geom-core/tests/props1_evidence.rs`, the exact-normal
+/// rows range from 0.78× (a floor accident) to 5.3× narrower plus ten
+/// components that become exactly zero, and the wide-normal rows from
+/// 1.0× to 3.3e5× narrower.
+///
+/// The `2·n̂n̂ᵀ` operator has no named home the way `I − R` has
+/// [`Mat3::identity_minus_rotation_about`], deliberately: `I − R`'s
+/// vanishing factor lives inside a transcendental (`1 − cos θ`) that a
+/// caller cannot spell correctly on its own, whereas this one is a
+/// scalar times a unit vector, correct at the only site that wants it,
+/// and a `Mat3` operator would materialize nine entries to read three.
 ///
 /// # Errors
 ///
-/// [`FrameInput::MirrorNormal`] when the normal's length is not
-/// definitely nonzero (no plane is named), or [`FrameError::Band`]
-/// from [`Band::linear`].
+/// - [`FrameInput::MirrorNormal`] when the normal's length is not
+///   definitely nonzero — no plane is named.
+/// - [`FrameError::NonFiniteLength`] at [`FrameInput::MirrorNormal`]
+///   when that length is not a finite number. Asked first: an
+///   overflowed normal used to read maximally definite and return the
+///   IDENTITY, a mirror that mirrors nothing.
+/// - [`FrameError::UnderflowedLength`] at [`FrameInput::MirrorNormal`]
+///   when that length underflowed out of the format. Asked second: an
+///   underflowed normal names a plane, and reporting it as a
+///   degenerate one offers a band the arithmetic cannot reach.
+/// - [`FrameError::Band`] from [`Band::linear`].
 pub fn mirror_across_plane<T: Decide>(
     point: Point3<T>,
     normal: Vec3<T>,
@@ -409,18 +669,20 @@ pub fn mirror_across_plane<T: Decide>(
     definitely_positive(
         "frame_mirror_normal",
         normal.norm(),
+        normal.norm_witness(),
         band,
-        FrameInput::MirrorNormal,
+        FrameVector::MirrorNormal,
     )?;
     let n = normal.normalize();
-    let t = n * T::from_f64(2.0);
+    let two = T::from_f64(2.0);
+    let t = n * two;
     let linear = Mat3::from_cols(
         Vec3::unit_x() - t * n.x,
         Vec3::unit_y() - t * n.y,
         Vec3::unit_z() - t * n.z,
     );
     let q = point - Point3::origin();
-    Ok(Affine3::from_parts(linear, q - linear * q))
+    Ok(Affine3::from_parts(linear, n * (n.dot(q) * two)))
 }
 
 #[cfg(test)]
@@ -601,10 +863,9 @@ mod tests {
                 }
             );
         }
-        // The documented aggregation: an aim past the ~1e154 overflow
-        // band clears its own decision on an infinite norm, then
-        // normalizes to zero, so the refusal arrives under
-        // RollReference. Pinned because the docs promise it.
+        // An aim past the ~1e154 overflow band is the aim's own
+        // failure and is named as such — see the overflow row below
+        // for the whole family.
         assert_eq!(
             point_at(
                 Point3::origin(),
@@ -613,26 +874,29 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap_err(),
-            FrameError::Degenerate {
-                input: FrameInput::RollReference,
-                indeterminate: None
+            FrameError::NonFiniteLength {
+                input: FrameVector::Aim
             }
         );
-        // Poison refuses too — as an in-band (invalid-margin) outcome,
-        // never as a silently NaN frame.
+        // Poison refuses too — as a length that is not a number,
+        // never as a silently NaN frame. A poisoned length is the
+        // same question as an overflowed one and the same predicate
+        // answers it: `NaN − NaN` is poison exactly as `∞ − ∞` is.
         let p = point_at(
             e,
             Point3::new(f64::NAN, 0.0, 0.0),
             Vec3::unit_z(),
             Tol::witness(),
         );
-        assert!(matches!(
-            p,
-            Err(FrameError::Degenerate {
-                input: FrameInput::Aim,
-                indeterminate: Some(_)
-            })
-        ));
+        assert!(
+            matches!(
+                p,
+                Err(FrameError::NonFiniteLength {
+                    input: FrameVector::Aim
+                })
+            ),
+            "{p:?}"
+        );
     }
     #[test]
     fn path_start_frame_pole_fallback_pin() {
@@ -698,14 +962,81 @@ mod tests {
         }
     }
 
+    /// Components below ~1e-162 square to zero, so the norm is EXACTLY
+    /// zero for a direction the caller stated perfectly well. Every one
+    /// of the four doors decided that zero and named its input
+    /// DEGENERATE, offering a recourse — move the geometry, widen the
+    /// band — that cannot reach a squared norm of zero at any eps. The
+    /// input is not degenerate; it is outside the range its own
+    /// arithmetic can measure, and the recourse is the overflow end's.
+    #[test]
+    fn every_door_separates_an_underflowed_length_from_a_degenerate_one() {
+        let tiny = Vec3::new(0.0, 0.0, 1e-200);
+        // The premise, asserted rather than assumed: the norm flushed,
+        // and the direction is still there to be read off the witness.
+        assert_eq!(tiny.norm(), 0.0);
+        assert_eq!(tiny.norm_witness(), 1e-200);
+
+        assert_eq!(
+            path_start_frame(Point3::origin(), tiny, Tol::witness()).unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::Tangent
+            }
+        );
+        assert_eq!(
+            point_at(
+                Point3::origin(),
+                Point3::origin() + tiny,
+                Vec3::unit_x(),
+                Tol::witness()
+            )
+            .unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::Aim
+            }
+        );
+        assert_eq!(
+            mirror_across_plane(Point3::origin(), tiny, Tol::witness()).unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::MirrorNormal
+            }
+        );
+        // The roll reference is asked about its PERPENDICULAR OFFSET
+        // from the aim line, so the vector that underflows is the cross
+        // product rather than the reference: a reference 1e-200 across a
+        // unit aim has an offset whose norm flushes to zero while the
+        // reference itself is nowhere near the aim line.
+        assert_eq!(
+            point_at(
+                Point3::origin(),
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(1e-200, 0.0, 0.0),
+                Tol::witness()
+            )
+            .unwrap_err(),
+            FrameError::UnderflowedLength {
+                input: FrameVector::RollReference
+            }
+        );
+
+        // The refusal says which end of the format it is, and names the
+        // one recourse that works.
+        let msg = FrameError::UnderflowedLength {
+            input: FrameVector::MirrorNormal,
+        }
+        .to_string();
+        assert!(msg.contains("mirror plane normal"), "{msg}");
+        assert!(msg.contains("underflowed out of the format"), "{msg}");
+        assert!(msg.contains("scale the geometry"), "{msg}");
+        assert!(!msg.contains("degenerate"), "{msg}");
+    }
+
     #[test]
     fn path_start_frame_refuses_true_degeneracy() {
-        // A stationary point of the path: no tangent, no frame.
-        for t in [
-            Vec3::zero(),
-            Vec3::new(0.0, 0.0, 1e-200),
-            Vec3::new(1e-12, 0.0, 0.0),
-        ] {
+        // A stationary point of the path: no tangent, no frame. A
+        // tangent whose length UNDERFLOWED is not one of these — see
+        // the test above.
+        for t in [Vec3::zero(), Vec3::new(1e-12, 0.0, 0.0)] {
             assert_eq!(
                 path_start_frame(Point3::origin(), t, Tol::witness()).unwrap_err(),
                 FrameError::Degenerate {
@@ -714,25 +1045,25 @@ mod tests {
                 }
             );
         }
-        // Poison refuses as an invalid-margin outcome, carrying the
-        // classifier payload.
+        // Poison refuses as a length that is not a number — the same
+        // predicate the overflow end goes through.
         assert!(matches!(
             path_start_frame(
                 Point3::origin(),
                 Vec3::new(f64::NAN, 1.0, 0.0),
                 Tol::witness()
             ),
-            Err(FrameError::Degenerate {
-                input: FrameInput::Tangent,
-                indeterminate: Some(_)
+            Err(FrameError::NonFiniteLength {
+                input: FrameVector::Tangent
             })
         ));
         // A tangent whose components exceed the normalization range
-        // (`Vec3::normalize`'s ~1e154 overflow note) passes the length
-        // decision on an infinite norm and then normalizes to ZERO —
-        // no direction survives, both rungs decide coincident, and the
-        // ladder refuses. This is the one reachable `ReferenceLadder`
-        // class, and the alternative is a silently all-zero frame.
+        // (`Vec3::normalize`'s ~1e154 overflow note) has no finite
+        // length, and that is what it is told. It used to reach the
+        // ladder — the length decision passed on an infinite norm, the
+        // tangent normalized to ZERO, both rungs decided coincident —
+        // and be reported as the ladder running out, which named the
+        // wrong input and offered a recourse that could not work.
         assert_eq!(
             path_start_frame(
                 Point3::origin(),
@@ -740,9 +1071,8 @@ mod tests {
                 Tol::witness()
             )
             .unwrap_err(),
-            FrameError::Degenerate {
-                input: FrameInput::ReferenceLadder,
-                indeterminate: None
+            FrameError::NonFiniteLength {
+                input: FrameVector::Tangent
             }
         );
         // For every input that IS a direction, the ladder always finds
@@ -850,9 +1180,8 @@ mod tests {
                 Vec3::new(f64::NAN, 0.0, 1.0),
                 Tol::witness()
             ),
-            Err(FrameError::Degenerate {
-                input: FrameInput::MirrorNormal,
-                indeterminate: Some(_)
+            Err(FrameError::NonFiniteLength {
+                input: FrameVector::MirrorNormal
             })
         ));
     }
@@ -888,5 +1217,75 @@ mod tests {
             assert!(s.contains(needle), "{s}");
             assert!(s.contains(COINCIDENCE_RECOURSE), "{s}");
         }
+    }
+
+    /// **The overflow end, at each of the four normalizing sites.** A
+    /// direction whose components pass ~1e154 overflows its norm to
+    /// ∞, an infinite margin is maximally DEFINITE to the classifier,
+    /// and the division that follows collapses the direction to zero.
+    /// Each site is exercised at the value that reaches IT, and each
+    /// must refuse naming the input whose length is not a number.
+    ///
+    /// What each row did before the finiteness question went first
+    /// (measured, not argued): the mirror returned the IDENTITY; the
+    /// roll-reference row returned a frame whose first two columns
+    /// were `(0, −0, 0)` and `(0, 0, −0)`; the aim and tangent rows
+    /// refused, but named the downstream input that inherited the
+    /// collapse rather than the one that had no length.
+    #[test]
+    fn a_non_finite_length_refuses_at_the_input_that_has_it() {
+        let big = 1e200_f64;
+        let tol = Tol::witness();
+        let rows = [
+            (
+                FrameVector::MirrorNormal,
+                mirror_across_plane(Point3::origin(), Vec3::new(big, 0.0, 0.0), tol),
+            ),
+            (
+                FrameVector::Aim,
+                point_at(
+                    Point3::origin(),
+                    Point3::new(big, 0.0, 0.0),
+                    Vec3::unit_z(),
+                    tol,
+                ),
+            ),
+            (
+                // A finite aim, a reference whose perpendicular offset
+                // overflows: the offset is this input's own length.
+                FrameVector::RollReference,
+                point_at(
+                    Point3::origin(),
+                    Point3::new(0.0, 0.0, 1.0),
+                    Vec3::new(big, 0.0, 0.0),
+                    tol,
+                ),
+            ),
+            (
+                FrameVector::Tangent,
+                path_start_frame(Point3::origin(), Vec3::new(big, 0.0, 0.0), tol),
+            ),
+        ];
+        for (input, got) in rows {
+            assert_eq!(
+                got.err(),
+                Some(FrameError::NonFiniteLength { input }),
+                "{input:?} must refuse at its own name"
+            );
+        }
+        // The sentence names the cause and the recourse, and does NOT
+        // claim the direction is zero — it is not — nor offer the
+        // coincidence recourse, which no tolerance lever can reach.
+        let s = FrameError::NonFiniteLength {
+            input: FrameVector::Tangent,
+        }
+        .to_string();
+        assert!(s.contains("path tangent"), "{s}");
+        assert!(s.contains("no finite length"), "{s}");
+        assert!(
+            s.contains("scale the geometry into the session's range"),
+            "{s}"
+        );
+        assert!(!s.contains(COINCIDENCE_RECOURSE), "{s}");
     }
 }

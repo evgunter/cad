@@ -5,7 +5,8 @@
 //! this layer (spec D2).
 
 use crate::appearance::{Attr, AttrKind};
-use crate::doc::{Doc, DocParam, ParamName};
+use crate::distribution::DistributionFault;
+use crate::doc::{Doc, DocParam, DocParamValue, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
@@ -40,6 +41,33 @@ pub enum DocEdit<P> {
     DeleteNode {
         /// The node to delete.
         id: RecipeNodeId,
+    },
+    /// **Replace a node's whole LIST input** (DM4) — a union's members,
+    /// a loft's sections ([`Node::list_input`]).
+    ///
+    /// The one edit that changes a live node's inputs, and it can be
+    /// that because it is unambiguous by construction: the new list is
+    /// stated in full, so nothing is inferred about which of the old
+    /// entries survived, moved or was meant. There is no positional
+    /// spelling and no per-entry edit; DM6 rules that no other rewiring
+    /// edit exists.
+    ///
+    /// Deleting one member is this edit without it plus a plain
+    /// [`DocEdit::DeleteNode`] of the orphaned node, one committed
+    /// action.
+    ///
+    /// Every check [`DocEdit::InsertNode`] makes of a node's inputs is
+    /// made here, of the REWRITTEN node, through the same functions:
+    /// liveness ([`EditError::UnresolvedInput`]), acyclicity
+    /// ([`EditError::WouldCycle`]), pairwise distinctness
+    /// ([`EditError::DuplicateInput`]) and the list's own floor
+    /// ([`EditError::TooFewMembers`]). A node with no list input
+    /// refuses [`EditError::SetMembersOnNonList`].
+    SetMembers {
+        /// The node whose list is replaced.
+        node: RecipeNodeId,
+        /// The whole new list, in order (D9: the order is data).
+        members: Vec<RecipeNodeId>,
     },
     /// Replace a CONTINUOUS slot's expression (Length/Angle/Scalar
     /// slots; spec D3's continuous parameters).
@@ -79,6 +107,29 @@ pub enum DocEdit<P> {
         name: ParamName,
         /// The declared dimension and exact value.
         value: DocParam,
+    },
+    /// Write a NEW VALUE into an already-declared document parameter,
+    /// keeping its declaration: its dimension and its optional
+    /// distribution ride through untouched
+    /// ([`DocParam::with_value`]).
+    ///
+    /// The door [`Self::SetDocParam`] cannot be. That one is
+    /// create-or-replace, so it takes a whole `DocParam` and a caller
+    /// who assembled one from `(dim, value)` — the natural spelling,
+    /// and the only one a value-editing panel, gesture or binding
+    /// wants — deletes any annotation the parameter carried, with no
+    /// refusal and no diagnostic. This edit removes the way to make
+    /// that mistake: there is nothing here to omit.
+    ///
+    /// Refuses typed on a name the document does not declare (there is
+    /// no declaration to carry forward) and on a kind mismatch (a
+    /// count for a continuous parameter or the reverse — that is a
+    /// redeclaration, and belongs to the other door).
+    SetDocParamValue {
+        /// The parameter name — must already be declared.
+        name: ParamName,
+        /// The replacement value.
+        value: DocParamValue,
     },
     /// The explicit name repair (N5, spec D3): rewrite every document
     /// site that references `from` EXACTLY (Declare pairs and
@@ -279,6 +330,52 @@ pub enum EditError {
         /// A node on the detected cycle.
         at: RecipeNodeId,
     },
+    /// **A node's inputs are not pairwise distinct** (DM5): one node
+    /// reached twice through one node's edges.
+    ///
+    /// It is one structural rule over [`Node::inputs`], not a rule per
+    /// node kind, so it covers a boolean or a split whose two operands
+    /// coincide and a list with a repeated entry alike — and it is
+    /// stated once, at [`Node::input_fault`], with this door,
+    /// [`DocEdit::SetMembers`] and the load validator as its three
+    /// callers.
+    DuplicateInput {
+        /// The node whose input list repeats.
+        node: RecipeNodeId,
+        /// The input it reaches twice.
+        input: RecipeNodeId,
+    },
+    /// The node this edit writes names one face twice in its ORDERED
+    /// designation ([`crate::node::InputFault::RepeatedDesignation`]):
+    /// a hand-built `Node::Shell` that bypassed the construction door,
+    /// which drops a repeat keeping the first occurrence. Refused
+    /// rather than repaired, at this door as at the load door.
+    RepeatedDesignation {
+        /// The node whose designation repeats.
+        node: RecipeNodeId,
+        /// The position of the entry's first occurrence.
+        first: u32,
+        /// The position at which it is named again.
+        again: u32,
+    },
+    /// `SetMembers` aimed at a node that has no list input
+    /// ([`Node::list_input`]) — a boolean's operands are named slots,
+    /// and replacing "the list" of a node that has none is not a
+    /// smaller version of this edit, it is a different sentence.
+    SetMembersOnNonList {
+        /// The node that carries no list.
+        node: RecipeNodeId,
+    },
+    /// A list input left with fewer than two entries. A union of one
+    /// body is that body and a loft through one section is not a skin:
+    /// either is a node whose meaning is its own input, spelled as an
+    /// operator.
+    TooFewMembers {
+        /// The node whose list is short.
+        node: RecipeNodeId,
+        /// How many entries it would have had.
+        found: usize,
+    },
     /// Deleting this node would dangle a live reference to it.
     DeleteWouldDangle {
         /// The deletion target.
@@ -314,6 +411,71 @@ pub enum EditError {
         /// The continuous slot.
         slot: SlotId,
     },
+    /// A node's PAYLOAD expression (a measured expression's value
+    /// leaf, an assertion's bound — the expressions no slot addresses)
+    /// references a document parameter that does not exist. The same
+    /// fault as [`EditError::UnknownDocParam`] at an address that is
+    /// not a slot, so it says so rather than borrowing a slot name
+    /// from a node that has one.
+    UnknownPayloadParam {
+        /// The missing parameter.
+        name: ParamName,
+        /// The referencing node.
+        node: RecipeNodeId,
+    },
+    /// A payload expression's recorded ref dimension disagrees with the
+    /// document parameter's declared dimension.
+    PayloadParamDimensionMismatch {
+        /// The parameter.
+        name: ParamName,
+        /// The referencing node.
+        node: RecipeNodeId,
+        /// The dimension the parameter is declared with.
+        declared: Dimension,
+        /// The dimension the expression recorded.
+        referenced: Dimension,
+    },
+    /// A [`Node::Measure`]'s expression reads a reference the node does
+    /// not carry ([`crate::MeasureNodeFault`]).
+    MeasureMalformed {
+        /// The measure node.
+        node: RecipeNodeId,
+        /// What is wrong with it.
+        fault: crate::node::MeasureNodeFault,
+    },
+    /// A [`Node::Assertion`] references a node that is not a measure.
+    /// An assertion constrains a measurement; there is nothing else in
+    /// the vocabulary for it to constrain.
+    AssertionTarget {
+        /// The assertion.
+        node: RecipeNodeId,
+        /// What it references.
+        measure: RecipeNodeId,
+    },
+    /// A node's `declare` input names a node that is not a
+    /// [`Node::Declare`]. The slot carries coincidence INTENT, which
+    /// only a `Declare` holds; a body or a datum wired there is a
+    /// mis-wire, refused where it is authored rather than at the
+    /// evaluation that would have found nothing to resolve.
+    DeclareInputNotDeclare {
+        /// The consuming node (the boolean or the union).
+        node: RecipeNodeId,
+        /// What its `declare` input names.
+        input: RecipeNodeId,
+    },
+    /// A [`Node::Assertion`]'s bound is dimensioned differently from
+    /// the measure it constrains — refused at the edit door, so a
+    /// document never carries a comparison of metres with radians.
+    AssertionDimension {
+        /// The assertion.
+        node: RecipeNodeId,
+        /// The measure it constrains.
+        measure: RecipeNodeId,
+        /// The measure's dimension.
+        measured: Dimension,
+        /// The bound's.
+        bound: Dimension,
+    },
     /// An expression references a document parameter that does not
     /// exist.
     UnknownDocParam {
@@ -344,6 +506,28 @@ pub enum EditError {
         /// The parameter.
         name: ParamName,
     },
+    /// A value-only edit ([`DocEdit::SetDocParamValue`]) named a
+    /// parameter this document does not declare. The value door
+    /// carries an existing declaration forward, so there has to be
+    /// one; declaring a parameter is [`DocEdit::SetDocParam`]'s job.
+    DocParamNotDeclared {
+        /// The undeclared parameter.
+        name: ParamName,
+    },
+    /// A value-only edit offered a value of the wrong kind — a count
+    /// for a continuous parameter or a continuous value for a count.
+    /// Changing a parameter's kind is a REDECLARATION
+    /// ([`DocEdit::SetDocParam`]), where the dimension and the
+    /// distribution are stated afresh rather than carried.
+    DocParamValueKindMismatch {
+        /// The parameter.
+        name: ParamName,
+        /// The dimension the document declares (`Count` for a count
+        /// parameter).
+        declared: Dimension,
+        /// The value the edit offered.
+        offered: DocParamValue,
+    },
     /// A `SetExpression` path runs off the expression tree (spec D5).
     PathOffTree {
         /// The offending address.
@@ -361,12 +545,33 @@ pub enum EditError {
         /// The name whose node is not live.
         name: StableName,
     },
-    /// A non-finite (NaN/inf) continuous doc-param value — refused at
-    /// the edit door (ruled door 1 of the non-finite policy; F3's
+    /// A reference's READ SITE — the operand a mate is authored
+    /// against ([`Node::payload_read_sites`]) — names a node that does
+    /// not exist at edit time. The name half's rule, applied to the
+    /// half that is a node id rather than a name: a never-existed id
+    /// is a TYPO. (A later `DeleteNode` stranding an operand is
+    /// ALLOWED — N5 dangling semantics — and the solve refuses typed.)
+    ReadSiteMissingNode {
+        /// The operand that is not live.
+        at: RecipeNodeId,
+    },
+    /// A non-finite (NaN/inf) float on a continuous doc param — its
+    /// value or one of its distribution's offsets — refused at the
+    /// edit door (ruled door 1 of the non-finite policy; F3's
     /// persist-time refusal then has nothing to catch).
     NonFiniteDocParam {
         /// The parameter.
         name: ParamName,
+    },
+    /// A doc param's distribution breaks an E2 invariant other than
+    /// finiteness: `sigma > 0`, or bounds containing the nominal.
+    /// The SAME check the persistence doors run, so a document that
+    /// would refuse to load cannot be authored.
+    InvalidDistribution {
+        /// The parameter.
+        name: ParamName,
+        /// The invariant that failed.
+        fault: DistributionFault,
     },
     /// A `Rebind` whose target name's node is not live (the selection
     /// must denote something the recipe still has — best-diagnostics
@@ -558,6 +763,23 @@ pub enum EditError {
         /// The offending target.
         node: RecipeNodeId,
     },
+    /// **A placement frame's ROTATION AXIS has no definite
+    /// direction** — the [`crate::AxisRefusal`]
+    /// [`crate::Frame::rotate_then_translate`] raises where the axis
+    /// is decided, carried into this vocabulary unaltered so an
+    /// author building a frame and setting it speaks ONE error type
+    /// from the constructor through the door.
+    ///
+    /// Its own arm rather than [`EditError::NonFinitePlacement`]:
+    /// that one's subject is the frame's coordinates, and a reader
+    /// told their frame is not finite goes looking at the frame,
+    /// which is exactly the mistaken subject this arm exists to stop
+    /// reporting. The cause is the axis, in the evaluation layer's
+    /// own words, with the role word naming the vector.
+    PlacementAxis {
+        /// The direction door's refusal, unaltered.
+        error: crate::eval::NodeRefusal,
+    },
     /// A mate's alignment datum carries a non-finite coordinate. The
     /// placement registry's own rule, one level out: an authored frame
     /// nothing can decide about never enters the document.
@@ -588,36 +810,121 @@ pub enum EditError {
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. The comment-style rule
 // applies — each arm states the PROBLEM (and where it is), not the
-// enum's guts; identifiers render via `Debug` because they ARE the
-// location, and the typed variant remains the machine contract.
+// enum's guts; stable names, kinds and dimensions render through their
+// own prose spellings (`StableName`'s `Display`, the `noun`
+// renderings, `Dimension`'s `Display`), never `Debug`. A name is
+// parenthesized apposition when the sentence's subject is a role word
+// ("the rebind target ({name})") and inline when the name itself is
+// the subject ("the {name} does not resolve"); new arms copy whichever
+// their sentence shape calls for. The typed variant remains the
+// machine contract.
+//
+// **No category prefix, and parameter names render bare.** These
+// sentences are read verbatim by a person: the viewer's status line
+// composes them under its own frame ("the edit was refused: …") and
+// the bindings raise them as an exception message whose class already
+// says which door refused. An `edit: ` opening was therefore a second
+// spelling of the caller's own frame, and a `{:?}` name arrived
+// double-quoted inside prose that quotes nothing else — a dump in the
+// middle of a sentence. Both are gone: the frame belongs to whoever
+// received the refusal, and a name is written unquoted.
+//
+// **That makes `EditError` the exception in this crate, not the rule,
+// and the exception is deliberate.** Its neighbours still open with a
+// category of their own — `persist:`, `split:`, `inline:`, `parse:`,
+// `product:` — and `refactor.rs` quotes a parameter name exactly the
+// way this impl used to. They are outside the amendment that changed
+// this one, so they keep their spelling until someone decides for
+// them; a reader comparing the two should not read this paragraph as
+// describing the crate. What still renders through `Debug` here is the
+// SLOT id
+// ({slot:?}), which has a prose spelling (`SlotId::label`) it does not
+// use — that is a separate question, outside the amendment that
+// removed the other two, and it is filed rather than taken here.
+/// The AXIS's refusal, in the authoring vocabulary — what makes
+/// `Frame::rotate_then_translate(..)?` compose with
+/// `apply(.., DocEdit::SetPlacement { .. })?` in one function.
+///
+/// It converts from [`crate::AxisRefusal`] and from nothing else. A
+/// blanket `From<NodeErrorKind>` would make every node refusal in the
+/// crate convert into this arm through a bare `?`, which is a
+/// catch-all in the authoring vocabulary — the shape this arm was
+/// added to close.
+impl From<crate::AxisRefusal> for EditError {
+    fn from(error: crate::AxisRefusal) -> Self {
+        Self::PlacementAxis {
+            error: error.carried(),
+        }
+    }
+}
+
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { id } => write!(f, "edit: node {} is not live", id.0),
+            Self::UnknownNode { id } => write!(f, "node {} is not live", id.0),
             Self::ProfileProgramRefused { node, refusal } => {
-                write!(
-                    f,
-                    "edit: node {}'s profile program refused: {refusal}",
-                    node.0
-                )
+                write!(f, "node {}'s profile program refused: {refusal}", node.0)
             }
             Self::UnresolvedInput { input } => {
-                write!(f, "edit: input {} does not resolve to a live node", input.0)
+                write!(f, "input {} does not resolve to a live node", input.0)
             }
             Self::WouldCycle { at } => {
-                write!(
-                    f,
-                    "edit: the recipe graph would cycle (through node {})",
-                    at.0
-                )
+                write!(f, "the recipe graph would cycle (through node {})", at.0)
             }
+            // Forwarded, not restated: `InputFault` owns this
+            // vocabulary and `node.rs` promises every door that renders
+            // it forwards. The door adds its own frame — which edit the
+            // fault is about — and joins it with a colon, because the
+            // forwarded sentence carries an em-dash of its own and two
+            // in a row read as a dump.
+            //
+            // **The frame does not name `node`, and must not.**
+            // `check_node_inputs` is reached from `InsertNode` with
+            // `RecipeNodeId(new.next_id)` — an id that does not exist
+            // and never will if the edit is refused — and from
+            // `SetMembers` with a live one. This rendering cannot tell
+            // which, so a sentence naming that id tells a person to go
+            // and look at a node that may be a phantom. The id the
+            // reader CAN act on is `input`, which the forwarded fault
+            // names, and it is live on both paths.
+            //
+            // The action is the door's to add: `InputFault` states the
+            // rule ("pairwise distinct"), which says what is wrong and
+            // not what to do about it. `TooFew` needs no such clause —
+            // its own sentence carries the count that is required.
+            Self::DuplicateInput { input, .. } => write!(
+                f,
+                "the node this edit writes would be invalid: {}. Replace one of the two with a \
+                 different node.",
+                crate::node::InputFault::Duplicate { input: *input }
+            ),
+            Self::SetMembersOnNonList { node } => write!(
+                f,
+                "node {} carries no list input, so it has no members to set",
+                node.0
+            ),
+            Self::TooFewMembers { found, .. } => write!(
+                f,
+                "the node this edit writes would be invalid: {}",
+                crate::node::InputFault::TooFew { found: *found }
+            ),
+            Self::RepeatedDesignation { first, again, .. } => write!(
+                f,
+                "the node this edit writes would be invalid: {}. Build it through `Node::shell`, \
+                 which keeps the first occurrence.",
+                crate::node::InputFault::RepeatedDesignation {
+                    first: *first,
+                    again: *again,
+                }
+            ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
-                "edit: deleting node {} would dangle node {}'s reference to it",
-                id.0, referenced_by.0
+                "node {} is still an input to node {} — delete node {} first, \
+                 or delete node {} together with everything downstream of it",
+                id.0, referenced_by.0, referenced_by.0, id.0
             ),
             Self::UnknownSlot { id, slot } => {
-                write!(f, "edit: node {} has no slot {slot:?}", id.0)
+                write!(f, "node {} has no slot {slot:?}", id.0)
             }
             Self::SlotDimensionMismatch {
                 slot,
@@ -625,18 +932,65 @@ impl core::fmt::Display for EditError {
                 found,
             } => write!(
                 f,
-                "edit: slot {slot:?} needs a {expected:?} expression, got {found:?}"
+                "slot {slot:?} needs {} {expected} expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
-            Self::StructuralSlotNeedsStructuralEdit { slot } => write!(
-                f,
-                "edit: slot {slot:?} is structural — use a structural edit"
-            ),
-            Self::NotStructuralSlot { slot } => {
-                write!(f, "edit: slot {slot:?} is continuous, not structural")
+            Self::StructuralSlotNeedsStructuralEdit { slot } => {
+                write!(f, "slot {slot:?} is structural — use a structural edit")
             }
+            Self::NotStructuralSlot { slot } => {
+                write!(f, "slot {slot:?} is continuous, not structural")
+            }
+            Self::UnknownPayloadParam { name, node } => write!(
+                f,
+                "document parameter {} does not exist (referenced by node {}'s \
+                 measurement payload)",
+                name.0, node.0
+            ),
+            Self::PayloadParamDimensionMismatch {
+                name,
+                node,
+                declared,
+                referenced,
+            } => write!(
+                f,
+                "document parameter {} is declared {declared} but node {}'s \
+                 measurement payload references it as {referenced}",
+                name.0, node.0
+            ),
+            Self::MeasureMalformed { node, fault } => {
+                write!(f, "measure node {}: {fault}", node.0)
+            }
+            Self::AssertionTarget { node, measure } => write!(
+                f,
+                "assertion node {} references node {}, which is not a measure — an \
+                 assertion constrains a measurement",
+                node.0, measure.0
+            ),
+            Self::DeclareInputNotDeclare { node, input } => write!(
+                f,
+                "node {}'s declare input names node {}, which is not a declaration — \
+                 wire a Declare node there, or leave the input empty",
+                node.0, input.0
+            ),
+            Self::AssertionDimension {
+                node,
+                measure,
+                measured,
+                bound,
+            } => write!(
+                f,
+                "assertion node {} bounds {} {measured} measure (node {}) with {} \
+                 {bound} expression — an assertion compares like with like or not at all",
+                node.0,
+                measured.article(),
+                measure.0,
+                bound.article()
+            ),
             Self::UnknownDocParam { name, node, slot } => write!(
                 f,
-                "edit: document parameter {:?} does not exist (referenced by node {}, slot {slot:?})",
+                "document parameter {} does not exist (referenced by node {}, slot {slot:?})",
                 name.0, node.0
             ),
             Self::DocParamDimensionMismatch {
@@ -647,101 +1001,133 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "edit: parameter {:?} is declared {declared:?} but node {} (slot {slot:?}) references it as {referenced:?}",
+                "parameter {} is declared {declared} but node {} (slot {slot:?}) references it as {referenced}",
                 name.0, node.0
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,
-                "edit: parameter {:?}: a continuous parameter cannot be Count — use a Count parameter",
+                "parameter {}: a continuous parameter cannot be a count — use a count parameter",
+                name.0
+            ),
+            // The closing clause is also `Refusal::NoSuchParam`'s, in
+            // the viewer: one mistake reaches this door by typing and
+            // that lookup by dragging, and the two are converged on the
+            // RECOURSE rather than on the sentence. A viewer test holds
+            // them in step (`panel_edits::refusals_render_as_sentences`).
+            Self::DocParamNotDeclared { name } => write!(
+                f,
+                "parameter {} is not declared, so a value edit has no declaration to carry \
+                 forward — declare it first",
+                name.0
+            ),
+            Self::DocParamValueKindMismatch {
+                name,
+                declared,
+                offered,
+            } => write!(
+                f,
+                "parameter {} is declared {declared} but the value edit offered a \
+                 {offered} — changing a parameter's kind is a redeclaration",
                 name.0
             ),
             Self::PathOffTree { path } => {
-                write!(f, "edit: expression path {path:?} runs off the tree")
+                write!(f, "expression path {path:?} runs off the tree")
             }
-            Self::Dimension(e) => write!(f, "edit: {e}"),
-            Self::DeclareNamesMissingNode { name } => write!(
+            Self::Dimension(e) => write!(f, "{e}"),
+            Self::DeclareNamesMissingNode { name } => {
+                write!(f, "the declared {name} refers to a node that is not live")
+            }
+            Self::ReadSiteMissingNode { at } => write!(
                 f,
-                "edit: declared name {name:?} refers to a node that is not live"
+                "the reference is read at node {}, which is not live",
+                at.0
             ),
-            Self::NonFiniteDocParam { name } => {
-                write!(f, "edit: parameter {:?}: the value must be finite", name.0)
+            Self::NonFiniteDocParam { name } => write!(
+                f,
+                "parameter {}: the value and every distribution offset must be finite",
+                name.0
+            ),
+            Self::InvalidDistribution { name, fault } => {
+                write!(f, "parameter {}: {fault}", name.0)
             }
             Self::RebindTargetMissingNode { name } => write!(
                 f,
-                "edit: rebind target {name:?} refers to a node that is not live"
+                "the rebind target ({name}) refers to a node that is not live"
             ),
             Self::RebindUnknownName { name } => write!(
                 f,
-                "edit: rebind source {name:?} was never minted by this document"
+                "the rebind source ({name}) was never minted by this document"
             ),
             Self::RebindKindMismatch { from, to } => write!(
                 f,
-                "edit: a rebind cannot cross entity kinds ({from:?} to {to:?})"
+                "a rebind cannot cross entity kinds ({} to {})",
+                from.noun(),
+                to.noun()
             ),
             Self::RebindIdentity { name } => write!(
                 f,
-                "edit: rebinding {name:?} to itself is a recorded no-op — refused"
+                "rebinding the {name} to itself is a recorded no-op — refused"
             ),
             Self::RebindNoReferences { name } => write!(
                 f,
-                "edit: no document site references {name:?} — nothing to repair"
+                "no document site references the {name} — nothing to repair"
             ),
             Self::WitnessOnNonSketch { node } => write!(
                 f,
-                "edit: node {} is not sketch-bearing — nothing to re-witness",
+                "node {} is not sketch-bearing — nothing to re-witness",
                 node.0
             ),
-            Self::DuplicateWitnessEntry { node } => write!(
-                f,
-                "edit: node {} appears twice in the re-witness bulk",
-                node.0
-            ),
+            Self::DuplicateWitnessEntry { node } => {
+                write!(f, "node {} appears twice in the re-witness bulk", node.0)
+            }
             Self::EmptyWitnessBulk => {
-                f.write_str("edit: a re-witness bulk with no entries is a no-op — refused")
+                f.write_str("a re-witness bulk with no entries is a no-op — refused")
             }
             Self::NameUnresolvedInEvaluation { name } => write!(
                 f,
-                "edit: name {name:?} does not resolve in the supplied evaluation — recording the reference would strand it"
+                "the {name} does not resolve in the supplied evaluation — recording the \
+                 reference would strand it"
             ),
             Self::RebindAppearanceCollision { name, kind } => write!(
                 f,
-                "edit: the rebind would land two {kind:?} attributes on {name:?} — clear one first"
+                "the rebind would land two {} attributes on the {name} — clear one first",
+                kind.noun()
             ),
             Self::AppearanceWrongKind { name } => write!(
                 f,
-                "edit: appearance attaches to faces and bodies only (refused for {name:?})"
+                "appearance attaches to faces and bodies only (refused for the {name})"
             ),
             Self::AppearanceNamesMissingNode { name } => write!(
                 f,
-                "edit: appearance name {name:?} refers to a node that is not live"
+                "the appearance target ({name}) refers to a node that is not live"
             ),
             Self::AppearanceNotSet { name, kind } => {
-                write!(f, "edit: no {kind:?} attribute is set on {name:?}")
+                write!(f, "no {} attribute is set on the {name}", kind.noun())
             }
-            Self::InvalidTolerance { value } => write!(
-                f,
-                "edit: tolerance {value:e} is not finite and strictly positive"
-            ),
+            Self::InvalidTolerance { value } => {
+                write!(f, "tolerance {value:e} is not finite and strictly positive")
+            }
             Self::MetaUnversioned { name, key, error } => write!(
                 f,
-                "edit: metadata {key:?} on {name:?} does not carry the D7 integer \"v\" \
+                "metadata {key:?} on the {name} does not carry the D7 integer \"v\" \
                  version field: {error}"
             ),
             Self::MetaNonFinite { name, key, path } => write!(
                 f,
-                "edit: metadata {key:?} on {name:?} carries a non-finite float at {path}"
+                "metadata {key:?} on the {name} carries a non-finite float at {path}"
             ),
             Self::MetaNotSet { name, key } => {
-                write!(f, "edit: no metadata {key:?} is set on {name:?}")
+                write!(f, "no metadata {key:?} is set on the {name}")
             }
             Self::RebindMetadataCollision { name, key } => write!(
                 f,
-                "edit: the rebind would land two values under metadata {key:?} on {name:?} — clear one first"
+                "the rebind would land two values under metadata {key:?} on the {name} — \
+                 clear one first"
             ),
-            Self::Roots(fault) => write!(f, "edit: {fault}"),
+            Self::Roots(fault) => write!(f, "{fault}"),
             Self::PlacementOnNonInstance { node } => write!(
                 f,
-                "edit: node {} does not instantiate a part, so it has no placement cluster to \
+                "node {} does not instantiate a part, so it has no placement cluster to \
                  place",
                 node.0
             ),
@@ -750,42 +1136,42 @@ impl core::fmt::Display for EditError {
             // two frame-shaped arms below keep their own prose because
             // their subject is a single cluster frame, which has no
             // index in a rule's placement list.
-            Self::EmptyPlacementList { node } => write!(
-                f,
-                "edit: node {}: {}",
-                node.0,
-                PlacementRuleFault::NoPlacements
-            ),
-            Self::PlacementRuleMismatch { node } => write!(
-                f,
-                "edit: node {}: {}",
-                node.0,
-                PlacementRuleFault::CountSpelling
-            ),
+            Self::EmptyPlacementList { node } => {
+                write!(f, "node {}: {}", node.0, PlacementRuleFault::NoPlacements)
+            }
+            Self::PlacementRuleMismatch { node } => {
+                write!(f, "node {}: {}", node.0, PlacementRuleFault::CountSpelling)
+            }
             Self::ImproperPlacement { node, determinant } => write!(
                 f,
-                "edit: the placement frame for node {} is improper (determinant {determinant}); \
+                "the placement frame for node {} is improper (determinant {determinant}); \
                  mirrored placements are admitted only behind the equivariance audit",
                 node.0
             ),
+            Self::PlacementAxis { error } => {
+                write!(
+                    f,
+                    "the placement frame's rotation axis is unusable: {error}"
+                )
+            }
             Self::NonFinitePlacement { node } => write!(
                 f,
-                "edit: the placement frame for node {} carries a non-finite coordinate",
+                "the placement frame for node {} carries a non-finite coordinate",
                 node.0
             ),
             Self::NonFiniteAlignment { node } => write!(
                 f,
-                "edit: the mate at node {} carries a non-finite alignment coordinate",
+                "the mate at node {} carries a non-finite alignment coordinate",
                 node.0
             ),
             Self::UpdateOnNonInstance { node } => write!(
                 f,
-                "edit: node {} does not instantiate a part, so it has no pinned version to update",
+                "node {} does not instantiate a part, so it has no pinned version to update",
                 node.0
             ),
             Self::PinUnchanged { node, pin } => write!(
                 f,
-                "edit: node {} already pins {pin}, so this update would record no version move",
+                "node {} already pins {pin}, so this update would record no version move",
                 node.0
             ),
         }
@@ -862,6 +1248,69 @@ fn check_param_refs<P>(
 
 /// Validate every slot of a node payload against slot dimensions and
 /// the param table, keyed as `id` for error reporting.
+/// Write a fully-formed [`DocParam`] into the document: the shared
+/// tail of both parameter doors, so the create-or-replace door and the
+/// value door cannot come to disagree about what a legal parameter is.
+///
+/// **The check order is the LOAD door's** (`persist::check`'s
+/// `validate_document`): floats first, then the distribution's shape,
+/// then the structural `dim: Count` fault that
+/// [`validate_snapshot`](crate::persist) reports last. A document
+/// broken in two ways at once therefore names the same fault whichever
+/// door refuses it, which is the property a caller comparing an edit
+/// refusal against a load refusal actually relies on.
+fn write_doc_param<P: Clone + crate::ProfilePayload>(
+    new: &mut Doc<P>,
+    name: &ParamName,
+    value: DocParam,
+) -> Result<EditRecord, EditError> {
+    // Ruled door 1 (non-finite policy): recipe data never carries
+    // NaN/inf — the nominal and the distribution offsets alike.
+    if let DocParam::Continuous { value: v, .. } = value
+        && !v.is_finite()
+    {
+        return Err(EditError::NonFiniteDocParam { name: name.clone() });
+    }
+    // Every E2 invariant, from the ONE shared check the persistence
+    // doors also run: a non-finite offset joins the non-finite class
+    // above, the rest refuse as a distribution fault.
+    if let Some(d) = value.distribution()
+        && let Err(fault) = d.check()
+    {
+        return Err(match fault {
+            DistributionFault::NonFinite { .. } => {
+                EditError::NonFiniteDocParam { name: name.clone() }
+            }
+            DistributionFault::SigmaNotPositive { .. }
+            | DistributionFault::NominalOutsideSupport { .. } => EditError::InvalidDistribution {
+                name: name.clone(),
+                fault,
+            },
+        });
+    }
+    if let DocParam::Continuous {
+        dim: Dimension::Count,
+        ..
+    } = value
+    {
+        return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
+    }
+    let structural = matches!(value, DocParam::Count { .. });
+    new.params.insert(name.clone(), value);
+    // A (re)declaration can change the dimension out from under
+    // referencing expressions: re-validate every slot (documents are
+    // small; spec D6's re-run requirement).
+    for &id in &new.order {
+        if let Some(node) = new.nodes.get(&id) {
+            check_node_slots(new, id, node)?;
+        }
+    }
+    Ok(EditRecord {
+        minted: None,
+        structural,
+    })
+}
+
 fn check_node_slots<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
@@ -882,13 +1331,110 @@ fn check_node_slots<P: crate::ProfilePayload>(
         }
         check_param_refs(doc, id, slot, expr)?;
     }
+    // The expressions no slot addresses (E3/E10). Their DIMENSIONS are
+    // already fixed by construction — a `MeasureExpr` runs the F1
+    // checker at every constructor, and an assertion's bound is checked
+    // against its measure below — so what is left here is the same
+    // parameter-table re-check every slot expression gets.
+    for expr in crate::node::payload_exprs(node).into_iter().flatten() {
+        let mut refs = Vec::new();
+        expr.param_refs(&mut refs);
+        for (name, referenced) in refs {
+            match doc.params().get(&name) {
+                None => return Err(EditError::UnknownPayloadParam { name, node: id }),
+                Some(p) if p.dim() != referenced => {
+                    return Err(EditError::PayloadParamDimensionMismatch {
+                        name,
+                        node: id,
+                        declared: p.dim(),
+                        referenced,
+                    });
+                }
+                Some(_) => {}
+            }
+        }
+    }
+    // A measured expression's reference indices, at the edit door as
+    // well as the construction and load doors: `Node::Measure` is a
+    // public variant, so a hand-built value can reach `apply` without
+    // passing `Node::measure`.
+    if let Some(fault) = node.measure_fault() {
+        return Err(EditError::MeasureMalformed { node: id, fault });
+    }
+    // An assertion's bound against the dimension of the measure it
+    // constrains — the one check that needs the DOCUMENT, which is why
+    // it lands here and not on the node.
+    if let Node::Assertion { measure, bound, .. } = node {
+        let measured = match doc.node(*measure) {
+            Some(Node::Measure { expr, .. }) => expr.dim(),
+            _ => {
+                return Err(EditError::AssertionTarget {
+                    node: id,
+                    measure: *measure,
+                });
+            }
+        };
+        if measured != bound.dim() {
+            return Err(EditError::AssertionDimension {
+                node: id,
+                measure: *measure,
+                measured,
+                bound: bound.dim(),
+            });
+        }
+    }
     Ok(())
+}
+
+/// DM5 at an EDIT door: [`Node::input_fault`] rendered in this
+/// module's vocabulary. The rule itself lives on the node, where the
+/// load door reads it too; this is the door's name for its answer, and
+/// there is no second copy of the question.
+///
+/// Liveness is the caller's, and is checked before this, so a list of
+/// dangling ids reports the dangling id rather than a count.
+fn check_node_inputs<P: crate::ProfilePayload>(
+    id: RecipeNodeId,
+    node: &Node<P>,
+) -> Result<(), EditError> {
+    match node.input_fault() {
+        None => Ok(()),
+        Some(crate::node::InputFault::Duplicate { input }) => {
+            Err(EditError::DuplicateInput { node: id, input })
+        }
+        Some(crate::node::InputFault::TooFew { found }) => {
+            Err(EditError::TooFewMembers { node: id, found })
+        }
+        Some(crate::node::InputFault::RepeatedDesignation { first, again }) => {
+            Err(EditError::RepeatedDesignation {
+                node: id,
+                first,
+                again,
+            })
+        }
+    }
+}
+
+/// The `declare` edge's kind rule, in this door's vocabulary.
+///
+/// The rule itself is [`Node::bad_declare_input`], asked by this door
+/// and by the load door (`persist::check`) of one answer; what is here
+/// is only this door's word for the refusal.
+fn check_declare_input<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+    node: &Node<P>,
+) -> Result<(), EditError> {
+    match node.bad_declare_input(doc) {
+        Some(input) => Err(EditError::DeclareInputNotDeclare { node: id, input }),
+        None => Ok(()),
+    }
 }
 
 /// Reject cycles in the recipe DAG (spec D3/D6). Defensive: insertion
 /// referencing only existing nodes cannot cycle, but the invariant is
 /// checked. Iterative DFS, three-color, deterministic order.
-fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
+fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError> {
     use std::collections::BTreeMap;
     #[derive(Clone, Copy, PartialEq)]
     enum Color {
@@ -929,6 +1475,50 @@ fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
     Ok(())
 }
 
+/// The nodes a cascading delete of `id` must remove, ordered so that
+/// [`DocEdit::DeleteNode`] accepts every one of them in turn:
+/// consumers first, `id` last.
+///
+/// The set is `id` plus everything reachable from it along the
+/// CONSUMER direction of the recipe DAG — the transitive closure of
+/// the same [`Node::inputs`] relation [`EditError::DeleteWouldDangle`]
+/// is stated over, which is why applying this sequence in order never
+/// dangles a reference: every node still live at each step has all of
+/// its inputs still live.
+///
+/// The answer is empty for an id the document does not hold; a caller
+/// that wants the refusal asks [`apply`] for it, so the typed verdict
+/// has one home.
+///
+/// One forward pass suffices because [`Doc::order`] is insertion
+/// order and an insertion's inputs must already be live, making the
+/// list topological: a consumer is always seen after every input it
+/// could inherit doom from.
+pub fn cascade_delete_order<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+) -> Vec<RecipeNodeId> {
+    use std::collections::BTreeSet;
+    if doc.node(id).is_none() {
+        return Vec::new();
+    }
+    let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
+    for &n in doc.order() {
+        let doomed_by_input = doc
+            .node(n)
+            .is_some_and(|node| node.inputs().iter().any(|input| doomed.contains(input)));
+        if doomed_by_input {
+            doomed.insert(n);
+        }
+    }
+    doc.order()
+        .iter()
+        .rev()
+        .copied()
+        .filter(|n| doomed.contains(n))
+        .collect()
+}
+
 /// Apply one edit to a document, PURELY (spec D2): the input is
 /// untouched; on acceptance a new value comes back with the
 /// [`EditRecord`]. All validation is here — refs resolve, no cycles,
@@ -956,14 +1546,29 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // a typo. They are not DAG edges: later deletes may strand
             // them (N5), so this is the ONLY door that checks, for
             // every payload that carries a name (`Node::payload_names`
-            // — Declare pairs, a fillet's selection under M6-5, a
-            // mate's two heads under A12).
+            // — Declare pairs, a BLEND's selection (fillet under M6-5,
+            // chamfer alongside it), a SHELL's ordered open list, a
+            // derived frame's face, a measure's references, a mate's
+            // two heads under A12).
             for name in node.payload_names() {
                 if !new.nodes.contains_key(&name.node) {
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
                 }
             }
+            // The same check for the node a reference is READ AT
+            // where that node is not also an input
+            // (`Node::payload_read_sites` — a mate's two operands).
+            // Same rule, same door, same N5 aftermath: a
+            // never-existed id is a typo; a later delete stranding it
+            // is the solve's to refuse.
+            for at in node.payload_read_sites() {
+                if !new.nodes.contains_key(&at) {
+                    return Err(EditError::ReadSiteMissingNode { at });
+                }
+            }
             let id = RecipeNodeId(new.next_id);
+            check_node_inputs(id, node)?;
+            check_declare_input(&new, id, node)?;
             if let Node::Mate { alignment, .. } = node
                 && !alignment.is_finite()
             {
@@ -1001,8 +1606,15 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                     });
                 }
             }
-            let inputs = new.nodes.get(id).map(Node::inputs).unwrap_or_default();
-            new.nodes.remove(id);
+            // The liveness check above proved the entry present and
+            // nothing since removes it, so the removal that takes the
+            // node out of the document is also what yields the input
+            // list `roots::on_delete` needs: no absent case is left to
+            // default, and an empty list would be a different edit.
+            let Some(node) = new.nodes.remove(id) else {
+                unreachable!("DeleteNode: node {} was live at the check above", id.0)
+            };
+            let inputs = node.inputs();
             new.order.retain(|&n| n != *id);
             crate::roots::on_delete(&mut new, *id, &inputs);
             reconcile = true;
@@ -1014,6 +1626,45 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // validator re-checks.
             new.placements.remove(id);
             // next_id is NOT decremented: ids are never reused (D3).
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
+        DocEdit::SetMembers { node, members } => {
+            let Some(current) = new.nodes.get(node) else {
+                return Err(EditError::UnknownNode { id: *node });
+            };
+            if current.list_input().is_none() {
+                return Err(EditError::SetMembersOnNonList { node: *node });
+            }
+            // Liveness FIRST, and of the offered list rather than of
+            // the rewritten node, so a dangling entry is named as the
+            // dangling entry it is.
+            for member in members {
+                if !new.nodes.contains_key(member) {
+                    return Err(EditError::UnresolvedInput { input: *member });
+                }
+            }
+            // The rewrite happens, then the rewritten node walks the
+            // insert door's own checks — the same functions, not
+            // mirrors of them, so this edit cannot reach a state
+            // `InsertNode` would have refused.
+            let mut rewritten = current.clone();
+            if !rewritten.set_list_input(members.clone()) {
+                return Err(EditError::SetMembersOnNonList { node: *node });
+            }
+            check_node_inputs(*node, &rewritten)?;
+            new.nodes.insert(*node, rewritten);
+            // The DAG's edges moved, so both invariants that ride on
+            // them are re-established rather than assumed: acyclicity
+            // (a member downstream of this node would close a loop —
+            // the one refusal `InsertNode` gets for free and this edit
+            // does not), and the product-root set, which is a function
+            // of the edges.
+            check_acyclic(&new)?;
+            crate::roots::on_set_members(&mut new);
+            reconcile = true;
             EditRecord {
                 minted: None,
                 structural: true,
@@ -1062,35 +1713,22 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 structural,
             }
         }
-        DocEdit::SetDocParam { name, value } => {
-            if let DocParam::Continuous {
-                dim: Dimension::Count,
-                ..
-            } = value
-            {
-                return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
-            }
-            // Ruled door 1 (non-finite policy): recipe data never
-            // carries NaN/inf.
-            if let DocParam::Continuous { value: v, .. } = value
-                && !v.is_finite()
-            {
-                return Err(EditError::NonFiniteDocParam { name: name.clone() });
-            }
-            let structural = matches!(value, DocParam::Count { .. });
-            new.params.insert(name.clone(), value.clone());
-            // A (re)declaration can change the dimension out from
-            // under referencing expressions: re-validate every slot
-            // (documents are small; spec D6's re-run requirement).
-            for &id in &new.order {
-                if let Some(node) = new.nodes.get(&id) {
-                    check_node_slots(&new, id, node)?;
-                }
-            }
-            EditRecord {
-                minted: None,
-                structural,
-            }
+        DocEdit::SetDocParam { name, value } => write_doc_param(&mut new, name, value.clone())?,
+        DocEdit::SetDocParamValue { name, value } => {
+            let Some(declared) = new.params.get(name) else {
+                return Err(EditError::DocParamNotDeclared { name: name.clone() });
+            };
+            // THE carry-forward: the declaration is read off the
+            // document and reused whole, so the dimension and the
+            // distribution cannot be dropped by an omission here.
+            let Some(written) = declared.with_value(*value) else {
+                return Err(EditError::DocParamValueKindMismatch {
+                    name: name.clone(),
+                    declared: declared.dim(),
+                    offered: *value,
+                });
+            };
+            write_doc_param(&mut new, name, written)?
         }
         DocEdit::Rebind { from, to } => {
             if from == to {
@@ -1115,13 +1753,21 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
             // One-shot rewrite of every EXACT reference (sites:
-            // Declare pairs, fillet selections, appearance-store
-            // keys). Zero sites = nothing to repair, refused.
+            // Declare pairs, blend selections — fillet and chamfer
+            // alike — a shell's open list, appearance-store keys).
+            // Zero sites = nothing to repair, refused.
             // Every payload site, by the one list that says which
             // payloads carry a name (`Node::payload_names`' twin): the
             // rewrite reaches a mate's heads exactly as it reaches a
-            // Declare pair, and a fillet selection's GROWTH PATH (M6-5,
-            // ruled #217) re-canonicalizes there.
+            // Declare pair, and a blend selection's GROWTH PATH (M6-5,
+            // ruled #217) re-canonicalizes there — for a chamfer's
+            // selection exactly as for a fillet's, since both are the
+            // same canonical set; a shell's ORDERED list re-canonicalizes
+            // to its own form, dropping a repeat and keeping the
+            // earlier position. A mate reference read AT ITS OWN
+            // MINT stays read at its own mint; one read elsewhere
+            // keeps its operand, which is an authored fact this edit
+            // knows nothing about.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
                 declare_sites += node.rebind_payload_names(from, to);
@@ -1164,7 +1810,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             reconcile = true;
             EditRecord {
                 minted: None,
-                // Declare payloads or fillet selections changed:
+                // Declare payloads or blend selections changed:
                 // content keys move and the threading consumes them
                 // — structural. An appearance-only rebind is
                 // presentation motion: no content key moves, nothing

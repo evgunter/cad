@@ -253,6 +253,30 @@ pub enum SplitReduceError {
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
+    /// A sector's bounding chord has **no finite length**: its
+    /// components overflow the norm (past ~1e154), or one of them is
+    /// not a number. Distinct from
+    /// [`SplitReduceError::SliverSector`] on purpose — nothing about
+    /// this is a band question, and no tolerance lever reaches it.
+    NonFiniteSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
+    /// A sector's bounding chord has a length that **underflowed out
+    /// of the format**: its components are too small for the norm to
+    /// hold (below ~1e-162 at `f64`), so it measures exactly zero while
+    /// still naming a direction. Distinct from
+    /// [`SplitReduceError::SliverSector`] on purpose — the chord is
+    /// not a sliver and no tolerance lever reaches it, because the
+    /// squared norm is zero at every eps.
+    UnderflowedSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
     /// Two cyclically-consecutive entries remained ON after rule (a) —
     /// the "no consecutive ONs" invariant failed. For a planar operand
     /// this means a coplanar sector escaped the gate (documented
@@ -350,6 +374,20 @@ impl core::fmt::Display for SplitReduceError {
                 "split_reduce: sector classification escalated at vertex {vertex:?} \
                  (face {face:?}): {diag}"
             ),
+            Self::NonFiniteSectorChord { vertex, face } => write!(
+                f,
+                "split_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
+                 finite length \u{2014} its components overflow the norm, or one of them \
+                 is not a number; scale the geometry into the session's range"
+            ),
+            Self::UnderflowedSectorChord { vertex, face } => write!(
+                f,
+                "split_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has a \
+                 length that underflowed out of the format \u{2014} its components are too \
+                 small for the norm to hold, so it measures exactly zero while still \
+                 naming a direction; no tolerance reaches this, scale the geometry into \
+                 the session's range"
+            ),
             Self::ConsecutiveOnSectors { vertex } => write!(
                 f,
                 "split_reduce: consecutive ON entries survived rule (a) at vertex {vertex:?} \
@@ -415,7 +453,13 @@ pub fn split_reduce<T: geom_core::Decide>(
     tol: Tol,
 ) -> Result<SplitReduction<T>, SplitReduceError> {
     let band = geom_core::Band::linear(tol)?;
-    let mut body = operand.clone();
+    // The crossing insertion and the null-edge insertion are this
+    // door's operator sequence; tier 1 is paid once, over the reduced
+    // body, rather than once per operator (`crate::surgery`). The
+    // guard owns the borrow, so a refusal on the way closes the scope
+    // by dropping it.
+    let mut reduced = operand.clone();
+    let mut body = reduced.begin_surgery();
 
     classify::gate_operand(&body)?;
     let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
@@ -428,8 +472,9 @@ pub fn split_reduce<T: geom_core::Decide>(
         insert::insert_null_edges(&mut body, v, &entries, &runs, &mut sides, &mut null_edges)?;
     }
 
+    body.sweep_and_close();
     Ok(SplitReduction {
-        body,
+        body: reduced,
         plane: *plane,
         sides,
         on_vertices,
@@ -517,7 +562,19 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 > {
     let band = geom_core::Band::linear(tol).map_err(SplitReduceError::from)?;
     let mut red = split_reduce(operand, plane, tol)?;
+    // The section join carves the reduced body through the Euler
+    // operators; one scope, one sweep at the end of the phase.
+    //
+    // **Guardless, and this is one of the two sites where it has to
+    // be.** A `Surgery` would borrow `red.body` for the scope's whole
+    // span, and the next line hands `split_connect` the WHOLE
+    // reduction — the sides table, the null-edge records and the body
+    // together — so the guard and the call cannot both exist.
+    // `red` is a local of this function and the failure path drops it,
+    // which is what makes an early `?` between the two lines harmless.
+    red.body.enter_surgery();
     let (completed, fragments) = join::split_connect(&mut red, band, tol)?;
+    red.body.leave_surgery_and_sweep();
     Ok((red, completed, fragments))
 }
 
@@ -578,7 +635,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the one-sided-tangency degenerate section/side refusals
 /// (no degenerate body is ever emitted).
-pub fn split<T: geom_core::Decide>(
+pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -638,7 +695,7 @@ pub fn split<T: geom_core::Decide>(
 /// certified (spec §1). Planar sides pick up nothing — planar faces
 /// keep M2's derive-on-demand status — so an all-planar split is
 /// bit-identical to before this pass existed.
-fn split_direct<T: geom_core::Decide>(
+fn split_direct<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

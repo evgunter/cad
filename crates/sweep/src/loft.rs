@@ -4,16 +4,22 @@
 //! The topology is EXTRUDE'S with different geometry (item 6(i)):
 //! bottom cap from section 0, top cap from section k−1, one NURBS wall
 //! per profile segment ([`crate::skin::LoftGeometry`]), wall–wall
-//! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts raised
+//! seams as the walls' `u ∈ {0, 1}` boundary iso-curves, struts swept
 //! per vertex. The three edge classes:
 //!
-//! - **Cap–wall rims** need NOTHING new (item 6(ii)): the wall's
+//! - **Cap–wall rims** need no new GEOMETRY (item 6(ii)): the wall's
 //!   `v = 0` / `v = 1` iso IS the placed sketch segment (degree
 //!   elevation and knot refinement are exact), so the carrier stays
-//!   `Curve3::Line`/`Circle` under `MappedCurve::PlacedSegment` and
-//!   certifies today.
+//!   the `Curve3::Line`/`Circle` it was minted as, verbatim, and
+//!   certifies today. Its DESCRIPTION still moves: minted through the
+//!   scaffolding door as `MappedCurve::PlacedSegment` (the cap plane
+//!   is fitted through the rim, so it does not exist yet), it is
+//!   re-stated as an image in the cap's own chart once the plane does
+//!   ([`crate::swept::describe_face_rim_at_rest`] — D3's transience
+//!   fence). No cap–wall dihedral is classified here: unlike extrude,
+//!   loft does not upgrade these rims to `Intersection`.
 //! - **Wall–wall seams** are the genuinely new class (item 6(iii)):
-//!   [`geom_brep::EdgeGeometry::IsoCurve`] over the wall's boundary
+//!   an iso image of over the wall's boundary
 //!   row (`geom_brep::boundary_iso_u` — a control-net copy, no
 //!   arithmetic), certified through the metric residual
 //!   `|C(t) − S(u, v(t))|` at the CERT schedule.
@@ -53,20 +59,22 @@ use std::sync::Arc;
 
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, NewellError, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, NewellError, newell_plane};
+use geom_core::spline::SplineError;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
-use profile::{
-    Profile, ProfileError, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile,
-};
+use profile::{ProfileLoop, SketchPlane, ValidatedProfile};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
     PcurveMintError, ShellKey, SolidKey,
 };
 
-use crate::skin::{LoftGeometry, Section, SkinError, lift_surface, loft_geometry, sweep_places};
-use crate::swept::{SweptSeg, cap_points, face_surface_key, placed_segment_spec, swept_segments};
+use crate::skin::{LoftGeometry, Section, SkinError, loft_geometry, sweep_places};
+use crate::swept::{
+    SweptSeg, cap_points, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
+    swept_segments,
+};
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
@@ -114,10 +122,6 @@ pub enum LoftError {
     /// The §10.3/§10.4 geometry construction refused (compatibility,
     /// degree, interpolation — every [`SkinError`] reason).
     Skin(SkinError),
-    /// An end section failed profile validation — a section that would
-    /// not extrude does not loft either (the wire-layer door, run
-    /// here so the library API is gated identically).
-    Profile(ProfileError),
     /// An Euler operator or certified attach refused mid-assembly
     /// (D4 ¶2 reports surface inside
     /// [`EulerOpError::Certification`]).
@@ -130,7 +134,16 @@ pub enum LoftError {
     /// The wall-boundary carrier extraction failed to re-wrap — a
     /// structurally corrupt skinned surface (unreachable from
     /// [`loft_geometry`] output; surfaced rather than swallowed).
-    SeamStructure,
+    ///
+    /// The payload is `geom_brep::boundary_iso_u`'s own refusal, which
+    /// says WHICH structural invariant the extracted row broke; that
+    /// door's `# Errors` section promises it is surfaced, and a
+    /// discarded one would make a kernel-bug report say only that a
+    /// kernel bug happened.
+    SeamStructure {
+        /// The iso-extraction refusal, carried rather than discarded.
+        source: SplineError,
+    },
     /// The end sections' loop/segment structure disagrees with the
     /// skinned geometry's — unreachable when both come from the same
     /// inputs; surfaced rather than swallowed.
@@ -157,14 +170,13 @@ impl fmt::Display for LoftError {
         match self {
             Self::Band(e) => write!(f, "loft: {e}"),
             Self::Skin(e) => write!(f, "loft geometry: {e}"),
-            Self::Profile(e) => write!(f, "loft section profile: {e}"),
             Self::Euler(e) => write!(f, "loft assembly: {e}"),
             Self::CapPlane(e) => write!(f, "loft cap plane: {e}"),
             Self::Pcurve(e) => write!(f, "loft pcurve mint: {e}"),
-            Self::SeamStructure => write!(
+            Self::SeamStructure { source } => write!(
                 f,
                 "loft seam: a wall's boundary iso-curve failed to re-wrap (corrupt \
-                 skinned surface — kernel bug, not an input fault)"
+                 skinned surface — kernel bug, not an input fault): {source}"
             ),
             Self::SectionStructure => write!(
                 f,
@@ -197,52 +209,33 @@ impl From<EulerOpError> for LoftError {
     }
 }
 
-/// Exact `f64 → T` lift of a rigid placement (C6: the placement is
-/// stored structure; `from_f64` is exact at every scalar).
-fn lift_affine<T: Real>(a: &Affine3<f64>) -> Affine3<T> {
-    let v =
-        |w: geom_core::Vec3<f64>| Vec3::new(T::from_f64(w.x), T::from_f64(w.y), T::from_f64(w.z));
-    Affine3 {
-        linear: geom_core::Mat3 {
-            c0: v(a.linear.c0),
-            c1: v(a.linear.c1),
-            c2: v(a.linear.c2),
-        },
-        translation: v(a.translation),
-    }
-}
-
-/// One end section as a profile at `T` — the section IS a profile
-/// now (LIB-U3), so this is the exact `f64 → T` embedding of its
-/// loops (positions, bulges, and declared-tangent joints — the
-/// declarations travel and are re-verified in the evaluation scalar)
-/// run through the profile crate's own validation door: a section
-/// that would not extrude does not loft either.
-fn end_profile<T: Decide>(
-    section: &Section,
+/// One end section as a profile at `T`: **the canonical form
+/// [`loft_geometry`] decided, lifted** ([`ValidatedProfile::lift_onto`])
+/// — the same shape the rest of this assembly has, where the walls are
+/// `f64` surfaces carried to `T` by `map_scalar`.
+///
+/// The section was validated once, at the geometry door, and that
+/// verdict is what the walls were skinned from
+/// ([`LoftGeometry::canonical`]). Deciding the canonical form again
+/// here — loop roles, traversal sense, the lex-min start vertex, each
+/// segment's classification, each declared joint's tangency — would
+/// make the caps a SECOND canonicalization of the same data, agreeing
+/// with the walls' by determinism rather than by construction; and at
+/// the evaluation scalar it would decide over an exact embedding of
+/// the data the first verdict was made on, which at a certified scalar
+/// can only agree or escalate, never disagree. Reading the decided
+/// form makes the caps the walls' own sections.
+///
+/// The gate a section that would not extrude meets is
+/// [`loft_geometry`]'s, which refuses it
+/// [`SkinError::SectionProfile`] before any of this runs.
+fn end_profile<T: Real>(
+    canonical: &ValidatedProfile<f64>,
     place: &Affine3<f64>,
-    tol: Tol,
-) -> Result<ValidatedProfile<T>, LoftError> {
-    let loops = section
-        .iter()
-        .map(|lp| {
-            ProfileLoop::new(
-                lp.vertices()
-                    .iter()
-                    .map(|v| {
-                        ProfileVertex::new(
-                            geom_core::Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)),
-                            T::from_f64(v.bulge()),
-                        )
-                    })
-                    .collect(),
-            )
-            .with_tangent_joints(lp.tangent_joints().to_vec())
-        })
-        .collect();
-    Profile::new(SketchPlane::new(lift_affine(place)), loops)
-        .validate(tol)
-        .map_err(LoftError::Profile)
+) -> ValidatedProfile<T> {
+    canonical
+        .clone()
+        .lift_onto(SketchPlane::new(place.map(T::from_f64)))
 }
 
 /// The world point of a sketch-plane point under a lifted placement.
@@ -257,25 +250,24 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 ///
 /// [`LoftError`] — every door named on the enum.
 #[allow(clippy::too_many_lines)] // one construction, kept whole like extrude's
-fn assemble<T: Decide>(
-    sections: &[Section],
+fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let band = Band::linear(tol).map_err(LoftError::Band)?;
-    let (Some(sec_bottom), Some(sec_top), Some(place_bottom), Some(place_top)) = (
-        sections.first(),
-        sections.last(),
+    let (Some(can_bottom), Some(can_top), Some(place_bottom), Some(place_top)) = (
+        geometry.canonical.first(),
+        geometry.canonical.last(),
         places.first(),
         places.last(),
     ) else {
         return Err(LoftError::SectionStructure);
     };
-    let bottom_profile: ValidatedProfile<T> = end_profile(sec_bottom, place_bottom, tol)?;
-    let top_profile: ValidatedProfile<T> = end_profile(sec_top, place_top, tol)?;
-    let bplace: Affine3<T> = lift_affine(place_bottom);
-    let tplace: Affine3<T> = lift_affine(place_top);
+    let bottom_profile: ValidatedProfile<T> = end_profile(can_bottom, place_bottom);
+    let top_profile: ValidatedProfile<T> = end_profile(can_top, place_top);
+    let bplace: Affine3<T> = place_bottom.map(T::from_f64);
+    let tplace: Affine3<T> = place_top.map(T::from_f64);
     let n_bottom = bplace.linear.c2;
     let n_top = tplace.linear.c2;
 
@@ -327,16 +319,16 @@ fn assemble<T: Decide>(
 
     // ---- Lifted walls, kept once: face surfaces AND seam carriers
     // read the same lifted structure (D9 — one lift, shared bits). ----
-    let mut walls_t: Vec<Vec<Arc<NurbsSurface<T>>>> = Vec::with_capacity(geometry.walls.len());
-    for loop_walls in &geometry.walls {
-        let mut lifted = Vec::with_capacity(loop_walls.len());
-        for w in loop_walls {
-            lifted.push(Arc::new(
-                lift_surface::<T>(w).map_err(|e| LoftError::Skin(SkinError::Structure(e)))?,
-            ));
-        }
-        walls_t.push(lifted);
-    }
+    let walls_t: Vec<Vec<Arc<NurbsSurface<T>>>> = geometry
+        .walls
+        .iter()
+        .map(|loop_walls| {
+            loop_walls
+                .iter()
+                .map(|w| Arc::new(w.map_scalar(T::from_f64)))
+                .collect()
+        })
+        .collect();
 
     // ---- Phase 1: bottom lamina (the extrude shape: the seed face's
     // chain is minted at the BOTTOM vertices and survives as the TOP
@@ -345,7 +337,11 @@ fn assemble<T: Decide>(
     let outer = &bloops[0];
     let qs = &bq[0];
     let n = outer.len();
-    let mut body = Body::<T>::new();
+    // One surgery scope for the whole assembly: the tier-1
+    // postcondition is this door's, paid once over the finished body
+    // (`topo::surgery`), and the tier-2 check below subsumes it.
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qs[0])?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
@@ -452,7 +448,7 @@ fn assemble<T: Decide>(
         bases.push(hole_hes);
     }
 
-    // ---- Phases 3–4: raise struts and close the wall quads, per
+    // ---- Phases 3–4: sweep struts and close the wall quads, per
     // loop. Struts are SCAFFOLDING lines here (mev_line) and upgrade
     // to the seam class in phase 6, once their walls' keys exist. ----
     let mut side_faces: Vec<Vec<FaceKey>> = Vec::with_capacity(bloops.len());
@@ -511,9 +507,16 @@ fn assemble<T: Decide>(
     }
 
     // ---- Phase 5: the swept seed face survives as the top cap. ----
-    let raised = cap_points(&tloops[0], &tq[0], tplace);
-    let top_plane = newell_plane(&raised, band).map_err(LoftError::CapPlane)?;
+    let far_loop = cap_points(&tloops[0], &tq[0], tplace);
+    let top_plane = newell_plane(&far_loop, band).map_err(LoftError::CapPlane)?;
     body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
+
+    // Both cap planes exist now, so both rims are at REST in them and
+    // stop leaning on the scaffolding door they had to be minted
+    // through (D3's transience fence — a cap's plane is fitted THROUGH
+    // its own rim, so the rim cannot name it at mint time).
+    describe_face_rim_at_rest(&mut body, bottom_face, tol)?;
+    describe_face_rim_at_rest(&mut body, top_face, tol)?;
 
     // ---- Phase 6: strut upgrades to the seam class — the wall keys
     // now exist, so each strut re-describes as wall j's `u = 0`
@@ -522,17 +525,18 @@ fn assemble<T: Decide>(
     for (li, seams) in seam_edges.iter().enumerate() {
         let n = seams.len();
         for j in 0..n {
-            let wall_key = face_surface_key(&body, side_faces[li][j])
-                .map_err(|_| LoftError::SectionStructure)?;
+            let wall_key = face_surface_key(&body, side_faces[li][j])?;
             let carrier = geom_brep::boundary_iso_u(walls_t[li][j].as_ref(), false)
-                .map_err(|_| LoftError::SeamStructure)?;
+                .map_err(|source| LoftError::SeamStructure { source })?;
             let spec = EdgeCurveSpec {
-                description: EdgeGeometry::IsoCurve {
-                    surface: wall_key,
-                    u: T::zero(),
-                    v0: T::zero(),
-                    v1: T::one(),
-                },
+                description: EdgeDescriptionSpec::iso(
+                    wall_key,
+                    T::zero(),
+                    T::zero(),
+                    T::one(),
+                    T::zero(),
+                    T::one(),
+                ),
                 carrier: Curve3::Nurbs(Arc::new(carrier)),
                 param_start: T::zero(),
                 param_end: T::one(),
@@ -545,15 +549,16 @@ fn assemble<T: Decide>(
     // every wall boundary stores its exact line-in-UV image. ----
     topo::mint_pcurves(&mut body, tol).map_err(LoftError::Pcurve)?;
 
+    body.close_already_checked();
     #[cfg(debug_assertions)]
     debug_assert_eq!(
-        topo::validate_closed(&body),
+        topo::validate_closed(&built),
         Ok(()),
         "loft postcondition: result is not tier-2 valid (kernel bug)",
     );
 
     Ok(Lofted {
-        body,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,
@@ -572,29 +577,65 @@ fn assemble<T: Decide>(
 /// skinning degree in the section direction. Structure is `f64`
 /// (C6); the produced body is at `T`, lifted exactly.
 ///
+/// # Correspondence — read this before authoring a rotated section
+///
+/// Sections are paired **by index over the CANONICAL loops**, not over
+/// the vertex order you wrote: [`profile::Profile::validate`] rotates every loop
+/// to its lex-min vertex first, and it is those loops
+/// [`loft_geometry`] matches like to like. Both halves are deliberate
+/// and each is documented at its own door; the consequence of the pair
+/// is not obvious and is worth stating here, because it is silent —
+/// the body builds and certifies at every tier.
+///
+/// **A section rotated relative to its neighbour can therefore be
+/// re-anchored, and the roll of the built body is the angle between
+/// CANONICAL loops rather than the angle you authored.** Worked
+/// example, executed rather than reasoned: the turning-orientation
+/// suite's authored-roll row lofts a square onto the same square
+/// rotated by `theta` about its own centre, and for `theta` in
+/// `(0, pi/2)` the rotation moves which vertex is lex-min, so the body
+/// rolls by `theta - pi/2` — a quarter turn nobody wrote.
+///
+/// If the correspondence matters to you, author it: place the sections
+/// so their canonical starts agree, or choose the vertex order that
+/// survives canonicalization. There is no argument to this door that
+/// states a pairing, by design — *"no honest way to guess a
+/// correspondence that was not given"* ([`loft_geometry`]).
+///
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
-pub fn loft_body<T: Decide>(
+pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let geometry = loft_geometry(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
-    assemble(sections, places, &geometry, tol)
+    assemble(places, &geometry, tol)
 }
 
 /// **The path-swept body** (§10.4 as a solid): places rigid copies of
 /// `profile` along `path` ([`crate::sweep_geometry`]'s frame — same
 /// machinery, no fork) and assembles the loft of those sections.
 ///
+/// # Correspondence
+///
+/// [`loft_body`]'s paragraph of that name applies, and lands softly
+/// here for a reason worth knowing: every section is the SAME profile,
+/// so canonicalization re-anchors all of them identically and the
+/// index pairing is the identity whatever the profile's vertex order
+/// was. What the canonical start still decides is which wall of the
+/// built body is which — the segment order the returned
+/// [`Lofted::side_faces`] is keyed in. The body's roll comes from the
+/// path frame ([`sweep_places`]), not from the sections.
+///
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum, with
 /// [`SkinError::PathTangentReversal`] arriving through
 /// [`LoftError::Skin`].
-pub fn sweep_body<T: Decide>(
+pub fn sweep_body<T: Decide + geom_brep::PcurveFittedLane>(
     profile: &[ProfileLoop<f64>],
     place: Affine3<f64>,
     path: &geom::NurbsCurve3<f64>,
@@ -605,5 +646,5 @@ pub fn sweep_body<T: Decide>(
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
     let sections: Vec<Section> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
     let geometry = loft_geometry(&sections, &places, v_degree, tol).map_err(LoftError::Skin)?;
-    assemble(&sections, &places, &geometry, tol)
+    assemble(&places, &geometry, tol)
 }

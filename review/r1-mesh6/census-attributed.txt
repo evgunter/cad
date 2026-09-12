@@ -1,0 +1,57 @@
+[ball d=0.02] R1-TESS delta=0.02 faces=2
+    R1-CENSUS face=FaceKey(1v1) kind=sph pole=true ident=2 nu=13 nv=13 tris=310
+    R1-CENSUS face=FaceKey(2v1) kind=sph pole=true ident=2 nu=13 nv=13 tris=310
+[ball d=0.004] R1-TESS delta=0.004 faces=2
+    R1-CENSUS face=FaceKey(1v1) kind=sph pole=true ident=2 nu=28 nv=28 tris=1506
+    R1-CENSUS face=FaceKey(2v1) kind=sph pole=true ident=2 nu=28 nv=28 tris=1506
+[cone d=0.1] R1-TESS delta=0.1 faces=4
+    R1-CENSUS face=FaceKey(1v1) kind=cone pole=true ident=1 nu=5 nv=3 tris=21
+    R1-CENSUS face=FaceKey(2v1) kind=cone pole=true ident=1 nu=5 nv=3 tris=21
+[cone d=0.02] R1-TESS delta=0.02 faces=4
+    R1-CENSUS face=FaceKey(1v1) kind=cone pole=true ident=1 nu=12 nv=5 tris=100
+    R1-CENSUS face=FaceKey(2v1) kind=cone pole=true ident=1 nu=12 nv=5 tris=100
+[cone d=0.004] R1-TESS delta=0.004 faces=4
+    R1-CENSUS face=FaceKey(1v1) kind=cone pole=true ident=1 nu=25 nv=12 tris=553
+    R1-CENSUS face=FaceKey(2v1) kind=cone pole=true ident=1 nu=25 nv=12 tris=553
+[l_prism d=0.1] R1-TESS delta=0.1 faces=8
+[l_prism d=0.02] R1-TESS delta=0.02 faces=8
+[l_prism d=0.004] R1-TESS delta=0.004 faces=8
+[washer d=0.1] R1-TESS delta=0.1 faces=4
+    R1-CENSUS face=FaceKey(3v1) kind=cyl pole=false ident=2 nu=10 nv=1 tris=20
+    R1-CENSUS face=FaceKey(5v1) kind=cyl pole=false ident=2 nu=15 nv=1 tris=30
+[washer d=0.02] R1-TESS delta=0.02 faces=4
+    R1-CENSUS face=FaceKey(3v1) kind=cyl pole=false ident=2 nu=23 nv=1 tris=46
+    R1-CENSUS face=FaceKey(5v1) kind=cyl pole=false ident=2 nu=32 nv=1 tris=64
+[washer d=0.004] R1-TESS delta=0.004 faces=4
+    R1-CENSUS face=FaceKey(3v1) kind=cyl pole=false ident=2 nu=50 nv=1 tris=100
+    R1-CENSUS face=FaceKey(5v1) kind=cyl pole=false ident=2 nu=71 nv=1 tris=142
+[donut d=0.1] R1-TESS delta=0.1 faces=2
+    R1-CENSUS face=FaceKey(3v1) kind=tor pole=false ident=44 nu=85 nv=43 tris=7310
+    R1-CENSUS face=FaceKey(4v1) kind=tor pole=false ident=44 nu=85 nv=43 tris=7310
+[donut d=0.02] R1-TESS delta=0.02 faces=2
+    R1-CENSUS face=FaceKey(3v1) kind=tor pole=false ident=96 nu=189 nv=95 tris=35910
+    R1-CENSUS face=FaceKey(4v1) kind=tor pole=false ident=96 nu=189 nv=95 tris=35910
+[donut d=0.004] R1-TESS delta=0.004 faces=2
+    R1-CENSUS face=FaceKey(3v1) kind=tor pole=false ident=212 nu=422 nv=211 tris=178084
+    R1-CENSUS face=FaceKey(4v1) kind=tor pole=false ident=212 nu=422 nv=211 tris=178084
+[sphere_wedge d=0.1] R1-TESS delta=0.1 faces=3
+    R1-CENSUS face=FaceKey(3v1) kind=sph pole=true ident=2 nu=4 nv=6 tris=38
+[sphere_wedge d=0.02] R1-TESS delta=0.02 faces=3
+    R1-CENSUS face=FaceKey(3v1) kind=sph pole=true ident=2 nu=8 nv=13 tris=190
+[sphere_wedge d=0.004] R1-TESS delta=0.004 faces=3
+    R1-CENSUS face=FaceKey(3v1) kind=sph pole=true ident=2 nu=18 nv=28 tris=966
+[band_0.1 d=0.1] R1-TESS delta=0.1 faces=4
+    R1-CENSUS face=FaceKey(3v1) kind=cone pole=false ident=2 nu=8 nv=2 tris=30
+    R1-CENSUS face=FaceKey(4v1) kind=cone pole=false ident=2 nu=11 nv=2 tris=39
+    R1-CENSUS face=FaceKey(5v1) kind=cone pole=false ident=2 nu=11 nv=1 tris=21
+    R1-CENSUS face=FaceKey(6v1) kind=sph pole=false ident=3 nu=12 nv=2 tris=42
+[band_0.1 d=0.02] R1-TESS delta=0.02 faces=4
+    R1-CENSUS face=FaceKey(3v1) kind=cone pole=false ident=2 nu=13 nv=3 tris=69
+    R1-CENSUS face=FaceKey(4v1) kind=cone pole=false ident=2 nu=24 nv=4 tris=175
+    R1-CENSUS face=FaceKey(5v1) kind=cone pole=false ident=2 nu=24 nv=2 tris=91
+    R1-CENSUS face=FaceKey(6v1) kind=sph pole=false ident=5 nu=25 nv=4 tris=179
+[band_0.1 d=0.004] R1-TESS delta=0.004 faces=4
+    R1-CENSUS face=FaceKey(3v1) kind=cone pole=false ident=2 nu=28 nv=6 tris=314
+    R1-CENSUS face=FaceKey(4v1) kind=cone pole=false ident=2 nu=53 nv=7 tris=705
+    R1-CENSUS face=FaceKey(5v1) kind=cone pole=false ident=2 nu=53 nv=4 tris=412
+    R1-CENSUS face=FaceKey(6v1) kind=sph pole=false ident=9 nu=56 nv=9 tris=957

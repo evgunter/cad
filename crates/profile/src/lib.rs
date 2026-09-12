@@ -66,13 +66,17 @@
 //!   contradicted declarations ([`ProfileError::TangencyContradicted`])
 //!   alike. Same-carrier continuation (collinear lines, cocircular
 //!   arcs — e.g. the minimal two-arc circle's joints) is carrier
-//!   identity, not tangency: legal undeclared. Free arcs whose joints
-//!   are definitely transversal (secant carriers) remain legal
-//!   undeclared — declaration marks *tangency*, not arc-ness. The
-//!   authoring path is the PATHS lattice's `.fillet(r)` ([`path`]),
-//!   which computes tangent geometry exactly and declares by
-//!   construction; [`ProfileLoop::tangent_joints`] is the explicit flag
-//!   for raw hand-authored chains.
+//!   identity: legal undeclared, and **legal declared too** — every
+//!   zero-turn joint is a declared tangent joint (Ev, in-chat,
+//!   2026-09-02), because identity is a fact about the carriers and
+//!   tangency a fact about the directions, which agree there. Free arcs
+//!   whose joints are definitely transversal (secant carriers) remain
+//!   legal undeclared — declaration marks *tangency*, not arc-ness. The
+//!   authoring path is the PATHS lattice ([`path`]): `.fillet(r)`
+//!   computes tangent geometry exactly and the continuation verbs
+//!   declare the zero-turn joints they mint, both by construction.
+//!   [`ProfileLoop::tangent_joints`] is the field that carries the
+//!   result, and a fixture's way of writing one by hand.
 //! - **The sketch plane is conventional data.** [`SketchPlane`] is a
 //!   rigid placement: profile (x, y) ↦ plane origin + x·u + y·v, with
 //!   u/v/normal the columns of the placement's linear part. Rigidity
@@ -119,23 +123,45 @@ mod fillet_select;
 pub mod lift;
 pub mod path;
 mod seg;
+pub mod structure;
 mod sugar;
 mod validate;
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
-    ArcData, ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TipState, Verb, replay,
+    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TargetKind, TipState,
+    Verb, replay, replay_guided, replay_recording,
 };
 pub use path::{
-    ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, LineTarget, Open, PartialPath, PathError,
-    PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
+    CornerRefusal, CornerWindow, LineTarget, Open, PartialPath, PathError, PathErrorKind,
+    PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle,
+    circle_split,
+};
+pub use structure::{
+    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
+    ProfileStructure, ReplayStructure, SegmentShape, StructureRefusal, StructureRefusalKind,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{
     BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
+};
+/// The six fillet recourse sentences, under `test-support` only.
+///
+/// They are prose a caller reads, so a suite that pins what a caller
+/// reads has to spell them — and spelling them by restating the string
+/// makes the assertion agree with itself instead of with the code.
+/// This export is what lets `tests/fillet_recourse_followability.rs`
+/// name them; it is off in every build that is not this crate's own
+/// tests, so these six are not part of the production surface, and
+/// pncad's facade completeness guard does not see them.
+#[cfg(any(test, feature = "test-support"))]
+pub use validate::{
+    FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_LEG_EXTENT_RECOURSE,
+    FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
 };
 
 /// One vertex of a profile loop: a position plus the bulge of the
@@ -155,12 +181,29 @@ impl<T: Real> ProfileVertex<T> {
     /// this door is unconditional and every field reads back, exactly
     /// as for [`Point2`]. Privacy here buys representation freedom, not
     /// mint-prevention. The funnel claim is about LOOPS: outside this
-    /// crate a [`ProfileLoop`] cannot be spelled from a vertex table,
-    /// because the only raw loop door is [`RawLoop`] and that trait is
-    /// off the presented surface. A caller holding a bag of vertices
-    /// has nothing to put them in.
+    /// crate a [`ProfileLoop`] cannot be spelled from a vertex table:
+    /// the lattice's emission layer and [`ProfileLoop::map_scalar`] are
+    /// the only doors a shipped build has, and neither takes one. A
+    /// caller holding a bag of vertices has nothing to put them in.
     pub fn new(pos: Point2<T>, bulge: T) -> Self {
         Self { pos, bulge }
+    }
+
+    /// **The leaf rung of the profile scalar lift**: the same vertex
+    /// read at another scalar — the position through [`Point2::map`],
+    /// the bulge through `f`.
+    ///
+    /// `map`, not `map_scalar`, because a vertex is a fixed pair of
+    /// scalars with no structure to carry: `geom`'s `scalar_lift`
+    /// convention is `map` on every leaf and `map_scalar` on every type
+    /// whose lift has counts or indices to carry
+    /// ([`ProfileLoop::map_scalar`], [`Profile::map_scalar`]).
+    ///
+    /// Structural, not arithmetic: every scalar goes through `f` and
+    /// nothing is computed, so the lift is exact whenever `f` is.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> ProfileVertex<U> {
+        ProfileVertex::new(self.pos.map(&f), f(self.bulge))
     }
 
     /// The vertex position in sketch-plane coordinates (meters).
@@ -183,16 +226,45 @@ impl<T: Real> ProfileVertex<T> {
 /// Plain data — conventions are carried by data (D2), and nothing is
 /// checked at construction: [`Profile::validate`] is the gate.
 ///
+/// **A cache, not an authoring form.** The vertex table is what an
+/// intensional recipe evaluates INTO — the same recipe→geometry seam
+/// the kernel draws everywhere else — so nothing authors one by
+/// writing coordinates down. **This is the one home for what mints a
+/// loop; everywhere else points here.**
+///
+/// One PRIVATE constructor exists, and two public doors reach it:
+///
+/// - **the authoring door** — the [`path`] lattice's emission layer.
+///   It classifies every junction and declares every tangency as the
+///   chain is written, then calls the crate's private constructor. The
+///   only door on the presented surface.
+/// - **the materialization door** — [`ProfileLoop::map_scalar`]: a
+///   table that already exists, read at another scalar. It authors
+///   nothing; there is no table it can make that did not exist a moment
+///   earlier. [`Profile::map_scalar`] is that same door run over a
+///   profile's loops, not a second one.
+/// - **fixtures** — `RawLoop` (unlinked deliberately: in a shipped
+///   build it is a crate-private item, so a link from this public page
+///   would name something the page's reader does not have), which IS
+///   that private constructor,
+///   additionally exported under `test`/`test-support`. In a shipped
+///   build the trait item itself is `pub(crate)`, so no re-export of it
+///   compiles and no downstream build can name it.
+///
+/// Two further materialization doors were anticipated by the Q1 ruling
+/// and **do not exist**: a STEP-import face loop (`crates/step-import`
+/// never names this crate) and a persisted-document read
+/// (deserialization can never mint a `ProfileLoop` —
+/// `editor-core/src/persist/wire.rs`'s header says so at the site).
+///
 /// **Sealed at the crate boundary.** The fields are private and read
 /// back through [`vertices`](Self::vertices) /
-/// [`tangent_joints`](Self::tangent_joints), so outside this crate the
-/// only compilable route to a loop is a door: the [`path`] lattice (the
-/// presented channel) or [`RawLoop`] (kernel vocabulary, omitted from
-/// the façade). Naming the type, reading it, and matching on error
-/// payloads all still work; spelling one from a vertex table does not.
-/// The seal is a CRATE boundary, not a module one — `crates/profile`'s
-/// own internals construct loops directly and stay on the sealed-verbs
-/// discipline instead.
+/// [`tangent_joints`](Self::tangent_joints), so outside this crate
+/// there is no route around those three. Naming the type, reading it,
+/// and matching on error payloads all still work; spelling one from a
+/// vertex table does not. The seal is a CRATE boundary, not a module
+/// one — `crates/profile`'s own internals construct loops directly and
+/// stay on the sealed-verbs discipline instead.
 ///
 /// A doctest is a separate crate, so these two blocks are the seal
 /// executed at the boundary it claims. A struct literal is a PRIVACY
@@ -206,20 +278,25 @@ impl<T: Real> ProfileVertex<T> {
 /// };
 /// ```
 ///
-/// The doors compile, in the same position:
+/// The authoring door compiles, in the same position — and it is the
+/// lattice, which classifies each junction as it is authored rather
+/// than accepting the table and waiting for [`Profile::validate`]:
 ///
 /// ```
-/// use geom_core::Point2;
-/// use profile::{ProfileLoop, RawLoop};
+/// use geom_core::{Point2, Tol};
+/// use profile::{Open, ProfileLoop, Start};
 ///
-/// let square: ProfileLoop<f64> = RawLoop::polygon([
-///     Point2::new(0.0, 0.0),
-///     Point2::new(1.0, 0.0),
-///     Point2::new(1.0, 1.0),
-///     Point2::new(0.0, 1.0),
-/// ]);
+/// let tol = Tol::witness();
+/// let square: ProfileLoop<f64> = Open
+///     .at(Point2::new(0.0, 0.0))
+///     .line_to(Point2::new(1.0, 0.0), tol)?
+///     .line_to(Point2::new(1.0, 1.0), tol)?
+///     .line_to(Point2::new(0.0, 1.0), tol)?
+///     .line_to(Start, tol)?
+///     .into();
 /// assert_eq!(square.vertices().len(), 4);
 /// assert!(square.tangent_joints().is_empty());
+/// # Ok::<(), profile::PathError<f64>>(())
 /// ```
 #[derive(Clone, Debug)]
 pub struct ProfileLoop<T: Real> {
@@ -231,73 +308,153 @@ pub struct ProfileLoop<T: Real> {
     tangent_joints: Vec<usize>,
 }
 
-/// The raw loop-minting doors — **kernel vocabulary, off the presented
-/// surface** (Evan's ruling on #413, executed by LIB-RETTAIL).
+/// Spells the raw door at a given VISIBILITY, so that the trait ITEM's
+/// visibility follows the gate rather than a re-export's.
 ///
-/// The invariant this trait exists to hold: a caller who can NAME
-/// [`ProfileLoop`] cannot thereby MINT one from a vertex table. Inherent
-/// methods travel with their type, so as long as `new`/`polygon` were
-/// inherent, every surface that made the type nameable — and the type
-/// must stay nameable, since read-back, error payloads and
-/// [`ValidatedLoop`] all hand one back — re-exported the authoring tier
-/// with it. Trait methods travel with the TRAIT instead: the façade's
-/// curated `pncad::profile` module omits `RawLoop`, and a downstream
-/// caller who never imports it has no `ProfileLoop::polygon` in scope.
-///
-/// Authoring goes through [`path`] (the PATHS lattice), which classifies
-/// junctions at authoring time and declares tangency by construction.
-/// This trait is what the kernel's own crates and their fixtures use to
-/// spell a vertex table directly.
-///
-/// The seal is what makes that invariant total: [`ProfileLoop`]'s
-/// fields are private, so outside this crate there is no struct-literal
-/// route around the trait — a downstream `ProfileLoop { .. }` does not
-/// compile (E0451, under test).
-pub trait RawLoop<T: Real>: Sized {
-    /// Builds a loop from a vertex chain, with no declared-tangent
-    /// joints — add them with [`with_tangent_joints`](Self::with_tangent_joints),
-    /// or author the loop through [`path`], which declares by
-    /// construction.
-    fn new(vertices: Vec<ProfileVertex<T>>) -> Self;
+/// **Why a macro and not two `mod` arms.** The seal has to be
+/// structural: while the trait was `pub` inside a private module and
+/// only its RE-EXPORT was gated, one added line anywhere in the crate —
+/// `pub use crate::raw_loop::RawLoop as LoopMint;` inside the carried
+/// `path` module — put the minting tier back on every shipped build's
+/// surface, and no census row saw it, because a census reads the
+/// spellings it was taught. With the item itself `pub(crate)` in the
+/// shut arm, that line is a compile error (E0365: a private item cannot
+/// be re-exported), and the compiler is checking the invariant instead
+/// of a test checking a spelling. Two cfg'd `mod` arms would say the
+/// same thing by writing the trait and its impl out twice, and two
+/// copies of a body drift; one macro body, instantiated once per arm,
+/// cannot.
+macro_rules! raw_door {
+    ($vis:vis) => {
+        /// The raw loop-minting door — **a dev-only fixture door**,
+        /// absent from every shipped build (Ev's Q1 ruling half (ii),
+        /// in-chat 2026-09-01).
+        ///
+        /// A [`ProfileLoop`] is a CACHE: the materialized form an
+        /// intensional recipe evaluates into, like the kernel's other
+        /// recipe→geometry seams. Nothing AUTHORS one from a vertex
+        /// table; the ways one comes to exist are listed at
+        /// [`ProfileLoop`] itself, and this trait is the fixture one.
+        ///
+        /// **What "absent" means here, exactly.** In a build that
+        /// satisfies neither `test` nor `test-support` this trait is
+        /// declared `pub(crate)`. Not "declared public and not
+        /// re-exported" — declared crate-private, so no re-export of it
+        /// can compile anywhere in this crate and a downstream build
+        /// has no route to it at all. `crate::RawLoop` still resolves in
+        /// both arms, so the emission layer needs no second spelling; it
+        /// is calling the crate's own private constructor.
+        ///
+        /// Why a trait rather than inherent methods, still: inherent
+        /// methods travel with their type, and the type must stay
+        /// nameable (read-back, error payloads and
+        /// [`ValidatedLoop`](crate::ValidatedLoop) all hand one back).
+        /// Trait methods travel with the TRAIT, so gating the trait
+        /// gates the authoring tier without touching the type.
+        ///
+        /// The seal is what makes the door total: [`ProfileLoop`]'s
+        /// fields are private, so outside this crate there is no
+        /// struct-literal route around it — a downstream
+        /// `ProfileLoop { .. }` does not compile (E0451, under test).
+        $vis trait RawLoop<T: Real>: Sized {
+            /// Builds a loop from a vertex chain, with no
+            /// declared-tangent joints.
+            ///
+            /// The one method of this trait that is NOT gated: the
+            /// lattice's emission layer calls it as the crate's private
+            /// constructor, so it exists in both arms.
+            fn new(vertices: Vec<ProfileVertex<T>>) -> Self;
 
-    /// Builds a loop of straight segments through the given points (all
-    /// bulges zero) — polygon sugar.
-    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self;
+            /// Builds a loop of straight segments through the given
+            /// points (all bulges zero) — polygon sugar.
+            #[cfg(any(test, feature = "test-support"))]
+            fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self;
 
-    /// The same loop with its **declared-tangent joints** set to the
-    /// given vertex indices (see
-    /// [`ProfileLoop::tangent_joints`](ProfileLoop::tangent_joints) for
-    /// what a declaration means and how validation verifies it).
-    ///
-    /// Declaring by hand is the explicit hand-authoring/persistence
-    /// form; `.fillet(r)` on the [`path`] lattice declares by
-    /// construction and is the authoring path.
-    fn with_tangent_joints(self, tangent_joints: Vec<usize>) -> Self;
+            /// The same loop with its **declared-tangent joints** set
+            /// to the given vertex indices (see
+            /// [`ProfileLoop::tangent_joints`] for what a declaration
+            /// means and how validation verifies it).
+            ///
+            /// A fixture declares by hand; the [`path`](crate::path)
+            /// lattice declares by construction, which is what makes it
+            /// the authoring door.
+            #[cfg(any(test, feature = "test-support"))]
+            fn with_tangent_joints(self, tangent_joints: Vec<usize>) -> Self;
+        }
+
+        impl<T: Real> RawLoop<T> for ProfileLoop<T> {
+            fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
+                Self {
+                    vertices,
+                    tangent_joints: Vec::new(),
+                }
+            }
+
+            #[cfg(any(test, feature = "test-support"))]
+            fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
+                <Self as RawLoop<T>>::new(
+                    points
+                        .into_iter()
+                        .map(|pos| ProfileVertex::new(pos, T::zero()))
+                        .collect(),
+                )
+            }
+
+            #[cfg(any(test, feature = "test-support"))]
+            fn with_tangent_joints(mut self, tangent_joints: Vec<usize>) -> Self {
+                self.tangent_joints = tangent_joints;
+                self
+            }
+        }
+    };
 }
 
-impl<T: Real> RawLoop<T> for ProfileLoop<T> {
-    fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
-        Self {
-            vertices,
-            tangent_joints: Vec::new(),
+// The door's two arms: ONE body, spelled at the visibility its arm
+// grants. The shut arm's `pub(crate)` is the seal — see the macro's
+// own docs for what it buys over a gated re-export.
+#[cfg(any(test, feature = "test-support"))]
+raw_door!(pub);
+#[cfg(not(any(test, feature = "test-support")))]
+raw_door!(pub(crate));
+
+impl<T: Real> ProfileLoop<T> {
+    /// **A materialization door**: the same loop read at another
+    /// scalar.
+    ///
+    /// The middle rung of this crate's scalar lift, between
+    /// [`ProfileVertex::map`] and [`Profile::map_scalar`], and named by
+    /// `geom`'s `scalar_lift` convention: `map` on every leaf
+    /// ([`Point2::map`](geom_core::Point2::map),
+    /// [`Vec2::map`](geom_core::Vec2::map),
+    /// [`Affine3::map`](geom_core::Affine3::map),
+    /// [`SketchPlane::map`], [`ProfileVertex::map`] — a fixed tuple of
+    /// scalars), `map_scalar` wherever the lift has structure to carry,
+    /// which here is the vertex count and the joint index set. One name
+    /// per operation, on the type it lifts. It takes `&self` where a
+    /// leaf takes `self`, because a loop owns two `Vec`s and its caller
+    /// holds a borrow.
+    ///
+    /// This is re-materialization, not authoring. The table already
+    /// exists — it was emitted by the lattice, or read back from a
+    /// validated profile — and an evaluation at another scalar needs the
+    /// same table in that scalar's arithmetic. Positions, bulges and the
+    /// declared tangent joints all travel; the declarations are
+    /// re-verified in the evaluation scalar by [`Profile::validate`], so
+    /// nothing is taken on trust by crossing.
+    ///
+    /// With `U::from_f64` — the widening direction, which never refuses
+    /// — the crossing is total, and for any `U` whose `from_f64` is
+    /// exact on `f64` (`f64` itself included) bit-identical.
+    ///
+    /// This door and the [`path`] lattice's emission layer are the whole
+    /// production population; see [`ProfileLoop`]'s own docs for the two
+    /// anticipated doors that do not exist.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ProfileLoop<U> {
+        ProfileLoop {
+            vertices: self.vertices.iter().map(|v| v.map(&f)).collect(),
+            tangent_joints: self.tangent_joints.clone(),
         }
-    }
-
-    fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
-        <Self as RawLoop<T>>::new(
-            points
-                .into_iter()
-                .map(|pos| ProfileVertex {
-                    pos,
-                    bulge: T::zero(),
-                })
-                .collect(),
-        )
-    }
-
-    fn with_tangent_joints(mut self, tangent_joints: Vec<usize>) -> Self {
-        self.tangent_joints = tangent_joints;
-        self
     }
 }
 
@@ -325,18 +482,34 @@ impl<T: Real> ProfileLoop<T> {
     ///   numerically happens-to-hold is the pattern the boolean door's
     ///   UndeclaredCoincidence retired; lifted here to the profile
     ///   door).
-    /// - **Same-carrier continuation is not tangency**: collinear
-    ///   line/line joints and cocircular arc/arc joints (the two-arc
-    ///   circle's joints) are carrier *identity*, legal undeclared, and
-    ///   a declaration there is contradicted.
+    /// - **Carrier identity is not a reason for anything** (Ev,
+    ///   in-chat, 2026-09-02): a zero-turn joint is a tangent joint
+    ///   whatever the carriers do, so a declaration on a collinear
+    ///   line/line or cocircular arc/arc joint is honoured, not
+    ///   contradicted. Identity is a fact about carriers, tangency a
+    ///   fact about directions, and this rule reads the directions.
     /// - Duplicate indices are harmless (set semantics); an
     ///   out-of-range index is a typed validation error. Order is not
     ///   significant.
     ///
-    /// The PATHS lattice's `.fillet(r)` ([`path`]) is the authoring
-    /// path (it computes tangent geometry exactly and declares by
-    /// construction); [`RawLoop::with_tangent_joints`] is the
-    /// explicit hand-authoring/persistence form.
+    /// **This list is `validate`'s question, and it is not the
+    /// lattice's.** The lattice checks AUTHORING — declarations
+    /// against authored data, at the moment a verb is written — and
+    /// `validate` checks the MATERIALIZED TABLE, where
+    /// `tangent_joints` is data like any other field. Two questions,
+    /// never one rule with two answers; `validate`'s module header
+    /// carries the full statement.
+    ///
+    /// The [`path`] lattice declares by construction (`.fillet(r)`
+    /// computes the tangent geometry exactly; the continuation verbs
+    /// declare the zero-turn joint they mint), which is what makes it
+    /// the authoring door. The fixture door declares by hand instead;
+    /// see [`ProfileLoop`]'s own docs for why the two are not
+    /// alternatives.
+    ///
+    /// The fixture door is not linked here on purpose: in a shipped
+    /// build it is a crate-private item, and a doc link on the
+    /// PRESENTED surface may only name what that surface has.
     ///
     /// [`ProfileError::TangencyContradicted`]: validate::ProfileError::TangencyContradicted
     /// [`ProfileError::UndeclaredTangency`]: validate::ProfileError::UndeclaredTangency
@@ -387,12 +560,10 @@ impl<T: Real> ProfileLoop<T> {
 /// plane normal are the columns of the placement's linear part
 /// (`linear.c0`, `linear.c1`, `linear.c2`).
 ///
-/// Rigidity — u, v, normal orthonormal and right-handed
-/// (normal = u × v) — is **conventional data, unchecked** (the crate
-/// docs' plane convention; the same posture as `geom`'s unit
-/// `dir`/`u_ref` fields). Tier-3 geometric validation certifies it at
-/// rest; a non-rigid placement yields a well-defined skewed sketch, not
-/// poison.
+/// Rigidity — u, v, normal orthonormal and right-handed — is
+/// conventional data: the caller's obligation and what it leaves
+/// unchecked are stated once, at [`Affine3::from_frame`]. Tier-3
+/// geometric validation certifies it at rest.
 #[derive(Clone, Copy, Debug)]
 pub struct SketchPlane<T: Real> {
     /// The placement map (rigid by convention).
@@ -432,15 +603,39 @@ impl<T: Real> SketchPlane<T> {
         Self::from_frame(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
     }
 
-    /// The plane through `origin` spanned by `u` and `v`, with
-    /// normal = u × v (computed, keeping the frame right-handed by
-    /// construction when u ⊥ v are unit — which is the caller's
-    /// conventional obligation, unchecked).
+    /// The plane whose placement is [`Affine3::from_frame`]`(origin, u,
+    /// v)`: the normal is computed there as `u × v`, and the caller's
+    /// obligation on `u` and `v` is stated there, once.
     pub fn from_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>) -> Self {
-        Self::new(Affine3::from_parts(
-            Mat3::from_cols(u, v, u.cross(v)),
-            origin - Point3::origin(),
-        ))
+        Self::new(Affine3::from_frame(origin, u, v))
+    }
+
+    /// The same plane read at another scalar: the stored placement
+    /// through [`Affine3::map`] — twelve components, no arithmetic, so
+    /// exact whenever `f` is (`Real::from_f64` carries an `f64` frame
+    /// to any evaluation scalar).
+    ///
+    /// **What the lift means.** The stored normal was computed at the
+    /// SOURCE scalar — `u × v` at the scalar [`Self::from_frame`] ran
+    /// at — and is lifted here as a value. That is the same plane as
+    /// the frame constructed at the target scalar exactly where the
+    /// cross product's products and differences are exact (the
+    /// canonical axes; any frame whose components multiply and
+    /// subtract without rounding), and a different one wherever they
+    /// round. The two spellings, and a caller chooses:
+    ///
+    /// - `plane.map(S::from_f64)` — the `f64` frame lifted whole. At
+    ///   `Interval` every component is a point interval, the normal
+    ///   included: the `f64` rounding of the cross product is carried
+    ///   as if exact.
+    /// - `SketchPlane::from_frame(o.map(S::from_f64), u.map(S::from_f64),
+    ///   v.map(S::from_f64))` — the frame constructed at `S`. Bit-
+    ///   identical to the lift on exact axes; at `Interval` on a general
+    ///   frame the cross product of point intervals rounds outward, so
+    ///   the stored normal carries the width of that arithmetic.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SketchPlane<U> {
+        SketchPlane::new(self.placement.map(f))
     }
 
     /// Maps a sketch point to world space: `placement`·(x, y, 0),
@@ -511,6 +706,23 @@ impl SketchPlane<f64> {
     }
 }
 
+/// `==` IS [`SketchPlane::bit_eq`] — the comparison this type already
+/// means, spelled as the trait so every caller reaches the same
+/// answer.
+///
+/// Only `f64` carries it, because only `f64` has the bit reading
+/// [`SketchPlane::bit_eq`] compares; a plane over another [`Real`] has
+/// no equality here.
+///
+/// PARTIAL and no [`Eq`], deliberately: the type carries no hash on
+/// either side of the binding boundary, and a plane is a placement to
+/// compare, not a key to tally by.
+impl PartialEq for SketchPlane<f64> {
+    fn eq(&self, other: &Self) -> bool {
+        self.bit_eq(other)
+    }
+}
+
 /// A sketch profile: closed loops on a sketch plane — the raw input
 /// data. [`Profile::validate`] is the only way to make it consumable by
 /// sweeps.
@@ -528,5 +740,34 @@ impl<T: Real> Profile<T> {
     /// Builds a profile from a plane and loops.
     pub fn new(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> Self {
         Self { plane, loops }
+    }
+
+    /// **The top rung of this crate's scalar lift**: the same RAW
+    /// profile read at another scalar — the plane through
+    /// [`SketchPlane::map`], every loop through
+    /// [`ProfileLoop::map_scalar`], the loop order carried.
+    ///
+    /// Structural, not arithmetic, at every rung: each stored scalar
+    /// goes through `f` and nothing is computed, so the lift is exact
+    /// whenever `f` is and bit-identical for any `U` whose `from_f64`
+    /// is exact on `f64`. Nothing here is decided: a raw profile
+    /// carries no verdict, and the loops that come out still owe
+    /// [`Profile::validate`] at `U`.
+    ///
+    /// **This is the raw door, and it is rarely the one a build wants.**
+    /// Lifting a raw profile and validating the result at `U` decides
+    /// the profile's structure a second time, in `U`'s arithmetic, over
+    /// data that is an exact embedding of the `f64` data a validation
+    /// already ran on — where `U` is certified that second opinion can
+    /// only agree or escalate, never disagree. A build that already
+    /// holds the `f64` verdict lifts THAT, through
+    /// [`ValidatedProfile::lift_onto`], which carries the decisions
+    /// instead of remaking them.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Profile<U> {
+        Profile::new(
+            self.plane.map(&f),
+            self.loops.iter().map(|lp| lp.map_scalar(&f)).collect(),
+        )
     }
 }

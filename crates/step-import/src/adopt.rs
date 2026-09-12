@@ -44,7 +44,8 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom_core::spline::SplineError;
 use geom_core::{Affine3, Point2, Point3};
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
 
@@ -409,7 +410,7 @@ fn adopt_edges(
 
         // The candidate descriptions, in preference order (module
         // docs: intrinsic before conventional).
-        let mut candidates: Vec<(AdoptionCandidate, EdgeGeometry<f64>)> = Vec::new();
+        let mut candidates: Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)> = Vec::new();
         let mut conventional = true;
         let mut nurbs_rim = false;
         // The IsoCurve rung is offered on BOTH sides of the branch
@@ -417,7 +418,7 @@ fn adopt_edges(
         // seam class, and on ONE wall — the same described NURBS
         // surface on both sides of the edge — it is that patch's own
         // parameterization SEAM, which a closed patch states by
-        // repeating its `u = 0` column at `u = 1`. `EdgeGeometry::Seam`
+        // repeating its `u = 0` column at `u = 1`. the SEAM image
         // is the analytic vocabulary (cylinder, cone, sphere, torus);
         // a described NURBS patch's seam is an `IsoCurve` and nothing
         // else, and withholding the rung there left dm1's rational
@@ -425,7 +426,12 @@ fn adopt_edges(
         // them as cylinders — with no candidate description AT ALL
         // (the ladder reported zero attempts, which is the shape of a
         // gap rather than of a refusal).
-        iso_curve_candidates(body, spec, fs_plus, fs_minus, &mut candidates);
+        iso_curve_candidates(body, spec, fs_plus, fs_minus, &mut candidates).map_err(|source| {
+            StepImportError::WallColumnStructure {
+                id: edge_id,
+                source,
+            }
+        })?;
         if fs_plus != fs_minus {
             // The IsoCurve rung (M7-3): a NURBS-carried edge between
             // two described NURBS walls is the loft/sweep wall–wall
@@ -449,7 +455,7 @@ fn adopt_edges(
             // domain ([0, 1] for every exported wall).
             candidates.push((
                 AdoptionCandidate::Intersection,
-                EdgeGeometry::Intersection {
+                EdgeDescriptionSpec::Intersection {
                     s1: fs_plus,
                     s2: fs_minus,
                     witness,
@@ -457,7 +463,7 @@ fn adopt_edges(
             ));
             candidates.push((
                 AdoptionCandidate::TangentIntersection,
-                EdgeGeometry::TangentIntersection {
+                EdgeDescriptionSpec::TangentIntersection {
                     s1: fs_plus,
                     s2: fs_minus,
                     witness,
@@ -540,11 +546,15 @@ fn adopt_edges(
                         p_end,
                         tol,
                     )
-                    .map_err(|residual| {
-                        StepImportError::RimOffWallBoundary {
+                    .map_err(|refusal| match refusal {
+                        ArcRimRefusal::Residual(residual) => StepImportError::RimOffWallBoundary {
                             id: edge_id,
                             residual,
-                        }
+                        },
+                        ArcRimRefusal::ChartRow(source) => StepImportError::WallColumnStructure {
+                            id: edge_id,
+                            source,
+                        },
                     })?;
                 }
             }
@@ -571,19 +581,49 @@ fn adopt_edges(
                 )
             });
             if periodic {
-                candidates.push((
-                    AdoptionCandidate::Seam,
-                    EdgeGeometry::Seam { surface: fs_plus },
-                ));
+                candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::seam(fs_plus)));
             }
         }
         if conventional
             && let Some(mapped) =
                 mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, nurbs_rim)
         {
+            // The conventional rung, since U2 collapsed the forms: a
+            // locus two COINCIDENT faces under-determine is an image
+            // in the chart they share, and the rung's own gate has
+            // just metered the carrier onto that chart
+            // (`carrier_on_surface`), so the image exists. The
+            // pushforward that used to BE the description becomes the
+            // authority record beside it (U2 Q3), which is what keeps
+            // tier 3's prefer-intrinsic reading of this edge unchanged.
+            //
+            // A NURBS RIM takes the PLANE side of its own pair. The
+            // rung's gate (`nurbs_plane_pair`) is exactly "one
+            // described spline wall and one plane", so an analytic
+            // chart is always in hand — and it is the RIGHT one: the
+            // rim is the cap's boundary and lies in the cap's plane by
+            // construction, where the derived image is exact. The
+            // spline wall's own image of the same rim exists too, but
+            // it is a stored CACHE (`topo`'s `nurbs_iso_derive`), not
+            // something a construction can state, and it is not needed
+            // — a chart image names ONE of the edge's two adjacent
+            // surfaces, and either is admissible (tier 3's chart
+            // adjacency, the M5-LOG item 6(iii) rule).
+            //
+            // No gate is skipped by preferring the plane: the rim is
+            // not METERED onto the cap here the way the coincident
+            // rung meters its carrier, but certification's own
+            // `|C(t) − S(P(t))|` does exactly that a moment later, so
+            // a rim that does not lie in the cap refuses loudly rather
+            // than adopting a description of the wrong locus.
+            let chart = if nurbs_rim {
+                plane_of_pair(body, fs_plus, fs_minus).unwrap_or(fs_plus)
+            } else {
+                fs_plus
+            };
             candidates.push((
                 AdoptionCandidate::MappedCurve,
-                EdgeGeometry::MappedCurve(mapped),
+                EdgeDescriptionSpec::chart(chart).declared_by(mapped),
             ));
         }
 
@@ -659,15 +699,25 @@ fn adopt_edges(
 /// the native description exactly. Duplicates are impossible — the two
 /// surface keys are visited once each — and the kernel's certify door
 /// still disposes of every candidate this offers.
+///
+/// # Errors
+///
+/// [`SplineError`] — the wall's boundary column would not re-wrap as a
+/// curve. That is a STRUCTURAL fact about the stored surface, not this
+/// rung's negative answer: the rung's negatives are a carrier that is
+/// not NURBS, a wall that is not a described NURBS chart, and a column
+/// the carrier does not match bitwise, all of which return an unchanged
+/// candidate list. The caller reports it as
+/// [`StepImportError::WallColumnStructure`].
 fn iso_curve_candidates(
     body: &Body<f64>,
     spec: &crate::entities::EdgeSpec,
     fs_plus: topo::SurfaceKey,
     fs_minus: topo::SurfaceKey,
-    candidates: &mut Vec<(AdoptionCandidate, EdgeGeometry<f64>)>,
-) {
+    candidates: &mut Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)>,
+) -> Result<(), SplineError> {
     let Curve3::Nurbs(ref nurbs_carrier) = spec.carrier else {
-        return;
+        return Ok(());
     };
     let walls: &[topo::SurfaceKey] = if fs_plus == fs_minus {
         &[fs_plus]
@@ -676,29 +726,42 @@ fn iso_curve_candidates(
     };
     for end in [false, true] {
         for &wall in walls {
-            if let Some(Surface::Nurbs(wp)) = body.get_surface(wall)
-                && !wp.is_placeholder()
-                && let Ok(iso) = geom_brep::boundary_iso_u(wp.as_ref(), end)
-                && bitwise_iso_match(nurbs_carrier, &iso)
-            {
-                // The column's `u` is the payload's own KNOT domain end
-                // (#327), never a `[0, 1]` literal: an imported chart
-                // carries the file's parameterization, where `u = 1` is
-                // an interior column — a description naming a locus the
-                // carrier is not on.
-                let (du0, du1) = wp.knots_u().domain();
-                candidates.push((
-                    AdoptionCandidate::IsoCurve,
-                    EdgeGeometry::IsoCurve {
-                        surface: wall,
-                        u: if end { du1 } else { du0 },
-                        v0: spec.t0,
-                        v1: spec.t1,
-                    },
-                ));
+            let Some(Surface::Nurbs(wp)) = body.get_surface(wall) else {
+                continue;
+            };
+            if wp.is_placeholder() {
+                continue;
             }
+            // Not a rung condition: `boundary_iso_u` is a control-net
+            // copy, and the only refusal it can build is a weight on
+            // the extracted column that is not positive and finite —
+            // which `geom::NurbsSurface::new` already refuses of the
+            // whole net. Carried out to the ladder rather than read as
+            // "not this shape".
+            let iso = geom_brep::boundary_iso_u(wp.as_ref(), end)?;
+            if !bitwise_iso_match(nurbs_carrier, &iso) {
+                continue;
+            }
+            // The column's `u` is the payload's own KNOT domain end
+            // (#327), never a `[0, 1]` literal: an imported chart
+            // carries the file's parameterization, where `u = 1` is
+            // an interior column — a description naming a locus the
+            // carrier is not on.
+            let (du0, du1) = wp.knots_u().domain();
+            candidates.push((
+                AdoptionCandidate::IsoCurve,
+                EdgeDescriptionSpec::iso(
+                    wall,
+                    if end { du1 } else { du0 },
+                    spec.t0,
+                    spec.t1,
+                    spec.t0,
+                    spec.t1,
+                ),
+            ));
         }
     }
+    Ok(())
 }
 
 /// The conventional self-description for carriers the surfaces
@@ -804,7 +867,9 @@ fn mapped_self_description(
 /// re-certifies every line rim against the wall besides.
 ///
 /// `Err` carries the best (smallest) worst-sample deviation over both
-/// boundary candidates, for the typed refusal.
+/// boundary candidates, for the typed refusal — or, where a boundary
+/// column will not extract at all, that structural refusal instead
+/// (see [`ArcRimRefusal`]).
 fn arc_rim_on_wall_boundary(
     wall: &geom::NurbsSurface<f64>,
     carrier: &Curve3<f64>,
@@ -813,7 +878,7 @@ fn arc_rim_on_wall_boundary(
     p_start: Point3<f64>,
     p_end: Point3<f64>,
     tol: Tol,
-) -> Result<(), f64> {
+) -> Result<(), ArcRimRefusal> {
     let Curve3::Circle {
         center,
         axis,
@@ -832,7 +897,7 @@ fn arc_rim_on_wall_boundary(
         || !(axis_norm.is_finite() && axis_norm > 0.0)
         || !(u_ref_norm.is_finite() && u_ref_norm > 0.0)
     {
-        return Err(f64::INFINITY);
+        return Err(ArcRimRefusal::Residual(f64::INFINITY));
     }
     let a_hat = axis / axis_norm;
     let u_hat = u_ref / u_ref_norm;
@@ -842,9 +907,12 @@ fn arc_rim_on_wall_boundary(
     let slack = eps / radius;
     let mut best = f64::INFINITY;
     for end in [false, true] {
-        let Ok(iso) = geom_brep::boundary_iso_v(wall, end) else {
-            continue;
-        };
+        // Not a gate verdict: the column IS the locus the rim claims
+        // to be, so a column that will not extract leaves this gate
+        // with nothing to meter against — and a `continue` here would
+        // charge the wall's broken control net to the rim as a
+        // deviation it never had (`f64::INFINITY` when both ends go).
+        let iso = geom_brep::boundary_iso_v(wall, end).map_err(ArcRimRefusal::ChartRow)?;
         let (d0, d1) = iso.domain();
         let q0 = iso.eval(d0);
         let q1 = iso.eval(d1);
@@ -887,13 +955,52 @@ fn arc_rim_on_wall_boundary(
         }
         best = best.min(worst);
     }
-    Err(best)
+    Err(ArcRimRefusal::Residual(best))
+}
+
+/// Why [`arc_rim_on_wall_boundary`] did not certify — the two are
+/// different claims and the ladder reports them as different
+/// refusals.
+enum ArcRimRefusal {
+    /// The gate ran and the rim is off the column: the best (smallest)
+    /// worst-sample deviation over both boundary candidates, in
+    /// meters. This is the gate's own verdict.
+    Residual(f64),
+    /// A wall boundary column would not re-wrap as a curve, so the
+    /// gate has no locus to meter the rim against. A weight on that
+    /// column is not a positive finite number — a state
+    /// `geom::NurbsSurface::new` refuses of the whole net, so no body
+    /// this reader assembles reaches it — and the refusal names the
+    /// offending weight rather than being reported as a rim
+    /// deviation.
+    ChartRow(SplineError),
 }
 
 /// One side a described (non-placeholder) NURBS wall, the other a
 /// plane — the cap-rim adjacency the conventional rung's exemption
 /// names (its call site's comment). Any other pairing answers
 /// `false`: the exemption is exactly as wide as the class it serves.
+/// Whichever of the two adjacent surfaces is the PLANE of a
+/// [`nurbs_plane_pair`] — the analytic chart a NURBS-adjacent rim is
+/// described in. `None` when neither is a plane, which the caller
+/// treats as "no preference" rather than as an error: certification
+/// then meters whatever chart it was given and refuses if the locus is
+/// not on it.
+fn plane_of_pair(
+    body: &topo::Body<f64>,
+    s1: geom_brep::SurfaceKey,
+    s2: geom_brep::SurfaceKey,
+) -> Option<geom_brep::SurfaceKey> {
+    let is_plane = |k| matches!(body.get_surface(k), Some(Surface::Plane { .. }));
+    if is_plane(s1) {
+        Some(s1)
+    } else if is_plane(s2) {
+        Some(s2)
+    } else {
+        None
+    }
+}
+
 fn nurbs_plane_pair(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> bool {
     let described_nurbs =
         |s: Option<&Surface<f64>>| matches!(s, Some(Surface::Nurbs(p)) if !p.is_placeholder());

@@ -34,8 +34,8 @@
 //!
 //! # Why the code is here and not in either lane
 //!
-//! Until S5's second fix this walk existed **twice**, once per lane,
-//! and the splitting copy's own doc called itself *"the twin of"* the
+//! This walk used to exist **twice**, once per lane, and the splitting
+//! copy's own doc called itself *"the twin of"* the
 //! boolean's. They differed in exactly three things, none of them
 //! geometric: the error type they refuse into, whether the caller is
 //! told the face was planar, and whether a `Sphere` face has a wired

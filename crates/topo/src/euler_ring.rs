@@ -228,7 +228,7 @@ use crate::entity::{
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::live::Live;
+use crate::live::{Live, require_key};
 use crate::provenance::Provenance;
 use geom_core::Tol;
 
@@ -433,11 +433,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::LoopNotCycle { r#loop: loop_key });
         }
         let face_key = loop_data.face;
-        if !self.faces.contains_key(face_key) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Face(face_key),
-            });
-        }
+        require_key(&self.faces, face_key, EntityId::Face)?;
         // The full cycle from he1 (bounded, D9); its split at he2 yields
         // the two survivor sides.
         let cycle = self
@@ -455,14 +451,10 @@ impl<T: Decide> Body<T> {
         let old_side: Vec<Live> = cycle[position + 1..].to_vec();
         let u = he1_data.start;
         let w = he2_data.start;
+        // The op rewrites both emanating anchors; a dangling start
+        // vertex is tier-1-invalid input caught here.
         for vertex in [u, w] {
-            if !self.vertices.contains_key(vertex) {
-                // The op rewrites both emanating anchors; a dangling
-                // start vertex is tier-1-invalid input caught here.
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::Vertex(vertex),
-                });
-            }
+            require_key(&self.vertices, vertex, EntityId::Vertex)?;
         }
         if ring_side.is_empty() && old_side.is_empty() && u == w {
             return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
@@ -716,11 +708,20 @@ impl<T: Decide> Body<T> {
     /// be `Empty` or `Cycle` — both legal. No half-edge, vertex, or
     /// edge is touched.
     ///
-    /// Euler vector: `(v 0, e 0, f −1, h +1, r +1, s 0)` — arena delta
-    /// −1 face (the "+1 ring" is the surviving loop's reclassification,
-    /// not a mint; genus is derived, not stored); the cross-shell form
-    /// is additionally `s −1` at the *shell* arena (the solid count is
-    /// unchanged — GWB's §9.2.4 "KFSMR" reading).
+    /// Euler vector, same-shell form: `(v 0, e 0, f −1, h +1, r +1,
+    /// s 0)` — arena delta −1 face (the "+1 ring" is the surviving
+    /// loop's reclassification, not a mint; genus is derived, not
+    /// stored).
+    ///
+    /// The fusion form's is `(v 0, e 0, f −1, h 0, r +1, s −1)`, `s`
+    /// being the SHELL count (the solid count is unchanged — GWB's
+    /// §9.2.4 "KFSMR" reading), and its arena delta is −1 face and
+    /// −1 shell. **The shell term carries this form's surgery instead
+    /// of the genus term**: eq. 9.2 with `Δf = −1`, `Δr = +1` and
+    /// `Δs = −1` forces `Δh = 0`, which is the connected sum reading
+    /// above — two components' genera add, so no handle is made. A
+    /// caller that expects the same-shell `h +1` here is off by a
+    /// handle.
     ///
     /// **Minting order**: nothing is minted (the loop survives with its
     /// D5 birth record — no provenance changes for survivors; re-homed
@@ -783,28 +784,18 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::FaceHasRings { face: f2 });
         }
         let ring = f2_data.outer;
-        if !self.loops.contains_key(ring) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Loop(ring),
-            });
-        }
+        require_key(&self.loops, ring, EntityId::Loop)?;
         if cross_shell {
             // The fusion re-homes f2's shell's surviving faces and
             // rewrites the shared solid's shell list; both are keys read
             // out of the body rather than arguments, so prove them live
             // here — the mutation below cannot fail midway (atomicity).
             for &face in &s2_data.faces {
-                if face != f2 && !self.faces.contains_key(face) {
-                    return Err(EulerOpError::StaleKey {
-                        key: EntityId::Face(face),
-                    });
+                if face != f2 {
+                    require_key(&self.faces, face, EntityId::Face)?;
                 }
             }
-            if !self.solids.contains_key(s2_data.solid) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::Solid(s2_data.solid),
-                });
-            }
+            require_key(&self.solids, s2_data.solid, EntityId::Solid)?;
         }
 
         // ---- Mutation (infallible from here on). ----
@@ -857,9 +848,18 @@ impl<T: Decide> Body<T> {
             .then_some(f2_data.surface);
 
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            if killed_shell.is_some() {
+        {
+            // The declared arena shift is chosen by `cross_shell` —
+            // the PLAN phase's own form decision, taken before any
+            // mutation and never written again. Choosing it on
+            // `killed_shell.is_some()` instead would read the shift
+            // back out of the mutation being checked, so the
+            // postcondition would follow the code down whichever
+            // branch it took and a fusion that ran when it should not
+            // have could not fail it. `ArenaDelta` is one operator's
+            // signed shift (`crate::euler`), and a shift a site
+            // computes from its own effect is not one.
+            let declared = if cross_shell {
                 ArenaDelta {
                     shells: -1,
                     faces: -1,
@@ -870,9 +870,9 @@ impl<T: Decide> Body<T> {
                     faces: -1,
                     ..ArenaDelta::ZERO
                 }
-            },
-            "kfmrh",
-        );
+            };
+            self.assert_euler_postcondition(before, declared, "kfmrh");
+        }
         Ok(KfmrhResult {
             ring,
             killed_face: f2,

@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{
     axis_y, ball, cone, donut, dump, eps, l_prism, p2, rounded_prism, validated, washer, wedge,

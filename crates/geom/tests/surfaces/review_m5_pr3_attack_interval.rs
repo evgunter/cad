@@ -127,11 +127,12 @@ fn f1_surface_kink_line_boxes_contain_f64() {
 fn f6_placeholder_poison_at_interval() {
     let s: Surface<Interval> = Surface::nurbs_placeholder();
     let p = s.eval(Interval::from_f64(0.5), Interval::from_f64(0.5));
+    // ALL-poison, which is what the placeholder promises: a
+    // first-channel read passes on a net poisoned only in x.
     assert!(
-        p.x.lo().is_nan() || p.x.hi().is_nan(),
-        "placeholder not poison at Interval: {:?}",
-        p.x
+        p.x.is_poison() && p.y.is_poison() && p.z.is_poison(),
+        "placeholder not all-poison at Interval: {p:?}"
     );
     let n = s.deriv_u(Interval::from_f64(0.5), Interval::from_f64(0.5));
-    assert!(n.x.lo().is_nan() || n.x.hi().is_nan());
+    assert!(n.x.is_poison() && n.y.is_poison() && n.z.is_poison());
 }

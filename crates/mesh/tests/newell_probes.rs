@@ -169,20 +169,16 @@ fn probe_d_huge_offset_tiny_face() {
     let poly = [(0.0, 0.0), (1.0e-3, 0.0), (1.0e-3, 1.0e-3), (0.0, 1.0e-3)];
     let body = prism_on(plane, &poly, 1.0e-3);
     let m = tessellate_or_typed(&body, 1e-6, "huge-offset").expect("must tessellate");
-    // The global `signed_volume` cancels catastrophically at 1e8
-    // offsets (terms ~1e24 for a 1e-9 volume) — recentre first: the
-    // divergence sum is translation-invariant for a CLOSED mesh, so
-    // the recentred value is the honest volume oracle.
-    let rc = |i: u32| {
-        let p = m.positions[i as usize];
-        Vec3::new(p.x - 1.0e8, p.y - 1.0e8, p.z - 1.0e8)
-    };
-    let mut v = 0.0f64;
-    for patch in &m.patches {
-        for t in &patch.triangles {
-            v += rc(t[0]).dot(rc(t[1]).cross(rc(t[2]))) / 6.0;
-        }
-    }
+    // `signed_volume` recentres on the mesh's bbox centre, so its
+    // fold operands scale with the body, not the placement — it is
+    // the honest oracle here directly. Diagnostic locality: a
+    // signed_volume regression therefore reds this chart-frame-named
+    // probe too. Near-duplicate of the huge-offset row in
+    // `issue303_signed_volume_recentring.rs` (same fixture, oracle,
+    // bar), kept deliberately: this probe reads the value inside the
+    // newell-probe family's tessellate-or-typed harness; that row is
+    // the defect's dedicated gate.
+    let v = signed_volume(&m);
     // Positions are ~1e8 with ulp ~1.5e-8 against 1e-3 edges: ~1.5e-5
     // relative slop per coordinate — accept 1e-4.
     assert!(
@@ -216,25 +212,22 @@ fn probe_e_noise_scale_sweep() {
     }
 }
 
-/// (e-pin) The position-noise refusal class, PINNED (R1 MAJOR-1 of
-/// PR #301; probe (e) above records the contract, this row records
-/// the POSTURE). Mechanism, stated as the invariant: with off-plane
-/// noise ν on the boundary POSITIONS themselves (z = x·ν — no
-/// exactly-equal input column), the far point's own v-coordinate is
-/// an engineered exact-zero whose float residue is ~ν²; for
-/// ν ≲ √(2⁻¹⁴²) ≈ 4e-22 that residue is nonzero below spade's
-/// coordinate floor and the face refuses TYPED
-/// (`TessellateError::Triangulation`), while scales whose residue
-/// clears the floor tessellate exactly. Deliberate, recorded posture
-/// — not accidental: `mesh::planar`'s module docs scope the
-/// input-exactness guarantee to the noisy-AXES class #284 actually
-/// closed (wild-corpus noise is axis noise), and this synthetic
-/// residual class is banked as a follow-up candidate (same "valid
-/// body refuses tessellation" shape as #284). If this row starts
-/// TESSELLATING, the class was closed: retire the pin and the
-/// follow-up together.
+/// (e-closed) The position-noise class, formerly PINNED REFUSING (R1
+/// MAJOR-1 of PR #301) and now closed. Mechanism, unchanged and
+/// stated as the invariant: with off-plane noise ν on the boundary
+/// POSITIONS themselves (z = x·ν — no exactly-equal input column) the
+/// far point's own v-coordinate is an engineered exact-zero, `u`
+/// being that point's own rejection from the normal. What changed is
+/// that the projection now WRITES that coordinate as 0.0 instead of
+/// reading its ~ν² float residue back off the dot product, so the
+/// residue no longer lands in spade's forbidden (0, 2⁻¹⁴²) band and
+/// the whole band tessellates. This row keeps the band it used to pin
+/// refusing, asserting the closure across it; the mechanism, the
+/// siting argument against blanket snapping, and the Klein consumer
+/// that made the case non-synthetic are in `mesh::planar`'s module
+/// docs and in `tests/issue555_subfloor_cap.rs`.
 #[test]
-fn position_noise_subfloor_refusal_is_pinned_typed() {
+fn position_noise_subfloor_class_is_closed() {
     let body_at = |nu: f64| {
         let plane = SketchPlane::from_frame(
             Point3::new(0.0, 0.0, 0.0),
@@ -244,22 +237,14 @@ fn position_noise_subfloor_refusal_is_pinned_typed() {
         let poly = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)];
         prism_on(plane, &poly, 1.0)
     };
-    // Well inside the refusal band (~ν² sub-floor): typed, exactly.
-    for exp in [-30i32, -45, -60] {
-        match tessellate(&body_at(10.0f64.powi(exp)), 1e-2, Tol::witness()) {
-            Err(mesh::TessellateError::Triangulation { .. }) => {}
-            other => panic!(
-                "noise-1e{exp}: pinned typed Triangulation refusal drifted: \
-                 {:?}",
-                other.map(|m| triangle_count(&m))
-            ),
-        }
-    }
-    // Well clear of the floor (~ν² ≥ 2⁻¹⁴²): tessellates, exact volume.
-    for exp in [-15i32, -20] {
+    // The former refusal band (~ν² sub-floor) AND the scales that
+    // always cleared the floor: one contract across both now.
+    for exp in [-15i32, -20, -30, -45, -60] {
         let label = format!("noise-1e{exp}");
-        let m = tessellate_or_typed(&body_at(10.0f64.powi(exp)), 1e-2, &label)
-            .expect("must tessellate above the floor");
+        let m = tessellate(&body_at(10.0f64.powi(exp)), 1e-2, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: closed class refused {e:?}"));
+        assert_eq!(check_mesh(&m), Ok(()), "{label}: not watertight");
+        assert!(triangle_count(&m) > 0, "{label}: empty mesh");
         let v = signed_volume(&m);
         assert!((v - 2.0).abs() < 1e-9, "{label}: volume {v}");
     }

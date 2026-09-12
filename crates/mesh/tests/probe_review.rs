@@ -3,14 +3,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::FRAC_PI_2;
 use profile::RawLoop;
 
-use geom_core::{Affine3, Point2, Point3, Vec3};
-use sweep::{SketchSegment, loft_body, segment_curve, sweep_body};
+use geom_core::{Affine3, Point2, Vec3};
+use sweep::loft_body;
+// The corpus swept elbow is the kernel crate's fixture, not this
+// suite's: the falsification rows below need the SAME solid the
+// skin-integrality bracket and the STEP fixture meter.
+use sweep::test_support::swept_elbow;
 use topo::Body;
 
-mod common;
+use crate::common;
 use common::quad;
 use geom_core::Tol;
 
@@ -47,34 +50,6 @@ fn rational_pie() -> Body<f64> {
         .body
 }
 
-fn swept_elbow() -> Body<f64> {
-    let (r, h) = (3.0, 0.25);
-    let path = segment_curve(
-        0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(r, r),
-            bulge: (core::f64::consts::PI / 8.0).tan(),
-        },
-        Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            -FRAC_PI_2,
-        ),
-    )
-    .expect("arc path");
-    sweep_body::<f64>(
-        &quad([(-h, -h), (h, -h), (h, h), (-h, h)]),
-        Affine3::identity(),
-        &path,
-        9,
-        3,
-        Tol::witness(),
-    )
-    .expect("sweep builds")
-    .body
-}
-
 /// The four fixtures the Z1 rows drive, and the two deltas they drive
 /// them at. Shared by the armed row and its default-build counterpart
 /// so the two cannot drift into "the falsifier covers a corpus the
@@ -83,7 +58,7 @@ fn z1_fixtures() -> [(&'static str, Body<f64>); 4] {
     [
         ("loft_prism", loft_at(&[0.0, 1.0, 2.0])),
         ("nonuniform_loft", loft_at(&[0.0, 1.0, 3.0])),
-        ("swept_elbow", swept_elbow()),
+        ("swept_elbow", swept_elbow(Tol::witness())),
         // Promoted from the Z1R frontier pin at M8-3: the rational
         // wall's arc cap rim now mints a stored pcurve
         // (`Pcurve::IsoArc`), so the rational pie tessellates and the
@@ -114,26 +89,24 @@ const Z1_DELTAS: [f64; 2] = [3e-2, 6e-3];
 /// ci.yml's "mesh budget meter + certificate falsifier
 /// (feature = budget)" row (mirrored by local-scripts/ci-local.sh).
 ///
-/// **FREQUENCY, corrected 2026-08-22 — this row is no longer
-/// unconditional.** That step rides `k-lint`'s `dev-budget` feature
-/// row, and `k-lint` now SAMPLES one of its five feature unifications
-/// per run, so the falsifier runs on an expected 1 run in 5 rather than
-/// on every build-triggering change. The draw is seeded from the head
-/// SHA under its own salt, so a re-run of one commit draws the same row
-/// and the draw is recoverable from the SHA without the logs;
-/// repetition covers the matrix at this repository's ~60 runs/hour of
-/// active work.
+/// **FREQUENCY: unconditional, which is M8-5 MIN-1's intent as it was
+/// written.** That step rides `k-lint`'s `dev-budget` feature row, and
+/// every code-tier run gates all five of that job's unifications as five
+/// matrix legs, so the falsifier runs on every build-triggering change.
 ///
-/// M8-5 MIN-1's intent survives the change, and the reason is specific
-/// rather than reassuring: this row is a PERSISTENCE detector. A
+/// **It was 1 run in 5 from 2026-08-22 to 2026-09-04**, when the row was
+/// drawn from the head SHA and this comment said MIN-1's intent was met
+/// in a weaker form. It is not weaker now. What licensed the draw while
+/// it lasted is worth keeping, because it is what a future draw would
+/// have to argue again: this row is a PERSISTENCE detector — a
 /// certificate that stopped dominating its own samples stays broken in
-/// the tree, so a later draw still finds it — the red is deferred, not
-/// lost. Sampling would NOT be sound for a detector of absence (a row
-/// deleted, or a gate sited where it cannot fire), because an absence
-/// merges silently once and leaves no future red; that class stays
-/// unconditional elsewhere in CI. What has moved, twice now, is which
-/// build the row rides in and how often it is drawn — never whether
-/// the claim is checked.
+/// the tree, so a later draw still found it, and the red was deferred
+/// rather than lost. Sampling would NOT be sound for a detector of
+/// absence (a row deleted, or a gate sited where it cannot fire),
+/// because an absence merges silently once and leaves no future red;
+/// that class stays unconditional elsewhere in CI. What has moved,
+/// three times now, is which build the row rides in and how often —
+/// never whether the claim is checked.
 ///
 /// The ASSERTION is here and not in the tessellation lane, which is
 /// what keeps `mesh::tessellate`'s typed-error contract out of reach
@@ -167,12 +140,11 @@ fn z1_per_triangle_certificate_falsification() {
             // runs: `worst_ratio` only shrinks as `bound` grows, so a
             // loose certificate passes this by a WIDER margin than a
             // tight one. `budget_meter.rs`'s sibling row grew a
-            // measured floor beside its ceiling; this one has not, and
-            // the asymmetry is recorded as **S237**
-            // (`docs/SMELL-SCAN-2026-08.md`), unowned — with two more
-            // instances of the same shape in `nurbs_cert.rs`'s own
-            // test module, which #887's sweep missed and its
-            // adversarial review found.
+            // measured floor beside its ceiling; this one has not.
+            // **The asymmetry is known and unfixed**, here and in two
+            // more instances of the same shape in `nurbs_cert.rs`'s own
+            // test module: a ceiling with no floor cannot tell a tight
+            // certificate from a loose one.
             for f in &measures {
                 assert!(
                     f.worst_ratio <= 1.0,
@@ -260,7 +232,7 @@ fn z2_detached_pcurve_refuses_typed() {
 /// position bits; compare across two separate cargo invocations.
 #[test]
 fn z5_positions_hash_stamp() {
-    let body = swept_elbow();
+    let body = swept_elbow(Tol::witness());
     let m = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for p in &m.positions {
