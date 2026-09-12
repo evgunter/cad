@@ -353,6 +353,16 @@ pub enum RevolveError {
     /// on purpose — the direction is not zero, and no tolerance lever
     /// reaches it.
     NonFiniteAxis,
+    /// The axis direction's length **underflowed out of the format**:
+    /// its components are small enough (below ~1e-162 at `f64`) that
+    /// `norm_squared` flushed to zero, so the norm is exactly zero for
+    /// an axis that names a direction perfectly well.
+    ///
+    /// Distinct from [`RevolveError::DegenerateAxis`] for the reason
+    /// its overflow sibling is: this axis is not a sliver and it is not
+    /// zero, so no tolerance lever reaches it — the squared norm is
+    /// zero at every eps. The recourse is the overflow end's, scale.
+    UnderflowedAxis,
     /// The axis direction has no definite length (zero or sliver).
     DegenerateAxis,
     /// The axis-direction classification escalated or was poisoned.
@@ -526,6 +536,12 @@ impl fmt::Display for RevolveError {
                 "revolve axis direction has no finite length \u{2014} its components \
                  overflow the norm, or one of them is not a number; scale the geometry \
                  into the session's range",
+            ),
+            Self::UnderflowedAxis => f.write_str(
+                "revolve axis direction's length underflowed out of the format \u{2014} its \
+                 components are too small for the norm to hold, so it measures exactly \
+                 zero while still naming a direction; no tolerance reaches this, scale \
+                 the geometry into the session's range",
             ),
             Self::DegenerateAxis => write!(
                 f,

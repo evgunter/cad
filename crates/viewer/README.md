@@ -1742,6 +1742,47 @@ not there to link to. That is the cost and it is accepted: a
 `cfg(not(feature))` configuration is allowed to render badly (Ev,
 2026-09-11).
 
+**The ruling settles the SPELLING as well as the legality: a doc comment
+that names an `app`-gated ITEM links it, whatever the grammar of the
+sentence around it.** Until that date a bare span was the only legal
+spelling, so this crate acquired two for one relationship — a reference
+written as one path became `` [`crate::app::FieldWriting`] ``, while the
+same reference written as a possessive stayed `` `app` ``'s
+`` `remember_theme` ``. A possessive is not a prose exception: its
+second span names an item, so it takes the link too. **The sweep rule
+that produces the population** is every `///` or `//!` line under `src/`
+carrying a backtick span whose content is an `app`-gated module name
+(`app`, `drafts`, `forms`, `gpu`, `pane`, `widgets`, with or without a
+`.rs` suffix) immediately followed by a possessive — *whether or not a
+second span follows it*, which is the widening that matters, because the
+rule every earlier sweep here used (*whole span content is
+`<mod>::<path>`*) cannot see this shape at all. Two things the rule
+still does not reach, stated because a sweep whose blind spot is
+unstated is not a negative result: a span naming one of those modules as
+a CONCEPT rather than as a namespace (`sketch.rs`'s *"The forms' own
+default is `app`'s, not this"*), which has no item to point at; and a
+possessive whose first span is a type, a trait or another crate, which
+is the same grammar over a different population.
+
+**A PRIVATE target links, but only if it is nameable, and the two are
+not the same test.** A private FIELD and a private METHOD resolve
+(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_theme` are
+both linked and both private), because rustdoc resolves an associated
+item through its type and both host passes run
+`--document-private-items` with `rustdoc::private_intra_doc_links`
+allowed — the decision `scripts/doc-gate.sh`'s header argues and its own
+selftest pins. **A module-scoped private `const` or `fn` does not**, and
+`--document-private-items` does not change that: the flag decides what
+rustdoc RENDERS, while a path is resolved by ordinary visibility, and
+`crate::gpu::EDGE_CLIP_Z_SHRINK` is not a path anyone outside `gpu` may
+write. Measured by planting it: the all-features pass errors
+*"no item named `EDGE_CLIP_Z_SHRINK` in module `gpu`"*. So
+`pickindex.rs`'s and `gpu.rs`'s deliberate pointer pair over their two
+slack constants stays NAMED at both ends — the one population this
+section's linking rule cannot reach, and the reason is visibility rather
+than a feature gate. Widen the target to `pub(crate)` first if a link is
+wanted, or leave it named; do not reach for `#[allow]`.
+
 **A browser pass, if one is ever run, allows that one lint.** None is
 run today, and the feature axis is better off here than this one:
 doc-gate's pass 3 at least COMPILES the half it widens to, where

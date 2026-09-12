@@ -307,6 +307,9 @@ pub fn classify_neighborhood<T: Decide>(
                 SectorFault::NonFiniteChord => {
                     SplitReduceError::NonFiniteSectorChord { vertex, face }
                 }
+                SectorFault::UnderflowedChord => {
+                    SplitReduceError::UnderflowedSectorChord { vertex, face }
+                }
                 SectorFault::Rung(diag) => sliver(diag),
             },
         )?;

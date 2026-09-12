@@ -99,3 +99,29 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+## Re-homed to META (2026-09-12, by the CITE orchestrator)
+
+Moved as residue at CITE's close. `work/README.md` says a closed
+program's residue is re-homed before the sweep and never left behind,
+and that a closed program may hold only closed items — this row is
+`deferred`, not closed, so it had to move or be decided.
+
+**META by subject.** The row's own opening says the owner is undecided
+because the documents that govern it belong to two parties. One of those
+two is now moot: Ev ruled out the `memories/` sentence (2026-09-11),
+which leaves `docs/prompts/implementer-discipline.md` as the only
+document in play, and that file is META's `paths`. The row's shape 1
+already pointed there.
+
+**It stays deferred, and the ratification is Ev's, quoted on the row
+above:** *"I lean against this kind of rule because it's not at all
+specific to this project."* No `blocked_on`, because it waits on no
+trigger — it was decided against for now.
+
+**What would re-open it**, stated so META does not have to re-derive it:
+a lane that LOSES work to a scratchpad collision. Both instances behind
+the row were caught — one by diffing against the live API before
+patching, one by noticing the overwrite — and "caught twice" is what the
+deferral rests on. A third instance that is caught changes nothing; one
+that is not is a new fact.

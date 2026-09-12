@@ -751,6 +751,18 @@ pub enum BooleanError {
         /// The sector's face.
         face: FaceKey,
     },
+    /// A vertex sector's bounding chord has a length that **underflowed
+    /// out of the format**: its components are too small for the norm
+    /// to hold (below ~1e-162 at `f64`), so it measures exactly zero
+    /// while still naming a direction. Distinct from
+    /// [`BooleanError::Escalated`] on purpose — nothing about this is
+    /// a band question, and no tolerance lever reaches it.
+    UnderflowedSectorChord {
+        /// The vertex being classified.
+        vertex: VertexKey,
+        /// The sector's face.
+        face: FaceKey,
+    },
     /// A reduction/classification predicate escalated (in-band margin):
     /// the operand pair is ill-conditioned at this ε — a genuine
     /// sliver (F6). Never a snap, never a guess.
@@ -1255,6 +1267,8 @@ pub enum BooleanErrorKind {
     NonMaximalFaces,
     /// [`BooleanError::NonFiniteSectorChord`].
     NonFiniteSectorChord,
+    /// [`BooleanError::UnderflowedSectorChord`].
+    UnderflowedSectorChord,
     /// [`BooleanError::Escalated`].
     Escalated,
     /// [`BooleanError::UndeclaredCoincidence`].
@@ -1345,6 +1359,7 @@ impl BooleanError {
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
             Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
+            Self::UnderflowedSectorChord { .. } => BooleanErrorKind::UnderflowedSectorChord,
             Self::Escalated { .. } => BooleanErrorKind::Escalated,
             Self::UndeclaredCoincidence { .. } => BooleanErrorKind::UndeclaredCoincidence,
             Self::DeclarationContradicted { .. } => BooleanErrorKind::DeclarationContradicted,
@@ -1606,6 +1621,14 @@ impl core::fmt::Display for BooleanError {
                 "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
                  finite length \u{2014} its components overflow the norm, or one of them \
                  is not a number; scale the geometry into the session's range"
+            ),
+            Self::UnderflowedSectorChord { vertex, face } => write!(
+                f,
+                "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has a \
+                 length that underflowed out of the format \u{2014} its components are too \
+                 small for the norm to hold, so it measures exactly zero while still \
+                 naming a direction; no tolerance reaches this, scale the geometry into \
+                 the session's range"
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -2865,6 +2888,7 @@ mod tests {
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
                 BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",
+                BooleanErrorKind::UnderflowedSectorChord => "UnderflowedSectorChord",
                 BooleanErrorKind::Escalated => "Escalated",
                 BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
                 BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",
