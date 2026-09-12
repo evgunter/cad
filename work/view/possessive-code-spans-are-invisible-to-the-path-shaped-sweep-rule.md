@@ -7,6 +7,7 @@ opened: 2026-09-11
 refs: [comment-symbol-names-outside-rustdocs-reach-have-no-gate, named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites, 2332]
 closed: 2026-09-12
 branch: view/possessive-spans
+pr: 2400
 ---
 
 
