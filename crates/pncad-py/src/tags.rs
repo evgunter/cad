@@ -89,6 +89,7 @@ use pncad::topo::{
     BooleanErrorKind, CensusContact, CensusSubject, EntityId, RingContact, ShellError,
     StaleDeclaration, TransformError, ValidationError,
 };
+use pncad::topo::{CoherenceCondition, Unexaminable};
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
 use pncad::stl::{BinaryHeaderError, SolidNameError, StlError};
@@ -131,6 +132,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::ArcContinueOffCarrier => "arc_continue_off_carrier",
         PathErrorKind::ZeroDirection => "zero_direction",
         PathErrorKind::NonFiniteDirection => "non_finite_direction",
+        PathErrorKind::UnderflowedDirection => "underflowed_direction",
         PathErrorKind::ArcViaCollinear => "arc_via_collinear",
         PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
         PathErrorKind::ArcCenterNotEquidistant => "arc_center_not_equidistant",
@@ -1222,7 +1224,6 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
     match err {
         LoftError::Band(_) => "band",
         LoftError::Skin(_) => "skin",
-        LoftError::Profile(_) => "profile",
         LoftError::Euler(_) => "euler",
         LoftError::CapPlane(_) => "cap_plane",
         LoftError::Pcurve(_) => "pcurve",
@@ -1547,6 +1548,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Assembly { .. } => "assembly",
         StepImportError::Adoption { .. } => "adoption",
         StepImportError::RimOffWallBoundary { .. } => "rim_off_wall_boundary",
+        StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Placement { .. } => "placement",
@@ -2183,6 +2185,42 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::StaleExpectation { .. } => "stale_expectation",
         CheckEvidence::NotSeparated { .. } => "not_separated",
         CheckEvidence::SeparationUnavailable { .. } => "separation_unavailable",
+        CheckEvidence::ChartCoherence { .. } => "chart_coherence",
+        CheckEvidence::ChartCoherenceUnexamined { .. } => "chart_coherence_unexamined",
+        CheckEvidence::ChartCoherenceUnavailable => "chart_coherence_unavailable",
+    }
+}
+
+/// The stable tag for WHICH of the three chart-coherence conditions a
+/// measurement reports — the inner arm of
+/// [`CheckEvidence::ChartCoherence`].
+///
+/// Each names the two statements whose disagreement was measured: a
+/// meridian edge's carrier midpoint against its own endpoint vertex, a
+/// rim row's two carriers against each other, a meridian column's two
+/// carriers against each other.
+pub fn coherence_condition_tag(condition: CoherenceCondition) -> &'static str {
+    match condition {
+        CoherenceCondition::MeridianClosure { .. } => "meridian_closure",
+        CoherenceCondition::RimContinuation { .. } => "rim_continuation",
+        CoherenceCondition::MeridianContinuation { .. } => "meridian_continuation",
+    }
+}
+
+/// The stable tag for WHY one loop was out of the examination's reach
+/// — the inner arm of [`CheckEvidence::ChartCoherenceUnexamined`].
+///
+/// **A word about the DATA, never about the configuration.** A check
+/// a caller turned off is `ChecksReport.skipped` and is not a finding
+/// at all; these three are loops the body itself put out of reach, and
+/// no configuration makes them examinable. The alphabets are disjoint
+/// from [`coherence_condition_tag`]'s, which is what lets both ride
+/// one attribute.
+pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
+    match why {
+        Unexaminable::Corrupt { .. } => "corrupt",
+        Unexaminable::NullScaffoldEdge { .. } => "null_scaffold_edge",
+        Unexaminable::NonIsoCarrier { .. } => "non_iso_carrier",
     }
 }
 

@@ -1653,7 +1653,8 @@ memory's fuzzing rules are untouched, and `r1-probe-seeds-are-not-on-the-
 fuzz-dial` stays open: it is the one place the reproducibility floor this
 ruling assumes is not actually met.
 
-Board: eight live rows.
+Board: eleven live rows (corrected 2026-09-12 — the count here was
+wrong; see the correction at the tail).
 
 ## Unit: the gate's mount arm (2026-09-11)
 
@@ -1691,5 +1692,232 @@ valid, so the red can only be this arm), and a mounted file with no
 marker must pass — the live tree's own state, and what a gate firing
 there would red `main` over.
 
-Both gate-defect rows are now closed. Board: six live rows — the four
-latency rows, the demotions row, and `r1-probe-seeds-are-not-on-the-fuzz-dial`.
+Both gate-defect rows are now closed. Board: ten live rows (corrected
+2026-09-12 — "six" here counted only the latency rows, the demotions row
+and `r1-probe-seeds-are-not-on-the-fuzz-dial`, and silently dropped four;
+see the correction at the tail).
+
+## Seam: Ev's EFFORT proposal, and the measurement that prices it (2026-09-11)
+
+Ev, in chat: run every fuzzer at EFFORT = 1 always, and let the marker
+select which ones run DEEPER — plus the observation that compilation time
+is a factor. Drafted as an `[ev]` PR
+(`fuzz-depth-not-existence-run-everything-at-effort-1`, `needs_ev`); the
+`memories/test-suite-cost.md` clause rides it and nothing is wired until
+Ev signs off.
+
+**Half of it already exists and the other half exists nowhere.**
+`fuzz::effort()` already defaults to 1 and the harness already calls the
+shipped counts a smoke level, so "run at EFFORT = 1" is what every kernel
+fuzz row already does when it runs at all. And NOTHING in the kernel ever
+runs above 1: the only `CAD_FUZZ_EFFORT` in CI is the
+`interval-transcendentals` oracle job's `"8"`, a different workspace. The
+nightly re-take runs the gated set at EFFORT = 1 too, so it buys breadth,
+not depth. The proposal is two edits, not a redesign.
+
+**The measurement was already being taken and nobody had read it.** The
+nightly's `gated suites (ungated re-take)` runs the whole gated set,
+ungated, at EFFORT = 1 — exactly the population and exactly the dial the
+proposal would add to every PR. Its own header says the reading was owed
+from its first firing and never taken. Two nights:
+
+| night | `Summary` wall | tests | slowest row | 2nd |
+|---|--:|--:|--:|--:|
+| 2026-09-11 | **83.599 s** | 419 | 83.310 s | 23.490 s |
+| 2026-09-08 | **66.359 s** | 419 | 65.896 s | 18.102 s |
+
+**The gated set's entire execution wall is ONE test** — 83.599 against
+83.310 — with the other 418 finishing in its shadow at ~0.007 s each.
+Cost concentrates savagely, measured. So the proposal's price is not a
+policy question but a single row, filed as
+`m10-3-chamber-row-reads-ten-times-its-recorded-cost`: that row reads
+66-83 s against TCOST-6's recorded 6.7 cpu-s, a factor of ten nobody has
+explained, and it is now the largest lever on this program's board.
+
+**Ev's follow-up found the carve-out**: the `interval-transcendentals`
+oracle fuzzer is NOT in the 419 and must not be swept into the rule. That
+root is outside the workspace, so a PR does not compile it anyway —
+~234 s of build to buy ~7 s of cases at EFFORT = 1. The rule's premise is
+that the binary is compiled regardless; where that is false the job-level
+gate stands. That lane is the proposal's precedent rather than its
+exception: it is the only thing in the repo already buying depth on the
+changes that reach it.
+
+Also: `work/tcost/program.md`'s `keep_out` now names S-TINT, making that
+territory overlap two-sided (22 warnings from 23; the rest pre-date this
+and mirror overlaps S-TCOST already had).
+
+## The M10-3 cost discrepancy is diagnosed: a 15x regression the gate hid (2026-09-11)
+
+Ev asked for the diagnosis; it is a regression, it is attributable, and
+the recorded figures were never wrong.
+
+**Measured**, one box, same profile and command, two trees: the suite
+goes **21.041 s at TCOST-6's merge (`a4439fbef`) to 319.373 s at
+`origin/main`** — 15.2x, with the three rows at 15.2x / 9.0x / 6.3x.
+TCOST-6's recorded 6.7 cpu-s is CORRECT for the tree it was taken on:
+21.0 s at opt-0 over the 3.8x local:hosted ratio measured on this same
+row is ~5.5 s. Nothing was mis-measured.
+
+**Bisected** over `a4439fbef..origin/main`, 2 512 revisions, 11 steps, on
+the cheapest discriminating row: **PR #1725 (`m10/m10-7-symbolic`)**, at
+the commit that names its own mechanism — *"driver: replay at
+`Sym<Interval>`, the dials and the receipt; re-cut the M10-3 limit
+rows"*. The leaf budgets did not move; the arithmetic under every box of
+the subdivision did. Nothing in `work/m10/` or in the test file records a
+runtime cost for that change, and the file still carries TCOST-6's
+measured prose ("1.46 s here against 0.98 s at 1024") beside constants it
+no longer describes.
+
+**The gate is why it sat eight days.** The suite is `gated_to!`
+editor-core's modules; #1725 changed `geom-core`, which is not in that
+set — so the gate SKIPPED the suite on the pull request that made it 15x
+more expensive, and on nearly every one since. A skipped test contributes
+no row to the `Slowest N tests` report, so the instrument that exists to
+catch this could not see it. The one lane that ran it is the nightly
+ungated re-take: eight nights at 66-83 s, flagged `SLOW`, green, unread.
+
+Two open arguments now have this as evidence rather than reasoning: that
+a gate deciding EXISTENCE hides what a dial deciding DEPTH would show,
+and that a detector nobody reads is not a control (Ev, 2026-09-07).
+Filed with both dispositions on
+`m10-3-chamber-row-reads-ten-times-its-recorded-cost`; whether
+`Sym<Interval>` is worth its seconds is M10's call and this program does
+not reopen it.
+
+## The M10-3 cost is 95 % symbolic tier; filed to M10 (2026-09-11)
+
+Ev asked for an issue on speeding up the symbolic form. Quantified first,
+one line changed (`SymbolicDials::default()`'s `enabled`), same box and
+command: **tier off 15.364 s, tier on 319.373 s** — the tier is 304 of
+319 seconds, **95.2 %, a 20.8x multiplier**. The rest of the kernel did
+not regress: with the tier off the suite is faster today than the whole
+suite was before E12 existed (21.041 s at `a4439fbef`). The entire delta
+is E12.
+
+Two corrections to yesterday's reasoning fall out of it. The degree-16
+result is **explained and the dial exonerated** — `drive.rs` predicts it
+in as many words (*"at 16 it freezes and the row does not move"*), so a
+frozen form sends work back to subdivision and 16 is slower than 128.
+And `CHAMBER_LEAVES` should NOT be re-cut: the budget was measured
+correctly, the rows assert what they assert, and the seconds belong to a
+kernel tier the real program pays too.
+
+Filed as `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive` —
+M10's slate, because M10 designed the tier (M10-7), owns `drive.rs` where
+both budget constants live, and owns the rows that pay. Named in it:
+`geom-core/src/sym*` is PROPS's by glob, so a fix inside the normal form
+is an announced cross-fence change. The row asks for a PROFILE first —
+which of degree growth, the `num-bigint` coefficient ring or per-term
+allocation dominates — because the one hypothesis taken from reading the
+code (the degree constant) was refuted by measurement, and a patch
+written the same way would have made the row slower.
+
+Recorded there without an argument attached: **all nine rows pass with
+the tier off**, which is a coverage question for M10 and not a case for
+turning it off.
+
+
+## Correction: the board counts in the two entries above were wrong (2026-09-12)
+
+Read off `work.py status --program tcost` rather than counted by hand,
+which is how the error happened: both figures were derived from the
+enumeration a lane had in its head at the time, and both enumerations
+were short. **Ten rows are live**, and here they are in full so the next
+reader does not have to re-derive them either:
+
+| row | what it waits on |
+|---|---|
+| `fuzz-depth-not-existence-run-everything-at-effort-1` | **Ev** — the `[ev]` PR carrying the `memories/` clause; nothing wired |
+| `m10-3-chamber-row-reads-ten-times-its-recorded-cost` | M10's `symbolic-tier-costs-95-percent-of-the-m10-3-drive`; diagnosed, no work left on this side |
+| `nightly-demotions-c1-c3-were-bought-with-billed-minutes` | a hosted wall reading per job, C3's especially — never taken |
+| `nextest-shard-count-needs-remeasure` | its own measured PR (N=3/N=4 on the interval legs) |
+| `rust-cache-never-restores-across-branches` | a unit; the pole itself |
+| `tcost-area-pad-lever` | a spec, then a kernel unit |
+| `offset-composite-lazy-sign-gate` | a spec, then a kernel unit |
+| `r1-probe-seeds-are-not-on-the-fuzz-dial` | a unit; more load-bearing if the `[ev]` clause lands |
+| `proptest-modules-in-src-ungated` | closes WITH the `[ev]` clause, not before |
+| `ci-filter-cites-a-path-the-ledger-recipe-cannot-open` | two comment lines |
+
+The lesson is small and general enough to keep: **a board count belongs
+to `work.py status`, not to a log entry's prose.** A hand-written total
+in a narrative goes stale the moment the next row lands, and this program
+wrote two of them wrong in one day while auditing other people's stale
+figures.
+
+## C3 measured; all three demotions are clear to restore (2026-09-12)
+
+The reading `nightly-demotions-c1-c3-were-bought-with-billed-minutes`
+asked for and nobody had ever taken. Hosted, over the 32 most recent
+completed pull-request runs, every run where the job actually executed:
+the **`python suite` job is 106 s median (n = 15), range 88-127 s**,
+against a code-tier run wall of 845 s median in the same window — **13 %
+of the run**. It was the one of the three that could plausibly have been
+the pole. It is not.
+
+With C1 at 93 s and C2 at 43 s off a 222 s `fmt` job, all three are now
+measured on one axis and none of them is on the critical path: the wall
+is the `build + archive` -> `test` chain and all three hang off `filter`
+beside it. The row's ask 2 therefore stands for all three — restore
+them; nothing here costs a contributor a second, and each pays for that
+in attribution.
+
+Noted on the row rather than reconciled: this window's 845 s wall median
+sits above the 442-482 s in `work/ciw/f3-recosting-on-a-public-repo` §M2,
+which measured a different window and a different endpoint pair. The
+conclusion is a ratio and holds on either denominator; whoever restores
+the jobs takes the before/after from their own PR.
+
+## rust-cache closed on its after-reading; the budget half split out (2026-09-12)
+
+`rust-cache-never-restores-across-branches` is closed. Its premise —
+*"restored nothing on five of seven build jobs"* — is false on today's
+tree, and the fix is the one the row itself proposed: **TCOST-B3's
+`push: main` primer landed and works.** Over the 32 most recent completed
+PR runs, every `build + archive` job that executed restored — **0 of 16
+miss-shaped per lane**, restore step 13 s median — and the jobs sit at
+**251 / 279 s** against the row's own 820 / 840 s cold figure. Grounded
+rather than inferred: one job's log read directly prints
+`Cache up-to-date.` The row had sat open for nine days describing a tree
+that had moved.
+
+**Half of it did not close.** The primer works by REFRESHING a shared key
+on every main push, so eviction costs one push's staleness; that says
+nothing about an entry written ONCE under a hash key — which is what
+TCOST-C4 measured churning out of the 10 GB budget inside the hour, and
+what `work/ciw/cache-rendered-cells-on-input-hash` is parked on. Filed as
+`actions-cache-budget-under-a-hash-key` and the CIW row re-parked onto
+it in the same commit, because a closing row may not un-park another
+program's item by leaving its blocker dangling — lint caught exactly that
+and the rule says fix the stale row rather than soften the check.
+
+**The pattern is now worth naming.** Five rows this session were figures
+describing a tree that had moved: TCOST-6's 6.7 cpu-s, this file's own
+1.46 s in-file timing, `PCURVE-P2-SPEC`'s "THROWS IT AWAY", C3's reading
+that was never taken at all, and this row's five-of-seven. Each was
+written accurately and none was re-read at the change that falsified it.
+The gate cannot catch this class — a stale NUMBER in prose reds nothing —
+so the only thing that does is a lane re-deriving a figure before acting
+on it, which is what found all five.
+
+## The EFFORT policy is ratified and unwired; the row says so now (2026-09-12)
+
+Ev signed the clause off and it merged at PR #2363. The row that carried
+it still read `needs_ev: true` and was titled around the measurement,
+so the board reported "1 on Ev" for a question Ev had already answered —
+the board lying about its own state, which is the class this program
+spent two days fixing elsewhere.
+
+Corrected: `needs_ev` dropped, retitled to name the live work
+(**`Wire the EFFORT policy: ci-filter.py selects a raised EFFORT instead
+of excluding suites`**), and the wiring section promoted from "if Ev
+signs off" to THE WORK. Five steps, unchanged in substance.
+
+**Nothing is wired.** `scripts/ci-filter.py` still emits an EXCLUSION and
+still decides existence; no lane in the kernel runs above EFFORT = 1.
+
+**Not blocked, but ordered.** The gated set's execution wall is one suite
+whose cost is a kernel regression now on M10's slate. Wiring before that
+is fixed puts a 66-83 s row on every pull request; after, the same step
+costs about a second of leg time. A lane may go first and owes the
+measurement of what it lands.

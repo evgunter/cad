@@ -1,11 +1,12 @@
 ---
 id: num-relative-tolerance-collides-above-a-decimetre
 kind: issue
-title: num()'s relative tolerance exceeds eps above ~0.1 m, so two lengths the kernel can tell apart render as one number
-status: review
+title: num()'s relative tolerance exceeds eps above 1 m (the id says decimetre; that is where the CHOSEN eps/10 grid crosses, not where collisions start), so two lengths the kernel can tell apart render as one number
+status: closed
 opened: 2026-09-11
 branch: fix/num-tolerance-cap
 pr: 2399
+closed: 2026-09-12
 ---
 
 
@@ -91,3 +92,65 @@ sweep for it has not been run: any other `Display` impl, assertion
 helper or report formatter that writes a relative tolerance where ε is
 a length. `crates/profile/src/validate.rs` and the other crates' error
 `Display`s are the obvious first look.
+
+## Closed by PR 2399 — and the title was off by a decade (FIX orchestrator, 2026-09-12)
+
+`let tol = (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9);` — `min`, never
+`max`. Below the crossover the relative arm is strictly smaller, so
+`min` returns the identical expression and the sub-ε regime PR 2366
+repaired is bit-identical **by construction**, not by sampling.
+
+**The title said "above ~0.1 m" and collisions start above 1 m.** The
+lane caught it; the body and the table were right all along and only
+the title conflated two different crossings. ε is 1e-9 and the old
+tolerance was `1e-9·|x|`, so the tolerance exceeds ε at `|x| = 1`,
+which is where two lengths a kernel can certify apart begin to render
+alike. `0.1` m is where the relative arm crosses the **chosen** ε/10
+grid — where renderings change, not where the defect starts. The id
+keeps the old spelling, because ids are stable.
+
+Verified independently of the lane before merging: the row's collision
+table re-derives exactly over `num`'s real body — all four pairs
+collide under the old tolerance, all four distinct under the new, and
+the 1 m control is unchanged under both.
+
+**Two further things the lane established that the row did not know.**
+
+The decade in `ε/10` is load-bearing, not decoration: a cap at exactly
+ε still collides at 1234.5 m on two lengths one ε apart.
+
+And the `DEFAULT_EPS`-not-`Tolerance::eps()` argument has a receipt
+rather than only a rationale — under a live ε the already-pinned
+`1.0/3.0` row spells three different ways across the three gated eps
+rows, so reading the live value would red an existing string pin on
+two of the six lane/eps points.
+
+**Instruction 3 fired, and the pin really was part of the defect**:
+nothing discriminated. The sub-nanometre rows are all ≤ 1e-8 and the
+ladder asserted `≤ 1e-9·|x|`, which a *tighter* tolerance satisfies
+vacuously. Both ends are now mutation-proven in both directions —
+reverting the line reds five rows, and swapping `min` for `max` reds
+seven, including the rows PR 2366 landed. **The one-character slip
+that would re-mint that defect can no longer land silently**, which is
+the reviewer brief's standing warning about a fix minting a fresh
+instance of what it closes, answered mechanically rather than in
+prose.
+
+One consequence the lane disclosed rather than smoothed: above
+~3.3e5 m an absolute 1e-10 grid is finer than `f64`'s own spacing, so
+payloads there render at full `Debug` precision. It declined a third
+arm that would give up once the grid beats the spacing, because that
+reintroduces a floor-shaped term and a second knee. Verified: near
+`f64::MAX` the spacing is ~2e292 m against a 1e-10 grid, so the exact
+spelling is the only one that round-trips and `num` and `{:?}`
+necessarily agree — the flipped assertion there is forced, not chosen.
+
+## Residue, both filed
+
+- `fillet-leg-carrier-renders-raw-float-noise` (this slate) — the
+  blind spot this row predicted, and the OPPOSITE defect: no
+  shortening at all, reaching `path.rs` sentences through
+  `CornerReason`'s `{carrier}`.
+- `work/props/quadrature-budget-prints-its-two-lengths-alike` —
+  reported out of fence by the lane and placed on PROPS's slate by the
+  orchestrator, verified first.

@@ -22,12 +22,14 @@
 //!
 //! **Adopted into the unit's branch with one mechanical re-aim, kept
 //! otherwise verbatim (authorship the reviewer's).** The door these rows
-//! exercise is spelled `ProfileLoop::map` at the merged head, not
+//! exercise is spelled `ProfileLoop::map_scalar` at the merged head, not
 //! `embed`: R2-Q1 ruled that `embed` was a fourth private word for what
-//! `Point2`/`Vec2`/`Affine3`/`SketchPlane` all call `map`. Every
-//! `src.embed()` here is `src.map(<f64 as Real>::from_f64)` or
-//! `src.map(Interval::from_f64)`; nothing else about what these rows
-//! measure has changed.
+//! `Point2`/`Vec2`/`Affine3`/`SketchPlane` all call `map` — a leaf's
+//! name, which a loop's lift then took under the scalar-lift
+//! convention. Every `src.embed()` here is
+//! `src.map_scalar(<f64 as Real>::from_f64)` or
+//! `src.map_scalar(Interval::from_f64)`; nothing else about what these
+//! rows measure has changed.
 //!
 //! **Second adoption note (the `origin/main` merge).** `embed_profile`
 //! no longer exists: main's `ValidatedProfile::lift_onto` moved
@@ -121,7 +123,7 @@ fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
 #[test]
 fn r2_embed_is_both_retired_walks_bit_for_bit_at_f64() {
     let src = awkward();
-    let door: ProfileLoop<f64> = src.map(<f64 as Real>::from_f64);
+    let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
     same_bits(&loft_walk::<f64>(&src), &door, "loft");
     same_bits(&anchor_walk::<f64>(&src), &door, "anchor");
     // And the door is the identity at f64, which is the premise the
@@ -139,7 +141,7 @@ fn r2_embed_carries_the_declaration_list_unnormalised() {
     let odd: ProfileLoop<f64> =
         <ProfileLoop<f64> as RawLoop<f64>>::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0)])
             .with_tangent_joints(vec![2, 0, 2, 9]);
-    let crossed: ProfileLoop<f64> = odd.map(<f64 as Real>::from_f64);
+    let crossed: ProfileLoop<f64> = odd.map_scalar(<f64 as Real>::from_f64);
     assert_eq!(crossed.tangent_joints(), [2, 0, 2, 9]);
 }
 
@@ -153,7 +155,7 @@ fn r2_embed_is_both_retired_walks_at_the_interval_scalar() {
     use geom_core::{Bounds, Interval};
 
     let src = awkward();
-    let door: ProfileLoop<Interval> = src.map(Interval::from_f64);
+    let door: ProfileLoop<Interval> = src.map_scalar(Interval::from_f64);
     let loft = loft_walk::<Interval>(&src);
     let anchor = anchor_walk::<Interval>(&src);
 

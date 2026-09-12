@@ -522,7 +522,8 @@ class StepImportError(PncadError):
     `declaration_unresolved`, `vertex_without_point`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
-    `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
+    `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
+    `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 
@@ -5435,10 +5436,14 @@ class CheckKind:
 class CheckId:
     """Which check fired — the registry's closed set. `Connectedness`
     counts a subject's components; `Separation` holds the product's
-    cross-root solid pairs to a disjointness certificate."""
+    cross-root solid pairs to a disjointness certificate;
+    `ChartCoherence` measures, in metres, how far a curved face's
+    carriers and its vertices disagree about a chart coordinate they
+    both state."""
 
     Connectedness: Final[CheckId]
     Separation: Final[CheckId]
+    ChartCoherence: Final[CheckId]
 
     @property
     def kind(self) -> CheckKind:
@@ -5479,19 +5484,29 @@ class ChecksConfig:
     `SplitOutcome.node_map` spelling); a subject stated twice is
     refused rather than silently resolved last-wins.
 
-    The two knobs are two TYPES, which is DS6's waiver rule made
-    static: `separation` cannot be set to `Severity.Error`."""
+    Two of the knobs are `Advisory` rather than `Severity`, which is
+    DS6's waiver rule made static: neither `separation` nor
+    `chart_coherence` can be set to `Severity.Error`.
+
+    `chart_coherence` is `Advisory.Off` by default — the one resident
+    not in the default pass. It reads every face of every rest body,
+    and it reports a trimmed face's loops as out of its reach, which
+    is true and is not actionable; ask for it rather than pay for it
+    on every run. `Off` is visible in `ChecksReport.skipped`."""
 
     def __init__(
         self,
         connectedness: Severity = ...,
         expected_components: Optional[list[tuple[NodeId, int, int]]] = None,
         separation: Advisory = ...,
+        chart_coherence: Advisory = ...,
     ) -> None: ...
     @property
     def connectedness(self) -> Severity: ...
     @property
     def separation(self) -> Advisory: ...
+    @property
+    def chart_coherence(self) -> Advisory: ...
     @property
     def expected_components(self) -> list[tuple[NodeId, int, int]]:
         """The stated expectations, ascending by subject."""
@@ -5522,7 +5537,19 @@ class CheckEvidence:
     `boolean_variant`) — the machinery could not be built over the
     product, so there is no verdict for any pair, and
     `boolean_variant` is which kernel boolean refusal that was, in the
-    vocabulary `EvaluationError.inner_kind` publishes."""
+    vocabulary `EvaluationError.inner_kind` publishes.
+
+    `chart_coherence` (`chart_variant`, `metres`, `gap`, `lever`,
+    `eps`) — a curved face's carriers and its vertices state one chart
+    coordinate `metres` apart, judged against the band `eps`. A
+    MEASUREMENT and never a verdict: nothing refuses on it.
+    `chart_coherence_unexamined` (`chart_variant`) — the examination
+    ran and one loop was out of its reach, which is a fact about the
+    DATA; a check a configuration turned off is `ChecksReport.skipped`
+    and carries no finding at all. `chart_coherence_unavailable` (no
+    payload) — this evaluation's decision lane has no chart-coherence
+    examination, so nothing was read; do not take the silence for a
+    clean body."""
 
     @property
     def variant(self) -> str: ...
@@ -5540,6 +5567,16 @@ class CheckEvidence:
     def inner_variant(self) -> Optional[str]: ...
     @property
     def boolean_variant(self) -> Optional[str]: ...
+    @property
+    def chart_variant(self) -> Optional[str]: ...
+    @property
+    def metres(self) -> Optional[float]: ...
+    @property
+    def gap(self) -> Optional[float]: ...
+    @property
+    def lever(self) -> Optional[float]: ...
+    @property
+    def eps(self) -> Optional[float]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class CheckFinding:

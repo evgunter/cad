@@ -3626,6 +3626,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "check_evidence_tag",
         values: &[
+            "chart_coherence",
+            "chart_coherence_unavailable",
+            "chart_coherence_unexamined",
             "connectedness",
             "escalated",
             "not_separated",
@@ -3642,6 +3645,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "product_unavailable",
             "root_without_value",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "coherence_condition_tag",
+        values: &[
+            "meridian_closure",
+            "meridian_continuation",
+            "rim_continuation",
         ],
         delegates: &[],
     },
@@ -3894,7 +3906,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_stacking",
             "euler",
             "pcurve",
-            "profile",
             "reversed_stacking",
             "seam_structure",
             "section_structure",
@@ -4165,6 +4176,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_retrims_arc_first_side",
             "seam_tangent",
             "underdetermined_leg",
+            "underflowed_direction",
             "zero_direction",
         ],
         delegates: &[],
@@ -4560,6 +4572,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_entity",
             "unsupported_unit",
             "vertex_without_point",
+            "wall_column_structure",
             "wrong_entity_type",
         ],
         delegates: &[],
@@ -4631,6 +4644,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wall_exceeds_radius",
             "wall_gap_collapsed",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "unexaminable_tag",
+        values: &["corrupt", "non_iso_carrier", "null_scaffold_edge"],
         delegates: &[],
     },
     TagEntry {
