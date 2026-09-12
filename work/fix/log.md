@@ -2491,3 +2491,64 @@ the box has held 23G free since. **Two lanes of this wave were degraded
 before it landed**, and one of them (`census-containment`) shipped the
 first argued-rather-than-executed red-first half in three waves because
 of it. That is the cost of not sweeping, measured.
+
+### `underflow-gate-owed-at-five-more-doors` CLOSED (PR 2415) — the fourth arm, and the class with it
+
+`profile::path::arc_fillet::carrier_tangent` asks
+`is_underflowed_length(radius, v.norm_witness())` after the finiteness
+question and before the sign decision, refusing a new
+`PathError::UnderflowedDirection { dx, dy }` on the shape PR 2401 set.
+**Six non-test `is_finite_length` call sites, five gated (2359, 2401×3,
+this), and `unit_from_components` declined — and now PINNED as
+declined**, so a lane adding an arm for symmetry breaks a row and has
+to read why. That is the right way to close a class: the decision not
+to act is as guarded as the actions.
+
+**The red-first row was executed under a full disk, by pushing the
+measurement as its own commit.** `9dd5d438d` carries only the row
+asserting today's refusal, and its CI run is green on it. What that run
+records is the sharpest statement of the defect anyone has made:
+an anchor `1e-200` from its centre refused
+`DegenerateArcCenter { radius: 0.0 }` — *"the authored centre is within
+tolerance of an endpoint (radius 0 m)"* — **bit-identical in payload
+and prose to the row three lines above it, which authors the centre AS
+the anchor.** Two different geometric facts, one message, no way for a
+reader to tell them apart.
+
+**Instruction 3, and the pin was again part of the defect.** The
+`zero_radius` row asserted `radius == 0.0`, which the underflowed
+carrier satisfies identically — it could not have gone red. The new row
+is the discrimination, and it runs through the public door
+(`Open.at(..).toward(..).fillet_arc(r, Center{..})`), not a private
+helper.
+
+**A correction to my brief:** `crates/profile/*` is **BOOL's**, not its
+own fence — `territory` says so and I confirmed it. The `keep_out` now
+records it. That is the fifth correction to the dispatching seat and
+the second this wave, both of them fence claims I asserted without
+running the instrument I tell every lane to run.
+
+**Residue filed by the lane:**
+`arc-carrier-refusal-register-misses-two-format-arms` —
+`docs/PATHS-DESIGN.md`'s typed-refusal register names **neither**
+format arm (`NonFiniteDirection` missing since 2359,
+`UnderflowedDirection` from today), and nothing in CI compares that
+prose to `PathErrorKind`. A register that silently falls behind the
+enum it documents is the same shape as the roster whose reasons nothing
+compared (PR 2402).
+
+### The disk cost this wave two lanes, measured
+
+Both this lane and the transform lane report being unable to build,
+test, lint or `cargo fmt` **at any point**. The consequences are on the
+record rather than inferred: this lane's run 34670760904 failed on a
+`rustfmt` wrap and the binding-census member guard — *"both of which
+`cargo fmt --check` would have caught in seconds"* — and the transform
+lane lost a round trip to a compile error. The census lane shipped the
+first argued-rather-than-executed red-first half in three waves.
+
+**A lane cannot self-remediate**: both tried to reclaim space and were
+correctly denied, one of them even for its own cache. The sweep is the
+orchestrator's and belongs in the wave-close checklist beside the log
+entry and the item headers. It has been added there; the box has held
+23G free since 03:26.
