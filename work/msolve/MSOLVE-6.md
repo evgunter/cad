@@ -2,10 +2,11 @@
 id: MSOLVE-6
 kind: unit
 title: The mate's lever is the mated parts' own extent, taken from each part's evaluated body
-status: dispatched
+status: review
 opened: 2026-09-07
 branch: msolve/6-part-extent
 refs: [mate-lever-needs-the-parts-extent]
+pr: 2116
 ---
 
 

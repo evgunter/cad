@@ -402,3 +402,28 @@ gained its amendment section; the lane resumes on PR 2116.
 ## Announced from LIB (2026-09-09): a derive word on `MateSide`, `AxisSense` and `MateRole`
 
 LIB-MIRROR (PR #2271) adds `Hash` to `MateSide` (`mate.rs:84`), `AxisSense` (`mate.rs:144`) and `MateRole` (`mate/solve.rs:43`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; no solver behaviour and no serde spelling changes.
+
+## MSOLVE-6 landed, in review (2026-09-12)
+
+The lane died twice on model limits (2026-09-08, 01:45Z and ~03:20Z)
+after pushing the whole unit — the lever, the reach trait and door,
+the edit door taking the reach, `LoggedEdit` and the replay doors,
+the retired constants, ~400 call sites — and the orchestrator's
+session idled until 2026-09-12. Resumed that day: main had moved 474
+merged PRs, the lane merged it (2,420 commits) into
+`msolve/6-part-extent`, and PR 2116 is job-level green at `21f5a65`
+(39 checks; CI grew a corrupt-input job and a viewer montage lane in
+the interval). What the build measured, beyond the spec: the bracket
+read lives under `EvalScalar` in the eval adapter after the
+bounds-allowlist gate refused a compound bound in `mate/` (ruled: no
+allowlist entry); `split` and `inline` take a resolver rather than a
+reach because the maintenance of a split's own rebinds levers on the
+part the split is minting; the edit refuses only where the prior
+solve reached NO verdict and records `Split { frame: None }` where it
+decided there is no pose (deviation 2, argued in the PR). Style review
+and correctness arm dispatched on that head. Five items were routed
+onto this slate by EVAL and LIB in the interval (the `FromFace` mate
+frame arm under Ev's ruling (F) on PR 2256; three levered clash
+margins with their arm invisible; the flat-index `Part` over a nested
+pattern at `check_reference`; `axis_datum`'s seat; the per-check
+nominal environment) — triaged after this unit's review.
