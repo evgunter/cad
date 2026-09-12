@@ -17,8 +17,13 @@
 //! exhaustive match. What no compiler holds is the mirror itself:
 //! whether `PathVerb` still names every `PathStep` is forced by
 //! `PathVerb::of`'s exhaustive match, while a DELIBERATELY PARTIAL
-//! list (`MATE_PRIMITIVES`, `DatumKind`) claims no completeness and is
-//! held to nothing — each says so at its own site. (Code spans rather
+//! list claims no completeness and so cannot be held to it.
+//! `MATE_PRIMITIVES` is held to the weaker thing that IS true of it:
+//! `partial_mirror!` classifies every `MatePrimitive` variant as
+//! offered here or as deliberately absent, so the mirrored enum
+//! cannot grow past this form in silence. `DatumKind`'s four of
+//! `DatumSpec`'s five arms are held to nothing. Each says so at its
+//! own site. (Code spans rather
 //! than links: everything on this page is `pub(crate)`, so an
 //! intra-doc link from a public module page does not resolve.)
 //!
@@ -489,13 +494,96 @@ impl FieldWriting {
 /// wrong thing — mapping this form over a published `ALL` the way the
 /// boolean buttons are mapped is precisely the wrong fix here.
 ///
-/// What it still has no answer for is the OTHER half: a primitive the
-/// panel SHOULD offer would not appear here and nothing would say so.
-/// A partial mirror wants to be told its enum grew, not to be
-/// regenerated from it; that is
-/// `work/door/mate-primitives-is-a-partial-mirror-with-no-growth-alarm`.
+/// **A decision per variant, and the compiler holds the decision.**
+/// Nothing here forces the list to be COMPLETE — completeness is what
+/// it does not claim. What `partial_mirror!` below forces is that every
+/// [`MatePrimitive`] variant is either offered at a seat of this list
+/// or named below as deliberately absent, with the reason it is
+/// absent. A primitive added to the kernel enum is neither until
+/// someone writes one of the two, and the build says so.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
     (MatePrimitive::FrameCoincidence, "frame coincidence"),
     (MatePrimitive::Coaxial, "coaxial"),
     (MatePrimitive::PlanarRest { offset: 0.0 }, "planar rest"),
 ];
+
+/// **A partial mirror, told when the mirrored enum grows.**
+///
+/// Takes the mirrored enum, a `[(Variant, &str); N]` list of what the
+/// chrome offers, and a ROSTER that classifies every variant of the
+/// enum as offered or as deliberately absent. It expands to two halves
+/// that close on each other:
+///
+/// - `every_variant_is_offered_or_named_absent` is a match over the
+///   enum with one arm per roster entry — both sections — and no
+///   wildcard. A variant added to the enum has no arm, so `E0004` reds
+///   here and names it. The only way to silence it is to put that
+///   variant in one section or the other, which is the decision this
+///   instrument exists to force.
+/// - one `assert!` per OFFERED entry, in a `const` block, saying the
+///   list holds that variant at that seat. Classifying a new variant
+///   as offered therefore asserts `list[n]` for a seat the old list
+///   does not have — a const-eval error, out of bounds, until the list
+///   itself grows. Classifying it as absent asserts nothing further,
+///   which is the whole point: the list stays three long and the
+///   roster says why.
+///
+/// A trailing count check closes the third direction: an entry added
+/// to the list with no roster classification leaves the list longer
+/// than the offered section, and an entry moved from offered to absent
+/// leaves it shorter.
+///
+/// **The absent section is not a second hand-written list.** It is the
+/// other half of the one roster the exhaustive match holds against the
+/// enum, so it cannot fall behind what it mirrors any more than the
+/// offered half can. The reason string is required by the grammar
+/// rather than asserted over: an author cannot write an absence
+/// without saying what makes it deliberate.
+///
+/// One caller, so the assertion knows this list's element shape
+/// (`(Variant, &str)`) rather than taking a projection. A bare
+/// `[Variant; N]` mirror wants a second arm, and lifting this beside
+/// [`crate::vocab::vocabulary`] is the move at the moment a second
+/// partial mirror takes it — not before, when the two shapes it would
+/// have to serve are one shape and a guess.
+macro_rules! partial_mirror {
+    (
+        $ty:ident, $list:expr,
+        offered [ $($ov:ident $({ $($op:tt)* })?),+ $(,)? ],
+        absent [ $($av:ident $({ $($ap:tt)* })? => $why:literal),* $(,)? ] $(,)?
+    ) => {
+        const _: () = {
+            #[allow(dead_code)]
+            fn every_variant_is_offered_or_named_absent(primitive: $ty) {
+                match primitive {
+                    $($ty::$ov $({ $($op)* })? => (),)+
+                    $($ty::$av $({ $($ap)* })? => (),)*
+                }
+            }
+            let mut seat = 0;
+            $(
+                assert!(
+                    matches!($list[seat].0, $ty::$ov $({ $($op)* })?),
+                    "the form has drifted from its roster: this seat \
+                     does not offer the variant the roster puts here"
+                );
+                seat += 1;
+            )+
+            assert!(
+                seat == $list.len(),
+                "the form offers a variant its roster does not classify"
+            );
+        };
+    };
+}
+
+partial_mirror! {
+    MatePrimitive, MATE_PRIMITIVES,
+    offered [FrameCoincidence, Coaxial, PlanarRest { .. }],
+    absent [
+        Clocking => "the kernel represents it so it can REFUSE it \
+                     (`mate::solve` faults `TableLacks` on a standalone \
+                     clocking), and a form offering it would be offering \
+                     a refusal",
+    ],
+}

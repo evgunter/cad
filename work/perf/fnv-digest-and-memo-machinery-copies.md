@@ -36,11 +36,26 @@ form) would make "the goldens' way" one function rather than a phrase.
 
 **The picture counter machinery** — a `picture` stamp, an `open`
 that zeroes counters on the first use after a close, `end_picture`
-retaining stamped entries — is written twice: `mesh::PatchMemo`
-(`crates/mesh/src/memo.rs`) and `editor_core::PickMemo`
-(`crates/editor-core/src/resolve/pick.rs`). A generic
-`Generational<K, V>` in one crate both depend on (`geom-core` is the
-only common ancestor with no persistence) would hold it once.
+retaining stamped entries, a `keep` that re-stamps without a lookup —
+is written three times: `mesh::PatchMemo` (`crates/mesh/src/memo.rs`),
+`editor_core::PickMemo`'s node level
+(`crates/editor-core/src/resolve/pick.rs`, `PickEntry.picture`,
+`open`, `end_picture`'s `nodes.retain`), and — added by PERF-9, one
+unit after this item named the pair — the same memo's tree level
+(`TreeEntry.picture`; `PickMemo::tree` is the hit/miss half,
+`keep_trees` the `keep`, `end_picture`'s `trees.retain` the
+eviction). The third copy shares the node level's `picture` and
+`closed` fields but repeats the entry shape, the hit/miss counters
+and the three verbs. A generic `Generational<K, V>` in one crate all
+three depend on (`geom-core` is the only common ancestor with no
+persistence) would hold it once.
+
+`pick.rs` now holds three separable things in ~1200 lines — the
+hit-test service (`pick_face`, `ray_triangle`, the target/hit types),
+the geometric index (`MeshPick`, `PickPatch`, the merged candidate
+walk) and a three-level generational memo (`PickMemo`) — and that is
+the shape a `Generational<K, V>` would fold: the memo's own text
+shrinks to its keys and its levels, and the file to the first two.
 
 ## What a fix is
 

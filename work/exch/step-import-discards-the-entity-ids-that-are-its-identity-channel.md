@@ -90,3 +90,22 @@ conflated origins to three.
 
 Not a prerequisite for either: both stand without it and get better with
 it.
+
+## This row is STEP 2 of a ratified sequence (WIRE orchestrator, 2026-09-12)
+
+Added after cutting `work/wire/axis-shaped-identity-channel.md`, whose
+cut section carries the sequence, its owners and its ordering.
+
+**Step 1 is `work/topo/geom-source-absence-conflates-four-origins.md`**,
+which decides how origin is represented positively — the vocabulary this
+row's mark would be written in. In principle the two are parallel; in
+practice this one lands after, because a mark written before the
+vocabulary exists is a mark to be rewritten.
+
+The reverse dependency is worth knowing too, and is recorded on that
+row: whoever designs the origin representation should look at what
+`import_step` can actually supply, since this is the step that has to
+write one of the four origins with real content rather than a bare tag.
+
+Nothing here claims EXCH's ground or reorders EXCH's slate — it is a
+cross-reference so the sequence survives WIRE's closure.

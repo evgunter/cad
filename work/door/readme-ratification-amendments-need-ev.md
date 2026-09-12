@@ -2,9 +2,9 @@
 id: readme-ratification-amendments-need-ev
 kind: ruling
 title: The viewer README paragraph that replaced a retired kind overstates; the approval-rule gap it exposed is closed in CLAUDE.md
-status: open
+status: closed
 opened: 2026-09-12
-needs_ev: true
+closed: 2026-09-12
 ---
 
 
@@ -97,3 +97,42 @@ The orchestrator's read is now **(1)**, reversed from (2) after Ev
 asked why the mirror existed and the answer falsified the premise. This
 is still the call the rule reserves for Ev — the row's value is that it
 now presents the question without a wrong argument attached.
+
+## Closed — (2), and the diagnosis is Ev's
+
+The recommendation moved three times, which is worth keeping because
+the last move is the one that found the actual defect.
+
+1. **(2) amend** — the paragraph overstates, citing the viewport's
+   pointer-button mirror as a live counterexample.
+2. **(1) leave** — Ev asked why that mirror existed. The answer
+   (`input.rs` is toolkit-free by design; the mirror is an
+   anti-corruption boundary) showed the counterexample was
+   misclassified, and no live instance of the retired kind was then
+   known in `crates/viewer/src`.
+3. **(2) amend** — PR #2450, closing that very row, built one:
+   `egui_buttons()` is a mirror claiming completeness, and **egui
+   publishes no `ALL`** (only `NUM_POINTER_BUTTONS`), so the answer the
+   paragraph names as *the* answer does not exist at that site.
+
+**Ev's diagnosis, which is better than the orchestrator's.** The claim
+was never false — it was **over-specified**. The principle is that a
+mirror claiming completeness is held by something the owner declares
+rather than by hand; the paragraph wrote down one mechanism for that
+(`ALL`, mapped over) as though it were the mechanism. The pointer
+button case satisfies the principle by another route — length pinned to
+the owner's count, contents pairwise distinct, conversion through an
+exhaustive match, which together admit exactly one permutation of the
+enum.
+
+So the amendment is smaller than the orchestrator proposed. Not "counts
+are allowed too", which is a second special case waiting for a third,
+but the property stated once with both mechanisms as instances of it.
+
+**This is the same defect as the approval rule fixed the same morning**
+(`CLAUDE.md`, PR #2410): a principle written down as its most familiar
+instance, so that the first case outside the instance reads as an
+exception. Twice in one day, in the two documents that govern how the
+others are written. Worth remembering as a class rather than two
+incidents: **when a document names a mechanism, check whether it meant
+a property.**
