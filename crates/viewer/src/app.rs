@@ -730,10 +730,14 @@ impl ViewerApp {
         // why there is a budget at all.
         //
         // A fit that cannot run leaves δ alone: the document is one
-        // whose roots do not gather (no landed body) or whose probe
-        // will not tessellate, and the index build below is about to
-        // say so with its own typed refusal. Two opinions about that
-        // would be one too many.
+        // whose roots do not gather (no landed body), or one that
+        // tessellates at NEITHER of the two δ the fit can fall back
+        // between (`scene::fit_delta`'s scale probe and the rung that
+        // prices the request — a refusal at one of them is answered by
+        // the other, so only a body that refuses at both reaches
+        // here). The index build below is about to say so with its own
+        // typed refusal, and two opinions about that would be one too
+        // many.
         if self.fit_delta_on_scene
             && let Some((doc, evaluation)) = self.session.landed_pair()
         {
