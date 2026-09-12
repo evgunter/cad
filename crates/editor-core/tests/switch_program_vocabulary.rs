@@ -529,9 +529,11 @@ fn every_document_verb_survives_the_wire() {
 }
 
 /// The expressions of a program, counted from the wire rather than
-/// from a number written here: every expression in the corpus is a
+/// from a number written here: every expression this suite builds is a
 /// bare literal, so the `Literal` tags in its serialization ARE its
-/// expressions.
+/// expressions. It holds for the one-step programs below for the same
+/// reason it holds for the corpus: each is one of the corpus's own
+/// chain steps, so the property is inherited rather than re-argued.
 fn literal_count(program: &ProfileProgram) -> usize {
     serde_json::to_string(program)
         .expect("the program serializes")
@@ -547,8 +549,22 @@ fn literal_count(program: &ProfileProgram) -> usize {
 /// naming neither the step nor the vocabulary member: an arc mode
 /// whose `spec_slots` arm enumerates nothing fails that clause as two
 /// numbers fifteen apart. Re-running the same comparison one step at a
-/// time names the step, which is what a reader needs in order to find
-/// the arm. It runs only on the failure path.
+/// time names the step. It runs only on the failure path.
+///
+/// **It closes one of those two and not the other, and says so rather
+/// than letting the sentence above read as both.** The label is the
+/// step's VERB, because `variant_name` takes the leading identifier —
+/// and `ArcTo` appears once per `ArcMode::ALL` entry in this corpus, so
+/// a short arc mode still leaves a reader counting `chain_steps()` to
+/// learn WHICH mode's arm is short. Naming the vocabulary member is the
+/// rest of the distance.
+///
+/// Two further limits, stated rather than discovered: this walks
+/// `chain_steps()` while the clause it explains asserts over
+/// `corpus()`, so the two agree only because `corpus()`'s first loop is
+/// `Chain(chain_steps())` — a second chain loop would make the indices
+/// name the wrong step — and it prints no `loop_` though a
+/// `SlotId::Profile` carries one.
 fn steps_whose_slot_count_disagrees() -> Vec<String> {
     chain_steps()
         .into_iter()
@@ -564,9 +580,10 @@ fn steps_whose_slot_count_disagrees() -> Vec<String> {
         .map(|(i, step, slots, exprs)| {
             // The step INDEX, because that is what a `SlotId::Profile`
             // carries and what the addressing clause below prints; the
-            // variant name for reading. The payload is deliberately not
-            // rendered — an `Expr`'s `Debug` is several lines and there
-            // are as many of them here as the step has arguments.
+            // verb name for reading, with the caveat in the header. The
+            // payload is deliberately not rendered — an `Expr`'s
+            // `Debug` is several lines and there are as many of them
+            // here as the step has arguments.
             let name = variant_name(&format!("{step:?}"));
             format!("chain step {i} ({name}) has {exprs} expressions and enumerates {slots} slots")
         })
