@@ -9,7 +9,8 @@ opened: 2026-09-08
 
 ## What was measured
 
-`crates/editor-core/tests/r2_m10_6_probes_interval.rs`'s notched pair —
+`r2_m10_6_probes_interval::min_clearance_between_two_separated_bodies_reads_zero`'s
+notched pair (`crates/editor-core/tests/r2_m10_6_probes_interval.rs`) —
 a C-shaped solid and a block 0.1 m apart — evaluates
 `MeasurePrimitive::MinClearance` at `Interval` to
 
@@ -22,9 +23,8 @@ The enclosure does not contain the true value.
 ## Why
 
 `clearance::window_of` gives a planar face the rectangle its boundary's
-AABB projects to on the carrier's frame axes
-(`crates/editor-core/src/clearance.rs`, the `Surface::Plane` arm of the
-`(u, v)` match). For a NON-CONVEX boundary — the C's cap — that
+AABB projects to on the carrier's frame axes (the `Surface::Plane` arm
+of its `(u, v)` match, `crates/editor-core/src/clearance.rs`). For a NON-CONVEX boundary — the C's cap — that
 rectangle covers points that are not on the face, here the notch the
 block sits in. A minimum taken over a superset of the two faces is at
 most the minimum over the faces, so BOTH ends of the enclosure move
@@ -54,6 +54,7 @@ correctness question inside it.
 
 ## Home
 
-`crates/editor-core/src/clearance.rs` (`window_of`'s planar arm) and
-the `MinClearance` measure that reads it. Found by PROPS's sign-hull
-unit; reported rather than fixed, because the window model is M10's.
+`clearance::window_of`'s planar arm
+(`crates/editor-core/src/clearance.rs`) and the `MinClearance` measure
+that reads it. Found by PROPS's sign-hull unit; filed here rather than
+fixed, because the window model is this program's.

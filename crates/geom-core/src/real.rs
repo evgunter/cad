@@ -704,10 +704,9 @@ pub trait Real:
 /// it to put this one before — and closing it is not this predicate's
 /// job as things stand. Known instances, and the count is a floor
 /// rather than a total because nothing sweeps for them:
-/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
-/// normalized OUTPUT) and `geom-brep`'s `enters::enters_material`,
-/// which decides a caller-supplied arm and then normalizes a `dir`
-/// whose own length is never asked about — a `pub` door. Filed as
+/// `geom-brep`'s `enters::enters_material`, which decides a
+/// caller-supplied arm and then normalizes a `dir` whose own length is
+/// never asked about — a `pub` door. Filed as
 /// `work/fix/normalize-without-the-length-question-two-more-sites`.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]

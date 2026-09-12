@@ -56,11 +56,14 @@ normalizes to zero, the levered margin is 0, and the door answers
 `Tangent` — definite, and about nothing.
 
 `geom_core::is_finite_length`'s docs name this shape as "the declined
-half of the direction family" and cite ONE instance,
-`editor-core`'s `clearance::chart_frame`. This is a second, in a
-`pub` `geom-brep` door. Whether the half stays declined is the
-question; what is wrong today is that the doc claims one site and
-there are at least two.
+half of the direction family". They cited two instances,
+`editor-core`'s `clearance::chart_frame` and this one; **the first is
+gone** — PROPS's sign-hull unit retired the clearance engine's planar
+re-chart with both its doors, because the stored frame refines at the
+equator now, so the doc's list is this site alone. Whether the half
+stays declined is still the question; what is left to answer is a
+`pub` `geom-brep` door that normalizes a `dir` nobody asked to be
+finite.
 
 ## Fences
 
