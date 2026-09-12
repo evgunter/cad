@@ -19,27 +19,35 @@
 //! spelling does. Nothing here is a threshold, so there is no magnitude
 //! to go stale against a format.
 //!
-//! # Why this is a module and not four format strings
+//! # Why this is a module and not a format string per site
 //!
-//! Four places in the chrome render a length: the δ badge and the
-//! budget's status line ([`crate::frame::delta_badge`],
-//! [`crate::scene::FittedDelta::wording`]), the range probe's sentence
-//! ([`crate::bounds::Bounds::wording`]) and the view pane's camera
-//! readout. Two of them hold a [`crate::scene::DisplayTolerance`] and
-//! two hold a bare `f64` in some display unit, so the rule cannot be a
-//! method on that type without being written twice — once as the
-//! method and once, by hand, wherever the type is absent. It is one
-//! function over the value, and
-//! [`crate::scene::DisplayTolerance::render_mm`] is the δ-facing door
-//! onto it: the millimetre conversion, and nothing else.
+//! **The population is every render of a number this crate writes**,
+//! which is not a list anyone can hold: the sweep that produces it is
+//! *every `{…}` in the crate whose argument is a quantity*, and it
+//! reaches both the sentences the chrome composes and the fields a
+//! person edits. The read-only half holds a
+//! [`crate::scene::DisplayTolerance`] in two places and a bare `f64` in
+//! a display unit in the others, so the rule cannot be a method on that
+//! type without being written twice — once as the method and once, by
+//! hand, wherever the type is absent. It is one function over the
+//! value, [`crate::scene::DisplayTolerance::render_mm`] is the δ-facing
+//! door onto it (the millimetre conversion, and nothing else), and
+//! `crate::widgets::field_text` is the fields' door.
 //!
 //! # What it is not
 //!
-//! It is not exact, and it is not a commit path. Four significant
-//! figures is what the character bound buys, and a δ the triangle
-//! budget chose is `constant / TRIANGLE_BUDGET` — seventeen. The number
-//! a value moves to is one a user types, never one the chrome echoed at
-//! them.
+//! It is not exact: four significant figures is what the character
+//! bound buys, and a δ the triangle budget chose is
+//! `constant / TRIANGLE_BUDGET` — seventeen.
+//!
+//! **It is reached from a commit path and is not one.** An
+//! `egui::DragValue` seeds its keyboard edit with the text it last
+//! showed and writes the parse back when it loses focus, so what a
+//! field renders is what clicking into it and away again commits —
+//! which is why `crate::widgets::field_text` exists and why
+//! [`REL_TOLERANCE`] bounds that commit as well as that render. The
+//! number a value moves to on purpose is one a user types, never one
+//! the chrome echoed at them.
 
 /// How far [`number`]'s text may read from the value it renders, as a
 /// fraction of that value.
@@ -117,21 +125,26 @@ pub fn number(value: f64) -> String {
     // to reach past the last count that could.
     (0..=MAX_CHARS)
         .map(|decimals| format!("{value:.decimals$}"))
-        .find(|spelling| reads_back_as(spelling, value))
+        .find(|spelling| spelling.chars().count() <= MAX_CHARS && reads_back(spelling, value))
         .unwrap_or_else(|| format!("{value:.3e}"))
 }
 
-/// Whether `spelling` fits [`MAX_CHARS`] and reads within
-/// [`REL_TOLERANCE`] of `value`.
+/// Whether `spelling` reads within [`REL_TOLERANCE`] of `value`.
 ///
 /// The tolerance is relative to the MAGNITUDE, so the test says the
 /// same thing on both sides of zero: a rendered number is judged by how
 /// far it reads from the value, and a sign is not a distance.
-fn reads_back_as(spelling: &str, value: f64) -> bool {
-    spelling.chars().count() <= MAX_CHARS
-        && spelling
-            .parse::<f64>()
-            .is_ok_and(|read| (read - value).abs() <= REL_TOLERANCE * value.abs())
+///
+/// **Width is no part of reading back, which is why it is no part of
+/// this.** [`number`] is bounded by [`MAX_CHARS`] because it searches
+/// every precision and something has to end the search; a caller
+/// judging a spelling SOMEONE ELSE chose is asking only whether that
+/// text names this value, and a wide text that does is not improved by
+/// replacing it with a narrow one that does not.
+pub(crate) fn reads_back(spelling: &str, value: f64) -> bool {
+    spelling
+        .parse::<f64>()
+        .is_ok_and(|read| (read - value).abs() <= REL_TOLERANCE * value.abs())
 }
 
 #[cfg(test)]
