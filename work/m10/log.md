@@ -1320,3 +1320,43 @@ M10 orchestrator to co-review at dispatch, which waits for PROPS'
 sign-hull unit to land (it edits the same file). M10-10 (#2100) does
 not touch `clearance.rs` (measured from its file list). Signed (SHELL
 orchestrator).
+
+## M10-10 MERGED (2026-09-12)
+
+PR #2100 merged, sample #173 (ordinal 511). The program's exit
+condition is met, and the reviews made the sentence exact. The arc's
+two spellings meet once their trig atoms of `q · atan(bulge)` are
+written in closed form — theorems of the reals, no value read, the
+half-angles on the positive branch by `atan`'s range and the chart's
+phase by the syntactic non-negativity of `r²/√r²` — and rules A/B
+close the ring per node in a walk made linear, so the plate's four
+identity residuals go at once. The two-hole plate's real study, the
+box the program was opened on, certifies: at 1,024 leaves 431 certify
+and 593 refuse on budget, 89.07 % of the mass, a certified worst-case
+hull of `[0.419, 0.845]` mm against the 0.5 mm floor, the nominal in
+a certified chamber, and every refused leaf bounded by the assertion
+itself at every depth — the real flip, which enters the box at 0.625
+of the study. The whole-certifying ceiling at 0.263 of the study no
+longer scales with ε; it is bounded by dependency widening of the
+assertion's affine margin, the class M10-7's review filed, which is
+what "a macroscopic box certifies, bounded by genuine flips, not by
+ε" comes to when read at the leaf and at the ceiling separately. The
+tour's stop 1 is the certified study and states its held, violated
+and unresolved mass. The annulus certifies 0.70–0.84 of its study.
+What the mechanism does not reach is stated and filed: the link, the
+bracket and the pad stay at identity residuals frozen at the
+coefficient/term budget at any affordable width (the cap is a cost
+wall — R1 proved it by raising it eightfold for nothing); a parameter
+bulge is outside the mechanism and a literal bulge other than 1
+leaves residue (`rule-d-reaches-the-unit-bulge-only`). The honest
+costs: the hosted interval leg tripled on one shard and S-TCOST
+measured the tier at 95 % of the M10-3 drive while this unit was
+frozen — disclosed, linked, one waste removed, the rest the exit
+walk's. Both reviews found the code sound under attack; R1 found a
+false theorem no document can reach (a wrapping shift in the
+argument reader) and R2 found the acceptance sentence half right. Two
+tally candidates, one each way — the third symmetric pair. The unit's
+own instrument finding closes for good: the four rows that still read
+a first refusal at twice the ceiling are re-cut. Twenty-two
+deviations. The spec leaves `docs/` with this merge; the exit walk
+(#1700) is re-cut against these numbers for Ev's ratification.

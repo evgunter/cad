@@ -21,6 +21,7 @@ use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
+use topo::readback::euler_counts;
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 /// The die's side, meters.
@@ -519,6 +520,9 @@ fn the_shrunk_faces_keep_their_rings_and_senses() {
         assert_eq!(f.rings.len(), n, "ring count carried");
         assert_eq!(f.sense, sense, "sense bit carried (S12)");
     }
-    let total: usize = out.body.faces().map(|(_, f)| f.rings.len()).sum();
-    assert_eq!(total, 21, "all 21 pip rims survive as rings");
+    assert_eq!(
+        euler_counts(&out.body).r,
+        21,
+        "all 21 pip rims survive as rings"
+    );
 }
