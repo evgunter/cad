@@ -62,13 +62,29 @@ surfaced rather than swallowed (D4 ¶2)"*
 (`crates/geom-brep/src/nurbs_iso.rs:47-52`, `:66-70`).
 
 So the refusal carries no information about the shape a recognizer is
-asking after. It says one thing only: the stored surface's control net
-disagrees with the knot vector it is indexed by — which
-`geom::NurbsSurface::new` refuses at construction
+asking after. It says one thing only: **a weight on the extracted
+column is not a positive finite number** — which
+`geom::NurbsSurface::new` refuses of the whole net at construction
 (`crates/geom/src/surfaces/nurbs.rs:509`, `crates/geom/src/net.rs:89`),
 so no body this reader assembles can be in that state. Reading it as
 "not this shape" converts an impossible kernel fault into a routine
 negative.
+
+**A weight violation is the ONLY payload either door can produce**, and
+that is narrower than the row (or this lane's first draft) assumed.
+Measured against a validation-bypassed `NurbsSurface::new`, on a 3×4
+net: a bad weight on an extracted row gives
+`NonPositiveWeight`/`NonFiniteWeight` with its `index` counted along
+the COLUMN (net index 11 renders as `index: 3` for `boundary_iso_u`,
+`index: 2` for `boundary_iso_v`), while a weight interior to the net
+returns `Ok` at all four ends. `WeightCountMismatch` cannot arise at
+all — extraction slices `control` and `weights` to one length — and
+`ControlCountMismatch` cannot either, because a net whose length
+disagrees with its knots **panics in the slice** at `end = true`
+(`nurbs_iso.rs:59`/`:80`) before any refusal is built, and returns `Ok`
+at `end = false`. That panic is disclosed in PR #2406's body for the
+orchestrator to place: it is `crates/geom-brep/*` ground, shared with
+`loft.rs` and `pcurve_cache.rs`, and it is not this row's to fix.
 
 The rest of the tree already reads it that way and says so at each
 site: `sweep::LoftError::SeamStructure` carries it
@@ -141,9 +157,17 @@ after three green local crates.
 ### Residue
 
 `work/exch/arc-rim-gate-reports-a-degenerate-carrier-as-an-infinite-residual.md`
-— the same gate's OTHER `f64::INFINITY`, for a degenerate `CIRCLE`
-carrier, is still dressed as a residual. Measured (a zero-radius and a
-negative-radius `CIRCLE` on `cylinder.step`): both refuse through the
-ladder before reaching this gate, so it is a diagnostics defect and not
-a soundness hole. Not widened into here; `crates/step-import/*` is
-EXCH's ground and one PR is one row.
+— the same gate's OTHER two `f64::INFINITY`s reach
+`RimOffWallBoundary`'s *"deviates … by up to inf m"* without sampling
+anything: the degenerate-carrier screen (`adopt.rs:900`) and the
+non-evaluating sample (`adopt.rs:941`). `Residual` is a measurement
+type carrying a non-measurement sentinel, which is this row's own
+argument applied twice more, so the item is filed as the class rather
+than as the carrier screen alone.
+
+Measured on the fixture class the gate actually runs for — the native
+rational arc loft, radius rewritten to `0.` and to
+`-1.4142135623730951` — and both render the misattributed sentence
+through `import_step`. It refuses either way, so a diagnostics defect
+and not a soundness hole. Not widened into here;
+`crates/step-import/*` is EXCH's ground and one PR is one row.

@@ -227,15 +227,26 @@ pub enum StepImportError {
         residual: f64,
     },
     /// A described NURBS wall's own boundary column would not re-wrap
-    /// as a curve while an edge was being adopted against it: the
-    /// stored surface's control net disagrees with the knot vector it
-    /// is indexed by, which no surface that passed
-    /// `geom::NurbsSurface::new` can do. Unreachable from any body
-    /// this reader assembles, and surfaced rather than swallowed (D4
-    /// ¶2, and [`geom_brep::boundary_iso_u`]'s own `# Errors`
-    /// contract): the payload says WHICH structural invariant the wall
-    /// broke, and a discarded one would leave a kernel-bug report
-    /// saying only that a kernel bug happened.
+    /// as a curve while an edge was being adopted against it:
+    /// **a weight on that column is not a positive finite number**,
+    /// which no surface that passed `geom::NurbsSurface::new` can
+    /// hold. Unreachable from any body this reader assembles, and
+    /// surfaced rather than swallowed (D4 ¶2, and
+    /// [`geom_brep::boundary_iso_u`]'s own `# Errors` contract): the
+    /// payload names the offending weight and its position, and a
+    /// discarded one would leave a kernel-bug report saying only that
+    /// a kernel bug happened.
+    ///
+    /// **A weight violation is the only payload this arm can carry**,
+    /// which is narrower than [`geom_core::spline::SplineError`]'s
+    /// vocabulary and is a fact about the doors rather than about this
+    /// reader. Extraction slices `control` and `weights` to the same
+    /// length and re-wraps them over the surface's own `knots_v` (or
+    /// `knots_u`), so `WeightCountMismatch` cannot arise at all; and a
+    /// net whose length disagrees with those knots panics in the slice
+    /// before any refusal is built, so `ControlCountMismatch` cannot
+    /// reach here either. Both were measured against a
+    /// validation-bypassed surface.
     ///
     /// It is **not** a "this edge is not that shape" answer. The
     /// recognizers state their negatives some other way — a wall that
@@ -247,8 +258,9 @@ pub enum StepImportError {
         /// The `EDGE_CURVE` entity instance being adopted.
         id: u64,
         /// The extraction door's refusal, carried rather than
-        /// discarded: which count or weight the wall's stored net
-        /// broke.
+        /// discarded: which weight of the extracted column is not a
+        /// positive finite number. Its `index` counts along that
+        /// COLUMN, not through the wall's net.
         source: geom_core::spline::SplineError,
     },
     /// D7's typed ambiguity at ε_in (stage-1 surface recognition,

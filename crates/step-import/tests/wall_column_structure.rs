@@ -3,31 +3,34 @@
 //! `adopt.rs`'s two iso rungs — the `IsoCurve` candidate rung and the
 //! ARC-rim residual gate — each extract a described NURBS wall's own
 //! boundary column through `geom_brep::boundary_iso_u` /
-//! `boundary_iso_v`. Those doors are control-net COPIES whose only
-//! refusal is a net that disagrees with the knot vector it is indexed
-//! by, and `geom::NurbsSurface::new` refuses exactly that net at
-//! construction — so the refusal is unreachable from any body this
-//! reader assembles, and it says nothing about whether the edge is the
-//! shape the rung is looking for.
+//! `boundary_iso_v`. Those doors are control-net COPIES: they slice
+//! `control` and `weights` to the same length and re-wrap them over
+//! one of the surface's own knot vectors, so **the only refusal either
+//! can build is a weight on the extracted column that is not positive
+//! and finite** — and `geom::NurbsSurface::new` refuses exactly that
+//! of the whole net at construction. The refusal is therefore
+//! unreachable from any body this reader assembles, and it says
+//! nothing about whether the edge is the shape the rung is looking
+//! for.
 //!
 //! This suite pins the three halves of that reading, each executed
 //! rather than asserted in prose:
 //!
-//! - every described NURBS wall the reader actually produces extracts
-//!   both columns at both ends;
+//! - the described NURBS walls the reader produces from the committed
+//!   corpus extract both columns at both ends;
 //! - the nets that WOULD break extraction are refused one layer up, at
 //!   the surface door, so no wall reaches the rungs in that state;
-//! - and when the refusal is carried anyway, it names WHICH invariant
-//!   broke, which is the whole reason it is carried rather than
+//! - and when the refusal is carried anyway, it names the offending
+//!   weight, which is the whole reason it is carried rather than
 //!   discarded.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
 
-use common::{SOLID_FIXTURES, import_body};
+use common::{FREECAD_FIXTURES, SOLID_FIXTURES, import_body};
 use geom::{NurbsSurface, Surface};
-use geom_core::Point3;
 use geom_core::spline::{KnotVector, SplineError};
+use geom_core::{Point3, Tol};
 use step_import::StepImportError;
 
 /// A clamped knot vector with `count` control points at `degree`,
@@ -64,9 +67,16 @@ fn wall(nu: usize, nv: usize, du: usize, dv: usize, w: &[f64]) -> NurbsSurface<f
 }
 
 /// The claim the two `adopt.rs` rungs stand on, executed: a wall that
-/// exists hands over both of its columns, at both ends. Run over the
-/// hand-built shapes AND over every described NURBS surface the reader
-/// produces from the committed corpus.
+/// exists hands over both of its columns, at both ends.
+///
+/// Run over the hand-built shapes and over the described NURBS
+/// surfaces the reader produces from **both committed corpora**, the
+/// native `SOLID_FIXTURES` and the FreeCAD files. That is a corpus
+/// walk, not a quantifier over every wall the reader can produce: the
+/// wild corpus is not walked here, and every corpus wall is `nu = 2`,
+/// which is why the hand-built nets above carry the other shapes. The
+/// guarantee itself is structural (module docs) rather than
+/// enumerated.
 #[test]
 fn a_validated_wall_never_refuses_its_own_boundary_column() {
     fn check(what: &str, s: &NurbsSurface<f64>) {
@@ -90,16 +100,30 @@ fn a_validated_wall_never_refuses_its_own_boundary_column() {
     );
     check("placeholder", &NurbsSurface::<f64>::placeholder());
 
-    // The real reader's own output: every described NURBS wall the
-    // committed corpus lands in a body.
+    // The real reader's own output, over both committed corpora. A
+    // FreeCAD file this reader declines is skipped rather than
+    // asserted on: what is being walked is the walls that DO land.
     let mut walls = 0usize;
-    for name in SOLID_FIXTURES {
-        let (body, _) = import_body(name);
+    let mut walk = |name: &str, body: &topo::Body<f64>| {
         for (key, surface) in body.surfaces() {
             if let Surface::Nurbs(p) = surface {
                 check(&format!("{name} surface {key:?}"), p.as_ref());
                 walls += 1;
             }
+        }
+    };
+    for name in SOLID_FIXTURES {
+        let (body, _) = import_body(name);
+        walk(name, &body);
+    }
+    for name in FREECAD_FIXTURES {
+        let text = common::freecad_fixture(name);
+        if let Ok(step_import::StepImport::Solid { body, .. }) = step_import::import_step(
+            &text,
+            &step_import::ImportOptions::default(),
+            Tol::witness(),
+        ) {
+            walk(name, &body);
         }
     }
     assert!(
@@ -120,9 +144,14 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
     let knots_v = kv(4, 3);
     let ok_control = vec![Point3::new(0.0, 0.0, 0.0); 12];
 
-    // One control point short: `boundary_iso_u` would slice a row of
-    // four out of eleven and `NurbsCurve3::new` would answer
-    // ControlCountMismatch — if the wall existed.
+    // A net one control point short. Measured against a
+    // validation-bypassed surface, this one does NOT reach a typed
+    // refusal at all: `end = false` extracts happily (the leading
+    // slice still fits) and `end = true` PANICS inside the slice, one
+    // layer below any error this reader could carry. So the surface
+    // door is the only thing standing between the reader and a panic
+    // here, which is a stronger reason for this row to exist than the
+    // refusal it used to claim.
     let short = vec![Point3::new(0.0, 0.0, 0.0); 11];
     assert!(
         matches!(
@@ -132,9 +161,10 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
         "a net that disagrees with its knot vectors must refuse at construction"
     );
 
-    // Weight counts and weight values, the door's other two clauses —
-    // a column copies the wall's weights verbatim, so a wall that
-    // holds a bad one hands it to `NurbsCurve3::new`.
+    // The same for a short weight vector — also a slice panic below,
+    // never a `WeightCountMismatch`: extraction slices control and
+    // weights to one length, so that arm cannot arise from these
+    // doors at all.
     assert!(
         matches!(
             NurbsSurface::new(
@@ -147,6 +177,12 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
         ),
         "a weight count that disagrees with the net must refuse at construction"
     );
+
+    // The weight VALUES are the door's one reachable refusal: a column
+    // copies the wall's weights verbatim, so a wall holding a bad one
+    // on an extracted row hands it to `NurbsCurve3::new` and gets
+    // `NonPositiveWeight` / `NonFiniteWeight` back. This clause is
+    // what `WallColumnStructure` can actually carry.
     for (index, bad) in [0.0, -1.0, f64::NAN, f64::INFINITY].into_iter().enumerate() {
         let mut weights = vec![1.0; 12];
         weights[index] = bad;
@@ -164,14 +200,21 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
 }
 
 /// Why the refusal is carried rather than discarded: the rendered
-/// message names WHICH structural invariant the wall broke, so a
-/// kernel-bug report says more than that a kernel bug happened.
-/// Dropping the `{source}` interpolation reddens this immediately.
+/// message names the offending weight, so a kernel-bug report says
+/// more than that a kernel bug happened. Dropping the `{source}`
+/// interpolation reddens this immediately.
+///
+/// The exemplar is the payload the doors can actually build — a weight
+/// violation on the extracted column, whose `index` counts along that
+/// column rather than through the wall's net. The count arms of
+/// [`SplineError`] are deliberately NOT used here: extraction cannot
+/// produce them (module docs), so pinning one would pin a sentence no
+/// wall can ever render.
 #[test]
 fn the_refusal_names_which_invariant_the_wall_broke() {
-    let source = SplineError::ControlCountMismatch {
-        control: 11,
-        expected: 12,
+    let source = SplineError::NonFiniteWeight {
+        index: 3,
+        weight: f64::INFINITY,
     };
     // Built from its own type, never read back out of the enum that
     // wraps it.
