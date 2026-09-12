@@ -226,39 +226,24 @@ conversions it had just added.
 
 A sweep that works turns up defects that are not yours. **File them, on the
 slate of the program whose ground they land on, in the same PR that found
-them.** You do not need that program's permission and you do not route the
-finding through anyone.
+them** — no permission, no routing through anyone. `work/README.md` settles
+it: *"a finding goes straight onto the slate of the program whose ground it
+lands on"* (`:117`), and *"a lane does not need the owner's permission to put
+a finding where it belongs"* (`:146`). `work/issues/` is the last resort it
+has always been, for a finding with no obvious owner.
 
-`work/README.md` settles this: *"a finding goes straight onto the slate of the
-program whose ground it lands on"* (`:117`), and *"a lane does not need the
-owner's permission to put a finding where it belongs, and routing it through
-`issues/` only delays the owner seeing it"* (`:146`). `work/issues/` is the
-last resort it has always been — for a finding with no obvious owner, not a
-waiting room.
+`python3 scripts/work.py territory --files -` says who owns a path. Grep that
+program's directory first: if a row already covers your finding, add your
+evidence to it rather than opening a second — one file per item, so a
+duplicate costs someone a merge conflict.
 
-`python3 scripts/work.py territory --files -` tells you which program owns a
-path. Before writing the file, grep that program's directory for what you
-found; if a row already covers it, add your evidence to that row rather than
-opening a second one. That is ordinary diligence, not a reservation on filing
-— the one-file-one-item rule makes a duplicate someone's merge conflict, and
-you are the one holding the measurement.
+**Filing is not optional, and a PR body is not a slate.** *"Disclosing a
+residue is therefore not scheduling it — give it its own file at the moment
+you disclose it"* holds on every slate, not just your own. A finding left in
+a PR body is gone once the owning program closes and its directory is
+deleted.
 
-**Filing is not optional, and a PR body is not a slate.** `work/README.md`
-again: *"Disclosing a residue is therefore not scheduling it — give it its own
-file at the moment you disclose it."* That holds on every slate, yours and
-everyone else's. The failure mode this section exists to prevent is a finding
-disclosed in a PR body and filed nowhere — and when the owning program closes
-and its directory is deleted, a merged PR body keeps nothing.
-
-Say in your report which rows you filed and where, so the orchestrator sees
-handoffs that a diff alone would not surface.
-
-(**Reversed 2026-09-12 by Ev, on PR #2421.** This section used to say the
-opposite: report it and let the orchestrator write the file, on the reasoning
-that only the orchestrator can see a duplicate — two lanes had once filed one
-finding into two directories on the same day. `work/README.md` said the
-contrary and is the one that stands; that reasoning survives only as the grep
-above.)
+Say in your report which rows you filed and where.
 
 ## 7. Citations
 

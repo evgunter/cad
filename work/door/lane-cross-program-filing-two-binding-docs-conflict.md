@@ -93,25 +93,18 @@ that writes the file.
 > directly to other programs.
 
 **The orchestrator's read was the losing one** — it proposed §6's
-mechanism (lane reports, orchestrator files) and Ev took the other side
-outright. §6 is rewritten to direct lanes to file on the owner's slate
-in the same PR, without permission and without routing.
+mechanism and Ev took the other side outright. §6 now directs lanes to
+file on the owner's slate in the same PR, without permission and without
+routing; the old reasoning is gone rather than footnoted, surviving only
+as a line telling a lane to grep the target directory first.
 
-What survives of §6's argument is one line of ordinary diligence — grep
-the target program's directory before writing, and add to an existing
-row rather than opening a second — kept because the one-file-one-item
-rule makes a duplicate someone's merge conflict, not because filing
-needs a gate. It is stated at the site as *not* a reservation.
+Preserved, because they were never in dispute: a disclosed residue owes
+a file rather than a PR-body sentence, and a lane reports which rows it
+filed where.
 
-Two obligations §6 also carried are preserved, because they were never
-the part in dispute: a disclosed residue owes a file rather than a
-sentence in a PR body (a merged body keeps nothing once a program's
-directory is deleted), and a lane says in its report which rows it
-filed and where.
-
-The three cross-program files this session's lanes wrote —
-`work/exch/`, and four on `work/chrome/` — were correct under the rule
-as it now reads.
+The five cross-program files this session's lanes wrote — one on
+`work/exch/`, four on `work/chrome/` — were correct under the rule as it
+now reads.
 
 ## Disclosure
 
