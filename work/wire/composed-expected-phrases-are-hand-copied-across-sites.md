@@ -2,9 +2,10 @@
 id: composed-expected-phrases-are-hand-copied-across-sites
 kind: issue
 title: The composed expected: phrases PR 2376 licensed to stay prose are themselves hand-copied: datum frame three times, datum axis three, datum plane twice
-status: open
+status: dispatched
 opened: 2026-09-11
 refs: [2376]
+branch: wire/operand-door
 ---
 
 

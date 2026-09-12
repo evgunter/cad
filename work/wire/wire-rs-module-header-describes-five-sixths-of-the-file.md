@@ -2,9 +2,10 @@
 id: wire-rs-module-header-describes-five-sixths-of-the-file
 kind: issue
 title: eval/wire.rs's header says each F4 node maps to an existing kernel op, and a 720-line union-declaration-routing subsystem inside it maps to none
-status: open
+status: dispatched
 opened: 2026-09-11
 refs: [2376]
+branch: wire/operand-door
 ---
 
 

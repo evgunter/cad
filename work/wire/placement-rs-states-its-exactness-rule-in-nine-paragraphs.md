@@ -2,9 +2,10 @@
 id: placement-rs-states-its-exactness-rule-in-nine-paragraphs
 kind: issue
 title: placement.rs asserts exact / by bits / D9-deterministic in nine separate doc paragraphs, none the authority for any other, and is 60% prose
-status: open
+status: dispatched
 opened: 2026-09-11
 refs: [2375]
+branch: wire/placement-prose
 ---
 
 

@@ -2,9 +2,10 @@
 id: frame-plane-lane-and-axis-frame-are-one-door
 kind: issue
 title: frame_plane_lane and axis_frame destructure the same DatumValue::Frame and raise the same refusal, and axis_frame's own doc says so
-status: open
+status: dispatched
 opened: 2026-09-11
 refs: [2376]
+branch: wire/operand-door
 ---
 
 

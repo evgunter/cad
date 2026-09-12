@@ -2,9 +2,10 @@
 id: the-is-this-a-frame-door-was-deleted-and-its-classification-dispersed
 kind: issue
 title: PR 2435 deleted frame_kind, whose doc said 'is this a frame' is answered once with one refusal vocabulary, and inlined the classification at three sites; the same value_of + payload-match + WrongOperand shape recurs over seven other kinds
-status: open
+status: dispatched
 opened: 2026-09-12
 refs: [2435]
+branch: wire/operand-door
 ---
 
 

@@ -1875,3 +1875,99 @@ held back, so the incentive runs against the conclusion. **This is the
 strongest form of evidence this program produced today**: not a
 finding read off a diff, but a mitigation tried, measured, and reported
 failed by the party it cost.
+
+## 2026-09-12 — orchestrator handover, and the opening block of the second half
+
+New orchestrator on WIRE. Ev reaffirmed the posture in chat at the
+handover, in the same words `plan.md` already carries from 2026-09-11:
+**light style review on every unit, full review only on the units with a
+real risk of being wrong, and no A/B protocol here.** Nothing changes.
+
+### The first act was closing a gap the previous entry had named
+
+`wire/orchestrator` was **sixteen commits ahead of `main` and had not
+reached it since PR 2386** — including nine newly filed rows. The entry
+above names that as this program's own process gap and the cost it
+carries: *"a lane reporting a finding cannot tell whether the
+orchestrator already filed it"*, which is exactly the confusion
+`docs/prompts/implementer-discipline.md` §6 says the orchestrator exists
+to prevent, and it had already made one review flag an already-filed row
+as unscheduled. Merged as PR 2470 (`e25946743`), docs tier, `gate ok`
+green with nothing in flight. One conflict, on `S195.md`: `main` carried
+the fix pass's new title with `status: review`, the orchestrator branch
+carried the close under the old title. Resolved to the union — the new
+title, which the body supports, and the closed state.
+
+**The rule stands and is now this orchestrator's too: merge the
+orchestrator branch at every seam.** Three lanes went out within the
+hour, and they can see every row filed to date because of it.
+
+### The regrouping, which is the one real judgement call at the handover
+
+Four open rows are the **same ten lines of `eval/wire.rs` seen from four
+angles**: the duplicated frame door
+(`frame-plane-lane-and-axis-frame-are-one-door`), the deleted
+classification (`the-is-this-a-frame-door-was-deleted-…`), the
+hand-copied composed phrases
+(`composed-expected-phrases-are-hand-copied-across-sites`), and the
+refusals whose `found:` is the negation of their `expected:`
+(`wire-refusals-answer-found-with-a-negation-of-expected`). Each item's
+own body says a taker of one must read the others; none says they are
+one unit.
+
+They are dispatched as **one unit with a full review**, against
+`plan.md`'s class column, which rates three of the four **E**. The
+reason is this program's own record: the trap where **a unit closing a
+duplication mints a fresh instance of it** has fired **six** times here,
+most recently when PR 2435 deleted `frame_kind` — the door whose doc said
+*"is this a frame" is answered once with one refusal vocabulary* — and
+inlined the classification at three sites. Staffing four views of one
+door apart mints it three more times. The class column is corrected in
+`plan.md` rather than left to disagree with the dispatch.
+
+The unit also carries `wire-rs-module-header-describes-five-sixths-of-the-file`
+as a separate cheap deliverable, because it is a sentence in the same
+file and a second PR against `wire.rs` buys nothing but a merge conflict
+and a cancelled CI run.
+
+### Three lanes out
+
+| lane | rows | review |
+| --- | --- | --- |
+| `wire/operand-door` | the four above + the module header | **full** |
+| `wire/placement-prose` | `placement-rs-states-its-exactness-rule-in-nine-paragraphs`; `frame-linear-generic-door-has-no-consumers` as a **measurement only** | light |
+| `wire/names-vocab` | `interrogate-writes-the-family-vocabulary-a-third-time`, `emit-topo-destroys-the-edge-key-in-a-split-lineage-cycle`, and WIRE's `paths` | light |
+
+**`frame-linear-generic-door-has-no-consumers` is deliberately not a
+removal.** The row is a CLASS whose real question is whether this project
+wants `crates/geom/src/scalar_lift.rs`'s *"one name, `map_scalar` on
+every geometry type"* convention to **mint public doors ahead of
+consumers** — and answering either instance alone leaves the other
+unprincipled. So the lane runs the class's own exact instrument (drop
+`pub`, compile, read the dead-code warnings) over every type the
+convention names, checks whether `Frame` is reachable from the public
+path or from Python at all — the existing evidence is a *workspace*
+measurement, which is the right instrument for "nothing in-tree calls
+it" and the wrong one for a claim about external users — and returns a
+recommendation. The disposition is then a decision made on measured
+ground, and it is the shape that may need Ev.
+
+**WIRE's `paths` are corrected in the `names-vocab` lane, not globbed.**
+WIRE has now landed in six `names/` files it does not claim, drawing the
+fence one PR body at a time. The obvious glob
+`crates/editor-core/src/names/*` is wrong: it sweeps in `role.rs`, which
+is DOCM's, and one-file-one-item means the lane cannot write the
+matching `keep_out` on DOCM's side — so the glob would mint an
+unrecorded double claim to fix a fence problem. The files are
+enumerated instead.
+
+### What the briefs carry forward from this program's record
+
+Every brief states the instrument rule as this program measured it:
+**six of nine units had their central test claim corrected by an
+instrument rather than a reading** — mutation ×3, a built fixture, the ε
+matrix, and a fixture's own asserted precondition hiding the thing under
+test, and not one came from reading a diff. The `operand-door` brief
+additionally requires the lane's own adversarial re-read of its diff
+before pushing, and requires it to say what that found: it is the only
+thing that has ever caught the minting trap from inside a lane.

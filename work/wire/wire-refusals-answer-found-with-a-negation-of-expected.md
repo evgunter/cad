@@ -2,9 +2,10 @@
 id: wire-refusals-answer-found-with-a-negation-of-expected
 kind: issue
 title: Two eval/wire.rs refusals answer found: with the negation of expected: (carries kind not a datum frame) where node_value_kind would name the family it does carry
-status: open
+status: dispatched
 opened: 2026-09-11
 refs: [2376]
+branch: wire/operand-door
 ---
 
 
