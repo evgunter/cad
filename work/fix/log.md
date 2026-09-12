@@ -1948,3 +1948,77 @@ shape as the `census.rs` clause corrected yesterday: a `keep_out` that
 enumerates crossings goes stale every time the program crosses somewhere
 new. Worth considering whether that field should name FILES this program
 may cross at all rather than the crossings it has made.
+
+### `validation-arms-delegate-a-recourse-their-carriers-do-not-give` (PR 2403) — the complete chain, and every count in the item was wrong
+
+Taken: the whole `VolumeUncomputable` carrier chain plus the shared
+`BandError` — `BandError` (3 of 3), `MassPropsError` (3 own arms), and
+**`PropsError`, a FIFTH carrier the item does not name**, reached
+through `MassPropsError::Face` (4 of 8). Without that fifth the chain's
+claim is false one hop down, which is the whole point of the row.
+
+Settled the PR 2354 choice the same way 2354 did: **arms get their
+recourse; the wrapper supplies no blanket tail.**
+
+**Cut: `PcurveMintError` (TRIM) and `OffsetFitError` (PROPS)**, and the
+lane's reason for cutting is the best argument for this posture I have
+seen from a lane. Roughly thirty recourse clauses, written by a lane
+reading two unfamiliar domains for the first time, **with no reviewer
+downstream**, is how a confidently-worded wrong repair ships — which is
+precisely the failure PR 2354 removed a blanket tail to avoid. A lane
+declining scope *because* nobody will catch it is the disclosed-doubt
+half of this posture working as intended.
+
+**All four of the item's counts were wrong, and reading is what
+corrected them:**
+
+| row | item | reading |
+|---|---|---|
+| `BandError` | 0 of 2 | 0 of **3** — three variants; the zero is right |
+| `MassPropsError` | 0 of 5 | 0 of 5 — **confirmed**, two of them delegations the match could not see through |
+| `PcurveMintError` | 1 of 9 | 0 of **10** — and the single hit is a FALSE POSITIVE |
+| `OffsetFitError` | 1 of 8 | **twelve** variants, several already naming their lever |
+
+`OffsetFitError` is where reading most changes the verdict:
+`BudgetExhausted` names `OFFSET_FIT_BUDGET`, `SampleCapReached` names
+`OFFSET_FIT_SAMPLE_CAP`, `BoundNotFinite` names which lever is *not*
+it. Those are rows that already name their repair — **a correct
+finding, and the reason not to rewrite them blind.** The item said its
+counts were a signal to read and not a verdict; that instruction paid
+for itself four times.
+
+**Instruction 3, answered per carrier rather than once.** `BandError`
+had a pin that discriminated (`band_error_display`, all four
+renderings, updated here — it would have failed otherwise);
+`PropsError` and `MassPropsError` had **nothing** pinning any message
+text, so for those two the missing pin was part of the defect. The
+three enforcement rows are that pin, each proved red by mutation.
+
+**The `MassPropsError` row is TRANSITIVE and that is the interesting
+one**: its `Band`/`Face` arms carry no prose of their own, so it passes
+only while its carriers name recourses — a defect two crates away
+reddens it. That is a wrapper's assumption made to fail loudly instead
+of documented, and it is the shape to copy wherever this class recurs.
+
+**The routing question the item raised, answered by measurement:**
+`crates/topo/src/props.rs` is named by **no open program**. `territory`
+does not report it and the lane checked every open `program.md`'s
+`paths` by hand — TOPO's list is explicit files and omits it, CURVED
+claims `census.rs`/`boolean/*`/`splitting/*`, S-MESH claims
+`coherence.rs`. Genuinely unowned, so the lane took it by announcement.
+**Naming a permanent owner for that file is a program-charter question,
+not a unit's and not this orchestrator's** — it is flagged here and
+stays open.
+
+**Filed out of fence, verified first:**
+`work/exch/export-error-arms-delegate-no-recourse` — `ExportError`'s
+`Corrupt { what }` (*"step export: corrupt body ({what})"*, the whole
+message) and `NullScaffoldEdge`. `crates/step-export/*` is EXCH's
+`paths`, so the lane reported and the orchestrator placed.
+
+**And the lane named the real scope of the class, which the item did
+not:** it is not four `ValidationError` arms, it is **every carrier
+reachable from a delegating arm**, and a verb-match sweep cannot see
+past the first hop. `PropsError` was the hop this PR had to absorb;
+`PcurveMintError`'s `Certify`/`Escalated` and `OffsetFitError`'s four
+delegating arms are the next ones for whoever takes the cut rows.
