@@ -13,7 +13,7 @@
 //!   R2's own arc-bearing document — a SLOTTED LINK (an obround outline
 //!   whose two ends are SEMICIRCLES (tangent arcs, bulge 1, `param_end = π`)
 //!   exactly, with a bore at each end) — driven at its real study door
-//!   on and off; its ceiling bisected; the first refusal beyond it.
+//!   on and off; its ceiling bisected; the over-band set at ceiling + δ.
 //! - `r2_evidence_the_refusal_tail` (evidence): the FULL refusal tail
 //!   behind each document's ceiling, read off every decision's certified
 //!   enclosure at two scales below the ceiling (the branch's probe
@@ -768,7 +768,7 @@ fn staged_ceilings(name: &str, at: &dyn Fn(f64) -> ProfileDoc, stages: &[&str], 
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let (shapes, refusal, counts) =
                 replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
-            println!("   beyond it: {refusal:?}\n   {counts:?}");
+            println!("   at ceiling + δ the drive stops at {refusal:?}\n   {counts:?}");
             for s in shapes.iter().filter(|s| {
                 matches!(
                     s.outcome,

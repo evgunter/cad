@@ -19,7 +19,7 @@ use geom_core::sym::with_session;
 use geom_core::{ParamSymbol, Sym, SymBudget, Tol};
 
 fn budget() -> SymBudget {
-    crate::m10_10_atan2_interval::shipped_budget()
+    crate::m10_10_r2_probes::shipped_budget()
 }
 
 fn band() -> Band {

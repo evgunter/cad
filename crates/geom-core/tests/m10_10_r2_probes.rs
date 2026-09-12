@@ -11,13 +11,31 @@
 //! Rows marked EVIDENCE print and assert only soundness (never a false
 //! theorem); the rest gate.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// R2's rows spell their fixtures as tuples inline; the shapes are the
+// rows' own and a type alias per row would say less than the row does.
+#![allow(clippy::type_complexity)]
 
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::sym::with_session;
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, Tol};
 
+/// **The shipped budget, one home for the M10-10 rows of this crate**:
+/// `editor_core::drive::DEFAULT_SYM_MAX_TERMS` = 4096 and
+/// `DEFAULT_SYM_MAX_DEGREE` = 128 are the constants of record, which
+/// this crate's tests cannot import (`geom-core` sits below
+/// `editor-core`), so they are spelled ONCE here — in the one M10-10
+/// file that compiles in every feature lane — and the other M10-10
+/// rows of this crate read them from here rather than re-typing the
+/// ladder.
+pub(crate) fn shipped_budget() -> SymBudget {
+    SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    }
+}
+
 fn budget() -> SymBudget {
-    crate::m10_10_atan2_interval::shipped_budget()
+    shipped_budget()
 }
 
 fn band() -> Band {

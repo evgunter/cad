@@ -15,25 +15,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin, Sign};
+use geom_core::real::Bounds;
 use geom_core::sym::with_session;
 use geom_core::{Interval, ParamSymbol, Real, Sym, SymBudget, Tol};
 
-/// **The shipped budget, one home for the M10-10 rows of this crate**:
-/// `editor_core::drive::DEFAULT_SYM_MAX_TERMS` = 4096 and
-/// `DEFAULT_SYM_MAX_DEGREE` = 128 are the constants of record, which
-/// this crate's tests cannot import (`geom-core` sits below
-/// `editor-core`), so they are spelled ONCE here and every other M10-10
-/// row of this crate reads them from this function rather than
-/// re-typing the ladder.
-pub(crate) fn shipped_budget() -> SymBudget {
-    SymBudget {
-        max_terms: 4096,
-        max_degree: 128,
-    }
-}
-
 fn budget() -> SymBudget {
-    shipped_budget()
+    crate::m10_10_r2_probes::shipped_budget()
 }
 
 fn band() -> Band {
@@ -137,5 +124,45 @@ fn the_degenerate_box_refuses_through_clause_one() {
     assert!(
         answer.starts_with("refused"),
         "sqrt over a straddling box is undefined and clause 1 refuses it: {answer}"
+    );
+}
+
+/// **The half-π fold and the numeric channel fold at the SAME
+/// constant** (R1 MIN-5): `trig::fold_at_half_pi` reads the form's
+/// `π` indeterminate as the true π (`cos π = −1` exactly), which is
+/// right only because the scalar's `pi()` node carries the interval
+/// `[fl(π), next_up(fl(π))]` — the 1-ulp enclosure of the real π that
+/// `interval.rs` pins for `Interval::pi()` — so every value the
+/// numeric channel computes for that node encloses the constant the
+/// form folds at. This row ties the two: the node's VALUE is exactly
+/// that enclosure, and the fold on the interval scalar is a theorem
+/// (the literal `fl(π)` is not the form's π and never folds:
+/// `m10_10_r1_sym_probes::r1_the_half_pi_fold_takes_the_indeterminate_and_not_the_literal`).
+#[test]
+fn the_pi_fold_and_the_interval_pi_enclose_the_same_constant() {
+    let pi = Interval::pi();
+    assert_eq!(pi.lo(), core::f64::consts::PI);
+    assert_eq!(pi.hi(), core::f64::consts::PI.next_up());
+    let ((lo, hi), counts) = with_session(budget(), || {
+        let node = Sym::<Interval>::pi();
+        let bounds = (node.lo(), node.hi());
+        let residual = node.sin_cos().1 + Sym::from_f64(1.0);
+        let band = Band::linear(Tol::witness()).expect("a linear band");
+        let sign = geom_core::k_stats::decide("pi_tie", Margin::of(residual), band);
+        assert!(
+            matches!(sign, Ok(Sign::Zero)),
+            "cos π + 1 is the zero form: {sign:?}"
+        );
+        bounds
+    });
+    assert_eq!(
+        (lo, hi),
+        (pi.lo(), pi.hi()),
+        "the node's value IS Interval::pi()"
+    );
+    assert_eq!(counts.symbolic_zero, 1, "{counts:?}");
+    assert!(
+        lo <= core::f64::consts::PI && core::f64::consts::PI.next_up() >= hi && lo < hi,
+        "a 1-ulp enclosure of the real π"
     );
 }

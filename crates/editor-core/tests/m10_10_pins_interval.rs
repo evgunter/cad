@@ -239,7 +239,8 @@ fn m10_10_the_eps_relative_ceilings_under_the_shipped_set_are_the_measured_brack
 }
 
 /// **THE PLATE AND THE ANNULUS CERTIFY A FRACTION OF THEIR REAL
-/// STUDIES, bounded by REAL margins** — pinned per ε row, in units of
+/// STUDIES, bounded by the widened ENCLOSURES of real margins** —
+/// dependency widening, not flips — pinned per ε row, in units of
 /// the study (the scale `1.0` IS the study: ±0.05 mm of spacing and
 /// σ = 0.01 mm on each radius on the plate; R1's annulus at its own
 /// real widths), both bracket ends asserted:

@@ -9,8 +9,8 @@
 //!   answered — the evidence column of the census table in
 //!   `geom_core::sym`'s module docs;
 //! - `measure_the_ceiling_on_the_two_hole_plate` bisects the widest box
-//!   of the tour's own plate that certifies, and names what refuses
-//!   first beyond it.
+//!   of the tour's own plate that certifies, and reads what bounds it
+//!   as the over-band SET at the bracket's refusing end (ceiling + δ).
 //!
 //! **NO TEST IN THIS FILE IS EXECUTED BY CI**, and that is deliberate
 //! rather than a filter's accident: both rows are `#[ignore]`d evidence
@@ -129,7 +129,7 @@ fn census_which_predicates_decide_symbolically() {
 /// **The re-measured ceiling, on the tour's own two-hole plate.**
 ///
 /// EVIDENCE-ONLY (it prints the number, the tier-off comparison, and
-/// what refuses first beyond it). The measurement is the WIDEST BOX THAT
+/// the over-band SET at ceiling + δ). The measurement is the WIDEST BOX THAT
 /// CERTIFIES WHOLE — `max_depth = 0`, so exactly one leaf and no
 /// subdivision — which is the same shape `m10_3_driver_interval`'s own
 /// width rows measure, and the only shape whose answer is about the
@@ -140,7 +140,7 @@ fn census_which_predicates_decide_symbolically() {
 /// study and the number reads as "what fraction of a real study's box
 /// certifies in one leaf".
 #[test]
-#[ignore = "evidence-only: prints the measured ceiling and its first refusal"]
+#[ignore = "evidence-only: prints the measured ceiling and the over-band set at ceiling + δ"]
 fn measure_the_ceiling_on_the_two_hole_plate() {
     let tol = Tol::witness();
     let doc_at = |scale: f64| plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0;

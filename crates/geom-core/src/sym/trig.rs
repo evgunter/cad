@@ -237,7 +237,8 @@ fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Rc<Form>)> {
 /// numeric channel ever computes for that node encloses the constant
 /// the form folds at. If the node were ever built from the `f64`
 /// literal `PI` alone the fold would be a theorem about a number the
-/// value never was; `sym::tests::the_pi_fold_and_the_interval_pi_enclose_the_same_constant`
+/// value never was; `geom-core`'s
+/// `tests/m10_10_atan2_interval::the_pi_fold_and_the_interval_pi_enclose_the_same_constant`
 /// ties the two.
 fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
     if arg.poisoned {

@@ -84,11 +84,12 @@ fn failures(doc: &ProfileDoc, box_: ParamBox, dials: SymbolicDials, tol: Tol) ->
 // ------------------------------------------------ claim 6: the slab ceiling
 
 /// EVIDENCE-ONLY. Re-derives the slab's whole-certifying half-width and
-/// names what refuses first beyond it — the PR says "the flip at a zero
-/// extrusion distance", which lives at `half = 1.0`, while the measured
-/// ceiling is `0.488`.
+/// reads what bounds it as the over-band SET at ceiling + δ — the PR
+/// said "the flip at a zero extrusion distance", which lives at `half =
+/// 1.0`, while the measured ceiling is `0.488` (the widening finding's
+/// regimes; the wider boxes are read as sets too).
 #[test]
-#[ignore = "evidence-only: prints the slab ceiling and the first refusal beyond it"]
+#[ignore = "evidence-only: prints the slab ceiling and the over-band set at ceiling + δ"]
 fn r1_slab_ceiling_and_first_refusal() {
     let tol = Tol::witness();
     let whole = |half: f64| {
