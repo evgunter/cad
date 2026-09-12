@@ -35,12 +35,17 @@ neither number alone is.
 before that is not comparable with one after it. `mesh::tessellate`'s
 per-face dispatch is D9 idiom 1 (an indexed parallel map over the face
 arena), so those four rows are wall clock at a thread count: read
-`rayon_num_threads` in the environment block, and `nproc` when it is
-empty — empty is rayon's default of one worker per logical core. The row
-ids carry no thread count on purpose; the roster in
-`scripts/criterion-emit.py` is a fixed list, and an id that moved with
-the runner's size would read as a renamed benchmark. The `kernel/*` rows
-are unaffected: nothing under them is parallel.
+`rayon_threads` in the environment block, which is the width the pool
+actually built, asked for in the benchmark process itself. Beside it,
+`rayon_num_threads` is the REQUEST (empty when unset), kept because a
+sample where the two disagree had an environment its run did not ask
+for; and `rayon_threads` is `null` on a sample an older benchmark binary
+wrote, which is an absence and not a one. The row ids carry no thread
+count on purpose; the roster in `scripts/criterion-emit.py` is a fixed
+list, and an id that moved with the runner's size would read as a
+renamed benchmark. The `kernel/*` rows are no longer unaffected either —
+`kernel/mass_props/washer` became a parallel reading with PERF-8 — but
+the other three are: nothing under them is parallel.
 
 ## Before quoting a sample
 

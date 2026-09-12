@@ -362,17 +362,23 @@ fn tessellate_impl(
     // `bounds` (`nurbs_cert::FaceBounds`), and the memo is read through
     // its pure half (`PatchMemo::lookup`).
     //
-    // ERRORS. The fold reports the FIRST `Err` in arena order, which is
-    // the error the serial loop reported; what the map adds is the work
-    // of every later face, done and thrown away.
+    // ERRORS. The refusal a caller sees is the first in ARENA order,
+    // never the first the map finished. The price is that every face is
+    // computed before the fold picks it — work a refusing body does and
+    // throws away, at every width, on a path that never produces an
+    // answer.
     //
     // PEAK MEMORY. Every face's patch is live at once here, where the
     // serial loop held one at a time: the bound is the whole mesh's
     // interior points and triangles, plus (with a memo) one
-    // `StoredPatch` per missed face — about one extra copy of the mesh.
-    // Measured on `tube_ring` (683 672 triangles over two faces, the
-    // corpus's largest), peak RSS 233 MB against 195 MB serial, +19 %
-    // on a figure the mesh itself dominates.
+    // `StoredPatch` per missed face — about one extra copy of the mesh
+    // rather than one copy of its largest face. Measured, on the tour's
+    // hollow ring (four faces, the thing that makes a patch big here):
+    // at 164 940 triangles peak RSS is 18.6 MB serial against 19.8 MB
+    // at four threads, and at 546 864 triangles 46.0 MB against
+    // 54.1 MB — +18 % where it shows, on a figure the mesh value itself
+    // dominates. A body with MANY faces pays less, not more: the
+    // patches are smaller.
     let tol = SizingTols {
         delta: chordal,
         delta_s,

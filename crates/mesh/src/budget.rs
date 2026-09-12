@@ -77,18 +77,19 @@
 //! quantities are read off the sizing the lane already performed, and
 //! the deviation pass only samples what was emitted.
 //!
-//! **A face's lane no longer runs on the caller's thread.**
-//! `tessellate`'s per-face dispatch is D9 idiom 1 — an indexed
-//! parallel map over the face arena — so a lane runs wherever the map
-//! scheduled it, on a thread nobody armed. Thread-local state is still
-//! the right home for the accumulator (it is what keeps two armed
-//! callers from reading each other's rows), and what crosses the
-//! threads is a VALUE: `arming` reads the caller's mode once, `record`
-//! installs it around one face's lane and takes back that face's
-//! recording, and `absorb` merges the recordings in `tessellate`'s
-//! arena-order fold. So an armed meter sees every face, in face-arena
-//! order, at any thread count — the order it saw when the loop was
-//! serial.
+//! **A face's lane runs on a thread nobody armed.** `tessellate`'s
+//! per-face dispatch is D9 idiom 1 — an indexed parallel map over the
+//! face arena — so a lane runs wherever the map scheduled it.
+//! Thread-local state is still the right home for the accumulator (it
+//! is what keeps two armed callers from reading each other's rows), and
+//! what crosses the threads is a VALUE: `arming` reads the caller's
+//! mode once, `record` installs it around one face's lane and takes
+//! back that face's recording, and `absorb` merges the recordings in
+//! `tessellate`'s arena-order fold. An armed meter therefore sees every
+//! face, in face-arena order, at any thread count. The K-funnel is the
+//! same problem and takes the same shape one door over
+//! (`geom_core::k_stats::detached`), which is why the two are wrapped
+//! together at the one call site.
 
 use topo::FaceKey;
 
