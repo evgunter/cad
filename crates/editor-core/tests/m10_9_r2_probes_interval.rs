@@ -209,7 +209,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
 // ------------------------------------------------- the asserting rows
 
 /// Every M10 fixture this crate can build, as (name, document).
-fn fixtures(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
+pub(crate) fn fixtures(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
     let eps = tol.eps();
     vec![
         ("m10_3 slab", crate::m10_3_driver_interval::slab(1.0, 0.25)),

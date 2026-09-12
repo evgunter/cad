@@ -469,3 +469,5 @@ mod m10_9_r1_probes_interval;
 mod m10_10_evidence_interval;
 #[path = "m10_10_pins_interval.rs"]
 mod m10_10_pins_interval;
+#[path = "m10_10_r2_probes_interval.rs"]
+mod m10_10_r2_probes_interval;
