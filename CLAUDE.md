@@ -101,6 +101,34 @@ Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
     discipline handed to every lane by path, which binds the
     orchestrator's own judgement too.
 
+**Check that Ev ever agreed, before you wait for Ev.** The test above is
+about text Ev **ratified** — not text that reads as though somebody
+did. Agents write a great deal of normative-sounding prose, and it is
+not ratified by sounding official, by sitting in a file whose
+companion-table row says *Ratified*, or by having been there a while.
+Before holding a change for sign-off, go and find the ratification:
+`git log -S'<the sentence>' -- <file>` names the commit that wrote it,
+and a clause id plus a `docs/DESIGN.md` companion-table row says what
+was ratified and how far it reaches. **If you cannot find it, it is not
+there — proceed, and say in the PR body what you changed and where you
+looked.**
+
+Waiting is not the safe default. A change held for approval it never
+needed costs a round trip, leaves the wrong text standing meanwhile,
+and is invisible to Ev — who cannot answer a question nobody asked.
+Prefer proceeding with the reasoning written down; a merge commit is
+reviewable and a stall is not.
+
+*Worked example (VIEW, 2026-09-12).* A unit made the viewer read the
+Escape key, which falsified a sentence in `crates/viewer/README.md`
+saying the crate *"binds no key to any operation at all"*. The
+orchestrator flagged it to Ev as a possible change to ratified text,
+because that page's table row said *Ratified*. One `git log -S` showed
+VIEW had written the sentence itself the previous day and nobody had
+ever agreed to it. The check cost one command; the flag cost a round
+trip.
+
+
 ## Repo notes
 
 - `references/` (git-ignored) holds book scans (NURBS Book, Mäntylä
