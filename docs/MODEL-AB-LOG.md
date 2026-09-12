@@ -5196,3 +5196,16 @@ in both briefs, neither reviewer sees the other's report; the same
 shared-box note applies to both arms (up to eight lanes on the box at
 once, per-crate builds asked of both). Block PERF-B3's draw record
 stays branch-side until the block concludes.
+
+## PERF-8 review ordinal fixed at dispatch (2026-09-12)
+
+PERF-8 (`work/perf/PERF-8.md`, PR #2452 open — frozen head `4357cfd71`;
+block PERF-B3 slot 1): **ordinal 3408** (PERF band). Protocol v6 dual:
+draw = `/dev/urandom` byte **244**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method as for the earlier PERF units: concurrent same-head on frozen
+`4357cfd71`, briefs stored with sha256 before dispatch (e8572a604f622838… r1 /
+b2efebdc3a45e726… r2 — identical modulo lane names, verified by diff), isolation
+in both briefs, neither reviewer sees the other's report; the same
+shared-box note applies to both arms (the dispatch waited ~40 min for
+disk behind PERF-9's reviewers — a method note on both arms equally).
+Block PERF-B3's draw record stays branch-side until the block concludes.
