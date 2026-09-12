@@ -1,5 +1,8 @@
-//! **The N2 tie deferral** — the one shape every emitter that reads an
-//! operand's names inserts through.
+//! **The N2 tie deferral** — the one shape every writer that carries
+//! an operand's names forward inserts through: every emitter that
+//! reads an operand's table, and the product gather, which carries
+//! several finished tables onto one aggregate ([`CarriedRows`], this
+//! module's only door out of `names`).
 //!
 //! A tie cannot be inserted one member at a time: `NameTable::insert`
 //! refuses a second row under a name it already carries
@@ -20,7 +23,12 @@
 //! blended, would hand two minted entities one upstream name and the
 //! second insertion would report an aliasing bug that is not one.
 //! Emitters share this code rather than each carrying a translation of
-//! it, so there is no site where the next one can be forgotten.
+//! it, so there is no site where the next one can be forgotten. The
+//! gather shares it for the same reason one level out: it carries
+//! several FINISHED tables onto one aggregate, so a tie the document
+//! separated across two source bodies arrives in two pieces, and
+//! narrowing a piece on its own is the reading the pieces do not
+//! support.
 
 use std::collections::BTreeMap;
 
@@ -197,6 +205,33 @@ pub(super) fn put(
 /// `Unique` goes straight through `insert_ref`, so two roots aliasing
 /// a strict name is still a typed refusal, and so is a tie-descended
 /// name landing on one: the flush inserts into the same table.
+///
+/// **The rule, at the generality it is written in.** Nothing here is
+/// about one root: the accumulator spans EVERY source, so candidates
+/// arriving under one tied name from two different roots merge into
+/// one `Entry::Tied` of the product exactly as two halves of one
+/// split do. That is [`TieRows`]'s own rule — upstream candidates
+/// that were equally admissible stay equally admissible downstream —
+/// read at the gather's scope, where the operand is the whole source
+/// list; the split across one root's output bodies is the special
+/// case a document can currently build (two roots that share a name
+/// share a strict one too, and refuse at that one first — see
+/// [`CarriedRows::finish`]).
+///
+/// **Why this door knows the gather's body model.** The source-body
+/// filter and the body-0 target live here rather than in the caller
+/// because the alternative is a caller that pre-selects and re-keys
+/// its own rows — which is where the third copy of the narrowing rule
+/// lived. The door is the GATHER'S carry, named so; the price of
+/// keeping the rule undivided is that it knows the shape of the thing
+/// it carries for.
+///
+/// **[`TieRows`] is still the door for an emitter inside `names`.**
+/// The two differ in lifetime, deliberately: `TieRows::flush` takes
+/// `&mut self` because an emitter flushes at EVERY stage boundary and
+/// keeps accumulating after one; [`CarriedRows::finish`] consumes
+/// `self` because the gather narrows once, after the last source, and
+/// a second flush would have nothing correct to mean.
 #[derive(Default)]
 pub(crate) struct CarriedRows(TieRows);
 
@@ -234,19 +269,42 @@ impl CarriedRows {
     /// Narrows every deferred name onto the aggregate — once, after
     /// the last source has been carried.
     ///
+    /// **One of this door's two narrowing arms is live in the gather,
+    /// and it is the tie one.** `narrow_into` writes `Tied` when
+    /// several candidates were deferred under a name and `Unique` when
+    /// exactly one was; the second needs a tie whose candidates the
+    /// gather did not all carry, and no document builds one — a source
+    /// body is skipped only when it holds no solids, and a body that
+    /// holds a candidate holds a solid. So the `Unique` arm is
+    /// `narrow_into`'s to exercise from the emitters and
+    /// [`NameTable::project`], not this caller's, and a mutant that
+    /// stops this call narrowing a lone survivor reddens nothing in
+    /// the tree (measured, the T-review lane). Stated because the
+    /// alternative is a reader taking the Errors note below for the
+    /// whole of what is untested here.
+    ///
     /// # Errors
     ///
     /// [`super::table::DuplicateName`]: a deferred name colliding with
     /// a row the table already holds, which for the product gather
     /// means a STRICT row under the same name.
     ///
-    /// No document reaches that today, and the reason is structural
-    /// rather than an omission: two sources that agree on a name agree
-    /// on the whole descent below it, so they descend from one node
-    /// and share that node's strict pass-through rows too — one of
-    /// which collides in [`CarriedRows::carry`] first. The arm is the
-    /// insert door's own refusal, carried rather than unwrapped
-    /// (this crate has no panic paths).
+    /// No document reaches that either, and the reason is structural
+    /// rather than an omission. Two sources agree on a name only if
+    /// both reach it VERBATIM, and verbatim is rare: every emitter but
+    /// two wraps what it carries (`FromA`/`FromB`, `Instance`,
+    /// `InPart`, `SplitFragment`), the two that do not being
+    /// `Transform` and a split's intact pass-through. So two sources
+    /// that share a name descend from one node — and then they share
+    /// that node's strictly-named VERTICES as well, because a plane
+    /// never subdivides a vertex, so every vertex of the common
+    /// ancestor reaches both tables verbatim and strictly named. At
+    /// least one strict name is therefore shared, and it collides in
+    /// [`CarriedRows::carry`] before the flush is reached. (The vertex
+    /// step, and the probe behind it — `transform(subtract)` beside
+    /// `split(subtract)` shares 59 strict names against 2 mixed — are
+    /// the T-review lane's.) The arm is the insert door's own refusal,
+    /// carried rather than unwrapped (this crate has no panic paths).
     pub(crate) fn finish(mut self, into: &mut NameTable) -> Result<(), DuplicateName> {
         self.0.flush(into)
     }

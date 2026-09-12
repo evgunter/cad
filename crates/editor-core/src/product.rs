@@ -36,7 +36,9 @@
 //! verbatim, so a pattern instance's `GeomSource::placed(node, i)`
 //! survives into the product, and the `Instance(i)` names the pattern
 //! minted keep addressing it through the evaluation's own name tables
-//! (the gather touches no table).
+//! (the gather writes no table of the evaluation's — it builds one
+//! aggregate table of its own, and the per-node tables it reads are
+//! untouched).
 //!
 //! Validation is the same F8/D7 shape as the import loop: each source
 //! body is gated on its own when the product holds more than one solid
@@ -118,9 +120,13 @@ pub enum ProductError {
         /// The root that was asked for.
         node: RecipeNodeId,
     },
-    /// Two roots' name rows would alias in the product table — the
-    /// same STRICT name twice, or two names on one aggregate entity.
-    /// An emission-level bug surfaced, never resolved by picking one.
+    /// Name rows the gather carried would alias in the product table
+    /// — the same STRICT name twice, or two names on one aggregate
+    /// entity. Usually two ROOTS' rows, which is the only way a
+    /// document reaches it; the tie merge below the roots can raise it
+    /// too, and there the colliding rows belong to no one root (see
+    /// `node` below). An emission-level bug surfaced, never resolved
+    /// by picking one.
     ///
     /// A name that descends from an N2 TIE is not this: its candidates
     /// are equally admissible and stay so in the product, so rows
@@ -234,11 +240,27 @@ impl core::fmt::Display for ProductError {
                 "product: no product root denotes a body — this document \
                  has no body product",
             ),
-            Self::Naming { node, name } => write!(
+            // TWO SENTENCES BECAUSE `node` CARRIES TWO MEANINGS (the
+            // arm's own doc): the root whose rows were being carried,
+            // or — for the tie merge's collision, which happens after
+            // the last root and belongs to no one of them — the node
+            // that minted the name. The guard is what keeps the second
+            // from being announced as a root: on that path `node` IS
+            // `name.node`, and the sentence below says only what is
+            // then true. A carried row could reach it too, by naming
+            // its own root's mint, and would be described correctly.
+            Self::Naming { node, name } if *node != name.node => write!(
                 f,
                 "product: root {}'s {} name (minted by node {}) collides in the \
                  product's name table",
                 node.0,
+                name.kind.noun(),
+                name.node.0
+            ),
+            Self::Naming { name, .. } => write!(
+                f,
+                "product: the {} name minted by node {} collides in the \
+                 product's name table",
                 name.kind.noun(),
                 name.node.0
             ),
@@ -1016,5 +1038,41 @@ mod tests {
             );
             seen.push(err.kind());
         }
+    }
+
+    /// **The refusal calls a node a ROOT only when it is one.**
+    /// [`ProductError::Naming`]'s `node` is the carried root on the
+    /// per-source path and the MINTING node on the tie merge's, where
+    /// no one root authored the collision — so the rendering is
+    /// guarded, and this is the guard's other side. The two renderings
+    /// are asserted apart by the word the second must not use and by
+    /// the id the first must not print twice.
+    #[test]
+    fn the_naming_refusal_claims_rootedness_only_on_the_per_root_path() {
+        let named = |node: u64, minted: u64| {
+            ProductError::Naming {
+                node: RecipeNodeId(node),
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(minted),
+                    path: Vec::new(),
+                }),
+            }
+            .to_string()
+        };
+        let carried = named(8, 6);
+        assert!(
+            carried.contains("root 8") && carried.contains("node 6"),
+            "the per-root path names the root that carried and the node that minted: {carried}"
+        );
+        let merged = named(6, 6);
+        assert!(
+            !merged.contains("root"),
+            "the tie merge's collision has no one root to name, and must not invent one: {merged}"
+        );
+        assert!(
+            merged.contains("node 6"),
+            "it still names the node that minted the colliding name: {merged}"
+        );
     }
 }

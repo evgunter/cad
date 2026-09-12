@@ -184,6 +184,12 @@ fn a_split_separating_a_tie_gathers_and_the_product_holds_one_tied_row() {
         // One row over BOTH candidates, re-keyed onto the aggregate:
         // the count is the split's, the bodies are all 0 (a product is
         // one body), and each key is a face the graft actually minted.
+        //
+        // The COUNT is what guards against two candidates collapsing
+        // onto one entity, and it is the only thing that can: the
+        // insert door sorts and dedups before storing, so a row that
+        // lost a candidate that way comes back SHORT rather than
+        // holding a repeat.
         assert_eq!(
             product_cands.len(),
             split_cands.len(),
@@ -199,10 +205,6 @@ fn a_split_separating_a_tie_gathers_and_the_product_holds_one_tied_row() {
                 "a product name points at a face the aggregate does not hold: {c:?}"
             );
         }
-        assert!(
-            product_cands.windows(2).all(|w| w[0] != w[1]),
-            "the merge collapsed two candidates onto one entity: {name:?}"
-        );
     }
 }
 
