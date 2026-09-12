@@ -834,49 +834,35 @@ gate() {
   # hosted caller passes the flag off the change filter's seed-keyed
   # RUN_VIEWER_TOOLKIT.
   #
-  # `--exclude viewer` IS SPELLED ONLY WHEN THE SELECTION IS THE WHOLE
-  # WORKSPACE, because cargo accepts it only there. Under an explicit
-  # `-p` list the same intent is expressed by leaving `viewer` out of the
-  # --all-features invocation and documenting it separately — and only
-  # when the list names it at all, since a closure that does not reach
-  # `viewer` has no viewer prose to read.
-  local -a scope_no_viewer=(--workspace --exclude viewer)
-  local wants_viewer=true
-
+  # `--exclude viewer` IS SPELLED HERE BECAUSE THE SELECTION IS THE WHOLE
+  # WORKSPACE, which is the only selection cargo accepts it on. There is
+  # no other selection to write it for: this gate documents every root
+  # whole, so the workspace pass is `--workspace` in both arms.
   if [ "$SKIP_VIEWER_TOOLKIT" = true ]; then
-    # THE ALL-FEATURES INVOCATION CAN BE EMPTY under a closure whose only
-    # member is `viewer`, and `cargo doc` with no package selection would
-    # then document the current directory instead of nothing — a pass over
-    # the wrong tree reading as a pass. So it is skipped rather than run
-    # empty, and the viewer pass below is the whole of pass 1.
-    if [ ${#scope_no_viewer[@]} -gt 0 ]; then
-      doc_pass "the workspace pass (viewer at default features) — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
-        "${scope_no_viewer[@]}" --all-features || rc=1
-    fi
-    if [ "$wants_viewer" = true ]; then
-      # THE LINK LINT IS INERT ON THIS PASS, AND ONLY ON THIS PASS.
-      # Ev's ruling, in chat 2026-09-11: the renderer-free half MAY link
-      # into the `app`-gated half. Those links resolve wherever `app` is
-      # compiled and nowhere else, so at DEFAULT features every one of
-      # them is an unresolved-link error about an item that is absent by
-      # design rather than by mistake — the lint would be reporting the
-      # feature, not a defect. `RUSTDOC_LINTS_INERT` is the same
-      # instrument pass 3 uses for the same reason on the feature axis.
-      #
-      # WHAT THAT COSTS, stated rather than left to be found: a
-      # genuinely broken link in this crate's renderer-free half — to a
-      # renamed or deleted item — is no longer caught HERE. It is caught
-      # by the --all-features viewer pass in the `else` arm below, which
-      # is the arm any change filter seeding `viewer` takes, so the
-      # author of such a link still reds. What is lost is the second
-      # reading on a branch that reaches `viewer` through the closure
-      # without touching it, and such a branch cannot write one. Every
-      # other rustdoc lint still fires here, which is what the
-      # `--selftest` arm on this pass now pins.
-      doc_pass_with "$RUSTDOC_LINTS_INERT" \
-        "the viewer pass at DEFAULT features — its renderer-free modules are gated on every run; only the app-feature modules are skipped" \
-        -p viewer || rc=1
-    fi
+    doc_pass "the workspace pass (viewer at default features) — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
+      --workspace --exclude viewer --all-features || rc=1
+    # THE LINK LINT IS INERT ON THIS PASS, AND ONLY ON THIS PASS.
+    # Ev's ruling, in chat 2026-09-11: the renderer-free half MAY link
+    # into the `app`-gated half. Those links resolve wherever `app` is
+    # compiled and nowhere else, so at DEFAULT features every one of
+    # them is an unresolved-link error about an item that is absent by
+    # design rather than by mistake — the lint would be reporting the
+    # feature, not a defect. `RUSTDOC_LINTS_INERT` is the same
+    # instrument pass 3 uses for the same reason on the feature axis.
+    #
+    # WHAT THAT COSTS, stated rather than left to be found: a
+    # genuinely broken link in this crate's renderer-free half — to a
+    # renamed or deleted item — is no longer caught HERE. It is caught
+    # by the --all-features viewer pass in the `else` arm below, which
+    # is the arm any change filter seeding `viewer` takes, so the
+    # author of such a link still reds. What is lost is the second
+    # reading on a branch that reaches `viewer` through the closure
+    # without touching it, and such a branch cannot write one. Every
+    # other rustdoc lint still fires here, which is what the
+    # `--selftest` arm on this pass now pins.
+    doc_pass_with "$RUSTDOC_LINTS_INERT" \
+      "the viewer pass at DEFAULT features — its renderer-free modules are gated on every run; only the app-feature modules are skipped" \
+      -p viewer || rc=1
   else
     doc_pass "the workspace pass — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
       --workspace --all-features || rc=1

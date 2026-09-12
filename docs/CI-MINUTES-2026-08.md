@@ -515,16 +515,20 @@ growths above are the larger target and are nobody's row yet.
 
 ### 2026-09-03 — the rustdoc gate's other two passes demoted to the nightly
 
-> **RESTORED 2026-09-12, and the reason this entry could not see it.** The
-> job is back on the pull-request gate. Everything below is an accurate
-> reading of what the demotion moved and what it saved, in **billed
-> minutes** — the currency this whole document is denominated in, and the
-> one that stopped existing on 2026-09-03 when `evgunter/cad` went public
-> and standard-runner minutes became free. The demotion was decided on a
-> number that had no buyer by the time it merged. The restoration's own
-> figures are on its pull request, taken from its own runs; **no figure
-> below may be quoted forward** (`work/ciw/plan.md` §The 2026-09-04
-> re-read).
+> **RESTORED 2026-09-12, and the reason this entry could not see it.** All
+> three of the gate's passes are back on the pull-request gate, over every
+> cargo root. The nightly `rustdoc (gate, every root)` job is **kept**, for
+> the one pass the PR gate cannot take on every run — `viewer` at
+> `--all-features` with the link lint live, on runs whose seeds miss the
+> toolkit axis — so unlike the other two restorations this one deletes no
+> nightly row. Everything below is an accurate reading of what the demotion
+> moved and what it saved, in **billed minutes** — the currency this whole
+> document is denominated in, and the one that stopped existing on
+> 2026-09-03 when `evgunter/cad` went public and standard-runner minutes
+> became free. The demotion was decided on a number that had no buyer by
+> the time it merged. The restoration's own figures are on its pull
+> request, taken from its own runs; **no figure below may be quoted
+> forward** (`work/ciw/plan.md` §The 2026-09-04 re-read).
 
 S-TCOST unit C2, Ev's approval in chat the same day, and it is F6's own
 subject read one step further. F6 made the six excluded roots cheap by
@@ -854,6 +858,24 @@ carrying the two later `fmt`-job widenings). The draft skip cuts the
 COUNT of full runs on top of that and multiplies against everything here.
 
 ### And the 2026-08-22 second pass takes it to ~40
+
+> **THE NIGHTLY ROSTER BELOW IS DEAD AS OF 2026-09-12, and it is annotated
+> here because a ROSTER IS MORE QUOTABLE THAN A DATED READING.** Two of its
+> rows no longer exist: `corrupt input (release profile)` and `python suite
+> (ungated re-take)` are back on the pull-request gate and their nightly
+> copies are deleted. `rustdoc (gate, every root)` SURVIVES, for the one
+> pass the PR gate cannot take on every run (`viewer` at `--all-features`
+> with the link lint live, on runs whose seeds miss the toolkit axis) — so
+> its row stands, but the `~3` beside it was derived, never measured, and
+> is still not. The **`an ordinary night` ~15** total and the **`~11 of
+> 26`** the prose below computes from it are therefore both arithmetic
+> over a roster that no longer describes the nightly, and neither may be
+> quoted forward. Every figure here is in **billed minutes**, the currency
+> that stopped existing on 2026-09-03 when `evgunter/cad` went public
+> (`work/ciw/plan.md` §The 2026-09-04 re-read). The three per-demotion
+> entries elsewhere in this document carry the same annotation at their own
+> headings; this section was missed by that pass and is the one place the
+> deleted jobs still read as a live list.
 
 Derived the same way — per code-tier PR run, against the ~62 above.
 Every line is the item from *What landed* directly above; none of these

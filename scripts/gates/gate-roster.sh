@@ -380,7 +380,7 @@ plant_outlier_hosted_selftest_deleted() {
 # the real run and leave only `--selftest`, and the gate still fires.
 plant_outlier_hosted_run_has_flags() {
   local root=$1
-  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --pr --scope '-p a'#" \
+  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --skip-viewer-toolkit#" \
     "$root/.github/workflows/ci.yml"
 }
 
@@ -391,7 +391,7 @@ plant_outlier_hosted_run_has_flags() {
 # only drops the self-test finds this line and calls the gate wired.
 plant_outlier_hosted_run_is_print_roots() {
   local root=$1
-  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --print-roots --pr#" \
+  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --print-roots#" \
     "$root/.github/workflows/ci.yml"
 }
 

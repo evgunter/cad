@@ -5212,6 +5212,7 @@ jobs:
       - cache-prime-interval
       - build
       - test
+      - release-corruption
       - build-interval
       - lint-interval
       - test-interval

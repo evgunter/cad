@@ -160,9 +160,10 @@ from their own PR's runs rather than from this table.
 
 ## Closed 2026-09-12 (branch `tcost/c1-c3-restore`)
 
-All three are back on the pull-request gate, and **all three nightly
-counterparts are deleted** — each was read against the ci.yml job that
-now covers it rather than guessed at:
+All three are back on the pull-request gate, and **two of the three
+nightly counterparts are deleted** — each was read against the ci.yml
+job that now covers it rather than guessed at. The third,
+`rustdoc-roots`, STAYS, and the reason is below:
 
 - **C1 — `corrupt input (release profile)`** is a `ci.yml` job again,
   gated on `run_topo_release` (`topo` in the change closure), which the
@@ -173,19 +174,33 @@ now covers it rather than guessed at:
   demotion gave up. Deleted.
 - **C2 — the rustdoc gate** runs whole in `fmt` again: all three passes
   over every cargo root, pass 1 unscoped. `nightly.yml`'s
-  `rustdoc (gate, every root)` ran exactly `doc-gate.sh --selftest` then
-  `doc-gate.sh`, which is now what `fmt` runs; the one difference is
-  `viewer` at `--all-features`, which `fmt` skips when the seeds do not
-  buy the toolkit and which `nightly.yml`'s `viewer-toolkit` job already
-  re-takes ungated in its `rustdoc (viewer, all features)` step. Strictly
-  duplicate. Deleted.
+  `rustdoc (gate, every root)` is **kept**, and the first draft of this
+  restoration deleted it on a false premise. `fmt`'s step has two arms:
+  seeds hitting the toolkit axis ({`viewer`, `pncad`, `bvh`}, Ev's
+  viewer-CI-posture ruling of 2026-08-27) run `doc-gate.sh` whole, and
+  seeds missing it run `--skip-viewer-toolkit`, which documents `viewer`
+  at DEFAULT features with the link lint inert (Ev's ruling of
+  2026-09-11, `work/ciw/view-made-the-skip-mode-viewer-doc-pass-lint-inert`).
+  Passes 2 and 3 are common to both arms, so the leftover is exactly one
+  pass: **`viewer` at `--all-features` with the link lint live.**
+  `viewer-toolkit`'s `rustdoc (viewer, all features)` step does NOT
+  re-take it — it is a bare `cargo doc -p viewer --all-features
+  --no-deps` with no `-D warnings` (`RUSTDOCFLAGS` appears zero times in
+  either workflow file; `doc-gate.sh` sets it internally), and
+  `broken_intra_doc_links` is warn-by-default, so it exits 0 on a broken
+  link. Both rulings are binding, so making the PR-gate pass
+  unconditional is not the alternative: the nightly is the only place
+  this coverage can live. Restored whole rather than trimmed to the one
+  pass — the only argument for trimming is cost, which is the currency
+  this row establishes as dead.
 - **C3 — `python suite (wheel + guide + north-star)`** runs on every
   code-tier run: the `if:` is `run_build` and there is no seed key. The
   nightly re-take existed, by its own header, for exactly two seeds that
   the key missed (`viewer`, above the wheel; `test-utils`, a dev edge).
   Both run the suite now. Strictly duplicate. Deleted.
 
-`record`'s `needs:` list drops all three in the same commit.
+`record`'s `needs:` list drops the two deleted jobs and keeps
+`rustdoc-roots`.
 
 **Ask 3, and it went further than the three comments.** The demotion
 notes are gone with the demotions. What replaced them argues from wall
@@ -206,7 +221,8 @@ nothing, which has its own file —
 argument for the asymmetry.
 
 **Not this program's, found on the way.**
-`work/ciw/facade-guards-defer-to-rustdoc-json` builds on
-`rustdoc (gate, every root)` existing as its analogue, and
 `work/ciw/python-suite-zero-test-guard-three-copies` counts three copies
-of a guard that is now two. Both are CIW's; reported, not edited.
+of a guard that is now two. CIW's; reported, not edited.
+`work/ciw/facade-guards-defer-to-rustdoc-json` builds on
+`rustdoc (gate, every root)` existing as its analogue — that premise
+survives, since the job is kept.

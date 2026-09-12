@@ -15,7 +15,18 @@
 //! nextest matrix; the release rows are the
 //! `corrupt input (release profile)` job in `.github/workflows/ci.yml`,
 //! which is the only release-profile test invocation the kernel workspace
-//! has. `local-scripts/ci-local.sh` runs the same rows on every local gate.
+//! has.
+//!
+//! **That job is the only lane in the tree that compiles the
+//! `cfg(not(debug_assertions))` rows, and `local-scripts/ci-local.sh` is
+//! not a second one.** The hosted job pins
+//! `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`; the local
+//! `topo_release` row does not, so against the root `[profile.release]`'s
+//! `debug-assertions = true` it compiles the DEBUG arms of this file and
+//! the row below does not exist there at all. The local row also selects
+//! a subset — this module and one `review_m1_pr4` row, and no
+//! `review_d18`. So the local gate exercises the debug expectations a
+//! second time; the release expectations are the hosted job's alone.
 //! Both halves grep this sentence for the job's name, so renaming it here or
 //! there is loud.
 //!

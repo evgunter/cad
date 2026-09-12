@@ -1334,9 +1334,14 @@ run_row "clippy (pncad-py, python)"    cargo clippy -p pncad-py --features pytho
 # reds that gate.
 # `--skip-viewer-toolkit` exists for the hosted half only (see the
 # clippy note above): this row documents viewer under --all-features
-# like everything else.
+# like everything else — which is why this one row mirrors TWO hosted
+# jobs. `fmt`'s step takes the skip whenever the change filter's seeds
+# miss the toolkit axis, so on those runs it is the nightly job that
+# takes `viewer` at --all-features with the link lint live. This half
+# takes both on every invocation, unscoped, and is cited by both.
 #
 # HOSTED MIRROR: fmt / rustdoc (gate)
+# HOSTED MIRROR: rustdoc-roots / rustdoc (gate, every root)
 rustdoc_gate() {
   scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
 }

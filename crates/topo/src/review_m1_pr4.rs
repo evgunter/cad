@@ -1307,10 +1307,15 @@ fn kef_rejects_a_corrupt_edge_bijection() {
 //    amended by the D2 addendum, which retired the garbage-out half).
 //    These rows also run in debug, where the errors are
 //    precondition-caught, on every code-tier run. The release side is the
-//    `corrupt input (release profile)` job in .github/workflows/ci.yml (and
-//    on every local gate), which runs on every code-tier run too. It greps
-//    that job name out of this comment, so a rename is loud rather than
-//    quietly falsifying this sentence.
+//    `corrupt input (release profile)` job in .github/workflows/ci.yml,
+//    which runs on every code-tier run too and is the ONLY lane that runs
+//    it: that job pins `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`,
+//    and nothing else in the tree does. `local-scripts/ci-local.sh`'s
+//    `topo_release` row names this test but sets no such override, so
+//    against the root `[profile.release]`'s `debug-assertions = true` it
+//    is a third run of the DEBUG behaviour, not a local mirror of the
+//    release side. It greps that job name out of this comment, so a
+//    rename is loud rather than quietly falsifying this sentence.
 // =====================================================================
 
 #[test]
