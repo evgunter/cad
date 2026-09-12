@@ -1426,3 +1426,92 @@ fixture, the ε matrix, and a fixture's own asserted precondition
 hiding the thing under test. That is the guidance for the rest of the
 program — ask what instrument answers the claim, not whether the claim
 is argued well.
+
+## 2026-09-12 — PR 2442 full review (product gather, tie across halves)
+
+**The review closed a gap the implementer had declared rather than
+papered over**, and the answer is operationally useful: the lane's 403
+on the hosted log blobs was **lane-local**, not a property of the
+proxy. `mcp__github__get_job_logs` reaches a run's job logs directly,
+and both new rows are named by name in run `34694794356` on `d924863`
+(`two_roots_aliasing_a_strict_name_still_refuse` at line 951 of `test
+(eps = default, 1/2)`; `a_split_separating_a_tie_gathers…` at line 947
+of shard 2/2 and line 847 of the interval default shard), with shard
+totals passing. The implementer's `every_suite_file_is_aggregated`
+chain was sound, but it is no longer the evidence of record. **Reach
+for `get_job_logs` before concluding a lane cannot see its own rows
+run.**
+
+**All four of the implementer's mutants reproduced exactly** when
+re-taken privately (M4's truncated "≥ 16" resolves to 29), and four
+more were added. The one that matters, M1 — the bug re-minted inside
+the new door, narrowing by surviving count instead of the source tie
+bit — reddens **exactly one row of 1219**, the one the PR added. That
+is the shape a guard should have.
+
+**Two claims came back stronger than posed.** Tied candidate ORDER is
+moot, not merely unchanged: `insert_tied_ref` sorts and dedups before
+storing (`table.rs:287-289`), so `Entry::Tied` is canonical in
+`EntityRef` order whatever the accumulation order was — measured by
+reversing the accumulated order (0 red). And the name key is
+untouched: `NameTable::iter` is literally
+`iter_refs().map(|(n, e)| (&**n, e))` (`table.rs:377-379`), so the
+population and order are the same iterator; minting a fresh `NameRef`
+as the old door did reddens nothing (0 red of 1219).
+
+**The unreachability argument had a missing link, and the review
+supplied and measured it.** The doc said two sources agreeing on a name
+"share that node's strict pass-through rows too" without saying why one
+must exist. The reason: two roots can only share a name if both reach
+it verbatim, and only `Transform` and split-intact pass-through leave a
+name unwrapped (`emit_topo.rs:1380-1384`, `:385`) — every other emitter
+wraps — and **a plane never subdivides a vertex**, so every vertex of
+the common ancestor passes verbatim into both tables with its strict
+name. Probed: `transform(subtract)` + `split(subtract, y = 1.25)` gives
+`both_unique=59, mixed=2` and the gather refuses on a strict collision
+first; an oblique plane gives `both_unique=53 {Edge: 26, Face: 3,
+Vertex: 24}, mixed=1`. The `Unique`/`Tied` disagreement the arm needs
+**does exist** — it is simply always beaten to the refusal.
+
+**One blocker, and it is the recurring kind**: the field's doc-comment
+was updated to disclose `node`'s new dual meaning and the sentence that
+RENDERS it was not (`product.rs:237-243`), so the flush path prints
+"root 6's face name (minted by node 6)" — a non-root called a root and
+named twice. A disclosure written where no reader of the output will
+see it.
+
+**The rule as implemented is wider than the rule as approved** (S9):
+nothing restricts the merge to one root's output bodies, so two roots
+carrying the same tied name would merge. Adjudicated as the SAME rule
+at its right generality rather than a new one — `TieRows`'s own doc
+already says equally-admissible candidates stay equally admissible
+downstream, and the split case is a special case of that — and the
+difference is unreachable for exactly the reason above. Not Ev's to
+rule, but the PR must say it rather than leave the code implementing a
+rule wider than its prose. Raised with Ev in chat as a generalisation
+he may want to narrow.
+
+**The class-not-instance rule bit the filed row.** The PR filed
+`name-placed-union-spells-the-narrowing-rule-itself` — accurate, and
+one instance. The 1-vs-many decision is written six more times in
+`emit_topo.rs` in a form the PR's `insert_tied` sweep structurally
+could not match (`if X.len() == 1 { put } else { tie.push }` at `:601`,
+`:726-733`, `:952`, `:1009`, `:1236`, `:1400`), which is precisely the
+blind spot the PR disclosed. `rg 'if .*\.len\(\) == 1'` finds them in
+seconds — **the sweep pattern is the finding**, and the row is being
+widened into the class with it recorded.
+
+**Filed**: `product-gate-says-verbatim-then-states-the-difference` —
+the review's S11 sharpened. `product.rs:664-668` calls the per-source
+gate "the import loop's rule, verbatim" and the next sentence explains
+how it differs; the import loop counts INSTANCES
+(`step-import/src/lib.rs:700`), the product counts SOLIDS. A
+self-declared copy is a claim no test can read.
+
+**Held rather than changed**: the seam (`names::defer` now knows the
+gather's body model) — the door is NAMED the gather's carry, so knowing
+its shape is coherent, and the alternative puts the filter back in
+`product.rs` where the third copy lived; and `TieRows`/`CarriedRows`
+coexisting with divergent ownership, which is meaningful (`flush` runs
+at every stage boundary, `finish` once). Both get a sentence saying so,
+so the next reader does not re-open them.
