@@ -98,3 +98,148 @@ rows; answering either alone leaves the other unprincipled.
 convention, checked for a `map`/`map_scalar` with no non-test caller.
 The instrument is the one used twice here — drop `pub`, compile, read
 the dead-code warnings — and it is exact, not a grep.
+
+## Measured (2026-09-12, at `e25946743`) — WIRE's placement-prose lane
+
+### `Frame` IS on a public path; the Python surface is NOT
+
+`editor_core::Frame` is re-exported at the crate root (`crates/editor-core/src/lib.rs`,
+`pub use placement::{AxisRefusal, Frame}`) and again on the facade's
+curated document surface (`crates/pncad/src/document.rs`, the
+`Frame`/`AxisRefusal` re-export group). So an external **Rust** consumer
+of `pncad` can spell `linear::<T>()`.
+
+The **Python** surface cannot. `crates/pncad-py/src/py/place.rs`'s
+`#[pyclass] Frame` exposes five constructors (`translation`,
+`rotate_then_translate`, `point_at`, `path_start_frame`,
+`mirror_across_plane`), three reads (`columns`, `origin`, `determinant`)
+and `__eq__`/`__repr__`. Neither `linear` nor `affine` crosses. That
+closes the half of the question the workspace measurement could not
+answer: there is no binding-side caller and no binding-side reason for
+the door.
+
+In-tree the count has fallen since this row was written: `.linear::<`
+now has **one** call site, `placement.rs`'s own
+`affine_at_f64_carries_the_stored_bits`, not three.
+
+### The class's instrument, run over every rung of the convention
+
+Two levels, because bare privatization answers the wrong question for a
+rung whose callers are in its own crate but another module:
+
+- **A** — drop `pub` outright. Answers "any consumer outside this
+  module".
+- **B** — `pub` to `pub(crate)`. Answers the question a *public* door's
+  existence turns on: "any consumer outside this crate". An `E0624`
+  naming a `tests/` file is a TEST-only consumer; one naming another
+  crate's `src/` is a production consumer.
+
+Instrument: `cargo check --workspace --all-targets`, one rung at a time,
+reverted after each. Verbatim results:
+
+| rung | level | verdict |
+| --- | --- | --- |
+| `Frame::linear` (`editor-core/src/placement.rs`) | A | `warning: method 'linear' is never used` — **no errors at all**. Zero consumers outside its own test module. |
+| `Frame::affine` (control) | A | `error[E0624]` ×3 — `eval/wire.rs` ×2, `mate/solve.rs`. Live. |
+| `Curve3::map_scalar` (`geom/src/scalar_lift.rs`) | A, B | `warning: method 'map_scalar' is never used` **both times**; every `E0624` is in `geom`'s own `tests/` (`curves/n1r1_lift_probes.rs`, `curves/n1r2_lift_probes.rs`, `net_placeholder_width.rs`). **Zero non-test consumers anywhere.** |
+| `Surface::map_scalar` (same file) | A, B | identical shape — `warning: method 'map_scalar' is never used`, errors only in `geom`'s own `tests/`. **Zero non-test consumers anywhere.** |
+| `NurbsCurve2`/`NurbsCurve3::map_scalar` (`geom/src/curves/nurbs.rs`, one macro) | B | `warning: method 'map_scalar' is never used` + `E0624` only in `geom`'s `tests/`. Dead **because** the rung above it is: its one lib caller is `Curve3::map_scalar`. |
+| `NurbsSurface::map_scalar` (`geom/src/surfaces/nurbs.rs`) | B | `error[E0624]: crates/sweep/src/loft.rs:328`. **The one rung with a production consumer outside its crate.** |
+| `SurfaceDescription::map_scalar` (`geom/src/surfaces/approx.rs`) | B | **clean** — no warning, no error. In-crate callers only; nothing outside `geom` names it, not even a test. |
+| `ApproxSurface::map_scalar` (same file) | B | **clean**, same as above. |
+| `Vec2::map` (`geom-core/src/linalg/vec.rs`) | B | `warning: method 'map' is never used`, **no errors**. Zero consumers workspace-wide, tests included. |
+| `Vec3::map` (same file) | B | `E0624` ×15, **all** `crates/geom/src/scalar_lift.rs`. Its only consumers sit inside the dead `Curve3`/`Surface` ladder. |
+| `Point2::map` (`geom-core/src/linalg/point.rs`) | B | `warning: never used` in `geom-core` + `E0624` from `geom/src/curves/nurbs.rs:619` and `profile/src/lib.rs:206`, `profile/src/validate.rs:843,844`. Live. |
+| `Point3::map` (same file) | B | `warning: never used` in `geom-core` + `E0624` ×10, all inside `geom` (`scalar_lift.rs` ×8, `curves/nurbs.rs:619`, `surfaces/nurbs.rs:646`). Live only through the lift ladder. |
+| `Mat3::map` (`geom-core/src/linalg/mat.rs`) | B | **one** `error[E0624]: crates/editor-core/src/placement.rs:231` — `Frame::linear`. Its only consumer workspace-wide is the dead door this row is about. |
+| `Affine3::map` (`geom-core/src/linalg/affine.rs`) | B | `warning: never used` in `geom-core` + `error[E0624]: crates/profile/src/lib.rs:638` (`SketchPlane::map`). `Frame::affine` is a second consumer the run could not show — `profile` failed first, so `editor-core` was never checked. |
+| `ProfileLoop::map_scalar` (`profile/src/lib.rs:453`) | B | `E0624` ×7, **all** in `profile/tests/` (`bool9_probes`, `bool9r1_probes`, `r2_bool9_review_probes`, `scalar_lift_door`). Test-only outside its crate. |
+| `Profile::map_scalar` (`profile/src/lib.rs:767`) | B | `warning: method 'map_scalar' is never used` + `E0624` ×2, both `profile/tests/scalar_lift_door.rs`. Test-only outside its crate. |
+| `ProfileVertex::map` (`profile/src/lib.rs:205`) | B | one `E0624`, `profile/tests/scalar_lift_door.rs:76`. Test-only outside its crate. |
+| `SketchPlane::map` (`profile/src/lib.rs:637`) | B | `error[E0624]: crates/editor-core/src/eval/wire.rs:1515` (+ `profile/tests/sketch_plane.rs`). Live. |
+
+Correction to the section above: this row's `:453` and `:767` labels are
+swapped against the code — `:453` returns `ProfileLoop<U>` and `:767`
+returns `Profile<U>`.
+
+**What the instrument could not see**, stated so the negative result is
+not read wider than it is:
+
+- `Cargo.toml` `exclude`s `demos/`, `tools/`, `benches/` and
+  `interval-transcendentals/`, so `--workspace` compiles none of them and
+  `demos/tour`+`demos/wild` are exactly the outside-consumer seat this
+  question is about. Checked by **grep** only (`.map_scalar`,
+  `.linear::<`): no hit for either in those four roots. A grep is not the
+  instrument; that line is weaker than the rest of the table.
+- Cargo stops a crate's dependents once that crate fails, so every
+  `E0624` list here is a **lower bound** on the consumer set. It does not
+  weaken a `warning`-only or clean row, which is where every negative
+  verdict above comes from.
+- `dead_code` runs per target, so a method used only from its own crate's
+  `#[cfg(test)] mod tests` still warns on the plain lib target. That is
+  the signal, not noise: it is precisely "kept alive by its own test".
+
+### What the class asked, answered
+
+*Does this project want `scalar_lift.rs`'s convention to mint public
+doors ahead of consumers?* The measurement says **it already does, at
+most of its rungs** — of the eight `map_scalar` rungs the module names,
+exactly one (`NurbsSurface::map_scalar`) has a production consumer
+outside its own crate, and both TOP rungs (`Curve3`, `Surface`) have no
+non-test consumer anywhere. So "the convention owes the door" cannot be
+settled by pointing at the convention: the convention as practised is
+mostly unconsumed, and adopting it as a rule would ratify that. That is
+`geom`'s ground, not WIRE's — filed as
+`work/props/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`.
+
+*And is `Frame::linear<T>` a violation of the same convention (a
+geometry type whose lift door should therefore STAY)?* **No.** The
+convention is "`map_scalar` on every geometry type and `map` on every
+leaf", and `Frame` is neither: it is a document-layer placement record in
+`editor-core`, its door is spelled `linear`, and `scalar_lift.rs` does
+not name it. The convention does not reach this instance, so the three
+answers this row already had are the whole decision.
+
+### Recommendation: DELETE, with the counterarguments
+
+**Delete `pub fn linear<T: Real>`.** Three reasons:
+
+1. The consumer set is empty on every path measured: one in-tree caller,
+   its own test; no Python reach; no `demos/` reach.
+2. **The project has already ruled this way, in writing, at the same
+   altitude.** `crates/pncad/src/lib.rs` refuses to re-export `bvh` —
+   *"No demo scene, no export corpus, and no document-layer path names
+   it, and that measurement is what decides the re-export. Re-export it
+   the day a consumer needs it."* Same instrument, same answer: mint on
+   demand. The narrowing of `profile` to a curated module in the same
+   file, over one measured leak, is that position applied harder.
+3. Fail-loud: an unused public door is a claim the library does not keep,
+   and the row's own sentence — *a public generic door kept alive by its
+   own test* — is what the item was retiring at the other end.
+
+Honest counterarguments, none of which I think carries:
+
+- **Symmetry.** `affine<T>` is the placement door and `linear<T>` is its
+  other half; a library offering the affine map at the backend scalar but
+  not the linear part is oddly shaped from outside. Real — but the same
+  asymmetry is already shipped in the binding, which exposes `columns`
+  and `determinant` and neither map, and nobody has hit it.
+- **It exports a finding instead of closing one.** Deleting `linear`
+  leaves `Mat3::map` with **zero** consumers workspace-wide (measured
+  above). That is `geom-core`, PROPS's ground — so the delete owes the
+  PROPS row a line, which the filing above gives it.
+- **The test loses half its subject.** `affine_at_f64_carries_the_stored_bits`
+  cross-checks `linear`'s columns against `affine`'s linear block; without
+  `linear` it asserts only the affine door. Small: the affine assertion is
+  the one the kernel's placement path depends on.
+- **"Pre-release with no external users" is a prediction, not a
+  measurement.** If the kernel is ever published, removing a public method
+  is the breaking change and keeping it was free. This is the strongest
+  of the four, and it is the argument for answer 3 (demote to `fn`) rather
+  than for answer 2.
+
+If the orchestrator will not spend a public-API decision here, **demote
+to `fn`** beside `linear_f64`/`affine_f64`: it costs nothing, it makes
+the workspace lint tell the truth about reachability, and it leaves the
+question open. What should **not** happen is answer 2 without its
+argument written at the site, which is the state the door is in today.
