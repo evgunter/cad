@@ -52,6 +52,108 @@ pub(crate) fn land(
 /// viewer's left shoulder.
 const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
 
+/// Which button of the viewer's vocabulary an `egui` button denotes,
+/// or `None` for one the viewer binds nothing to.
+///
+/// **The one place the toolkit's button set meets the viewer's**, and
+/// the two are deliberately not the same set. [`input::PointerButton`]
+/// names the buttons this viewer BINDS; `egui::PointerButton` names
+/// the buttons a mouse can report, side buttons included.
+///
+/// **A side button gets `None` because there is nothing for it to
+/// be.** [`input::InputMap`]'s four bindings are filled by the three
+/// main buttons; no preset, preferences key or API call can name a
+/// fifth; and the bindings follow mainstream CAD (`input`'s module
+/// docs), which has no side-button gesture. A variant for one would
+/// be a word of the vocabulary that no sentence could use — and on
+/// the web backend these two are the browser's back and forward.
+/// Binding them is a product decision, and it arrives as a variant on
+/// `input::PointerButton`, a binding field or preset that can name it,
+/// and an arm here that stops saying `None`.
+///
+/// **The set is compiler-held in both directions.** This match names
+/// every `egui::PointerButton` and the enum is not `#[non_exhaustive]`,
+/// so an egui that grows a sixth button makes it non-exhaustive;
+/// [`egui_buttons`] is `NUM_POINTER_BUTTONS` long, so the same upgrade
+/// fails its length. A version bump is the only moment the toolkit's
+/// set can change, and it is the moment both of these fire.
+fn viewer_button(button: egui::PointerButton) -> Option<PointerButton> {
+    match button {
+        egui::PointerButton::Primary => Some(PointerButton::Primary),
+        egui::PointerButton::Secondary => Some(PointerButton::Secondary),
+        egui::PointerButton::Middle => Some(PointerButton::Middle),
+        egui::PointerButton::Extra1 | egui::PointerButton::Extra2 => None,
+    }
+}
+
+/// Every button `egui` can report.
+///
+/// A function rather than a `const` item, and its length is the
+/// toolkit's own `NUM_POINTER_BUTTONS`: the compiler counts this list
+/// against the declaration it mirrors, so it is not a hand-maintained
+/// membership list and wants no row on
+/// `crates/viewer/README.md`'s roster of those.
+fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
+    [
+        egui::PointerButton::Primary,
+        egui::PointerButton::Secondary,
+        egui::PointerButton::Middle,
+        egui::PointerButton::Extra1,
+        egui::PointerButton::Extra2,
+    ]
+}
+
+/// The drag and click events this frame's pointer denotes.
+///
+/// **Every button the toolkit can report is asked**, and the ones the
+/// viewer binds nothing to are dropped by [`viewer_button`] rather
+/// than by omission: a button missing from this loop produces no
+/// event at all, which every reader downstream cannot tell from a
+/// button nobody pressed.
+///
+/// **Which click selects is [`input::InputMap::select_button`]'s to
+/// decide**, so a click of any bound button is produced and `pick`
+/// reads the binding. A click carries the cursor position, so one
+/// with no position is not an event.
+///
+/// Drags come before clicks: [`input::fold_events`] applies the camera
+/// in stream order and [`input::pick_stream`] reads the cursor in
+/// stream order.
+fn button_events(
+    response: &egui::Response,
+    shift: bool,
+    alt: bool,
+    pixels_per_point: f64,
+    cursor_px: Option<[f64; 2]>,
+) -> Vec<ViewportEvent> {
+    let mut drags = Vec::new();
+    let mut clicks = Vec::new();
+    for egui_button in egui_buttons() {
+        let Some(button) = viewer_button(egui_button) else {
+            continue;
+        };
+        if response.dragged_by(egui_button) {
+            let delta = response.drag_delta();
+            drags.push(ViewportEvent::Drag {
+                button,
+                shift,
+                alt,
+                delta_px: [
+                    f64::from(delta.x) * pixels_per_point,
+                    f64::from(delta.y) * pixels_per_point,
+                ],
+            });
+        }
+        if let Some(pos_px) = cursor_px
+            && response.clicked_by(egui_button)
+        {
+            clicks.push(ViewportEvent::Click { button, pos_px });
+        }
+    }
+    drags.append(&mut clicks);
+    drags
+}
+
 impl ViewerBehavior<'_> {
     /// The viewport pane: read the pointer, fold it into camera
     /// operations, then queue the paint callback.
@@ -80,25 +182,18 @@ impl ViewerBehavior<'_> {
         };
 
         let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
-        let mut events: Vec<ViewportEvent> = Vec::new();
-        for (egui_button, button) in [
-            (egui::PointerButton::Primary, PointerButton::Primary),
-            (egui::PointerButton::Secondary, PointerButton::Secondary),
-            (egui::PointerButton::Middle, PointerButton::Middle),
-        ] {
-            if response.dragged_by(egui_button) {
-                let delta = response.drag_delta();
-                events.push(ViewportEvent::Drag {
-                    button,
-                    shift,
-                    alt,
-                    delta_px: [
-                        f64::from(delta.x) * pixels_per_point,
-                        f64::from(delta.y) * pixels_per_point,
-                    ],
-                });
-            }
-        }
+        // The cursor, first: `hover_pos` is in screen POINTS, and the
+        // viewport speaks physical pixels from the pane's own top-left
+        // corner, so the two conversions happen here and everything
+        // below sees one convention. A click carries a position, so
+        // the button reading needs this before it can run.
+        let cursor_px = response.hover_pos().map(|pos| {
+            [
+                f64::from(pos.x - rect.min.x) * pixels_per_point,
+                f64::from(pos.y - rect.min.y) * pixels_per_point,
+            ]
+        });
+        let mut events = button_events(&response, shift, alt, pixels_per_point, cursor_px);
         if response.hovered() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
@@ -109,24 +204,8 @@ impl ViewerBehavior<'_> {
                 });
             }
         }
-        // Cursor events, in the same stream. `hover_pos` is in screen
-        // POINTS; the viewport speaks physical pixels from the pane's
-        // own top-left corner, so the two conversions happen here and
-        // the mapping below sees one convention.
-        let cursor_px = response.hover_pos().map(|pos| {
-            [
-                f64::from(pos.x - rect.min.x) * pixels_per_point,
-                f64::from(pos.y - rect.min.y) * pixels_per_point,
-            ]
-        });
         match cursor_px {
             Some(pos_px) => {
-                if response.clicked_by(egui::PointerButton::Primary) {
-                    events.push(ViewportEvent::Click {
-                        button: PointerButton::Primary,
-                        pos_px,
-                    });
-                }
                 events.push(ViewportEvent::Hover { pos_px });
             }
             // Only when there is a hover to clear — the session's own
@@ -470,9 +549,12 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::land;
+    use eframe::egui;
+
+    use super::{button_events, egui_buttons, land, viewer_button};
     use crate::camera::{Camera, CameraOp, fold_recorded};
     use crate::frame::{self, product_badge};
+    use crate::input::{self, InputMap, PointerButton, ViewportEvent};
     use crate::props::SlotValue;
     use crate::scene;
     use crate::session::{DocSession, SessionOp};
@@ -680,5 +762,171 @@ mod tests {
             Some(raised),
             "the re-frame an Open books is not news and erases none"
         );
+    }
+
+    /// A pane that senses what the viewport's does, driven by raw
+    /// `egui` events.
+    ///
+    /// The viewport pane itself needs a GPU, a session and a scene;
+    /// what the rows below are about is one function of it — the
+    /// translation from what the toolkit says the pointer did to the
+    /// vocabulary `input` consumes — so the probe allocates the same
+    /// [`egui::Sense`] over a bare `Ui` and reads that function.
+    struct Pane {
+        ctx: egui::Context,
+    }
+
+    /// Where the probe's pointer aims: the middle of its 800x600
+    /// screen, which is inside the pane the probe allocates.
+    const AIM: egui::Pos2 = egui::pos2(400.0, 300.0);
+
+    /// [`AIM`] in the pane's own physical pixels — the pane fills the
+    /// screen from its origin and the probe runs at one pixel per
+    /// point, so the two agree.
+    const AIM_PX: [f64; 2] = [400.0, 300.0];
+
+    impl Pane {
+        fn new() -> Self {
+            Self {
+                ctx: egui::Context::default(),
+            }
+        }
+
+        /// Run one frame and hand back the pointer events the viewport
+        /// would read from it.
+        fn frame(&self, events: Vec<egui::Event>) -> Vec<ViewportEvent> {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut read = Vec::new();
+            let out = &mut read;
+            let mut output = self.ctx.clone().run_ui(input, |ui| {
+                let (rect, response) =
+                    ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
+                let cursor_px = response
+                    .hover_pos()
+                    .map(|pos| [f64::from(pos.x - rect.min.x), f64::from(pos.y - rect.min.y)]);
+                *out = button_events(&response, false, false, 1.0, cursor_px);
+            });
+            // A frame's texture upload is the caller's to apply; this
+            // probe paints nothing, and dropping it unapplied panics.
+            output.textures_delta.clear();
+            read
+        }
+
+        /// Lay the pane out and put the pointer on it. Two empty
+        /// frames first: egui interacts against the PREVIOUS frame's
+        /// widget rects, so nothing is hittable until one has been
+        /// laid out.
+        fn reach(&self) {
+            self.frame(Vec::new());
+            self.frame(Vec::new());
+            self.frame(vec![egui::Event::PointerMoved(AIM)]);
+        }
+    }
+
+    fn button(button: egui::PointerButton, pressed: bool, pos: egui::Pos2) -> egui::Event {
+        egui::Event::PointerButton {
+            pos,
+            button,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// Press and release without moving: what the toolkit calls a
+    /// click. The release frame is the one that reports it.
+    fn click(pane: &Pane, egui_button: egui::PointerButton) -> Vec<ViewportEvent> {
+        pane.reach();
+        pane.frame(vec![button(egui_button, true, AIM)]);
+        pane.frame(vec![button(egui_button, false, AIM)])
+    }
+
+    /// Press and move: what the toolkit calls a drag. The moving frame
+    /// is the one that reports it.
+    fn drag(pane: &Pane, egui_button: egui::PointerButton) -> Vec<ViewportEvent> {
+        pane.reach();
+        pane.frame(vec![button(egui_button, true, AIM)]);
+        pane.frame(vec![egui::Event::PointerMoved(AIM + egui::vec2(40.0, 0.0))])
+    }
+
+    /// **Every button the toolkit can report is read, and each is read
+    /// as the adapter says it is.**
+    ///
+    /// The buttons come from [`egui_buttons`] and the expectation from
+    /// [`viewer_button`], so this row is over the whole toolkit set
+    /// rather than over a list of its own: a button the loop stopped
+    /// polling fails here, and so does one whose arm starts claiming a
+    /// binding the vocabulary does not have.
+    #[test]
+    fn every_toolkit_button_the_adapter_binds_produces_its_click() {
+        for egui_button in egui_buttons() {
+            let events = click(&Pane::new(), egui_button);
+            let expected: Vec<ViewportEvent> = viewer_button(egui_button)
+                .map(|button| ViewportEvent::Click {
+                    button,
+                    pos_px: AIM_PX,
+                })
+                .into_iter()
+                .collect();
+            assert_eq!(events, expected, "clicking {egui_button:?}");
+        }
+    }
+
+    /// The same over drags, which is the half that was never in doubt
+    /// for the three main buttons — and the half that says a side
+    /// button reaches nothing, which is what [`viewer_button`]'s
+    /// `None` arm decides.
+    #[test]
+    fn every_toolkit_button_the_adapter_binds_produces_its_drag() {
+        for egui_button in egui_buttons() {
+            let events = drag(&Pane::new(), egui_button);
+            let expected: Vec<ViewportEvent> = viewer_button(egui_button)
+                .map(|button| ViewportEvent::Drag {
+                    button,
+                    shift: false,
+                    alt: false,
+                    delta_px: [40.0, 0.0],
+                })
+                .into_iter()
+                .collect();
+            assert_eq!(events, expected, "dragging {egui_button:?}");
+        }
+    }
+
+    /// **`select_button` decides which click selects, and the pane
+    /// produces the click it names.**
+    ///
+    /// [`InputMap::select_button`] is a binding: any button of the
+    /// vocabulary may hold it, and `InputMap::pick` reads the field
+    /// rather than a fixed button. A pane that produced a click for
+    /// one button only would make every other setting of that field
+    /// select nothing, with nothing to say so.
+    #[test]
+    fn a_click_selects_through_whichever_button_the_map_binds() {
+        for select_button in [
+            PointerButton::Primary,
+            PointerButton::Secondary,
+            PointerButton::Middle,
+        ] {
+            let map = InputMap {
+                select_button,
+                ..InputMap::DEFAULT
+            };
+            let egui_button = egui_buttons()
+                .into_iter()
+                .find(|b| viewer_button(*b) == Some(select_button))
+                .expect("the vocabulary's buttons are the toolkit's");
+            assert_eq!(
+                input::pick_stream(&map, &click(&Pane::new(), egui_button)),
+                vec![input::PickAction::Select(AIM_PX)],
+                "a click of the bound button selects"
+            );
+        }
     }
 }

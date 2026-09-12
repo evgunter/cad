@@ -2,8 +2,10 @@
 id: viewport-pointer-buttons-mirror-a-toolkit-enum-by-hand
 kind: issue
 title: The viewport maps egui's three pointer buttons to the viewer's three by hand, and nothing forces either side
-status: open
+status: closed
 opened: 2026-09-11
+closed: 2026-09-12
+branch: door/pointer-button-match
 ---
 
 
@@ -138,3 +140,57 @@ one: it fires when the egui version bumps, which is the right moment and
 the only moment the set can change. It also does not decide the open
 product question — whether `Extra1`/`Extra2` should bind to anything —
 it forces someone to answer it in writing instead of by omission.
+
+## Closed (2026-09-12, branch `door/pointer-button-match`)
+
+**The title is wrong and stays wrong for the record.** It says
+"nothing forces either side", which reads as a latent risk. The
+defect was not latent: the adapter was already three-of-five against
+`egui::PointerButton`, and the click half of it was one-of-five. What
+this row actually was is the 2026-09-12 correction's wording — *an
+adapter silently incomplete against its upstream, with no statement
+either way* — and that is what is fixed.
+
+**The adapter is now compiler-held.** `pane/viewport.rs`'s
+`viewer_button` is an exhaustive match naming all five
+`egui::PointerButton`s, and `egui_buttons` returns
+`[egui::PointerButton; egui::NUM_POINTER_BUTTONS]`. An egui that grows
+a sixth button fails to compile twice, at that one pair of sites: the
+match goes non-exhaustive (E0004) and the array's length stops
+matching the toolkit's own count (E0308). Demonstrated by compiling
+the shape with a sixth variant added; both errors fire.
+
+**`Extra1`/`Extra2` are NOT BOUND, and the reason is written at the
+site.** The alternative — two new `input::PointerButton` variants —
+was rejected on three counts, argued in the PR: nothing could bind
+them (`InputMap`'s four binding fields are filled by the three main
+buttons, `PRESETS` is a code-level registry of one, and no preferences
+key, Python binding or `pncad.pyi` entry names a button at all); they
+would change no behaviour, since `map` and `pick` drop an unbound
+button's events either way; and they would put the toolkit's taxonomy
+inside the module whose declared kind is *vocabulary — it names no
+driver type*, re-minting
+`mate-primitives-is-a-partial-mirror-with-no-growth-alarm`'s shape one
+crate further in, across every suite that spells the three buttons.
+
+**The click half was the behaviour bug.** `clicked_by` was called with
+a literal `Primary` and pushed a literal `PointerButton::Primary`, so
+`InputMap::select_button` — a BINDING, read as a variable by
+`InputMap::pick` — could name only one button before selection died
+silently, and `pick`'s documented "a click on a button that is not
+`select_button`" arm was unreachable in production. Clicks now come
+through the same conversion. Three unit rows in
+`pane::viewport::tests` hold it, two of them red before the change:
+`every_toolkit_button_the_adapter_binds_produces_its_click` (left `[]`,
+right `[Click { button: Secondary, … }]`) and
+`a_click_selects_through_whichever_button_the_map_binds`.
+
+**No README amendment, and none is owed.** The new list is sized by
+the toolkit's own constant rather than by hand, and it is not a `const`
+or `static` item, so `viewer-vocab-declared-once.sh`'s roster of
+hand-written lists neither sees it nor wants a row for it.
+
+**Residue, filed rather than disclosed here:**
+`work/view/viewport-reads-one-of-the-scroll-deltas-two-axes.md` — the
+same adapter takes `smooth_scroll_delta.y` and drops `.x` with no
+statement either way. VIEW's ground, not this program's.
