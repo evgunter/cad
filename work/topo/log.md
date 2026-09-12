@@ -663,3 +663,23 @@ unreachable from outside the crate (every arena writer `pub(crate)`)
 and that the demos print byte-identical narration across the change
 (78 topology lines, not the brief's 72). No unilateral executed
 MAJOR: no tally candidate. Nine-item fix pass to the same lane.
+
+## Census door merged; block TOPO-B1 concluded (2026-09-12)
+
+PR 2131 merged at `1072c130a` (green run 34721329369 on `39098c046`,
+full matrix, verified job by job). `no-public-census-or-genus-query`
+closed. The fix pass took every item: the `s` pin now runs through
+`mfkrh_plug` → `movefac` and is the only row red under the solids
+mutant; a `ring_move` row pins `r` as a sum (the lane measured that
+`ops_genus2` cannot — four rings on four faces — and said so); the
+receipt re-measured at 53 converted / 1 listed with the
+identifier-level patterns stated; the eleven delegates became one
+helper pair per cargo root, each re-raising the typed refusal; the
+suite row's closing restated truthfully; the tcost row widened to its
+class; `euler-characteristic-has-three-carriers` filed here. The A/B
+row is recorded at merge (ordinal 2702, sample #173) in
+`docs/MODEL-AB-LOG.md`'s TOPO section — no tally candidate — with the
+block TOPO-B1 CONCLUDED record published beneath it. `S79` on PIPE's
+slate edited to wait on `#757` alone, announced on `work/pipe/log.md`.
+The next kernel-answer unit draws block TOPO-B2. Twenty-seven items
+open; nothing dispatched.
