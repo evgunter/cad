@@ -10481,3 +10481,166 @@ beside a name may go stale, and two closed `work/door/` rows left alone
 because a closed row is a record.
 
 **VIEW stands at 71 open / 86 closed, nothing waiting on Ev.**
+## 2026-09-12 — `probe-identity-stops-at-the-instance`: answered
+
+`view/probe-identity`. The fork was *should the door refuse a second
+driver on one instance, or is "one probe per instance, driven by
+whoever names it" the rule?* It is the rule, and it was already the
+value drag's rule — stated for one half of the pair and not the other.
+
+**The item compared a second DRIVER against a second SUBJECT.**
+`a_drag_on_another_field_cannot_steer_the_open_one` is the value drag's
+row for another subject, and the probe's counterpart for THAT exists
+(`a_probe_on_another_instance_cannot_steer_the_open_one`, #2361). The
+like-for-like row is
+`the_open_drags_own_field_dragged_again_lands_its_number`, and it
+asserts, for the value drag, the exact three behaviours the item calls
+a hole: the second batch's begin refused `GestureInFlight`, its preview
+steering the open gesture, its commit landing it and ending the drag
+the first was holding. The README argues that as the whole difference
+between a target and a token. So the item's *"There is no free-move
+counterpart, and the reason is that there is nothing for one to
+assert"* is false at both readings, and what was actually missing was a
+test row, not a door.
+
+**The second driver is a stranded probe, and the strand was already
+traced and left.** `free-move-in-flight-refusal-has-no-reachable-
+producer` (closed) wrote: *"The hole left is the SELECTION, which no
+prune covers: `instance_ui` is drawn only for `selection().node()`, so
+a `Select` performed under an open probe would take the field away with
+the drag still live."* `Select` is permitted by
+`permitted_during_free_move`, and the hand that reaches it under a held
+drag is `a-keyboard-bump-…`'s: the feature tree's row is a
+`selectable_label(…).clicked()` (`pane/features.rs:59-60`) and egui
+answers `clicked()` for Space/Enter on a focused widget and for an
+AccessKit `Action::Click`. Re-select and drag: begin refused, preview
+and commit land. A per-begin token would refuse the recovery and strand
+the reader twice. **So the guard the item asked for would fire on the
+one route that exists, and refuse it wrongly** — which answers the
+*dead-code-or-keeping-a-later-caller-honest* question in the third
+direction neither arm named.
+
+`gizmo` occurs in this tree exactly once, inside the item. No second
+panel and no scripted chrome is on any roadmap. The hypothetical driver
+was hypothetical; the real one is one reader recovering one drag.
+
+**Provenance, per `CLAUDE.md`'s check-that-Ev-ever-agreed rule.** The
+prose changed is `crates/viewer/README.md`'s *A driving operation names
+its own gesture*, which the #2462 split left in the README's RECORD
+half — `GUI-DESIGN.md` holds `G1`–`G5`/`GQ1`–`GQ7` and says
+nothing about driving-op identity. `git log -S'A driving operation
+names its own gesture' -- crates/viewer/README.md` → `26c62d3a0e`
+(#2361, `view/gesture-identity`); `git log -S"The probe's target is
+coarser than a field"` → `c69eafc4d0` (#2392, `view/keyboard-bump`).
+Both are
+VIEW lanes, neither PR is `[ev]`. No ratification exists, so this
+lands with the change rather than waiting.
+
+**What landed.** The rule stated in the README and on
+`SessionOp::PreviewFreeMove`, and
+`the_open_probes_own_instance_driven_again_lands_its_frame` holding it
+— the probe's counterpart to the value drag's row, carrying the strand
+and the recovery. Three mutations red it, each reverted on a committed
+tree: permitting a second `begin_free_move` (3 rows red), refusing
+`Select` mid-probe (3 rows, and this row is the only one about the
+recovery), inverting `commit_free_move`'s name check (13 rows).
+
+**Filed outside the fence** (§6): `work/door/gq5-recap-citation-
+points-at-the-readme-the-split-emptied`. DOOR's
+`dimension-all-has-readers-outside-the-viewer` cites
+`crates/viewer/README.md:1500` for the GQ5 recap; the README is 1444
+lines, the citation was correct at `625722e79e` against an 1849-line
+file, and **#2462 moved the subject to another file** —
+`crates/viewer/GUI-DESIGN.md:155`, located by its own words. Not a
+line shift, so no repoint inside the README could find it. The row
+says what it does not claim: the rest of #2462's casualty population,
+which a `wc -l` filter cannot see.
+
+**VIEW stands at 72 open / 87 closed** — re-derived from
+`work.py status --program view` on the MERGED tree, not carried
+forward. It moved twice while this lane ran: the previous entry's
+*71 open / 86 closed* was true of its own merge base, and main gained
+two more open rows (`two-partial-mirrors-in-the-viewer-have-no-growth-
+alarm` among them) between this branch's base and its merge-forward. A
+count taken before the merge would have been stale on landing.
+
+## 2026-09-13 — #2479 merged; the row closes as RATIFIED, and the guard the item asked for would have been wrong
+
+**#2479 merged** (`14d084e10b`), verified from the job list: **39 jobs,
+12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**, 33 success /
+6 skipped, nothing non-passing.
+
+**`probe-identity-stops-at-the-instance` closes as RATIFIED, not
+fixed.** The item's premise was an asymmetry with the value drag, and
+the asymmetry is not there:
+`the_open_drags_own_field_dragged_again_lands_its_number` already
+asserts, **for the value drag**, the exact three behaviours the item
+calls a hole — second begin refused `GestureInFlight`, its preview
+steers the open gesture, its commit lands it and closes the drag the
+first was holding. So *one gesture per subject, driven by whoever names
+it* was the rule already; the probe obeys it at its own subject. What
+was missing was a **row**, not a door: the second-DRIVER row now exists
+as `the_open_probes_own_instance_driven_again_lands_its_frame`.
+
+**The item compared the wrong pair, and so did my dispatch.** I wrote
+that *"the probe has no counterpart"* to
+`a_drag_on_another_field_cannot_steer_the_open_one`. It does —
+`a_probe_on_another_instance_cannot_steer_the_open_one`
+(`crates/viewer/tests/gesture_table.rs:1496`), added by #2361. **I
+verified it is on `main` before merging**, so the correction is to the
+item's sentence *"There is no free-move counterpart, and the reason is
+that there is nothing for one to assert"* and to my repetition of it.
+That row is the second-**subject** row; the property at issue is the
+second-**driver**. **A proxy standing in for the property, in the
+sentence that made the row look like a door defect** — the class this
+register tabulates, arriving inside an item about a different thing.
+
+**And the guard the item asked for would have fired on the one route
+that exists, and refused it wrongly.** A second driver is not a gizmo —
+`gizmo` occurs in this tree exactly once, inside the item, and nothing
+is roadmapped. It is a reader recovering a **stranded probe**, and
+`free-move-in-flight-refusal-has-no-reachable-producer` — this row's
+own sibling, closed — had already traced it: *"`instance_ui` is drawn
+only for `selection().node()`, so a `Select` performed under an open
+probe would take the field away with the drag still live."* `Select` is
+permitted mid-probe and the feature-tree row is
+`selectable_label(…).clicked()` (`crates/viewer/src/pane/features.rs:59-60`),
+which egui answers for keyboard Space/Enter and AccessKit with no
+pointer — the same hand #2392 was about.
+
+**The correction that stings: the evidence was one closed row away.** I
+flagged *unreachable from today's chrome* as this program's
+most-repeated defect and was right to, but the row that decides the
+fork is named in the item's own `refs` and neither the item nor my
+dispatch read it. **A reachability fork owes a read of the closed rows
+the item references**, not only of the tree. That is now the rule.
+
+**Provenance, run rather than assumed.** `git log -S` on both prose
+sites: *"A driving operation names its own gesture"* → `26c62d3a0e`,
+carried by **#2361**, not `[ev]`; *"The probe's target is coarser than a
+field"* → `c69eafc4d0`, **#2392**, not `[ev]`. `GUI-DESIGN.md` carries
+no driving-op-identity clause. Record text VIEW wrote itself, changed
+with the change and said so in the body — `CLAUDE.md`'s new rule used
+on its first live fork rather than quoted.
+
+### #2462's casualty population, censused — it is one row
+
+The lane filed `work/door/gq5-recap-citation-points-at-the-readme-the-
+split-emptied` and said the rest of the population *"nobody has
+censused"*. Censused here, since #2462 was mine: every citation of the
+form `viewer/README.md:<line>` at or past the cut (old `:1401`) across
+`*.md`, `*.rs`, `*.py`, `*.yml`. **Four hits, one live row.**
+
+- `work/door/dimension-all-has-readers-outside-the-viewer.md:60` —
+  `:1500`, the GQ5 recap, correct before #2462 and now in
+  `crates/viewer/GUI-DESIGN.md`. The lane's filed row covers it.
+- Two hits are that filed row itself, and one is `work/view/log.md` —
+  append-only history, which records what was true when written and is
+  not repointed.
+
+So the split cost exactly **one** live citation, already filed on the
+owner's slate. Recording the number because *"nobody has censused it"*
+is the state a population stays in until someone does, and the
+instrument is a one-line grep with a line-number threshold.
+
+**VIEW stands at 74 open / 87 closed, nothing waiting on Ev.** (The lane reported 72/87 after re-deriving at its own merge-forward; `work.py status` here reads 74 — two more open rows arrived from other programs in between. The tool at merge time is the count, not the tool at any earlier point.)
