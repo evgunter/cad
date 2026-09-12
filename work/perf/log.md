@@ -697,4 +697,5 @@ with samples #170–#172, and the tally — four clean pairs toward the
 twelve with no unilateral MAJOR among them; PERF-5 and PERF-6 recorded
 in full but excluded as interrupted pairs (the usage limit killed every
 running reviewer once or twice; each resumed on the same frozen head).
-The B2 draw and the row notes leave this branch with that fold.
+The B2 draw and the row notes leave this branch with that fold; merged
+at `01ce06844` (PR 2439).
