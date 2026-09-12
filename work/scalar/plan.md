@@ -22,7 +22,9 @@ the plan:
   proposed `docs/DESIGN.md` Q1 revision, and certificates that re-pin
   when it lands. It is the largest single unit the cut placed anywhere.
 - **Doors a caller reaches around** — `D290`'s knot rescale, `S393`'s
-  frame door, and the validated-net door a sweep test rebuilds by hand.
+  frame door, the validated-net door a sweep test rebuilds by hand, and
+  the whole-curve order-1 jet door DOOR re-homed here on 2026-09-12
+  (same file and same class as `S393`).
 
 ## Territory — none, and why
 
@@ -40,6 +42,7 @@ been drawn**, and the PR that reaches the path draws it.
 | --- | --- | --- | --- |
 | `D290` | **M** | Fix is stated but needs a new KnotVector rescale op in geom-core | `crates/geom-brep/src/edge_nurbs.rs` (`on_carrier_domain`), `crates/geom-core/src/spline.rs` (KnotVector rescale door) |
 | `S393` | **M** | Small diff once the door's home, name and roll question are decided | new door in `crates/geom/src/curves/nurbs.rs` or beside `crates/sweep/src/skin.rs`; callers `crates/sweep/tests/common/mod.rs`, `demos/tour/src/skinned.rs` |
+| `curve3-eval-and-deriv-at-one-t-run-two-basis-passes` | **M** | Whole-curve order-1 jet door: `Curve3::eval` + `deriv` at one `t` run two span locations and two basis passes on the `Nurbs` arm; no `ders1` exists above the span level | new door on `NurbsCurve3` in `crates/geom/src/curves/nurbs.rs` and an exhaustive arm set on `Curve3` in `crates/geom/src/curves.rs`; seven production pair sites listed in the row |
 | `sweep-test-rebuilds-validated-net-for-v-reversal` | **M** | Fixing the test needs a new geom door or a validated-parts admission decided | `crates/sweep/tests/review_probes_m8_4.rs`, plus a new v-reversal or `from_validated_parts` door in `crates/geom/src/surfaces/nurbs.rs` |
 | `D6` | **H** | Ruling schedules a newtype sweep; `sense_sign` spans ~100 sites, many crates | — |
 | `D283` | **H** | Ev must rule whether ε-typing reaches `Exhaustiveness::floor`; sets `cell_width` precedent | — |
@@ -58,7 +61,8 @@ re-litigations. `H5`'s own gates are partly the same conversation —
 The three door rows can run before any of that and do not depend on it:
 `D290` mints a `KnotVector` rescale, `S393` decides a frame door's home
 and name, and the sweep test's hand-rebuilt net wants a v-reversal or
-`from_validated_parts` door in `crates/geom`. All three are "the caller
+`from_validated_parts` door in `crates/geom`, and the Curve3 jet row wants
+a whole-curve `ders1` beside the span-level one. All four are "the caller
 reaches around a missing door" and share a reviewer's question: is the
 door the right shape for the OTHER callers?
 

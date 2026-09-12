@@ -10222,3 +10222,107 @@ other slates. Handing them over is the honest move; silently shifting
 them would not be.
 
 **VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
+
+## 2026-09-12, later — `view/drag-field-precision`: every numeric field gets a text that reads back
+
+`a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets` is
+**closed**, and closed wider than it was filed. The item held itself
+back on three reasons; the third is the interesting one and it turned
+out to be an argument for the wide shape rather than against it.
+
+**The fork the dispatch could not answer was answerable from egui's
+source, and the answer is that it is not a fork.** *"What does a drag
+mean when the text stops matching the tick?"* — it never does. A drag
+commits `emath::round_to_decimals(value, auto_decimals)`
+(`egui-0.36.1/src/widgets/drag_value.rs:654-659`), and `auto_decimals`
+is the BOTTOM of the very range the formatter is handed, so every value
+a drag can produce is spelled exactly by the range's shortest member and
+both rules return it. `a_field_shows_what_the_widget_shows_wherever_that_reads_back`
+asserts that as sameness over the drag's own landing set. This is the
+register's *prove a claim by COMPILING, not by grepping* one step over:
+the gesture question was a reachability question, and the widget's own
+arithmetic answered it where weighing could not.
+
+**The item understated the defect, and the understatement was its
+reason 2.** It said a field reading `0.00` does not COMMIT `0.00`,
+citing the `change != 0.0` guard. That guard covers the drag and the
+arrow keys and nothing else: a `DragValue` seeds its keyboard edit with
+the text it last showed and parses that text back on losing focus
+(`drag_value.rs:540-552`, `:554-557`, `:577-591`), unconditionally on
+whether the text changed. Driven headlessly through the real widget, a
+field holding 4·10⁻⁵ mm came back holding **0.0**. The render is the
+commit. `crate::pane::properties`'s `slot_value_ui` already knew the
+path was there — its *"Text that says what the slot already says is not
+an edit"* guard exists for exactly that click, and assumed the render
+round-trips.
+
+**So `crate::readout::number` is the rule and is NOT the whole answer
+here**, which is what the dispatch asked. Its ten-character bound and
+its relative tolerance are a READOUT's, and a field is auto-sizing and
+is a commit path. `crate::widgets::number_text` keeps egui's own
+spelling wherever `crate::readout::reads_back` accepts it and hands only
+the rest to `number` — which is why the bound and the scientific arm are
+never reached for a large value (they are reachable only where egui's
+spelling already misreads, a band bounded above by one display unit;
+`nothing_at_or_above_one_display_unit_renders_differently` pins it).
+Applying `number` outright would have turned `12345678901.0` into
+`1.235e10` and committed the difference.
+
+**The five members were the wrong population and the door made the
+classification unnecessary.** `crate::widgets::number_field` is one
+constructor and all eleven `DragValue::new` sites go through it. The
+count field is the one real non-member and is now provably so rather
+than by judgement: `DragValue::new` gives an integral value
+`max_decimals(0)` (`drag_value.rs:61-65`), so its range is `0..=0`. The
+item's angle exclusion imported the READOUT class's rule (*is zero a
+value this can have*) into a class about whether the text names the
+number, and does not hold here.
+
+**Two residues, both files**:
+`nothing-holds-a-new-numeric-field-to-the-fields-door` (the twelfth site
+is unguarded; three candidate guards costed, none free) and
+`a-fields-text-commits-within-the-renders-own-tolerance` (the accepted
+band is 5·10⁻⁴ relative, and committing a render inside it moves the
+value by that much).
+
+**One out-of-fence row filed, on CHROME's slate.**
+`work/chrome/parameter-row-field-cites-a-pre-split-app-rs`:
+`parameter-row-field-has-no-text-door` cites four `app.rs` bands
+(`:2927-2975`, `:4549-4626`, `:4583-4596`, `:4611-4626`) against a
+2,018-line file — past-end-of-file, the class the register measured at
+fifteen of thirty-one. Its two other citations were read and are
+correct, and are recorded as correct. The new homes are named by
+SUBJECT, because the lane was editing `pane/properties.rs` in the same
+PR and any number it wrote would have been wrong before the file
+reached `main`.
+
+**The #2278 obligation, discharged mechanically.** This diff moves
+`widgets.rs` by +71/+67 and `pane/properties.rs`/`pane/create.rs` by
++2/+1, so it owed the census of every open row citing into those bands.
+Built by mapping base→head with a line-level diff and then **checking
+that the text at the new number is byte-identical to the text at the
+old** — the subject check, done by the instrument rather than by
+arithmetic. **22 numbers across 11 in-fence rows** repointed, zero
+`TEXTDIFF`, `plan.md` included (its `widgets.rs:300` → `:367` is the
+`ArcMode` loop the bare-vocabularies ruling rests on). One open row
+outside the fence shifts — `work/census/the-prose-word-for-a-kind-has-four-spellings-...`
+at `properties.rs:158-161` → `160-163` — and is **not** filed: §7 says a
+number may ride along beside a name and is allowed to go stale, and a
+two-line shift whose file and subject are unchanged is that, where
+CHROME's four past-end-of-file citations are a defect. The distinction
+is the one this register already draws between a citation wrong about
+its SUBJECT and one merely shifted. Two closed `work/door/` rows also
+shift and are left: a closed row is a record.
+
+**Receipts.** `doc-gate.sh --selftest` 0, `doc-gate.sh` 0,
+`doc-gate.sh --skip-viewer-toolkit` 0 — all three run locally, and the
+third is the one this PR's own CI structurally cannot reach.
+`cargo test -p viewer --features app --no-fail-fast`: every `--test all`
+row passing, `--lib` one row red (`gpu::tests::every_pass_builds_on_a_real_device`,
+no Vulkan here) and no other. `cargo test -p test-utils` green, clippy 0,
+`cargo fmt --check` 0, `cargo check -p viewer --target wasm32-unknown-unknown` 0.
+The commit row was mutation-checked: deleting `.custom_formatter` from
+the door reds `clicking_into_a_field_and_away_again_leaves_the_value_alone`
+with *"clicking into a field holding 0.00004 and away again committed 0"*.
+
+**VIEW stands at 71 open / 86 closed, nothing waiting on Ev.**
