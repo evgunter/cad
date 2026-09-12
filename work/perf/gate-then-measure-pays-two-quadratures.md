@@ -4,7 +4,6 @@ kind: issue
 title: callers that validate_geometric then mass_properties pay the certified quadrature twice although the certificate door exists
 status: open
 opened: 2026-09-10
-rides_with: PERF-6
 ---
 
 ## The finding
