@@ -1243,3 +1243,186 @@ to prevent — *"you cannot tell whether the item already exists… the
 orchestrator could."* That only holds if the orchestrator's filings are
 visible. **Merge the orchestrator branch at every seam from here**, not
 when it happens to be convenient.
+
+## PR 2435's fix pass turned a `likely` into a measurement (2026-09-12)
+
+CI run `34688987262` green, 39 jobs. Every review finding held up and
+the lane pushed back on exactly one thing, correctly.
+
+**MINOR 2 is reachable, and the reviewer's `likely` understated it.**
+The review reasoned it reachable "in the E6 subdivision" and did not
+build the fixture. The lane built it and found **no interval is needed
+at all**: `BoxAxis::Varying` need not contain zero, and the env binds
+`nominal + offset`, so nominal and lane are two different points **at
+`f64`** under a degenerate `ParamBox`. Fixture `u = (p,0,0)` with `p`
+nominal 0 under `p ∈ nominal + [1,1]`; row 7 reddens when the mint's
+refusal arm is made to fail the node. A finding rated `likely` on a
+reading came back `sure` on a fixture, and cheaper than predicted.
+
+**The carry shape is better than what was asked for.**
+`Option<FramePlacement>` — `Authored(SketchPlane<f64>)`,
+`Unreadable { role, error }`, `Derived` — with **`None` meaning "not a
+frame" and only that**, turned into the loud `WrongOperand` the deleted
+`frame_kind` door used to raise. The mint forks on an **exhaustive match
+over `Datum`**, so a new variant is a compile error rather than a silent
+lane placement. `Unreadable` is where a nominal refusal lives, raised
+**at the profile that needed it**: decision logged where made, refusal
+raised where needed.
+
+**The lane caught itself minting a fresh instance of the class,
+mid-pass.** Its first cut of the re-shape spelled the frame read a
+second time inside the mint (`need_point3` + `frame_axes` instead of
+`frame_from_slots`); `FrameRead` exists so one door serves both
+dispositions. Found by its own adversarial diff re-read, which is the
+standing lesson working rather than being quoted — the first time on
+this program that the trap was caught by the lane that would have sprung
+it.
+
+**NOTE 3 answered by measurement, and the answer is "no".** The lane
+applied `#[non_exhaustive]` and built: `m4_pr4_resolve.rs` fails
+`E0639`. An integration test is out-of-crate, so the attribute does not
+make field additions non-breaking there — **it makes the struct
+permanently unconstructible there**, and paying for that needs a public
+constructor whose only caller is a test. Accepted. The right change is a
+door for building a stub `Evaluation`, with its own argument, not a
+rider here.
+
+**Two things neither review named, and CI found both.** A new public
+type had to answer to two façade censuses: `pncad`'s
+`every_document_layer_root_export_is_carried_or_listed` and `pncad-py`'s
+`test_every_curated_name_is_bound_or_listed`. Both caught it before a
+human could. A new fence crossing was disclosed as a result
+(`crates/pncad-py/tests/test_binding_census.py`). Worth recording that
+the censuses are load-bearing for exactly the thing a review is worst
+at: noticing that a new public name exists at all.
+
+**The lane's one pushback, accepted.** The orchestrator's framing of S2
+("a future `Datum` variant producing `DatumValue::Frame`") understates
+it: the same hole was open for a future **non-datum** node producing a
+frame payload, and it is the `None`-is-loud rule that closes both — the
+exhaustive match over `Datum` closes only one.
+
+**Delta review dispatched**, deliberately narrow: a new public type, a
+re-shaped carry and moved refusal routing is more than a fix pass, and
+the earlier full pass covered everything that did not change. The brief
+says plainly that "nothing further" is a complete answer.
+
+## The delta round: MERGEABLE, and it answered the one question a fix pass cannot answer about itself (2026-09-12)
+
+**0 MAJOR, 2 MINOR, 6 NOTE.** Every load-bearing claim held under
+*independent test* rather than re-reading: a scratch `Datum` variant
+really does fail `E0004` at the mint; `v.placement` has exactly one
+reader outside tests, so the mate solve, `axis_frame`, `stackup`,
+`topo::query`, the viewer and `pncad-py` all still read the untouched
+payload; `refusal()` is a pure match with no decide on the carry road;
+`different-shape` is honest because `ParamBox` is
+`#[cfg(feature = "interval")]` and the wheel is default-feature; and the
+`#[non_exhaustive]` measurement reproduced exactly.
+
+**The narrow round earned itself on item 6.** The lane had caught itself
+minting a fresh instance mid-pass and disclosed it — which was the right
+thing and is not what this round found. The delta found **a second one
+the lane did not catch**: `wire.rs:1070` hand-writes
+`DirectionRefusal::node_error()`'s body, spelling `DATUM_UNIT_NORM` a
+second time 218 lines from the door — **and `node_error` was minted by
+that same diff to be the one spelling of that map.**
+
+The cause is structural and the style lane named it:
+`FramePlacement::Unreadable { role, error }` flattens a
+`DirectionRefusal` into two loose fields, so the carry road **cannot
+call the door it was given**. Seventh instance of the standing trap on
+this program, and the first found only because a third pass ran. Fix
+directed: hold the `DirectionRefusal`, which closes the MINOR and the
+style finding together.
+
+**MINOR 2 is the test finding, and it is the same shape as the last
+unit's.** A mutant hard-coding `role: "datum frame y axis"` survives
+**20/20 rows** — so a frame whose `u` is degenerate would tell the user
+its `y` axis is, undetected. `role` is the entire user-facing content of
+that refusal. The `error` half is pinned; the `role` half is pinned by
+nothing, because row 7's `DegenerateDirection { .. }` is a wildcard.
+The reviewer wrote row 8, which degenerates the Gram-Schmidt *residual*
+with `u` fine so the two rows disagree about `role` — adopted with
+authorship kept.
+
+**Six of nine units now have had their central test claim corrected by
+an instrument**, and the instruments have been: mutation (×3), a built
+fixture, the ε matrix, and a fixture's own asserted precondition. Not
+one came from reading a diff.
+
+**Two false sentences this diff wrote**, both going back: `NoPlane`'s and
+`Unreadable`'s *"span no plane"* is false for three of the carried
+error's four arms — `UnderflowedLength` is documented as *"a vector that
+has a perfectly good direction"* and `Escalated` is reachable at `f64`;
+and the defence *"An `Err` would have forced one of them"* is untrue,
+since `match` and `map_err(node_error)?` are both available and are what
+the two call sites already do. The unusual length of that defence was
+the tell, per the brief's stance bullet.
+
+**NOTE 4 is a real gap in the earlier measurement.** The
+`#[non_exhaustive]` question was asked of `NodeValue`, where **field**
+additions are the growth surface and the answer is correctly no — and
+never asked of the **new public enum**, where **arm** additions are, and
+where it costs nothing (applied, `cargo check` clean, precedent
+`topo::ContactClass`). Right answer to the wrong subject is its own
+failure mode.
+
+**NOTE 6 catches a claim that cannot go red where it sits.**
+`FRAME_LOG`'s new sentence carries the N=0 disclosure, and the only
+assertion is over a one-profile document — where a lookahead mint, the
+design the comment rejects by name, produces the same constant. Q6:
+a guard, a register, or a written "unguardable and why".
+
+**Filed**: `guided-lift-refuses-a-nominal-degeneracy-it-never-reads`
+(NOTE 3 — measured: under Guided the profile never reads the nominal
+yet a nominal degeneracy still refuses it, while a *derived* frame in
+that position builds; refusing may be right and nothing states which is
+intended). The door class is updated with the delta's sharper finding:
+the three `WrongOperand` sites have **stopped being one door** — two
+test the payload, one tests `placement` — which is worse than when that
+row opened, because a copy testing a *different thing* cannot be unified
+by a rename. NOTE 5's convention-not-type point is recorded there too.
+
+## 2026-09-12 — `frame-f64-placement-is-re-evaluated-per-profile` merged (PR 2435, `ceed1fc`)
+
+Verified at the check-run level before merging: twelve `test (…)` jobs
+({default, interval} × {default, 1e-6, 1e-12} × 2 shards), five
+`k-lint (gate, …)` unifications, `gate ok` — zero failures, zero
+in-flight. The skipped names are the usual optional lanes (interval
+oracle, corrupt input, step import (freecad), cache priming), which is
+what a code-tier run at this filter looks like; no green name sits over
+a skipped step in the gated set.
+
+**Two residues recorded rather than grown into the diff.**
+
+**NOTE 1 is filed** as
+`frame-direction-refusal-lands-on-the-profile-without-naming-the-frame`.
+The fix pass was right to scope it out: the arm is one line in
+`wire.rs`, but the variant behind it costs a `NodeErrorKind` arm, its
+`Display`, two exhaustive matches in `crates/pncad-py/src/tags.rs` and
+a roster string in that crate's census — another crate's error
+vocabulary, arriving after the delta verdict. The row carries the
+`DerivedFrameSection { profile, frame }` precedent and the open
+question of whether to add a new variant or an id field to all four
+direction variants.
+
+**The public-API side effect is adjudicated, not filed.** The lane
+flagged that fixing MINOR 1 made `DirectionRefusal` public
+(`wire.rs:845`, re-exported at `editor-core/src/lib.rs:118` and
+`pncad/src/document.rs:195`) as a side effect of a duplication fix, and
+asked for it to be seen as a surface decision rather than a code move.
+It is one, and it is the right one: `FramePlacement` is public by
+necessity — it rides on `NodeResult`, which `pncad` re-exports — and
+`Unreadable` has to carry something. Inlining `{ role, error }` into
+the arm would expose the same two fields with no type to hang the
+invariant on, and `node_error`'s "**the one spelling**" doc is written
+on the type. Same surface area, one more name, and the name is where
+the invariant lives. No ratified clause governs `editor-core`'s export
+list and no census gates it, so there was nothing for Ev here.
+
+**The instrument tally closed at six of nine**, and every one of the
+six was an instrument rather than a reading: mutation (×3), a built
+fixture, the ε matrix, and a fixture's own asserted precondition
+hiding the thing under test. That is the guidance for the rest of the
+program — ask what instrument answers the claim, not whether the claim
+is argued well.
