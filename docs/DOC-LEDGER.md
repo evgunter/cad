@@ -878,6 +878,7 @@ Retired at merge after the sweep, under the same rule (each recoverable
 at the parent of the commit that removed it):
 
 - `TCOST-K1-SPEC.md` — TCOST-K1 — the patch-flux lanes' exhausted-budget cost (removed in 9029480ee; PR 1652's body, `work/tcost/TCOST-K1.md` and the ordinal-1400 row are the record)
+- `FIX-ERRKINDS-SPEC.md` — FIX-ERRKINDS — one declaration for an error enum and its fieldless kind (removed in fb5825b33; the unit was **declined by Ev in-chat on 2026-09-12** rather than merged, so there is no unit PR — `work/fix/kind-mirrors-have-no-single-declaration.md`'s `## DECLINED` section carries the evidence and the reasoning, and `work/fix/a-new-kind-pair-arrives-unguarded-by-default.md` carries what survives. PR 2417 wrote the spec and is where the feasibility measurement lives.)
 - `TCOST-K2-SPEC.md` — TCOST-K2 — `offset_fit::fit_offset`'s per-station seconds: the Bernstein product weight, hoisted (last on `main` at 87d33648c; PR 1697's body, `work/tcost/TCOST-K2.md` and the ordinal-1401 row are the record)
 - `TCOST-K3-SPEC.md` — TCOST-K3 — the tier-3 gate's discarded certificate (last on `main` at 6381ebdd9; PR 1703's body, `work/tcost/TCOST-K3.md` and the ordinal-1402 row are the record)
 - `FILLET-H4-SPEC.md` — FILLET-H4 — the material-adding closed-rim band, incl. the Phase 1 re-scope (last on `main` at fc38f753b; PR 1752's body, `work/fillet/concave-closed-rim-has-no-band.md` and the ordinal-2000 row are the record)

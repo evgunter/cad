@@ -2212,3 +2212,479 @@ and tells the lane to re-derive the whole table — and, per instruction
   and CI caught three census guards over two round trips. Wait for the
   exit code. This is `implementer-discipline` §2's *"a build is not a
   test"* one level in.
+
+### The build box ran out of disk mid-wave, and it is an orchestration hazard not a lane one
+
+The `error-kinds` lane reported the root filesystem wedged at **100%**,
+down to **180K** free, and it blocked `git commit` with
+*"index.lock write error. Out of diskspace"*. It got itself unstuck by
+deleting `/root/.cargo/registry/cache` (~100M of re-downloadable
+`.crate` tarballs, not the `src/` extractions builds read) and said
+plainly that this was a reprieve and not a fix. It touched no other
+lane's build state — correctly, since it could not know which were
+live.
+
+**That is the orchestrator's call and I made it.** Measured: nine
+`CARGO_TARGET_DIR`s under `/home/user/*-target`, 23G in total. Eight
+belonged to units of waves 1 and 2, **all merged**; exactly one
+(`census-containment-target`, 8.7M) belonged to a live wave-3 lane.
+Before deleting anything I confirmed **no `cargo`/`rustc` process was
+running** and **no target directory had a file modified in the last ten
+minutes** — the check that separates "stale" from "idle between
+steps". Removing the eight freed **22 GiB**; the box went from 96M to
+23G free.
+
+**The hazard is structural and worth stating.** Every lane is told to
+use its own `CARGO_TARGET_DIR` outside its worktree, which is right —
+a shared one serves another lane's binary, and this program has the
+scars. But nothing reclaims them, so each wave leaves ~2-3G per lane
+behind forever and the fourth wave is the one that dies. Five lanes
+were live when this fired and four of them could not have built.
+
+**Two consequences for this program's orchestration:**
+
+1. **Sweeping the previous wave's target directories is part of
+   closing a wave**, alongside the log entry and the item headers. The
+   safe test is the one above: no build process running, nothing
+   modified recently, and the unit's PR merged.
+2. **A lane that cannot build cannot tell you why in the usual way.**
+   This one surfaced it only because it hit `git commit` and read the
+   error; a lane that hit it inside `cargo` would have reported a
+   confusing build failure. Worth a brief clause if it recurs.
+
+`/home/user/cad/.claude/worktrees` holds a further 4.9G across sixteen
+worktrees, most from merged units. Left in place — 23G is ample — but
+it is the next thing to sweep.
+
+### `kind-mirrors-have-no-single-declaration` — the scale check answered, spec merged (PR 2417)
+
+**Feasible, for three of the four pairs.** `docs/FIX-ERRKINDS-SPEC.md`
+is in the tree; the item is `status: spec`; **the migration has not
+started and does not start until Ev has read §6.**
+
+The answer came by prototype and revert, which is what the unit asked
+for. Two grammar spellings are **forced, each a compile error first**:
+generics must be bracketed (`$(< $($g:tt)* >)?` gives *"local ambiguity
+when calling macro"* — which is why `transition_table!` brackets its
+own), and bounds go in a bracketed `where` group because
+`macro_rules!` cannot strip bounds off a self-type (E0229). The item's
+specific worry dissolves: **no pair carries `#[non_exhaustive]` or
+`cfg`**, and no variant in any of the eight enums carries a non-doc
+attribute at all.
+
+**Both claims the brief asked it to check came back sharp.**
+*"Closable by a derive and by nothing else"* is **false**, demonstrated
+rather than argued — the item's own later paragraph is the right one.
+And on the proc-macro precedent: the distinction **holds** (the
+`scripts/gates/README.md` rejection is of a mechanism for *enforcing*
+an invariant everywhere by opt-in annotation, where omission is
+invisible; generation is the opposite on that axis) — **but the item's
+"no design question for Ev" does not follow from it**, and the spec's
+§6 names five choices that arrive whichever way the clause reads. That
+is a better answer than either yes or no.
+
+**Two of the item's measurements are false at the merge base**, and
+both concern `Attr`/`AttrKind`, which the lane took **off** the
+migration list because it is not an error pair at all — it is the
+appearance store's serde-persisted key/value pair with a wire format.
+The item said its cited grep *"returns zero arms tree-wide, so nothing
+anywhere matches on it exhaustively."* I ran that exact grep: **three
+hits** (`crates/pncad-py/src/tags.rs:300-302`). And it could never have
+seen `AttrKind::noun()` (`crates/editor-core/src/appearance.rs:112`),
+an exhaustive match written in the `Self::` spelling the pattern cannot
+match. **Its phantom direction is guarded twice over.** Both facts
+predate the item.
+
+**The counts are 43 / 31 / 10, not 41 / 28 / 10** — and my own check of
+that correction is worth recording, because it failed the same way this
+log keeps describing. I ran
+`awk '/^pub enum BooleanError/,/^}/'` and counted 86, exactly double.
+The range fires twice: `pub enum BooleanErrorKind` also matches
+`/^pub enum BooleanError/`. A prefix match I did not think about
+produced a clean, plausible, wrong number — and had I reported it
+without asking why it was exactly 2x, it would have read as a refutation
+of a lane that was right.
+
+**Where the lane could not establish something it said so**: serde
+attribute passthrough was **not** executed (the disk was full, so no
+`cargo build`) — `#[derive(Debug)]` through a `meta` fragment is
+proven, `#[serde(...)]` is not, and only the dropped pair needs it. The
+prototype was type-checked (`--emit=metadata`), not run, and the report
+says so rather than claiming more.
+
+### `census-containment-flatten-fabricates-its-diagnostic` (PR 2420) — delivered whole, and my brief's safety claim was false
+
+The three `ContainError` arms now reach the user as
+`CensusUnsupported { subject: Entity(Face(k)), cause: Containment(e) }`
+with `ContainError` carrying its own `Display` — it had none, which is
+half of why the census had nothing to forward.
+
+**The defect was worse than the item's wording, and the lane said how.**
+`invalid(band, "pm_census_containment")` builds
+`Indeterminate { margin: MarginDiag::Invalid, .. }`, and
+`MarginDiag::Invalid` means *"the question was never validly posed"* —
+poison. So the census was not reporting a wrong number; it was
+reporting that **a named predicate had been posed and come back
+poisoned, when no predicate of that name decides anything anywhere in
+the tree.**
+
+**The gate answered: the three arms are NOT one class, and that is the
+argument for carrying the cause rather than against it.** Read from the
+code: `ArcLoopUnsupported` is a modelling fact (an arc loop under three
+vertices has zero polygon area), `RayExhausted` is a verdict that the
+point sits within ε of the boundary, `Corrupt` is a kernel-invariant
+violation. Three meanings, three repairs. The one property true of all
+three and false of `Escalated` is the only one the site needed:
+**nothing metred a margin.** No cut; the item closed whole.
+
+### The brief's claim (2) was false, and the lane measured it
+
+I passed on the item's and PR 2354's warning that re-routing these
+three *"CAN MOVE THE ANSWER"* because
+`editor_core::assembly::attribute` dispatches on the variant. The lane
+read that function instead of taking it. I then verified the reading
+myself:
+
+- `CensusUnsupported { subject: FacePair(a, b), .. }` →
+  `named(by_pair(a, b), Relation::Declined)` (`assembly.rs:1311`) — this
+  **would** move the verdict;
+- `CensusUnsupported { subject: Entity(EntityId::Face(_)), .. }` →
+  `Attribution::Unattributed` (`:1320`);
+- `CensusEscalated { .. }` → `Unattributed` (`:1370`).
+
+So the routing chosen keeps the same attribution and **no
+`AtRest`/`Uncertified` answer moves.** The warning was true of a
+routing the lane did not take, and would have bitten had it chosen
+`FacePair` — which is not available at any of `contain()`'s five call
+sites anyway. **The subject choice is what makes this safe, and the
+lane pinned it** by extending
+`the_decline_relation_does_not_depend_on_which_lane_declined`.
+
+That is the fourth correction to the dispatching seat in three waves,
+and it is a different kind from the first three: the claim I relayed
+was true in general and false of this repair. **A general truth
+narrowed by a specific routing is still a claim about the tree**, and
+instruction 4 covers it.
+
+### Where the lane was weaker than it wanted, disclosed rather than implied
+
+**The RED half of red-first was deduced, not run.** Its first push would
+have been the red run and died at `cargo test --no-run` on a missing
+import in its own fixture, so the test stage never executed. The AFTER
+state is measured; the BEFORE state is a tight deduction (the fixture
+demonstrably reaches the arm; the old mapping was an unconditional
+four-line match) but not a measurement. **This is the first unit of
+three waves whose red-first half is argued**, and the reason is the
+disk, not the lane. Only one of three arms has an executed fixture at
+all: `RayExhausted` needs all sixteen schedule directions to graze, and
+`Corrupt` is argued unreachable through the public door.
+
+**And `RayExhausted` is the arguable arm** — `PointInLoopError`'s own
+`Display` calls it *"ill-conditioned at this tolerance"*, which is
+escalation-shaped. It did not go to `CensusEscalated` because there is
+no metred `Indeterminate` to give it and minting one is the defect;
+consistency with PR 2354's routing of the structurally identical
+`ChartRegionError::RayExhausted` is the tiebreak, and the lane called
+it a tiebreak rather than a proof.
+
+### Two findings placed in `work/issues/`, both verified first
+
+`crates/topo/src/boolean/contain.rs` is claimed by **both** `bool` and
+`curved`, so the owner is disputed rather than clear — which is the
+case `work/README.md` reserves `work/issues/` for. Either may claim
+them by moving the file.
+
+- **`contain-error-drops-the-loop-its-carrier-named`** —
+  `From<PointInLoopError>` discards the loop key that
+  `RayExhausted { r#loop }` and `CorruptLoop { r#loop }` each carry,
+  while the comment four lines below promises every arm *"names WHAT
+  STOPPED and the repair that moves it"*. `ArcLoopUnsupported` beside
+  them does name its loop. Survivable while nothing rendered it; PR
+  2420 made it render.
+- **`corrupt-operand-means-two-things-and-one-site-fabricates-a-vertex`**
+  — `reduce.rs:1970` and `ops.rs:1642` map one arm to two different
+  `BooleanError` variants. **And the sharper half is the orchestrator's
+  on verifying it:** `reduce.rs` supplies
+  `vertex: VertexKey::default()` for a refusal that has no vertex —
+  **the third instance of the class this very unit closed**, a
+  fabricated value in the field a reader would use to locate the
+  problem.
+
+### `transform-recertifies-through-the-narrow-lane` (PR 2418) — the item's prescribed fix DOES NOT COMPILE, and a ratified rule says why
+
+The unit landed as `topo::transform_rigid_via` plus
+`geom_brep::EdgeCurve::certify_via` (the mint-side twin of the existing
+`recertify_via`). **`transform_rigid`'s signature and behaviour do not
+move**, so nothing propagates and the bounds-allowlist gate is untouched.
+
+**The item said to raise `transform_rigid` to
+`T: Decide + geom_core::CertifiedBounds`. It cannot be raised**, and the
+lane established why by trying it. Verified independently before
+merging:
+
+- `transform_rigid` has a generic caller chain ending at
+  `editor_core::evaluate::<Dual64>`, through `boolean::ops::apply_recuts`
+  → `boolean_op_recut` → `boolean_op_with` → `verbs::Verb`'s
+  `impl<T: Decide + Bounds + PcurveFittedLane>`.
+- `CertifiedBounds` is blanket over `Bounds + CertifiedEnclosure`, and
+  `CertifiedEnclosure` is implemented for `Interval`, `RingInterval`,
+  `f64`, `Sym<T>` and `Probe`. **No `Dual`.**
+- `crates/geom-core/src/real.rs:1140` records the discriminator **Ev
+  ratified in conversation on 2026-08-29**: *"the discriminator is that
+  nothing generic calls this door"* — the rule that kept
+  `topo::separation` untightened and let `editor_core::checks` tighten.
+  `transform_rigid` fails it.
+
+**So the item prescribed a fix that would have broken the
+`Dual`-instantiated boolean chain and violated a ratified rule.** That
+is a new failure mode for this log: not a stale count, not a misread
+clause, but **a prescribed repair that cannot exist**. The brief told
+the lane to verify the item's load-bearing sentence because it was the
+one a reviewer would attack; what the lane found was adjacent and
+sharper — the sentence was defensible and the *mechanism* was
+unavailable.
+
+**The red-first half was executed the hard way and it counts.** Commit
+`34b8efd` is the row alone, deliberately red, and CI reports
+`2877 tests run: 2876 passed, 1 failed` at all three eps points. With no
+local build possible, **the red push IS the executed repro** — which is
+the right call under the circumstances and better than deducing it.
+
+**Two site-table rows were wrong**, and the reason matters: tier 3 uses
+**`recertify_via`**, and `recertify_nurbs_lane` appears nowhere in
+`crates/topo/`. My dispatch note flagged the missing hit and guessed the
+line had moved; the truth is **the design moved**. `combine.rs`'s site
+is `graft_solids_with` with the weaker `T: Decide`.
+
+### What I did NOT let close silently
+
+The capability defect is fixed — a caller can now move an M7-8 body.
+**`transform_rigid`, the plain door, still refuses it**, and PR 2418
+pins exactly that. The lane argues at the site that *"the lane-free
+door's refusal is a fact about that door's rights, never about the
+body"*, which is honest and matches `validate.rs` and `euler.rs`.
+
+It still leaves a caller who reaches for the obvious door with a
+refusal they escape only by knowing a second one exists. The lane named
+the fix — a `transform_rigid_certified` convenience door — and declined
+it correctly, because it **needs a compound-bound ratification in
+`real.rs`, which is Ev's call and not a lane's**.
+
+So the parent closes and
+`plain-transform-rigid-still-refuses-the-m7-8-class` carries the
+remainder, with three dispositions to choose between (the ratified
+door; a doc at `transform_rigid` naming `_via`; or deciding the
+asymmetry is correct and saying so once). **Establish which before
+writing anything** — that row could close with a sentence.
+
+Also filed by the lane: `graft-recertifies-through-the-narrow-lane`,
+`combine.rs`'s same-shape second instance, **with reachability
+explicitly not established** and the row saying so.
+
+### The disk, resolved mid-wave
+
+This lane reported 1.4 MB free and could not build or test locally for
+its whole window — it lost a CI round trip to a compile error
+`cargo check` would have caught instantly. Its report is a snapshot of
+the blocked window: the sweep described above freed 22 GiB at 03:26 and
+the box has held 23G free since. **Two lanes of this wave were degraded
+before it landed**, and one of them (`census-containment`) shipped the
+first argued-rather-than-executed red-first half in three waves because
+of it. That is the cost of not sweeping, measured.
+
+### `underflow-gate-owed-at-five-more-doors` CLOSED (PR 2415) — the fourth arm, and the class with it
+
+`profile::path::arc_fillet::carrier_tangent` asks
+`is_underflowed_length(radius, v.norm_witness())` after the finiteness
+question and before the sign decision, refusing a new
+`PathError::UnderflowedDirection { dx, dy }` on the shape PR 2401 set.
+**Six non-test `is_finite_length` call sites, five gated (2359, 2401×3,
+this), and `unit_from_components` declined — and now PINNED as
+declined**, so a lane adding an arm for symmetry breaks a row and has
+to read why. That is the right way to close a class: the decision not
+to act is as guarded as the actions.
+
+**The red-first row was executed under a full disk, by pushing the
+measurement as its own commit.** `9dd5d438d` carries only the row
+asserting today's refusal, and its CI run is green on it. What that run
+records is the sharpest statement of the defect anyone has made:
+an anchor `1e-200` from its centre refused
+`DegenerateArcCenter { radius: 0.0 }` — *"the authored centre is within
+tolerance of an endpoint (radius 0 m)"* — **bit-identical in payload
+and prose to the row three lines above it, which authors the centre AS
+the anchor.** Two different geometric facts, one message, no way for a
+reader to tell them apart.
+
+**Instruction 3, and the pin was again part of the defect.** The
+`zero_radius` row asserted `radius == 0.0`, which the underflowed
+carrier satisfies identically — it could not have gone red. The new row
+is the discrimination, and it runs through the public door
+(`Open.at(..).toward(..).fillet_arc(r, Center{..})`), not a private
+helper.
+
+**A correction to my brief:** `crates/profile/*` is **BOOL's**, not its
+own fence — `territory` says so and I confirmed it. The `keep_out` now
+records it. That is the fifth correction to the dispatching seat and
+the second this wave, both of them fence claims I asserted without
+running the instrument I tell every lane to run.
+
+**Residue filed by the lane:**
+`arc-carrier-refusal-register-misses-two-format-arms` —
+`docs/PATHS-DESIGN.md`'s typed-refusal register names **neither**
+format arm (`NonFiniteDirection` missing since 2359,
+`UnderflowedDirection` from today), and nothing in CI compares that
+prose to `PathErrorKind`. A register that silently falls behind the
+enum it documents is the same shape as the roster whose reasons nothing
+compared (PR 2402).
+
+### The disk cost this wave two lanes, measured
+
+Both this lane and the transform lane report being unable to build,
+test, lint or `cargo fmt` **at any point**. The consequences are on the
+record rather than inferred: this lane's run 34670760904 failed on a
+`rustfmt` wrap and the binding-census member guard — *"both of which
+`cargo fmt --check` would have caught in seconds"* — and the transform
+lane lost a round trip to a compile error. The census lane shipped the
+first argued-rather-than-executed red-first half in three waves.
+
+**A lane cannot self-remediate**: both tried to reclaim space and were
+correctly denied, one of them even for its own cache. The sweep is the
+orchestrator's and belongs in the wave-close checklist beside the log
+entry and the item headers. It has been added there; the box has held
+23G free since 03:26.
+
+### `validation-arms-delegate-a-recourse-their-carriers-do-not-give` CLOSED (PR 2419) — and the best judgement call of the three waves
+
+Both cut carriers taken: `PcurveMintError` (7 of 10 arms) and
+`OffsetFitError` (5 of 13 renderings), each repair grounded in the
+module's or the variant's own docs rather than invented — the stale-row
+section's *"must either clear the map or re-mint before returning"*,
+`chart_boundary`'s *"a sphere or cone face that stays clear of its
+singularity describes normally"*, `RING_SHIFTS`' premise,
+`LoopWraps`' own *"no constructor in the tree is known to build one"*.
+
+**The judgement worth keeping: transitivity is CONDITIONAL.** PR 2403's
+`MassPropsError` row is transitive — it passes only while its carriers
+name recourses — and the obvious move was to copy that. The lane
+didn't, and its reason is the right one: **a delegating arm is asserted
+transitively only where the carrier below has an enforcement row of its
+own.** That is true of `BandError` and of `Indeterminate`'s
+`COINCIDENCE_RECOURSE` tail, and of nothing else reached here. So
+`PcurveMintError::Certify` and `OffsetFitError`'s four delegating arms
+assert the *delegation* — that the arm renders its carrier whole — and
+nothing about the recourse.
+
+In its words: *"picking the one payload whose carrier happens to name a
+repair would have read as a complete chain while proving almost
+nothing."* **That is a lane declining to make a guard look stronger
+than it is**, which is the failure this program keeps finding in
+other people's guards — the roster whose reasons nothing compared, the
+byte pin that could not tell `Display` from `Debug`, the `zero_radius`
+row that could not go red. First time a lane has refused to create one.
+
+**The counts were wrong again and reading fixed them.**
+`PcurveMintError` is **0 of 10**, not 1 of 9 — the single verb hit is a
+false positive on `LoopDiscontinuity`'s *"a branch is chosen once per
+loop and certified"*, which describes an algorithm and names no repair.
+`OffsetFitError` has **twelve variants rendering thirteen messages**
+(`BoundNotFinite` renders two `last_finite` cases to two different
+levers), and **four were already right and were left alone**. The lane
+renamed the vocabulary constant `RECOURSE_VERBS` → `RECOURSE_WORDS` so
+the list would stop arguing for rewrites of four correct messages —
+a small thing that removes a standing pressure toward the wrong repair.
+
+**Instruction 3: nothing pinned either carrier.** `validate.rs`'s
+Display-coverage row asserts only `!err.to_string().is_empty()`; every
+other hit is a panic-message interpolation. These two enforcement rows
+are the first pin either type has ever had, and both were proved red by
+mutation in CI (run `34671090437`), each shard's whole failure surface
+being exactly the one intended row under `--no-fail-fast`.
+
+**A third fence it did not know it was crossing until CI said so.**
+`OffsetFitError::Structure` rendered its `SplineError` through `{e:?}`
+though that type has a `Display` — so the arm could not have delegated
+a recourse even after its carrier got one. Repairing it retired a
+**tracked** `prose_census::KNOWN_BRACED` row, and striking that entry is
+not a liberty: the roster's own contract (`prose_census.rs:2400`) says
+*"an entry that no longer names one is struck in the PR that repaired
+it."* Verified before merging. LIB's ground, and FIX's `keep_out` now
+lists `crates/pncad-py/*` as a routinely-announced crossing.
+
+**The next hop is filed rather than swallowed:**
+`recourse-chain-stops-at-the-second-hop-carriers` — five carriers
+still stopping at the condition, each **read** rather than
+verb-matched (`PcurveCertifyError` 6 of 15, `MeterError` 2 of 3,
+`PatchBoundError` 5 of 7, `FitError` 7 of 10, `SplineError` 5 of 5),
+with the arms that are already right named so a taker does not rewrite
+them. Taking them here would have been the thirty-clause PR the
+original cut existed to avoid — the cut held twice, for the same
+reason, which is how you can tell it was a real one.
+
+### Wave 3 closes: five dispatched, five merged
+
+PRs **2415, 2417, 2418, 2419, 2420**. Slate **17 → 16 open** (four closed, three new rows filed), one at
+`spec`, **42 closed**. Two classes closed outright this wave (the
+underflow gate's four doors; the recourse carriers' whole chain), one
+spec written and waiting on Ev, one defect fixed by a mechanism its own
+item could not have prescribed.
+
+### `kind-mirrors-have-no-single-declaration` DECLINED (Ev, in-chat, 2026-09-12)
+
+The scale check said **feasible**; the decision is **no**. The spec is
+removed and recorded in `docs/DOC-LEDGER.md`; the item file is its
+record, and the one real gap is re-filed.
+
+**This is the first row this program has closed by deciding against the
+work rather than by doing it or refuting it**, and the shape is worth
+keeping. The unit that answered the feasibility question was
+deliberately scoped to migrate nothing, so the decision arrived with a
+measured answer in hand and cost nothing but the measurement. Had the
+row been dispatched as written — "lift `transition_table!` into a
+general `error_kinds!`, migrate the pairs biggest first" — the tree
+would have carried a new crate, a macro, and 87 relocated declarations
+before anyone asked whether it was worth it.
+
+**What actually decided it was not in the spec's §6.** The five choices
+there are real, but they are costs to weigh, and weighing needs the
+other pan. Three measurements filled it:
+
+1. **The defect has no recorded instance.** Searched the tracker and
+   `docs/` for a guard catching a phantom or a wrong pairing: nothing.
+   The row's framing — *"`Self::Merge(_) => Kind::Join` type-checks"* —
+   is a hypothetical, written by a lane that had just landed one of
+   these guards.
+2. **Only TWO purpose-built guards exist.** `boolean/mod.rs:2878` and
+   `product.rs:963`. `PathErrorKind`'s exhaustive consumer is
+   `path_error_tag`, the FFI tag map — it exists for its own job and
+   catches phantoms as a side effect its doc notes. `AttrKind` is the
+   same, and left the list entirely as not an error pair. The macro
+   retires purpose-built machinery for two pairs, not four.
+3. **About half the headline deletion IS that machinery** — of PR 2's
+   ~400 lines, the guard, its `label()` table and `sample_errors()`
+   (whose only caller it is) are the larger share. The biggest single
+   win was deleting scaffolding built to watch for something that has
+   never happened.
+
+**And the spec's own §5 had already removed the best argument**: the
+migration closes the pairing direction for `kind()` and **not** for
+`Display`. `BooleanError`'s hand-written ~400-line `Display` can still
+render a `Merge` arm with join prose. Every user-facing defect FIX has
+fixed in three waves lived in `Display`. The row's headline claim was
+true of the half nobody was bleeding from.
+
+**The lesson for dispatching, and it generalises past this row.** A row
+that proposes a MECHANISM states its cost and leaves its benefit as an
+assumption, because the benefit is the defect it prevents and a
+prevented defect has no instances to count. **The question to put in
+the brief is "how many times has this happened", asked of the tracker,
+before the question "can it be built".** Here the answers were
+*feasible* and *never*, and only the second decided anything.
+
+**What survives is one sentence's worth of work**, filed as
+`a-new-kind-pair-arrives-unguarded-by-default`: a new pair arrives
+unguarded by default, which wants a line in the error-type convention
+rather than a code generator, and whose home is Ev's to name. That row
+also carries the question this one was obscuring — whether two guards
+that have never fired earn their ~230 lines — stated without
+prejudging it, because a cheap guard against a SILENT class is often
+worth keeping unfired.

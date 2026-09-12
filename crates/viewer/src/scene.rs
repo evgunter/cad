@@ -85,45 +85,24 @@ impl DisplayTolerance {
         self.0
     }
 
-    /// How far [`DisplayTolerance::render_mm`]'s text may read from the
-    /// δ it renders, as a fraction of it.
-    ///
-    /// **Not a taste: it is the scientific form's own worst case.** Four
-    /// significant figures can misread the δ they render by half a unit
-    /// in the fourth — 5·10⁻⁴ of it — so a decimal spelling is preferred
-    /// exactly while it is no less truthful than the form that would
-    /// replace it. The constant is that form's accuracy rather than a
-    /// number chosen for how a field looks.
-    pub const RENDER_REL_TOLERANCE: f64 = 5.0e-4;
-
-    /// The longest text [`DisplayTolerance::render_mm`] returns, in
-    /// characters.
-    ///
-    /// The scientific arm's worst case, which is `f64`'s smallest
-    /// subnormal: a four-figure mantissa, `e`, a sign and three
-    /// exponent digits — `4.941e-324`. The decimal arm is held to the
-    /// same bound, so anything wide enough for ten characters can show
-    /// every δ this type can hold.
-    pub const RENDER_MM_MAX_CHARS: usize = 10;
-
     /// This δ in millimetres, as text a person reads.
     ///
-    /// **The shortest decimal spelling that reads back as this δ, and a
-    /// scientific one when no decimal spelling does.** A millimetre
-    /// length wants to read as a decimal and does wherever it can
-    /// (`0.05`, `0.0016`, `0.0003746`); below that a decimal spelling
-    /// either misreads the δ or does not fit, and the scientific form
-    /// carries it (`1.000e-9`).
+    /// **The δ-facing door onto [`crate::readout::number`]**, which is
+    /// the crate's one rule for a number a person reads: the shortest
+    /// decimal spelling that reads back as this value, and a scientific
+    /// one when no decimal spelling does. What this method adds is the
+    /// millimetre conversion the δ field's own commit path uses, and
+    /// nothing else.
     ///
-    /// **What the choice is made on is the property, not a magnitude.**
-    /// A spelling is used when it fits
-    /// [`DisplayTolerance::RENDER_MM_MAX_CHARS`] and reads back —
-    /// through the millimetre conversion the δ field's own commit path
-    /// uses — as a δ [`DisplayTolerance::new`] accepts, within
-    /// [`DisplayTolerance::RENDER_REL_TOLERANCE`] of this one. So there
-    /// is no threshold here to go stale against the format, and in
-    /// particular no δ renders as `0.000`: a text that reads as zero is
-    /// refused by the same door that refuses the value.
+    /// **No δ renders as `0.000`.** The rule refuses it without knowing
+    /// anything about δ: a text reading zero is a hundred percent away
+    /// from a strictly positive value, and the render's accuracy bound
+    /// ([`crate::readout::REL_TOLERANCE`]) is five parts in ten
+    /// thousand. So the thing that used to be a second predicate here —
+    /// that the text read back as a δ [`DisplayTolerance::new`] accepts
+    /// — is implied by the first for every δ this type can hold, and
+    /// `no_delta_renders_as_a_number_a_delta_cannot_be` is where that
+    /// implication is checked rather than restated.
     ///
     /// **What it is not is exact.** Four significant figures is what a
     /// ten-character bound buys, and a δ the triangle budget chose is
@@ -132,25 +111,7 @@ impl DisplayTolerance {
     /// and never a commit path: the number a δ moves to is the one a
     /// user types, never one the chrome echoed at them.
     pub fn render_mm(self) -> String {
-        let mm = self.0 * 1.0e3;
-        // Decimal counts past the character bound cannot fit whatever
-        // they spell, so the bound is what ends the search; the range
-        // only has to reach past the last count that could.
-        (0..=Self::RENDER_MM_MAX_CHARS)
-            .map(|decimals| format!("{mm:.decimals$}"))
-            .find(|spelling| Self::reads_back_as_this_delta(spelling, mm))
-            .unwrap_or_else(|| format!("{mm:.3e}"))
-    }
-
-    /// Whether `spelling` fits, and reads as a δ this type accepts
-    /// within [`DisplayTolerance::RENDER_REL_TOLERANCE`] of `mm`
-    /// millimetres.
-    fn reads_back_as_this_delta(spelling: &str, mm: f64) -> bool {
-        spelling.chars().count() <= Self::RENDER_MM_MAX_CHARS
-            && spelling.parse::<f64>().is_ok_and(|read| {
-                Self::new(read * 1.0e-3).is_ok()
-                    && (read - mm).abs() <= Self::RENDER_REL_TOLERANCE * mm
-            })
+        crate::readout::number(self.0 * 1.0e3)
     }
 
     /// This tolerance scaled by `factor` — the coarsen/refine step the
@@ -938,12 +899,23 @@ impl FittedDelta {
     /// question a reader has the moment they see a δ they did not
     /// choose, and a chosen default that read as a clamp would be
     /// worse than no default at all.
+    ///
+    /// **Both δ are rendered, not formatted.** A sentence whose whole
+    /// job is to name the two δ in play is the last place a number may
+    /// read as one δ cannot be, and a fixed `{:.3}` over millimetres
+    /// carried both as `0.000` below half a micrometre
+    /// ([`DisplayTolerance::render_mm`]). What that costs is that the
+    /// sentence is as wide as the δ are awkward — a budget δ reads
+    /// `0.0003746` where it used to read `0.000`, and a δ of a few
+    /// picometres reads `4.000e-9` — which is the right trade for a
+    /// status line, where a long true number is readable and a short
+    /// false one is not.
     pub fn wording(&self) -> Option<String> {
         let requested = self.requested_cost?;
-        let opened = self.delta.get() * 1.0e3;
-        let asked = self.requested.get() * 1.0e3;
+        let opened = self.delta.render_mm();
+        let asked = self.requested.render_mm();
         Some(format!(
-            "opened at δ = {opened:.3} mm: {asked:.3} mm needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. A finer δ typed in the View pane is still honoured — this is a starting point, not a cap"
+            "opened at δ = {opened} mm: {asked} mm needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. A finer δ typed in the View pane is still honoured — this is a starting point, not a cap"
         ))
     }
 }

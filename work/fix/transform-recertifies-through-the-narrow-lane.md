@@ -2,10 +2,11 @@
 id: transform-recertifies-through-the-narrow-lane
 kind: issue
 title: transform_rigid re-certifies through the plain certify door, which admits a strictly narrower class than tier 3
-status: review
+status: closed
 opened: 2026-09-04
 pr: 2418
 branch: fix/transform-nurbs-lane
+closed: 2026-09-12
 ---
 
 

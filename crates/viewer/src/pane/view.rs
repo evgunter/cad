@@ -34,16 +34,28 @@ impl ViewerBehavior<'_> {
         // this window's.
         ui.checkbox(self.show_datums, "show datums");
         ui.separator();
+        // **Which of this readout's numbers are LENGTHS**, which is the
+        // one decision here and not five. The two angles keep a fixed
+        // precision and the three distances do not, because `0.0` means
+        // different things to them: a yaw of zero is a yaw a camera
+        // really has, so `{:.1}°` over a tenth of a degree loses
+        // precision and says nothing false, while a distance of zero is
+        // a camera inside the model and `Camera::min_distance` is
+        // `scene_radius * 0.05`, so `{:.1}` read `band 0.0–…` for every
+        // part under about a millimetre — a distance the camera refuses,
+        // stated as one it is at. The lengths go through the crate's
+        // render (`readout::number`); the angles stay a format.
         ui.label(format!(
             "camera yaw {:.1}°, pitch {:.1}°",
             self.camera.yaw().to_degrees(),
             self.camera.pitch().to_degrees()
         ));
+        let mm = |metres: f64| crate::readout::number(metres * 1000.0);
         ui.label(format!(
-            "distance {:.1} mm (band {:.1}–{:.1})",
-            self.camera.distance() * 1000.0,
-            self.camera.min_distance() * 1000.0,
-            self.camera.max_distance() * 1000.0
+            "distance {} mm (band {}–{})",
+            mm(self.camera.distance()),
+            mm(self.camera.min_distance()),
+            mm(self.camera.max_distance())
         ));
         ui.separator();
         ui.label(format!("history: {} states", self.session.history().len()));
@@ -73,13 +85,15 @@ impl ViewerBehavior<'_> {
 /// How wide the δ field is, in points.
 ///
 /// Wide enough for the longest text
-/// [`crate::scene::DisplayTolerance::render_mm`] can return, because a
-/// render the field cannot show is clipped — and a clipped render reads
-/// as a different δ, which is the defect the render's own bound exists
-/// to prevent. `the_field_shows_the_longest_render` measures it against
-/// egui's own font metrics rather than asserting it in prose. A pane
-/// narrower than this clips anyway; that is every field in the chrome
-/// and is not this number's to fix.
+/// [`crate::scene::DisplayTolerance::render_mm`] can return — which is
+/// [`crate::readout::MAX_CHARS`] characters, the bound the crate's
+/// render searches under — because a render the field cannot show is
+/// clipped, and a clipped render reads as a different δ, which is the
+/// defect the render's own bound exists to prevent.
+/// `the_field_shows_the_longest_render` measures it against egui's own
+/// font metrics rather than asserting it in prose. A pane narrower than
+/// this clips anyway; that is every field in the chrome and is not this
+/// number's to fix.
 const FIELD_WIDTH: f32 = 88.0;
 
 /// The δ field: the display tolerance as a number the user types, in
@@ -407,9 +421,9 @@ mod tests {
     /// **The field can show the longest render there is.** A render
     /// wider than the box is clipped, and a clipped render reads as a
     /// different δ — so the width is measured against egui's own font
-    /// metrics for the widest text
-    /// `DisplayTolerance::RENDER_MM_MAX_CHARS` characters can spell out
-    /// of the alphabet a render uses, rather than asserted in prose.
+    /// metrics for the widest text `crate::readout::MAX_CHARS`
+    /// characters can spell out of the alphabet a render uses, rather
+    /// than asserted in prose.
     ///
     /// The chrome sets no text styles of its own, so the headless
     /// context's metrics are the application's.
@@ -426,7 +440,7 @@ mod tests {
         let mut output = ctx.run_ui(input, |ui| {
             for character in "0123456789.e-".chars() {
                 let mut text: String =
-                    std::iter::repeat_n(character, DisplayTolerance::RENDER_MM_MAX_CHARS).collect();
+                    std::iter::repeat_n(character, crate::readout::MAX_CHARS).collect();
                 let shown = egui::TextEdit::singleline(&mut text)
                     .desired_width(super::FIELD_WIDTH)
                     .show(ui);

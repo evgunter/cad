@@ -213,12 +213,31 @@ impl Bounds {
     /// place the probe's limits become a sentence a user reads, and a
     /// sentence that overclaimed would undo the care the search takes
     /// not to. A headless row pins it.
+    ///
+    /// **Each number is rendered rather than formatted**
+    /// ([`crate::readout::number`]), and the care above is the reason
+    /// rather than tidiness. A fixed `{:.4}` overclaimed at both ends
+    /// of this sentence: a floor at 40 nm written in millimetres read
+    /// `valid from 0.0000 mm`, which promises a range down to zero that
+    /// the search did not look at and the edge it found argues against,
+    /// and a reach of a thousand read `1024.0000`, which is four figures
+    /// a doubling probe never established. The render
+    /// says what the value is to within its own stated accuracy and no
+    /// more, in as many characters as that takes.
+    ///
+    /// **A bound may be zero or negative, and the render is right about
+    /// both.** The rule is that a text reads back as the value, not that
+    /// it is non-zero: a bound that IS zero reads `0`, and a sign is not
+    /// a distance ([`crate::readout::REL_TOLERANCE`] is relative to the
+    /// magnitude). This is what stops the rule being
+    /// [`crate::scene::DisplayTolerance::render_mm`] with the δ taken
+    /// out — δ is strictly positive and a probed field is not.
     pub fn wording(self, unit: Option<UnitDef>) -> String {
         let show = |value: f64| {
-            let written = unit.map_or(value, |u| value / u.factor());
+            let written = crate::readout::number(unit.map_or(value, |u| value / u.factor()));
             match unit {
-                Some(unit) => format!("{written:.4} {}", unit.symbol()),
-                None => format!("{written:.4}"),
+                Some(unit) => format!("{written} {}", unit.symbol()),
+                None => written,
             }
         };
         match (self.low, self.high) {
