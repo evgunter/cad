@@ -683,3 +683,29 @@ block TOPO-B1 CONCLUDED record published beneath it. `S79` on PIPE's
 slate edited to wait on `#757` alone, announced on `work/pipe/log.md`.
 The next kernel-answer unit draws block TOPO-B2. Twenty-seven items
 open; nothing dispatched.
+
+## Block TOPO-B2 cut; pre-draw fields logged BEFORE the byte (2026-09-12)
+
+Three of SHELL's six placed rows are kernel answers on this program's
+own files with no other program's decision ahead of them; they form
+block TOPO-B2 in the order the plan fixes. Pre-draw fields, written
+and committed before any byte is drawn this time (B1's three slots
+were all disclosed as contaminated):
+
+- slot 0 `tier3-accepts-a-ring-outside-its-outer-loop` — difficulty
+  **M**, task class **STRUCTURAL-GEOMETRIC** (a decide added to a
+  tier-3 check; one helper hoisted from `shell.rs`).
+- slot 1 `split-edge-children-lack-pcurve-rows-on-curved-charts` —
+  difficulty **S/M**, task class **STRUCTURAL-NUMERIC** (a mint inside
+  an existing operator from a cached pcurve, or a stated caveat).
+- slot 2 `revert-does-not-mirror-plane-chart-images` — difficulty
+  **M**, task class **NUMERIC** (an image transform under a frame
+  reversal, certified after).
+
+The other three placed rows are not units: the chart-spans-solids
+question is an `[ev]` ruling the orchestrator writes, the shell-roles
+check waits on S-BOOL's hollow-operand row, and the attach
+postcondition's cost half is already PERF-4's (its panic half is D1's
+question and rides with the chart ruling). Block TOPO-B2 draws after
+this entry is committed; the record goes branch-side on
+`topo/b2-block`.

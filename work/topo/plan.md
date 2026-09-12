@@ -99,36 +99,61 @@ The three share no file, so they can run at once.
 
 ## Order
 
-The opener is **`S330`** — tier-3 check 1 has no arm for a described
-Nurbs surface, so a poisoned net falls to `_ => {}` and is refused only
-by accident through check 2. It is small, it is a wrong answer rather
-than a tidy, it is in `validate.rs` where the H item and half the track
-also sit, and it puts this program's first read on the file everything
-else here depends on. `S94` (the two hand-kept `VARIANTS` ladders)
-rides with it, per the code-quality plan's fold-in rule.
+The first block (TOPO-B1) is concluded: `S330`+`S94`, `D261`+`D264`,
+`D50`+`D260`, the two-homes ruling, `D265`, `S69` and the census door
+are closed, and the slate is now mostly what other programs placed
+here while those ran — SHELL's six diagnoses on TOPO's files, plus the
+rows that carried over (`S93`, `D107`, `D263`, `D262`, `D20`, the H
+item and the residues).
 
-(`S331`, the plan's original opener, is on TRIM's slate: its mechanism
-is `crates/topo/src/pcurves.rs`, TRIM's file, beside TRIM's `D36`.)
+**Block TOPO-B2** takes the three placed rows that are kernel answers
+on this program's own files and need no other program's decision
+first, in this slot order (fixed before the block byte is drawn):
 
-Then, in parallel across the three sub-lanes: `D261`+`D264` (the reader
-collapse, which owes the shared `UNCONVERTED_TODAY` re-derivation) and
-`D260`+`D50` (the `live.rs` pair, where `D260` is one sentence and
-`D50` is the guard that sentence is about; `D50` follows `D261` because
-the guard reads source through the shared lexer).
+- slot 0 — `tier3-accepts-a-ring-outside-its-outer-loop`: check 9
+  decides contact, not nesting, so a face whose ring ENCLOSES its outer
+  loop validates. The unit adds the nesting decide to tier 3 and
+  refuses typed; `shell.rs`'s `encloses` is the shape and moves to the
+  validator with SHELL's agreement (seam announced).
+- slot 1 — `split-edge-children-lack-pcurve-rows-on-curved-charts`:
+  `split_edge` mints no pcurve rows for its children, so a split on a
+  curved chart leaves the body tier-3 invalid until `mint_pcurves`
+  runs. The unit either mints the children's rows from the parent's
+  (the parameter split of a cached pcurve) or states the caveat at the
+  op with the caller's step named — phase 1 decides which, with TRIM's
+  `pcurves.rs` read by announced seam.
+- slot 2 — `revert-does-not-mirror-plane-chart-images`: `revert`
+  negates a plane's normal and leaves `Chart` images and pcurve rows
+  on that plane unmirrored, so a same-plane `Chart` edge fails
+  certification on the reverted body. The unit transforms the images
+  with the frame (`v` negated) and pins it red-first on SHELL's drum.
 
-`face-kind-read-has-two-homes` is the one D and runs on its own clock:
-it is a ruling plus a one-door delegation, and its gating cost is
-SEAT's agreement rather than a lane.
+Two lanes run at once; slot 2 dispatches when one frees.
 
-`validate-tier3-curved-boundary-containment` is the H unit and does not
-open first: it is a marker for genuinely unbuilt work, it wants the
-tier-3 file read end to end, and `S330` is that read.
+**Not in the block**, and why:
 
-Two rows carry a stated dependency and are not takeable early:
-`D262` (whose twelve silent sites overlap the `decide_flagged` F2
-family the register in `work/meta/` tracks) and `D20` (which closes on
-an attribution measured off hosted CI, so it queues on the lane
-budget rather than on a reviewer).
+- `a-chart-spans-solids-after-move-shells-to-new-solid` is a design
+  choice (is "a chart lives in one solid" a `Body` invariant the mover
+  re-mints for, or is the shell doors' grouping per (solid, surface)?)
+  with S-BOOL holding the disconnecting-subtract half — an `[ev]`
+  ruling proposal, written by the orchestrator.
+- `tier-3-does-not-check-shell-roles-per-solid` is the right check
+  and lands red today: the boolean's hollow-operand subtraction files
+  two `Outer` shells under one solid
+  (`work/bool/subtract-of-a-hollow-operand-files-the-island-under-one-solid`,
+  open). It waits on that row, announced on S-BOOL's log.
+- `attach-postconditions-validate-the-whole-body-and-panic`: its cost
+  half is answered — PERF-4 (Ev's ruling on
+  `work/perf/d1-per-op-tier1-sweep-price`, PR 2305) made the setters'
+  tier-1 sweep once per public door through the surgery scope. What
+  remains is the panic half, and it is D1's question, not the
+  setters': a postcondition asserting "kernel bug" fires on a body
+  that was torn BEFORE the write. That goes to Ev with the chart
+  ruling, not to a lane.
+- `S93`, `D107`, `D263`, `D262`, `D20`, the H item and the residues
+  keep their earlier placement: `D262` waits on `work/meta`'s
+  `decide_flagged` register, `D20` on the lane budget, the H item on a
+  tier-3 read that check 9's unit now provides.
 
 ## Review posture
 
