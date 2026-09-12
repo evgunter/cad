@@ -269,12 +269,20 @@ Euler-op sequences stay serial — each op mutates shared arenas, and
 they are cheap; full-DAG rebuild is solved by memoization, not by
 parallelizing surgery.
 
-**State: one target built, and it is switched off.** `rayon` is a
-dependency of `editor-core` alone and `eval/mod.rs:1083` is the only
-`par_iter` in the workspace. It is D9-clean as written (indexed map
-into per-node slots), but `EvalOptions::default()` sets
-`parallel: false` (`:983`) and every shipping caller takes the
-default; `parallel: true` appears once, in a test.
+**State: two targets built.** `rayon` is a dependency of `editor-core`
+and of `topo`. `topo::props`' face walks are the mass-properties target
+below, built by PERF-8 — an indexed map over faces into arena-order
+slots, each face under a detached K-funnel frame
+(`geom_core::k_stats::detached`) whose recording the arena-order fold
+splices back, so the verdict log, the escalation log and the `probe`
+sample population are the serial walk's at any thread count. The
+evaluator's own map is the other, and it is switched off:
+`eval/mod.rs`'s node map is D9-clean as written (indexed map into
+per-node slots), but `EvalOptions::default()` sets `parallel: false`
+and every shipping caller takes the default; `parallel: true` appears
+once, in a test. Two things have to be composed back before that
+switch can be flipped, and one of them changes DECISIONS rather than
+recordings — `work/wire/parallel-node-map-loses-the-funnel-and-the-symbolic-session.md`.
 
 Tempering expectation for whoever turns it on: the scheduler is
 level-synchronous and the expensive corpus documents are *chains*
@@ -283,7 +291,7 @@ which are depth-N and width-1. It will not move those rows. Turning
 it on is worth doing for the wide documents and for keeping the lane
 exercised — not as a fix for the corpus timings.
 
-**The four unbuilt targets**, in value order:
+**The unbuilt targets**, in value order:
 
 - **Per-face tessellation** — the cheapest, and the blocker is small.
   `mesh/src/tessellate.rs` threads a `&mut positions` running counter
@@ -296,7 +304,10 @@ exercised — not as a fix for the corpus timings.
   literally idiom 1 over sub-boxes.
 - **Certification sampling** — per-edge, idiom 1.
 - **Mass properties** — per-face fluxes, arena-order sum; the
-  canonical idiom-2 example.
+  canonical idiom-2 example. **BUILT** (PERF-8): `mass_properties` and
+  `sign_certified` both. What it cost that the other three will pay
+  too: the K-funnel's recording is thread-local, so the door that
+  composes a worker's recordings back had to come first.
 
 ### 2.3 Micro level (profile-gated; mostly "not yet")
 

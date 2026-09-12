@@ -469,6 +469,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "rayon",
  "slotmap",
 ]
 
