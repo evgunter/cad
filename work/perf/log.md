@@ -558,3 +558,56 @@ branch-side. Adjudicated union sent to the implementer:
 
 Second arm's measurement on the loaded box reproduces the shape:
 `die_composed_tour` index 442 → 180 ms (tessellate 292 → 21; BVH 140).
+
+## 2026-09-12 — PERF-6 dual review adjudicated; fix pass dispatched; a ruling for Ev
+
+Frozen `dd0500150` (PR 2339): one REQUEST-CHANGES, one
+APPROVE-WITH-FIXES, **two distinct MAJORs, one per arm, both verified
+on the branch**. The pair is recorded as interrupted (both arms died on
+the session usage limit and were resumed from their transcripts on the
+same head) and is excluded from the tally.
+
+- **MAJOR (arm 1, the correctness hole):** `plus_v_invariant` maps
+  `PlusVOutcome::Undecided` to no error and nothing in `validate.rs`
+  reads `target_refusal()`, so a body whose sign is still undecided
+  when the schedule runs out now PASSES tier 3 where main refused
+  `VolumeUncomputable` — demonstrated on a thin curved strip at three
+  ε; an inside-out twin passes identically. This is the inside-out
+  question Ev's finding is about, and the spec's "refuses exactly as
+  today" (§1). Fix: carry the outcome out of `sign_certified` as the
+  one decision (which also stops the two predicates being minted twice
+  per body) and refuse on Undecided.
+- **MAJOR (arm 2, the pin):** the reporting-door digest's roster does
+  not reach the cylinder lane (`bulged_extrusion` is a closed form;
+  three of five rows are ε-invariant), so the lane whose budget exit
+  moved has no bit pin. Fix: extend the roster to every certified lane
+  and the corpus/tour bodies, cut on the merge base.
+- **MINOR (9):** the continuation can name a different refusing face
+  than the reporting door (both arms); the cost is understated at the
+  site and in the PR (the "one round-0 pass" bound is false; gate +
+  continuation wall time is 1.3–1.8× one measurement because per-face
+  setup is re-entered per window — to be filed, not fixed); a stale-
+  premise class across step-import tests and `props.rs`'s header; `lo`
+  reconstruction rounds toward admission now that `lo` is consumed;
+  the exit ladder in three copies; a third `quad_verdicts` copy; the
+  reuse identity exercised on one body per ε row; three silent spec
+  deviations to disclose.
+- **Both arms escalate** the two extended `bounds_allowlist` ledger
+  paragraphs: a re-argument of the same seam rather than a widening,
+  but ledger text binds future lanes, and `SignCertificate` is now a
+  public type where the paragraphs say "the same private certified
+  half". **Goes to Ev**: the PR carries an `[ev]` section and is
+  retitled after the fix pass; it merges on Ev's sign-off.
+- **Both arms ran Ev's teapot** (PR 2306 merged with the head) at
+  ε = 1e-12: tier 3 passes; the tour then panics at
+  `demos/tour/src/main.rs:423` on the reporting call with the same
+  `QuadratureBudget` payload. PR 2306's sweep stays red at 1e-12 until
+  the riding consumer change lands — and what the tour should do with
+  a tier-3-valid body whose reporting quadrature refuses is a demo-
+  policy question for Ev (report the sign-level bracket, or drop the
+  demo's volume check at tight ε).
+- Premise corrections from the arms, for the record: k-lint pins no
+  predicate counts (the spec's "mechanical pin" sentence was wrong;
+  the count pin is the tests' `gate + refine == one`); the STEP
+  per-solid gate is already `validate_geometric` — only the aggregate
+  gate is tier 3′, so the filed item overstates.
