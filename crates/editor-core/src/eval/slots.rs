@@ -11,7 +11,7 @@
 //! values the key's other half holds (`super::tag::slot`). Those two
 //! lists are every evaluation of a node's expressions there is — an
 //! authored frame's f64 placement is minted from the nominal list
-//! (`super::wire::frame_placement`) and rides the frame's value,
+//! (`super::wire::mint_frame_placement`) and rides the frame's value,
 //! so a profile drawn on that frame READS it rather than asking this
 //! door for the frame's nine slots again. A slot's expression is
 //! looked up and evaluated in exactly one place, and a refusal at

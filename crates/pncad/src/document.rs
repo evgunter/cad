@@ -192,9 +192,9 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // it is the one payload all three pairing doors carry (DI3), which is
 // why it is spelled for the QUESTION rather than for any one door.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation,
-    FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeValue,
-    ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
+    Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.

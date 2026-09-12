@@ -128,7 +128,10 @@ const PRE_PASS: usize = 73;
 /// once per profile — a second profile on this frame would add none,
 /// and a frame with NO profile on it still decides all four, because
 /// the placement is a component of the frame's own value and not a
-/// service to whoever happens to consume it.
+/// service to whoever happens to consume it. The lone-frame half of
+/// that is guarded by [`a_lone_frame_decides_its_placement_with_no_one_to_read_it`],
+/// because this document has a profile and so cannot separate it from
+/// a mint that looked ahead for one.
 const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 653;
@@ -312,6 +315,30 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
             (order[2], EXTRUDE_LOG),
         ]),
         "one log per node, the Profile node's carrying its precompute: {counts:?}"
+    );
+}
+
+/// **A frame with no profile on it still decides its placement.**
+///
+/// The count `FRAME_LOG` carries is `2 + 2` — the lane read its value
+/// lands and the `f64` placement it carries — and it is four whether
+/// or not anything ever reads the second. That is a claim about a
+/// design choice and not about arithmetic: a mint that looked ahead
+/// for a consumer would give this document 2 and the one-profile part
+/// 4, agreeing with `FRAME_LOG` there and disagreeing here. So the
+/// separating document is a frame ALONE.
+#[test]
+fn a_lone_frame_decides_its_placement_with_no_one_to_read_it() {
+    let doc = ProfileDoc::empty(DocumentId::derive("kstats-lone-frame"), Tol::witness());
+    let (doc, lone) = insert(
+        doc,
+        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    assert_eq!(
+        per_node(&ev),
+        BTreeMap::from([(lone, FRAME_LOG)]),
+        "the frame is the whole document and it decides its axes at both scalars"
     );
 }
 

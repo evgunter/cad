@@ -1890,6 +1890,12 @@ NOT_BOUND = {
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
     "Dimension": SHAPE,
+    # `FramePlacement::Unreadable`'s payload: which axis the kernel's
+    # direction door refused and which of its four facts it reported.
+    # It crosses as its carrier does, and its carrier does not cross
+    # (the row below) — the same flattening the `UnitVec3Error` and
+    # `Arity`/`VerbKind` rows record, one level in.
+    "DirectionRefusal": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,

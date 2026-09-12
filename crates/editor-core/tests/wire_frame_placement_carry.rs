@@ -24,8 +24,8 @@ use crate::fixture;
 use editor_core::analysis::{BoxAxis, ParamBox};
 
 use editor_core::{
-    CancelToken, Datum, Dimension, DocEdit, DocParam, EvalOptions, Expr, FramePlacement, Node,
-    ParamName, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
+    CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, DocParam, EvalOptions, Expr,
+    FramePlacement, Node, ParamName, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 
@@ -45,6 +45,15 @@ fn eval(
 /// What a node's value says its placement is.
 fn carried(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Option<FramePlacement> {
     ev.value(node).expect("the node evaluated").placement
+}
+
+/// The refusal an UNREADABLE frame's value carries; panics on any
+/// other answer, naming it.
+fn unreadable(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> DirectionRefusal {
+    match carried(ev, node) {
+        Some(FramePlacement::Unreadable(r)) => r,
+        other => panic!("node {} carries {other:?}, not a refusal", node.0),
+    }
 }
 
 /// The plane an AUTHORED frame's value carries; panics on any other
@@ -506,10 +515,11 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         },
         Tol::witness(),
     );
-    assert!(
-        matches!(carried(&ev, frame), Some(FramePlacement::Unreadable { .. })),
-        "the frame carries its nominal refusal by name: {:?}",
-        carried(&ev, frame)
+    assert_eq!(
+        unreadable(&ev, frame).role,
+        "datum frame x axis",
+        "the refusal names the axis that actually refused — `u` is the one \
+         driven to zero here"
     );
     assert!(
         ev.value(axis).is_some(),
@@ -521,10 +531,90 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         matches!(
             ev.result(profile),
             Some(editor_core::NodeResult::Failed(e))
-                if matches!(e.kind, editor_core::NodeErrorKind::DegenerateDirection { .. })
+                if matches!(
+                    &e.kind,
+                    editor_core::NodeErrorKind::DegenerateDirection { role }
+                        if *role == "datum frame x axis"
+                )
         ),
         "the profile is the reader that needed the nominal placement, so the \
-         refusal is raised there: {:?}",
+         refusal is raised there, naming the axis: {:?}",
+        ev.result(profile)
+    );
+}
+
+/// Row 8 — **the carried `role` is the refusal's whole user-facing
+/// content, and it is the axis that actually refused.** Row 7
+/// degenerates `u`; this one leaves `u` a perfectly good literal and
+/// degenerates the Gram-Schmidt RESIDUAL instead, by making `v`
+/// parallel to `u` AT THE NOMINAL. The two rows therefore expect
+/// DIFFERENT roles, and a mint that hard-codes either one reddens on
+/// the other — which no single row can catch, however tightly it
+/// asserts.
+///
+/// Same box as row 7 for the same reason: the lane has to stay
+/// readable, or the frame's own op refuses and there is no value to
+/// carry anything on. `v = (span, 1, 0)`… no — `v = (1, span, 0)`,
+/// which is `(1, 0, 0)` at the nominal (parallel to `u`, residual
+/// zero) and `(1, 1, 0)` at the boxed lane (residual `ŷ`, fine).
+///
+/// Written by the review lane of 2026-09-12; adopted with its argument.
+#[test]
+fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
+    let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_r8", Tol::witness());
+    let doc = doc
+        .apply(
+            &DocEdit::SetDocParam {
+                name: span(),
+                value: DocParam::continuous(Dimension::Scalar, 0.0),
+            },
+            Tol::witness(),
+        )
+        .expect("the parameter declares")
+        .doc;
+    let (doc, frame) = fixture::insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [0.0, 0.0, 0.0].map(fixture::len),
+            u: [1.0, 0.0, 0.0].map(fixture::scl),
+            v: [
+                fixture::scl(1.0),
+                Expr::param(span(), Dimension::Scalar),
+                fixture::scl(0.0),
+            ],
+        }),
+    );
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(fixture::desc(frame, vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            param_box: boxed_at(span(), 1.0),
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    assert_eq!(
+        unreadable(&ev, frame).role,
+        "datum frame y axis",
+        "`u` is a good literal here; what has no direction at the nominal is \
+         `v`\'s residual, and the carry has to say so"
+    );
+    assert!(
+        matches!(
+            ev.result(profile),
+            Some(editor_core::NodeResult::Failed(e))
+                if matches!(
+                    &e.kind,
+                    editor_core::NodeErrorKind::DegenerateDirection { role }
+                        if *role == "datum frame y axis"
+                )
+        ),
+        "and the profile reads the same axis back: {:?}",
         ev.result(profile)
     );
 }

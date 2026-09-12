@@ -36,7 +36,7 @@ pub(crate) use wire::{
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
-pub use wire::FramePlacement;
+pub use wire::{DirectionRefusal, FramePlacement};
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -294,7 +294,7 @@ pub struct NodeValue<T: Decide> {
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
     /// **What a FRAME node's placement is** ([`FramePlacement`], minted
-    /// by `wire::frame_placement`): for an authored frame its nine
+    /// by `wire::mint_frame_placement`): for an authored frame its nine
     /// slots at the document's nominal, orthonormalized — the frame's
     /// own `DatumValue::Frame` answers the same question at the LANE
     /// scalar, and the two ride side by side because they have
@@ -2649,7 +2649,7 @@ where
     // slot and program-expression evaluation reach the funnel through
     // `check_unlogged`, which lands in no frame. A FRAME node decides
     // after its op as well as in it: its nominal placement
-    // (`wire::frame_placement`) is the last thing in its frame.
+    // (`wire::mint_frame_placement`) is the last thing in its frame.
     // The guard is `!Send`, so the
     // frame closes on the worker that opened it (idiom-1 parallelism
     // runs whole nodes on one worker each); an op that evaluates
@@ -2747,7 +2747,7 @@ where
             // The frame the profile is drawn on, at f64 — READ off
             // the frame node's own result, where its evaluation
             // minted it from the same nominal slots
-            // (`wire::frame_placement`). The frame is a DAG input
+            // (`wire::mint_frame_placement`). The frame is a DAG input
             // of this node, so its value is in hand and a failed
             // frame poisoned this node before the read.
             let placement = match wire::profile_plane_f64(results, program.plane) {
@@ -2913,7 +2913,7 @@ where
     // some later node will ask — which makes a node's value depend on
     // its consumers, and a node's value is the node's.
     let placement = match &op {
-        Ok(_) => wire::frame_placement(node, &nominal_values, tol),
+        Ok(_) => wire::mint_frame_placement(node, &nominal_values, tol),
         Err(_) => Ok(None),
     };
     let recorded = bracket.finish();
