@@ -6,7 +6,6 @@ status: open
 opened: 2026-08-13
 github: 457
 refs: [447]
-needs_ev: true
 ---
 
 ## From GitHub issue 457
@@ -112,3 +111,26 @@ from Python with axes nobody checked).
 
 **Question:** (a) witness in `geom-core`, validating door stays at the
 boundary, one fact; (b) carrier fields out of scope, rowed separately.
+
+## RATIFIED (Ev, PR 2457, 2026-09-12)
+
+"The unitvec plan sounds great." As put, with two refinements from the
+thread:
+
+- The witness lives in `geom-core`; `topo` does NOT re-export it —
+  imports are repointed to `geom-core` instead (Ev: "probably don't
+  re-export unless you need to").
+- One mint, the normalizing constructor (`new(v, band)` as `topo`'s
+  does today: decide the length under the band, divide), plus exact
+  negation and `sin_cos`. No "check it is already unit" constructor:
+  the one door with that posture, `sweep::tube_along_arc`
+  (`crates/sweep/src/revolve/tube.rs`), takes `UnitVec3<T>` for both
+  `axis` and `u_ref` instead, retiring `TubeError::NonUnitAxis` and
+  `NonUnitURef` (two Python refusal tags go with them — PORT
+  announced); `FrameNotOrthogonal` stays.
+- Consumers: `Affine3::from_frame`, `Vec3::orthonormal_basis`,
+  `frame_from_unit_aim`, the tube door; the geom carrier fields stay
+  under their at-rest rule and get their own row.
+
+This row is now a unit to cut: one or two units after the door rows,
+with `D6`'s.
