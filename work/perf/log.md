@@ -642,3 +642,19 @@ a valid body, prints the enclosure and checks the mesh volume against
 the bracket. Recorded on `gate-then-measure-pays-two-quadratures`,
 which is the unit that lands it (a side unit, single review) after
 PERF-6 merges; PR 2306 follows it.
+
+## 2026-09-12 — the ledger extension is not a second decision
+
+Main's CLAUDE.md (PR 2432) now says what waits for Ev is the design
+choice — retiring a clause or changing what it decides — and a clause
+re-worded because an approved change moved something it describes (a
+count, a caller) lands with the change. PERF-6's two `bounds_allowlist`
+paragraphs are exactly that: the counts moved (props.rs 14 → 19,
+validate.rs 9 → 10) because one certified walk became a hook, a
+windowed walk and the certificate that resumes it; scope-by-scalar did
+not move (both reviewers, and my reading). So PERF-6 lands the way
+every reviewed unit does — its dual review is adjudicated, the fix
+pass closes the union, CI is green on the head — with the ledger
+section in the PR body as disclosure and the word "private" corrected
+(the certificate is public now). The demo-policy question is ruled
+(above); the PR carries no `[ev]` ask.
