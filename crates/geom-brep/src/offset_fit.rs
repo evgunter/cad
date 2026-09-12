@@ -534,7 +534,7 @@ impl core::fmt::Display for OffsetFitError {
             Self::Meter(e) => write!(f, "fit_offset refused at a door meter: {e}"),
             Self::PatchBound(e) => write!(f, "fit_offset: {e}"),
             Self::Fit(e) => write!(f, "fit_offset: the interpolation stack refused: {e}"),
-            Self::Structure(e) => write!(f, "fit_offset: spline structure refused: {e}"),
+            Self::Structure(e) => write!(f, "fit_offset: spline structure refused: {e:?}"),
             Self::InvalidRequest { d, tolerance } => write!(
                 f,
                 "fit_offset: the request is not fittable — offset distance {d} m must be \
@@ -632,9 +632,7 @@ impl core::fmt::Display for OffsetFitError {
             Self::WindowUnsupported { window } => write!(
                 f,
                 "the window (u {:?}, v {:?}) is not the base's own chart rectangle, and the \
-                 offset certificate covers that rectangle only — ask for the certificate \
-                 over the base's own chart rectangle; a narrower claim is a bound this \
-                 derivation never proved",
+                 offset certificate covers that rectangle only",
                 window.u, window.v
             ),
             Self::Limb {

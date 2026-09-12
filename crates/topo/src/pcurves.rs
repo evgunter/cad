@@ -349,15 +349,13 @@ impl core::fmt::Display for PcurveMintError {
             Self::MissingCache { half_edge } => write!(
                 f,
                 "pcurve minting: half-edge {half_edge:?} bounds a face whose chart mints \
-                 pcurve caches, but carries none at rest — the face's cache set is \
-                 half-minted: re-mint the body, and repair the op that returned a mutated \
-                 already-minted body without clearing or re-minting, which is what leaves one"
+                 pcurve caches, but carries none at rest"
             ),
             Self::Escalated { half_edge, cause } => write!(
                 f,
                 "pcurve minting at half-edge {half_edge:?} escalated: {cause}"
             ),
-            Self::Band(e) => write!(f, "pcurve minting: {e}"),
+            Self::Band(_) => write!(f, "pcurve minting: the run's band is invalid"),
         }
     }
 }
