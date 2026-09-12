@@ -2,10 +2,11 @@
 id: nextest-shard-count-needs-remeasure
 kind: issue
 title: Determine the right nextest shard count: the N=2 verdict was priced in billed minutes
-status: open
+status: closed
 opened: 2026-08-13
+closed: 2026-09-12
 github: 461
-refs: [449]
+refs: [449, one-test-is-the-whole-ci-critical-path]
 ---
 
 ## From GitHub issue 461
@@ -139,3 +140,143 @@ evidence and is unaffected by the billing change; what changed is that
 the case can now be made, where before the arithmetic refused it.
 Every N modelled above is a MODEL — the re-measure says so — and the
 before/after must come from hosted runs on the 4-vCPU runner.
+
+## MEASURED (2026-09-12): N stays at 2, and the re-opening's own premise is what broke
+
+The re-opening above is right that the closing verdict was priced in a
+currency that no longer exists, and right that this needed a hosted
+measurement rather than another model. It is wrong about which way the
+measurement lands, and the thing that decides it is the one finding the
+re-opening explicitly declined to re-open: **"no single test binds any N
+up to 4" stopped being true.**
+
+### Method
+
+Four shard counts — the live N=2 as a control, plus N=3, N=4 and N=6 —
+each on its own probe branch off the same commit, differing from main in
+exactly the shard literal (and, for the control, one comment line so the
+diff classifies TIER=all). Three full code-tier runs each, in three
+waves, all four counts running in the same wave so a wave's runner
+weather is shared. Twelve runs, 270 test legs:
+
+| N | test jobs/run | run ids |
+|--:|--:|---|
+| 2 | 12 | 34681503322, 34682495317, 34683422606 |
+| 3 | 18 | 34681505853, 34682495342, 34683423324 |
+| 4 | 24 | 34681508890, 34682494764, 34683422743 |
+| 6 | 36 | 34681511479, 34682496147, 34683422386 |
+
+The job count was confirmed on each run (12 / 18 / 24 / 36 — 6N), and
+all 270 legs' `run archived tests` STEP concluded `success`; none was
+skipped. A second population, for the N=2 spread alone, is the 18
+code-tier runs of the same morning on other lanes' branches.
+
+### Test-count conservation, at the level of test IDs
+
+Not a count check — a SET check. Every test the run executed is named in
+its leg's log, so the per-shard name sets can be compared directly. At
+N=2, 3, 4 and 6, on both matrices:
+
+| row | union of the shards | sum of per-shard `tests run` | listed (`run` + `skipped`) |
+|---|--:|--:|--:|
+| f64, ε = default | **6 948, identical set at every N** | 6 948 | 6 984 |
+| interval, ε = default | **7 669, identical set at every N** | 7 669 | 7 753 |
+
+`missing 0, extra 0` against the N=2 set at every other N; the run-sum
+and the listed total are identical at every N on all six rows. The two
+name collisions between interval shards are the deliberate re-execution
+of `m4_pr8_corpus_interval::every_document_evaluates_green_at_interval`
+and `m4_pr6_roundtrip_interval::interval_replay_identity_across_save_load`
+by the `band 4 corpus (interval)` and `persistence save/load/replay-
+identity (interval)` steps, which ride on shard 1 of the first eps row
+at every count. Nothing is dropped by re-sharding.
+
+### Step 1 of the old plan: the per-leg fixed cost has NOT moved
+
+**15.9 s median over 270 legs** (p25 12.6, p75 18.5, p90 20.2, max 47.7)
+— against 15 s on 2026-08-12 and 15.6 s on 2026-09-03. It is also flat
+in the count (N=2 15.2, N=3 15.7, N=4 16.8, N=6 15.3), so the "more
+shards buy less as the fixed cost grows" worry is not what decides this.
+
+### The leg walls, per row, per N — the slowest leg of each row, three runs each
+
+| row | N=2 | N=3 | N=4 | N=6 |
+|---|---|---|---|---|
+| f64, ε = default | 82 / 83 / 78 | 57 / 61 / 60 | 54 / 59 / 56 | 64 / 55 / 44 |
+| f64, ε = 1e-6 | 74 / 68 / 68 | 54 / 54 / 55 | 42 / 48 / 43 | 39 / 41 / 41 |
+| f64, ε = 1e-12 | 66 / 64 / 68 | 51 / 47 / 58 | 46 / 49 / 40 | 36 / 40 / 44 |
+| interval, ε = default | 191 / 148 / 182 | 153 / 150 / 181 | 115 / 103 / 131 | 102 / 128 / 135 |
+| interval, ε = 1e-6 | 170 / 179 / 168 | 220 / 209 / 128 | 127 / 125 / 120 | 111 / 108 / 118 |
+| **interval, ε = 1e-12** | **537 / 740 / 554** | **615 / 476 / 480** | **509 / 619 / 689** | **454 / 372 / 660** |
+
+Five of the six rows behave exactly as the re-opening predicted: a real,
+clean, monotone cut down to N=4, flattening at N=6 where the fixed cost
+is half a leg. **The sixth row does not respond to the count at all**,
+and it is the row that decides the run.
+
+### Why it does not: one test
+
+The ε = 1e-12 interval leg is the last job to finish on all 30 runs
+read, at every count. Inside it,
+`editor-core::all r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`
+is, on its own:
+
+| N | the row's own duration, three runs | leg that carries it | its share |
+|--:|---|---|--:|
+| 2 | 458.5 / 659.6 / 470.5 s | 537 / 740 / 554 s | 85 / 89 / 85 % |
+| 3 | 582.9 / 441.4 / 441.5 s | 615 / 476 / 480 s | 95 / 93 / 92 % |
+| 4 | 458.6 / 576.6 / 634.9 s | 509 / 619 / 689 s | 90 / 93 / 92 % |
+| 6 | 434.5 / 346.2 / 632.9 s | 454 / 372 / 660 s | 96 / 93 / 96 % |
+
+A count partition cannot go below its longest single test, and that test
+is 85-96 % of the leg. What is left after it — 30 to 80 s — is all any
+shard count has to work with, and splitting it further changes the leg
+by less than the test's OWN run-to-run spread, which is **346 s to
+660 s, a factor of 1.9 on the same tree**. The twelve critical legs, in
+count order, are 537 / 740 / 554 · 615 / 476 / 480 · 509 / 619 / 689 ·
+454 / 372 / 660; the N=2 population of the same morning (18 other runs)
+spans 409-645 s with a median of 534. **Every count's readings sit
+inside every other count's spread.** Run walls say the same and say it
+more weakly, because four simultaneous probe runs pushed job queue times
+from a 2 s median to as much as 108 s: 915 / 1279 / 1029 at N=2,
+1251 / 1007 / 1139 at N=3, 916 / 1226 / 1332 at N=4, 1113 / 890 / 1209
+at N=6, against 825-1124 for the 18 unperturbed N=2 runs.
+
+### Verdict: N stays at 2, on wall clock and not on a minute
+
+The re-opening's inversion does not survive contact with the runner —
+not because its billing argument was wrong (it was right; minutes are
+free and every cost figure in the 2026-09-03 verdict is now zero) but
+because its benefit argument was measured on a tree where no test bound
+the split. On today's tree one does, at the exact row that holds the
+critical path, and `20-45 % less wall` per added shard is available
+everywhere it cannot be spent. A contributor waits for the maximum over
+the legs, not their sum; cutting a 78 s leg to 54 s beside a 554 s one
+is not a cut.
+
+Going to N=4 would therefore buy no wall and cost twelve more legs of
+fixed time, twelve more runner slots per run (measurably worse queueing
+when runs overlap), and a job list a reader has to scan at 24 rows
+instead of 12. Both matrices stay at 2; nothing here argues for
+different counts on the two, because the f64 rows' improvement is real
+and unreachable for the same reason.
+
+**What this measurement could not see.** It is one morning on
+`ubuntu-latest` (~4 vCPU) with the suite as of `9b3959849`; it says
+nothing about a tree where the floor test is gone. It reads job and step
+timings from the Actions API and nextest's own per-test durations, so a
+cost inside the runner image (a slow artifact download, a cold page
+cache) is inside the "fixed cost" figure rather than attributed. And the
+three-runs-per-count design can separate a 2x effect from noise, not a
+10 % one — which is enough here only because the effect it had to see is
+zero.
+
+**Re-open when** `work/tcost/one-test-is-the-whole-ci-critical-path`
+closes — i.e. when the ε = 1e-12 interval leg is no longer floored by a
+single test. At that point five of six rows already say N=4, and the
+sixth would stop dissenting. Not before: while one row runs for eight
+minutes, the count is the wrong knob. What this does NOT re-open is
+unchanged from the 2026-09-11 section — `hash:` still buys nothing over
+`count:`, and a weight-aware split is still more machinery than the
+saving (it could not help here either: no scheme balances a shard that
+is one test).

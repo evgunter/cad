@@ -3121,16 +3121,30 @@ jobs:
       # / k-lint) now select by `--test all -- <module>::` or by a nextest
       # `test(/^<module>::/)` expression, verified to match the old
       # per-binary test counts exactly.
-      # SHARDING SURVIVES THE ε CUT, and the arithmetic is the reason —
-      # the August audit's F2 declined this exact merge for the default
-      # legs and the ε cut does not reverse it. From the figures in
-      # docs/CI-MINUTES-2026-08.md (F2): the two shards are ~10 s setup +
-      # 63 s and 56 s of execution, so 2 billed minutes each; merged they
-      # are ~139 s, which is 3. That is ONE billed minute saved for ~66 s
-      # of added latency on a leg that sits directly behind a build job on
-      # the critical path. One minute of a ~60-minute run against ~9% of its
-      # wall clock is the wrong side of the trade, and it is worse on the
-      # interval lane (see that job).
+      # WHY THE COUNT IS 2 — RE-MEASURED ON WALL CLOCK (2026-09-12).
+      # The argument that stood here was arithmetic in BILLED ACTIONS
+      # MINUTES, and that currency stopped existing when this repository
+      # went public on 2026-09-03, so the knob was re-measured rather
+      # than re-argued: four shard counts (2, 3, 4, 6), three full
+      # code-tier runs each, twelve runs, every run id and every leg
+      # wall on `work/tcost/nextest-shard-count-needs-remeasure`.
+      #
+      # MORE SHARDS DO CUT THESE LEGS AND THE CUT REACHES NOTHING. The
+      # slowest leg of the three eps rows here goes 68-83 s at N=2,
+      # 47-61 s at N=3, 40-59 s at N=4 and 44-64 s at N=6 — clean and
+      # monotone until the per-leg FIXED cost (15.9 s median over
+      # 270 measured legs, and flat in the count) eats it at N=6. But a RUN's wall is the MAXIMUM
+      # over its legs, not their sum, and these legs are nowhere near
+      # it: the interval lane's ε = 1e-12 leg runs 372-740 s beside
+      # them, in every one of the twelve runs, at every count. Cutting a
+      # 78 s leg to 54 s while a 554 s leg decides the run buys a
+      # contributor exactly nothing, and it pays the fixed cost again
+      # per added leg and doubles the job list a reader scans.
+      #
+      # SO THE COUNT IS NOT THE LEVER, AND WHAT IS ONE IS FILED:
+      # `work/tcost/one-test-is-the-whole-ci-critical-path`. Re-open the
+      # count when that row is fixed, not before — while one test is
+      # 83-90 % of the slowest leg, no partition of the rest can move it.
       #
       # BOTH BUILDS RUN AGAIN (2026-09-04), which only strengthens this:
       # these legs sit behind the FASTER of the two archives. On run
@@ -3659,16 +3673,29 @@ jobs:
     # runs; the ε rows are the same three the default lane runs, off the same
     # `eps_rows` output, on the interval archive.
     #
-    # The collapse was correct for what this job was then: four legs billing
-    # a minute each to execute 12-20 s of an interval-only selection. At the
-    # FULL suite the numbers are the other lane's, doubled — the
-    # pre-selection interval lane measured 117 s per shard at opt-2 (the OPT
-    # LEVEL note on the default build job, run 31668174443), so ~234 s
-    # unsharded. Unsharded that is 5 billed minutes against 6 for two
-    # shards: the same 1-minute saving the default lane declines, for ~117 s
-    # of added latency on the run's critical path rather than ~66. The
-    # sharding's original premise — "the unsharded leg is the run's slowest"
-    # — is true of this job again.
+    # The collapse was correct for what this job was then: four legs
+    # executing 12-20 s of an interval-only selection. At the FULL suite
+    # this lane holds the run's critical path — its legs are the last
+    # jobs to finish on every code-tier run — so the sharding's original
+    # premise, "the unsharded leg is the run's slowest", is true of this
+    # job again and a merge back to one leg per eps row would add its
+    # whole execution to what a contributor waits for.
+    #
+    # THE COUNT STAYS AT 2 ON A MEASUREMENT, NOT ON A BILLED MINUTE
+    # (2026-09-12; the default lane's copy of this note carries the
+    # method, and `work/tcost/nextest-shard-count-needs-remeasure` the
+    # runs). More shards do cut this lane's other two eps rows — the
+    # ε = default row's slowest leg goes 148-191 s at N=2 to 103-131 s
+    # at N=4 — and they cannot reach the run's wall, because the
+    # ε = 1e-12 row is FLOORED BY A SINGLE TEST. `editor-core::all
+    # r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the
+    # _public_doors` runs 346-660 s by itself at that ε (it is under
+    # 20 s at the other two), which is 83-90 % of the leg that carries
+    # it; that leg measured 372-740 s at counts 2, 3, 4 and 6 with no
+    # ordering by count at all. No partition goes below its longest
+    # single test. The row is filed as
+    # `work/tcost/one-test-is-the-whole-ci-critical-path` and it, not
+    # this matrix, is what a cut to the critical path has to go through.
     #
     # The union of the two shards is exactly the row: nextest's count
     # partition is applied deterministically within each binary.

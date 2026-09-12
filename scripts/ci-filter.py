@@ -162,8 +162,21 @@ run's wall follows their MAXIMUM, and the maximum of six legs is larger than
 the maximum of two: measured, ~+20 s of critical path on a run that would have
 drawn `interval` anyway, on top of the ~+172 s the interval archive adds to one
 that would have drawn `default` — about +96 s in expectation on a TIER=all run.
-The last job on that path is `test (interval, eps = default, 1/2)`, the first
-eps row's shard 1, which also carries the two editor-core steps.
+THE LAST JOB ON THAT PATH IS THE eps = 1e-12 INTERVAL LEG, AND IT USED TO BE
+NAMED AS `test (interval, eps = default, 1/2)` HERE (corrected 2026-09-12).
+That naming was right when every interval leg cost about the same; it is not
+now. The ε = 1e-12 row carries `editor-core::all
+r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`,
+which runs 346-660 s by itself at that ε and under 20 s at the other two, so
+the leg holding it finishes last on EVERY code-tier run measured — 30 of them,
+18 at the live count of 2 and 12 more across counts 2, 3, 4 and 6
+(`work/tcost/nextest-shard-count-needs-remeasure`, and
+`work/tcost/one-test-is-the-whole-ci-critical-path` for the row itself). WHICH
+shard of that row
+holds it is not fixed: the count partition reads no timings, so it moves with
+the test list. Separately, and unchanged, the two editor-core steps ride on
+shard 1 of the FIRST eps row — that is where they are wired, not where the
+wall is.
 
 THE JOB-MINUTE FIGURES ARE FLOORS, NOT FORECASTS: three un-sampled runs came in
 at 54.0 / 44.4 / 49.7 job-minutes against a 30.6-minute TIER=all median. The
