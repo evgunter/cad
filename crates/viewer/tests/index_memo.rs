@@ -880,11 +880,7 @@ fn every_parametric_corpus_document_indexes_the_same_through_the_seam_across_edi
     // The tie-break row is a row only if its rays tie: across the
     // corpus, a floor on the landings whose nearest hit was shared by
     // two or more triangles (the measured count, with slack).
-    let tied_landings: usize = seen
-        .values()
-        .flatten()
-        .filter(|s| s.ties > 0)
-        .count();
+    let tied_landings: usize = seen.values().flatten().filter(|s| s.ties > 0).count();
     let landings: usize = seen.values().map(Vec::len).sum();
     println!("# tie-break row: {tied_landings} of {landings} landings had a tied nearest hit");
     assert!(

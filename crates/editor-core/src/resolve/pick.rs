@@ -310,9 +310,7 @@ impl MeshPick {
             hulls.push(
                 boxes
                     .iter()
-                    .fold(None::<Aabb>, |acc, b| {
-                        Some(acc.map_or(*b, |a| a.hull(b)))
-                    })
+                    .fold(None::<Aabb>, |acc, b| Some(acc.map_or(*b, |a| a.hull(b))))
                     .unwrap_or_else(Aabb::poison),
             );
             let tree = tree_for(pi, &boxes);

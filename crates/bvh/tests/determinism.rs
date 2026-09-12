@@ -229,6 +229,12 @@ fn heap_bytes_grows_with_the_items() {
     let large: Vec<Aabb> = (0..800)
         .map(|i| boxed([f64::from(i); 3], [f64::from(i) + 1.0; 3]))
         .collect();
-    let (s, l) = (Bvh::build(&small).heap_bytes(), Bvh::build(&large).heap_bytes());
-    assert!(s > 0 && l > 8 * s, "8 items: {s} bytes; 800 items: {l} bytes");
+    let (s, l) = (
+        Bvh::build(&small).heap_bytes(),
+        Bvh::build(&large).heap_bytes(),
+    );
+    assert!(
+        s > 0 && l > 8 * s,
+        "8 items: {s} bytes; 800 items: {l} bytes"
+    );
 }
