@@ -219,7 +219,7 @@
 //!
 //! # What a caller owes rayon (documented characteristic)
 //!
-//! [`tessellate`] runs its per-face map on the **process-global rayon
+//! [`tessellate()`] runs its per-face map on the **process-global rayon
 //! pool**, from whatever thread calls it, and three things follow that
 //! a caller may need:
 //!
@@ -247,7 +247,7 @@
 //! escalations and `probe` samples
 //! (`geom_core::k_stats::detached`/`splice`). Each face's lane records
 //! into a channel of its own and the arena-order fold hands both on, so
-//! a `Bracket` or an armed meter around [`tessellate`] reads what a
+//! a `Bracket` or an armed meter around [`tessellate()`] reads what a
 //! serial walk would have written, element for element
 //! (`tests/k_funnel_composition.rs`).
 //!
