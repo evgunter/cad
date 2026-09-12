@@ -1409,7 +1409,8 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `PropsQuadLane`):
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `PropsQuadLane`,
+#: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`, `ProfileVertex`,
 #: `ValidatedLoop`, `ValidatedProfile`, `SegmentKind`,
@@ -2114,6 +2115,15 @@ NOT_BOUND = {
     "Relation": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
+    # The `PropsQuadLane` shape, one registry over: a trait naming
+    # WHICH decision lanes carry a chart-coherence examination, written
+    # as a bound on the two registry doors. Python's `run_checks` is
+    # monomorphic at the `f64` lane, so a Python caller never chooses
+    # one and never needs to name the trait; what it does see is the
+    # lane's ANSWER, as the `chart_coherence` / `chart_coherence_
+    # unexamined` / `chart_coherence_unavailable` words on
+    # `CheckEvidence.variant`.
+    "ChartCoherenceLane": INTERIOR,
     "ContactRecords": INTERIOR,
     # The contact vocabulary's fourth quarter, curated beside the
     # three that were already here. `INTERIOR` by the carrier rule,
@@ -2731,6 +2741,9 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
     "CheckEvidence::NotSeparated": "CheckEvidence.variant",
     "CheckEvidence::SeparationUnavailable": "CheckEvidence.variant",
+    "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
+    "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
+    "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
     "ChecksError::Root": "ChecksError.variant",
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",

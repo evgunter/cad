@@ -75,7 +75,11 @@ fn a_document_with_no_body_denoting_root_is_the_no_body_roots_subject() {
     let direct = run_checks_on(&doc, &ev, Subject::NoBodyRoots, &cfg, tol).expect("so is it here");
     assert_eq!(wrapped, direct);
     assert_eq!(wrapped.findings, Vec::new(), "and it is clean");
-    assert!(wrapped.skipped.is_empty(), "with nothing skipped");
+    assert_eq!(
+        wrapped.skipped,
+        vec![CheckId::ChartCoherence],
+        "with the one default-Off resident named, and nothing else"
+    );
 }
 
 /// **A2 — a gather that refuses reaches the door as
@@ -175,7 +179,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     );
     assert_eq!(
         report.skipped,
-        vec![CheckId::Separation],
+        vec![CheckId::ChartCoherence, CheckId::Separation],
         "and the skip is visible"
     );
 
@@ -191,7 +195,10 @@ fn a_run_that_needs_no_subject_does_not_gather() {
     let report = run_checks(&collide, &ev, &off, tol)
         .expect("with the subject-reading resident off there is nothing to gather for");
     assert_eq!(editor_core::gathers_on_this_thread() - before, 0);
-    assert_eq!(report.skipped, vec![CheckId::Separation]);
+    assert_eq!(
+        report.skipped,
+        vec![CheckId::ChartCoherence, CheckId::Separation]
+    );
 }
 
 /// **DI3 at the door.** (R2's two rows, adopted.)
