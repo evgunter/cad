@@ -149,3 +149,126 @@ fn non_rigid_maps_are_refused_at_the_door() {
         }
     }
 }
+
+// ------------------------------------------------------------------ //
+// The M7-8 class: an `Intersection` between a plane and a DESCRIBED   //
+// NURBS wall — the one carrier class that certifies only through the  //
+// injected plane × NURBS lane.                                        //
+// ------------------------------------------------------------------ //
+
+/// A DESCRIBED (non-placeholder) degree-2 NURBS patch on the plane
+/// `y = 0`, u along +x, v along +z — the unit cube's front wall
+/// restated as a net rather than as the plane it exactly is, so the
+/// only thing separating it from that plane is that it is a
+/// `Surface::Nurbs`.
+fn nurbs_wall() -> geom::Surface<f64> {
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let ticks = [-1.0, 0.5, 2.0];
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for &x in &ticks {
+        for &z in &ticks {
+            control.push(Point3::new(x, 0.0, z));
+            weights.push(1.0);
+        }
+    }
+    let n = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
+    assert!(
+        !n.is_placeholder(),
+        "the wall is DESCRIBED — the placeholder is a different refusal"
+    );
+    geom::Surface::Nurbs(std::sync::Arc::new(n))
+}
+
+fn face_surface_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> topo::SurfaceKey {
+    let he_data = body.get_half_edge(he).unwrap();
+    let loop_data = body.get_loop(he_data.parent_loop).unwrap();
+    body.get_face(loop_data.face).unwrap().surface
+}
+
+/// The unit cube with its front wall restated as a described NURBS net
+/// and that wall's four edges re-described as plane × NURBS
+/// `Intersection`s through `Body::set_edge_curve_nurbs_lane` — the
+/// M7-8 class, minted through the door that mints it.
+fn m7_8_cube() -> Body<f64> {
+    let cube = common::geometric_cube::<f64>();
+    let mut body = cube.body;
+    let wall = body
+        .set_face_surface(cube.mefs[1].face, topo::FaceSurface::New(nurbs_wall()))
+        .unwrap();
+    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
+    let mut lane_edges = 0;
+    for (edge_key, edge) in edges {
+        let s1 = face_surface_of_he(&body, edge.he_plus);
+        let s2 = face_surface_of_he(&body, edge.he_minus);
+        if s1 != wall && s2 != wall {
+            continue;
+        }
+        let start = body.get_half_edge(edge.he_plus).unwrap().start;
+        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let p0 = *body
+            .get_point(body.get_vertex(start).unwrap().point)
+            .unwrap();
+        let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
+        ));
+        body.set_edge_curve_nurbs_lane(
+            edge_key,
+            geom_brep::EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1,
+                    s2,
+                    witness: p0.lerp(p1, 0.5),
+                },
+                carrier,
+                param_start: 0.0,
+                param_end: 1.0,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        lane_edges += 1;
+    }
+    assert_eq!(lane_edges, 4, "the front wall has four M7-8 edges");
+    body
+}
+
+/// The number of check-2 findings the certified at-rest door raises on
+/// `body`. A described-NURBS face has no certified flux lane, so the
+/// composed door answers `VolumeUncomputable` at check 7 whatever
+/// happens at check 2; counting the edge-certification arm is what
+/// isolates the carrier question from that.
+fn edge_findings(body: &Body<f64>) -> usize {
+    match topo::validate_pseudomanifold_certified(
+        body,
+        &topo::ContactRecords::default(),
+        Tol::witness(),
+    ) {
+        Ok(()) => 0,
+        Err(errs) => errs
+            .iter()
+            .filter(|e| matches!(e, topo::ValidationError::EdgeCertification { .. }))
+            .count(),
+    }
+}
+
+/// **A body the certified at-rest door calls valid is a body the
+/// kernel can move.**
+#[test]
+fn an_m7_8_body_validates_at_rest_and_moves() {
+    let body = m7_8_cube();
+    assert_eq!(
+        edge_findings(&body),
+        0,
+        "the certified at-rest door re-derives all four M7-8 certificates"
+    );
+    let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0));
+    let moved = transform_rigid(&body, &map, Tol::witness())
+        .expect("an M7-8 body moves under a rigid map");
+    assert_eq!(
+        edge_findings(&moved),
+        0,
+        "and re-derives all four certificates after the map"
+    );
+}
