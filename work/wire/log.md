@@ -1243,3 +1243,66 @@ to prevent — *"you cannot tell whether the item already exists… the
 orchestrator could."* That only holds if the orchestrator's filings are
 visible. **Merge the orchestrator branch at every seam from here**, not
 when it happens to be convenient.
+
+## PR 2435's fix pass turned a `likely` into a measurement (2026-09-12)
+
+CI run `34688987262` green, 39 jobs. Every review finding held up and
+the lane pushed back on exactly one thing, correctly.
+
+**MINOR 2 is reachable, and the reviewer's `likely` understated it.**
+The review reasoned it reachable "in the E6 subdivision" and did not
+build the fixture. The lane built it and found **no interval is needed
+at all**: `BoxAxis::Varying` need not contain zero, and the env binds
+`nominal + offset`, so nominal and lane are two different points **at
+`f64`** under a degenerate `ParamBox`. Fixture `u = (p,0,0)` with `p`
+nominal 0 under `p ∈ nominal + [1,1]`; row 7 reddens when the mint's
+refusal arm is made to fail the node. A finding rated `likely` on a
+reading came back `sure` on a fixture, and cheaper than predicted.
+
+**The carry shape is better than what was asked for.**
+`Option<FramePlacement>` — `Authored(SketchPlane<f64>)`,
+`Unreadable { role, error }`, `Derived` — with **`None` meaning "not a
+frame" and only that**, turned into the loud `WrongOperand` the deleted
+`frame_kind` door used to raise. The mint forks on an **exhaustive match
+over `Datum`**, so a new variant is a compile error rather than a silent
+lane placement. `Unreadable` is where a nominal refusal lives, raised
+**at the profile that needed it**: decision logged where made, refusal
+raised where needed.
+
+**The lane caught itself minting a fresh instance of the class,
+mid-pass.** Its first cut of the re-shape spelled the frame read a
+second time inside the mint (`need_point3` + `frame_axes` instead of
+`frame_from_slots`); `FrameRead` exists so one door serves both
+dispositions. Found by its own adversarial diff re-read, which is the
+standing lesson working rather than being quoted — the first time on
+this program that the trap was caught by the lane that would have sprung
+it.
+
+**NOTE 3 answered by measurement, and the answer is "no".** The lane
+applied `#[non_exhaustive]` and built: `m4_pr4_resolve.rs` fails
+`E0639`. An integration test is out-of-crate, so the attribute does not
+make field additions non-breaking there — **it makes the struct
+permanently unconstructible there**, and paying for that needs a public
+constructor whose only caller is a test. Accepted. The right change is a
+door for building a stub `Evaluation`, with its own argument, not a
+rider here.
+
+**Two things neither review named, and CI found both.** A new public
+type had to answer to two façade censuses: `pncad`'s
+`every_document_layer_root_export_is_carried_or_listed` and `pncad-py`'s
+`test_every_curated_name_is_bound_or_listed`. Both caught it before a
+human could. A new fence crossing was disclosed as a result
+(`crates/pncad-py/tests/test_binding_census.py`). Worth recording that
+the censuses are load-bearing for exactly the thing a review is worst
+at: noticing that a new public name exists at all.
+
+**The lane's one pushback, accepted.** The orchestrator's framing of S2
+("a future `Datum` variant producing `DatumValue::Frame`") understates
+it: the same hole was open for a future **non-datum** node producing a
+frame payload, and it is the `None`-is-loud rule that closes both — the
+exhaustive match over `Datum` closes only one.
+
+**Delta review dispatched**, deliberately narrow: a new public type, a
+re-shaped carry and moved refusal routing is more than a fix pass, and
+the earlier full pass covered everything that did not change. The brief
+says plainly that "nothing further" is a complete answer.
