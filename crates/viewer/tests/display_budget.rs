@@ -211,3 +211,89 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
         );
     }
 }
+
+/// **No δ renders as a number a δ cannot be.** The field, the badge and
+/// the sentence above all show δ as millimetres of text, and
+/// `{:.3}` over millimetres reads `0.000` below half a micrometre —
+/// a value [`DisplayTolerance::new`] refuses, in the one place a user
+/// reads the δ in force as a number they can act on.
+///
+/// The property is the whole range, so the row sweeps it: every δ from
+/// `f64`'s smallest subnormal to a kilometre renders as text that fits
+/// the bound, reads back through the millimetre conversion the δ field
+/// commits with, and lands on a δ the door accepts within the render's
+/// own stated accuracy.
+#[test]
+fn no_delta_renders_as_a_number_a_delta_cannot_be() {
+    let reads_back_as_a_delta = |value: f64| {
+        let d = delta(value);
+        let text = d.render_mm();
+        let mm = d.get() * 1.0e3;
+        assert!(
+            text.chars().count() <= DisplayTolerance::RENDER_MM_MAX_CHARS,
+            "δ {mm} mm renders as {text}, past the {} character bound",
+            DisplayTolerance::RENDER_MM_MAX_CHARS
+        );
+        let read: f64 = text.parse().unwrap_or_else(|error| {
+            panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
+        });
+        assert!(
+            DisplayTolerance::new(read * 1.0e-3).is_ok(),
+            "δ {mm} mm renders as {text}, which is not a δ this door accepts"
+        );
+        assert!(
+            (read - mm).abs() <= DisplayTolerance::RENDER_REL_TOLERANCE * mm,
+            "δ {mm} mm renders as {text}, further from it than the render's own accuracy"
+        );
+    };
+    // The grid the round-trip measurement used, a decade below the
+    // kernel's finest to a decade above the coarsest δ a user types.
+    let mut sampled: u32 = 0;
+    let mut value = 1.0e-12_f64;
+    while value < 1.0e-1 {
+        reads_back_as_a_delta(value);
+        sampled += 1;
+        value *= 1.01;
+    }
+    assert!(sampled > 2_000, "the sweep covered only {sampled} δ");
+    // And the ends of the type, which a geometric grid does not reach:
+    // the smallest subnormal, the smallest normal, a kilometre.
+    for end in [5.0e-324, f64::MIN_POSITIVE, 1.0e3] {
+        reads_back_as_a_delta(end);
+    }
+}
+
+/// The two δ the field used to lie about, by the numbers the item that
+/// filed it named: 0.4 µm read `0.000` and 1.6 µm read `0.002`.
+#[test]
+fn the_two_deltas_the_fixed_three_decimal_render_lied_about() {
+    assert_eq!(delta(0.4e-6).render_mm(), "0.0004");
+    assert_eq!(delta(1.6e-6).render_mm(), "0.0016");
+    // Both are exact here, which is what a decimal spelling buys where
+    // it fits at all: the field shows the δ in force rather than a
+    // rounding of it.
+    assert_eq!("0.000", format!("{:.3}", 0.4e-6 * 1.0e3), "the old render");
+    assert_eq!("0.002", format!("{:.3}", 1.6e-6 * 1.0e3), "and the other");
+}
+
+/// **What the render does to a budget δ's seventeen significant
+/// figures: it shows four.** `fit_delta` solves `constant / budget`, so
+/// a δ the budget chose is a quotient with no short spelling at all —
+/// and no field is wide enough for one. Four figures is what the
+/// character bound buys, which is why this text is a render and never a
+/// commit path.
+#[test]
+fn a_budget_delta_renders_as_four_significant_figures() {
+    // A constant in triangle·metres, exactly as `fit_delta` forms it.
+    let constant = 0.374_612_345_678_901_2_f64;
+    #[allow(clippy::cast_precision_loss)]
+    let solved = constant / TRIANGLE_BUDGET as f64;
+    let d = delta(solved);
+    let exact = format!("{}", d.get() * 1.0e3);
+    assert_eq!(exact, "0.0003746123456789012", "seventeen figures");
+    assert!(
+        exact.chars().count() > DisplayTolerance::RENDER_MM_MAX_CHARS,
+        "and no field this crate has is that wide"
+    );
+    assert_eq!(d.render_mm(), "0.0003746", "four of them");
+}
