@@ -2212,3 +2212,102 @@ and tells the lane to re-derive the whole table — and, per instruction
   and CI caught three census guards over two round trips. Wait for the
   exit code. This is `implementer-discipline` §2's *"a build is not a
   test"* one level in.
+
+### The build box ran out of disk mid-wave, and it is an orchestration hazard not a lane one
+
+The `error-kinds` lane reported the root filesystem wedged at **100%**,
+down to **180K** free, and it blocked `git commit` with
+*"index.lock write error. Out of diskspace"*. It got itself unstuck by
+deleting `/root/.cargo/registry/cache` (~100M of re-downloadable
+`.crate` tarballs, not the `src/` extractions builds read) and said
+plainly that this was a reprieve and not a fix. It touched no other
+lane's build state — correctly, since it could not know which were
+live.
+
+**That is the orchestrator's call and I made it.** Measured: nine
+`CARGO_TARGET_DIR`s under `/home/user/*-target`, 23G in total. Eight
+belonged to units of waves 1 and 2, **all merged**; exactly one
+(`census-containment-target`, 8.7M) belonged to a live wave-3 lane.
+Before deleting anything I confirmed **no `cargo`/`rustc` process was
+running** and **no target directory had a file modified in the last ten
+minutes** — the check that separates "stale" from "idle between
+steps". Removing the eight freed **22 GiB**; the box went from 96M to
+23G free.
+
+**The hazard is structural and worth stating.** Every lane is told to
+use its own `CARGO_TARGET_DIR` outside its worktree, which is right —
+a shared one serves another lane's binary, and this program has the
+scars. But nothing reclaims them, so each wave leaves ~2-3G per lane
+behind forever and the fourth wave is the one that dies. Five lanes
+were live when this fired and four of them could not have built.
+
+**Two consequences for this program's orchestration:**
+
+1. **Sweeping the previous wave's target directories is part of
+   closing a wave**, alongside the log entry and the item headers. The
+   safe test is the one above: no build process running, nothing
+   modified recently, and the unit's PR merged.
+2. **A lane that cannot build cannot tell you why in the usual way.**
+   This one surfaced it only because it hit `git commit` and read the
+   error; a lane that hit it inside `cargo` would have reported a
+   confusing build failure. Worth a brief clause if it recurs.
+
+`/home/user/cad/.claude/worktrees` holds a further 4.9G across sixteen
+worktrees, most from merged units. Left in place — 23G is ample — but
+it is the next thing to sweep.
+
+### `kind-mirrors-have-no-single-declaration` — the scale check answered, spec merged (PR 2417)
+
+**Feasible, for three of the four pairs.** `docs/FIX-ERRKINDS-SPEC.md`
+is in the tree; the item is `status: spec`; **the migration has not
+started and does not start until Ev has read §6.**
+
+The answer came by prototype and revert, which is what the unit asked
+for. Two grammar spellings are **forced, each a compile error first**:
+generics must be bracketed (`$(< $($g:tt)* >)?` gives *"local ambiguity
+when calling macro"* — which is why `transition_table!` brackets its
+own), and bounds go in a bracketed `where` group because
+`macro_rules!` cannot strip bounds off a self-type (E0229). The item's
+specific worry dissolves: **no pair carries `#[non_exhaustive]` or
+`cfg`**, and no variant in any of the eight enums carries a non-doc
+attribute at all.
+
+**Both claims the brief asked it to check came back sharp.**
+*"Closable by a derive and by nothing else"* is **false**, demonstrated
+rather than argued — the item's own later paragraph is the right one.
+And on the proc-macro precedent: the distinction **holds** (the
+`scripts/gates/README.md` rejection is of a mechanism for *enforcing*
+an invariant everywhere by opt-in annotation, where omission is
+invisible; generation is the opposite on that axis) — **but the item's
+"no design question for Ev" does not follow from it**, and the spec's
+§6 names five choices that arrive whichever way the clause reads. That
+is a better answer than either yes or no.
+
+**Two of the item's measurements are false at the merge base**, and
+both concern `Attr`/`AttrKind`, which the lane took **off** the
+migration list because it is not an error pair at all — it is the
+appearance store's serde-persisted key/value pair with a wire format.
+The item said its cited grep *"returns zero arms tree-wide, so nothing
+anywhere matches on it exhaustively."* I ran that exact grep: **three
+hits** (`crates/pncad-py/src/tags.rs:300-302`). And it could never have
+seen `AttrKind::noun()` (`crates/editor-core/src/appearance.rs:112`),
+an exhaustive match written in the `Self::` spelling the pattern cannot
+match. **Its phantom direction is guarded twice over.** Both facts
+predate the item.
+
+**The counts are 43 / 31 / 10, not 41 / 28 / 10** — and my own check of
+that correction is worth recording, because it failed the same way this
+log keeps describing. I ran
+`awk '/^pub enum BooleanError/,/^}/'` and counted 86, exactly double.
+The range fires twice: `pub enum BooleanErrorKind` also matches
+`/^pub enum BooleanError/`. A prefix match I did not think about
+produced a clean, plausible, wrong number — and had I reported it
+without asking why it was exactly 2x, it would have read as a refutation
+of a lane that was right.
+
+**Where the lane could not establish something it said so**: serde
+attribute passthrough was **not** executed (the disk was full, so no
+`cargo build`) — `#[derive(Debug)]` through a `meta` fragment is
+proven, `#[serde(...)]` is not, and only the dropped pair needs it. The
+prototype was type-checked (`--emit=metadata`), not run, and the report
+says so rather than claiming more.
