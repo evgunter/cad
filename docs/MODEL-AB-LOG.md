@@ -216,9 +216,17 @@ amended:
      the main-is-authority tiebreak when S-MESH's 1200–1299
      reached main first — no S-MATE ordinal had been claimed, so
      nothing renumbers but the band) · S-TCOST 1400–1499 (claimed
-     2026-09-02 at the S-TCOST program's opening —
-     `docs/S-TCOST-LOG.md`; test-only units in that program record
-     no row, so the band serves only its kernel-logic units) · CIW 1500–1599 · CHROME 1600–1699 · FIX 1700–1799 · DOCM 1800–1899 · VIEW 1900–1999 (Ev, in-chat, 2026-09-04: VIEW runs no duals — its reviews are style reviews with a second correctness reviewer where argued, so the band stays claimed and empty; `work/view/log.md`'s opening-for-work entry) · FILLET 2000–2099 · EXCH 2100–2199 · CURVED 2200–2299 · SHELL 2300–2399 · PROPS 2400–2499 · TRIM 2500–2599 (all eleven claimed 2026-09-03 at the programs' joint opening from
+     2026-09-02 at the S-TCOST program's opening — `work/tcost/log.md`,
+     the opening entry; the `docs/S-TCOST-LOG.md` this entry named until
+     2026-09-12 is the pre-tracker spelling and `work/README.md` now
+     refuses that path outright. Three ordinals were drawn — 1400, 1401,
+     1402, for TCOST-K1/K2/K3 — and **the band draws no more**: Ev,
+     in-chat 2026-09-12, ruled S-TCOST off the A/B protocol entirely, so
+     every unit it dispatches from here reviews as a style review, with a
+     full review where the unit's risk of being WRONG argues for one. The
+     band stays claimed and closed rather than released, on the VIEW
+     precedent below and for the same reason — the three recorded rows
+     keep their ordinals for life) · CIW 1500–1599 · CHROME 1600–1699 · FIX 1700–1799 · DOCM 1800–1899 · VIEW 1900–1999 (Ev, in-chat, 2026-09-04: VIEW runs no duals — its reviews are style reviews with a second correctness reviewer where argued, so the band stays claimed and empty; `work/view/log.md`'s opening-for-work entry) · FILLET 2000–2099 · EXCH 2100–2199 · CURVED 2200–2299 · SHELL 2300–2399 · PROPS 2400–2499 · TRIM 2500–2599 (all eleven claimed 2026-09-03 at the programs' joint opening from
      `docs/WORK-TRACKS-2026-09.md` — the successor programs CURVED,
      SHELL, PROPS and TRIM hold their bands from opening but draw no
      ordinal before their predecessor's exit — SHELL EXCEPTED since
