@@ -117,8 +117,92 @@ Then `d321-row-number-reissued` (a retired-id rule for
 a sentence in `memories/`, which is **Ev's call and waits on an `[ev]`
 PR** (CLAUDE.md); the `docs/prompts/` half is META's to land.
 
-`S176` and `doc-line-citations-rot-silently` go last and in that order:
-state the convention, then sweep against it.
+`S176` and `doc-line-citations-rot-silently` were ordered last and in
+that order — state the convention, then sweep against it. **The sweep
+half is declined** (Ev, 2026-09-11; see *The convention*, below). Both
+rows close on the convention alone.
+
+## The convention: cite by name, and the number is optional
+
+**Ratified 2026-09-11.** Ev, reading the slate: *"I am confused, aren't
+we already citing by name?"* The answer is yes, and measuring it is what
+settles both `H` rows on this slate.
+
+### The rule
+
+> **Name the subject. The line number is optional and may be dropped.**
+> A citation names the thing — the `fn`, the `const`, the type, the
+> macro, the job's `name:`, the quoted sentence — in the file that holds
+> it. A line number may ride along where a reader genuinely needs to
+> land on a spot, and it is then a convenience that is allowed to rot.
+> **What is not allowed is a bare number**: a citation whose only
+> handle is `file.rs:NNN` has no way back once the tree moves.
+
+### Why this is a ratification and not a proposal
+
+It is already the house style, and that is measured, not asserted:
+`tracker-file-line-citations-measured` counted every `<path>:<line>` in
+every open row — **1,508 citations, 317 rows, 22 programs** — and found
+**1,446 (96%) already carry a backticked identifier or a quoted phrase
+within one line of the number**, running 90–100% per program. So
+adopting the symbol-anchored form is mostly *deleting a redundant
+number*, not authoring a new anchor, and **the 4% that carry no anchor
+are the only citations where a decision is actually needed.**
+
+### What this program's own work proves about it
+
+The four days behind this plan produced an unusually clean experiment,
+because every citation CITE touched was one that had rotted:
+
+- `forms.rs:190` was the **wrong file and the wrong line** for the
+  sentence it cited — and one grep for the quoted words
+  (*"a variant with no word does not parse"*) found it in `vocab.rs`,
+  in a macro body, in seconds.
+- `nightly.yml:492` and `ci.yml:2443` both moved; the job's `name:` and
+  the tombstone's opening words did not.
+- Three of `loud-skip`'s eight line numbers had drifted; **seven of its
+  eight names resolved**, and the eighth failed to resolve because its
+  subject was genuinely gone — which is information the number alone
+  could never have carried.
+
+**The number rotted every time and the name held every time.** That is
+Ev's 2026-09-09 point reached from the other end — a drifted line costs
+a *lookup*, not a wrong answer — and it is the whole argument for the
+remedy being *cite by name* rather than *re-check more carefully*
+(`S176`: a re-check catches the rot only if the citation outlives the
+edit by long enough to be re-read).
+
+### What is deliberately NOT done
+
+**No sweep, and no gate.** A register-wide re-derivation of 1,508
+citations buys, at most, the deletion of redundant numbers beside
+anchors that already work. `tracker-file-line-citations-measured` also
+kills the gate: a mechanical checker sees only the 2.1% whose file or
+line is out of range, while VIEW's hand-sweeps found ~75% of the
+citations they touched pointing at the wrong *subject* — all of them
+inside the "file exists, line in range" column. So a check over line
+numbers would red on almost nothing that matters and stay silent on
+almost everything that does.
+
+**Three shapes are never repointed**, rediscovered independently by
+VIEW's sweeps and by this program's lanes:
+
+1. a citation whose **subject is gone** — repointing invents one (the
+   `loud-skip` entry #1848 reversed is the worked example);
+2. a citation into a file the citing change never touched;
+3. a **pasted tool transcript dated to a SHA**, where rewriting the
+   number would make a true record false.
+
+Where one of those is met, the citation stays as written with a marked
+correction beneath it, so the rot stays legible.
+
+### Where this text lives
+
+Here, which is the home that survives for as long as this program is
+open. **Where it binds every lane it belongs in
+`docs/prompts/implementer-discipline.md`, which is META's file and
+META's to land** — not taken from here, and announced to META in this
+PR. That is the one piece of this convention CITE does not own.
 
 ## Review posture
 

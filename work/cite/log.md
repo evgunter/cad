@@ -104,3 +104,31 @@ arrived at from the other end.
 
 So the disposition for both `H` rows is to state the convention as
 **already-practiced** and close, not to sweep. Written up next.
+
+## The convention landed; both H rows closed (2026-09-11)
+
+`work/cite/plan.md` now carries *The convention: cite by name, and the
+number is optional* — the rule, the measurement that makes it a
+ratification rather than a proposal, the three shapes that are never
+repointed, and the reason no sweep and no gate follow from it.
+
+Closed on it: **`S176`** (its blank `Verdict:` filled, and marked as
+closed on the measurement rather than on a ruling Ev never gave),
+**`doc-line-citations-rot-silently`** (closed, not deferred — nothing is
+waiting for a trigger; the remedy was adopted in a cheaper form), and
+**`tracker-file-line-citations-measured`** (folded; every one of its
+figures is load-bearing in the convention).
+
+The one piece CITE does not own: where the convention binds every lane
+it belongs in `docs/prompts/implementer-discipline.md`, which is META's
+file. Announced to META in the PR, not taken from here.
+
+**Slate after this PR.** Closed: `C-namespace`, `S176`,
+`doc-line-citations-rot-silently`, `tracker-file-line-citations-measured`,
+`build-slot-banner-leaks-the-holders-command-line`. Deferred:
+`lane-scratchpad-is-shared-between-worktrees`. Standing watch, unfired:
+`S351`. Still open: the three repaired rows, which wait on their owning
+programs reading the marked sections (`code-quality-item-quotes-…` on
+DOOR, `d107-…` on TOPO, `loud-skip-marker-…` on TINT), plus
+`d321-row-number-reissued` and
+`no-local-script-builds-all-four-cargo-workspaces`, neither started.
