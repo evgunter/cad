@@ -120,3 +120,44 @@ arms against a stated total of nine, and `certify.rs:2233`'s stated 21
 is larger than the arms the scan could see. Either may be the scanner's
 windowing rather than the code's; neither was verified, and the
 instrument will answer both.
+
+## The hole is one notch wider than filed (2026-09-12, the kind-mirror lane)
+
+Measured while adopting the idiom at the `SurfaceKind` / `CurveKind`
+mirrors. This file says the arm an author writes is the arm they
+copied. The sharper statement is that **only ONE arm is ever read at
+all** — the scrutinee's — so the other arms are not a second chance to
+catch the author, and they can disagree with each other indefinitely
+without any row noticing.
+
+Probe, on `all_surface_kinds_is_the_whole_enum` with a scratch eighth
+`SurfaceKind::Probe` variant absent from `ALL_SURFACE_KINDS`:
+
+    let kinds = match SurfaceKind::Plane {
+        SurfaceKind::Plane => 7,   // …and five more arms at 7
+        SurfaceKind::Approx => 7,
+        SurfaceKind::Probe => 8,   // the new arm, honestly numbered
+    };
+
+`kinds` is the `Plane` arm's 7, `ALL_SURFACE_KINDS.len()` is 7:
+**GREEN**, with the new kind absent from the list AND an arm in the
+same match saying the total is 8. Writing 8 in *every* arm reds it
+correctly (`it holds 7 kinds, the enum has 8`). So the row rewards the
+author who re-decides the number in all arms and is silent about the
+one who re-decides it in the arm they just wrote — the likelier
+mistake, since that is the arm the compiler pointed at.
+
+Every site in the table above has this shape (a `match <one literal
+variant>`), so the sharpening is the class's, not one site's. It
+strengthens the case for the discriminant-walk or macro answer rather
+than changing which answer is right.
+
+## Two more sites (2026-09-12)
+
+`crates/topo/src/query.rs`'s `all_surface_kinds_is_the_whole_enum` (7
+arms) and `curve_kind_all_is_the_whole_enum` (4 arms), added by the
+`surface-and-curve-kind-mirrors-have-a-tautological-guard` unit, which
+adopted the idiom because it is what the tree has and its residue is
+this item. They are two more adoption sites for whatever lands here —
+recorded because this file's own subject is a count nobody maintains,
+not because the count is now eleven.

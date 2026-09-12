@@ -1724,7 +1724,6 @@ mod tests {
             );
         }
     }
-
 }
 
 // The interval-safety half of the constructor's contract, at the
