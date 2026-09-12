@@ -839,14 +839,34 @@ pub fn scene_of_body(
 /// never its answer.
 pub const TRIANGLE_BUDGET: usize = 1_000_000;
 
-/// How much coarser than the requested δ the cost probe runs.
+/// How much coarser than the δ it prices a cost probe runs.
 ///
-/// Eight doublings-worth of cost is ~1/8 of the requested δ's
-/// tessellation, which is what makes the probe affordable; and it is
+/// Eight doublings-worth of cost is ~1/8 of the priced δ's
+/// tessellation, which is what makes a probe affordable; and it is
 /// close enough to the target that the 1/δ law below still holds
 /// tightly (it softens at genuinely coarse δ, where planar faces have
 /// stopped subdividing and only the curved ones still respond).
+///
+/// **What it is coarser THAN is the δ being priced, not the δ being
+/// asked for.** Those are the same number only while the budget does
+/// not move δ, and sizing a probe off the request is what let the
+/// probe grow past the picture it sizes: a request the budget has to
+/// coarsen by more than this factor is a request whose probe costs
+/// more than the answer's whole picture ([`fit_delta`] says what
+/// replaced that).
 const PROBE_FACTOR: f64 = 8.0;
+
+/// The δ the scale probe runs at: coarser than any body this viewer
+/// opens, so nothing subdivides and the tessellation is the body's
+/// FLOOR — the cheapest one it has at any δ, and the one whose points
+/// say how big the body is.
+///
+/// A starting point, not a bound. A body larger than this still
+/// tessellates here and the mesh is still no larger than the picture
+/// (the count is non-increasing in δ); all that is lost is the
+/// floor's tightness, and the ladder in [`fit_delta`] walks down from
+/// wherever it starts.
+const SCALE_PROBE_DELTA: f64 = 1.0e9;
 
 /// What [`fit_delta`] decided, and why — a value, so the chrome can
 /// say it and a row can assert it.
@@ -877,6 +897,13 @@ pub struct FittedDelta {
     /// moved δ; `None` when the request was affordable and nothing
     /// was changed.
     pub requested_cost: Option<usize>,
+    /// What finding this δ cost: triangles tessellated across every
+    /// probe [`fit_delta`] ran.
+    ///
+    /// **Never more than the picture at [`FittedDelta::delta`]** —
+    /// that is the fit's invariant, and this is the number a row
+    /// holds it by.
+    pub probe_triangles: usize,
 }
 
 impl FittedDelta {
@@ -889,6 +916,7 @@ impl FittedDelta {
             requested,
             predicted: 0,
             requested_cost: None,
+            probe_triangles: 0,
         }
     }
 
@@ -930,12 +958,17 @@ impl FittedDelta {
 /// re-reads it. A budget that bound every rebuild would disable that
 /// field on exactly the documents someone would want it for.
 ///
-/// # The method: predict, do not ladder
+/// # The method: probe coarse, solve, refine
 ///
-/// A ladder — try δ, halve until it fits — pays for the tessellation
-/// it then throws away, and the one it throws away is the expensive
-/// one. So this probes ONCE, at [`PROBE_FACTOR`] × the request, and
-/// solves.
+/// A ladder that starts at the request — try δ, halve until it fits —
+/// pays for the tessellation it then throws away, and the one it
+/// throws away is the expensive one. So this ladder runs the other
+/// way: it starts at the body's own extent, where nothing subdivides,
+/// and each rung is a δ the rung above it has already PRICED at no
+/// more than `TRIANGLE_BUDGET / PROBE_FACTOR` triangles. It descends
+/// only while a finer rung would buy a materially better reading of
+/// `C`, and it stops at [`PROBE_FACTOR`] × the request, which is the
+/// rung that prices the request itself.
 ///
 /// The law it solves is `triangles ≈ C/δ`, which is what a chord-sized
 /// grid over a fixed surface gives: each direction is cut ∝ 1/√δ, so
@@ -956,14 +989,50 @@ impl FittedDelta {
 /// (`tests/display_budget.rs` asserts the drawn count against the
 /// budget at a 0.01 mm request, with that margin).
 ///
-/// # What it costs, and what it costs on a document that fits
+/// # What it costs: no probe is larger than the picture it sizes
 ///
-/// One tessellation of the gathered product at the probe δ — about an
-/// eighth of the request's. On a document already inside the budget
-/// the prediction returns a δ* below the request, the request is kept,
-/// and the probe was a tessellation of a small mesh: `checks` and
-/// `heatsink` are 24 and 72 triangles at every δ, because an
-/// all-planar body never subdivides.
+/// **That is the invariant, and two facts hold it.** The tessellator's
+/// triangle count is non-increasing in δ; and every rung runs at a δ
+/// at least [`PROBE_FACTOR`] coarser than the δ its own count solves
+/// for, so the committed δ is finer than every rung that was run and
+/// the picture carries at least as many triangles as any of them.
+/// The same choice bounds a rung absolutely: a rung placed at
+/// `PROBE_FACTOR · C / TRIANGLE_BUDGET` is PREDICTED to cost
+/// `TRIANGLE_BUDGET / PROBE_FACTOR`, and an actual count can only come
+/// in under a prediction read off a coarser probe (the law's error is
+/// the planar over-count, whose sign is stated at
+/// [`FittedDelta::predicted`]). Rungs are a doubling apart, so the
+/// whole ladder costs within a small factor of its last rung:
+/// [`FittedDelta::probe_triangles`] is that total, and over the corpus
+/// at the application's δ and a decade finer it is at most
+/// `TRIANGLE_BUDGET / 4` (`tests/display_budget.rs`).
+///
+/// What a probe cost BEFORE this ladder, on the same corpus, was
+/// `TRIANGLE_BUDGET · δ_fitted / (PROBE_FACTOR · δ_requested)` — a
+/// number with the requested δ in the denominator, and so no bound at
+/// all: `hollow_tube_ring` at 0.01 mm probed 1_452_960 triangles to
+/// size a 1_002_536-triangle picture, 1.8 s of it on the UI thread.
+///
+/// **What that costs on a document the budget does not bind**: the
+/// rungs above the last one, which the last one dominates but does not
+/// swamp — the fit tessellates 1.2–1.7× what a single probe at
+/// `PROBE_FACTOR` × the request would, and lands on exactly the δ and
+/// the predicted cost that single probe would have (the last rung IS
+/// that probe, so `C` is read off the same mesh). An all-planar body
+/// pays two tessellations of a mesh that never subdivides: `checks`
+/// and `heatsink` are 24 and 72 triangles at every δ.
+///
+/// # Why the probe is not on the index worker instead
+///
+/// The other shape available here was to leave the probe as it was and
+/// move it onto the worker that builds the pick index, which already
+/// holds the body, so `Open` keeps repainting while it runs. That
+/// moves the wait without removing it: the picture cannot be built
+/// until δ is chosen, so a probe larger than the picture still delays
+/// the first picture by more than the picture itself costs, and the
+/// seam would gain a stage whose cost is unbounded in the requested δ.
+/// The two are independent — a bounded probe can still move off the UI
+/// thread afterwards, and it is a cheaper thing to move.
 ///
 /// # The count is the picture's, not an estimate of it
 ///
@@ -996,19 +1065,48 @@ pub fn fit_delta(
     requested: DisplayTolerance,
     tol: Tol,
 ) -> Result<FittedDelta, SceneError> {
-    let probe_delta = requested.scaled(PROBE_FACTOR)?;
-    let probe = tessellate(body, probe_delta.get(), tol).map_err(SceneError::NotTessellated)?;
-    let probe_triangles: usize = probe
-        .patches
-        .iter()
-        .map(|patch| patch.triangles.len())
-        .sum();
-    // C, in triangle·metres. A body that tessellates to nothing at the
-    // probe δ has no curvature to spend on, so it costs the same at
-    // every δ and the request stands.
-    let constant = probe_triangles as f64 * probe_delta.get();
     #[allow(clippy::cast_precision_loss)]
     let budget = TRIANGLE_BUDGET as f64;
+    // The finest δ any probe here runs at: PROBE_FACTOR coarser than
+    // the request, which is the rung that prices the request itself.
+    // Nothing below it is ever tessellated, because nothing below it
+    // is ever needed — a request already inside the budget is the
+    // answer, and one the budget moves is answered from a COARSER
+    // rung.
+    let finest = requested.scaled(PROBE_FACTOR)?;
+    // The scale probe: the body's floor mesh, and the extent its
+    // points span. Nothing subdivides anywhere between that extent and
+    // this δ, so this count is the count at the extent too, and the
+    // ladder starts there with a rung it has already paid for.
+    let scale = tessellate(body, SCALE_PROBE_DELTA, tol).map_err(SceneError::NotTessellated)?;
+    let mut triangles = triangle_count(&scale);
+    let mut probe_triangles = triangles;
+    let mut probe_delta = extent(&scale).max(finest.get());
+    let constant = loop {
+        // C, in triangle·metres. A body that tessellates to nothing at
+        // this rung has no curvature to spend on, so it costs the same
+        // at every δ and the request stands.
+        #[allow(clippy::cast_precision_loss)]
+        let constant = triangles as f64 * probe_delta;
+        // The rung that prices the δ this one solves for — or the one
+        // that prices the request, when the request is the answer and
+        // there is nothing coarser to find. Its predicted cost is
+        // TRIANGLE_BUDGET / PROBE_FACTOR by construction, which is
+        // what makes descending to it affordable.
+        let next = (PROBE_FACTOR * constant / budget).max(finest.get());
+        // Descend for a rung that pays for itself — a doubling finer,
+        // or the finest probe there is, where an affordable request
+        // gets its cost read off the very mesh a single probe would
+        // have read it off. This terminates: `next` is bounded below
+        // by `finest` and every step at least halves the δ.
+        if next >= probe_delta || (next > probe_delta * 0.5 && next > finest.get()) {
+            break constant;
+        }
+        probe_delta = next;
+        let mesh = tessellate(body, probe_delta, tol).map_err(SceneError::NotTessellated)?;
+        triangles = triangle_count(&mesh);
+        probe_triangles += triangles;
+    };
     let solved = constant / budget;
     if solved <= requested.get() {
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -1018,6 +1116,7 @@ pub fn fit_delta(
             requested,
             predicted,
             requested_cost: None,
+            probe_triangles,
         });
     }
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -1027,7 +1126,32 @@ pub fn fit_delta(
         requested,
         predicted: TRIANGLE_BUDGET,
         requested_cost: Some(requested_cost),
+        probe_triangles,
     })
+}
+
+/// The triangles a tessellation carries.
+fn triangle_count(mesh: &Mesh) -> usize {
+    mesh.patches.iter().map(|patch| patch.triangles.len()).sum()
+}
+
+/// How far apart a mesh's points are: the diagonal of their bounding
+/// box, and so a δ at which the body that produced them does not
+/// subdivide at all.
+///
+/// Zero for a mesh with no points, and for one whose points are not a
+/// finite box — a caller that starts a ladder here reads that as "no
+/// rung coarser than the finest", which is the one place the answer is
+/// a δ rather than a refusal.
+fn extent(mesh: &Mesh) -> f64 {
+    let Some(box_) = Aabb::from_points(mesh.positions.iter().copied()) else {
+        return 0.0;
+    };
+    let dx = box_.max_x - box_.min_x;
+    let dy = box_.max_y - box_.min_y;
+    let dz = box_.max_z - box_.min_z;
+    let diagonal = dz.mul_add(dz, dx.mul_add(dx, dy * dy)).sqrt();
+    if diagonal.is_finite() { diagonal } else { 0.0 }
 }
 
 /// The whole path: document → evaluated product → tessellation at δ →

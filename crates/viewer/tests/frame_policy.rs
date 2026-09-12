@@ -314,6 +314,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
         requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
         predicted: 1_000,
         requested_cost: Some(9_000_000),
+        probe_triangles: 125_000,
     };
     let keeps_nothing = Absent.unusable().expect("this store keeps nothing");
 
@@ -797,6 +798,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
         requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
         predicted: 1_000,
         requested_cost: Some(9_000_000),
+        probe_triangles: 125_000,
     };
     for (which, badge) in [
         (

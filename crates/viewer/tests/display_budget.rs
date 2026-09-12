@@ -350,13 +350,14 @@ struct Answer {
 /// δ the application starts on and at the decade finer where the
 /// budget binds on the curved ones.
 ///
-/// The rows are what `scene::fit_delta` committed before the probe
-/// ladder replaced its single probe: twenty-eight documents, two
-/// requests each, and seven rows the budget binds. A change to the
-/// WORK of finding a δ may not move the δ, and the forty-nine rows it
-/// does not bind are held here to exactly that — same δ, same
-/// predicted cost, read off the same mesh. The seven it binds carry
-/// what each one moved to, and the PR that moved it says why.
+/// Twenty-eight documents, two requests each, and seven rows where
+/// the budget binds. **The δ is the answer to a question about the
+/// body and the budget**, so the work of finding it may change and
+/// these may not: a row that moves is a change to what the viewer
+/// opens documents at, and has to be argued as one. The forty-nine
+/// rows the budget does not bind hold the tighter half of that — the
+/// δ asked for, drawn as asked, priced off the very mesh a single
+/// probe at [`scene::fit_delta`]'s probe factor reads.
 const ANSWERS: &[Answer] = &[
     Answer {
         document: "die",
@@ -648,9 +649,9 @@ const ANSWERS: &[Answer] = &[
     Answer {
         document: "die_composed_tour",
         requested: 1e-5,
-        delta: 1.876128e-5,
+        delta: 1.954846211277421e-5,
         predicted: 1000000,
-        requested_cost: Some(1876128),
+        requested_cost: Some(1954846),
     },
     Answer {
         document: "plate_param",
@@ -690,9 +691,9 @@ const ANSWERS: &[Answer] = &[
     Answer {
         document: "tube_ring",
         requested: 1e-5,
-        delta: 6.41088e-5,
+        delta: 6.414133008947617e-5,
         predicted: 1000000,
-        requested_cost: Some(6410880),
+        requested_cost: Some(6414133),
     },
     Answer {
         document: "tube_arc",
@@ -704,9 +705,9 @@ const ANSWERS: &[Answer] = &[
     Answer {
         document: "tube_arc",
         requested: 1e-5,
-        delta: 1.031136e-5,
+        delta: 1.0310142490965582e-5,
         predicted: 1000000,
-        requested_cost: Some(1031136),
+        requested_cost: Some(1031014),
     },
     Answer {
         document: "hollow_tube_elbow",
@@ -718,23 +719,23 @@ const ANSWERS: &[Answer] = &[
     Answer {
         document: "hollow_tube_elbow",
         requested: 1e-5,
-        delta: 2.795648e-5,
+        delta: 2.8078062883669125e-5,
         predicted: 1000000,
-        requested_cost: Some(2795648),
+        requested_cost: Some(2807806),
     },
     Answer {
         document: "hollow_tube_ring",
         requested: 0.0001,
-        delta: 0.00011645440000000001,
+        delta: 0.0001164492484410271,
         predicted: 1000000,
-        requested_cost: Some(1164544),
+        requested_cost: Some(1164492),
     },
     Answer {
         document: "hollow_tube_ring",
         requested: 1e-5,
-        delta: 0.00011623680000000002,
+        delta: 0.0001164492484410271,
         predicted: 1000000,
-        requested_cost: Some(11623680),
+        requested_cost: Some(11644924),
     },
     Answer {
         document: "gallery_ring",
@@ -746,9 +747,9 @@ const ANSWERS: &[Answer] = &[
     Answer {
         document: "gallery_ring",
         requested: 1e-5,
-        delta: 1.643776e-5,
+        delta: 1.6372398767083734e-5,
         predicted: 1000000,
-        requested_cost: Some(1643776),
+        requested_cost: Some(1637239),
     },
 ];
 
@@ -765,6 +766,18 @@ fn the_budget_commits_the_delta_it_always_has() {
         for requested in [INITIAL_DELTA, OVER_BUDGET_DELTA] {
             let fitted = scene::fit_delta(body, delta(requested), tol)
                 .unwrap_or_else(|error| panic!("{document} fits at {requested}: {error}"));
+            // The absolute half of the fit's bound, on every document
+            // it is ever asked about. Each rung is placed to cost at
+            // most `TRIANGLE_BUDGET / PROBE_FACTOR` and the rungs are a
+            // doubling apart, so the ladder's total is inside twice
+            // that; main's single probe had no bound here at all, and
+            // `hollow_tube_ring` at 0.01 mm broke this one by 5.8×.
+            assert!(
+                fitted.probe_triangles <= TRIANGLE_BUDGET / 4,
+                "{document} at δ = {requested}: the fit tessellated {} triangles to \
+                 size a picture the budget caps at {TRIANGLE_BUDGET}",
+                fitted.probe_triangles
+            );
             answers.push(Answer {
                 document,
                 requested,
@@ -791,5 +804,148 @@ fn the_budget_commits_the_delta_it_always_has() {
              as this table's own source:\n{}",
             rows.join("\n")
         );
+    }
+}
+
+/// **No probe is larger than the picture it sizes.** The fit's own
+/// invariant, measured on both gallery documents at a request the
+/// budget does not bind and one it does — the two sides of the bind,
+/// because the defect this closes lived entirely on one of them: a
+/// probe sized off the REQUEST costs
+/// `budget · δ_fitted / (PROBE_FACTOR · δ_requested)`, which passes the
+/// picture the moment the budget has to coarsen δ by more than
+/// `PROBE_FACTOR`. `hollow_tube_ring` at 0.01 mm tessellated 1_452_960
+/// triangles to size a 1_002_536-triangle picture.
+///
+/// The picture here is the tessellation at the committed δ, counted —
+/// the same count `scene_of_body` would draw, taken through
+/// `mesh::tessellate` so the row weighs triangles rather than GPU
+/// vertices.
+#[test]
+fn no_probe_out_tessellates_the_picture_it_sizes() {
+    let tol = Tol::witness();
+    for (document, doc) in gallery_documents(tol) {
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let body = session
+            .landed_body()
+            .unwrap_or_else(|| panic!("{document} gathers"));
+        for requested in [INITIAL_DELTA, OVER_BUDGET_DELTA] {
+            let fitted = scene::fit_delta(body, delta(requested), tol)
+                .unwrap_or_else(|error| panic!("{document} fits at {requested}: {error}"));
+            let picture = triangles_at(body, fitted.delta.get(), tol);
+            assert!(
+                fitted.probe_triangles <= picture,
+                "{document} at δ = {requested}: the fit tessellated {} triangles to size a \
+                 picture of {picture}",
+                fitted.probe_triangles
+            );
+        }
+    }
+}
+
+/// **The count a body tessellates to stops falling once δ passes the
+/// body's own size**, which is what lets the fit start its ladder at a
+/// rung it has already paid for: the scale probe runs at a δ coarser
+/// than any body, and the count it brings back is the count at the
+/// body's extent too.
+///
+/// It is also the first of the two facts the fit's invariant rests on
+/// — the count is non-increasing in δ — measured where it matters,
+/// between the coarsest rung and the finest.
+#[test]
+fn a_bodys_triangle_count_stops_falling_past_its_own_size() {
+    let tol = Tol::witness();
+    for (document, doc) in gallery_documents(tol) {
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let body = session
+            .landed_body()
+            .unwrap_or_else(|| panic!("{document} gathers"));
+        // Three δ a decade apart, all past the extent of any document
+        // here (the gallery ring's is 0.65 m), and the finest δ the
+        // application opens on.
+        let floor = triangles_at(body, 1.0e1, tol);
+        for coarser in [1.0e3, 1.0e9] {
+            assert_eq!(
+                triangles_at(body, coarser, tol),
+                floor,
+                "{document} tessellates differently at δ = {coarser} m than at 10 m, so a \
+                 probe coarser than the body is not the floor after all"
+            );
+        }
+        assert!(
+            floor <= triangles_at(body, INITIAL_DELTA, tol),
+            "{document} tessellates to MORE triangles at 10 m than at the starting δ"
+        );
+    }
+}
+
+/// The tour's two gallery documents — the multi-root ones the display
+/// budget was written for.
+fn gallery_documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
+    let tour = corpus::documents()
+        .into_iter()
+        .find(|c| c.name == "die_composed_tour")
+        .expect("the tour's die is a corpus document")
+        .doc;
+    vec![
+        ("die_composed_tour", tour),
+        ("gallery_ring", gallery_ring_doc(tol)),
+    ]
+}
+
+/// What a body tessellates to at one δ, in triangles.
+fn triangles_at(body: &pncad::topo::Body<f64>, delta: f64, tol: Tol) -> usize {
+    let mesh = pncad::mesh::tessellate(body, delta, tol)
+        .unwrap_or_else(|error| panic!("a body tessellates at δ = {delta}: {error:?}"));
+    mesh.patches.iter().map(|patch| patch.triangles.len()).sum()
+}
+
+/// **A budget δ is an answer about the body and the budget, and about
+/// nothing else** — ask for a decade finer and the same document opens
+/// at the same δ.
+///
+/// That is what a fit whose probe is placed by the ANSWER buys, and it
+/// is not a restatement of the table above: a probe placed by the
+/// REQUEST reads the 1/δ constant at a different place for every
+/// request, so the same body under the same budget answers a different
+/// δ each time it is asked, and the finer the request the more it
+/// tessellates to say so.
+///
+/// The rows are the two gallery documents at the three requests they
+/// are opened at — the application's starting δ, and the two decades
+/// below it — over the requests where the budget binds, which is where
+/// there is an answer to be independent.
+#[test]
+fn a_budget_delta_does_not_depend_on_the_delta_asked_for() {
+    let tol = Tol::witness();
+    for (document, doc) in gallery_documents(tol) {
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let body = session
+            .landed_body()
+            .unwrap_or_else(|| panic!("{document} gathers"));
+        let mut bound: Vec<(f64, f64)> = Vec::new();
+        for requested in [INITIAL_DELTA, OVER_BUDGET_DELTA, OVER_BUDGET_DELTA / 10.0] {
+            let fitted = scene::fit_delta(body, delta(requested), tol)
+                .unwrap_or_else(|error| panic!("{document} fits at {requested}: {error}"));
+            if fitted.requested_cost.is_some() {
+                bound.push((requested, fitted.delta.get()));
+            }
+        }
+        assert!(
+            bound.len() >= 2,
+            "{document} is inside the budget at every request here, so it has no answer for \
+             this row to hold still"
+        );
+        let (first_requested, answer) = bound[0];
+        for &(requested, delta) in &bound[1..] {
+            assert_eq!(
+                delta, answer,
+                "{document} opens at {delta} when {requested} is asked for and at {answer} \
+                 when {first_requested} is, though the budget and the body are the same"
+            );
+        }
     }
 }
