@@ -2140,3 +2140,193 @@ was, here.
 `--pr` was deleted; `RUN_PNCAD_PY` was kept as reporting, with its own
 file (`run-pncad-py-is-computed-and-gates-nothing`) carrying the argument
 for treating the two differently.
+
+## Two units landed, and the reviews were worth more than the units (2026-09-12)
+
+`r1-probe-seeds-are-not-on-the-fuzz-dial` (PR 2433) and
+`nightly-demotions-c1-c3-were-bought-with-billed-minutes` (PR 2434) both
+merged. Both went in through a review that found something the lane had
+not, and in both cases **the finding was worth more than the unit**.
+
+**PR 2433 — a gate that was skipping its own suite.** The unit routed
+three clock-seeded R1 rows onto `test_utils::fuzz` and added a marker to
+the one that was ungated. The style review found the marker named five
+paths where the suite asserts on seventeen; reproduced with
+`ci-filter.py --files`, a change to `editor-core/src/product.rs`,
+`src/edit.rs` or `topo/src/body.rs` each SKIPPED it. Fixed to 17 paths,
+and verified in **both** directions before merge — it selects on all
+three, and still skips on `mesh/`, `geom-core/src/interval.rs` and
+`editor-core/src/mc.rs`. A marker that never skips has retired the gate
+rather than fixed it, and only the second check catches that.
+
+**PR 2434 — a deletion that would have lost coverage permanently.** The
+unit restored three demoted checks and deleted all three nightly
+counterparts as "strictly duplicate". Two were. The third was not:
+nightly `rustdoc-roots` ran `doc-gate.sh` whole, which sets
+`RUSTDOCFLAGS="-D warnings …"` **internally** — `RUSTDOCFLAGS` grep-counts
+zero in both workflow files — while the claimed re-take is a bare
+`cargo doc -p viewer --all-features --no-deps`, and
+`broken_intra_doc_links` is warn-by-default. It exits 0 on a broken link.
+Had the deletion stood, a broken viewer doc link written by a change
+seeding none of {viewer, pncad, bvh} would have been caught by nothing,
+ever. Both of Ev's rulings that make the PR-gate pass seed-keyed and
+lint-inert are binding, so the nightly is the only place that pass can
+live. Kept whole.
+
+**And the one required check could have passed over a job that never
+ran.** `release-corruption` was restored to `ci.yml` without being added
+to `gate-ok`'s `needs:`. `check-run-jobs.py` builds its population as
+every job in the run except itself and holds **no expected-job roster**:
+`queued`/`in_progress` reds, **absent reads green**. There is no selftest
+arm for absent and there cannot be one — the script has no expectation to
+assert against. On that PR's own run the hole did not open, by scheduling
+luck. Filed as `work/ciw/gate-ok-has-no-expected-job-roster` with the
+cheap fix named: a selftest arm asserting `ci.yml`'s job keys equal
+`gate-ok`'s `needs:`.
+
+## The shard count is measured and the answer is no (2026-09-12)
+
+*Summary only — the unit's own entry below ("The shard count is
+measured, and it stays at 2") is the fuller record and was written by
+the lane that took the readings.*
+
+`nextest-shard-count-needs-remeasure` was re-opened on 2026-09-11 because
+its verdict had been priced in billed minutes. Twelve hosted code-tier
+runs over N ∈ {2,3,4,6}: **N stays at 2.**
+
+The re-opening was right about the currency and wrong about the answer,
+and the reason is the one clause it explicitly declined to re-open —
+*"no single test binds any N up to 4."* It does now.
+`r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`
+is 346-660 s alone, 85-96 % of the leg that finishes last on all thirty
+runs read, at every count. Five rows cut cleanly to N=4; the sixth does
+not respond to the count at all, and a run's wall is the max over legs.
+
+**The by-product is worth more than the verdict**: that row is ε-GATED.
+It builds at `guide(2.0 - 1.0e-11)`, so it is the whole critical path at
+ε = 1e-12 and under 20 s elsewhere. Nothing had ever read that suite
+per-ε. `one-test-is-the-whole-ci-critical-path` owns it.
+
+## What the reviews cost the reports, and it is the same lesson twice
+
+**Three reports were wrong about their own evidence, in both
+directions**, and each was caught by re-deriving rather than by reading:
+
+- the R1 lane reported "ten files" of fixed-literal seeds; it is **14
+  sites in 7 files**, one named file has no such seed at all, and two
+  named sites are correctly *compliant*;
+- the R1 reviewer said four eager `format!` sites and ~768 per run; it is
+  three sites and **816**, and it named the wrong crate for `Surface`;
+- the shard PR quoted **"83-90 %"** where its own table gives 85-96 %,
+  and leg ranges whose lower bounds appear in no table cell.
+
+The last is the sharpest, because that PR's entire subject is a figure
+that rotted — and it shipped four fresh copies of a new figure into the
+file that says in as many words *"two copies of an unguarded measurement
+are two things to keep in step"*, and the copies had already diverged on
+the day they were written. The fix-mints-a-fresh-instance rule caught it;
+nothing else would have.
+
+The standing lesson is already in this log and keeps earning its place:
+**a figure nobody re-derives is a claim, not a measurement.** It cost one
+grep each time.
+
+## Filed out of the four reviews (2026-09-12)
+
+Eleven rows across four programs, placed by fence rather than by who
+found them. S-TCOST: `gated-markers-name-too-few-src-paths` (the `src/`
+half of a marker is checked by nothing),
+`effort-dials-that-do-not-reach-the-search-space`,
+`eager-sweep-messages-on-the-effort-dial` (the lane's own, in-fence).
+S-TINT: the unexplained-literal-seed class, the GUI0-R1 anti-vacuity
+floor that survives deleting either refusal arm, the R1 digest tag
+ladder that collides at 24, the `r2_m10_6` header roster that lists five
+of seven rows and omits the heaviest. CIW: the `gate-ok` roster gap,
+`ci-local.sh`'s structurally-red `topo_release` guard, the surviving
+billed-minute arguments, the critical-path citations naming the wrong
+pole, and the premises this week's restore rotted. META: the ledger
+recovery recipe failing in a shallow clone. TOPO and LIB: one citation
+row each.
+
+**Two environment limits, recorded because they bind future lanes.**
+This container's token has no `actions: write` — `workflow_dispatch`
+returns 403 for every session here, which is why PR 2434's restored
+nightly job could not be dispatched on its own head. What stood in its
+place: the restored job's steps are **byte-identical** to the one on the
+merge base (only a now-stale comment differs), and that job ran green on
+main in run 34585964715, step 7, 3m44s of real execution. The rule the
+dispatch discharges is about DEMOTING a row — a restoration of an
+unchanged job is the opposite direction, and parse-equality forecloses
+the failure mode the rule exists for (a malformed job that never runs).
+Recorded rather than waved: the next nightly firing is the confirmation,
+and nobody has read it yet. Ref deletion is 403 too, so
+`tcost/probe-n{2,3,4,6}` — the shard measurement's scaffolding — are
+still on the remote and need Ev.
+
+## The shard count is measured, and it stays at 2 (2026-09-12)
+
+`nextest-shard-count-needs-remeasure` closed on twelve hosted code-tier
+runs — N = 2 (control), 3, 4 and 6, three full runs each, four probe
+branches off one commit differing only in the shard literal, all four
+counts running in the same wave so a wave's runner weather is shared.
+Every run id is on the row. The probe PRs (#2428-#2431) were measurement
+only and are closed; their `tcost/probe-n*` branches are still on the
+remote, because this lane's token is refused ref deletion — whoever can,
+should delete them. The landed diff is the row's verdict, two rewritten
+argument blocks in `ci.yml` and one corrected citation in
+`scripts/ci-filter.py`.
+
+**The re-opening was right about the currency and wrong about the
+answer**, and the thing that decided it is the one clause the re-opening
+explicitly declined to re-open: *"no single test binds any N up to 4."*
+It does now.
+`editor-core::all r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`
+runs **346-660 s by itself** at ε = 1e-12 — 85-96 % of the leg that
+carries it — and that leg is the last job to finish on all 30 runs read,
+at every count. Five of the six matrix rows cut cleanly with more shards
+(N=2 → N=4: the three f64 rows 64-83 s → 40-59 s, interval ε = default
+148-191 s → 103-131 s); the sixth does not respond to the count at all,
+and it is the one that sets what a contributor waits for. Cutting a 78 s
+leg beside a 554 s one is not a cut.
+
+**Filed with it**: `one-test-is-the-whole-ci-critical-path`, parked on
+the M10-3 row. It is the same family as the symbolic-tier regression
+already diagnosed there — the chamber replay and the band/uniform drives
+are the second and fourth heaviest rows in the same readings — but a
+different suite, four times larger, and newly shown to be **ε-gated**:
+the row builds its guide at `guide(2.0 - 1.0e-11)`, so it is the whole
+critical path at ε = 1e-12 and under 20 s at the other two. Nothing had
+looked at it per-ε before.
+
+**Three method notes worth keeping.** The conservation check was done at
+the level of test IDs, not counts: every test is named in its leg's log,
+so the shards' name SETS were compared directly and came back identical
+at every N (`missing 0, extra 0`; 6 948 f64 and 7 669 interval). The 36
+f64 and 84 interval tests a leg LISTS and no shard runs are the
+`#[ignore]`d rows, read off the runs' own uploaded test lists
+(`filter-match: {status: mismatch, reason: ignored}`, no other reason)
+— the `listed` column is per shard, not a third measure of the row. The
+per-leg fixed cost is **15.9 s median over 270 legs** and is flat in the
+count — 15 s in August, 15.6 s on 09-03, unmoved. And run WALL is the
+weakest of the three instruments here: running four probe runs at once
+pushed job queue times from a 2 s median to 108 s, which is visible in
+the run walls and absent from the leg walls, because a leg's wall starts
+when its runner does.
+
+**Reported, and now filed elsewhere.** The block that decides THIS knob
+is rewritten on wall clock, per `work/ciw/plan.md` §The 2026-09-04
+re-read; the rest of the class — `ci.yml`'s other billed-minute
+arguments, including the shard-MERGE block this unit did not re-decide
+— is `work/ciw/billed-minute-arguments-survive-across-ci-yml`, opened
+2026-09-12 by the orchestrator. None of those was swept here.
+
+**One measurement, one home.** The row's duration, the leg that carries
+it and the share between them live once, on
+`one-test-is-the-whole-ci-critical-path`; the two `ci.yml` blocks and
+`scripts/ci-filter.py` carry the conclusion and a pointer. They stood in
+five places in the first draft and three of the five disagreed with the
+table on the day they were written — the same defect the count was
+re-measured for, minted by the fix for it. The shard count is still
+prose at each of those sites, which is
+`work/ciw/eps-klint-and-shard-counts-are-prose`'s class, and the new
+prose says so.

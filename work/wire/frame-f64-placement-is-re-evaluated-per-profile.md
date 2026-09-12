@@ -2,8 +2,10 @@
 id: frame-f64-placement-is-re-evaluated-per-profile
 kind: issue
 title: A frame's f64 placement is re-derived from its slots by every profile drawn on it although the frame's own evaluation held the same nominal values
-status: open
+status: review
 opened: 2026-09-08
+branch: wire/frame-f64-placement-once
+pr: 2435
 ---
 
 
