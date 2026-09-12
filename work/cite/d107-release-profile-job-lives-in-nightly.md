@@ -2,8 +2,9 @@
 id: d107-release-profile-job-lives-in-nightly
 kind: issue
 title: D107's --nocapture question is now a nightly.yml question, not a ci.yml one
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-12
 ---
 
 
@@ -80,3 +81,48 @@ made by reading the row against the tree on 2026-09-11, not a verdict on
 the finding, and a lane that finds it wrong says so in its PR. The id,
 the `track:` letter where the row carries one, and the body above are
 unchanged by the move.
+
+## Repaired 2026-09-11, in TOPO's file, on Ev's authorisation
+
+Ev authorised CITE to repair this citation directly in
+`work/topo/D107.md` rather than route it, in one PR, with no routing
+issue filed and no `work/README.md` change. The authorisation covers
+this repair and the two beside it and nothing wider.
+
+**What was done.** D107's sentence now names the job and the tombstone
+BY NAME — the `release-corruption` job, `name: corrupt input (release
+profile)`, in `.github/workflows/nightly.yml`, and the `ci.yml` comment
+beginning *"THE `corrupt input (release profile)` JOB STOOD HERE"* — and
+says the `--nocapture` question is a `nightly.yml` one, so the routing to
+Track F's F8 / Track G's G-a no longer follows. The weakened cost
+argument is recorded in D107 as a note addressed to TOPO. No workflow
+file was touched and no decision on `--nocapture` was taken.
+
+**Both line numbers in the `## Re-homed to code-quality (2026-09-04)`
+record above are wrong at this base.** The job is not `nightly.yml:492`
+— its `name:` is at `nightly.yml:514` — and the tombstone is not
+`ci.yml:2443` but `ci.yml:3370`
+(`grep -n "corrupt input" .github/workflows/*.yml`). Seven days moved
+both. That is this row's own subject happening to the record that
+repairs it, twice over now, and it is why the repair landed in
+cite-by-name form.
+
+Still true at this base: the job's `cargo test --release -p topo --lib`
+step passes no `--nocapture`, and the only `--nocapture` in
+`nightly.yml` is the `editor-core` latency row
+(`grep -n "nocapture" .github/workflows/nightly.yml`).
+
+
+## Closed 2026-09-12 — repaired; the residue is TOPO's
+
+`work/topo/D107.md`'s *"That is a `ci.yml` question"* sentence now names
+`nightly.yml`, cited by the job's `name:` and by the tombstone's opening
+words rather than by line numbers (both of the line numbers this row
+carried, `nightly.yml:492` and `ci.yml:2443`, had already drifted).
+
+The two things that are **not** this row's and are left to TOPO in a
+marked section: whether D107's `kemr: 0` exposure is worth a board at
+all, and the cost argument behind it, which weakened twice over (the job
+runs nightly now, and the repository went public on 2026-09-03). No
+workflow file was touched; the one-line `--nocapture` remains CIW's to
+land on request.

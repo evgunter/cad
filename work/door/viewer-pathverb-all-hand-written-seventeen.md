@@ -16,17 +16,17 @@ Found by lane **uv-g**'s §5 sweep for the class "a kernel vocabulary re-spelled
 
 ## What
 
-`crates/viewer/src/app.rs:514` declares `enum PathVerb` and `crates/viewer/src/app.rs:557` gives it
+`crates/viewer/src/forms.rs` declares `pub(crate) enum PathVerb` and gives it a `pub(crate) const ALL;` — both inside the same `vocabulary!` invocation (the fourth of the five in that file). At the revision this row was filed the two sat in `crates/viewer/src/app.rs` and `ALL` was spelled out longhand:
 
 ```rust
 const ALL: [Self; 17] = [ … ];
 ```
 
-a hand-written list. `profile`'s `transition_table!` declares **nineteen** verbs and projects `Verb::ALL` from that declaration. Nothing relates the two: the viewer's menu is driven by its own `ALL`, and the doc comment's claim — "a verb with no label is a compile error … what reaches the MENU is `PathVerb::ALL`'s to answer" — is true of the viewer's own enum and says nothing about the kernel's.
+a hand-written list. `profile`'s `transition_table!` declares **nineteen** verbs and projects `Verb::ALL` from that declaration. Nothing relates the two: the viewer's menu is driven by its own `ALL`, and the doc comment's claim — *"a verb with no label is a compile error … what reaches the MENU is `PathVerb::ALL`'s to answer"* — is true of the viewer's own enum and says nothing about the kernel's. **That quotation is left here as filed, and no longer occurs in any source file: it is the evidence the clause after it draws on, and replacing it in place would leave that clause standing on words that never mentioned a menu.** The sentence that stands in its place is the `vocabulary!` macro's `label` doc in `crates/viewer/src/vocab.rs`, *"a variant with no word does not parse"*, rendered onto `PathVerb::label` in `forms.rs` — which says nothing about a menu, so it reaches the first half of the clause and not the second. See the re-derivation section below.
 
 So a verb the transition table gains does not reach the sketch tool's menu, does not break the viewer's build, and nothing reports the shortfall. It is the same defect PR 1475 fixed for the arc modes in `editor-core` and `smelluv/g` fixed for the Python surface, one surface over.
 
-The arc-mode half of the same file is **fine**: `app.rs:4419` iterates `profile::ArcMode::ALL` directly, which is exactly the anchoring this row wants for the verbs.
+The arc-mode half of the same file is **fine**: `app.rs:4419` iterates `profile::ArcMode::ALL` directly, which is exactly the anchoring this row wants for the verbs. **That citation no longer resolves and its subject is gone from the viewer** — see the re-derivation section below, which leaves the consequence to DOOR.
 
 ## Shape of the fix
 
@@ -64,6 +64,136 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+## Every citation in this row re-derived against the tree, 2026-09-11
+
+Each file, line, name and quotation the body above points at was
+resolved against the repository as it stood on 2026-09-11 with `grep -n`
+and `sed -n`, and re-cited by NAME where a name exists; the table below
+is that derivation, with the command that reproduces each row. The
+commands were re-run and the table corrected in a second pass the same
+day, after a review found two of them did not reproduce.
+
+The repair was authorised by Ev and carried out in place rather than
+routed back; it came out of the CITE row
+`code-quality-item-quotes-a-viewer-doc-string-that-was-rewritten`, which
+is a secondary reference only — that row's file is deleted when CITE
+closes, and nothing in this section depends on it.
+
+**Only what the row POINTS AT and QUOTES is touched.** Every claim, the
+verdict and the membership are DOOR's and are left exactly as written —
+including the ones the re-derivation below puts in question.
+
+What was re-derived, and how:
+
+| the row said | at this base | proved by |
+| --- | --- | --- |
+| `app.rs:514` declares `enum PathVerb` | `crates/viewer/src/forms.rs`, `pub(crate) enum PathVerb`, inside the fourth of five `vocabulary!` invocations | `grep -n "PathVerb" crates/viewer/src/*.rs`; `grep -n "^vocabulary! {" crates/viewer/src/forms.rs` |
+| `app.rs:557` gives it `const ALL: [Self; 17] = [ … ]` | `pub(crate) const ALL;` — a declaration the `vocabulary!` macro projects, array type and all | `grep -n "^vocabulary! {\|pub(crate) enum PathVerb\|pub(crate) const ALL;" crates/viewer/src/forms.rs` — the invocations open at `:36`, `:73`, `:108`, `:131`, `:267`, `pub(crate) enum PathVerb` is `:145` and the `const ALL` between `:131` and `:267` is `:189`. There are five `pub(crate) const ALL;` lines in the file, which is why the const is cited by its invocation and not by its number |
+| doc says *"a verb with no label is a compile error … what reaches the MENU is `PathVerb::ALL`'s to answer"* | in no source file under `crates/`; the sentence that stands in its place is *"a variant with no word does not parse"*, authored in `crates/viewer/src/vocab.rs` | `grep -rn "a verb with no label" crates/` (no hits, exit 1 — scoped to `crates/` because the tracker files that quote the sentence, this one included, are hits under `.`); `grep -n -A1 "a variant with no word" crates/viewer/src/vocab.rs` (prints `:194`–`:195`; the sentence wraps across the two lines, so `does not parse` matches no single line and greping the whole phrase finds nothing) |
+| `app.rs:4419` iterates `profile::ArcMode::ALL` | `app.rs` is 2018 lines; no viewer file iterates `profile::ArcMode::ALL` | `wc -l crates/viewer/src/app.rs`; `grep -rn "ArcMode::ALL" crates/viewer/src/` |
+| `app.rs:489` is the `ShapeKind::Circle` path | `crates/viewer/src/forms.rs`, `ShapeKind`'s `Circle = "circle"` variant, third of five `vocabulary!` invocations | `grep -n 'ShapeKind\|Circle = ' crates/viewer/src/forms.rs` — `pub(crate) enum ShapeKind {` at `:118`, `Circle = "circle",` at `:120`, both inside the `vocabulary! {` that opens at `:108` |
+
+**Why the quoted sentence is kept and the replacement named beside it.**
+The words the body quotes are gone from the sources, and the clause the
+body draws from them mentions the MENU — which the replacement sentence
+does not. Overwriting the quotation in place would have left that clause
+resting on evidence that no longer reaches it, so the historical
+quotation stays, marked as historical, and the replacement is named
+next to it. That also keeps the rot visible, which is the whole subject
+of the row that found it.
+
+**Why the replacement is cited to the GENERATOR.** It has one authored
+home — the doc on `label` in the `macro_rules! vocabulary` body in
+`crates/viewer/src/vocab.rs` — and `forms.rs` holds no copy of it, so a
+reader who greps `forms.rs` for those words finds nothing. The rendered
+doc on `PathVerb::label` is named beside it because that is where a
+reader meets the sentence as it applies to this enum. Cited that way the
+citation survives both files being renumbered, which is the remedy
+`work/cite/S176.md` argues for.
+
+**The quotation rot is not a withdrawal.** The claim it supports is
+still true and is stronger: a half-labelled list now fails to *parse*
+(delete one variant's `= "cusp"` and the macro refuses the tokens), so
+the viewer's own vocabulary is MORE tightly self-held than when this row
+was filed — and the row's point, that this says nothing about the
+kernel's, is untouched by that.
+
+### For DOOR to rule on — three things the re-derivation puts in question
+
+CITE does not touch these. They are the row's claims, not its citations.
+
+1. **The kernel count.** `## What` says the transition table declares
+   **nineteen** verbs. At this base it declares **twenty**:
+   `grep -cE '^    verb ' crates/profile/src/path/program.rs` prints 20,
+   and the list adds `ContinueTo` to the nineteen the row was written
+   against. Against the viewer's seventeen the shortfall is now three —
+   `ContinueTo`, `Circle`, `CircleSplit` — not two. The row's own
+   mechanism ("a verb the transition table gains does not reach the
+   sketch tool's menu") is what produced the third, which reads as
+   evidence FOR the finding rather than against it, but the numbers in
+   the body and in the `title:` are DOOR's to move.
+2. **`## Shape of the fix` says the count "is written as a literal in
+   the array type".** It is not, at this base: the array's length is
+   `vocabulary!(@count $($variant)+)`, derived from the same tokens the
+   variants come from (`crates/viewer/src/vocab.rs`, the `@count` arms).
+   The sentence that follows it — that the shape goes stale silently —
+   is therefore about a spelling that is gone. Whether the *judgement*
+   it introduces ("whether the seventeen are deliberately seventeen")
+   still needs making is DOOR's call; CITE's reading is that it does,
+   because nothing relates the seventeen to the kernel either way.
+3. **The arc-mode half is no longer the counter-example.** `ArcMode` in
+   the viewer is now the viewer's OWN `pub(crate) enum ArcMode`,
+   declared through `vocabulary!` in `crates/viewer/src/forms.rs` and
+   iterated at `crates/viewer/src/widgets.rs`'s `for (option, label) in
+   ArcMode::ALL`. `profile::ArcMode` still exists
+   (`crates/profile/src/path/program.rs`, `pub enum ArcMode` emitted by
+   the `macro_rules! arc_modes` body and invoked by the `arc_modes! {`
+   below it) and the viewer no longer reads it. **It is not
+   `transition_table!`'s:** `grep -n "macro_rules! arc_modes\|pub enum
+   ArcMode\|macro_rules! transition_table"
+   crates/profile/src/path/program.rs` prints `:176`, `:206` and `:363`
+   in that order, and
+   `awk 'NR>=363 && /ArcMode/' crates/profile/src/path/program.rs | wc -l`
+   prints `0` — the token does not occur at or after the transition
+   table's definition at all. So the
+   sentence calling that half **fine** rests on an anchoring the tree no
+   longer has, and on its face the arc modes are now a second instance
+   of this row's own class. **CITE does not add them to the row** — the
+   six viewer modes may match the kernel's exactly and the copy may be
+   deliberate, and deciding that is the same judgement item 2 names.
+   The citation is repaired to say what is there; the consequence is
+   DOOR's.
+
+The `## Comments` block is a transcription of GitHub issue 1492's
+comment and is left verbatim, including its `app.rs:489`: editing a
+quoted historical comment would make the record say something its author
+did not. Its `CircleSplit` claim still holds — `grep -rn "CircleSplit"
+crates/viewer/src` returns nothing.
+
+---
+
+**Merge note (2026-09-12).** The two sections below were written the
+same day by different programs and landed in one merge: DOOR's own
+re-derivation of the row's premise, and CITE's repair of the row's
+citations. They agree on the tree and do not overlap in what they
+change — DOOR rules on what the row CLAIMS, CITE only on what it POINTS
+AT — so both are kept. Where CITE's section defers a question to DOOR,
+DOOR's section below answers two of them: the hand-list half is closed
+in the tree, and the seventeen are deliberate as a *viewer* vocabulary.
+
+**One thing the merge itself demonstrated, and it belongs in this file
+of all files.** DOOR's section cites `forms.rs:145` for `PathVerb` and
+`forms.rs:199` for `PathVerb::of`. Both were right when written and
+neither resolves now: `crates/viewer/src/forms.rs` moved twice on `main`
+within a day (`5045203`, `77631b4`), so `PathVerb` is at `:155` and
+`:199` is now `pub(crate) const ALL;` — a landing that looks plausible
+and is wrong, which is the dangerous shape. The names in the same
+sentences all still resolve. Nothing is repointed here, because the next
+edit moves them again; read DOOR's numbers as of the SHA it was written
+at and its names as current.
+
+---
 
 ## Half of the premise is stale (2026-09-11, the DOOR orchestrator)
 

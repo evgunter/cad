@@ -2,8 +2,9 @@
 id: build-slot-banner-leaks-the-holders-command-line
 kind: issue
 title: with-build-slot.sh's waiting banner prints the holder's command line, a leak channel between blinded review lanes
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-11
 ---
 
 
@@ -40,3 +41,36 @@ only, one script. The class is a dispatch estimate made by reading the
 row against the tree on 2026-09-11, not a verdict on the finding, and a
 lane that finds it wrong says so in its PR. The id, the `track:` letter
 where the row carries one, and the body above are unchanged by the move.
+
+## Closed 2026-09-11 — banner and holder file record pid, time and mode only
+
+Ev, 2026-09-11, asked whether the `memories/` half was wanted: **"no
+memory, just script fix."** So `memories/orchestration-model.md` is not
+touched and this row is the script change alone.
+
+`local-scripts/with-build-slot.sh`'s four `note_holder` call sites passed
+`"<mode>: $*"`, so the caller's whole command line went into the holder
+file — and `describe_holder` prints that line verbatim to every waiting
+caller. The command line is dropped; the mode word stays, because it is
+lane-agnostic and it is what tells a waiting reader why they are
+waiting. `note_holder` now carries the invariant in a comment above it,
+naming the LIB-TEAPOT v6 leak as the reason.
+
+Verified by running the script rather than by reading it, since `bash -n`
+cannot see what a banner prints:
+
+- holder file under a scratch `CAD_SLOT_DIR`:
+  `pid 2336 since 17:02:14 (@1789146134): shared` — no command, no path;
+- the banner on the actual failure path (a second request blocked by the
+  first, `-n`, exit 75): `slot-1: pid 2361 since 17:02:23 (@…):
+  exclusive [held 0m2s]`.
+
+`local-scripts/*` is CIW's territory. Landed from here rather than
+routed under the same authorisation Ev gave for this program's
+cross-fence repairs, and announced to CIW in the PR.
+
+**The row's second paragraph is not closed by this.** Reviewer briefs and
+scratch going in each lane's own directory rather than the shared
+session root is an orchestrator convention, not a change to this script;
+it is the subject of `lane-scratchpad-is-shared-between-worktrees`,
+deferred the same day.

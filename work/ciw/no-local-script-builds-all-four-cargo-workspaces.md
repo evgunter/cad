@@ -33,3 +33,27 @@ a dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## Re-homed to CIW (2026-09-12, by the CITE orchestrator)
+
+**CIW's by territory and by the row's own words.** The fix lands in
+`local-scripts/ci-local.sh` or a `--all-roots` mode on
+`test-fast.sh`, and `local-scripts/*` is CIW's `paths`. CITE's
+`keep_out` already said so — *the two local-script rows are announced
+there and CIW may simply take them* — and this is that announcement made
+as a move, since CITE never started the row and holds no work on it.
+
+The other of the two, `build-slot-banner-leaks-the-holders-command-line`,
+was closed by CITE rather than moved: Ev asked for the script fix
+directly (2026-09-11, *"no memory, just script fix"*) and it is landed
+and verified. So `local-scripts/with-build-slot.sh` changed under CIW's
+fence with CIW's knowledge, which is recorded here because the next CIW
+lane to open that file should know why its banner is one field shorter.
+
+One thing worth re-deriving before staffing this: the row says four
+workspaces plus `tools/tess-meter`, and `docs/prompts/implementer-discipline.md`
+§2 warns in terms that apply to the row itself — *"`--workspace` is not
+every cargo root… **do not carry a count in your head**, this bullet's
+included: `scripts/doc-gate.sh --print-roots` derives the list, and a
+root has landed before with every prose count in the repo left saying
+the old number."* Take the list from the script, not from this row.
