@@ -224,3 +224,38 @@ applies under time pressure.
 
 `docs/prompts/*` is META's. Landed on Ev's word rather than taken, and
 announced to META in the PR.
+
+## Exit walk cut; residue re-homed (2026-09-12)
+
+PR #2397 merged as `40c7e4c`. Ev then asked for `S351` to go to TRIM and
+for the walk.
+
+**Residue out first**, per `work/README.md` — a closed program's
+directory is deleted and may hold only closed items, so nothing waits
+for the sweep to find it:
+
+- `S351` → `work/trim/`. Checked at the move and **not fired**: both
+  pointers resolve and both cite `nurbs_iso`'s module docs by name. The
+  rule it guards is in TRIM's `paths`; CITE held it only because it is a
+  citation watch, and with CITE closing the lane that would fire it
+  reads TRIM's slate.
+- `lane-scratchpad-…` → `work/meta/`, still deferred. Ev's ruling
+  removed the `memories/` half, which leaves `docs/prompts/*` as the
+  only document in play and that is META's. The row now states what
+  would re-open it: a lane that LOSES work, rather than catching it.
+
+`docs/CITE-EXIT-WALK.md` is cut and goes to Ev for ratification. It
+quotes the charter and the convention verbatim, tables the twelve rows,
+and records three honesty notes — that four rows were re-homed rather
+than finished, that the plan's promised routing list was never produced
+(and should not have been), and that `S176`'s verdict was filled by this
+program on the measurement rather than by a ruling.
+
+The walk's main finding, for whoever reads it next: **repairing what a
+row POINTS AT is not the same act as ruling on what it CLAIMS**, and
+only the second needs the owning program. The fence held on the second
+and gave way on the first, which is what let three rows get repaired
+instead of routed a third time into nothing.
+
+Once ratified: delete `work/cite/` and the walk, record the SHA in
+`docs/DOC-LEDGER.md`.
