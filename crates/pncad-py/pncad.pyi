@@ -522,7 +522,8 @@ class StepImportError(PncadError):
     `declaration_unresolved`, `vertex_without_point`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
-    `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
+    `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
+    `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 

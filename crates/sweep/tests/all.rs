@@ -631,3 +631,6 @@ mod shell10_r2_cost;
 
 #[path = "shell10_r2_dump.rs"]
 mod shell10_r2_dump;
+
+#[path = "census_containment_cause.rs"]
+mod census_containment_cause;
