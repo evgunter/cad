@@ -1067,3 +1067,33 @@ and a ρ-sweep, then to Ev. Ordinal 2405, byte 34 ⇒ R1 opus /
 R2 fable. Briefs for both duals stored on `props/b2-block`; four
 review lanes run at once on the box now that the two implementer
 build trees (27 GB) are freed.
+
+**Sign-hull dual adjudicated (2026-09-12).** Both lanes
+NOT-MERGEABLE-AS-IS on `c6f5d7aea`. R1 (opus) 2 MAJOR / 10 MINOR / 6
+NOTE, rubric 4/3/3; R2 (fable) 2 / 5 / 5, rubric 4/3/2.
+Correspondence: the seam regression is BILATERAL by execution (R1: a
+45° face through `newell_plane` at `Interval` hulls to a non-unit
+frame and DOCM's `datum_unit_norm` refuses where main served; R2: an
+extrude on a 45°-tilted sketch frame puts two walls on the `n.x = 0`
+meridian where the two candidates are ANTIPARALLEL — a half-turn flip
+the constructor doc denies — and M10-5's `refines` door refuses where
+main served); both swept ρ over the three corpora: any ρ ≠ 1 gives 0
+of 817 on the seam. R1's second MAJOR is that measured alternative,
+not a defect. **R2's MAJOR 2 is UNILATERAL: the DL6 claim "unbounded
+only where the box contains the zero vector" is false — three boxes
+without a zero vector return `Trv` on every component where Duff's
+`1 + |n.z|` denominator stayed bounded; R1 tested the same claim (C3)
+and reported it upheld. v6 tally candidate +1 (R2, FABLE).** Rulings:
+the comparison becomes `|n.z| ≤ max(|n.x|, |n.y|)/2` (ρ = 1/2, dyadic;
+seam at elevation atan(1/2), off every chamfer, wall, cap and corner
+direction; put to Ev in chat, who may still override before landing);
+a candidate whose norm's lower bound is zero encloses as the unit cube
+at `Def`, never `Trv`; rows that can red on the seam class (both
+reviewers' probes adopted); the census asserted at ρ, constructor
+frames distinguished from stored ones; the STEP receipt corrected (75
+records / 12 files, bottom caps flip); the (c)1 finding folded into
+the trim item that already owns it; eight files of stale rule prose;
+one M10 finding filed (a `Violated` witness off the trimmed face).
+Fix pass dispatched to the unit's own lane; two live specs
+(`TRIM-3`, `PCURVE-P2`) carry the Duff premise and get seam notes at
+landing.
