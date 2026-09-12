@@ -59,9 +59,12 @@ fn on_domain_refuses_a_domain_whose_width_overflows() {
     let err = src
         .on_domain(-f64::MAX, f64::MAX)
         .expect_err("an infinite span cannot produce a finite vector");
-    assert!(
-        matches!(err, SplineError::KnotVectorInvalid { .. }),
-        "{err:?}"
+    assert_eq!(
+        err,
+        SplineError::KnotVectorInvalid {
+            reason: KnotVectorIssue::NonFinite { index: 2 }
+        },
+        "the clause the door doc's enumeration does not list"
     );
 }
 
