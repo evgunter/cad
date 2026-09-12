@@ -80,11 +80,25 @@ Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
   are the record of actual work done.
 - The sanitized/logical documentation of a change lives in the **PR
   description**, not in commit messages.
-- Agents own this codebase and merge their own PRs to main. Exception:
-  PRs that ratify open design questions (e.g. M0's Q1-residue PRs) are
-  design conversations — wait for Ev's sign-off before merging. **PRs
-  that add to or change `memories/` wait the same way**: that text is
-  read at the start of every session, so what goes in it is Ev's call.
+- Agents own this codebase and merge their own PRs to main. **The
+  exception is text that binds future work rather than describing this
+  change** — it waits for Ev's sign-off before merging. That is the
+  test; the list below is what it covers today, and a new home for such
+  text is covered the day it exists rather than the day this line is
+  updated.
+  - PRs that **ratify an open design question** (e.g. M0's Q1-residue
+    PRs) — they are design conversations.
+  - PRs that **change an already-ratified decision**, in
+    `docs/DESIGN.md` or in the `crates/<crate>/README.md` design pages
+    its companion table lists. Retiring or amending a ratified clause
+    is Ev's call even when a code change forces it and even when the
+    amendment is mechanical — a gate that reds until a roster row goes
+    is a reason the change is *needed*, not a reason it is *approved*.
+  - PRs that add to or change **`memories/`** — that text is read at
+    the start of every session, so what goes in it is Ev's call.
+  - PRs that add to or change **`docs/prompts/`** — the standing
+    discipline handed to every lane by path, which binds the
+    orchestrator's own judgement too.
 
 ## Repo notes
 

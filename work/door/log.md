@@ -404,3 +404,59 @@ site. S414's is the same instinct in a different key: its replacement
 refusal message named a cause it could not reach through the real door,
 so rather than leave the clause as a claim it pinned it with in-source
 rows that return `Ok((NaN, NaN))` and `Ok((1e308, inf))` on `main`.
+
+## Two rulings from Ev (2026-09-12)
+
+**The independent rows stay in DOOR.** The open question was whether
+`S114`, `grid-pitch`, `patherror`, `pathverb` and `step-adopt` should go
+to FIX, raised because FIX closed three of DOOR's opening rows on the
+day DOOR opened and the two charters read alike. Ev's answer: they stay
+— FIX is a grab bag of small things and DOOR is the more coherent home.
+
+**That does not by itself close the duplication risk**, which was the
+real subject. The mechanism that failed was one-time — the cut sorted
+two directories against the tree without reading the live slates of
+programs already working the same ground — but the adjacency is
+permanent. What replaces the re-home is a standing instruction, now on
+this program's `keep_out`: **read FIX's slate for a row before
+dispatching it**, and file nothing there that DOOR could carry. The
+per-row liveness check that caught all five overtaken rows is the same
+practice and stays.
+
+**README-level ratification changes need Ev's sign-off** — and Ev's
+instruction was not to record that here but to find where the approval
+rule lives, **decide whether it was genuinely a gap**, and only then
+clarify it there. Doing the check changed the answer's shape.
+
+**It was a gap, narrowly, and the diagnosis is this program's own
+subject.** The spirit was already unambiguous: `CLAUDE.md` calls crate
+README pages design docs, says settled decisions are not re-litigated
+without Ev, and `memories/orchestration-model.md` ends with *"when
+unsure which kind a decision is, treat it as a fork"* — which covers
+this and should have stopped the orchestrator. That miss is a reading
+failure, not the document's.
+
+But the letter was **a hand-written enumeration missing a member**. The
+Git-workflow exception named *"PRs that ratify OPEN design questions"*
+and `memories/`; retiring a SETTLED clause is neither.
+`orchestration-model.md` named *"changes to ratified DESIGN.md
+decisions"* — that file specifically, not the README pages the same
+document defines as design docs. A list of two homes where the
+principle has four, `docs/prompts/` being the other one missing. **The
+rule that governs DOOR had the defect DOOR spent the day closing.**
+
+Closed in `CLAUDE.md` by stating the test rather than the list — *"the
+exception is text that binds future work rather than describing this
+change"* — with the four homes as what it covers today and a sentence
+saying a new home is covered the day it exists, not the day the line is
+updated. Nothing was added to this program's `keep_out`: a rule that
+binds every program does not live in one program's fence.
+
+**PR #2387 therefore broke no rule that existed**, and the ruling row is
+reframed to what is actually open: the paragraph it put in place of the
+retired kind claims generally that *"a mirror claiming completeness has
+an answer one crate over"*, and #2391's review found that false in a
+live case — the viewport's `egui::PointerButton` mirror, whose declaring
+crate cannot publish an `ALL`. The kind was vacated of rostered
+instances, not falsified. Fixing that sentence is itself a README
+ratification amendment, so it goes to Ev under the rule just written.
