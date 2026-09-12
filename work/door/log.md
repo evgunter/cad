@@ -460,3 +460,51 @@ live case — the viewport's `egui::PointerButton` mirror, whose declaring
 crate cannot publish an `ALL`. The kind was vacated of rostered
 instances, not falsified. Fixing that sentence is itself a README
 ratification amendment, so it goes to Ev under the rule just written.
+
+## The cut's five dispatchable rows are closed (2026-09-12)
+
+`step-adopt-let-ok-iso-discards` (#2406) and
+`viewer-grid-pitch-nonfinite-fallback` (#2411) close the slate the cut
+could dispatch. What is left on DOOR's board is residue filed by those
+units and the rows the cut classed **M** or larger.
+
+**Both rows were wrong about their own subject, and both lanes said so
+rather than implementing the row.** That is the session's pattern and it
+is worth naming once.
+
+- `grid-pitch` claimed a non-finite scale draws ~1e323 lines and hangs.
+  It does not: `inf as usize` saturates and the caller clamps at
+  `MAX_GRID_LINES = 96`. The real consequence was a clamped frame of
+  NaN geometry, and the row's arithmetic was eighteen decades out even
+  unclamped.
+- `step-adopt`'s justification — *"the payload says WHICH structural
+  invariant the wall broke"* — named the one payload its doors cannot
+  produce. Both count arms are unreachable; the only reachable
+  `SplineError` is a weight violation, and a count disagreement panics
+  inside `geom-brep` before any refusal exists.
+
+**Review earned its cost, three times over on one row.** `grid-pitch`
+went: row wrong about severity → first review found the invariant
+covered two of four datum kinds → the 148-line restructure that fixed
+that was itself reviewed, and the second pass found that with every new
+door answering `Some`, `datums.rs`'s inclusive `for i in 0..=count`
+still draws one line at `t = inf`, because `inf - inf` is `NaN` and
+`NaN as usize` is `0`. **The PR's own census had examined that
+expression and cleared it as "the conservative direction".** A census
+written to close a class, clearing the site that falsifies the class's
+closing claim — this program's standing trap, inside the instrument
+built to avoid it.
+
+The row now states what its tests do **not** prove, and the path is
+filed (`chrome/inclusive-rule-range-draws-a-line-on-a-nan-count`)
+together with the trap in the obvious fix: a legitimate count of zero
+also means one line, so an exclusive range alone would silently drop a
+real ruled line.
+
+**Filed from these two units**: four rows on CHROME's slate, one on
+EXCH's, and `trim/boundary-iso-doors-panic-before-they-can-refuse` —
+written by the orchestrator rather than the lane, and the check that
+justified the hop found `trim/S394`, closed, which had already named
+`adopt.rs:711` and `:877` and said a taker should decide them per-site
+rather than convert by pattern. That is what DOOR's lane did. The two
+rows agree, and neither lane could have seen the other.
