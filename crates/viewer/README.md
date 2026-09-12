@@ -1075,10 +1075,11 @@ evaluation: `SessionOp::Select` is permitted mid-probe and
 `selection().node()` alone, so selecting another feature under an open
 probe leaves the drag live with nothing drawing it. The hand that
 reaches it is the one that reaches a sibling box — the feature tree's
-row is a `selectable_label(…).clicked()` (`pane/features.rs:60`), and
-egui answers `clicked()` for a focused widget's Space/Enter and for an
-AccessKit `Action::Click` with no pointer anywhere. Select the instance
-again and drag a box, and the batch lands the frame and ends the probe.
+row is a `selectable_label(…).clicked()` (`pane/features.rs:59-60`),
+and egui answers `clicked()` for a focused widget's Space/Enter and
+for an AccessKit `Action::Click` with no pointer anywhere. Select the
+instance again and drag a box, and the batch lands the frame and ends
+the probe.
 
 **One gesture per subject, driven by whoever names it**, is therefore
 the rule the target spells, not a gap left in it. A door that refused a
