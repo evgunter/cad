@@ -65,3 +65,31 @@ Two things a taker should weigh rather than assume:
 That would catch case 4 and leave 1–3 conflated, which is a half-fix:
 the design that depends on this needs to tell an imported body from a
 hand-built one, not only from a broken one.
+
+## This row is STEP 1 of a ratified sequence (WIRE orchestrator, 2026-09-12)
+
+Added after cutting `work/wire/axis-shaped-identity-channel.md`, whose
+cut section carries the whole sequence, its owners and its ordering.
+Recorded here because that row is **parked on this one** and a taker
+reading only this file would otherwise take it as a standalone cleanup.
+
+What that means for whoever picks this up:
+
+- `docs/AXIS-DECLARATION-DESIGN.md` is **ratified** (Ev, 2026-09-12) and
+  names positive origin marking as *"the first step toward per-component
+  provenance"* — this row and the axis channel are the same repair at
+  two granularities.
+- **`work/exch/step-import-discards-the-entity-ids-that-are-its-identity-channel.md`
+  is step 2 and is downstream of the vocabulary you choose here.** It
+  fills one of the four origins with real content, from ids
+  `import_step` already holds. Choosing the origin representation
+  without looking at what the STEP importer can supply risks a mark the
+  adoption step cannot write.
+- This row's "what a taker owes" already refuses the half-fix (a guard
+  on the re-stamp alone, which separates case 4 and leaves 1–3
+  conflated). The sequence is why that matters: the channel downstream
+  needs to tell an imported body from a hand-built one, not only from a
+  broken one.
+
+Nothing here claims TOPO's ground or reorders TOPO's slate — it is a
+cross-reference so the sequence survives WIRE's closure.
