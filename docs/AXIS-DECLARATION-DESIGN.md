@@ -179,3 +179,124 @@ to be wrong.
 `crates/verbs/README.md` §3 P2's SPHSPH sentence is wrong as landed and
 is corrected when this is answered — the row records that obligation so
 it is not lost.
+
+---
+
+# Round 2 — Ev, 2026-09-12 (PR 2404)
+
+> 1. sounds good
+> 2. idk, what would be cleaner and more principled?
+> 3. how do we know when there's no provenance?
+
+**Q1 is RATIFIED**: declared intent, invalidated structurally by
+comparing the two carriers' placement chains. No numerical check decides
+whether a rotation happened. Everything below is the residue.
+
+## Q3 first, because it answers itself and it changes Q2
+
+**We do not know, and that is the finding.**
+`Body::surface_source(k)` (`crates/topo/src/body.rs:526`) returns
+`Option<&GeomSource>`, and `clear_geom_sources` (`:658`) produces
+exactly the same `None`. So a bare absence conflates **four**
+situations:
+
+1. imported geometry — never stamped (there is no `Node::Import`, so
+   `stamp_minted` never runs);
+2. a hand-built body — never stamped;
+3. a kernel-derived description — never stamped;
+4. **a description `transform_rigid` cleared and the recipe layer failed
+   to re-stamp** — which is a *defect*, and is indistinguishable from
+   the three above.
+
+That settles Q3's own question in favour of **refusing on absence**
+(§3 P3's precedent): the one case you would be silently tolerating by
+falling back to verification is the bug. A lost re-stamp would quietly
+downgrade an exact structural answer to an approximate one, which is the
+failure mode this whole design exists to remove. Refusing turns the same
+bug into a loud, wrong-looking refusal — recoverable, and visible.
+
+### The principled repair is to make origin POSITIVE
+
+`None` cannot be made informative by reading it harder. The fix is to
+stop inferring origin from a missing entry and **record it**: every
+description carries where it came from — recipe, imported, hand-built,
+kernel-derived — so absence becomes unrepresentable and the four cases
+separate.
+
+That is Ev's adoption-step idea generalised, and it upgrades it from a
+convenience to the thing that makes the signal mean anything. It also
+does double duty: see Q2.
+
+## Q2 — the axis-shaped form is cleaner and more principled
+
+Asked directly, answered directly. **Axis-shaped is the better design**,
+for three reasons, the third being the one that matters:
+
+1. **It is a function, not a relation.** N carriers on one axis is N
+   facts, not N² declared pairs, and adding the N+1st does not touch the
+   others.
+2. **It names what is shared**, so a stale declaration refuses with
+   *"these no longer share axis D"* rather than *"these two are not
+   coaxial"* — the difference between a diagnosis and a symptom.
+3. **It composes to the other predicates, and there is already a second
+   consumer waiting.** `crates/verbs/README.md` §3 P2's SPHSPH
+   structural-parallelism case needs the same kind of fact one position
+   over. Against a named axis or direction, parallelism is "same
+   direction" and concentricity is "same point" — one channel, several
+   readings. Pairwise, each predicate needs its own evidence type and
+   its own argument, which is exactly how `CoaxialEvidence` came to
+   exist as a one-off that nothing could serve.
+
+### What it costs, precisely
+
+**Per-COMPONENT provenance, which does not exist.** `GeomSource`
+identifies a whole *description*, not its axis: two different cylinders
+sharing one axis come from different expressions, so their
+`GeomSource`s differ and the shared axis is not derivable from them.
+The granularity needed is `ParamSource`'s — per stored field — **with
+placement fields admitted**, and §3 P1 excludes those deliberately and
+states its reason:
+
+> `SourceExpr::Placed` exists in the kernel only because rigid placement
+> re-parameterizes a *description*, while a stored scalar field is
+> motion-invariant, so no kernel op composes or interprets one and no
+> second spelling of expression structure enters the kernel.
+
+So the objection is **not** that composing through placement is
+intractable — `GeomSource::Placed` is the existence proof that it is
+already done, in the kernel, today. The objection is that admitting
+placement fields to the parameter channel puts a *second* spelling of
+expression structure beside the first. That is a real cost and it is the
+thing a ruling here would be spending.
+
+### The recommendation, and the honest catch
+
+**Carrier-pair now, axis-shaped as what it grows into** — with one
+caveat that is not free and should decide the call rather than be
+discovered later:
+
+- carrier-pair is buildable today, needs no new channel, is
+  `BooleanDeclarations`' exact shape, and its invalidation reduces
+  cleanly to the chain comparison Q1 just ratified;
+- but a declaration is **persisted document content**. Shipping the
+  pairwise vocabulary and later moving to the axis-shaped one is a
+  migration of saved files, not a refactor.
+
+So: if the axis-shaped form is wanted eventually, the cheap order is to
+decide that **now** and take the pairwise form only as an explicitly
+temporary shape — or to skip it. Shipping pairwise "for now" without
+that decision is the expensive path.
+
+**And the two questions share a repair.** Positive origin marking (Q3)
+is the first step toward per-component provenance (Q2): both are
+"record where this came from rather than inferring it from what is
+missing", at two different granularities.
+
+## Open, for round 3
+
+- **Q2**: pairwise-now-with-migration-accepted, pairwise-as-the-answer,
+  or axis-shaped as its own design round (which reopens §3 P1's scoping
+  decision)?
+- **Q3**: refuse on absence is recommended and argued above. Does
+  positive origin marking get opened as a unit — and does it belong to
+  this design or to the adoption path?
