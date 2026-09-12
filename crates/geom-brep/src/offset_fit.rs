@@ -2274,7 +2274,7 @@ mod recourse_tests {
     ///
     /// **Reading changed the verdict on this enum more than on any
     /// other in the chain**, and the row records the outcome rather
-    /// than the sweep: five renderings already pointed at a lever
+    /// than the sweep: four renderings already pointed at a lever
     /// before this change — `BudgetExhausted` at `OFFSET_FIT_BUDGET`,
     /// `SampleCapReached` at `OFFSET_FIT_SAMPLE_CAP`, and
     /// `BoundNotFinite` at the limb's floors or at the schedule,
