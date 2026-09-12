@@ -207,6 +207,29 @@
 //! number, when a caller wants it, is
 //! [`validate_geometric_certificate`]'s continuation.
 //!
+//! **What it costs is not "less", and here is the bound.** The check
+//! reads EVERY face at every round until the sign settles, because a
+//! sum needs every term; the measurement door reads faces in arena
+//! order and stops at the first one whose lane refuses. So on a body
+//! whose sign settles early the check pays a fraction of the
+//! measurement, and on a body with a refusing face it can pay MORE —
+//! measured at about twice the measurement's quadrature verdicts on a
+//! rational-walled body whose schedule runs out. The honest bound is
+//! the schedule's own: at worst every face's whole schedule, which is
+//! what the measurement pays for its own first face and no more than
+//! it pays for all of them.
+//!
+//! **Gating and then measuring costs more than measuring**, and that
+//! is worth knowing before a caller reaches for the continuation as a
+//! saving. The piece evaluations compose exactly — the gate's rounds
+//! plus the continuation's are the measurement's — but each entry into
+//! a face's lane re-derives that face's per-round-independent SETUP
+//! (the derivative grids, the block hulls, the last round's cut lists
+//! and the bound taken from them), so the pair runs 1.3–1.8× one
+//! measurement's wall time on the bodies measured. Reusing a face's
+//! setup across windows is `work/perf/`'s
+//! `quadrature-setup-is-re-derived-per-round-window`.
+//!
 //! **Tier 3′ is not this**, and the difference is visible from
 //! outside: [`validate_pseudomanifold`] and [`contact_marks`] run
 //! their check 7 through the scalar's own lane at the reporting

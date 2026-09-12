@@ -1032,8 +1032,10 @@ pub mod bounds_allowlist {
     //! The weakest bound that works is unchanged and so is the evidence
     //! that the next tighter one fails: drop the bracket term and the
     //! windowed walk cannot form `RingInterval::from_certified`; drop
-    //! `Decide` and no round can be accepted. The certificate type carries
-    //! the bound for the same reason its walk does — it resumes that walk.
+    //! `Decide` and no round can be accepted. The certificate type is
+    //! PUBLIC and carries the bound for the same reason its walk does —
+    //! it resumes that walk, so what it may read and what it may decide
+    //! are the walk's, scalar for scalar.
     //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
     //! precedent; retroactive Ev review per the self-merge convention) — the
@@ -1189,18 +1191,6 @@ pub mod bounds_allowlist {
     //! composition, so its bound is the union and IS the compound one this
     //! file ratifies. `shell`/`shell_open` take the same bound because their
     //! last act is that entry.
-    //!
-    //! **Re-counted when check 7 began certifying a SIGN.** The check's
-    //! decision is now written over the volume ENCLOSURE rather than over
-    //! one number, so its subject is a trait with two implementors — the
-    //! target-level `MassProperties` and the sign-level certificate — and
-    //! the second impl is the added occurrence. It takes the compound
-    //! bound because its subject is the certified half's own certificate:
-    //! reading the bracket out of it is the whole of what it does, and the
-    //! `Decide` half is what the certificate's own walk needs to be able to
-    //! resume. The seam is the one ratified above, unextended: the same
-    //! private certified half, behind the same composition, at the same
-    //! scalars.
     //!
     //! **What it owes "brackets never decide", stated at the substance and
     //! not at the grep.** No `lo`/`hi` call appears in `validate.rs`, and the

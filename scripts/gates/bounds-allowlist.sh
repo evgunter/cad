@@ -495,7 +495,7 @@ BOUNDS_ALLOWLIST=(
   # 2026-08-29, the advisory-check registry.
   'crates/editor-core/src/checks.rs 3 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  'crates/topo/src/validate.rs 10 2026-09-02, the certified at-rest validator'
+  'crates/topo/src/validate.rs 9 2026-09-02, the certified at-rest validator'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides

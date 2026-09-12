@@ -220,12 +220,8 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         let one = quad_verdicts(|| measured = Some(topo::mass_properties(&body, tol)));
         let measured = measured.expect("the closure ran");
 
-        // REUSE: no round run twice, none skipped. The claim is about
-        // a body the measurement door ANSWERS: where it refuses it
-        // stops at the first face whose schedule ran out, while the
-        // gate must read every face to have a sum at all, so the two
-        // counts are over different face sets and comparing them
-        // would be comparing two different walks.
+        // REUSE: no round run twice, none skipped — on EVERY roster
+        // body, in the form that body can carry.
         eprintln!("ROUNDS {label}: gate {gate}, continuation {refine}, measurement {one}");
         assert!(
             gate > 0,
@@ -233,20 +229,45 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
              pays none of it is a body this row did not test"
         );
         if measured.is_ok() {
-            assert!(
-                gate <= one,
-                "REUSE {label}: the gate must never pay MORE rounds than the measurement — \
-                 {gate} against {one}"
-            );
             assert_eq!(
                 gate + refine,
                 one,
                 "REUSE {label}: the gate's {gate} verdicts plus the continuation's {refine} \
-                 must be the measurement's {one}"
+                 must be the measurement's {one} — a continuation that re-ran a round the \
+                 gate already paid for would exceed it, one that skipped a round would \
+                 fall short"
+            );
+            assert!(
+                gate <= one,
+                "REUSE {label}: on a body the measurement door ANSWERS the gate must never \
+                 pay MORE rounds than it — {gate} against {one}"
             );
             if gate < one {
                 strictly_early += 1;
             }
+        } else {
+            // THE REFUSING BODY, which is the body this unit exists
+            // for and which the identity above cannot be stated on
+            // unchanged: the measurement stops at the first face whose
+            // schedule ran out, while the gate must read every face to
+            // have a sum at all. What IS claimable, and is claimed:
+            // the continuation adds nothing at all — every face the
+            // gate read is already at the round it will die at — so
+            // the pair costs exactly the gate, and the gate costs at
+            // least the measurement because it read a superset of its
+            // faces.
+            assert_eq!(
+                refine, 0,
+                "REUSE {label}: the measurement refuses, so every face is already at the \
+                 round its schedule ends on and the continuation has nothing to run — \
+                 {refine} verdicts says it re-entered a lane"
+            );
+            assert!(
+                gate >= one,
+                "REUSE {label}: the gate reads every face and the measurement stops at its \
+                 first refusing one, so the gate's {gate} cannot be under the \
+                 measurement's {one}"
+            );
         }
 
         // AGREEMENT: the two doors are the same quadrature at two

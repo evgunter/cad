@@ -492,6 +492,17 @@ impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
     /// never runs it. The rounds this certificate already paid for it
     /// are not re-run either — they are simply not continued.
     ///
+    /// **What the continuation costs against one measurement.** The
+    /// piece evaluations compose exactly, but each entry into a face's
+    /// lane re-derives that face's round-independent SETUP — the
+    /// derivative grids, the block hulls, the last round's cut lists
+    /// and the bound read off them — because a `RoundWindow` enters
+    /// the lane at its front door. So gate-then-continue is 1.3–1.8×
+    /// one measurement in wall time on the bodies measured, against
+    /// the two full quadratures it replaces. Reusing a face's setup
+    /// across windows would remove that factor and is
+    /// `work/perf/`'s `quadrature-setup-is-re-derived-per-round-window`.
+    ///
     /// # Errors
     ///
     /// [`MassPropsError`], as [`crate::mass_properties`].
