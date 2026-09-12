@@ -877,6 +877,51 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
     }
 }
 
+/// **THE MEASUREMENT, against the gate-less tree.** An arrival carrier
+/// whose anchor sits `1e-200` from its centre: the displacement is a
+/// perfectly good `(0, 1e-200)` naming a perfectly good tangent, but its
+/// components square below `f64`'s subnormal floor, so `norm_squared`
+/// flushes and the radius is EXACTLY zero.
+///
+/// This row exists to execute what today's refusal is before it is
+/// changed, rather than to argue it: the payload is `radius: 0.0` and
+/// the sentence is the zero-radius one — **bit-identical to the row
+/// above**, which authors the centre AS the anchor. Two different facts
+/// about the input, one indistinguishable refusal, and the recourse it
+/// offers (move the anchor off the centre, or lower the tolerance)
+/// cannot work: the squared norm is zero at every ε.
+///
+/// It is replaced in the same branch by the underflow arm's row.
+#[test]
+fn an_underflowed_arrival_carrier_is_reported_as_a_zero_radius() {
+    let underflowed = Open
+        .at(p2(0.0, 0.0))
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(2.0, 0.0),
+                winding: ArcSweep::Ccw,
+                // Exact in binary: 2.0 - 2.0 = 0 and 1e-200 - 0 = 1e-200,
+                // so the displacement really is (0, 1e-200).
+                p: p2(2.0, 1e-200),
+            },
+            Tol::witness(),
+        )
+        .expect_err("an underflowed arrival carrier refuses");
+    match underflowed {
+        PathError::DegenerateArcCenter { radius } => assert_eq!(radius, 0.0),
+        other => panic!("expected DegenerateArcCenter, got {other:?}"),
+    }
+    let msg = underflowed.to_string();
+    assert!(
+        msg.contains("the authored centre is within tolerance of an endpoint"),
+        "{msg}"
+    );
+    assert!(msg.contains("radius 0 m"), "{msg}");
+}
+
 // ------------------------ the definitely / exactly / in-band predicate trios
 //
 // The exact-order predicates (`fillet_leg_fit`, `fillet_leg_reach`) have
