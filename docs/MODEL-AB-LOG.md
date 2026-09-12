@@ -3913,6 +3913,10 @@ debug, one crate at a time, with the disk guard. Sample number at merge.
 
 Span sweep RECORDED AT MERGE (2026-09-05, PR #1952 merged at `46020d6b9`, sample #140 — prior highest #139 on main at merge; block PROPS-B1 slot 1 concluded; the block record stays on `props/b1-block` until the block concludes). Disclosed: the claim paragraph above was committed at dispatch (06:45Z, `1c1c561ff`) on the block branch by the orchestrator's mistake rather than on the orchestrator branch, so it did not reach main with #1961 as that PR's body said; it is carried to main with the row here. The ordinal was nevertheless fixed at dispatch — the log entry, the block record and the stored briefs all name 2401 — and no other row claimed it. One v6 tally candidate (R1/OPUS, the executed panic), recorded in the row.
 
+sign-hull review ordinal fixed at dispatch (2026-09-12, PR #2468 open — frozen head `c6f5d7aea`, run 34719540390 GREEN on the full matrix): **ordinal 2405** (PROPS band). Pre-draw fields at the spec (`docs/PROPS-SIGN-HULL-SPEC.md`): difficulty **M**, task-class **NUMERIC** (`Vec3::orthonormal_basis` crosses the normal with a world axis chosen by a comparison on its components, no sign transfer — Ev's option-1 ruling on #1944; a new `Real` door on every impl; every stored `u_ref` re-blessed; M10-5's re-chart retired); implementer arm per block PROPS-B2 slot 1 (record branch-side on `props/b2-block`). Protocol v6 dual: draw = `/dev/urandom` byte **34**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs: CONCURRENT same-head on frozen `c6f5d7aea`, both briefs authored and STORED with sha256 on `props/b2-block` before either dispatches (`work/props/logs/signhull-review-brief-{r1,r2}.md`, generated from one template with the lane name substituted, so identical modulo lane name by construction), neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and a private scratch directory per reviewer. Method note applying to BOTH arms equally: the pair runs on one 4-core cloud box beside the mignitude-floor dual (ordinal 2404), four review lanes at once, `CARGO_INCREMENTAL=0`, debug, one crate at a time, with the disk guard. Orchestrator's ruling, so the reviewers read it as settled: option 1 (a decided world axis, no sign transfer) is Ev's and settled; the unit's DEVIATION from the spec's comparison (`|n.z| ≤ max(|n.x|, |n.y|)` shipped in place of the smallest-magnitude order, on a 20-vs-778 corpus measurement) is NOT settled — it is the first claim the reviewers falsify, and the orchestrator adjudicates it with Ev in view. Sample number at merge.
+
+mignitude-floor review ordinal fixed at dispatch (2026-09-12, PR #2469 open — frozen head `c8fd64033`, run 34719680314 GREEN on the full matrix): **ordinal 2404** (PROPS band). Pre-draw fields at the spec (`docs/PROPS-MIGNITUDE-FLOOR-SPEC.md`): difficulty **H**, task-class **NUMERIC** (`‖E‖` bounded below through the sign witness `D = Ẽ·M̃` the composite already carries; every certificate tightens or holds; the micron row the instrument); implementer arm per block PROPS-B2 slot 2 (record branch-side on `props/b2-block`). Protocol v6 dual: draw = `/dev/urandom` byte **253**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded before either review runs: CONCURRENT same-head on frozen `c8fd64033`, both briefs authored and STORED with sha256 on `props/b2-block` before either dispatches (`work/props/logs/mignitude-review-brief-{r1,r2}.md`, generated from one template with the lane name substituted, so identical modulo lane name by construction), neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and a private scratch directory per reviewer. Method note applying to BOTH arms equally: the pair runs on one 4-core cloud box beside the sign-hull implementer lane, `CARGO_INCREMENTAL=0`, debug, one crate at a time, with the disk guard; the dispatch itself waited on disk after the claim (a 4 GB margin at the claim), and if the two reviews could not start together the row says so. Orchestrator's ruling, so the reviewers read it as settled: the witness bound is the construction — the reviewers falsify its soundness, its rounding directions and the re-baseline receipts, not the choice of bound. Sample number at merge.
+
 k-stats bracket review ordinal fixed at dispatch (2026-09-05, PR #1969 open — frozen head `e832a1fc2`, run 33958408008 GREEN on the full matrix, python suite included): **ordinal 2402** (PROPS band). Pre-draw fields at the spec (`docs/PROPS-KSTATS-SPEC.md`): difficulty **L**, task-class **STRUCTURAL** (a thread-local single slot becomes a bracket with a stack; an escalation channel beside the verdicts; no arithmetic moves); implementer arm per block PROPS-B1 slot 2 (record branch-side on `props/b1-block`). Protocol v6 dual: draw = `/dev/urandom` byte **200**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs: CONCURRENT same-head on frozen `e832a1fc2`, both briefs authored and STORED with sha256 on `props/b1-block` before either dispatches (`work/props/logs/kstats-review-brief-{r1,r2}.md`, 5974faef50a666fd… r1 / 1de303514ef67103… r2 — generated from one template with the lane name substituted, so identical modulo lane name by construction), neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and a private scratch directory per reviewer; the implementer's unit log entry is not written until the dual concludes. Method note applying to BOTH arms equally: the pair runs beside the implementer lane's idle worktree on one 4-core cloud box, `CARGO_INCREMENTAL=0`, debug, one crate at a time, with the disk guard. Orchestrator's ruling, so the reviewers read it as settled: the bracket with a stack, the returned value measured and declined — the reviewers falsify the measurement and the construction, not the ruling. This claim is committed on the ORCHESTRATOR branch (the Span claim's misfiling is not repeated). Sample number at merge.
 
 k-stats bracket RECORDED AT MERGE (2026-09-05, PR #1969 merged at `3f8a91ff3`, sample #142 — prior highest #141 on main at merge; block PROPS-B1 slot 2 concluded and the BLOCK CONCLUDED — its record and the six stored briefs merged to main with #1978). No tally candidate: the one MAJOR converged with the other arm's MINOR. Fix-pass usage from the lane's report: ~148k harness tokens, ~44 min (cumulative 470k over the one agent).
@@ -5183,3 +5187,41 @@ in both briefs, neither reviewer sees the other's report; the same
 shared-box note applies to both arms (four lanes on the box, per-crate
 builds asked of both). Block PERF-B3's draw record stays branch-side
 until the block concludes.
+
+## PERF-7 review ordinal fixed at dispatch (2026-09-12)
+
+PERF-7 (`work/perf/PERF-7.md`, PR #2448 open — frozen head `c26d3220f`;
+block PERF-B3 slot 0): **ordinal 3407** (PERF band). Protocol v6 dual:
+draw = `/dev/urandom` byte **79**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**.
+Method as for the earlier PERF units: concurrent same-head on frozen
+`c26d3220f`, briefs stored with sha256 before dispatch (caf1594b3a6dc2bb… r1 /
+54b9fa2003ad40ea… r2 — identical modulo lane names, verified by diff), isolation
+in both briefs, neither reviewer sees the other's report; the same
+shared-box note applies to both arms (up to eight lanes on the box at
+once, per-crate builds asked of both). Block PERF-B3's draw record
+stays branch-side until the block concludes.
+
+## PERF-8 review ordinal fixed at dispatch (2026-09-12)
+
+PERF-8 (`work/perf/PERF-8.md`, PR #2452 open — frozen head `4357cfd71`;
+block PERF-B3 slot 1): **ordinal 3408** (PERF band). Protocol v6 dual:
+draw = `/dev/urandom` byte **244**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method as for the earlier PERF units: concurrent same-head on frozen
+`4357cfd71`, briefs stored with sha256 before dispatch (e8572a604f622838… r1 /
+b2efebdc3a45e726… r2 — identical modulo lane names, verified by diff), isolation
+in both briefs, neither reviewer sees the other's report; the same
+shared-box note applies to both arms (the dispatch waited ~40 min for
+disk behind PERF-9's reviewers — a method note on both arms equally).
+Block PERF-B3's draw record stays branch-side until the block concludes.
+
+## D290 review ordinal fixed at dispatch (2026-09-12)
+
+D290 (SCALAR; PR #2461 open — frozen head `aad3c387a`): **ordinal
+4100** (SCALAR band; the band's first claim). Protocol v6 dual: draw =
+`/dev/urandom` byte **111**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**,
+concurrent on the frozen head, read-side isolation (v6 item 5), briefs
+identical and stored before either ran. Pre-draw difficulty
+**S / structural** (recorded branch-side at the block draw). Impl phase:
+~222k tokens (harness), ~46 min wall; impl CI **34717389869** GREEN on
+the head (twelve `test` jobs, five `k-lint (gate, …)`, nothing
+narrowed). Sample number at merge, in main's merge order. Row at merge.
