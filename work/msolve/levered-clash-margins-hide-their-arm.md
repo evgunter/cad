@@ -61,3 +61,41 @@ choice explicitly: a second arm in the sentence for dimensionless
 residuals, a typed unit (`quantity::AngleUnit` and friends exist), or
 a small-angle argument for calling a sine radians. It is a decision,
 not a fill.
+
+## Re-homed from FIX to MSOLVE, 2026-09-12 (FIX orchestrator)
+
+**The "needs S-MATE's assent or a re-home" line above is stale, and
+the way it is stale matters.** S-MATE left the tracker on 2026-09-04
+(`docs/DOC-LEDGER.md` sweep 6), which reads at first like the blocker
+evaporating. It is the opposite: the territory did not go unowned, it
+was **inherited by two open programs**. `work/msolve/program.md` and
+`work/docm/program.md` both carry `crates/editor-core/src/mate/*` in
+`paths`. So the assent was still owed — to a live owner rather than to
+a program that no longer exists — and a FIX lane reading that line as
+"the owner is gone, take it" would have walked into two live fences.
+
+**MSOLVE rather than DOCM**, on the charters as written: this row is a
+refusal that reaches the user with its arm invisible — assembly
+SEMANTICS and refusal quality in the solve, which is MSOLVE's charter
+("one refusal that reports a false cause"), not document custody.
+`mate-clocking-has-no-gui-path` went to DOCM by the same reading,
+since its live half is an `AddMate` door and the `DocEdit` set is
+DOCM's.
+
+**And MSOLVE is working this exact subject right now.** Open PR
+**#2116, "MSOLVE-6: the mate's lever is the mated parts' own
+extent."** This row is about three levered mate-fold clash margins
+whose arm the refusal does not carry. Same file family, same quantity.
+FIX dispatching it would have raced a live PR on the lever it is
+about; **sequence it against #2116 rather than beside it.**
+
+**The decision in the row's last paragraph is unchanged and is still
+the substance**: `lever` is typed and rendered as `(radians, arm)`,
+and a sine, a Frobenius departure from the identity and a reach are
+pure numbers, not radians. Filling the socket blindly re-mints the
+defect the display unit closed, one field inward. A second arm in the
+sentence for dimensionless residuals, a typed unit, or a small-angle
+argument — it is a decision, not a fill.
+
+FIX took nothing here and changed no code; this is a routing move
+only.

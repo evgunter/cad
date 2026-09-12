@@ -1899,3 +1899,25 @@ written accurately and none was re-read at the change that falsified it.
 The gate cannot catch this class — a stale NUMBER in prose reds nothing —
 so the only thing that does is a lane re-deriving a figure before acting
 on it, which is what found all five.
+
+## The EFFORT policy is ratified and unwired; the row says so now (2026-09-12)
+
+Ev signed the clause off and it merged at PR #2363. The row that carried
+it still read `needs_ev: true` and was titled around the measurement,
+so the board reported "1 on Ev" for a question Ev had already answered —
+the board lying about its own state, which is the class this program
+spent two days fixing elsewhere.
+
+Corrected: `needs_ev` dropped, retitled to name the live work
+(**`Wire the EFFORT policy: ci-filter.py selects a raised EFFORT instead
+of excluding suites`**), and the wiring section promoted from "if Ev
+signs off" to THE WORK. Five steps, unchanged in substance.
+
+**Nothing is wired.** `scripts/ci-filter.py` still emits an EXCLUSION and
+still decides existence; no lane in the kernel runs above EFFORT = 1.
+
+**Not blocked, but ordered.** The gated set's execution wall is one suite
+whose cost is a kernel regression now on M10's slate. Wiring before that
+is fixed puts a 66-83 s row on every pull request; after, the same step
+costs about a second of leg time. A lane may go first and owes the
+measurement of what it lands.
