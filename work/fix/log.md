@@ -2112,3 +2112,46 @@ the instrument is `territory`, not the clause. The four standing crossings are
 named so a lane need not rediscover them. FIX's `paths` are three globs and it
 crosses by construction; pretending otherwise in a field lint reads at rest was
 never going to hold.
+
+### `coherence-findings-have-no-consumer` merged (PR 2408) — wave 2 closes five of five
+
+PRs **2399, 2401, 2402, 2403, 2408**. Slate **18 → 17 open** (four
+closed, four new rows filed: `fillet-leg-carrier-renders-raw-float-noise`,
+`census-cannot-type-a-nested-pattern-binding`,
+`chart-coherence-ships-off-and-nothing-schedules-turning-it-on`, plus
+two placed on other programs' slates), **38 closed**, and two mate rows
+re-homed out.
+
+### The operational lesson, which cost the most time in this wave
+
+**`update_pull_request_branch` does not fire CI in this repo, and it
+leaves the PR's head record stale.** The API creates a real merge
+commit on the branch — `git` sees it — but no `pull_request` run
+follows, and the PR object keeps reporting the OLD head SHA for some
+time afterwards. The merge endpoint then refuses with *"Head branch is
+out of date"*, comparing that stale head against a moved base.
+
+Three PRs this wave were sequenced through that call and were fine —
+their re-runs genuinely fired and I read them. The fourth was not, and
+**I read the 409's text as the explanation and stated it as fact**
+("the required check has not run on that SHA") when what I actually had
+was an error string and an inference. Ev caught it: the run WAS green.
+The correct instrument was one command — compare `git rev-parse
+origin/<branch>` against the PR's reported `head.sha` — and I reached
+for the error message instead.
+
+**That is the same failure this wave's log has been recording about
+lanes, in the orchestrator's own operations rather than its
+dispositions.** A grep's count attributed to sites it could not have
+produced, and an error string's wording taken as the mechanism behind
+it, are one habit: reading an artifact that is *adjacent* to the
+question and reporting it as the answer.
+
+**Standing, for this program's orchestration:** after any branch
+update, verify the PR's head SHA against the remote ref before drawing
+any conclusion from a merge refusal, and never paraphrase an API error
+as a cause. Where a branch genuinely needs CI re-run, the way to get it
+is a real commit the PR already owes — here, the item header this unit
+had left at `status: review` while every other unit of the wave closed
+its own row in its carrying PR. **Not an empty commit**, which the
+discipline forbids, and which was never necessary.
