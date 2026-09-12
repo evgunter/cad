@@ -2552,3 +2552,78 @@ correctly denied, one of them even for its own cache. The sweep is the
 orchestrator's and belongs in the wave-close checklist beside the log
 entry and the item headers. It has been added there; the box has held
 23G free since 03:26.
+
+### `validation-arms-delegate-a-recourse-their-carriers-do-not-give` CLOSED (PR 2419) — and the best judgement call of the three waves
+
+Both cut carriers taken: `PcurveMintError` (7 of 10 arms) and
+`OffsetFitError` (5 of 13 renderings), each repair grounded in the
+module's or the variant's own docs rather than invented — the stale-row
+section's *"must either clear the map or re-mint before returning"*,
+`chart_boundary`'s *"a sphere or cone face that stays clear of its
+singularity describes normally"*, `RING_SHIFTS`' premise,
+`LoopWraps`' own *"no constructor in the tree is known to build one"*.
+
+**The judgement worth keeping: transitivity is CONDITIONAL.** PR 2403's
+`MassPropsError` row is transitive — it passes only while its carriers
+name recourses — and the obvious move was to copy that. The lane
+didn't, and its reason is the right one: **a delegating arm is asserted
+transitively only where the carrier below has an enforcement row of its
+own.** That is true of `BandError` and of `Indeterminate`'s
+`COINCIDENCE_RECOURSE` tail, and of nothing else reached here. So
+`PcurveMintError::Certify` and `OffsetFitError`'s four delegating arms
+assert the *delegation* — that the arm renders its carrier whole — and
+nothing about the recourse.
+
+In its words: *"picking the one payload whose carrier happens to name a
+repair would have read as a complete chain while proving almost
+nothing."* **That is a lane declining to make a guard look stronger
+than it is**, which is the failure this program keeps finding in
+other people's guards — the roster whose reasons nothing compared, the
+byte pin that could not tell `Display` from `Debug`, the `zero_radius`
+row that could not go red. First time a lane has refused to create one.
+
+**The counts were wrong again and reading fixed them.**
+`PcurveMintError` is **0 of 10**, not 1 of 9 — the single verb hit is a
+false positive on `LoopDiscontinuity`'s *"a branch is chosen once per
+loop and certified"*, which describes an algorithm and names no repair.
+`OffsetFitError` has **twelve variants rendering thirteen messages**
+(`BoundNotFinite` renders two `last_finite` cases to two different
+levers), and **four were already right and were left alone**. The lane
+renamed the vocabulary constant `RECOURSE_VERBS` → `RECOURSE_WORDS` so
+the list would stop arguing for rewrites of four correct messages —
+a small thing that removes a standing pressure toward the wrong repair.
+
+**Instruction 3: nothing pinned either carrier.** `validate.rs`'s
+Display-coverage row asserts only `!err.to_string().is_empty()`; every
+other hit is a panic-message interpolation. These two enforcement rows
+are the first pin either type has ever had, and both were proved red by
+mutation in CI (run `34671090437`), each shard's whole failure surface
+being exactly the one intended row under `--no-fail-fast`.
+
+**A third fence it did not know it was crossing until CI said so.**
+`OffsetFitError::Structure` rendered its `SplineError` through `{e:?}`
+though that type has a `Display` — so the arm could not have delegated
+a recourse even after its carrier got one. Repairing it retired a
+**tracked** `prose_census::KNOWN_BRACED` row, and striking that entry is
+not a liberty: the roster's own contract (`prose_census.rs:2400`) says
+*"an entry that no longer names one is struck in the PR that repaired
+it."* Verified before merging. LIB's ground, and FIX's `keep_out` now
+lists `crates/pncad-py/*` as a routinely-announced crossing.
+
+**The next hop is filed rather than swallowed:**
+`recourse-chain-stops-at-the-second-hop-carriers` — five carriers
+still stopping at the condition, each **read** rather than
+verb-matched (`PcurveCertifyError` 6 of 15, `MeterError` 2 of 3,
+`PatchBoundError` 5 of 7, `FitError` 7 of 10, `SplineError` 5 of 5),
+with the arms that are already right named so a taker does not rewrite
+them. Taking them here would have been the thirty-clause PR the
+original cut existed to avoid — the cut held twice, for the same
+reason, which is how you can tell it was a real one.
+
+### Wave 3 closes: five dispatched, five merged
+
+PRs **2415, 2417, 2418, 2419, 2420**. Slate **17 → 16 open** (four closed, three new rows filed), one at
+`spec`, **42 closed**. Two classes closed outright this wave (the
+underflow gate's four doors; the recourse carriers' whole chain), one
+spec written and waiting on Ev, one defect fixed by a mechanism its own
+item could not have prescribed.
