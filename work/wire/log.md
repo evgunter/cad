@@ -1061,3 +1061,27 @@ The brief carries three things beyond the item:
   been wrong about the tree. This one claims `slots.rs`'s header says
   "once per node per environment"; that phrasing is not in the file. The
   lane checks rather than inherits.
+
+### Resolved: the rule was wrong, not PR 2409 (2026-09-12)
+
+Ev, in chat, on the clause the entry above reports: *"it should not have
+an absolute rule like that. it should say that sign off is required if
+it is a design choice, which is the normal rule."* **PR 2432** merged
+(`9b395984`) with that fix — the category stays, scoped to the design
+choice, and a clause re-worded because an approved code change moved
+something it describes lands with that change.
+
+So **PR 2409 was in order**: both amendments tracked a rename and a
+caller that went away. The entry above stands as the record of the
+question; it is answered, and nothing is owed.
+
+The absolute version also contradicted the test directly above it in
+`CLAUDE.md` — *"text that binds future work rather than describing this
+change"* — which already said the right thing.
+
+**What stays a judgement call, by Ev's ruling**: whether applying a
+ratified convention against an earlier ratified naming (2409's
+`map` → `map_scalar`, `scalar_lift.rs`'s convention against BOOL-9's)
+is a design choice. Ev: *"that kind of thing is necessarily a judgement
+call"*, and the call this program made was right. It is not reducible to
+a rule and none is written.
