@@ -1004,3 +1004,60 @@ rather than a lane to dispatch).
 choosing a sweep's instrument is his call, since that file is read by
 every lane by path — recorded on
 `work/issues/every-band-construction-is-the-class-not-every-map-err.md`.
+
+## CLAUDE.md's ratified-text rule changed today, and PR 2409 is retroactively in scope (2026-09-12)
+
+`CLAUDE.md`'s git-workflow section gained two exception categories since
+this program opened. The one that bites: a PR that **changes an
+already-ratified decision** — `docs/DESIGN.md`, or a
+`crates/<crate>/README.md` design page its companion table lists —
+**waits for Ev's sign-off**, and explicitly
+
+> even when a code change forces it and even when the amendment is
+> mechanical — a gate that reds until a roster row goes is a reason the
+> change is *needed*, not a reason it is *approved*.
+
+**PR 2409 amended two pages in that table and was self-merged**, under
+the rule as it stood (which covered only design-question ratification
+and `memories/`):
+
+- `crates/profile/README.md` — Ratified V1–V8. V4's clause: *"the `map`
+  materialization door"* → *"the `map_scalar` materialization door"*.
+- `docs/PATHS-DESIGN.md` — Ratified #124. The CLOSED paragraph, and not
+  only the name: *"`sweep`'s loft is its production caller"* became
+  *"it has no production caller"*, which is a **substantive claim
+  change**, not a rename.
+
+And the new clause's own example — a gate that reds until a roster row
+goes — describes `raw_door_census`'s pinned public surface, which PR
+2409 also edited (`let pinned = ["map_scalar", …]`). Reported to Ev in
+chat with both diffs, for his call on whether the text stands as merged.
+
+**Standing change for this program**: every unit brief from here names
+the rule, and a lane that finds its change would amend ratified text
+**stops and reports rather than amending**. `crates/editor-core/README.md`
+is in the table three times, so the next unit is already exposed to it.
+
+## Dispatched: `frame-f64-placement-is-re-evaluated-per-profile` (2026-09-12)
+
+Lane `wire-m2`, branch `wire/frame-f64-placement-once`. **FULL review**
+per `plan.md`'s posture table.
+
+The brief carries three things beyond the item:
+
+- **The ratified-text rule above, with the specific exposure named.**
+  `crates/editor-core/README.md`'s #1151 entry is *"PROFILE-LIFT-DESIGN
+  PP1–PP6: guided replay — structure f64-once as the witness, geometry
+  at the lane scalar with every consumed decision re-verified at `T`"* —
+  which is very close to carrying a frame's f64 placement on a
+  `NodeResult`. The lane must read PP1–PP6 and say whether this change
+  is an instance of that clause, an extension, or in tension with it,
+  and STOP rather than amend if the latter.
+- **The correctness arm stated as evidence owed, not argument**: is the
+  carried placement bit-identical to what `profile_plane_f64` derives
+  today, and does any **content key** change. A key is a persisted
+  commitment, so "tests pass" is not an answer to the second.
+- **A citation warning with a specific hit.** Three items in a row have
+  been wrong about the tree. This one claims `slots.rs`'s header says
+  "once per node per environment"; that phrasing is not in the file. The
+  lane checks rather than inherits.
