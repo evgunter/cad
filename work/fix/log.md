@@ -2155,3 +2155,60 @@ is a real commit the PR already owes — here, the item header this unit
 had left at `status: review` while every other unit of the wave closed
 its own row in its carrying PR. **Not an empty commit**, which the
 discipline forbids, and which was never necessary.
+
+## Wave 3 dispatched, 2026-09-12
+
+| unit | branch | ground |
+|---|---|---|
+| `underflow-gate-owed-at-five-more-doors` (the cut fourth arm) | `fix/arc-fillet-underflow` | `profile/src/path/arc_fillet.rs` + `path.rs` |
+| `census-containment-flatten-fabricates-its-diagnostic` | `fix/census-containment-cause` | `topo/src/census.rs` |
+| `kind-mirrors-have-no-single-declaration` (**scale check + spec ONLY**) | `fix/error-kinds-scale-check` | docs + tracker |
+| `validation-arms-delegate-a-recourse-...` (the two cut carriers) | `fix/recourse-arms-remainder` | `topo/src/pcurves.rs`, `geom-brep/src/offset_fit.rs` |
+| `transform-recertifies-through-the-narrow-lane` | `fix/transform-nurbs-lane` | `topo/src/transform.rs`, `geom-brep/src/certify.rs` |
+
+**Two units close a remainder this wave, and one of the two remainders
+was this orchestrator's own doing.** `arc_fillet` was cut from PR 2401
+because `PathError` lives in `path.rs`, which I had told that lane to
+leave alone for the `num` lane's sake. `path.rs` is free now, the
+previous lane staged the remainder completely — the witness accessor,
+the variant to copy, and the fact that nothing pins the current
+`DegenerateArcCenter { radius: 0.0 }` refusal — so this is a small unit
+rather than a blocked one. The cost of designing that collision out was
+one wave's delay, and I still judge the trade right.
+
+**`kind-mirrors` is dispatched with a hard scope fence: it migrates
+nothing.** The row wants a `macro_rules!` `error_kinds!` generating four
+PUBLIC error/kind pairs tree-wide, and the orchestrator flagged it to Ev
+as one of three rows changing public surface. So the unit is the scale
+check the row itself names as owed first — whether `transition_table!`'s
+grammar can express `BooleanError`'s 41 arms, their attributes and their
+nested payloads — answered **by prototype and revert**, output being a
+spec Ev can read or a written statement that the migration should not
+happen. Nothing tree-wide lands unseen, and "not feasible" is an
+outcome, not a failure.
+
+**`transform-recertifies` is the second public-surface row and it lands
+if it is right.** It is a real defect — a body tier 3 validates at rest
+refuses at `transform_rigid`, so the kernel cannot move a body it calls
+valid — and the item is explicit that injecting the lane *"adds no
+certification capability the at-rest validator does not already have"*.
+The lane is told to verify that sentence rather than repeat it, since it
+is the one a reviewer would attack, and to make the public delta legible
+in the PR body.
+
+**Instruction 2 fired before dispatch again.** The transform row's table
+says `crates/topo/src/validate.rs:2920` calls `recertify_nurbs_lane`; I
+grepped that file on this head and found no such hit. The brief says so
+and tells the lane to re-derive the whole table — and, per instruction
+4, to report a correction if my grep is what is wrong.
+
+**Two new standing clauses in every brief**, both earned last wave:
+- **`work.py territory` reads the COMMITTED diff**, so a dirty tree
+  answers a vacuous `0 path(s)`. Commit first, and **disbelieve a `0`
+  on any cross-crate change.** Two lanes hit it; one caught it, one
+  reported it as a pass.
+- **A log is not a result until it is closed.** A lane read a
+  `test result: ok` tail off a file still being written, reported green,
+  and CI caught three census guards over two round trips. Wait for the
+  exit code. This is `implementer-discipline` §2's *"a build is not a
+  test"* one level in.
