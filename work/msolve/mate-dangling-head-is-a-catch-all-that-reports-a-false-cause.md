@@ -2,9 +2,9 @@
 id: mate-dangling-head-is-a-catch-all-that-reports-a-false-cause
 kind: issue
 title: MateFault::DanglingHead is the catch-all for every pattern-rule failure, and the doc's stated mitigation is unavailable exactly when it is needed
-status: parked
+status: closed
 opened: 2026-09-04
-blocked_on: [MSOLVE-3]
+closed: 2026-09-06
 ---
 
 
@@ -108,3 +108,8 @@ residue.
 
 The proposal above is ruled in by S-MATE's successor; the unit is
 `MSOLVE-3`, on which this row is parked.
+
+## Closed (2026-09-06, PR 2081)
+
+Fixed by MSOLVE-3: the mate road carries the evaluation's own refusal
+(`PlacerRefused`), and the catch-all is gone.

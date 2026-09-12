@@ -22,7 +22,8 @@
 
 use std::collections::HashMap;
 
-use pncad::geom_core::{Affine3, Point2, Vec3};
+use pncad::authoring::{p2, polygon, v3};
+use pncad::geom_core::Affine3;
 use pncad::profile::{Profile, SketchPlane, circle_split};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanBody, BooleanResult, Curve3};
@@ -33,8 +34,8 @@ use pncad::geom_core::Tol;
 
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
 fn plate<S: Scalar>(tol: Tol) -> Body<S> {
-    // Algebra-authored (LIB-U2 PR-2).
-    let lp = crate::paths::path_polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], tol);
+    let lp =
+        polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], tol).expect("plate outline");
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol)
         .unwrap();
@@ -54,20 +55,10 @@ fn boss<S: Scalar>(tol: Tol) -> Body<S> {
     // pins the count. `circle` authors no seam at all (its private
     // lowering is the conventional two-semicircle split), so the split
     // count has to be said out loud; `circle_split` is the door that
-    let rim = circle_split(
-        Point2::new(S::from_f64(2.0), S::from_f64(2.0)),
-        S::from_f64(0.5),
-        3,
-        S::from_f64(0.0),
-        tol,
-    )
-    .expect("the three-arc rim authors");
+    let rim = circle_split(p2(2.0, 2.0), S::from_f64(0.5), 3, S::from_f64(0.0), tol)
+        .expect("the three-arc rim authors");
     let lp = rim.into();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(
-        S::from_f64(0.0),
-        S::from_f64(0.0),
-        S::from_f64(0.4),
-    )));
+    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, 0.4)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(S::from_f64(1.2)), tol)
         .unwrap()

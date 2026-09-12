@@ -161,7 +161,7 @@ use pncad::topo::{Body, BooleanError, Operand, TransformError};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{p2, p3, v2, v3, validated};
+use pncad::authoring::{p2, p3, polygon, v2, v3, validated};
 use pncad::geom_core::Tol;
 
 // ---------------------------------------------------------------
@@ -399,11 +399,7 @@ fn lantern<S: Scalar>(
     // flower axis (into the flower), u the in-plane radial — the
     // flower axis turned a quarter turn in the plant's own plane,
     // i.e. crossed with ŷ.
-    let plane = SketchPlane::from_frame(
-        attach.map(S::from_f64),
-        dir.cross(Vec3::unit_y()).map(S::from_f64),
-        dir.map(S::from_f64),
-    );
+    let plane = SketchPlane::from_frame(attach, dir.cross(Vec3::unit_y()), dir).map(S::from_f64);
     revolve(
         &validated(
             plane,
@@ -620,11 +616,7 @@ fn bud<S: Scalar>(
         let u = start.reject_from(a).normalize();
         // All three share the ATTACHMENT: the tilt splays their
         // tips, not their bellies.
-        let plane = SketchPlane::from_frame(
-            attach.map(S::from_f64),
-            u.map(S::from_f64),
-            a.map(S::from_f64),
-        );
+        let plane = SketchPlane::from_frame(attach, u, a).map(S::from_f64);
         revolve(
             &validated(
                 plane,
@@ -666,23 +658,11 @@ struct Kite {
 /// to zero, and measures the roll as the angle between the two. A
 /// re-typed copy of these numbers would let the two drift and the
 /// measurement would quietly stop meaning anything.
-const LEAF_A_BASE: Point3<f64> = Point3 {
-    x: 0.04,
-    y: 0.05,
-    z: 0.03,
-};
+const LEAF_A_BASE: Point3<f64> = Point3::new(0.04, 0.05, 0.03);
 /// See [`LEAF_A_BASE`].
-const LEAF_A_DIR: Vec3<f64> = Vec3 {
-    x: -0.72,
-    y: 0.52,
-    z: 0.16,
-};
+const LEAF_A_DIR: Vec3<f64> = Vec3::new(-0.72, 0.52, 0.16);
 /// See [`LEAF_A_BASE`].
-const LEAF_A_UP: Vec3<f64> = Vec3 {
-    x: 0.0,
-    y: 0.0,
-    z: 1.0,
-};
+const LEAF_A_UP: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
 /// See [`LEAF_A_BASE`].
 const LEAF_A_LEN: f64 = 5.10;
 /// See [`LEAF_A_BASE`]. Negative: the blade arches OVER, which is what
@@ -791,18 +771,21 @@ fn leaf<S: Scalar>(
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
     // The skinning lane's own door is `f64` (`sweep_body` takes an
     // `Affine3<f64>`), so this frame is not lifted at all.
-    let place = SketchPlane::from_frame(base, u, v).placement;
+    let place = Affine3::from_frame(base, u, v);
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
-    let loops: Vec<ProfileLoop<f64>> = vec![crate::paths::path_polygon(
-        &[
-            (-0.5 * section.width, 0.0),
-            (0.0, -section.keel),
-            (0.5 * section.width, 0.0),
-            (0.0, section.ridge),
-        ],
-        tol,
-    )];
+    let loops: Vec<ProfileLoop<f64>> = vec![
+        polygon(
+            &[
+                (-0.5 * section.width, 0.0),
+                (0.0, -section.keel),
+                (0.5 * section.width, 0.0),
+                (0.0, section.ridge),
+            ],
+            tol,
+        )
+        .expect("the leaf kite"),
+    ];
     sweep_body::<S>(&loops, place, &path, LEAF_STATIONS, LEAF_V_DEGREE, tol)
         .expect("the leaf sweeps along its spine")
         .body
@@ -1124,7 +1107,7 @@ fn try_lofted_blade<S: Scalar>(
         let uu = u * ct + vk * st;
         let vv = vk * ct - u * st;
         sections.push(plan.at(s).outline(tol));
-        places.push(SketchPlane::from_frame(p, uu, vv).placement);
+        places.push(Affine3::from_frame(p, uu, vv));
     }
     loft_body::<S>(&sections, &places, LEAF_V_DEGREE, tol)
 }
@@ -2038,22 +2021,30 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    because the declared contact is the PLANAR pair the throat
     //    disk and the arch's cap already form, and a cone x torus Rest
     //    declaration would be Contradicted, correctly. #1059 is the
-    //    derivation; the measurement is VERBS-LILYWELD PR-2's.
+    //    derivation; the measurement is VERBS-LILYWELD PR-2's. The
+    //    face the gate names on the arch is that same end cap, paired
+    //    with the lantern's neck CONE — a pair no declaration speaks
+    //    for, coverage being per pair and never per face.
     wall(
         2,
-        "weld the lantern onto the arch (cone x torus, meeting on one \
-         shared circle)",
+        "weld the lantern onto the arch (cone x the arch's end cap, \
+         meeting on one shared circle)",
         pncad::topo::union(lant, arch, tol),
         |e| {
-            // Reviewer pin (lilyweld r1 + r2 probes): PR body claims
-            // (Cone, Torus), re-measured on the re-authored pair.
+            // The pair is (Cone, Plane): the lantern's neck cone
+            // against the arch's END CAP, whose rim IS the shared
+            // circle — a genuine coincidence rather than a box
+            // artifact. It was (Cone, Torus) while the arch's tube
+            // wall was boxed as its whole ring; the wall is now boxed
+            // by the chart window its own boundary states, so the
+            // first overlapping pair in arena order is the cap.
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -2757,12 +2748,21 @@ mod review_probes {
     /// refuses with the identical payload, because `gate_operand_pairs`
     /// runs on KINDS before any declaration is consulted.
     ///
+    /// **What the row pins is narrower than its old name claimed.**
+    /// The pair the gate names is the lantern's neck CONE against that
+    /// same end cap, and no declaration speaks for THAT pair —
+    /// coverage is per pair, never per face. So this row cannot show
+    /// a declaration being ignored; what it shows is that the gate
+    /// refuses on an UNCOVERED pair whether or not the covered one is
+    /// declared, and the differential between the two calls is empty
+    /// for that reason. The row is named for what it pins.
+    ///
     /// That is the pin: **declaring the weld changes nothing today**,
     /// and the differential between the declared and undeclared calls
     /// is empty. When the operand gate learns declared cone×torus,
     /// this row is what will show the two calls separating.
     #[test]
-    fn the_declared_weld_refuses_exactly_as_the_undeclared_one_does() {
+    fn declaring_the_covered_weld_pair_leaves_the_uncovered_cone_pair_refusing() {
         let tol = Tol::witness();
         let ps = pieces();
         let (lant, arch) = (body(&ps, "lily_lantern"), body(&ps, "lily_arch"));
@@ -2795,7 +2795,7 @@ mod review_probes {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             ),
@@ -3055,9 +3055,11 @@ mod review_probes {
     /// stored, not which torus they describe, so the tessellator sees
     /// the same surface and splits it the same way. The two SWEPT
     /// blade rows are the other half of the finding: a swept skin over
-    /// a 4-vertex section costs three orders of magnitude less than a
-    /// torus tube at the same δ, because the torus lane spends its
-    /// budget on the RING and not on the tube.
+    /// a 4-vertex section and a torus tube at the same δ cost within a
+    /// factor of two of each other (828 against 454 at 2e-3), because
+    /// `mesh::sizing::torus_grid_steps` sizes the tube's direction by
+    /// the tube's radius and the ring's by the ring's — a torus spends
+    /// the chord budget per curvature, not per feature size.
     ///
     /// The LOFTED bodies are deliberately absent from this table. A
     /// loft's wall count and knot structure follow the section list
@@ -3071,9 +3073,9 @@ mod review_probes {
         use pncad::mesh::validate::{signed_volume, triangle_count};
         let ps = pieces();
         let table = [
-            ("lily_stem", 5e-3, 31_612usize),
-            ("lily_stem", 2e-3, 76_436),
-            ("lily_arch", 2e-3, 136_076),
+            ("lily_stem", 5e-3, 392usize),
+            ("lily_stem", 2e-3, 828),
+            ("lily_arch", 2e-3, 2_960),
             ("lily_lantern", 5e-3, 1_084),
             ("lily_lantern", 2e-3, 2_560),
             // RE-DERIVED, not preserved (issue 1006's Q2 ruling): the
@@ -3950,52 +3952,121 @@ mod verbs_gate_r1_probes {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Torus,
-                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             ),
-            "wall 1 must name the stem's tube wall against a planar disc of the arch: \
+            "wall 1 must name the stem's tube wall against a face of the arch: \
              {glued:?}"
         );
-        // **What this pair actually is, measured.** The gate names the
-        // stem's tube wall against the arch's FAR cap — the disc at the
-        // top of the arch, metres from anything the stem occupies. The
-        // two exact loci never come near each other; what overlaps is
-        // the stem wall's BOX, which for a torus is the whole tube
-        // about the ring centre and reads nothing from the face's
-        // boundary, so a 22° arc of a 5 m ring is boxed as the entire
-        // 10 m ring.
+        // **What this pair is, measured.** The stem's tube wall is
+        // boxed by the window its own boundary states — a 22° arc of
+        // the 5 m ring rather than the whole 10 m ring — so the arch's
+        // FAR cap, whose exact locus is 2.08 m from anything the stem
+        // occupies, no longer shares a box with it. What the gate
+        // names now is a WELD pair, and it is a real approach: the
+        // stem tube's end circle has radius `STEM_R` = 0.060 and the
+        // arch's start disc radius `ARCH_R` = 0.052, concentric and
+        // coplanar on the weld plane, so the two loci stand
+        // `0.060 − 0.052 = 0.008 m` apart.
         //
-        // So wall 1 is not a germ-class wall and never was: no arm is
-        // missing for a pair that does not meet. It is the box
-        // artifact the cone arm already had fixed (its slab became the
-        // frustum its window cuts) and the torus arm has not.
+        // **The refusal is NOT retired by the tighter box, and cannot
+        // be** (`docs/CURVED-TORUS-SPEC.md` §R3): a disc concentric
+        // and coplanar with a larger circle lies inside every AABB of
+        // that circle, so the stem's wall box meets the arch's weld
+        // faces under any sound box whatever. `Torus` is not on
+        // `boolean_arm_exists`, so the operand gate refuses on the
+        // first overlapping pair in arena order. Retiring wall 1 needs
+        // the KIND admitted, which is `work/curved/`'s
+        // `torus-operand-gate-admission` after the circle-residual
+        // torus arm — not a box.
         //
-        // The weld's own contact — the stem's end disc against the
-        // arch's start disc — is plane×plane, declared and verified;
-        // the tube walls take no part in it, because the arch's tube
-        // is thinner than the stem's and the two walls share nothing
-        // but the plane they both end on.
-        let arch_far_cap = arch
-            .faces()
-            .filter_map(|(k, f)| match arch.get_surface(f.surface) {
-                Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
-                _ => None,
-            })
-            .find(|&(_, o)| (o - pncad::geom_core::Point3::origin()).norm() > 2.0)
-            .expect("the arch carries a cap plane clear of the weld");
+        // The arch's cap planes, named by position: the far cap is
+        // the disc more than 2 m from the world origin (where the stem
+        // starts); the other is the weld disc at the fork.
+        let cap = |far: bool| {
+            arch.faces()
+                .filter_map(|(k, f)| match arch.get_surface(f.surface) {
+                    Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
+                    _ => None,
+                })
+                .find(|&(_, o)| ((o - pncad::geom_core::Point3::origin()).norm() > 2.0) == far)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "the arch carries {} cap",
+                        if far { "a far" } else { "a weld" }
+                    )
+                })
+        };
         // Unconditional on both halves. Under an `if let` this row
         // SELF-DISABLES the moment the refusal's shape changes — which
         // is exactly when the claim it makes needs re-reading, so the
         // one arrangement that must not be used is the one that goes
         // quiet then.
-        let BooleanError::CurvedPairUnsupported { other_face, .. } = &glued else {
+        let BooleanError::CurvedPairUnsupported {
+            other_face,
+            other_kind,
+            ..
+        } = &glued
+        else {
             panic!("wall 1's refusal is the operand gate's, or this reading is stale: {glued:?}");
         };
         assert_eq!(
-            *other_face, arch_far_cap.0,
-            "the pair the gate names is the stem's wall against the arch's FAR cap — \
-             a box overlap, not a contact"
+            *other_kind,
+            SurfaceKind::Plane,
+            "the named arch face is the weld DISC: {glued:?}"
+        );
+        assert_ne!(
+            *other_face,
+            cap(true).0,
+            "the box artifact is what this unit removed: wall 1 must no longer name the \
+             arch's far cap, 2.08 m from anything the stem occupies: {glued:?}"
+        );
+        assert_eq!(
+            *other_face,
+            cap(false).0,
+            "wall 1 names the arch's START cap — the weld disc: {glued:?}"
+        );
+        // The separation, COMPUTED off the two loci the pair names —
+        // the spelling `mate7a_r1_probes::dist_to_stem_center_arc`
+        // uses, on the disc the gate actually named. The stem's tube
+        // wall is `STEM_R` from its 22° spine arc, so a point's
+        // distance to that wall is its distance to the arc minus
+        // `STEM_R`.
+        let weld = cap(false).1;
+        let ring_c = pncad::geom_core::Point3::new(-5.0, 0.0, 0.0);
+        let to_stem_wall = |p: pncad::geom_core::Point3<f64>| {
+            let rel = p - ring_c;
+            let theta = rel.z.atan2(rel.x).clamp(0.0, deg(22.0));
+            let on = pncad::geom_core::Point3::new(
+                ring_c.x + 5.0 * theta.cos(),
+                0.0,
+                ring_c.z + 5.0 * theta.sin(),
+            );
+            // The UNSIGNED distance to the tube SURFACE: a point of
+            // the weld disc sits inside the tube's radius, so the
+            // signed form would report how far in, not how far off.
+            ((p - on).norm() - STEM_R).abs()
+        };
+        // The weld disc, sampled: its own plane's two in-plane
+        // directions are ±y and the perpendicular to the end tangent.
+        let e2 = {
+            let n = pncad::geom_core::Vec3::new(deg(22.0).sin(), 0.0, -deg(22.0).cos());
+            n.normalize()
+        };
+        let e1 = pncad::geom_core::Vec3::new(0.0, 1.0, 0.0);
+        let mut sep = f64::INFINITY;
+        for ir in 0..=24 {
+            let r = ARCH_R * f64::from(ir) / 24.0;
+            for ip in 0..96 {
+                let psi = 2.0 * PI * f64::from(ip) / 96.0;
+                sep = sep.min(to_stem_wall(weld + (e1 * psi.cos() + e2 * psi.sin()) * r));
+            }
+        }
+        assert!(
+            (sep - (STEM_R - ARCH_R)).abs() < 1e-6,
+            "the named pair's true separation is the weld's annular gap \
+             {}, measured {sep}",
+            STEM_R - ARCH_R
         );
 
         let welded = pncad::topo::union(lant, arch, tol)
@@ -4008,12 +4079,13 @@ mod verbs_gate_r1_probes {
                     op: None,
                     operand: Operand::A,
                     kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             ),
-            "wall 2 must name a lantern CONE against the arch's tube — the pair the \
-             gate has no arm for, with the two loci sharing one circle: {welded:?}"
+            "wall 2 must name a lantern CONE against the arch's END CAP — the pair \
+             the gate has no arm for, and the cone's rim IS that cap's rim: \
+             {welded:?}"
         );
     }
 

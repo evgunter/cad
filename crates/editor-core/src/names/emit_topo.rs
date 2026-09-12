@@ -18,7 +18,8 @@ use super::discriminate::{Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, edge_ends, ent, face_half_edges, name1, unique_shared_edge,
 };
-use super::role::{EntityKind, Qualifier, RoleSeg, SplitHalf, StableName};
+use super::merged::{self, NESTED_MERGED};
+use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
@@ -303,7 +304,7 @@ fn name_split_edges_vertices<T: Decide>(
                 node,
                 RoleSeg::SectionEdge {
                     side: s.half,
-                    face: Box::new(parent.name),
+                    face: parent.name,
                 },
             );
             let shared = parent.tied || edges.len() > 1;
@@ -360,7 +361,7 @@ fn name_split_edges_vertices<T: Decide>(
                     node,
                     RoleSeg::SplitFragment {
                         side: s.half,
-                        parent: Box::new(parent.name),
+                        parent: parent.name,
                     },
                 ),
                 ent(s.ix, EntityKey::Edge(e)),
@@ -408,7 +409,7 @@ fn name_split_edges_vertices<T: Decide>(
                 (
                     RoleSeg::CrossingVertex {
                         side: s.half,
-                        edge: Box::new(parent.name),
+                        edge: parent.name,
                     },
                     parent.tied,
                 )
@@ -424,7 +425,7 @@ fn name_split_edges_vertices<T: Decide>(
                 (
                     RoleSeg::OnToolVertex {
                         side: s.half,
-                        of: Box::new(of.name),
+                        of: of.name,
                     },
                     of.tied,
                 )
@@ -514,10 +515,10 @@ pub(crate) fn name_boolean<T: Decide>(
             Descent::B(f) => upstream_name(b.table, b.node, ent(0, EntityKey::Face(f))),
         }
     };
-    let wrap = |d: Descent, inner: StableName, kind: EntityKind| {
+    let wrap = |d: Descent, inner: NameRef, kind: EntityKind| {
         let seg = match d {
-            Descent::A(_) => RoleSeg::FromA(Box::new(inner)),
-            Descent::B(_) => RoleSeg::FromB(Box::new(inner)),
+            Descent::A(_) => RoleSeg::FromA(inner),
+            Descent::B(_) => RoleSeg::FromB(inner),
         };
         name1(kind, node, seg)
     };
@@ -541,20 +542,42 @@ pub(crate) fn name_boolean<T: Decide>(
             descents.push(d);
             let up = operand_face_name(d)?;
             from_tie |= up.tied;
-            constituents.push(wrap(d, up.name, EntityKind::Face));
+            // The constituent set is FLAT (N3), decided here: an
+            // operand face that is a merged face, read through its
+            // descent wrappers, contributes its constituents
+            // (re-wrapped by that chain, then by this side) and never
+            // its `Merged` name.
+            match merged::constituents_through_wrappers(&up.name) {
+                Some(cs) => constituents.extend(
+                    cs.into_iter()
+                        .map(|inner| wrap(d, NameRef::new(inner), EntityKind::Face)),
+                ),
+                None => constituents.push(wrap(d, up.name, EntityKind::Face)),
+            }
+        }
+        // The kernel's guarantee that the set is flat, held here for
+        // both emitters: a constituent that is itself a merged face
+        // (through any wrapping) is a name this loop cannot have
+        // built from a flat operand, so it is refused rather than
+        // published. `emit_union`'s `collapse` reads the same rule at
+        // the union's second door; the two are one rule at two doors.
+        if constituents
+            .iter()
+            .any(|c| merged::constituents_through_wrappers(c).is_some())
+        {
+            return Err(bug(NESTED_MERGED));
         }
         merged_descents.insert(*kept, descents);
         constituents.sort_unstable();
-        // Review R8, RESOLVED at M4 PR 5: dedup makes the constituent
-        // SET the name — TWO merge groups with one constituent set
-        // (reachable only when BOTH kept faces are fragments of one
-        // operand face, glued to fragments of one partner: a
-        // disjoint-patch declared contact) collide LOUDLY at insert
+        // The constituent SET is the name (review R8): two merge
+        // groups with one set collide LOUDLY at insert
         // (`DuplicateName` → typed `NamingError`; pinned by
-        // `merged_same_constituent_groups_collide_loudly`). No silent
-        // aliasing is possible; a per-group discriminator upgrades
-        // this refusal to a success if the disjoint-patch class ever
-        // matters (REPORT'd, banked).
+        // `merged_same_constituent_groups_collide_loudly`). With the
+        // set flat, two groups collide whenever they list the same
+        // faces — a merge over a merged face and a merge over that
+        // face's constituents are ONE set, where nesting once kept
+        // them apart — and a per-group discriminator is what would
+        // upgrade the refusal to a success if that class ever matters.
         constituents.dedup();
         put(
             &mut t,
@@ -656,7 +679,7 @@ fn name_fragment_group<T: Decide>(
 ) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
     // Partners: operand faces across the members' seam edges.
-    let mut partners: BTreeMap<StableName, FaceKey> = BTreeMap::new();
+    let mut partners: BTreeMap<NameRef, FaceKey> = BTreeMap::new();
     for &m in members {
         for he in face_half_edges(body, m)? {
             let e = body
@@ -693,7 +716,7 @@ fn name_fragment_group<T: Decide>(
         for (pname, &pface) in &partners {
             let (origin, normal) = face_plane(body, pface)?;
             let verdict = side_of_face(body, m, origin, normal, bnd)?;
-            vector.push((pname.clone(), verdict));
+            vector.push(((**pname).clone(), verdict));
         }
         by_vector.entry(vector).or_default().push(m);
     }
@@ -829,7 +852,7 @@ fn name_boolean_edges<T: Decide>(
     // Group value: (descends-from-a-tie, edges). Two tied operand
     // faces answer to ONE name, so their seam chords land in one
     // group — the widening B1 asks for, not a collision.
-    let mut seam_groups: BTreeMap<(StableName, StableName), (bool, Vec<EdgeKey>)> = BTreeMap::new();
+    let mut seam_groups: BTreeMap<(NameRef, NameRef), (bool, Vec<EdgeKey>)> = BTreeMap::new();
     let mut add_seam = |fa: Upstream, fb: Upstream, e: EdgeKey| {
         let from_tie = fa.tied || fb.tied;
         let slot = seam_groups
@@ -862,8 +885,8 @@ fn name_boolean_edges<T: Decide>(
     //
     // This is NOT `Body::split_root`, deliberately: the result body's
     // records for grafted edges carry B-space keys verbatim (the graft
-    // copies provenance without forwarding — issue 1597), and this
-    // lane depends on that: B's table names ancestors that died in B
+    // copies provenance without forwarding), and this lane depends on
+    // that: B's table names ancestors that died in B
     // before the graft, and the verbatim key is the only way back to
     // them. B's operand body cannot be chased instead — it is not the
     // body that was grafted (a placed copy is). Forwarding `SplitEdge`
@@ -925,14 +948,7 @@ fn name_boolean_edges<T: Decide>(
         }
     }
     for ((fa, fb), (from_tie, edges)) in seam_groups {
-        let base = name1(
-            EntityKind::Edge,
-            node,
-            RoleSeg::Seam {
-                a: Box::new(fa),
-                b: Box::new(fb),
-            },
-        );
+        let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
         if edges.len() == 1 {
             put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
@@ -985,9 +1001,9 @@ fn name_boolean_edges<T: Decide>(
         };
         let from_tie = inner.tied;
         let seg = if wrap_a {
-            RoleSeg::FromA(Box::new(inner.name))
+            RoleSeg::FromA(inner.name)
         } else {
-            RoleSeg::FromB(Box::new(inner.name))
+            RoleSeg::FromB(inner.name)
         };
         let base = name1(EntityKind::Edge, node, seg);
         if edges.len() == 1 {
@@ -1040,22 +1056,14 @@ fn name_boolean_vertices<T: Decide>(
             if b.table.name_of(&ent(0, EntityKey::Vertex(vb))).is_some() {
                 let inner = upstream_name(b.table, b.node, ent(0, EntityKey::Vertex(vb)))?;
                 return Ok(Some((
-                    name1(
-                        EntityKind::Vertex,
-                        node,
-                        RoleSeg::FromB(Box::new(inner.name)),
-                    ),
+                    name1(EntityKind::Vertex, node, RoleSeg::FromB(inner.name)),
                     inner.tied,
                 )));
             }
         } else if a.table.name_of(&ent(0, EntityKey::Vertex(k))).is_some() {
             let inner = upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(k)))?;
             return Ok(Some((
-                name1(
-                    EntityKind::Vertex,
-                    node,
-                    RoleSeg::FromA(Box::new(inner.name)),
-                ),
+                name1(EntityKind::Vertex, node, RoleSeg::FromA(inner.name)),
                 inner.tied,
             )));
         }
@@ -1064,15 +1072,14 @@ fn name_boolean_vertices<T: Decide>(
     // Candidate seam-vertex names, grouped for multiplicity: the key
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
-    let mut groups: BTreeMap<(StableName, StableName), (bool, Vec<VertexKey>)> = BTreeMap::new();
+    let mut groups: BTreeMap<(NameRef, NameRef), (bool, Vec<VertexKey>)> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // Operand pass-downs: the kept key itself, then its dead
         // fusion partners (deterministic order: KEPT-KEY identity
         // wins when both operands fused here — `operand_identity`
         // checks the graft destination first, and the kept key is
         // A's exactly because `zip_seam` keeps the outer cycle's
-        // vertex; review R9 — the PR 4 Vanished-diagnosis item covers
-        // the retired partner).
+        // vertex).
         let mut identity = operand_identity(v)?;
         if identity.is_none() {
             for &dead in fused.get(&v).into_iter().flatten() {
@@ -1091,11 +1098,15 @@ fn name_boolean_vertices<T: Decide>(
             .vertex_edges
             .get(&v)
             .ok_or_else(|| bug("seam vertex without incident edges"))?;
-        let mut a_edges: Vec<StableName> = Vec::new();
-        let mut b_edges: Vec<StableName> = Vec::new();
-        let mut a_faces: Vec<StableName> = Vec::new();
-        let mut b_faces: Vec<StableName> = Vec::new();
-        let mut seam_lines: Vec<(StableName, StableName)> = Vec::new();
+        // The parentage a seam vertex is named from is read off the
+        // incident EDGE names and put straight back into this vertex's
+        // own name, so it travels as the operand tables' handles: no
+        // copy is made and the order cache survives the trip.
+        let mut a_edges: Vec<NameRef> = Vec::new();
+        let mut b_edges: Vec<NameRef> = Vec::new();
+        let mut a_faces: Vec<NameRef> = Vec::new();
+        let mut b_faces: Vec<NameRef> = Vec::new();
+        let mut seam_lines: Vec<(NameRef, NameRef)> = Vec::new();
         // B1: a seam vertex reads its parentage off the incident EDGE
         // names, so an edge name that is itself tied makes the vertex
         // name tie-descended too.
@@ -1106,17 +1117,17 @@ fn name_boolean_vertices<T: Decide>(
             };
             from_tie |= t.is_tied(ename);
             match ename.path.first() {
-                Some(RoleSeg::FromA(x)) => a_edges.push((**x).clone()),
-                Some(RoleSeg::FromB(x)) => b_edges.push((**x).clone()),
+                Some(RoleSeg::FromA(x)) => a_edges.push(x.clone()),
+                Some(RoleSeg::FromB(x)) => b_edges.push(x.clone()),
                 // Zip-listed AND derived seams both qualify (M4 PR 5:
                 // declared merges reroute channel-cut chords into the
                 // derived-seam lane, so a seam vertex may lean on a
                 // Seam-named edge outside `naming.seam_edges`) — the
                 // NAME is the evidence either way.
                 Some(RoleSeg::Seam { a: fa, b: fb }) => {
-                    a_faces.push((**fa).clone());
-                    b_faces.push((**fb).clone());
-                    seam_lines.push(((**fa).clone(), (**fb).clone()));
+                    a_faces.push(fa.clone());
+                    b_faces.push(fb.clone());
+                    seam_lines.push((fa.clone(), fb.clone()));
                 }
                 _ => return Err(bug("seam vertex incident to an unexpected edge role")),
             }
@@ -1152,8 +1163,8 @@ fn name_boolean_vertices<T: Decide>(
             .and_then(|pa| upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(pa))).ok());
         from_tie |= partner_b.as_ref().is_some_and(|u| u.tied);
         from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
-        let partner_b_inner: Option<StableName> = partner_b.map(|u| u.name);
-        let partner_a_inner: Option<StableName> = partner_a.map(|u| u.name);
+        let partner_b_inner: Option<NameRef> = partner_b.map(|u| u.name);
+        let partner_a_inner: Option<NameRef> = partner_a.map(|u| u.name);
         seam_lines.sort_unstable();
         seam_lines.dedup();
         // The A side of the pair is always an A-descended name and the
@@ -1190,8 +1201,8 @@ fn name_boolean_vertices<T: Decide>(
                 let mut segs: Vec<RoleSeg> = seam_lines
                     .iter()
                     .map(|(fa, fb)| RoleSeg::Seam {
-                        a: Box::new(fa.clone()),
-                        b: Box::new(fb.clone()),
+                        a: fa.clone(),
+                        b: fb.clone(),
                     })
                     .collect();
                 segs.sort_unstable();
@@ -1218,8 +1229,8 @@ fn name_boolean_vertices<T: Decide>(
             EntityKind::Vertex,
             node,
             RoleSeg::Seam {
-                a: Box::new(pa.clone()),
-                b: Box::new(pb.clone()),
+                a: pa.clone(),
+                b: pb.clone(),
             },
         );
         if verts.len() == 1 {
@@ -1384,7 +1395,7 @@ fn name_split_faces<T: Decide>(
         let half = members[0].1;
         let base = RoleSeg::SplitFragment {
             side: half,
-            parent: Box::new(parent.name),
+            parent: parent.name,
         };
         if members.len() == 1 {
             let (ix, _, f) = members[0];
@@ -1618,5 +1629,212 @@ mod tests {
         )
         .expect_err("same-constituent merge groups must refuse loudly");
         let _ = err; // typed NamingError, never a silent alias
+    }
+
+    /// The flat mint: an operand face that is itself a merged face
+    /// contributes its CONSTITUENTS to a merge over it, each wrapped
+    /// by the descent side, and never its `Merged` name.
+    #[test]
+    fn a_merge_over_a_merged_face_lists_its_constituents_flat() {
+        let plane = profile::SketchPlane::from_frame(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+        );
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| geom_core::Point2::new(x, y)),
+        );
+        let profile = profile::Profile::new(plane, vec![square])
+            .validate(geom_core::Tol::witness())
+            .unwrap();
+        let built = sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance(1.0_f64),
+            Tol::witness(),
+        )
+        .unwrap();
+        let ext_node = RecipeNodeId(1);
+        let ext_table = name_extrude(ext_node, &built).unwrap();
+        // Three laterals: one the merge absorbs, two standing as the
+        // constituents the operand's top cap already merged.
+        let mut laterals: Vec<(StableName, FaceKey)> = ext_table
+            .iter()
+            .filter_map(|(n, e)| match (n.path.first(), e) {
+                (Some(RoleSeg::Lateral(_)), Entry::Unique(r)) => match r.key {
+                    EntityKey::Face(f) => Some((n.clone(), f)),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+        laterals.sort();
+        let (absorbed_name, absorbed) = laterals[0].clone();
+        let mut inner_set = vec![laterals[1].0.clone(), laterals[2].0.clone()];
+        inner_set.sort();
+        // The operand's table, its top cap named as a merged face.
+        let top = ent(0, EntityKey::Face(built.top));
+        let top_name = ext_table.name_of(&top).unwrap().clone();
+        let mut a_table = NameTable::new();
+        for (n, e) in ext_table.iter() {
+            let name = if *n == top_name {
+                name1(
+                    EntityKind::Face,
+                    ext_node,
+                    RoleSeg::Merged(inner_set.clone()),
+                )
+            } else {
+                n.clone()
+            };
+            match e {
+                Entry::Unique(r) => a_table.insert(name, *r).unwrap(),
+                Entry::Tied(es) => a_table.insert_tied(name, es.clone()).unwrap(),
+            }
+        }
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Absent,
+            merge_groups: vec![(built.top, vec![absorbed])],
+            ..topo::BooleanNaming::default()
+        };
+        let empty = NameTable::new();
+        let bool_node = RecipeNodeId(9);
+        let a = OperandCtx {
+            node: ext_node,
+            table: &a_table,
+            body: &built.body,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId(2),
+            table: &empty,
+            body: &built.body,
+        };
+        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness()).unwrap();
+        let wrap = |inner: &StableName| {
+            name1(
+                EntityKind::Face,
+                bool_node,
+                RoleSeg::FromA(inner.clone().into()),
+            )
+        };
+        let mut want = vec![
+            wrap(&inner_set[0]),
+            wrap(&inner_set[1]),
+            wrap(&absorbed_name),
+        ];
+        want.sort();
+        let row = name1(EntityKind::Face, bool_node, RoleSeg::Merged(want));
+        match t.lookup(&row) {
+            Some(Entry::Unique(r)) => assert_eq!(r.key, EntityKey::Face(built.top)),
+            other => panic!("the flat merged row is not published: {other:?}"),
+        }
+        // And no row carries the operand's merged name inside a merge.
+        let nested = t.iter().any(|(n, _)| {
+            n.path.iter().any(|seg| match seg {
+                RoleSeg::Merged(cs) => cs.iter().any(|c| match c.path.first() {
+                    Some(RoleSeg::FromA(inner)) => {
+                        matches!(inner.path.first(), Some(RoleSeg::Merged(_)))
+                    }
+                    _ => false,
+                }),
+                _ => false,
+            })
+        });
+        assert!(!nested, "a merge over a merged face nested the merged name");
+    }
+
+    /// The mint's own guarantee: an operand whose merged face lists a
+    /// merged face — a table no emitter of this crate produces — is
+    /// refused at the merge-group loop, not published nested. The
+    /// pair boolean has no `collapse` after it, so this is the one
+    /// door that holds N3 for it.
+    #[test]
+    fn a_merge_over_a_nested_merged_face_refuses_at_the_mint() {
+        let plane = profile::SketchPlane::from_frame(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+        );
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| geom_core::Point2::new(x, y)),
+        );
+        let profile = profile::Profile::new(plane, vec![square])
+            .validate(geom_core::Tol::witness())
+            .unwrap();
+        let built = sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance(1.0_f64),
+            Tol::witness(),
+        )
+        .unwrap();
+        let ext_node = RecipeNodeId(1);
+        let ext_table = name_extrude(ext_node, &built).unwrap();
+        let mut laterals: Vec<(StableName, FaceKey)> = ext_table
+            .iter()
+            .filter_map(|(n, e)| match (n.path.first(), e) {
+                (Some(RoleSeg::Lateral(_)), Entry::Unique(r)) => match r.key {
+                    EntityKey::Face(f) => Some((n.clone(), f)),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
+        laterals.sort();
+        let absorbed = laterals[0].1;
+        // The top cap named as a merged face whose ONE constituent is
+        // itself a merged face — the nested shape.
+        let inner = name1(
+            EntityKind::Face,
+            ext_node,
+            RoleSeg::Merged(vec![laterals[1].0.clone(), laterals[2].0.clone()]),
+        );
+        let nested = name1(EntityKind::Face, ext_node, RoleSeg::Merged(vec![inner]));
+        let top = ent(0, EntityKey::Face(built.top));
+        let top_name = ext_table.name_of(&top).unwrap().clone();
+        let mut a_table = NameTable::new();
+        for (n, e) in ext_table.iter() {
+            let name = if *n == top_name {
+                nested.clone()
+            } else {
+                n.clone()
+            };
+            match e {
+                Entry::Unique(r) => a_table.insert(name, *r).unwrap(),
+                Entry::Tied(es) => a_table.insert_tied(name, es.clone()).unwrap(),
+            }
+        }
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Absent,
+            merge_groups: vec![(built.top, vec![absorbed])],
+            ..topo::BooleanNaming::default()
+        };
+        let empty = NameTable::new();
+        let a = OperandCtx {
+            node: ext_node,
+            table: &a_table,
+            body: &built.body,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId(2),
+            table: &empty,
+            body: &built.body,
+        };
+        let err = name_boolean(
+            RecipeNodeId(9),
+            &built.body,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .expect_err("a nested merged face must refuse at the mint");
+        assert!(
+            matches!(err, NamingError::Emission { what } if what == NESTED_MERGED),
+            "{err:?}"
+        );
     }
 }

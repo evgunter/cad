@@ -20,10 +20,16 @@ library, matching every other cheap tripwire under scripts/.
 
 WHAT LINT CANNOT SEE, stated because a disclosed blind spot is a work
 order. Ints in `blocked_on`, `refs` and `pr` are PR or issue numbers
-on GitHub and are not resolved — the tracker is version control and
-does not call out. A `[ev]` PR title is likewise a GitHub fact; lint
-checks that `needs_ev` is a bare `true`, not that an open PR carries
-the flag (the PR is one `git log` away from the item). Territory globs are matched with
+on GitHub and are not resolved AGAINST GITHUB — the tracker is version
+control and does not call out. One resolution is in the tree and is
+made: a migrated issue carries its number on the item that replaced it
+(`github:`), so a number in `blocked_on` that matches exactly one such
+item reaches the fired-trigger rule through it, as a warning rather
+than an error because the match is an inference (`work/README.md`).
+A number matching none, or two, stays unchecked. A `[ev]` PR title is
+likewise a GitHub fact; lint checks that `needs_ev` is a bare `true`,
+not that an open PR carries the flag (the PR is one `git log` away from
+the item). Territory globs are matched with
 `fnmatch`, where `*` crosses `/` — `crates/mesh/*` is the whole crate,
 which is what every territory in the tree means by it.
 """
@@ -86,6 +92,7 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "blocks": ("strlist", ("program",)),
 }
 REQUIRED = ("id", "kind", "title", "status", "opened")
+LIST_TYPES = ("reflist", "strlist")   # the fields `set` accepts a bare scalar for
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -309,6 +316,93 @@ def _check_type(item: Item, key: str, typ: str, value: object) -> list[str]:
     raise AssertionError(typ)
 
 
+def _listed(item: Item, key: str) -> list[object]:
+    """A list-typed field's members, or none when the header does not hold a
+    list. `_check_type` has already reported the shape; every reader past it
+    goes through here so a malformed field is DIAGNOSED rather than crashing
+    the run that was about to say so."""
+    v = item.get(key)
+    return v if isinstance(v, list) else []
+
+
+def _say_fired(vs: list[object], resolves: dict[int, Item]) -> str:
+    """Fired blockers, named. An id prints as itself; a number prints as the
+    number AND the item it resolved to, so the reader can check the inference
+    rather than take it."""
+    return ", ".join(f"`{v}`" if isinstance(v, str) else f"#{v} (`{resolves[v].id}`)" for v in vs)
+
+
+def _names(text: str, program_id: str) -> bool:
+    """Does a `keep_out` text name this program? Whole word, case-insensitive,
+    so the role spellings the clauses actually use — `S-BOOL`, `DOCM`, `view` —
+    all resolve to the id, and `bool` does not match `boolean`.
+
+    BLIND SPOT, stated: many ids are ordinary English (`view`, `shell`, `fix`,
+    `trim`, `blend`, `meta`, `curved`), so a clause that happens to use the word
+    reads as a record and SUPPRESSES the warning. It fails quiet, in the
+    direction of not nagging, which is the right way round for an advisory —
+    and it is a measured hazard, not a hypothetical: today `bool`'s clause
+    contains "ops.rs's curved arm" as well as the real "are CURVED's", and only
+    the second is a record. Checked at the landing: all three currently-passing
+    pairs are genuine mutual records. The fix, if this ever passes a pair it
+    should not, is a `keep_out` that names programs in a field rather than in
+    prose — a schema change, filed with the error flip."""
+    return re.search(rf"\b{re.escape(program_id)}\b", text, re.I) is not None
+
+
+def _double_claims(root: str, programs: list[Item]) -> list[str]:
+    """Pairs of OPEN programs whose `paths` globs match a common tracked path,
+    less those both `keep_out`s name.
+
+    The rule `work/README.md` states: an overlap both sides have written down is
+    the tracker working (a handoff a lane can announce), and an overlap recorded
+    on ONE side or neither is a live conflict the program that was there first
+    cannot see. This mechanises the census that found it — a hand-run pass that
+    miscounted three of its own figures the first time it ran.
+
+    A WARNING, not an error, and deliberately: most pairs in the tree are
+    unrecorded at any given moment, and a lint error cannot be landed onto a
+    tree that violates it by the dozen in programs this one may not edit (one
+    file, one item). No count is written down here on purpose — run `work.py
+    lint` for the current reading; the figure moved by nine pairs in the six
+    hours between this check being written and being merged, when S-TCOST split
+    and S-TINT took half its territory. The error flip is
+    `double-claim-lint-rule-waits-on-the-tests-seam`."""
+    if len(programs) < 2:
+        return []
+    tracked = tracked_files(root)
+    owners: dict[str, list[str]] = {}
+    for p in programs:
+        globs = [g for g in _listed(p, "paths") if isinstance(g, str)]
+        if not globs:
+            continue
+        for path in tracked:
+            if any(fnmatch.fnmatchcase(path, g) for g in globs):
+                owners.setdefault(path, []).append(p.id)
+    shared: dict[tuple[str, str], int] = {}
+    for ids in owners.values():
+        if len(ids) > 1:
+            for i in range(len(ids)):
+                for j in range(i + 1, len(ids)):
+                    key = (ids[i], ids[j]) if ids[i] < ids[j] else (ids[j], ids[i])
+                    shared[key] = shared.get(key, 0) + 1
+    keep_out = {p.id: " ".join(str(x) for x in _listed(p, "keep_out")) for p in programs}
+    path_of = {p.id: p.path for p in programs}
+    out = []
+    for (a, b), n in sorted(shared.items(), key=lambda kv: (-kv[1], kv[0])):
+        ab, ba = _names(keep_out[a], b), _names(keep_out[b], a)
+        if ab and ba:
+            continue
+        if ab or ba:
+            first, second = (a, b) if ab else (b, a)
+            why = (f"only `{first}`'s `keep_out` names `{second}` — the record is one-sided, "
+                   f"so the overlap is invisible from `{second}`'s side")
+        else:
+            why = "neither `keep_out` names the other"
+        out.append(f"{path_of[a]}: territory overlaps `{b}` on {n} tracked path{'s' if n != 1 else ''}; {why}")
+    return out
+
+
 def lint(root: str, warnings: list[str] | None = None) -> list[str]:
     """Errors, sorted and deduped. `warnings` (an out-parameter) collects the
     advisories: a lint error blocks a merge, a warning names a row and leaves
@@ -316,6 +410,12 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
     items, errors = load_tree(root)
     warns: list[str] = []
     by_id: dict[str, Item] = {}
+    # The migrated-issue map: `github: 1202` says this item is what GitHub
+    # issue 1202 became, which is the only thing in the tree that can turn a
+    # number in `blocked_on` back into a row. A number two rows both claim
+    # resolves to NEITHER — an ambiguous mapping is not a mapping — and is
+    # reported instead.
+    by_github: dict[int, list[Item]] = {}
     for it in items:
         # keys and types
         for key in it.fields:
@@ -351,6 +451,16 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
                 errors.append(f"{it.path}: id `{it.id}` is already {by_id[it.id].path}")
             else:
                 by_id[it.id] = it
+        gh = it.get("github")
+        if isinstance(gh, int) and not isinstance(gh, bool):
+            by_github.setdefault(gh, []).append(it)
+    for gh, claimants in sorted(by_github.items()):
+        if len(claimants) > 1:
+            warns.append(f"{claimants[0].path}: `github` {gh} is claimed by "
+                         f"{', '.join(f'`{c.id}`' for c in claimants)} — one GitHub issue became one item, "
+                         f"and a number two rows both claim resolves to neither, so a `blocked_on: [{gh}]` "
+                         f"goes unchecked")
+    resolves = {gh: c[0] for gh, c in by_github.items() if len(c) == 1}
     programs = {it.id: it for it in items if it.kind == "program" and it.id}
     tracked: list[str] | None = None
     for it in items:
@@ -367,26 +477,43 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
         if it.status == "parked":
             # A trigger that has fired. `blocked_on` still resolves, so nothing
             # else here objects and the row reads blocked forever.
-            fired = [v for v in it.get("blocked_on") or []
+            named = [v for v in _listed(it, "blocked_on")
                      if isinstance(v, str) and v in by_id and by_id[v].status == "closed"]
+            # An int reaches the rule only INFERRED, through `github:`: the
+            # author wrote a number, not a reference, and the tracker matched it
+            # to the item that number became. A true inference is still an
+            # inference, so it WARNS and names the row where a naming errors —
+            # `work/README.md` gives the reason. A number matching no `github:`,
+            # or two, stays unchecked, as every int did before. (GitHub numbers
+            # PRs and issues from one sequence per repo, so the number a row is
+            # parked on cannot be a PR number AND some other row's issue.)
+            inferred = [v for v in _listed(it, "blocked_on")
+                        if isinstance(v, int) and not isinstance(v, bool)
+                        and v in resolves and resolves[v].status == "closed"]
+            fired = named + inferred
             if fired:
-                rest = [_fmt_ref(v) for v in it.get("blocked_on") or [] if v not in fired]
-                names = ", ".join(f"`{v}`" for v in fired)
-                if rest:
+                rest = [_fmt_ref(v) for v in _listed(it, "blocked_on") if v not in fired]
+                if named and not rest:
+                    errors.append(f"{it.path}: parked on {_say_fired(named, resolves)}, which is closed — "
+                                  f"that trigger has fired and nothing else gates this row; "
+                                  f"re-park it on what does, open it, or defer it")
+                elif named:
                     # Still blocked, so the status is true and only the entry is stale.
-                    warns.append(f"{it.path}: parked on {names}, which is closed — that trigger has fired; "
-                                 f"it still waits on {', '.join(rest)}, so prune the fired entry")
-                else:
-                    errors.append(f"{it.path}: parked on {names}, which is closed — that trigger has fired "
-                                  f"and nothing else gates this row; re-park it on what does, "
-                                  f"open it, or defer it")
+                    warns.append(f"{it.path}: parked on {_say_fired(named, resolves)}, which is closed — "
+                                 f"that trigger has fired; it still waits on {', '.join(rest)}, "
+                                 f"so prune the fired entry")
+                if inferred:
+                    gate = "nothing else gates this row" if not rest else f"it still waits on {', '.join(rest)}"
+                    warns.append(f"{it.path}: parked on {_say_fired(inferred, resolves)}, which is closed — "
+                                 f"the number resolves through that item's `github:` and its trigger has fired; "
+                                 f"{gate}. Name the item instead of the number, then the rule reads it directly")
         # references
         for key in ("parent", "rides_with"):
             v = it.get(key)
             if isinstance(v, str) and v not in by_id:
                 errors.append(f"{it.path}: `{key}` names `{v}`, which is no item")
         for key in ("blocked_on", "refs"):
-            for v in it.get(key) or []:
+            for v in _listed(it, key):
                 if isinstance(v, str) and v not in by_id:
                     errors.append(f"{it.path}: `{key}` names `{v}`, which is no item")
         carrier = it.get("rides_with")
@@ -400,13 +527,14 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
             prefix = it.get("prefix")
             if isinstance(prefix, str) and not prefix.endswith("/"):
                 errors.append(f"{it.path}: `prefix` must end in `/`")
-            for g in it.get("paths") or []:
+            for g in _listed(it, "paths"):
                 if not isinstance(g, str):
                     continue
                 if tracked is None:
                     tracked = tracked_files(root)
                 if not any(fnmatch.fnmatchcase(p, g) for p in tracked):
                     errors.append(f"{it.path}: territory glob `{g}` matches no tracked path")
+    warns.extend(_double_claims(root, [it for it in items if it.kind == "program" and it.status != "closed"]))
     # nothing of a program's lives in docs/ any more
     docs = os.path.join(root, "docs")
     if os.path.isdir(docs):
@@ -520,7 +648,7 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         out.append("| item | kind | status | title | blocked on | PR |")
         out.append("|---|---|---|---|---|---|")
         for r in sorted(rows, key=lambda i: (ITEM_STATUS.index(i.status) if i.status in ITEM_STATUS else 9, i.id)):
-            blocked = ", ".join(_fmt_ref(b) for b in (r.get("blocked_on") or []))
+            blocked = ", ".join(_fmt_ref(b) for b in _listed(r, "blocked_on"))
             pr = f"#{r.get('pr')}" if r.get("pr") is not None else ""
             ev = " **[ev]**" if r.get("needs_ev") is not None else ""
             out.append(f"| `{r.id}` | {r.kind} | {r.status}{ev} | {r.get('title')} | {blocked} | {pr} |")
@@ -551,7 +679,7 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         out.append("|---|---|---|---|")
         for it in sorted(blocked, key=lambda i: (i.program or "", i.id)):
             out.append(f"| `{it.id}` | {it.program or '—'} | {it.status} | "
-                       f"{', '.join(_fmt_ref(b) for b in it.get('blocked_on') or [])} |")
+                       f"{', '.join(_fmt_ref(b) for b in _listed(it, 'blocked_on'))} |")
     else:
         out.append("Nothing.")
     out.append("")
@@ -596,6 +724,14 @@ def _parse_assignment(text: str) -> tuple[str, object]:
     if value.startswith("[") and value.endswith("]"):
         inner = value[1:-1].strip()
         return key, [] if inner == "" else [_scalar(p) for p in inner.split(",")]
+    # A scalar written into a list-typed field is what a caller means, not a
+    # malformed header: `blocked_on=2171` is one blocker. Without this the bare
+    # spelling wrote `blocked_on: 2171` and the next lint died reading it, and
+    # nothing told the caller `[2171]` was the working spelling. lint diagnoses
+    # the shape too (a header may be hand-written), but the tool no longer
+    # produces it.
+    if SCHEMA[key][0] in LIST_TYPES:
+        return key, [_scalar(value)]
     return key, _scalar(value)
 
 
@@ -684,9 +820,22 @@ def territory(root: str, base: str | None, branch: str | None, files: list[str] 
     lines = []
     for path in sorted(p.strip() for p in files if p.strip()):
         owners = sorted(p.id for p in programs if p.status != "closed"
-                        and any(fnmatch.fnmatchcase(path, g) for g in p.get("paths") or [] if isinstance(g, str)))
-        if owners and mine not in owners:
-            lines.append(f"{path}: owned by {', '.join(owners)}" + (f"; this branch is {mine}'s" if mine else "; this branch has no program prefix"))
+                        and any(fnmatch.fnmatchcase(path, g) for g in _listed(p, "paths") if isinstance(g, str)))
+        others = [o for o in owners if o != mine]
+        if not others:
+            continue
+        if mine in owners:
+            # The case this check was blind to until 2026-09-11: a path the
+            # branch's own program claims TOO. Reported with different wording,
+            # because it is a different fact — not "you are in someone else's
+            # territory" but "two programs claim this and one of them may not
+            # know". Silence here is what let FIX and SHELL both hold
+            # crates/topo/src/transform.rs for a day.
+            lines.append(f"{path}: also claimed by {', '.join(others)}; "
+                         f"{mine} claims it too — a double claim, not a crossing")
+        else:
+            lines.append(f"{path}: owned by {', '.join(others)}"
+                         + (f"; this branch is {mine}'s" if mine else "; this branch has no program prefix"))
     return lines, mine
 
 
@@ -744,18 +893,24 @@ def selftest() -> int:
             if not any(n in e for e in errors):
                 failures.append(f"{name}: no error containing {n!r}; got {errors}")
 
+    # The fixture is COMMITTED now, so "untouched" ages are measured from
+    # the real today, not from the items' authored dates: a render date
+    # fixed in the calendar stopped being STALE_DAYS past the commit the
+    # day the calendar caught up with it (2026-09-07, every run red).
+    far = dt.date.today() + dt.timedelta(days=STALE_DAYS + 5)
+
     with tempfile.TemporaryDirectory() as root:
         _fixture(root)
         warns: list[str] = []
         expect("clean fixture", lint(root, warns))
         expect("clean fixture (warnings)", warns)
-        text = render(root, today=dt.date(2026, 9, 20))
+        text = render(root, today=far)
         for needle in ("## Waiting on Ev", "`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`topo`"):
             if needle not in text:
                 failures.append(f"render lacks {needle!r}")
         if "MESH-1" not in text.split("## Untouched")[1]:
-            failures.append("render: fixture items committed 'today' should still be listed stale at +19 days")
-        p = render(root, only_program="mesh", today=dt.date(2026, 9, 20))
+            failures.append(f"render: fixture items committed 'today' should still be listed stale at +{STALE_DAYS + 5} days")
+        p = render(root, only_program="mesh", today=far)
         if "## Waiting on Ev" in p or "`topo`" in p:
             failures.append("--program render leaked whole-board sections")
 
@@ -834,7 +989,7 @@ def selftest() -> int:
         warns = []
         expect("a deferred row needs no blocker", lint(root, warns))
         expect("a deferred row raises no warning", warns)
-        text = render(root, today=dt.date(2026, 9, 20))
+        text = render(root, today=far)
         if "| parked | deferred | closed |" not in text:
             failures.append("render: the programs table has no deferred column")
         if "`MESH-2` | issue | deferred" not in text:
@@ -858,6 +1013,67 @@ def selftest() -> int:
         expect("a fired trigger beside a live one warns", warns, "prune the fired entry")
         _write(root, "work/mesh/MESH-1.md", orig1)
         expect("restored again", lint(root))
+
+        # a scalar in a list-typed field: `set` no longer writes one, and lint
+        # DIAGNOSES a hand-written one instead of dying reading it
+        cmd_set(root, "MESH-2", ["refs=1601"])
+        if _find(root, "MESH-2").get("refs") != [1601]:
+            failures.append(f"set: a scalar into a reflist should become a one-element list, got {_find(root, 'MESH-2').get('refs')!r}")
+        expect("after a scalar set", lint(root))
+        cmd_set(root, "MESH-2", ["refs="])
+        _write(root, "work/mesh/MESH-1.md", orig1.replace("blocked_on: [MESH-2, 1601]", "blocked_on: MESH-2"))
+        warns = []
+        expect("a hand-written scalar reflist is reported, not a crash", lint(root, warns), "must be a list")
+        _write(root, "work/mesh/MESH-1.md", orig1)
+
+        # the fired-trigger rule reaches an int through `github:` — and does it
+        # as a warning, because the number is matched to the row, not naming it
+        t1 = open(os.path.join(root, "work/topo/T-1.md"), encoding="utf-8").read()
+        _write(root, "work/topo/T-1.md", t1.replace("kind: unit", "kind: unit\ngithub: 855"))
+        _write(root, "work/mesh/MESH-1.md",
+               orig1.replace("status: review", "status: parked").replace("[MESH-2, 1601]", "[855]"))
+        warns = []
+        expect("a fired trigger named by number does not block", lint(root, warns))
+        expect("a fired trigger named by number warns", warns, "resolves through that item's `github:`")
+        # ... and only when the mapping is unambiguous
+        _write(root, "work/mesh/MESH-2.md", orig2.replace("needs_ev: true", "github: 855"))
+        warns = []
+        errs = lint(root, warns)
+        expect("an ambiguous number is not an error", errs)
+        expect("an ambiguous number resolves to neither", warns, "resolves to neither")
+        if any("github:`" in w for w in warns):
+            failures.append(f"an ambiguous number should not reach the fired-trigger rule: {warns}")
+        _write(root, "work/mesh/MESH-2.md", orig2)
+        _write(root, "work/topo/T-1.md", t1)
+        _write(root, "work/mesh/MESH-1.md", orig1)
+        expect("restored after the github cases", lint(root))
+
+        # two open programs claiming one path: a warning naming both, and
+        # silence once both keep_outs name the other
+        mp = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
+        _write(root, "work/verbs/program.md",
+               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: open\nopened: 2026-09-01\n"
+               "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\n---\n")
+        _write(root, "work/verbs/plan.md", "plan\n")
+        _write(root, "work/verbs/log.md", "log\n")
+        warns = []
+        expect("a double claim is not an error", lint(root, warns))
+        expect("a double claim warns", warns, "territory overlaps `verbs`", "neither `keep_out` names the other")
+        _write(root, "work/verbs/program.md",
+               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: open\nopened: 2026-09-01\n"
+               "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\nkeep_out: [the mesh crate is S-MESH's until it cedes it]\n---\n")
+        warns = []
+        expect("a one-sided record is not an error", lint(root, warns))
+        expect("a one-sided record still warns", warns, "the record is one-sided")
+        _write(root, "work/mesh/program.md",
+               mp.replace("paths: [crates/mesh/*]", "paths: [crates/mesh/*]\nkeep_out: [verbs holds the verb seat inside this crate]"))
+        warns = []
+        expect("an overlap both keep_outs name is silent", lint(root, warns))
+        _write(root, "work/mesh/program.md", mp)
+        for name in ("program.md", "plan.md", "log.md"):
+            os.remove(os.path.join(root, "work/verbs", name))
+        os.rmdir(os.path.join(root, "work/verbs"))
+        expect("restored after the double-claim cases", lint(root))
 
         # rides-along on a closed carrier
         _write(root, "work/topo/T-2.md",
@@ -884,6 +1100,24 @@ def selftest() -> int:
         lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "verbs/z")
         if mine is not None or len(lines) != 1 or "crates/mesh/src/other.rs" not in lines[0]:
             failures.append(f"territory (foreign branch, closed program ignored): {mine} {lines}")
+        # THE BLIND SPOT: a path the branch's OWN program claims and another
+        # program claims too was reported by nothing until 2026-09-11.
+        mp2 = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
+        _write(root, "work/verbs2/program.md",
+               "---\nid: verbs2\nkind: program\ntitle: VERBS2\nstatus: open\nopened: 2026-09-01\n"
+               "area: kernel\nprefix: verbs2/\npaths: [crates/mesh/*]\n---\n")
+        _write(root, "work/verbs2/plan.md", "plan\n")
+        _write(root, "work/verbs2/log.md", "log\n")
+        lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "mesh/y")
+        if mine != "mesh" or not any("also claimed by verbs2" in ln and "a double claim" in ln for ln in lines):
+            failures.append(f"territory (a path the branch's own program ALSO claims): {mine} {lines}")
+        for name in ("program.md", "plan.md", "log.md"):
+            os.remove(os.path.join(root, "work/verbs2", name))
+        os.rmdir(os.path.join(root, "work/verbs2"))
+        lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "mesh/y")
+        if lines:
+            failures.append(f"territory (own program, sole claimant): {lines}")
+        _write(root, "work/mesh/program.md", mp2)
 
     if failures:
         for f in failures:

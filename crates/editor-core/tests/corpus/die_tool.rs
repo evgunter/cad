@@ -91,7 +91,10 @@ fn placements() -> Vec<Frame> {
         (x, FRAC_PI_2, [h, lo, h]),
     ]
     .into_iter()
-    .map(|(axis, angle, t)| Frame::rotate_then_translate(axis, angle, t))
+    .map(|(axis, angle, t)| {
+        Frame::rotate_then_translate(axis, angle, t, crate::fixture::band())
+            .expect("a literal axis has a definite direction")
+    })
     .collect()
 }
 

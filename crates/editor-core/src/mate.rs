@@ -58,6 +58,7 @@
 //! solve door, because a declared clearance changes what "coincide"
 //! means and this unit solves coincidence only.
 
+use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 use geom_core::linalg::frame::FrameError;
@@ -80,7 +81,7 @@ pub use solve::{
 pub use topo::ContactClass;
 
 /// Which side of a mate a diagnostic is about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MateSide {
     /// The `a` reference.
@@ -129,8 +130,13 @@ impl MateFrame {
     ///
     /// # Errors
     ///
-    /// [`FrameError`] when the axis has no definite direction or the
-    /// reference has no definite perpendicular offset from it.
+    /// [`FrameError`] when the axis has no definite direction, when
+    /// the reference has no definite perpendicular offset from it, or
+    /// — asked before either sign — when the axis's length or that
+    /// perpendicular offset is not a finite NUMBER
+    /// (`FrameError::NonFiniteLength`, at `Aim` and `RollReference`
+    /// respectively). This is `point_at`'s own list; the three cases
+    /// arrive here unchanged because `placement` calls it directly.
     pub fn placement(&self, tol: Tol) -> Result<Affine3<f64>, FrameError> {
         let eye = Point3::new(self.origin[0], self.origin[1], self.origin[2]);
         let axis = Vec3::new(self.axis[0], self.axis[1], self.axis[2]);
@@ -140,7 +146,7 @@ impl MateFrame {
 }
 
 /// Which way the two sides' axes point at each other.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AxisSense {
     /// The axes point the same way (a shaft into a through-hole).
@@ -396,12 +402,38 @@ impl Alignment {
 pub const UNDER_RECOURSE: &str = "add the complementary mate, or delete the mate if free relative \
                                   motion was intended";
 
+/// **The recourse a [`MateFault::Contradictory`] ends on**: what an
+/// author does about two declarations that admit no common pose.
+///
+/// One sentence for both shapes the arm renders — a PAIR of mates and
+/// a mate contradicting itself through its own rider — because the
+/// repair is the same in both and a sentence naming "one of the two"
+/// is false of the second. The rung is the solve door: cosets are
+/// intersected exactly, so nothing here is a tolerance to widen and no
+/// pose is averaged out of the two.
+pub const CONTRADICTORY_RECOURSE: &str = "delete the mate that was not meant, or re-author the \
+                                          datum that is wrong; the solve intersects cosets \
+                                          exactly and never averages two declarations";
+
 /// **The v1 class restriction, named.** `Fit` is specified and not
 /// built; a mate cannot declare a designed clearance until the kernel
 /// variant lands with its first consumer, and AQ6 is where the
 /// cross-document detail is still open.
 pub const CLASS_DEFERRAL: &str = "v1 mates SOLVE Rest and Tangent and ASSEMBLE Rest alone; the \
                                   cross-document detail of a designed clearance is undischarged";
+
+/// **The recourse a [`crate::AssemblyError::NoAtRestRecord`] ends
+/// on**: what an author does about a class that solves and has no
+/// record to be verified by at rest.
+///
+/// The arm already quotes the table's reason for THIS class; this is
+/// the repair, and it names the rung the way [`CLASS_DEFERRAL`] does —
+/// `Rest` is the one class v1 carries all the way to the gate, and a
+/// curved contact verified at rest is outside v1 rather than a
+/// tolerance away.
+pub const NO_AT_REST_RECORD_RECOURSE: &str = "declare the contact as a Rest, the one class v1 \
+                                              mints and verifies at rest; a curved contact \
+                                              verified at rest is outside v1 and is not built";
 
 /// **How far a contact class gets in v1** — the whole class policy as
 /// a value, read by both doors that enforce it.
@@ -627,12 +659,27 @@ pub enum MateFault {
         /// What survived the fold.
         residual: Subgroup,
     },
-    /// A mate's reference does not resolve to a live MEMBER — the
-    /// walk from its operand down to its name's head found no live
-    /// instantiate node, reached through transforms, `Part` instance
-    /// selections and any number of pattern levels at a derivable
-    /// pose (A11's member vocabulary) — N5's dangling reference. It contributes no reading edge; the
+    /// **A mate's reference names no member of A11's vocabulary** —
+    /// N5's dangling reference. It contributes no reading edge; the
     /// solve refuses typed rather than pretending the mate is absent.
+    ///
+    /// Exactly two causes, and both are about a copy or a node that
+    /// does not exist:
+    ///
+    /// - the WALK from the reference's operand down to its name's
+    ///   head stopped — a stranded operand, or a node that places no
+    ///   body of its own ([`crate::member_of`]);
+    /// - the copy the name says is at or beyond the pattern's
+    ///   evaluated count, so the named copy is not there.
+    ///
+    /// A placer that exists and whose pose merely could not be
+    /// DERIVED is [`MateFault::PlacerRefused`], which carries the
+    /// evaluation's own refusal. So this arm is about a node the
+    /// vocabulary does not reach or a copy that is not there — never
+    /// about arithmetic. It is still reported at a node that may be
+    /// perfectly live: a pattern the reference's name does not
+    /// qualify `Instance(i)` stops the walk, and the walk stops AT
+    /// that pattern.
     DanglingHead {
         /// The mate.
         mate: RecipeNodeId,
@@ -641,17 +688,51 @@ pub enum MateFault {
         /// **The node at which the reference resolves to no member**:
         /// where the walk stopped, which is a stranded operand when
         /// the operand is the broken half and the first node outside
-        /// the vocabulary otherwise. Not in general the reference's
-        /// own head, which is often live and fine.
+        /// the vocabulary otherwise; or the pattern whose count the
+        /// named copy is past. Not in general the reference's own
+        /// head, which is often live and fine.
         head: RecipeNodeId,
+    },
+    /// **A placer on the reference's chain refused to derive its
+    /// pose**, in the evaluation layer's own words.
+    ///
+    /// The member exists and the walk reached it; what did not exist
+    /// is the static offset a pattern copy or a transform on the way
+    /// contributes. Every such refusal is one the evaluation layer
+    /// already types — a slot that does not evaluate, a direction of
+    /// no definite length, an explicit-rule pattern, an axis operand
+    /// that is not an axis datum — so it is carried here UNALTERED
+    /// rather than relabelled as a dangling head.
+    ///
+    /// Carrying it is what makes the refusal readable at all. A mate
+    /// fault POISONS the document, so the placer node never evaluates
+    /// and never gets to state its own cause: this fault is the only
+    /// place that cause appears.
+    PlacerRefused {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side's reference the placer is on.
+        side: MateSide,
+        /// **The node whose evaluation raised the refusal.** It lies
+        /// on the reference's derivation: a pattern or a transform on
+        /// the chain, or a node one of those reads to derive its map
+        /// — a circular rule's axis DATUM is the one such node today,
+        /// and a slot of it that does not evaluate is reported here
+        /// under the datum's id, because that is the node an author
+        /// goes and fixes.
+        placer: RecipeNodeId,
+        /// The evaluation layer's own typed refusal for it, unchanged.
+        error: NodeRefusal,
     },
     /// **A `Node::Part` selects a copy the reference's NAME does not
     /// name.** The name is the authority on which copy a mate speaks
-    /// about; a `Part` standing directly above a pattern in the walk
-    /// says which copy the body below it is. A document where those
+    /// about; a `Part` standing above a pattern in the walk (with
+    /// nothing but transforms between) says which body of that
+    /// pattern's value the body below it is. A document where those
     /// disagree would be PLACED by the name and GATHERED by the
     /// `Part` — two different bodies for one declaration — so the
-    /// solve refuses rather than choosing, and reports both indices.
+    /// solve refuses rather than choosing, and reports both indices
+    /// in the `Part`'s index space.
     ///
     /// Raised per REFERENCE, where the solve reads each one, so it
     /// reaches a declaring mate as surely as a tree edge's.
@@ -662,7 +743,9 @@ pub enum MateFault {
         side: MateSide,
         /// The `Part` node whose index expression disagrees.
         part: RecipeNodeId,
-        /// The copy the reference's name names.
+        /// The copy the reference's name names, as the body index
+        /// the `Part` selects by: the copy index itself over a
+        /// pattern of one body, the flat `j·M + i` over a nested one.
         named: u32,
         /// What the `Part`'s index expression evaluates to at the
         /// document's parameter bindings.
@@ -758,38 +841,40 @@ impl core::fmt::Display for MateFault {
                 // reading a sentinel back out of a number makes every
                 // other non-finite margin claim to be this case.
                 if *predicate == MATE_MEMBER_EMPTY {
-                    return write!(
+                    write!(
                         f,
                         "found the cosets meet in the empty set — a structural refusal, with no \
                          margin to measure"
-                    );
-                }
-                // A levered clash IS the product of its two halves, so
-                // the sentence prints the product it computes here.
-                // Stating a stored figure beside the halves would
-                // assert an identity nothing enforces.
-                if let Some((radians, arm)) = lever {
-                    return write!(
+                    )?;
+                } else if let Some((radians, arm)) = lever {
+                    // A levered clash IS the product of its two halves,
+                    // so the sentence prints the product it computes
+                    // here. Stating a stored figure beside the halves
+                    // would assert an identity nothing enforces.
+                    write!(
                         f,
                         "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m \
                          where the cosets would have had to meet",
                         radians * arm
-                    );
-                }
-                // Every other margin is a length measured outright —
-                // and a length that is not finite is not one.
-                if clash.is_finite() {
+                    )?;
+                } else if clash.is_finite() {
+                    // Every other margin is a length measured outright
+                    // — and a length that is not finite is not one.
                     write!(
                         f,
                         "measured a clash of {clash} m where the cosets would have had to meet"
-                    )
+                    )?;
                 } else {
                     write!(
                         f,
                         "measured a clash that is not a finite length ({clash}) where the cosets \
                          would have had to meet"
-                    )
+                    )?;
                 }
+                // The repair is the same whichever measurement the
+                // predicate had to report, so it is stated once, after
+                // all four.
+                write!(f, " — {CONTRADICTORY_RECOURSE}")
             }
             Self::Under {
                 mate,
@@ -812,6 +897,18 @@ impl core::fmt::Display for MateFault {
                 mate.0,
                 side.name(),
                 head.0
+            ),
+            Self::PlacerRefused {
+                mate,
+                side,
+                placer,
+                error,
+            } => write!(
+                f,
+                "mate {}'s {} reference has no derived pose: node {} refuses — {error}",
+                mate.0,
+                side.name(),
+                placer.0
             ),
             Self::PartSelectsAnotherCopy {
                 mate,

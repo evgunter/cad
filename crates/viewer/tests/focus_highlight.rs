@@ -1,5 +1,5 @@
 //! **What the picture marks because of what the panel is showing**
-//! (`pickindex::focus`), as values rather than as pixels.
+//! (`marks::focus`), as values rather than as pixels.
 //!
 //! The GPU's contribution to this feature is one `mix` against one
 //! flag bit; everything that could be WRONG about it is upstream of
@@ -19,7 +19,8 @@ use std::collections::BTreeSet;
 use pncad::document::RecipeNodeId;
 use pncad::geom_core::Tol;
 use viewer::display::DisplayView;
-use viewer::pickindex::{self, PickIndex};
+use viewer::marks;
+use viewer::pickindex::PickIndex;
 use viewer::scene::{self, DisplayTolerance, SceneMesh};
 use viewer::session::{DocSession, Selection, SessionOp};
 
@@ -52,7 +53,7 @@ fn an_empty_selection_marks_nothing() {
     let tol = Tol::witness();
     let (session, _extrude) = plate_session(tol);
     let index = index_of(&session);
-    let focus = pickindex::focus(&index, session.doc(), &Selection::None);
+    let focus = marks::focus(&index, session.doc(), &Selection::None);
     assert!(focus.is_empty());
     let scene = index
         .scene_focused(&DisplayView::none(), &focus)
@@ -73,7 +74,7 @@ fn selecting_a_feature_marks_every_patch_it_drew() {
     session.perform(SessionOp::Select(Selection::Node(extrude)));
     let index = index_of(&session);
 
-    let focus = pickindex::focus(&index, session.doc(), session.selection());
+    let focus = marks::focus(&index, session.doc(), session.selection());
     let drawn: BTreeSet<u32> = index.ids_of_node(extrude).into_iter().collect();
     assert!(!drawn.is_empty(), "the plate draws patches");
     assert_eq!(focus, drawn, "exactly the feature's own patches");
@@ -127,9 +128,9 @@ fn a_face_pick_marks_its_owning_feature() {
             name,
         },
     )));
-    let by_face = pickindex::focus(&index, session.doc(), session.selection());
+    let by_face = marks::focus(&index, session.doc(), session.selection());
     session.perform(SessionOp::Select(Selection::Node(extrude)));
-    let by_node = pickindex::focus(&index, session.doc(), session.selection());
+    let by_node = marks::focus(&index, session.doc(), session.selection());
     assert_eq!(by_face, by_node, "one feature, one extent");
     assert!(by_face.contains(&id));
 }
@@ -153,9 +154,9 @@ fn a_profile_marks_the_body_built_from_it() {
     );
 
     session.perform(SessionOp::Select(Selection::Node(profile)));
-    let by_profile = pickindex::focus(&index, session.doc(), session.selection());
+    let by_profile = marks::focus(&index, session.doc(), session.selection());
     session.perform(SessionOp::Select(Selection::Node(extrude)));
-    let by_extrude = pickindex::focus(&index, session.doc(), session.selection());
+    let by_extrude = marks::focus(&index, session.doc(), session.selection());
     assert!(
         !by_profile.is_empty(),
         "the profile marks the extrude's body"
@@ -181,7 +182,7 @@ fn selecting_a_parameter_marks_the_features_it_drives() {
     session.perform(SessionOp::Select(Selection::Param(
         common::thickness_param(),
     )));
-    let driven = pickindex::focus(&index, session.doc(), session.selection());
+    let driven = marks::focus(&index, session.doc(), session.selection());
     let extrude_ids: BTreeSet<u32> = index.ids_of_node(extrude).into_iter().collect();
     assert!(!extrude_ids.is_empty());
     assert_eq!(driven, extrude_ids, "the parameter drives the extrude");
@@ -189,7 +190,7 @@ fn selecting_a_parameter_marks_the_features_it_drives() {
     // A parameter nothing reads marks nothing — the honest answer, not
     // "everything" and not a panic.
     let unused = pncad::document::ParamName::new("unused");
-    let quiet = pickindex::focus(&index, session.doc(), &Selection::Param(unused));
+    let quiet = marks::focus(&index, session.doc(), &Selection::Param(unused));
     assert!(quiet.is_empty());
 }
 
@@ -379,7 +380,7 @@ fn each_die_face_is_marked_by_the_feature_that_made_it() {
     let drawn: BTreeSet<u32> = index.ids_of_node(die.composed).into_iter().collect();
     assert_eq!(drawn.len(), DIE_FACES, "the die's drawn faces");
 
-    let of = |node| pickindex::focus(&index, die.session.doc(), &Selection::Node(node));
+    let of = |node| marks::focus(&index, die.session.doc(), &Selection::Node(node));
     let bands = of(die.composed);
     let blends = of(die.box_blend);
     let flats = of(die.cube);
@@ -428,7 +429,7 @@ fn a_node_that_made_nothing_marks_what_passed_through_it() {
     let tol = Tol::witness();
     let die = die(tol);
     let index = index_of(&die.session);
-    let of = |node| pickindex::focus(&index, die.session.doc(), &Selection::Node(node));
+    let of = |node| marks::focus(&index, die.session.doc(), &Selection::Node(node));
     let drawn: BTreeSet<u32> = index.ids_of_node(die.composed).into_iter().collect();
 
     let carried_by_the_cut: BTreeSet<u32> = of(die.cube).union(&of(die.ball)).copied().collect();
@@ -454,7 +455,7 @@ fn clicking_a_die_face_reaches_the_feature_that_made_it() {
     let tol = Tol::witness();
     let mut die = die(tol);
     let index = index_of(&die.session);
-    let of = |node| pickindex::focus(&index, die.session.doc(), &Selection::Node(node));
+    let of = |node| marks::focus(&index, die.session.doc(), &Selection::Node(node));
     let flats = of(die.cube);
     let bands = of(die.composed);
 
@@ -484,7 +485,7 @@ fn clicking_a_die_face_reaches_the_feature_that_made_it() {
         Some(die.cube),
         "the flat's feature is the extrude that swept it"
     );
-    let lit = pickindex::focus(&index, die.session.doc(), die.session.selection());
+    let lit = marks::focus(&index, die.session.doc(), die.session.selection());
     assert_eq!(lit, flats, "and the picture marks that feature's faces");
     assert!(
         lit.intersection(&bands).next().is_none(),
@@ -496,7 +497,7 @@ fn clicking_a_die_face_reaches_the_feature_that_made_it() {
     die.session.perform(SessionOp::Select(band));
     assert_eq!(die.session.selection().node(), Some(die.composed));
     assert_eq!(
-        pickindex::focus(&index, die.session.doc(), die.session.selection()),
+        marks::focus(&index, die.session.doc(), die.session.selection()),
         bands,
         "the fillet's extent is the blends it made"
     );

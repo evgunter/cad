@@ -2,9 +2,10 @@
 id: rust-cache-never-restores-across-branches
 kind: issue
 title: Swatinem/rust-cache restored nothing on five of seven build jobs: a branch's first build inherits no cache, and F3 means main never saves one
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1648, 853]
+closed: 2026-09-12
 ---
 
 
@@ -64,3 +65,55 @@ to take.
 Also unmeasured and cheap to establish: whether the 4 vCPU / 16 GB
 public runner changes the cold-compile figure enough to move the
 priority.
+
+## Closed (2026-09-12): TCOST-B3 landed the lever, and it works
+
+The after-reading this row owed and never took. Its premise — *"restored
+nothing on five of seven build jobs"* — is false on today's tree, and the
+fix is the one this row proposed: **TCOST-B3 (PR 1684) landed the
+`push: main` primer jobs that save under the shared keys the build jobs
+restore**, plus a parity checker. This row was never updated and has sat
+open describing a tree that has moved.
+
+**Measured**, over the 32 most recent completed pull-request runs of
+`ci.yml`, every `build + archive` job that executed:
+
+| | default lane | interval lane |
+|---|--:|--:|
+| job duration, median | **251 s** | **279 s** |
+| range | up to 362 s | up to 440 s |
+| jobs with a readable `rust-cache` restore step | 16 | 16 |
+| of those, miss-shaped (<= 5 s) | **0** | **0** |
+| restore step, median | 13 s | 13 s |
+
+Against this row's own cold figure of **820 / 840 s** and a restore step
+that on a miss is a couple of seconds, every sampled job restored.
+
+**Grounded rather than inferred.** The step duration is a proxy, so one
+job's log was read directly to check it: run 34668412928,
+`build + archive (interval)` (job 103484994105), post-step —
+**`Cache up-to-date.`**, which is what `Swatinem/rust-cache` prints when
+it restored a full match and has nothing new to save.
+
+**One gap, named because the sample cannot close it.** These 32 runs are
+a mix of first pushes to a branch and later ones, and nothing here
+separates them — the original finding was specifically about *a branch's
+first build*. With 0 of 16 miss-shaped in each lane it is unlikely the
+first-push case is systematically different, but a reading that isolates
+it was not taken. If anyone sees `No cache found` on a build job again,
+this row reopens with that run named.
+
+Closed rather than re-scoped: the residual question in the section above
+— whether the 4 vCPU public runner changes the cold-compile figure — is
+moot while nothing compiles cold.
+
+**One half of this row did NOT close with it and has its own file.** The
+primer works by REFRESHING a shared key on every main push, so an
+eviction costs one push's staleness; that says nothing about an entry
+written ONCE under a hash key, which is what TCOST-C4 measured churning
+out inside the hour and what `work/ciw/cache-rendered-cells-on-input-hash`
+is parked on. Split to
+`work/tcost/actions-cache-budget-under-a-hash-key` in this same commit,
+and that CIW row re-parked onto it — a closing row may not un-park
+another program's item by leaving its blocker dangling
+(`work/README.md`).

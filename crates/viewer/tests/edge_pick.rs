@@ -15,7 +15,7 @@
 //!
 //! What is NOT here, and cannot be: the line pass that paints the
 //! marks. What that pass draws is checked as the value it consumes —
-//! `pickindex::edge_overlay` — and the pixels are issue #1097's hardware
+//! `marks::edge_overlay` — and the pixels are issue #1097's hardware
 //! checklist.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -30,7 +30,7 @@ use pncad::select::{Resolution, RunCtx, resolve};
 use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
-use viewer::pickindex;
+use viewer::marks;
 use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds};
 use viewer::scene::{self, PLATE_EXTENT, PLATE_HOLE_RADIUS};
 use viewer::session::{DocSession, EdgeSelection, Hovered, Selection, SessionOp};
@@ -512,11 +512,11 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
         body: 0,
     };
 
-    let empty = pickindex::edge_overlay(&index, &DisplayView::none(), &Selection::None, None);
+    let empty = marks::edge_overlay(&index, &DisplayView::none(), &Selection::None, None);
     assert!(empty.is_empty(), "nothing selected marks nothing");
 
     session.perform(SessionOp::Select(Selection::Edge(selection.clone())));
-    let marked = pickindex::edge_overlay(
+    let marked = marks::edge_overlay(
         &index,
         &DisplayView::none(),
         session.selection(),
@@ -530,7 +530,7 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
     assert!(marked.hovered.is_empty(), "nothing is hovered");
 
     session.perform(SessionOp::Hover(Some(Hovered::Edge(hovered))));
-    let both = pickindex::edge_overlay(
+    let both = marks::edge_overlay(
         &index,
         &DisplayView::none(),
         session.selection(),
@@ -542,7 +542,7 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
     // Hovering what is already selected marks it once: selection is
     // the state the user committed to.
     session.perform(SessionOp::Hover(Some(Hovered::Edge(selection))));
-    let once = pickindex::edge_overlay(
+    let once = marks::edge_overlay(
         &index,
         &DisplayView::none(),
         session.selection(),
@@ -574,7 +574,7 @@ fn a_preview_is_carried_beside_the_marks_and_derived_from_no_pick() {
         node: extrude,
         body: 0,
     };
-    let marked = pickindex::edge_overlay(
+    let marked = marks::edge_overlay(
         &index,
         &DisplayView::none(),
         &Selection::Edge(selection),
@@ -585,7 +585,7 @@ fn a_preview_is_carried_beside_the_marks_and_derived_from_no_pick() {
         "a selection is about the document; a preview is not",
     );
 
-    let mut composing = pickindex::EdgeOverlay::default();
+    let mut composing = marks::EdgeOverlay::default();
     assert!(composing.is_empty());
     composing.preview = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]];
     assert!(!composing.is_empty(), "a preview alone is still a drawing");
@@ -606,7 +606,7 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
         node: extrude,
         body: 0,
     });
-    let lit = pickindex::highlight(&index, &edge, None);
+    let lit = marks::highlight(&index, &edge, None);
     assert_eq!(
         lit.selected,
         viewer::pickindex::IdMap::NOTHING,
@@ -622,8 +622,7 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
         )
         .expect("no refusal")
         .expect("a ray onto the plate hits it");
-    let overlay =
-        pickindex::edge_overlay(&index, &DisplayView::none(), &Selection::Face(face), None);
+    let overlay = marks::edge_overlay(&index, &DisplayView::none(), &Selection::Face(face), None);
     assert!(overlay.is_empty(), "a face selection marks no edge");
 }
 
@@ -673,7 +672,7 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     // would skip the check and the row would stay green having tested
     // nothing. Both steps are expectations, so both are failures.
     let after = index_of(&session);
-    let overlay = pickindex::edge_overlay(
+    let overlay = marks::edge_overlay(
         &after,
         &DisplayView::none(),
         session.selection(),

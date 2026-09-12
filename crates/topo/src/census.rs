@@ -49,8 +49,17 @@
 //!   so clearance is a genuine no-touch certificate, not a skip.
 //!   Named, not sampled.
 //!
-//! A record or candidate outside a certifier's lane refuses
-//! [`ValidationError::CensusUnsupported`], never samples.
+//! A record or candidate a certifier could not certify refuses
+//! [`ValidationError::CensusUnsupported`], never samples. The refusal
+//! carries [`ValidationError::CensusUnsupported::cause`]: usually a
+//! lane's inventory limit, but the same arm reports a chart-region
+//! search that ran out of budget, a body whose pcurve caches are
+//! absent, a face the bounding sweep could not read at all (through
+//! [`CensusUnsupportedCause::FaceUnboundable`] — its outer loop is
+//! empty or its boundary does not resolve), and a face whose region
+//! the point-in-face door cannot express or walk (through
+//! [`CensusUnsupportedCause::Containment`]). Five recourses, one
+//! variant, and the cause is which.
 //!
 //! **Sense-invariant** (M5 S10 audit), with ONE named exception.
 //! Every use of a face's plane `normal` in the COINCIDENCE sweeps is
@@ -165,7 +174,8 @@
 //! [`ValidationError::UndeclaredContact`] — never inferred. (A
 //! configuration needing MORE than bounding records would require a
 //! curved carrier — out of the planar inventory, refused as
-//! `CensusUnsupported`; no counterexample exists on the F5 corpus.)
+//! `CensusUnsupported` with an inventory cause; no counterexample
+//! exists on the F5 corpus.)
 //!
 //! # The D4 vertex-on-edge derivation (why there is no record type)
 //!
@@ -215,7 +225,9 @@ use crate::boolean::{ContactRecords, ContainError, FaceContainment, contfp};
 use crate::chart_region::ChartRegionError;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
 use crate::null::CurveGeom;
-use crate::validate::{CensusContact, CensusSubject, StaleDeclaration, ValidationError, decide};
+use crate::validate::{
+    CensusContact, CensusSubject, CensusUnsupportedCause, StaleDeclaration, ValidationError, decide,
+};
 
 /// One edge's exact census geometry (post-gate: a `Line` carrier).
 struct EdgeGeo<T: Real> {
@@ -809,17 +821,33 @@ fn contain<T: Decide>(
             None
         }
         // An arc-bearing loop the polygon walk cannot express, an
-        // exhausted ray schedule, unwalkable topology: the census asks
-        // the same question through the same door and gets the same
-        // honest nothing (issue #1076). Listed rather than wildcarded,
-        // so a new `ContainError` arm is classified here deliberately.
+        // exhausted ray schedule, unwalkable topology: three refusals
+        // that metred no margin, CARRIED rather than replaced. An
+        // escalation is what a predicate says when it measured and
+        // could not decide, so minting one for a door that measured
+        // nothing put a fabricated quantity in the field a reader
+        // judges the call by — and named a predicate that decides
+        // nothing anywhere in the tree.
+        //
+        // The subject is the FACE, which is the one entity every
+        // caller of this helper shares: the second entity is a vertex
+        // at one call site, an edge midpoint at another and a
+        // plane-crossing point at a third, while the refusal is always
+        // about whether THIS face's region can be read at all.
+        //
+        // Listed rather than wildcarded, because this arm is one half
+        // of the `Escalated`/`Unsupported` discrimination
+        // `editor_core::attribute` classifies: a new `ContainError`
+        // arm must be routed here deliberately rather than default
+        // into the wrong half.
         Err(
-            ContainError::ArcLoopUnsupported { .. }
+            e @ (ContainError::ArcLoopUnsupported { .. }
             | ContainError::RayExhausted
-            | ContainError::Corrupt,
+            | ContainError::Corrupt),
         ) => {
-            errors.push(ValidationError::CensusEscalated {
-                cause: invalid(band, "pm_census_containment"),
+            errors.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Face(f.key)),
+                cause: CensusUnsupportedCause::Containment(e),
             });
             None
         }
@@ -1662,6 +1690,17 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                                 },
                                 verdict: crate::contact::ContactVerdict::Definite,
                             };
+                            // Rendered in the arm's own order. A
+                            // census face pair is unordered for
+                            // EQUALITY alone — the order stays in the
+                            // value, and in what `Debug` prints — and
+                            // the arm's order is a function of the
+                            // input (D9), so no run-to-run instability
+                            // exists for a normalisation to cure.
+                            // Normalising here would also disagree
+                            // with the typed pair on the finding
+                            // beside it, which is what a consumer
+                            // resolves against.
                             errors.push(ValidationError::UndeclaredContact {
                                 contact: CensusContact::ConformalPatch { finding },
                                 witness: format!("{fa:?}~{fb:?}"),
@@ -1671,9 +1710,16 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                     Some(Err(ChartRegionError::Escalated(cause))) => {
                         errors.push(ValidationError::CensusEscalated { cause });
                     }
-                    // Every other typed predicate refusal: the pair is
-                    // outside the certified overlap lane — refused as
-                    // unsupported inventory, never skipped silently.
+                    // Every other typed predicate refusal: the pair
+                    // was not certified, and WHICH refusal said so is
+                    // carried rather than replaced. The twelve do not
+                    // share a cause — a stopped interior-witness
+                    // search, an absent pcurve cache and a non-planar
+                    // trim want three different repairs — so the one
+                    // thing this arm may not do is restate them as
+                    // the inventory refusal. Refused loudly, never
+                    // skipped silently.
+                    //
                     // Spelled out rather than matched by wildcard,
                     // because this arm is one half of the
                     // `Escalated`/`Unsupported` discrimination
@@ -1682,7 +1728,7 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                     // arm must be classified here deliberately rather
                     // than default into an unrefuted frontier.
                     Some(Err(
-                        ChartRegionError::ChartDivergence { .. }
+                        cause @ (ChartRegionError::ChartDivergence { .. }
                         | ChartRegionError::NonPlanarTrim { .. }
                         | ChartRegionError::MissingCache { .. }
                         | ChartRegionError::ArmUnbounded { .. }
@@ -1693,10 +1739,18 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         | ChartRegionError::DegenerateLoop { .. }
                         | ChartRegionError::RayExhausted
                         | ChartRegionError::WitnessBudgetExhausted { .. }
-                        | ChartRegionError::Corrupt,
+                        | ChartRegionError::Corrupt),
                     )) => {
+                        // The refusal is CARRIED, not replaced. The
+                        // twelve say different things with different
+                        // recourses — a stopped witness search is not
+                        // a thin overlap, and neither is an absent
+                        // pcurve cache — and flattening them here made
+                        // every one of them read as the inventory
+                        // statement at the census door.
                         errors.push(ValidationError::CensusUnsupported {
                             subject: CensusSubject::FacePair(fa, fb),
+                            cause: CensusUnsupportedCause::ChartRegion(cause),
                         });
                     }
                 }
@@ -1776,17 +1830,38 @@ pub(crate) fn face_reach<T: Decide>(
                 radius,
             )))
         }
-        crate::boolean::boxes::FaceBoxRule::WholeTorus {
+        crate::boolean::boxes::FaceBoxRule::TorusWindow {
             center,
             axis,
             major_radius,
             minor_radius,
-        } => Some(span_pts(crate::boolean::boxes::torus_extent(
-            &crate::boolean::boxes::SpanBox::point(center),
-            &crate::boolean::boxes::SpanBox::vector(axis),
-            major_radius,
-            minor_radius,
-        ))),
+            u_ref,
+        } => {
+            use crate::boolean::boxes::{Span, SpanBox, meet, torus_extent, torus_window_extent};
+            let (c, ax) = (SpanBox::point(center), SpanBox::vector(axis));
+            let whole = torus_extent(&c, &ax, major_radius, minor_radius);
+            // The chart window from the boundary's own stored
+            // certified pcurves: the same walk, the same guards and
+            // the same extent as the boolean lane, at this lane's
+            // scalar ([`torus_chart_window`]).
+            Some(span_pts(
+                match torus_chart_window(body, f, major_radius, minor_radius) {
+                    None => whole,
+                    Some((u, v)) => meet(
+                        torus_window_extent(
+                            &c,
+                            &ax,
+                            &SpanBox::vector(u_ref),
+                            &SpanBox::vector(axis.cross(u_ref)),
+                            Span::exact(major_radius),
+                            Span::exact(minor_radius),
+                            (u, v),
+                        ),
+                        whole,
+                    ),
+                },
+            ))
+        }
         crate::boolean::boxes::FaceBoxRule::CylinderSlab {
             origin,
             axis,
@@ -1836,6 +1911,24 @@ pub(crate) fn face_reach<T: Decide>(
             )))
         }
     }
+}
+
+/// A torus face's CHART WINDOW at this lane's scalar — the SAME walk
+/// the boolean lane runs, not a mirror of it: both enter
+/// [`crate::boolean::boxes::face_window_steps`] and
+/// [`crate::boolean::boxes::torus_chart_window`], which is where the
+/// two guards and every fail mode live.
+fn torus_chart_window<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    major: T,
+    minor: T,
+) -> Option<crate::boolean::boxes::TorusWindowPair<T>> {
+    crate::boolean::boxes::torus_chart_window(
+        &crate::boolean::boxes::face_window_steps(body, f)?,
+        major,
+        minor,
+    )
 }
 
 /// The face boundary's AXIAL range about `(origin, axis)` — the
@@ -2306,6 +2399,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
             // stay loud if a second, ungated caller ever appears.
             errors.push(ValidationError::CensusUnsupported {
                 subject: CensusSubject::Entity(EntityId::Face(f)),
+                cause: CensusUnsupportedCause::FaceUnboundable,
             });
             continue;
         }
@@ -2711,9 +2805,14 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
             | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
                 errors.push(ValidationError::CensusEscalated { cause: diag });
             }
-            Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
+            // The refusal is carried whole, `what` and all. It was
+            // discarded here — the same flattening the chart arms
+            // made, one lane over — and reducing it to its `what`
+            // would have been that flattening again, one level in.
+            Err(refusal @ crate::contact::ContactRefusal::NotCertifiable { .. }) => {
                 errors.push(ValidationError::CensusUnsupported {
                     subject: CensusSubject::Entity(EntityId::Edge(c.witness)),
+                    cause: CensusUnsupportedCause::ContactLane(refusal),
                 });
             }
         }
@@ -2751,6 +2850,14 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
         ) {
             Ok(verdict) => verdict,
             Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
+                // Rendered in the declared record's own order,
+                // which is the reader's index back into the records
+                // they supplied — not this run's arena order. A census
+                // face pair is unordered for EQUALITY alone: the order
+                // stays in the value, and normalising it here would
+                // disagree with `declaration` beside it, the same two
+                // keys in the same order and what a consumer resolves
+                // against.
                 errors.push(ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
                         a: c.face_a,
@@ -2768,9 +2875,10 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
                 errors.push(ValidationError::CensusEscalated { cause: diag });
                 continue;
             }
-            Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
+            Err(refusal @ crate::contact::ContactRefusal::NotCertifiable { .. }) => {
                 errors.push(ValidationError::CensusUnsupported {
                     subject: CensusSubject::FacePair(c.face_a, c.face_b),
+                    cause: CensusUnsupportedCause::ContactLane(refusal),
                 });
                 continue;
             }
@@ -2796,12 +2904,13 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
             Some(Err(ChartRegionError::Escalated(cause))) => {
                 errors.push(ValidationError::CensusEscalated { cause });
             }
-            // As the sweep arm: every other typed refusal is unsupported
-            // inventory, and the list is exhaustive so a new
-            // `ChartRegionError` arm is a compile error here rather than
-            // a silent promotion to an unrefuted frontier.
+            // As the sweep arm: every other typed refusal is carried
+            // whole rather than restated as the inventory refusal,
+            // and the list is exhaustive so a new `ChartRegionError`
+            // arm is a compile error here rather than a silent
+            // promotion to an unrefuted frontier.
             Some(Err(
-                ChartRegionError::ChartDivergence { .. }
+                cause @ (ChartRegionError::ChartDivergence { .. }
                 | ChartRegionError::NonPlanarTrim { .. }
                 | ChartRegionError::MissingCache { .. }
                 | ChartRegionError::ArmUnbounded { .. }
@@ -2812,10 +2921,14 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
                 | ChartRegionError::DegenerateLoop { .. }
                 | ChartRegionError::RayExhausted
                 | ChartRegionError::WitnessBudgetExhausted { .. }
-                | ChartRegionError::Corrupt,
+                | ChartRegionError::Corrupt),
             )) => {
+                // Carried, as at the sweep arm and for the same
+                // reason: which of the twelve refused is the whole of
+                // what tells a reader which repair to make.
                 errors.push(ValidationError::CensusUnsupported {
                     subject: CensusSubject::FacePair(c.face_a, c.face_b),
+                    cause: CensusUnsupportedCause::ChartRegion(cause),
                 });
             }
         }

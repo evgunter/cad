@@ -29,6 +29,23 @@ sweep-testing = []
 # enabled only through the self-dev-dependency below, so it is on
 # exactly for this crate's own tests and off for every normal build.
 test-support = []
+# THE SCALPEL for D1's once-per-door tier-1 postcondition (the ruling on
+# `work/perf/d1-per-op-tier1-sweep-price`). A door-level failure names
+# the door; with this on, the whole-body sweep runs after EVERY Euler
+# operator again — inside surgery scopes included — so the panic names
+# the operator instead. Opt-in, never default-on, and it changes no
+# result: it only decides where a debug assertion fires. The
+# `shadow-exec` shape (`work/perf/plan.md` §4.5).
+#
+#     cargo test -p topo --features topo/per-op-postcondition
+#     cargo test -p sweep --features topo/per-op-postcondition
+#
+# It is not a test-only feature by the naming convention
+# `scripts/gates/test-features-dev-only.sh` reads (no `-testing`
+# suffix, not `test-support`) and it opens no injector: a production
+# dependent that turns it on gets slower debug builds and identical
+# behaviour.
+per-op-postcondition = []
 # Forwards geom-core's certified interval scalar so `Body<Interval>` is
 # instantiable — exercised by `tests/interval_body.rs` in CI's interval
 # lane (Q1's pure-replay model: same topology keys, interval geometry).

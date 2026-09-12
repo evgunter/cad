@@ -1,7 +1,7 @@
 //! **One declaration per closed vocabulary, and every list projected
 //! from it.**
 //!
-//! **Nine** enums in this crate are *closed vocabularies*: a fixed set
+//! **Ten** enums in this crate are *closed vocabularies*: a fixed set
 //! of choices the chrome offers, which something has to be able to
 //! walk in order — a radio row, a combo's options, a suite's sweep.
 //! Each of them used to carry a hand-written `const ALL` beside the
@@ -17,6 +17,17 @@
 //! same tokens. That is stronger than a compile error — it is the
 //! [`crate::tools`] argument one level down, a state that cannot be
 //! written down rather than one a check has to catch.
+//!
+//! **The words ride that same list where they are table data.**
+//! Where something walks a vocabulary's table and reads every entry's
+//! word — a combo drawing an option per row, a picker drawing a
+//! button per mode — the word belongs to the declaration and the
+//! table carries it; the accessor a single value's word is asked
+//! through is projected from that same list rather than written
+//! beside it as a second ordered reading. Where nothing walks the
+//! table for words, they are not table data and a match beside the
+//! enum is the whole of it (`crates/viewer/README.md`, **Closed
+//! vocabularies are declared once**).
 //!
 //! **The order is the declaration's.** These lists are read in order
 //! by menus and radio rows, and several of them say so in their own
@@ -35,13 +46,19 @@
 //!
 //! # What it does not cover
 //!
-//! A table mirroring an enum declared in ANOTHER crate
-//! (`forms::BOOLEAN_OPS`, `forms::MATE_PRIMITIVES` — plain code spans
-//! and not links, because `forms` is behind the `app` feature and a
-//! link to it does not resolve in a default-feature build) cannot use
-//! this, because the declaration it would have to be projected from is
-//! not here. That is the neighbouring MIRROR question and has its own
-//! tracker item; it is not a hole in this one.
+//! A list mirroring an enum declared in ANOTHER crate cannot use this,
+//! because the declaration it would have to be projected from is not
+//! here. The answer for a list that claims completeness is the same
+//! construction one crate over — the kernel publishes its own `ALL`
+//! beside its declaration and the form maps over it, which is what the
+//! boolean operations do — and the answer for one that claims none
+//! ([`crate::forms::MATE_PRIMITIVES`]) is neither: forcing a
+//! deliberately partial list would force the wrong thing. What such a
+//! list wants is to be TOLD its enum grew, which is a different
+//! instrument and lives beside the list it holds — `forms`'s
+//! `partial_mirror!`, which classifies every mirrored variant as
+//! offered or as deliberately absent. Either way it is not a hole in
+//! this one.
 //!
 //! A DELIBERATELY PARTIAL list is not a vocabulary either
 //! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names two of five
@@ -52,9 +69,9 @@
 //! # What this costs: rustfmt stops at the invocation
 //!
 //! **`rustfmt` does not reach inside a `macro_rules!` invocation in
-//! item position**, so the nine enums declared through
+//! item position**, so the ten enums declared through
 //! [`vocabulary!`] — every variant and every variant doc of
-//! `PathVerb` (17), `Seat` (9), `ToolKind` (7), `ArcMode` (6) and five
+//! `PathVerb` (17), `Seat` (9), `ToolKind` (7), `ArcMode` (6) and six
 //! more — are no longer mechanically formatted. Indentation in these
 //! blocks is kept by hand.
 //!
@@ -81,7 +98,7 @@
 //!
 //! **No explicit discriminants.** The labelled arm spends `= …` on the
 //! variant's word, so `Mate = 3` and `#[repr(u8)]` numbering are not
-//! available to these nine enums without un-converting them. **This is
+//! available to these ten enums without un-converting them. **This is
 //! a one-way door** and is the reason to state it here: an enum that
 //! later needs a wire number has to leave the macro to get one.
 //!
@@ -92,12 +109,32 @@
 /// every one of its variants, from one list of variants.
 ///
 /// Two shapes, because the crate has two. A BARE vocabulary projects
-/// `[Self; N]` and keeps its wording in a `label` match beside it; a
-/// LABELLED one writes each variant's word in the declaration and
-/// projects `[(Self, &'static str); N]`, which is what a radio row
-/// iterates. Every variant carries a label or none does — a
-/// half-labelled list matches neither arm and fails to compile, which
-/// is the right answer to "which shape is this".
+/// `[Self; N]` and keeps its wording in a `label`/`name` match beside
+/// it; a LABELLED one writes each variant's word in the declaration
+/// and projects `[(Self, &'static str); N]`, which is what a row that
+/// walks the table for its words iterates. Every variant carries a
+/// label or none does — a half-labelled list matches neither arm and
+/// fails to compile, which is the right answer to "which shape is
+/// this".
+///
+/// A labelled vocabulary whose word is ALSO asked for one value at a
+/// time declares `fn label;` under its `ALL`, and gets that accessor
+/// projected from the same list as a match. **Declaring it is how the
+/// vocabulary asks for it**: a projection nobody asked for would be
+/// dead code in the five labelled vocabularies that never read one,
+/// and an `#[allow(dead_code)]` blanketing all of them would silence
+/// the report that an accessor has lost its last reader.
+///
+/// The name is `label` and the matcher spells it literally, not as a
+/// free parameter. A free one would let each site name the accessor
+/// whatever it liked, and the crate already spells this concept two
+/// ways — `ToolKind::label` and `Seat::name`, hand-written beside
+/// their bare enums. That is this macro's own argument turned on
+/// itself: `vocabulary!` exists because a second hand-written copy of
+/// a list drifts from the first, and an accessor whose name is a
+/// parameter reintroduces the drift one level up, in what the readers
+/// have to call. The VISIBILITY stays free, because it is a fact about
+/// who may read the word rather than a second spelling of anything.
 ///
 /// `N` is counted from the same list, so no count is written down
 /// either.
@@ -115,6 +152,9 @@
 ///
 ///     /// Both ends with their button labels, in form order.
 ///     pub const ALL;
+///
+///     /// This end's word.
+///     pub fn label;
 /// }
 /// ```
 macro_rules! vocabulary {
@@ -122,6 +162,51 @@ macro_rules! vocabulary {
     (@count) => { 0usize };
     (@count $head:ident $($tail:ident)*) => {
         1usize + crate::vocab::vocabulary!(@count $($tail)*)
+    };
+
+    // LABELLED, and the word is asked for one value at a time too:
+    // the accessor is projected from the same list, so declaring it is
+    // how a vocabulary asks for it and no vocabulary carries one it
+    // never reads.
+    (
+        $(#[$emeta:meta])*
+        $evis:vis enum $name:ident {
+            $(
+                $(#[$vmeta:meta])*
+                $variant:ident = $label:literal
+            ),+ $(,)?
+        }
+
+        $(#[$ameta:meta])*
+        $avis:vis const $all:ident;
+
+        $(#[$fmeta:meta])*
+        $fvis:vis fn label;
+    ) => {
+        crate::vocab::vocabulary! {
+            $(#[$emeta])*
+            $evis enum $name {
+                $( $(#[$vmeta])* $variant = $label ),+
+            }
+
+            $(#[$ameta])*
+            $avis const $all;
+        }
+
+        impl $name {
+            $(#[$fmeta])*
+            ///
+            /// A match over the same list the array above is built
+            /// from, projected by the crate's `vocabulary!` macro
+            /// (`crates/viewer/src/vocab.rs`): the two readings are
+            /// the same tokens, and a variant with no word does not
+            /// parse.
+            $fvis const fn label(self) -> &'static str {
+                match self {
+                    $( Self::$variant => $label, )+
+                }
+            }
+        }
     };
 
     // LABELLED: every variant states the word the chrome shows.

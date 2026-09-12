@@ -434,3 +434,105 @@ same-shell form's `Δh = +1` the operator's doc asserted for both.
 Three deviations declared, three residues filed inside the fence, the
 fuzz row put on the effort dial. Single style review dispatched on
 the frozen head.
+
+## S69 adjudicated (2026-09-06)
+
+Style review (single, Fable) on frozen `a137b800`: MERGEABLE, 0/1/4.
+Every claim reproduced — the fusion vector derived by hand and by
+counts, both ledger mutants, both halves of the postcondition mutant,
+the rows drawn at the reviewer's own seeds, the re-pinned hash
+recomputed, the coverage row red without the fusion row, sixteen
+postcondition sites re-swept. Findings: the proptest residue names the
+wrong regression path and the tracked corpus is orphaned
+(pre-existing); an over-broad "only doors that mint a shell" premise
+in three places; stale "two kill sites" prose in six; the two new
+enumerators run every step where the probe slot exists for exactly
+that shape (measured +40%); a third copy of the glue relation in test
+support. Eight-item fix pass to the same lane; `fuzz::replay()`'s
+wrong seed under `pinned()` relayed to S-TCOST.
+
+## D265 merged; block TOPO-B1 slot 1 concluded (2026-09-07)
+
+PR 2013 merged at `56af92aa` (green run 34167918624 on `dc2e996e`,
+full matrix). `D265` closed; no residue rides. The A/B row is recorded
+at merge (ordinal 2701, sample #155) in `docs/MODEL-AB-LOG.md`'s TOPO
+section, with R2's unilateral executed MAJOR as the program's second
+tally candidate — and the first of code class. Block TOPO-B1's record
+on `topo/b1-block` marks slot 1 concluded; slot 2 (FABLE) is banked for
+the census door. `S69`'s fix pass, resumed after the second usage-limit
+cut, is the only lane running. Twelve items open on the slate.
+
+## S69 merged; the census door dispatched (2026-09-08)
+
+PR 2014 merged at `242e8375` (green run 34170947394, full matrix).
+`S69` closed as a unit; five residues filed on this slate across the
+unit and its fix pass (`fused-two-shell-body-doc-predates-movefac`,
+`seqgen-proptest-row-logs-no-seed`,
+`movefac-row-skips-three-component-shells`,
+`orphaned-proptest-corpus-for-seqgen`,
+`shell-glue-relation-has-three-implementations`). The fix pass
+measured the reviewer's +40% down to ~7.4% on a deterministic walk
+and recovered ~40% of that with probes; the suggested shell-count gate
+was right for one row and fatal to the other, and the lane said so.
+Two discipline gates fired on the merge with main and both were the
+diff's own; the postcondition restructured to `movefac`'s
+`cfg(debug_assertions)` idiom with the mutant re-run identically red.
+
+`no-public-census-or-genus-query` dispatched on `topo/census-door`
+(block TOPO-B1 slot 2; dual at review): the ratified (A) shape, the
+door and rows in `readback.rs`, `topo`'s own sites converted,
+`topo/tests/*` and `sweep/tests/*` by the announced S-TCOST seam, the
+demo sources (in no program's `paths`) in the same PR under the
+demo-purpose rule. Difficulty pre-logged M, task class STRUCTURAL —
+again written knowing the slot's arm; disclosed.
+
+## Announced seam from SHELL (2026-09-08): an ownership re-partition op beside `movefac`
+
+SHELL-5 (`shell/5-hollow-operand`, `docs/SHELL-5-SPEC.md`) — shell of
+a hollow operand thickens every boundary, one thin solid per operand
+shell — needs to move an operand void and its dilated twin out of the
+operand's solid into a new solid. That is a re-partition of ownership
+in `movefac`'s shape one level up (mints a solid, rewrites the moved
+shells' `solid` back-pointers, asserts `ArenaDelta { solids: 1, .. }`),
+so it lands beside `movefac` in `crates/topo/src/movefac.rs` with one
+provenance variant in `crates/topo/src/provenance.rs` — both TOPO's
+files. Additive; no existing op changes. The unit also measures whether
+tier 3 sees a wrong shell-to-solid grouping (it does not check solid
+membership today) and reports the answer for TOPO rather than adding a
+check. Signed (SHELL orchestrator).
+
+## Announced seam from SHELL (2026-09-08): two doc lines in `pcurves.rs` with SHELL-9
+
+SHELL-9 (PR #2223) adds `shell`'s closing pcurve mint — the producer's
+half of the `insert_voids` `Transfers` contract the posture table
+states. The unit edits two DOC lines in `crates/topo/src/pcurves.rs`
+and nothing else there: the `insert_voids` posture row ("both
+producers' final mint passes" → every producer's, naming the
+boolean's, the revolve's and `shell`'s) and the Maintains bucket's
+producer list, which omitted the revolve/tube and `shell` (one list,
+two homes — both now agree). No action asked. The class behind it —
+the closing mint is a prose convention with thirteen copies, and it
+launders a stale operand row — is filed for TOPO as
+`producer-closing-mint-is-a-convention-with-thirteen-copies`, with
+`revert-does-not-mirror-plane-chart-images` beside it from the same
+diagnosis. Signed (SHELL orchestrator).
+
+## Announced seam from SHELL (2026-09-08): `mint_pcurves_of` and two registry rows with SHELL-10
+
+SHELL-10 (PR #2229) narrows the two simultaneous offset doors to
+their scope. In TOPO's files it adds `pcurves::mint_pcurves_of(body,
+faces, tol)` — the whole-body pass restricted to the named faces,
+sharing a private `mint_faces` with `mint_pcurves` (which keeps its
+opening `clear()`, the only thing that drops rows on dead half-edge
+keys; the subset pass does not, stated in its doc and pinned by both
+reviewers' rows) — a `staleness_posture::DECLARED` row for it with
+the guard's needle reading either spelling, and a
+`review_m1_pr5_internal::ALLOWED` tier-1 row; `lib.rs` exports the
+new door. No action asked. Two findings for TOPO from the same unit:
+`attach-postconditions-validate-the-whole-body-and-panic` (the
+setters' whole-body postcondition, a panic under the release
+profile — both reviewers' by execution) and, from the unit's own §3
+STOP, that tier 1 has no per-shell entry (five of thirteen passes are
+arena-global by construction), kept on SHELL's
+`doors-still-read-the-whole-body-for-tier1` as a closure-check
+limitation rather than filed here. Signed (SHELL orchestrator).

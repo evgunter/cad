@@ -18,6 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -84,25 +85,6 @@ fn plane_chart_at_z(body: &Body<f64>, z: f64) -> Vec<FaceKey> {
         })
         .map(|(k, _)| k)
         .collect()
-}
-
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings_of(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
-}
-
-fn genus_of(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    let chi = v - e + f - rings_of(body) as i64;
-    assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
-    body.shells().count() as i64 - chi / 2
 }
 
 /// The whole-body coherence bar: tier 3, meshes at two budgets, and a
@@ -476,11 +458,13 @@ fn p7_thickness_gate_shields_check_9s_band_at_this_door() {
 }
 
 // ---------------------------------------------------------------------
-// P8 — the #1056 hollow-operand gate still fires after the rewrite.
+// P8 — a hollow operand after the rewrite: every boundary thickens
+// (issue #1056's ruling), one thin solid per operand shell, and the
+// operand's own faces and shells survive under their keys.
 // ---------------------------------------------------------------------
 
 #[test]
-fn p8_hollow_operand_still_refuses_typed() {
+fn p8_hollow_operand_thickens_every_boundary() {
     let body = extruded(
         vec![polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)])],
         4.0,
@@ -488,9 +472,23 @@ fn p8_hollow_operand_still_refuses_typed() {
     let sealed = topo::shell(&body, 0.25, Tol::witness())
         .expect("seals")
         .body;
-    let e = topo::shell(&sealed, 0.05, Tol::witness()).expect_err("a hollow operand refuses");
+    let shelled = topo::shell(&sealed, 0.05, Tol::witness())
+        .expect("a hollow operand thickens every boundary")
+        .body;
+    assert_coherent("p8 shell of a hollow", &shelled, None);
+    assert_eq!(shelled.solids().count(), 2);
+    assert_eq!(shelled.shells().count(), 4);
+    for (face, data) in sealed.faces() {
+        let got = shelled
+            .get_face(face)
+            .unwrap_or_else(|| panic!("operand face {face:?} survives under its key"));
+        assert_eq!(got.shell, data.shell, "{face:?} keeps its shell");
+    }
+    let props = topo::mass_properties(&shelled, Tol::witness()).expect("props");
+    let want = (2.0 * 3.0 * 4.0 - 1.9 * 2.9 * 3.9) + (1.6 * 2.6 * 3.6 - 1.5 * 2.5 * 3.5);
     assert!(
-        matches!(e, ShellError::OperandAlreadyHollow { shells: 2 }),
-        "got {e}"
+        (props.volume - want).abs() <= 1e-12,
+        "got {}, want {want}",
+        props.volume
     );
 }

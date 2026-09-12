@@ -11,15 +11,24 @@
 //! debug_postcondition_fires_on_corrupt_input test, which documents that
 //! tension).
 //!
-//! Both are gated, on two different cadences. The debug rows ride the
-//! standard nextest matrix on every code-tier run; the release rows are the
-//! `corrupt input (release profile)` job, which is the only release-profile
-//! test invocation the kernel workspace has and which runs ONCE A NIGHT, in
-//! `.github/workflows/nightly.yml`, on any day main moved. It is a
-//! persistence-detector — a wrong body stays wrong — and the per-row
-//! argument for that cadence is at the job. `local-scripts/ci-local.sh`
-//! still runs the same rows on every local gate. Both halves grep this
-//! sentence for the job's name, so renaming it here or there is loud.
+//! Both are gated, on every code-tier run. The debug rows ride the standard
+//! nextest matrix; the release rows are the
+//! `corrupt input (release profile)` job in `.github/workflows/ci.yml`,
+//! which is the only release-profile test invocation the kernel workspace
+//! has.
+//!
+//! **That job is the only lane in the tree that compiles the
+//! `cfg(not(debug_assertions))` rows, and `local-scripts/ci-local.sh` is
+//! not a second one.** The hosted job pins
+//! `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`; the local
+//! `topo_release` row does not, so against the root `[profile.release]`'s
+//! `debug-assertions = true` it compiles the DEBUG arms of this file and
+//! the row below does not exist there at all. The local row also selects
+//! a subset — this module and one `review_m1_pr4` row, and no
+//! `review_d18`. So the local gate exercises the debug expectations a
+//! second time; the release expectations are the hosted job's alone.
+//! Both halves grep this sentence for the job's name, so renaming it here or
+//! there is loud.
 //!
 //! # What of the contract is still ratified
 //!
@@ -161,10 +170,14 @@ fn torn_cycle_yields_typed_error() {
 /// must terminate quickly (no O(inf) hang). Mirrors PR 1's torn-link
 /// attack through the operator path.
 ///
-/// Promotion note: in debug builds the shipped per-op postcondition
-/// sweep makes the construction loop quadratic (minutes at n=3000), so
-/// the strut count is scaled down there; the torn-walk timing assertion
-/// under attack is identical in both profiles.
+/// Promotion note: this loop calls `mev` DIRECTLY, so every call is
+/// its own door and sweeps the whole body (`topo::surgery`) — which
+/// makes the construction quadratic in debug builds (minutes at
+/// n=3000), so the strut count is scaled down there. A composing door
+/// would pay one sweep for the whole loop; a consumer's own loop
+/// cannot, because nothing has undertaken to check the body later.
+/// The torn-walk timing assertion under attack is identical in both
+/// profiles.
 #[test]
 fn large_torn_body_terminates_quickly() {
     let tol = Tol::witness();
@@ -289,6 +302,11 @@ fn foreign_parent_loop_garbage_in_garbage_out_release() {
 #[cfg(debug_assertions)]
 fn debug_postcondition_fires_on_corrupt_input() {
     let tol = Tol::witness();
+    // The hook is process-global and this suite runs in parallel; every
+    // taker in the crate holds this lock first (its docs carry why).
+    let _serialized = crate::surgery::tests::PANIC_HOOK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let captured = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     let sink = std::sync::Arc::clone(&captured);
     let previous = std::panic::take_hook();

@@ -1,5 +1,5 @@
 //! The viewer: layer 3 of the GUI/editor architecture
-//! (`crates/viewer/README.md` G1) — interaction over the headless
+//! (`crates/viewer/GUI-DESIGN.md` G1) — interaction over the headless
 //! `editor-core` document and the kernel below it.
 //!
 //! # What is a value here, and what is a widget
@@ -62,12 +62,14 @@ pub mod frame;
 pub mod generation;
 pub mod history;
 pub mod input;
+pub mod marks;
 pub mod matetool;
 pub mod parts;
-pub mod pick;
+pub mod pickcache;
 pub mod pickindex;
 pub mod prefs;
 pub mod props;
+pub mod readout;
 pub mod revolvetool;
 pub mod scene;
 pub mod seats;
@@ -123,7 +125,7 @@ fn app_lane_skipped_no_app_feature_coverage_here() {
 }
 
 pub use blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool, FREEZE_NOTE};
-pub use camera::{Camera, CameraError, CameraOp, CameraOpError};
+pub use camera::{Camera, CameraError, CameraOp, CameraOpError, cursor_projection};
 pub use datums::{DatumDraw, DatumKind};
 pub use docio::DocIoError;
 pub use evalseam::{
@@ -140,18 +142,18 @@ pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
     MateAdmission, MateChoice, MateProposal, MateTool, MateToolError, MateToolEvent, MateToolState,
     admitted_classes,
 };
 pub use parts::{PartChooser, PartEntry};
-pub use pick::{NotIndexed, unindexed};
+pub use pickcache::{NotIndexed, unindexed};
 pub use pickindex::{
-    EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeOverlay, EdgePick, Highlight, IdMap,
-    IdMapError, PatchId, PickError, PickIndex, PickIndexError, PickKinds, cursor_projection,
-    edge_id_segments, edge_overlay, edge_segments, highlight,
+    EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgePick, IdMap, IdMapError, PatchId, PickError,
+    PickIndex, PickIndexError, PickKinds,
 };
-pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
+pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use revolvetool::RevolveTool;
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};

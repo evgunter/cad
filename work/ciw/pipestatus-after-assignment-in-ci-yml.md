@@ -1,9 +1,12 @@
 ---
 id: pipestatus-after-assignment-in-ci-yml
 kind: issue
-title: "a status capture that cannot fail: PIPESTATUS read after the assignment that clobbers it"
-status: open
+title: a status capture that cannot fail: PIPESTATUS read after the assignment that clobbers it
+status: closed
 opened: 2026-09-04
+branch: ciw/pipestatus-sweep
+pr: 2298
+closed: 2026-09-10
 ---
 
 **Filed by M10-7 (PR 1725) for CIW, whose territory `.github/` is.** One
@@ -88,3 +91,36 @@ gate that would have said so could not fail.
    `local-scripts/ci-local.sh`'s `klint_gate` does not `tee`, so its
    plain `$?` is exact. A comment saying so is in place, so that the two
    halves' asymmetry is a decision rather than drift.
+
+## Disposition (2026-09-10)
+
+**The sweep is empty and the guard is built.**
+
+1. **Sweep — no hits.** `scripts/check-status-capture.py`, added by this
+   unit, is the instrument: 7 `PIPESTATUS` reads across 87 shell files,
+   workflows and composite actions, every one taken on the command
+   immediately after its pipeline. Line numbers ON THIS BRANCH'S HEAD,
+   which inserts 35 lines into `ci.yml` above the last of them: `ci.yml`
+   `:669`, `:3135`, `:3626`, `:3661`, `:3671`, `:4835`; `render.yml`
+   `:1183`. (On `main` at this merge they are `:669`, `:3100`, `:3591`,
+   `:3626`, `:3636`, `:4800`.) The tombstone at `ci.yml:4797-4820` is a
+   comment and is correctly not counted.
+
+2. **A mirror check does not gain an arm for it.** Not because the shell
+   inside a `run:` is outside `scripts/check-ci-mirror-parity.py` — it is
+   not: that file's claim 10 already reads argv out of `run:` bodies, and
+   its own header marks that boundary ("CLAIM 10 IS WHERE THE ROSTER
+   STOPS AND THE COMMANDS START"). The reason is size and blast radius.
+   That file is 4004 lines and has taken a claim in each of the last four
+   units; every one of its claims shares one tokenizer, so a change made
+   for this property can move the answer of any other. A separate script
+   fails alone. It gains one `TIER_BLIND` membership entry (6 lines with
+   its comment) and nothing else.
+
+3. **The local half's `klint_gate` is unchanged**, as asked. `ci-local.sh`
+   gains only the mirror row for the new check (7 lines).
+
+Residue: `shellcheck-is-not-run` — nothing runs a shell linter, so the
+sibling `$?` class (SC2319/SC2320, which shellcheck *does* catch and this
+guard deliberately does not) is unguarded, and ~20 `# shellcheck disable=`
+markers are unverifiable claims.

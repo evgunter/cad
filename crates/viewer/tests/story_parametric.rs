@@ -557,7 +557,11 @@ fn the_parametric_living_walk() {
     );
     let mut previews = 0usize;
     for value in [0.014, 0.016, 0.013] {
-        let outcome = session.perform(SessionOp::PreviewGesture { value });
+        let outcome = session.perform(SessionOp::PreviewGesture {
+            node: lamp,
+            slot: SlotId::Distance,
+            value,
+        });
         assert!(outcome.committed.is_empty(), "a preview commits nothing");
         previews += outcome.previewed.len();
         assert_eq!(
@@ -577,7 +581,10 @@ fn the_parametric_living_walk() {
         Ok(SlotValue::Continuous(LAMP_H)),
         "the committed document still says the old one"
     );
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitGesture {
+        node: lamp,
+        slot: SlotId::Distance,
+    });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert_eq!(session.history().len(), before + 1, "one undo step");
     let landed = row_of(session.committed_doc(), lamp, SlotId::Distance);
@@ -623,7 +630,10 @@ fn the_parametric_living_walk() {
             .is_none()
     );
     for value in [0.032, 0.04, 0.036] {
-        let outcome = session.perform(SessionOp::PreviewGesture { value });
+        let outcome = session.perform(SessionOp::PreviewParamGesture {
+            name: height.clone(),
+            value,
+        });
         assert!(outcome.committed.is_empty());
         assert_eq!(outcome.previewed.len(), 1);
     }
@@ -655,7 +665,9 @@ fn the_parametric_living_walk() {
         ),
         "other edits refuse typed while the drag holds the document"
     );
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitParamGesture {
+        name: height.clone(),
+    });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
@@ -695,8 +707,16 @@ fn the_parametric_living_walk() {
             .refusal
             .is_none()
     );
-    session.perform(SessionOp::PreviewGesture { value: 0.02 });
-    session.perform(SessionOp::PreviewGesture { value: 0.025 });
+    session.perform(SessionOp::PreviewGesture {
+        node: lamp,
+        slot: SlotId::Distance,
+        value: 0.02,
+    });
+    session.perform(SessionOp::PreviewGesture {
+        node: lamp,
+        slot: SlotId::Distance,
+        value: 0.025,
+    });
     assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
     assert_eq!(session.history().len(), before, "no trace in history");
     assert_eq!(

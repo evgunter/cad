@@ -13,7 +13,7 @@ Disclosed by the #1953 style review, which asked whether
 
 ## The duplication
 
-`evalseam::IndexRequest` and `pick::IndexInputs` carry the same five
+`evalseam::IndexRequest` and `pickcache::IndexInputs` carry the same five
 things: generation, document, evaluation, δ, ε. One owns them (the
 worker's copy, `Doc` by value and `Arc<Evaluation>` cloned); the other
 borrows them (`&Doc`, `&Arc<Evaluation>`) at the one door that mints

@@ -1,10 +1,12 @@
 //! **Ray-parity point-in-region** — the one home for the trilean
-//! containment walk, shared by the crate's two consumers:
+//! containment walk, shared by the crate's three consumers:
 //! [`crate::splitting::containment::point_in_loop`] (a planar loop in
-//! 3-space) and `chart_region::point_in_polygon` (a chart-space
-//! polygon in 2-D).
+//! 3-space), `chart_region::point_in_polygon` (a chart-space polygon
+//! in 2-D) and [`crate::chart_bound`]'s outside test (a chart-space
+//! polygon again, under its own K rows and sharing `chart_region`'s
+//! direction schedule).
 //!
-//! The module sits beside both consumers rather than inside either:
+//! The module sits beside its consumers rather than inside any one:
 //! the walk is the shared property, and a core hosted in one of its
 //! two callers is the shape that drifts back apart.
 //!

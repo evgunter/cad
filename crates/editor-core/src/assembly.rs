@@ -72,9 +72,12 @@ use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError}
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult, ValuePayload};
-use crate::mate::{ClassAdmission, ContactClass, MateSide, class_admission};
+use crate::mate::{
+    ClassAdmission, ContactClass, MateSide, NO_AT_REST_RECORD_RECOURSE, class_admission,
+};
+use crate::names::interrogate::value_of;
 use crate::names::{EntityKey, EntityKind, Entry, NameTable, StableName};
-use crate::node::{Node, RecipeNodeId};
+use crate::node::{Node, RecipeNodeId, SitedRef};
 use crate::product::{Product, ProductError, product_recorded};
 use geom_core::Tol;
 
@@ -256,25 +259,51 @@ pub struct Assembly<T: Decide> {
 
 /// Why a mate reference did not resolve to a product face.
 ///
-/// The vocabulary is `resolve_declarations`' — the same three shapes a
-/// `Declare` node's names refuse with — stated separately because the
-/// SUBJECT differs (a mate's reference resolves against the assembly's
-/// product table, not a boolean operand's).
+/// The gate asks two tables in order, and each arm answers one
+/// question. The PRODUCT's table first — the rows of every root,
+/// carried verbatim by the gather: an entry there that is not one
+/// face is `Ambiguous` or `NotAFace`. When the product is silent, the
+/// OPERAND's own table — the `name_table` of the node the reference
+/// is read at: silent there too is `Vanished`; a non-face entry there
+/// is `NotAFace` (what it is precedes where it is rooted); a face
+/// entry there at a node the product does not list is
+/// `ReadBelowARoot`. No consumer is walked; the two tables and the
+/// root list decide.
+///
+/// `Vanished` and `Ambiguous` are the silence and the tie every name
+/// lookup refuses with (`ResolveError` spells them for a `Declare`
+/// node's names); `NotAFace` is this gate's own word, because only a
+/// mate declaration must name a FACE. The subject here is the
+/// assembly's product table and the operand's, not a boolean
+/// operand's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {
-    /// The name's minting node is not in this document.
-    NodeGone,
-    /// No entity of the product answers to the name.
+    /// No entity answers to the name — not in the product's table,
+    /// and not in the table of the operand the mate reads it at: the
+    /// name names nothing where the mate reads it.
     Vanished,
+    /// The operand's own table answers to the name with a face, but
+    /// the operand is not a root of the product, and a reference
+    /// resolves against a root's own rows: the product may spell that
+    /// face some other way — under a pattern, as the `Instance(i)` row
+    /// at the pattern node — or not at all. The mate is read at a node
+    /// the product does not list.
+    ReadBelowARoot {
+        /// The operand the mate reads at — a live node whose table
+        /// answers to the name, and which is not a product root.
+        at: RecipeNodeId,
+    },
     /// Several entities answer to it — a mate declaration must name
     /// ONE face, and a tie is never broken by picking.
     Ambiguous {
         /// How many entities the tie holds.
         width: u32,
     },
-    /// The name resolves, but not to a FACE. A mate's declaration is a
-    /// face-pair contact; an edge or vertex reference is a different
-    /// statement, refused rather than widened.
+    /// The name resolves — in the product's table, or in the operand's
+    /// own where the product is silent — but not to a FACE. A mate's
+    /// declaration is a face-pair contact; a body, edge or vertex
+    /// reference is a different statement, refused rather than
+    /// widened, wherever it is rooted.
     NotAFace {
         /// What it did name.
         kind: EntityKind,
@@ -529,7 +558,7 @@ fn render_no_record(
     write!(
         f,
         "mate {}'s class {} has no at-rest kernel record — {why}; the record is \
-         not minted with an invented witness",
+         not minted with an invented witness — {NO_AT_REST_RECORD_RECOURSE}",
         mate.0,
         class.name()
     )
@@ -682,8 +711,15 @@ pub enum AssemblyError {
 impl core::fmt::Display for RefusedRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeGone => f.write_str("its minting node is not in this document"),
-            Self::Vanished => f.write_str("no entity of the product answers to it"),
+            Self::Vanished => f.write_str(
+                "no entity answers to it, in the product or at the node the mate reads it at",
+            ),
+            Self::ReadBelowARoot { at } => write!(
+                f,
+                "it is read at node {}, which is not a root of the product, and a reference \
+                 resolves against a root's own rows",
+                at.0
+            ),
             Self::Ambiguous { width } => write!(
                 f,
                 "{width} entities answer to it — a mate declaration names ONE face, and \
@@ -987,8 +1023,8 @@ pub(crate) fn mint<P, T: Decide>(
             continue;
         }
         let (face_a, face_b) = match (
-            resolve_face(names, id, MateSide::A, &a.name),
-            resolve_face(names, id, MateSide::B, &b.name),
+            resolve_face(doc, evaluation, names, id, MateSide::A, a),
+            resolve_face(doc, evaluation, names, id, MateSide::B, b),
         ) {
             (Ok(face_a), Ok(face_b)) => (face_a, face_b),
             // The `a` side answers first when both sides refuse: one
@@ -1044,12 +1080,19 @@ pub(crate) fn mint<P, T: Decide>(
 /// One mate reference → the product face it names, or the typed
 /// refusal. A tie is never broken by picking a side, and a non-face
 /// reference is never widened into one.
-fn resolve_face(
+///
+/// The product's table is asked first; only when it is silent is the
+/// operand's own table asked, through [`operand_answer`], so a name
+/// the product does answer to is never re-described by the operand.
+fn resolve_face<P, T: Decide>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
     names: &NameTable,
     mate: RecipeNodeId,
     side: MateSide,
-    name: &StableName,
+    reference: &SitedRef,
 ) -> Result<FaceKey, MintRefusal> {
+    let name = &reference.name;
     let refuse = |why| MintRefusal::Reference {
         mate,
         side,
@@ -1064,7 +1107,66 @@ fn resolve_face(
         Some(Entry::Tied(ents)) => Err(refuse(RefusedRef::Ambiguous {
             width: u32::try_from(ents.len()).unwrap_or(u32::MAX),
         })),
-        None => Err(refuse(RefusedRef::Vanished)),
+        None => Err(refuse(operand_answer(doc, evaluation, reference))),
+    }
+}
+
+/// **The operand's answer**, asked only once the product's table is
+/// silent on a reference: does the OPERAND the mate reads at spell
+/// the name? Its own table is the `name_table` of `at`'s live value,
+/// read through the same door the name interrogation doors read it
+/// ([`value_of`]). One match, four answers, in this order:
+///
+/// 1. Silent there too → [`RefusedRef::Vanished`]: the name names
+///    nothing where the mate reads it.
+/// 2. A non-face entry, unique or tied → [`RefusedRef::NotAFace`]: a
+///    non-face never mints anywhere, so WHAT it is precedes WHERE it
+///    is rooted. The kind is the NAME's kind, which the table makes
+///    the entry's kind for every candidate (`NameTable::insert`,
+///    `insert_tied`). A root's body row lands here — see
+///    `product::carry_names` for why the product is silent on it.
+/// 3. A face entry — unique or tied — at a node the product does not
+///    list as a root → [`RefusedRef::ReadBelowARoot`]. A tie among
+///    faces below a root is still read below a root; the product
+///    decides ties for its own rows.
+/// 4. A face entry at a ROOT with the product silent: `carry_names`
+///    carries every face row of every root at the source's index, so
+///    a hit here is its bug, not a vanished name. `Vanished` in
+///    release, asserted in debug.
+///
+/// An operand that is not a live value has no table to answer with,
+/// and the gate never asks it: every live node sits under some root
+/// (A10 coverage), so an operand that failed or was poisoned has a
+/// failed or poisoned root above it, and the gather's first pass
+/// refuses the document (`ProductError::RootFailed` /
+/// `RootPoisoned`) before any mate is read — the mate itself may
+/// well be live and `Determining`. The ladder's other rungs are
+/// answered `Vanished` here rather than unwrapped.
+fn operand_answer<P, T: Decide>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    reference: &SitedRef,
+) -> RefusedRef {
+    let at = reference.at;
+    let kind = reference.name.kind;
+    let rooted = doc.roots().contains(&at);
+    let entry = value_of(evaluation, at)
+        .ok()
+        .and_then(|value| value.name_table.lookup(&reference.name));
+    match entry {
+        None => RefusedRef::Vanished,
+        Some(Entry::Unique(_) | Entry::Tied(_)) if kind != EntityKind::Face => {
+            RefusedRef::NotAFace { kind }
+        }
+        Some(Entry::Unique(_) | Entry::Tied(_)) if !rooted => RefusedRef::ReadBelowARoot { at },
+        Some(Entry::Unique(_) | Entry::Tied(_)) => {
+            debug_assert!(
+                !rooted,
+                "a root's face row is absent from the product's table: \
+                 `product::carry_names` carries every face row of every root"
+            );
+            RefusedRef::Vanished
+        }
     }
 }
 
@@ -1198,8 +1300,17 @@ fn attribute(
         // Matching either face alone would answer for a pair no mate
         // declared out of a declaration against some third face, and
         // which face got to answer would be the arena's ordering.
+        //
+        // The CAUSE the refusal carries is deliberately not read. A
+        // decline is the census neither certifying nor contradicting
+        // the declaration, and that relation holds whichever lane
+        // declined and for whatever reason — a stopped interior-witness
+        // search leaves the declaration exactly as unrefuted as a
+        // non-planar trim does. The cause tells the AUTHOR which
+        // repair to make; it is not a different verdict on the mate.
         ValidationError::CensusUnsupported {
             subject: topo::CensusSubject::FacePair(a, b),
+            ..
         } => named(by_pair(*a, *b), Relation::Declined),
         // A single FACE outside the inventory is a finding about that
         // face's own geometry, not about a candidate contact: the arm
@@ -1208,6 +1319,7 @@ fn attribute(
         // sharing a face with one is not being named by one.
         ValidationError::CensusUnsupported {
             subject: topo::CensusSubject::Entity(topo::EntityId::Face(_)),
+            ..
         } => Attribution::Unattributed,
         // The rest of the tier-3′ contact vocabulary, each
         // unattributable for a reason of its own rather than by
@@ -1267,6 +1379,7 @@ fn attribute(
                     | topo::EntityId::Edge(_)
                     | topo::EntityId::Vertex(_),
                 ),
+            ..
         }
         | ValidationError::CensusUndecidable { .. } => Attribution::Unattributed,
         // Everything the tier-1/2/3 passes find: the body's own
@@ -1447,9 +1560,130 @@ mod attribution {
     }
 
     /// A census refusal about a candidate face PAIR.
-    fn unsupported_pair(a: FaceKey, b: FaceKey) -> ValidationError {
+    ///
+    /// The cause is an argument because the rows below are about the
+    /// classification, and the classification must not read it: see
+    /// [`the_decline_relation_does_not_depend_on_which_lane_declined`].
+    fn unsupported_pair_because(
+        a: FaceKey,
+        b: FaceKey,
+        cause: topo::CensusUnsupportedCause,
+    ) -> ValidationError {
         ValidationError::CensusUnsupported {
             subject: topo::CensusSubject::FacePair(a, b),
+            cause,
+        }
+    }
+
+    /// A census refusal about a candidate face pair, declined by the
+    /// chart-region lane on a boundary it could not decide — the
+    /// commonest cause, and an arbitrary one for a row about the
+    /// relation.
+    fn unsupported_pair(a: FaceKey, b: FaceKey) -> ValidationError {
+        unsupported_pair_because(
+            a,
+            b,
+            topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
+        )
+    }
+
+    /// INVARIANT: the decline RELATION is a fact about what the census
+    /// did to a declaration — neither certified nor contradicted it —
+    /// and not about why the lane stopped. So every cause the census
+    /// can carry attributes identically, at every subject shape
+    /// [`super::attribute`] discriminates.
+    ///
+    /// The row exists because the causes are not alike: a
+    /// `WitnessBudgetExhausted` decline is the search giving up on a
+    /// pair that may be fat and perfectly decidable, and it is
+    /// tempting to read that as weaker evidence than a
+    /// `TouchingBoundary` decline. It is not weaker about the
+    /// DECLARATION, which is unrefuted either way, and
+    /// [`AssemblyError::Uncertified`] means exactly that. A future
+    /// arm that branched on the cause would move a kernel verdict,
+    /// and this row is what it would have to argue past.
+    ///
+    /// **All three `..` sites, and no reflexive comparison.** The
+    /// expected attribution is written down per subject SHAPE — the
+    /// pair arm, the lone-face arm, the other-entity arm — rather
+    /// than taken from a reference cause, so no iteration compares a
+    /// value with itself and a branch added at any of the three goes
+    /// red here.
+    #[test]
+    fn the_decline_relation_does_not_depend_on_which_lane_declined() {
+        let (minted, a, b, _odd, vertex) = fixture();
+        let causes = || {
+            [
+                topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
+                topo::CensusUnsupportedCause::ChartRegion(
+                    topo::ChartRegionError::WitnessBudgetExhausted {
+                        // One past the cap, derived: the state the
+                        // guard answers, and it moves when the cap
+                        // does.
+                        segments: topo::WITNESS_BUDGET.segments + 1,
+                        cells: 0,
+                    },
+                ),
+                topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::MissingCache {
+                    half_edge: Default::default(),
+                }),
+                topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::Corrupt),
+                // `what` is production's own, from
+                // `topo::boolean::contact_verify`'s Rest-ladder arm.
+                topo::CensusUnsupportedCause::ContactLane(topo::ContactRefusal::NotCertifiable {
+                    what: "a declared face's surface kind is outside the Rest ladder's \
+                               inventory (plane, sphere, cylinder)",
+                }),
+                topo::CensusUnsupportedCause::FaceUnboundable,
+                // The point-in-face door's own refusal, carried. This
+                // cause is the one that used to arrive as
+                // `CensusEscalated` over a minted `Indeterminate`, so
+                // it is the one whose re-routing could have moved this
+                // classification — and the lone-FACE site below is
+                // where the census raises it. Both spellings answer
+                // `Unattributed`, which is why the re-routing moves no
+                // `AtRest`/`Uncertified` verdict; the row is here so
+                // that stays true rather than stays believed.
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::ArcLoopUnsupported {
+                    r#loop: Default::default(),
+                }),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::RayExhausted),
+                topo::CensusUnsupportedCause::Containment(topo::ContainError::Corrupt),
+            ]
+        };
+        // Site 1 — the pair arm. `a`/`b` is `fixture`'s own minted
+        // declaration, so the expected answer is that mate, Declined.
+        let declared = minted[0].clone();
+        for cause in causes() {
+            assert_eq!(
+                attribute(&unsupported_pair_because(a, b, cause.clone()), &minted),
+                Attribution::Declined(declared.clone()),
+                "pair arm: {cause:?}"
+            );
+        }
+        // Sites 2 and 3 — the lone-FACE arm and the other-entity
+        // catch-all. A declaration is a statement about a pair, so
+        // neither is any mate's, whatever declined.
+        for (label, subject) in [
+            ("lone face", topo::CensusSubject::Entity(EntityId::Face(a))),
+            (
+                "other entity",
+                topo::CensusSubject::Entity(EntityId::Vertex(vertex)),
+            ),
+        ] {
+            for cause in causes() {
+                assert_eq!(
+                    attribute(
+                        &ValidationError::CensusUnsupported {
+                            subject,
+                            cause: cause.clone()
+                        },
+                        &minted
+                    ),
+                    Attribution::Unattributed,
+                    "{label}: {cause:?}"
+                );
+            }
         }
     }
 
@@ -1666,6 +1900,7 @@ mod attribution {
             attribute(
                 &ValidationError::CensusUnsupported {
                     subject: topo::CensusSubject::Entity(EntityId::Face(a)),
+                    cause: topo::CensusUnsupportedCause::FaceUnboundable,
                 },
                 &minted
             ),
@@ -1684,6 +1919,16 @@ mod attribution {
             attribute(
                 &ValidationError::CensusUnsupported {
                     subject: topo::CensusSubject::Entity(EntityId::Vertex(vertex)),
+                    // The live case's own cause, and `what` is
+                    // production's own string, from
+                    // `topo::boolean::contact_verify`'s Rest-ladder
+                    // arm rather than a plausible-looking invention.
+                    cause: topo::CensusUnsupportedCause::ContactLane(
+                        topo::ContactRefusal::NotCertifiable {
+                            what: "a declared face's surface kind is outside the Rest \
+                                   ladder's inventory (plane, sphere, cylinder)",
+                        },
+                    ),
                 },
                 &minted
             ),

@@ -933,7 +933,7 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
         if let Ok(name) = index.edge_name_of(*id)
             && named.iter().any(|mark| mark.name == *name)
         {
-            per_name.extend(viewer::pickindex::edge_id_segments(&index, &display, *id));
+            per_name.extend(viewer::marks::edge_id_segments(&index, &display, *id));
         }
     }
     assert!(!per_name.is_empty(), "five box edges draw segments");

@@ -588,7 +588,7 @@ fn a4_every_refusal_is_typed() {
 /// **A5 — the key separates what the memo must separate.** The two
 /// halves key apart, the two instances key apart, and an edit of the
 /// index recomputes the Part and nothing upstream. (The tag census is
-/// `eval::verb_content_tag_tests::node_tag_space_is_injective`.)
+/// `eval::tag_vocabulary_tests::node_kind_vocabulary_is_injective`.)
 #[test]
 fn a5_the_content_key_separates_the_halves_and_the_instances() {
     let mut r = Recorder::new();

@@ -2,8 +2,9 @@
 id: mate1-sweep-inferred-a-remap-from-a-refuted-reachability
 kind: issue
 title: issue 1405's premise is wrong: the MATE-1 sweep inferred a remap requirement from a reachability AQ8's addendum had already refuted
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-06
 ---
 
 
@@ -70,3 +71,19 @@ the sweep could reason past it.
 
 `work/msolve/` — S-MATE's successor, opened 2026-09-04 for exactly this
 residue.
+
+## Closed (2026-09-06, record correction)
+
+The finding above IS the correction, and it stands as the record. What
+it corrects — the MATE-1 sweep's inference that a narrow gate proves a
+reachability — was answered by exhaustion on PR 1749 (318 cut sets,
+two mutants killed), and the (b)-SKIP half it turned on is now
+ratified in `crates/editor-core/ASSEMBLY.md`'s AQ8 clause (PR 1914,
+`aq8-skip-half-is-cited-as-ratified-and-is-not`). No code moves: the
+`is_mate_edge_end` gate stays as it is, because a mate whose head is a
+pattern copy welds at the pattern's input and a cut through it refuses
+`TornCluster` before any crossing collector runs, and a NESTED head
+welds no cluster and its mate never solves (AQ8 (b)), so no crossing
+is owed. The lesson the item carries for later sweeps: a gate that
+looks too narrow is not evidence that the narrow case is reachable;
+check first whether an earlier refusal gets there.

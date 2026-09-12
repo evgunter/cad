@@ -41,6 +41,17 @@
 # needs a C toolchain: the `interval` feature's backend is the in-repo,
 # pure-Rust `interval-transcendentals`.
 #
+# THE VERSIONS ABOVE ARE LITERALS AND THEY ARE CHECKED. ci.yml's
+# workflow-level `env:` block is the single source of truth for every pin;
+# these lines restate one because a developer whose box has no cargo-nextest
+# needs a command to paste, not a substitution to evaluate. What keeps them
+# honest is check-ci-mirror-parity.py's pin-literal claim, which reds when a
+# version named under local-scripts/ is one ci.yml no longer pins. So bumping
+# NEXTEST_VERSION reds this file until these lines follow it — which is the
+# point, and is what a developer told to install a retired version used to get
+# instead. The `0.98.4+` beside it is an admesh FLOOR, not a pin, and is
+# declared as one in that check's PIN_FREE table.
+#
 # THE HOSTED FIGURES QUOTED THROUGHOUT THIS FILE ARE UNGUARDED READINGS —
 # billed minutes, job durations, merge frequencies, cache sizes. They are
 # quoted to explain why a row is sited or filtered the way it is, and this
@@ -259,10 +270,24 @@ fi
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / viewer module kinds (vocabulary/driver boundary)
+# HOSTED MIRROR: mirror / viewer vocabularies are declared once (no hand-written ALL)
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
+# The status-capture row belongs here too, and for the tier reason: its inputs
+# are every workflow file AND every tracked shell script, this file among them
+# — local-scripts/ is the tree that classifies TIER=docs and that every hosted
+# job but `mirror` deletes at checkout.
+# HOSTED MIRROR: mirror / status capture (PIPESTATUS is read before anything rewrites it)
+# The render-lane parity row is tier-blind for the same reason and one more of
+# its own: its inputs are render.yml and THIS TREE — the helper it checks is
+# local-scripts/render-hosted.sh, which no hosted job but `mirror` can even see.
+# HOSTED MIRROR: mirror / render lane parity (the helper knows the lanes render.yml declares)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
+# The install-wrapper row is tier-blind for the same reason as the two above,
+# and its population is the widest of the three: every workflow file, every
+# composite action and every tracked shell script, this file among them.
+# HOSTED MIRROR: mirror / install wrappers (a wrapped idiom is spelled only through its wrapper)
 # The work tracker's lint (work/README.md) reads work/ and docs/ — markdown,
 # the docs tier — so it sits here too. The territory row is advisory on both
 # halves: it prints paths another program owns and never fails.
@@ -275,12 +300,20 @@ tier_blind_rows() {
   scripts/gates/probe-suite-census.sh --citations || rc=1
   scripts/gates/viewer-module-kinds.sh --selftest || rc=1
   scripts/gates/viewer-module-kinds.sh || rc=1
+  scripts/gates/viewer-vocab-declared-once.sh --selftest || rc=1
+  scripts/gates/viewer-vocab-declared-once.sh || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
+  python3 scripts/check-status-capture.py --selftest || rc=1
+  python3 scripts/check-status-capture.py || rc=1
+  python3 scripts/check-render-lane-parity.py --selftest || rc=1
+  python3 scripts/check-render-lane-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
+  python3 scripts/check-install-wrappers.py --selftest || rc=1
+  python3 scripts/check-install-wrappers.py || rc=1
   python3 scripts/work.py --selftest || rc=1
   python3 scripts/work.py lint || rc=1
   python3 scripts/work.py territory --base "$BASE" || rc=1
@@ -411,6 +444,16 @@ discipline() {
         && scripts/base-test-listing.sh --selftest); then
     rc=1
   fi
+  # The payload-rung sweep over the façade's four curated lists, and its own
+  # fixture battery. The sweep used to be prose re-implemented by each unit
+  # that ran it, and no two implementations agreed on a count; `--check` pins
+  # the names it finds against the script's disposition tables, so a new rung
+  # reds here and hosted rather than waiting for someone to re-derive it.
+  # HOSTED MIRROR: discipline / payload-rung sweep (the curated lists' payloads are decided)
+  if ! (python3 scripts/payload-rung-sweep.py --selftest \
+        && python3 scripts/payload-rung-sweep.py --check); then
+    rc=1
+  fi
   # The reader behind the hosted `gate ok` job — the one check a merge queue or
   # a branch protection is meant to require. The READING has no local half and
   # is not supposed to: its subject is a hosted run's own job list, and this box
@@ -420,6 +463,30 @@ discipline() {
   # never execute on a real run, so nothing but this drives them.
   # HOSTED MIRROR: discipline / run-job gate selftest (the one required check's seven paths)
   python3 scripts/check-run-jobs.py --selftest || rc=1
+  # The opt-level calibration lane's own guard. The LANE has no local half and
+  # is not supposed to: its free arm is read from this repository's hosted run
+  # history and its measured arms are numbers about the 2-vCPU runner class,
+  # which is the entire question — a developer box's ratio is the measurement
+  # that lane exists to distrust. What belongs in both halves, by exactly the
+  # base-test-listing argument above, is the SELFTEST: it drives the readers,
+  # the cadence and the argmin against fixtures, no hosted run produces those
+  # paths on demand, and the `record` mode they guard appends to a history
+  # under docs/perf-data/opt-level/ that cannot be edited afterwards.
+  # HOSTED MIRROR: discipline / opt-level calibrator selftest (the guard over an append-only history)
+  python3 scripts/opt-level-calibrate.py --selftest || rc=1
+  # The criterion benchmark lane's history writer. The LANE has no local half
+  # and is not supposed to: its entries are comparable only because one box
+  # class produced all of them, so a developer box's milliseconds committed as
+  # a trend point are exactly the failure memories/perf-measurement-lane.md
+  # exists to distrust. The HARNESS is not one-sided — `cd benches && cargo
+  # bench` is the right local act, and it writes nothing here on purpose. What
+  # belongs in both halves, by exactly the base-test-listing argument above, is
+  # the SELFTEST: it drives the criterion-directory reader, the roster pin and
+  # the environment block against fixtures, no hosted run produces those paths
+  # on demand, and the emit mode they guard writes what nightly.yml appends to
+  # a history under docs/perf-data/criterion/ that cannot be edited afterwards.
+  # HOSTED MIRROR: discipline / criterion history emitter selftest (the guard over an append-only history)
+  python3 scripts/criterion-emit.py --selftest || rc=1
   return $rc
 }
 
@@ -490,13 +557,24 @@ manifest_selftest() {
 # composed from the tour output already on that runner's disk rather than from
 # an artifact round trip. What this row does not reproduce is their
 # re-baseline, which is the sentence above.
+#
+# BOTH RENDERER-FREE LANES, ONE ROW. The MC density sheet
+# (`demos/render-mc.sh`) is the same category as the uv sheet in every
+# respect this row cares about — renderer-free, text, byte-reproducible
+# on any box — and it comes out of the SAME tour run, which is the
+# expensive half. Splitting it into a second row would run the tour
+# twice to gate two files written by one pass.
+#
 # HOSTED MIRROR: scene-inputs / demo tour (STL + STEP + UV SVGs + scenes.json)
 # HOSTED MIRROR: scene-inputs / compose (demos/render-uv.sh)
+# HOSTED MIRROR: scene-inputs / publish (demos/render-mc.sh)
 uv_sheet_drift() {
   (cd demos/tour && cargo run --release -- ../out) >/dev/null && \
     CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
     demos/render-uv.sh >/dev/null && \
-    git diff --exit-code --stat HEAD -- demos/renders-uv/
+    CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift \
+    demos/render-mc.sh >/dev/null && \
+    git diff --exit-code --stat HEAD -- demos/renders-uv/ demos/renders-mc/
 }
 
 # HOSTED MIRROR: watertight / admesh check (watertight/manifold, no repair accepted)
@@ -525,14 +603,6 @@ step_import() {
 # compile is the whole cost (93 s on a cold hosted cache). The guards
 # after the run are the point: a name filter that matches nothing exits
 # 0, so an empty selection must fail rather than pass quietly.
-# THE HOSTED HALF OF THIS ROW IS THE NIGHTLY, NOT THE GATE (2026-09-03).
-# `release-corruption` moved to .github/workflows/nightly.yml and runs there
-# ungated once a day; the per-row argument that it may sit on a cadence is at
-# the job. This row keeps its per-change gate (`RUN_TOPO_RELEASE`, which no
-# hosted job reads any more) because nothing bills a local gate by the minute
-# and scoping it costs nothing here. So on a local gate these suites still run
-# against the tree in front of you, which is the whole reason the demotion is
-# affordable.
 # HOSTED MIRROR: release-corruption / corrupt-input suites, release profile
 topo_release() {
   local log rc passed
@@ -572,19 +642,13 @@ topo_release() {
 # ci-local's exclusive hold that acquisition is a no-op
 # (BUILD_SLOT_HELD).
 #
-# UNCONDITIONAL HERE, SEED-GATED HOSTED (2026-09-03), and it is the same
-# asymmetry the viewer toolkit rows below carry, for the same reason. The
-# hosted job runs only when the change filter's SEEDS intersect
-# {pncad-py, pncad, editor-core} — it is billed by the minute on every PR
-# and the wheel is a second compile of the kernel under the `python`
-# feature. This half is billed in one developer's wall clock, on a run
-# they chose to make, and it is already the lane that runs every point of
-# every dimension: skipping work here would buy nothing
-# and would leave the local gate proving strictly less than the hosted
-# one, which is the opposite of this file's contract. So `RUN_PNCAD_PY`
-# is deliberately not consulted, exactly as `RUN_VIEWER_TOOLKIT` is not.
+# UNCONDITIONAL HERE, AS IT IS HOSTED: the suite runs on every code-tier
+# run of either half. `RUN_PNCAD_PY` is deliberately not consulted,
+# exactly as `RUN_VIEWER_TOOLKIT` is not — this half is the lane that
+# runs every point of every dimension, so a key that narrowed it would
+# leave the local gate proving strictly less than the hosted one, which
+# is the opposite of this file's contract.
 # HOSTED MIRROR: python-suite / run the Python suite (unittest discover)
-# HOSTED MIRROR: python-suite-nightly / run the Python suite (unittest discover)
 python_suite() {
   crates/pncad-py/run-python-tests.sh
 }
@@ -614,9 +678,11 @@ nextest_check() {
 # nobody asked.
 #
 # It also keeps the two halves saying the same thing about a red run. The
-# parity checker compares which CHECKS each half names, never the flags on the
-# commands, so hosted and local can drift on reporting semantics with nothing
-# noticing — filed as its own issue rather than left as a note here.
+# parity checker's claim 10 now reads the commands and not only the roster:
+# the allowlisted cargo FLAGS on a shared subcommand, the semantics-bearing
+# ENVIRONMENT either half sets, and the DIRECTORY either half runs in. What it
+# still does not read is every other flag, so a reporting-semantics knob
+# outside `SEMANTIC_FLAGS` can still drift with nothing noticing.
 #
 # `$TEST_FILTER` IS COMPOSED WITH `&`, NEVER PASSED AS A SECOND `-E`. nextest
 # ORs its `-E` expressions, so a row that already selects a set — the interval
@@ -995,10 +1061,12 @@ klint_gate() {
   # what this half did NOT: it tested `= 1` alone, so a build failure
   # (101), a panic (101) or an unknown-option exit passed silently. The
   # two halves disagreed about every status but 1 and 2, and
-  # check-ci-mirror-parity.py cannot see it — that script compares the
-  # NAMES and gate modes of the rows, not the shell that implements
-  # them, so this class of drift is caught by reading, not by a gate.
-  # Said here rather than left to be rediscovered.
+  # check-ci-mirror-parity.py cannot see it. Its claim 10 reads this
+  # row's shell — the cargo flags, the environment and the directory the
+  # `cd` above names — but an exit STATUS is not written in the argv at
+  # all, so which non-zero codes each half treats as failure is caught by
+  # reading and not by a gate. Said here rather than left to be
+  # rediscovered.
   [ "$status" != 0 ] && return 1
   return 0
 }
@@ -1059,8 +1127,10 @@ budget_meter() {
 # surface evaluations) would be paid for nothing. What it does read is
 # narrower than "the sizing columns" — `triangles` per scene and
 # `grid_cells / span_opt_cells` per face are what it COMPARES, and
-# `chart`, whether the row carries the sizing block at all, and
-# `u0`-`v1` / `nu` / `nv` are what it JOINS on. Re-cutting the baseline
+# `chart` and `u0`-`v1` / `nu` / `nv` are what it JOINS on — seven
+# columns, block presence not among them: `parse` refuses a row whose
+# sizing block and chart disagree, so "carries the block" is a function
+# of `chart` and joins on nothing of its own. Re-cutting the baseline
 # drops the flag.
 tesslint_gate() {
   scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only || return 1
@@ -1082,6 +1152,42 @@ wasm_check() {
   rustup target add wasm32-unknown-unknown \
     && cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer \
          --features interval --target wasm32-unknown-unknown
+}
+
+# The browser entry point, which the row above cannot reach: it excludes
+# `viewer`, and every other viewer row in this file builds the HOST
+# target, where `cfg(target_family = "wasm")` is compiled out. So without
+# this row `viewer::app::run_web` and the `WebStartupError` arms around
+# it are source no check in either half compiles — the hole PR 1741's
+# `E0599` went through green.
+#
+# `--features app` is the load-bearing half: `run_web` lives behind that
+# non-default feature, so a default-features wasm check of this crate
+# passes over the defect.
+#
+# THE RUSTFLAGS ARE NOT LOAD-BEARING AND ARE KEPT ANYWAY. At the
+# `getrandom` this tree pins, the `wasm_js` FEATURE alone selects the
+# backend — viewer's `cfg(target_arch = "wasm32")` stanza — and this row
+# was verified green with the cfg dropped. (No version literal here on
+# purpose: read `Cargo.lock`, and read that crate's `src/backends.rs`
+# before believing either this comment or its diagnostic.) It stays because the row's subject
+# is the build serve-wasm.sh performs, and because getrandom's own
+# diagnostic still asserts the flag is required, so the day that arm
+# changes back this row must not be what discovers it. Scoped to the
+# command, never exported: RUSTFLAGS silently replaces any
+# .cargo/config.toml rustflags.
+#
+# UNCONDITIONAL HERE, SEED-KEYED HOSTED — this file's standing asymmetry,
+# argued at the toolkit rows in the dispatch list below.
+#
+# CLIPPY AND `-D warnings`, and NO `--all-targets`: the hosted half
+# argues both, and this row's name is wider than `viewer` because its
+# verdict is.
+wasm_clippy_viewer() {
+  rustup target add wasm32-unknown-unknown \
+    && RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
+         cargo clippy -p viewer --features app --target wasm32-unknown-unknown \
+           -- -D warnings
 }
 
 # Rows always run (discipline greps are cheap; rustfmt is --all by design
@@ -1112,7 +1218,10 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 #
 # UNCONDITIONAL HERE, GATED HOSTED: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
-# (Ev's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27). This half is
+# (Ev's viewer-CI-posture ruling, 2026-08-27, in the closed GUI program's
+# log, which left the tracker with that program's directory in DOC-LEDGER
+# sweep 5 and reads at
+# `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`). This half is
 # not billed by anyone's minute — it is billed in one developer's wall
 # clock, on a run they chose to make — and it runs every point of every
 # dimension. Skipping work here would buy nothing
@@ -1183,6 +1292,14 @@ run_row "test (viewer app)"            cargo nextest run -p viewer --features ap
 # HOSTED MIRROR: clippy-all-features / clippy (--all-features)
 # HOSTED MIRROR: viewer-toolkit / clippy (viewer, all features)
 run_row "clippy (--all-features)"      cargo clippy --workspace --all-targets --all-features -- -D warnings
+# THE SCALPEL, EXERCISED — the mirror of this job's `the per-op
+# postcondition scalpel (topo)` step. D1's tier-1 sweep runs once per
+# public door; `topo/per-op-postcondition` puts it back after every
+# operator, and the two-arm corruption row asserts the OPERATOR's name
+# in the panic under the feature and the DOOR's without it. This is the
+# only place the first arm is ever taken.
+run_row "scalpel (per-op postcondition)" \
+    cargo test -p topo --lib --features topo/per-op-postcondition -- surgery::tests::
 # The same shape one crate over: `crates/pncad-py/src/py/` — the whole
 # PyO3 surface — compiles only under the crate's non-default `python`
 # feature, so the `clippy` row above, which runs at DEFAULT features,
@@ -1203,7 +1320,6 @@ run_row "clippy (--all-features)"      cargo clippy --workspace --all-targets --
 # probes for an interpreter and fails loudly without one — which is
 # strictly less than the `python suite` row below already requires.
 # HOSTED MIRROR: python-suite / clippy (pncad-py, python feature)
-# HOSTED MIRROR: python-suite-nightly / clippy (pncad-py, python feature)
 run_row "clippy (pncad-py, python)"    cargo clippy -p pncad-py --features python --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here
 # — it is a tree-wide ratchet over a derived root set, not a per-closure
@@ -1218,18 +1334,13 @@ run_row "clippy (pncad-py, python)"    cargo clippy -p pncad-py --features pytho
 # reds that gate.
 # `--skip-viewer-toolkit` exists for the hosted half only (see the
 # clippy note above): this row documents viewer under --all-features
-# like everything else.
+# like everything else — which is why this one row mirrors TWO hosted
+# jobs. `fmt`'s step takes the skip whenever the change filter's seeds
+# miss the toolkit axis, so on those runs it is the nightly job that
+# takes `viewer` at --all-features with the link lint live. This half
+# takes both on every invocation, unscoped, and is cited by both.
 #
-# NO `--pr`, AND NO `--scope`, FOR THE SAME REASON. Hosted, the `fmt`
-# job runs the WORKSPACE pass alone and scopes it to the change closure;
-# the six cargo roots the workspace excludes and the
-# --no-default-features re-read of every root with a not(feature) half
-# are nightly.yml's `rustdoc (gate, every root)`, ungated, once a day.
-# This half runs all three passes over every root on every invocation,
-# which is the same asymmetry the toolkit rows above have and the same
-# argument: hosted is billed by the minute per PR and this is billed in
-# one developer's wall clock on a run they chose to make, so the local
-# gate stays a strict superset of any hosted one.
+# HOSTED MIRROR: fmt / rustdoc (gate)
 # HOSTED MIRROR: rustdoc-roots / rustdoc (gate, every root)
 rustdoc_gate() {
   scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
@@ -1237,6 +1348,8 @@ rustdoc_gate() {
 run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
+# HOSTED MIRROR: fmt / wasm32 clippy (viewer app feature + its workspace deps - the browser entry point)
+run_row "wasm32 clippy (viewer app + deps)" wasm_clippy_viewer
 # ε battery {default, 1e-6, 1e-12} (Ev's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Over the default archive;
@@ -1289,7 +1402,7 @@ run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" orac
 # has one machine; hosted runs them in parallel because it has five.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "demos tour suite (#99 ε pin + probes)" demos_eps_pin
-run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
+run_row_if "$RUN_K_LINT" "sheet drift (demos: uv + mc)"     uv_sheet_drift
 run_row_if "$RUN_K_LINT" "k-lint tool (fmt+clippy+litmus)" klint_tool
 run_row_if "$RUN_K_LINT" "probe test targets (type-check)"  probe_targets
 run_row_if "$RUN_K_LINT" "k-lint sweep + gate"             klint_gate

@@ -40,9 +40,11 @@
 //! `|Π − T₁| ≤ Q/8` at the vertices; `Π − T₁` is affine over the
 //! triangle, hence `≤ Q/8` everywhere on it. Total: `‖S − Π‖ ≤ Q/4` —
 //! [`NurbsFaceBound::cert`]. (Sanity: with `muu = R+r`, `muv = r`,
-//! `mvv = r` and `a_u, a_v ≤ L` this is at most `(R+2r)·L²/2`,
-//! strictly inside the torus certificate's `(3/4)(R+2r)·L²` — same
-//! derivation, anisotropic accounting.)
+//! `mvv = r` this is twice the torus certificate's
+//! `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8` at the same sups — the same
+//! anisotropic accounting, spent here through an affine detour at the
+//! cell centre (`Q/8` twice) where `crate::sizing::torus_grid_steps`
+//! bounds the interpolant at each point directly and pays `Q/8` once.)
 //!
 //! As everywhere in this crate the two documented additive slacks (≤ ε
 //! boundary-carrier residual, f64 evaluation rounding) sit OUTSIDE the

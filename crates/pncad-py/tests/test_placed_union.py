@@ -26,6 +26,7 @@ from pncad import (
     EditError,
     EntityKind,
     EvaluationError,
+    Expr,
     Frame,
     FrameError,
     NamePat,
@@ -50,15 +51,15 @@ def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [
-                (x[0] * m, y[0] * m),
-                (x[1] * m, y[0] * m),
-                (x[1] * m, y[1] * m),
-                (x[0] * m, y[1] * m),
+                (Expr.length_in(x[0], m), Expr.length_in(y[0], m)),
+                (Expr.length_in(x[1], m), Expr.length_in(y[0], m)),
+                (Expr.length_in(x[1], m), Expr.length_in(y[1], m)),
+                (Expr.length_in(x[0], m), Expr.length_in(y[1], m)),
             ],
-            plane=doc.sketch_frame(elevation=z[0] * m),
+            plane=doc.sketch_frame(elevation=Expr.length_in(z[0], m)),
         )
     )
-    return doc.insert(Node.extrude(profile, (z[1] - z[0]) * m))
+    return doc.insert(Node.extrude(profile, Expr.length_in(z[1] - z[0], m)))
 
 
 def mass_of(doc, node):
@@ -93,7 +94,11 @@ class TestTheFinGroup(unittest.TestCase):
         fin = fin_only(doc)
         before = len(doc)
         group = doc.insert(
-            Node.placed_union(fin, 5, PatternKind.linear((1.0, 0.0, 0.0), PITCH * m))
+            Node.placed_union(fin, Expr.count(5), PatternKind.linear((
+                Expr.literal(1.0),
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+            ), Expr.length_in(PITCH, m)))
         )
         self.assertEqual(len(doc) - before, 1)
 
@@ -114,7 +119,15 @@ class TestTheFinGroup(unittest.TestCase):
         acc = None
         for i in range(5):
             placed = chain_doc.insert(
-                Node.transform(fin, (i * PITCH * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 0 * rad)
+                Node.transform(fin, (
+                    Expr.length_in(i * PITCH, m),
+                    Expr.length_in(0, m),
+                    Expr.length_in(0, m),
+                ), (
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                    Expr.literal(1.0),
+                ), Expr.angle_in(0, rad))
             )
             acc = (
                 placed
@@ -125,7 +138,11 @@ class TestTheFinGroup(unittest.TestCase):
         group_doc = Doc()
         group = group_doc.insert(
             Node.placed_union(
-                fin_only(group_doc), 5, PatternKind.linear((1.0, 0.0, 0.0), PITCH * m)
+                fin_only(group_doc), Expr.count(5), PatternKind.linear((
+                    Expr.literal(1.0),
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                ), Expr.length_in(PITCH, m))
             )
         )
 
@@ -151,7 +168,11 @@ class TestTheFinGroup(unittest.TestCase):
         doc = Doc()
         group = doc.insert(
             Node.placed_union(
-                fin_only(doc), 5, PatternKind.linear((1.0, 0.0, 0.0), PITCH * m)
+                fin_only(doc), Expr.count(5), PatternKind.linear((
+                    Expr.literal(1.0),
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                ), Expr.length_in(PITCH, m))
             )
         )
         ev = evaluate(doc)
@@ -230,15 +251,15 @@ def die_tool_document():
     square = doc.insert(
         Node.polygon(
             [
-                (0 * m, 0 * m),
-                (DIE_L * m, 0 * m),
-                (DIE_L * m, DIE_L * m),
-                (0 * m, DIE_L * m),
+                (Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.length_in(DIE_L, m), Expr.length_in(0, m)),
+                (Expr.length_in(DIE_L, m), Expr.length_in(DIE_L, m)),
+                (Expr.length_in(0, m), Expr.length_in(DIE_L, m)),
             ],
-            plane=doc.sketch_frame(elevation=0 * m),
+            plane=doc.sketch_frame(elevation=Expr.length_in(0, m)),
         )
     )
-    cube = doc.insert(Node.extrude(square, DIE_L * m))
+    cube = doc.insert(Node.extrude(square, Expr.length_in(DIE_L, m)))
 
     # ---- the master ball, poled along +Z ----
     # `die_pips::half_disc_program` verbatim: ONE bulge-1 semicircle
@@ -255,14 +276,20 @@ def die_tool_document():
     # frame's own v direction, so the meridian's pole-to-pole line is
     # (0, 1) through the origin. Being in the plane is no longer a
     # tolerance question — it is what the four numbers mean.
-    axis = doc.insert(Node.datum_axis_in_plane(plane, (0 * m, 0 * m), (0.0, 1.0)))
+    axis = doc.insert(Node.datum_axis_in_plane(plane, (
+        Expr.length_in(0, m),
+        Expr.length_in(0, m),
+    ), (
+        Expr.literal(0.0),
+        Expr.literal(1.0),
+    )))
     half_disc = (
         Open.at((0 * m, -PIP_R * m))
         .arc_to(Bulge((0 * m, PIP_R * m), 1.0))
         .line_to(Start)
     )
     ball_p = doc.insert(Node.profile(half_disc, plane=plane))
-    ball = doc.insert(Node.revolve(ball_p, axis, (2.0 * math.pi) * rad))
+    ball = doc.insert(Node.revolve(ball_p, axis, Expr.angle_in(2.0 * math.pi, rad)))
 
     # ---- the whole cutting tool, in ONE node ----
     tool = doc.insert(Node.placed_union_at(ball, pip_placements()))
@@ -310,11 +337,28 @@ class TestTheDieTool(unittest.TestCase):
         # pairwise tool this replaces spends the same seven upstream
         # and then six transforms, five unions and the subtract, so
         # the group's saving is the eleven it collapses into one.
-        # Which of the nine is the group is not asserted by counting
-        # kinds here (the document layer exposes no node-kind read
-        # door); it is settled outright by the byte pin below, whose
-        # text names every node's kind.
         self.assertEqual(len(doc), 9)
+
+        # The claim itself, counted BY KIND — the mirror of
+        # `crates/editor-core/tests/lib_placedunion.rs`'s
+        # `the_die_tool_is_one_node_and_still_cuts`, which counts
+        # `Node::PlacedUnion` / `Node::Boolean{Union}` /
+        # `Node::Transform` over `doc.order()` and asserts (1, 0, 0).
+        # The byte pin below still holds and its text still names
+        # every node's kind; it is no longer what settles this, and a
+        # structural claim no longer routes through the persistence
+        # door.
+        kinds = [doc.node_kind(n) for n in doc.order()]
+        self.assertEqual(
+            (
+                kinds.count("placed_union"),
+                kinds.count("boolean_union"),
+                kinds.count("transform"),
+            ),
+            (1, 0, 0),
+        )
+        self.assertEqual(doc.node_kind(tool), "placed_union")
+        self.assertEqual(doc.node_kind(pipped), "boolean_subtract")
 
         # An ordinary BODY out of the group — the property that lets a
         # boolean consume it at all.
@@ -398,7 +442,7 @@ class TestThePlacementRuleRefuses(unittest.TestCase):
         fin = fin_only(doc)
         rule = PatternKind.explicit([Frame.translation((0 * m, 0 * m, 0 * m))])
         with self.assertRaises(EditError) as caught:
-            Node.placed_union(fin, 1, rule)
+            Node.placed_union(fin, Expr.count(1), rule)
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
 
     def test_an_empty_placement_list_refuses(self):
@@ -408,17 +452,14 @@ class TestThePlacementRuleRefuses(unittest.TestCase):
             doc.insert(Node.placed_union_at(box, []))
         self.assertEqual(caught.exception.variant, "empty_placement_list")
 
-    def test_a_non_finite_frame_refuses(self):
-        """A zero rotation axis normalizes to NaN, so the frame is
-        non-finite — refused, never read as "no rotation"."""
-        doc = Doc()
-        box = slab(doc, (0, 1), (0, 1), (0, 1))
-        poisoned = Frame.rotate_then_translate(
-            (0.0, 0.0, 0.0), 90 * deg, (0 * m, 0 * m, 0 * m)
-        )
+    def test_a_degenerate_rotation_axis_refuses_naming_the_axis(self):
+        """A zero rotation axis has no direction, and the constructor
+        says so — naming the AXIS and its role, where it used to build
+        a NaN frame and let the edit door report the frame."""
         with self.assertRaises(EditError) as caught:
-            doc.insert(Node.placed_union_at(box, [poisoned]))
-        self.assertEqual(caught.exception.variant, "non_finite_placement")
+            Frame.rotate_then_translate((0.0, 0.0, 0.0), 90 * deg, (0 * m, 0 * m, 0 * m))
+        self.assertEqual(caught.exception.variant, "placement_axis")
+        self.assertIn("placement rotation axis", str(caught.exception))
 
     def test_an_improper_frame_refuses(self):
         """A mirror is REPRESENTABLE so that it can be refused (A6,
@@ -489,8 +530,14 @@ class TestTheFrameValue(unittest.TestCase):
         minus = Frame.translation((-0.0 * m, 0 * m, 0 * m))
         self.assertEqual(zero, Frame.translation((0 * m, 0 * m, 0 * m)))
         self.assertNotEqual(zero, minus)
-        self.assertEqual(hash(zero), hash(Frame.translation((0 * m, 0 * m, 0 * m))))
-        self.assertEqual(len({zero, minus}), 2)
+
+    def test_a_frame_compares_and_does_not_hash(self):
+        """`editor_core::Frame` derives `PartialEq` and no `Hash`, and
+        this class mirrors its derives: a pose is a datum the solver
+        consumes, not a key, so `__hash__` is `None`."""
+        self.assertIsNone(Frame.__hash__)
+        with self.assertRaises(TypeError):
+            {Frame.translation((0 * m, 0 * m, 0 * m))}
 
     def test_a_placement_and_a_transform_agree_bit_for_bit(self):
         """The D9 promise the group-versus-chain equality rests on:
@@ -509,7 +556,15 @@ class TestTheFrameValue(unittest.TestCase):
             )
         )
         moved = doc.insert(
-            Node.transform(box, (5 * m, 0 * m, 0 * m), (0.0, 0.0, 2.0), 30 * deg)
+            Node.transform(box, (
+                Expr.length_in(5, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(2.0),
+            ), Expr.angle_in(30, deg))
         )
         self.assertEqual(mass_of(doc, placed).volume, mass_of(doc, moved).volume)
 
@@ -550,6 +605,87 @@ class TestTheFrameValue(unittest.TestCase):
             Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
         self.assertEqual(caught.exception.variant, "degenerate_mirror_normal")
 
+    def test_a_direction_with_no_finite_length_is_refused_at_this_door(self):
+        """The public door with no pre-validation in front of it.
+
+        A normal past the ~1e154 overflow band makes the norm infinite,
+        which is maximally DEFINITE to the sign gate, and the division
+        that follows collapses the normal to zero: this call used to
+        return the IDENTITY — a mirror that mirrors nothing. It is not
+        a `degenerate_*` refusal, because the direction is not zero and
+        no tolerance lever reaches it."""
+        with self.assertRaises(FrameError) as caught:
+            Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (1e200, 0.0, 0.0))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "non_finite_mirror_normal")
+        self.assertIn("no finite length", str(refusal))
+        self.assertIn("scale the geometry into the session's range", str(refusal))
+        # Nothing was classified, so there is no classifier payload.
+        for absent in (
+            "inner_variant", "margin", "margin_low", "margin_high",
+            "zero", "escalate", "predicate", "field", "value",
+        ):
+            self.assertIsNone(getattr(refusal, absent), absent)
+
+    def test_an_exactly_zero_direction_carries_no_classifier_payload(self):
+        """A definite zero is not an escalation: the margin never
+        landed in the band, so there is nothing for the classifier to
+        report. Every attribute is present and `None`."""
+        with self.assertRaises(FrameError) as caught:
+            Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "degenerate_mirror_normal")
+        for absent in (
+            "inner_variant", "margin", "margin_low", "margin_high",
+            "zero", "escalate", "predicate", "field", "value",
+        ):
+            self.assertIsNone(getattr(refusal, absent), absent)
+
+    def test_an_in_band_direction_carries_the_margin_and_the_band(self):
+        """A direction SHORT of the coincidence threshold but not
+        exactly zero lands in the ambiguity band, and the refusal
+        reports what the classifier saw rather than making a caller
+        parse it out of the message.
+
+        The recourse is the message's own three levers — the payload
+        is diagnostic, and the escalation contract is that no sound
+        branch exists here."""
+        # A length inside the ambiguity band (eps, K*eps), derived
+        # from the process epsilon rather than hard-coded: the band's
+        # lower edge moves with the run's tolerance.
+        in_band = 1.5 * Doc().epsilon
+        with self.assertRaises(FrameError) as caught:
+            Frame.path_start_frame((0 * m, 0 * m, 0 * m), (in_band, 0.0, 0.0))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "degenerate_tangent")
+        self.assertIsNotNone(refusal.margin)
+        self.assertIsNotNone(refusal.zero)
+        self.assertIsNotNone(refusal.escalate)
+        self.assertLess(refusal.zero, refusal.escalate)
+        self.assertLess(refusal.margin, refusal.escalate)
+        # An f64 classification saw a VALUE, not an enclosure.
+        self.assertIsNone(refusal.margin_low)
+        self.assertIsNone(refusal.margin_high)
+        # The band arm's own payload is absent on a degenerate arm.
+        self.assertIsNone(refusal.inner_variant)
+        self.assertIsNone(refusal.field)
+        self.assertIsNone(refusal.value)
+
+    def test_a_short_aim_reports_the_same_pair(self):
+        """The third arm through a different door: `point_at`'s aim,
+        with the same attribute set on the same class."""
+        in_band = 1.5 * Doc().epsilon
+        with self.assertRaises(FrameError) as caught:
+            Frame.point_at(
+                (0 * m, 0 * m, 0 * m), (in_band * m, 0 * m, 0 * m), (0.0, 1.0, 0.0)
+            )
+        refusal = caught.exception
+        self.assertIn(
+            refusal.variant, ("degenerate_aim", "degenerate_roll_reference")
+        )
+        self.assertIsNotNone(refusal.zero)
+        self.assertIsNotNone(refusal.escalate)
+
 
 class TestTheCircularRule(unittest.TestCase):
     def test_a_circular_group_places_around_a_datum_axis(self):
@@ -557,9 +693,17 @@ class TestTheCircularRule(unittest.TestCase):
         the stepped map is literally the same one."""
         doc = Doc()
         box = slab(doc, (2, 3), (-0.5, 0.5), (0, 1))
-        axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+        axis = doc.insert(Node.datum_axis((
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
         group = doc.insert(
-            Node.placed_union(box, 4, PatternKind.circular(axis, 90 * deg))
+            Node.placed_union(box, Expr.count(4), PatternKind.circular(axis, Expr.angle_in(90, deg)))
         )
         self.assertEqual(mass_of(doc, group).volume, 4.0)
 
@@ -574,7 +718,11 @@ class TestTheCountParamBinding(unittest.TestCase):
         doc.apply(DocEdit.set_doc_param(ParamName("fins"), DocParam.count(2)))
         group = doc.insert(
             Node.placed_union(
-                fin_only(doc), 2, PatternKind.linear((1.0, 0.0, 0.0), PITCH * m)
+                fin_only(doc), Expr.count(2), PatternKind.linear((
+                    Expr.literal(1.0),
+                    Expr.literal(0.0),
+                    Expr.literal(0.0),
+                ), Expr.length_in(PITCH, m))
             )
         )
         return doc, group

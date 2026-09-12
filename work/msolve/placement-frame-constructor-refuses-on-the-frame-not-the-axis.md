@@ -2,9 +2,10 @@
 id: placement-frame-constructor-refuses-on-the-frame-not-the-axis
 kind: issue
 title: Frame::rotate_then_translate normalizes a degenerate axis to NaN and is refused downstream on the frame it built, not on the axis
-status: open
+status: closed
 opened: 2026-09-05
 rides_with: MSOLVE-3
+closed: 2026-09-06
 ---
 
 
@@ -25,3 +26,8 @@ one home) decides the axis first and refuses
 constructor could take the same decided unit axis and stop being the
 one place a direction is normalized undecided. Small; a candidate
 rider on MSOLVE-3, whose subject is refusals naming their cause.
+
+## Closed (2026-09-06, PR 2081)
+
+Fixed as MSOLVE-3's rider: the constructor decides its axis through
+the direction door and the placement door refuses naming the axis.

@@ -69,13 +69,13 @@ use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, PatternOutputChoice};
-use crate::display::{DisplayState, DisplayView};
+use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
 use crate::generation::Generation;
 use crate::history::History;
 use crate::parts;
-use crate::pick;
+use crate::pickcache;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::tree::{self, TreeRow};
 
@@ -88,7 +88,7 @@ pub mod select;
 
 pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
-pub use op::{OpOutcome, SessionOp};
+pub use op::{CancelDoor, OpOutcome, SessionOp};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{NodeKindWanted, Refusal, admits};
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
@@ -144,6 +144,17 @@ impl GestureTarget {
         SlotValue::of(self.dimension(), value)
     }
 
+    /// What an operation has to name to drive this gesture.
+    fn name(&self) -> GestureName {
+        match self {
+            Self::Slot { node, slot, .. } => GestureName::Slot {
+                node: *node,
+                slot: *slot,
+            },
+            Self::Param { name, .. } => GestureName::Param(name.clone()),
+        }
+    }
+
     /// The edit that writes `value` into this target.
     ///
     /// A parameter's edit is the VALUE door, so the parameter's
@@ -155,6 +166,25 @@ impl GestureTarget {
             Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
         }
     }
+}
+
+/// **Which gesture an operation NAMES** — the subject half of
+/// [`GestureTarget`], without the facts the begin looked up.
+///
+/// A gesture's target carries the display unit or the declared
+/// dimension its begin read off the base document; an operation
+/// arriving from the chrome carries neither and has no business
+/// asserting them. So the comparison that decides whether a preview
+/// belongs to the open gesture is over this, and
+/// [`GestureTarget::name`] is the one place a target becomes one —
+/// exhaustive over the target's arms, so a third kind of gesture
+/// target cannot skip the question.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum GestureName {
+    /// A node's slot.
+    Slot { node: RecipeNodeId, slot: SlotId },
+    /// A document parameter.
+    Param(ParamName),
 }
 
 /// A gesture in flight: layer-3 state only.
@@ -241,12 +271,15 @@ pub struct DocSession {
 ///   and why nothing here re-checks it: a check inside this function
 ///   could only fire with the session already half-replaced.
 ///
-///   **The table governs VALUE gestures only.** The free-move drag
-///   [`DisplayState`] owns is a different value with a different
-///   owner, no door refuses either replacement while one is open, and
-///   the `display.clear()` below discards it with no refusal and no
-///   report. That is what the walk does today, not a policy this
-///   value decides: `work/view/free-move-drag-dissolved-by-open.md`.
+///   **That table governs VALUE gestures only, and there is a
+///   second.** The free-move drag [`DisplayState`] owns is a
+///   different value with a different owner, so it gets its own row
+///   list ([`SessionOp::permitted_during_free_move`]) rather than a
+///   widened one — the two drags refuse different sets, and a single
+///   table could only serve both by refusing the union. What the two
+///   agree on is exactly these two doors: a replacement drops the
+///   display state whole, so both are refused while either drag is
+///   open, and neither is ever dissolved under the pointer.
 /// - `path` and `resolver` are facts about the backing FILE rather
 ///   than about the document, and are the part of the two doors that
 ///   genuinely differs: `Open` sets both, `NewDocument` clears both.
@@ -296,6 +329,37 @@ impl Derived {
             landed: None,
             bounds: None,
         }
+    }
+}
+
+/// Exhaustive by destructuring; every field is carried, so this walk
+/// `finish`es. The rule the four walks share is one paragraph in
+/// `crates/viewer/README.md` ("The dump is held to the same
+/// declaration"), not restated here.
+///
+/// `scratch` is carried as its presence: it is a whole `Doc`, and that
+/// one is in flight is the fact — it is `Some` exactly while
+/// [`DocSession::gesture`] is. It renders as an ELISION —
+/// `Some(<Doc>)`, never the `bool` the presence is — because `finish`
+/// says only that every field is SHOWN, and whether the value shown is
+/// the whole field is a question each summarised field answers for
+/// itself.
+impl core::fmt::Debug for Derived {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            selection,
+            hover,
+            scratch,
+            landed,
+            bounds,
+        } = self;
+        f.debug_struct("Derived")
+            .field("selection", selection)
+            .field("hover", hover)
+            .field("scratch", &scratch.as_ref().map(|_| format_args!("<Doc>")))
+            .field("landed", landed)
+            .field("bounds", bounds)
+            .finish()
     }
 }
 
@@ -377,12 +441,55 @@ struct LandedRun {
     /// path that must not pay one, so a change that made
     /// [`DocSession::landed_body`] gather, or that stopped `land`
     /// keeping the body, reds there. It does NOT see the doors:
-    /// restoring `scene::fit_delta`'s or `scene::scene_of_body`'s old
+    /// restoring [`crate::scene::fit_delta`]'s or [`crate::scene::scene_of_body`]'s old
     /// pair-taking signatures reds nothing, because those gathers
     /// would run inside `scene` where no row counts. Re-measure before
     /// changing the shape; do not trust the figures to have stayed
     /// true.
     body: Option<Arc<Body<f64>>>,
+}
+
+/// Exhaustive by destructuring; the shared rule is
+/// `crates/viewer/README.md`'s.
+///
+/// The two `_` arms are the run's DATA — `evaluation` is the result
+/// DAG and `doc` is the recipe DAG it answers — and everything else
+/// here is a verdict ABOUT that pair. `checks` is a `Vec` per finding
+/// and is carried as its two counts; `body` is a gathered aggregate
+/// and is carried as its presence, which is whether the landing's
+/// gather is still memoized. Both render as SUMMARIES — two counts,
+/// and the elision `Some(<Body>)` — so neither can be read as the
+/// field's own value; `finish_non_exhaustive` here is about the `_`
+/// arms and says nothing about them.
+impl core::fmt::Debug for LandedRun {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            evaluation: _,
+            doc: _,
+            generation,
+            fault,
+            at_rest,
+            checks,
+            body,
+        } = self;
+        let mut out = f.debug_struct("LandedRun");
+        out.field("generation", generation)
+            .field("fault", fault)
+            .field("at_rest", at_rest);
+        match checks {
+            Some(report) => out.field(
+                "checks",
+                &format_args!(
+                    "{} finding(s), {} skipped",
+                    report.findings.len(),
+                    report.skipped.len()
+                ),
+            ),
+            None => out.field("checks", &Option::<()>::None),
+        };
+        out.field("body", &body.as_ref().map(|_| format_args!("<Body>")))
+            .finish_non_exhaustive()
+    }
 }
 
 /// The A5 at-rest verdict for the landed pair — a mated document's
@@ -518,6 +625,45 @@ impl DocSession {
         DeleteAffordance::of(self.committed_doc(), node)
     }
 
+    /// **The chrome's cancel doors, one per gesture** — the exits
+    /// that are not the widget the gesture was opened on, and the only
+    /// exits a gesture whose widget is no longer drawn has left
+    /// ([`CancelDoor`] carries that argument).
+    ///
+    /// **Two, and the population is the operations that cancel a
+    /// GESTURE** rather than everything the enum spells `Cancel`:
+    /// [`SessionOp::CancelEvaluation`] cancels a run, not a gesture,
+    /// and has its own control beside the spinner that reports the
+    /// run. The census is held from the operation vocabulary's side by
+    /// `crates/viewer/tests/gesture_table.rs`'s
+    /// `every_gesture_cancel_has_a_chrome_door`, whose match over
+    /// `SessionOp` is exhaustive — so a third gesture cannot join the
+    /// enum with no door, which is the protection
+    /// [`SessionOp::permitted_during_value_gesture`] gives the
+    /// mid-gesture policy one concept over.
+    ///
+    /// Each door reads the state of its OWN gesture: this session's
+    /// value drag, and [`crate::display::DisplayState::probing`] for
+    /// the free-move probe. The two are independent and can be in
+    /// flight together, so one control standing for both would have
+    /// nothing to say about which it closed.
+    pub fn cancel_doors(&self) -> [CancelDoor; 2] {
+        [
+            CancelDoor::of(
+                "Cancel drag",
+                SessionOp::CancelGesture,
+                self.gesture.is_some(),
+                Refusal::NoGesture,
+            ),
+            CancelDoor::of(
+                "Cancel free-move",
+                SessionOp::CancelFreeMove,
+                self.display.probing().is_some(),
+                Refusal::Display(DisplayFault::NoFreeMove),
+            ),
+        ]
+    }
+
     /// The ε this session decides at.
     pub fn tol(&self) -> Tol {
         self.tol
@@ -639,7 +785,7 @@ impl DocSession {
     /// succeeded and the A5 gate consumed the body in refusing
     /// ([`LandedRun::body`] carries that case). A caller that needs a
     /// body in the third case gathers one for itself and pays for it
-    /// where the payment is visible — `scene::product_of_evaluation`
+    /// where the payment is visible — [`crate::scene::product_of_evaluation`]
     /// is that door.
     pub fn landed_body(&self) -> Option<&Body<f64>> {
         Some(self.derived.landed.as_ref()?.body.as_ref()?)
@@ -782,7 +928,7 @@ impl DocSession {
 
     /// The property rows as the panel LAYS THEM OUT — [`Self::slot_rows`]
     /// folded so that the three components of a 3-vector arrive as one
-    /// group (`props::group_rows`).
+    /// group ([`crate::props::group_rows`]).
     ///
     /// A second door rather than a replacement because the two answer
     /// different questions: a test asserting what a node's slots are
@@ -915,17 +1061,33 @@ impl DocSession {
 
     /// Perform one operation.
     ///
-    /// The mid-gesture policy is applied ONCE, here, off
-    /// [`SessionOp::permitted_during_value_gesture`] — no arm below
-    /// carries a guard against the VALUE gesture of its own, so the set
-    /// of operations a slot or parameter drag refuses is the table and
-    /// only the table. The free-move arms do carry a guard, against
-    /// their own gesture: they delegate to [`DisplayState`], which
-    /// refuses [`crate::display::DisplayFault::FreeMoveInFlight`] off the free-move
-    /// state this check never reads.
+    /// **The mid-drag policy is applied here and nowhere else**, as
+    /// two tables — one per gesture, because the session has two
+    /// independent drags that refuse different sets
+    /// ([`SessionOp::permitted_during_free_move`] carries the argument
+    /// for why they cannot be one). No arm below carries a guard
+    /// against either drag of its own, so the set of operations a drag
+    /// refuses is its table and only its table.
+    ///
+    /// The order is the value gesture first. Both drags can be open at
+    /// once, and when both refuse the same operation the value
+    /// gesture's refusal is the one shown — *"finish the drag first"*
+    /// names the drag whose preview the operation would have landed
+    /// against, which is the nearer of the two answers.
+    ///
+    /// One arm still guards from its own state rather than from a
+    /// table: the `*FreeMove` quartet delegates to [`DisplayState`],
+    /// which refuses
+    /// [`crate::display::DisplayFault::FreeMoveInFlight`] when a
+    /// second begin arrives under an open drag. That is the same
+    /// refusal the second table raises, one layer down, and the table
+    /// leaves the row to it rather than spelling one answer twice.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
         if self.gesture.is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if self.display.probing().is_some() && !op.permitted_during_free_move() {
+            return OpOutcome::refused(Refusal::Display(DisplayFault::FreeMoveInFlight));
         }
         match op {
             SessionOp::Select(selection) => {
@@ -947,8 +1109,18 @@ impl DocSession {
             SessionOp::CreateParam { name, value } => self.create_param(name, value),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
             SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
-            SessionOp::PreviewGesture { value } => self.preview_gesture(value),
-            SessionOp::CommitGesture => self.commit_gesture(),
+            SessionOp::PreviewGesture { node, slot, value } => {
+                self.preview_gesture(&GestureName::Slot { node, slot }, value)
+            }
+            SessionOp::CommitGesture { node, slot } => {
+                self.commit_gesture(&GestureName::Slot { node, slot })
+            }
+            SessionOp::PreviewParamGesture { name, value } => {
+                self.preview_gesture(&GestureName::Param(name), value)
+            }
+            SessionOp::CommitParamGesture { name } => {
+                self.commit_gesture(&GestureName::Param(name))
+            }
             SessionOp::CancelGesture => {
                 let had = self.gesture.take().is_some();
                 // Same rule as a no-move commit: only a gesture that
@@ -991,14 +1163,18 @@ impl DocSession {
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
             }
-            SessionOp::PreviewFreeMove { frame } => match self.display.preview_free_move(frame) {
-                Ok(()) => OpOutcome::default(),
-                Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
-            },
-            SessionOp::CommitFreeMove => match self.display.commit_free_move() {
-                Ok(()) => OpOutcome::default(),
-                Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
-            },
+            SessionOp::PreviewFreeMove { instance, frame } => {
+                match self.display.preview_free_move(instance, frame) {
+                    Ok(()) => OpOutcome::default(),
+                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+                }
+            }
+            SessionOp::CommitFreeMove { instance } => {
+                match self.display.commit_free_move(instance) {
+                    Ok(()) => OpOutcome::default(),
+                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+                }
+            }
             SessionOp::CancelFreeMove => match self.display.cancel_free_move() {
                 Ok(()) => OpOutcome::default(),
                 Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
@@ -1090,7 +1266,7 @@ impl DocSession {
         )
     }
 
-    /// **What a pick index is built from** ([`pick::IndexInputs`]):
+    /// **What a pick index is built from** ([`pickcache::IndexInputs`]):
     /// the landed pair, the generation it answered and the ε to
     /// tessellate at — or `None` when nothing has landed, which is the
     /// cache's own "forget everything" case.
@@ -1101,14 +1277,14 @@ impl DocSession {
     /// `tol`, is this session's ε — construction-time, never rewritten
     /// by a landing — and rides along because the build needs it.
     ///
-    /// `pick` is a vocabulary and may not name this driver, so the
-    /// read is hoisted rather than the rule widened
+    /// `pickcache` is a vocabulary and may not name this driver, so
+    /// the read is hoisted rather than the rule widened
     /// (`crates/viewer/README.md`, *What a vocabulary reads, it is
     /// handed*, carries the argument).
     #[must_use]
-    pub fn index_inputs(&self) -> Option<pick::IndexInputs<'_>> {
+    pub fn index_inputs(&self) -> Option<pickcache::IndexInputs<'_>> {
         let run = self.derived.landed.as_ref()?;
-        Some(pick::IndexInputs::of(
+        Some(pickcache::IndexInputs::of(
             run.generation,
             run.doc.as_ref(),
             &run.evaluation,
@@ -1327,10 +1503,23 @@ impl DocSession {
         OpOutcome::default()
     }
 
-    fn preview_gesture(&mut self, value: f64) -> OpOutcome {
+    /// Move the gesture `named` names.
+    ///
+    /// **The name is checked before the value is used**, so a drag on
+    /// a field that could not open its own gesture previews nothing
+    /// rather than previewing its number into the open gesture's slot.
+    /// The refusal is [`Refusal::WrongGesture`] and not
+    /// [`Refusal::GestureInFlight`]: the operation IS permitted while
+    /// a drag is open (`permitted_during_value_gesture`, which every
+    /// driving operation has to be), and what it is not is about this
+    /// drag.
+    fn preview_gesture(&mut self, named: &GestureName, value: f64) -> OpOutcome {
         let Some(gesture) = self.gesture.as_mut() else {
             return OpOutcome::refused(Refusal::NoGesture);
         };
+        if gesture.target.name() != *named {
+            return OpOutcome::refused(Refusal::WrongGesture);
+        }
         let slot_value = gesture.target.value_of(value);
         let edit = match gesture.target.edit(slot_value) {
             Ok(edit) => edit,
@@ -1355,7 +1544,8 @@ impl DocSession {
                 // either.
                 assert!(
                     applied.record.minted.is_none(),
-                    "a value gesture's preview minted a node, which the display                      layer's admission tests are not re-run against"
+                    "a value gesture's preview minted a node, which the display \
+                     layer's admission tests are not re-run against"
                 );
                 gesture.value = Some(slot_value);
                 self.derived.scratch = Some(applied.doc);
@@ -1369,9 +1559,19 @@ impl DocSession {
         }
     }
 
-    fn commit_gesture(&mut self) -> OpOutcome {
-        let Some(gesture) = self.gesture.take() else {
-            return OpOutcome::refused(Refusal::NoGesture);
+    /// Land the gesture `named` names.
+    ///
+    /// **The name is checked before the gesture is taken**, so a
+    /// refused commit leaves the drag it does not name open — the
+    /// release event of one field is not a release of another, and a
+    /// gesture that ends here would end with nobody having let go of
+    /// it.
+    fn commit_gesture(&mut self, named: &GestureName) -> OpOutcome {
+        let Some(gesture) = self.gesture.take_if(|open| open.target.name() == *named) else {
+            return OpOutcome::refused(match self.gesture {
+                Some(_) => Refusal::WrongGesture,
+                None => Refusal::NoGesture,
+            });
         };
         let previewed = self.derived.scratch.take().is_some();
         // A gesture that never moved commits nothing: one undo step
@@ -1410,19 +1610,16 @@ impl DocSession {
         // over one discards the probe it constrains.
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
-        OpOutcome {
-            superseded: pruned.superseded,
-            dropped_hides: pruned.dropped_hides,
-            ..OpOutcome::default()
-        }
+        OpOutcome::from_prune(pruned)
     }
 
-    /// Refused mid-gesture — the table's answer
-    /// ([`SessionOp::permitted_during_value_gesture`]), shared with
-    /// [`SessionOp::NewDocument`]: both replace the document a drag is
-    /// previewing against, and a gesture silently dissolved under the
-    /// pointer is the kind of half-acted state that refusal exists to
-    /// prevent.
+    /// Refused mid-gesture by BOTH tables
+    /// ([`SessionOp::permitted_during_value_gesture`] and
+    /// [`SessionOp::permitted_during_free_move`]), shared with
+    /// [`SessionOp::NewDocument`]: both doors replace the document a
+    /// drag is previewing against and drop the display state whole, and
+    /// a gesture silently dissolved under the pointer is the kind of
+    /// half-acted state that refusal exists to prevent.
     fn open(&mut self, path: &Path) -> OpOutcome {
         match docio::open(path, self.tol) {
             Ok(history) => {
@@ -1501,19 +1698,26 @@ impl DocSession {
     /// ([`Derived`]'s own docs carry that and the other two
     /// exclusions).
     ///
-    /// **Nothing is checked here, and that is the point.** Two things
-    /// hold on entry and neither is this function's to enforce: no
-    /// value gesture is open, because `perform` refused both doors
-    /// while one was (the table's guarantee, a different guarantee
-    /// from the one below), and `scratch` is already `None`, because a
-    /// preview never outlives the gesture that wrote it (`Derived`'s
-    /// own invariant, which is what makes clearing it below a no-op
-    /// rather than half a dissolved drag). A check placed here could
-    /// only fire after a caller had already written `history` and the
-    /// file-shaped fields, which is the half-replaced session the
-    /// refusal exists to prevent — so the precondition lives at
-    /// `perform`, where refusing costs a `Refusal` and nothing has
-    /// moved yet.
+    /// **Nothing is checked here, and that is the point.** Three
+    /// things hold on entry and none is this function's to enforce:
+    /// **no value gesture is open** and **no free-move gesture is in
+    /// flight**, because `perform` refused both doors while either was
+    /// (the two tables' guarantee, a different guarantee from the one
+    /// below), and `scratch` is already `None`, because a preview never
+    /// outlives the gesture that wrote it (`Derived`'s own invariant,
+    /// which is what makes clearing it below a no-op rather than half
+    /// a dissolved drag). A check placed here could only fire after a
+    /// caller had already written `history` and the file-shaped
+    /// fields, which is the half-replaced session the refusal exists to
+    /// prevent — so the precondition lives at `perform`, where refusing
+    /// costs a `Refusal` and nothing has moved yet.
+    ///
+    /// The free-move half of that is newer than the rest of this walk
+    /// and was the one asymmetry in it: the drag was dissolved here,
+    /// silently, by the same `display.clear()` below, while the value
+    /// drag one field over was protected by a refusal at the door. The
+    /// two are the same state under a pointer and now get the same
+    /// answer ([`SessionOp::permitted_during_free_move`]).
     fn clear_for_new_document(&mut self) {
         self.derived = Derived::none();
         self.display.clear();
@@ -1791,9 +1995,7 @@ impl DocSession {
         self.request_eval();
         OpOutcome {
             committed: edits,
-            superseded: pruned.superseded,
-            dropped_hides: pruned.dropped_hides,
-            ..OpOutcome::default()
+            ..OpOutcome::from_prune(pruned)
         }
     }
 
@@ -1876,16 +2078,51 @@ fn session_dir(path: &Path) -> PathBuf {
     }
 }
 
-impl std::fmt::Debug for DocSession {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+/// Exhaustive by destructuring; the shared rule is
+/// `crates/viewer/README.md`'s. [`Derived`] renders as ONE field, so
+/// its members travel with their declaration rather than being listed
+/// a second time here.
+///
+/// The four `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
+/// no content to print; `eval` is a `dyn` service and implements no
+/// `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
+/// not derived from the document, is as large as the document's hidden
+/// and moved sets, and has its own [`DocSession::display`] door to be
+/// dumped through.
+///
+/// Three carried fields are summaries and each says so where it
+/// renders: `states` is the history's LENGTH, and a count cannot be
+/// read as the `Vec`; `gesture` and `resolver` are elisions naming
+/// what is there, `Some(<Gesture>)` and `Some(<DirResolver>)`, rather
+/// than the `bool` their presence is. `finish_non_exhaustive` is about
+/// the `_` arms above and is true for reasons unrelated to these.
+impl core::fmt::Debug for DocSession {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            history,
+            tol: _,
+            gesture,
+            eval: _,
+            generation,
+            requested_doc: _,
+            derived,
+            path,
+            display: _,
+            resolver,
+        } = self;
         f.debug_struct("DocSession")
-            .field("generation", &self.generation)
-            .field("landed_generation", &self.landed_generation())
-            .field("selection", &self.derived.selection)
-            .field("hover", &self.derived.hover)
-            .field("states", &self.history.len())
-            .field("gesture", &self.gesture.is_some())
-            .field("path", &self.path)
+            .field("generation", generation)
+            .field("states", &history.len())
+            .field(
+                "gesture",
+                &gesture.as_ref().map(|_| format_args!("<Gesture>")),
+            )
+            .field("path", path)
+            .field(
+                "resolver",
+                &resolver.as_ref().map(|_| format_args!("<DirResolver>")),
+            )
+            .field("derived", derived)
             .finish_non_exhaustive()
     }
 }

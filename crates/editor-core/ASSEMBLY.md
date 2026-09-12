@@ -92,7 +92,8 @@ mate's declaration into the product's `ContactRecords`, the same
 currency as the boolean wrapper's; declarations are verified, never
 trusted. `class_admission` is the one table the solve and the mint door
 both read: `Rest` solves and mints; `Tangent` solves and refuses at the
-mint door (`AssemblyError::NoAtRestRecord`, no witness edge at rest);
+mint door (`AssemblyError::NoAtRestRecord`, no witness edge at rest,
+recourse `NO_AT_REST_RECORD_RECOURSE`);
 anything else, including the reserved and unbuilt `Fit { gap }`,
 refuses at the solve door.
 
@@ -164,7 +165,15 @@ re-evaluation, which re-verifies crossings (A4).
 (`product::product_recorded`), mints every solved mate's declaration as
 a `MintedDeclaration` (declaring mates mint like determining ones), and
 runs the scalar's at-rest policy, `topo::validate_pseudomanifold`, over
-body plus records. It runs no predicate of its own; kernel findings
+body plus records. Minting resolves each reference against the
+product's table and, when that is silent, asks the operand the mate
+reads at whether the name is spelled in its own table — a name spelled
+there at a node the product does not list refuses
+`RefusedRef::ReadBelowARoot { at }` in the operand's voice, so
+`RefusedRef::Vanished` means a name nothing answers to where the mate
+reads it. The operand's entry decides its kind first: a non-face
+entry refuses `RefusedRef::NotAFace` wherever it is read, and only a
+face entry at a non-root refuses `ReadBelowARoot`. It runs no predicate of its own; kernel findings
 come back as `AtRestFinding`s attributed to the mate whose declaration
 they concern. Undeclared contact between instances is a hard error,
 never blessed. `AssemblyError::AtRest` is a verdict against the
@@ -270,7 +279,8 @@ tree rooted at the gauge: tree mates DETERMINE and must fold to
 `Trivial` (an UNDER tree edge refuses naming the residual subgroup,
 recourse `UNDER_RECOURSE`); non-tree mates DECLARE and are only
 verified by the gate. No cycle is ever solved; an inconsistent loop
-dies at its closing mate's verification. The solve is total and
+dies at its closing mate's verification (`MateFault::Contradictory`,
+recourse `CONTRADICTORY_RECOURSE`). The solve is total and
 per-node: a refusing cluster faults its own mate and instances
 (`SolvedPoses::fault`), nothing else. (5) `SolvedPoses::placement`
 composes the cluster frame onto the solved relative pose; a singleton
@@ -295,7 +305,12 @@ derives: the named copy must exist (its index against the pattern's
 evaluated count, else `MateFault::DanglingHead` at the pattern), and a
 `Part` directly above a pattern must select the copy the NAME names
 (else `MateFault::PartSelectsAnotherCopy`, which reports both). The
-name is the authority; the `Part` is checked against it.
+name is the authority; the `Part` is checked against it. A member's derived pose refuses in
+the PLACER's own voice: a pattern copy or a transform on the chain
+whose pose cannot be derived refuses `MateFault::PlacerRefused`,
+carrying the evaluation layer's own typed cause unaltered, because a
+mate fault poisons the document and the placer node never gets to
+state that cause itself.
 
 ## Open questions
 

@@ -416,14 +416,15 @@ pub(crate) fn resolve(
 /// heuristics): if the name IS a merged name, its constituents (the
 /// symmetric unmerge case — `Merged{a,b}` vanishes with candidates
 /// {a, b}); otherwise, any live merged name whose constituent set
-/// contains it (the retire-into-merge case — the reference fails
-/// "with the merged face as the offered candidate").
+/// COVERS it (`names::merged::covers`: the retire-into-merge case —
+/// the reference fails "with the merged face as the offered
+/// candidate" — and, since the set is flat, a merged face consumed
+/// by a wider merge is covered by the row that lists its faces).
 ///
 /// Scope of "structurally detectable" (review A5): the unmerge
 /// direction fires only when `Merged` is the path's LAST segment —
-/// names wrapping a merge deeper in (`Instance{of: Merged}`,
-/// `FromA(Merged)`) get empty offers; PR 4's resolution ladder owns
-/// anything beyond this.
+/// names wrapping a merge deeper in (`Instance{of: Merged}`) get
+/// empty offers; PR 4's resolution ladder owns anything beyond this.
 fn vanished_candidates(
     name: &StableName,
     states: &BTreeMap<RecipeNodeId, NodeState<'_>>,
@@ -438,7 +439,7 @@ fn vanished_candidates(
         };
         for (candidate, _) in table.iter() {
             if let Some(RoleSeg::Merged(constituents)) = candidate.path.last()
-                && constituents.contains(name)
+                && crate::names::merged::covers(constituents, name)
                 && !out.contains(candidate)
             {
                 out.push(candidate.clone());

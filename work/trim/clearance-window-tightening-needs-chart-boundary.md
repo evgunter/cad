@@ -1,9 +1,11 @@
 ---
 id: clearance-window-tightening-needs-chart-boundary
-kind: issue
+kind: unit
 title: Clearance windows are bounding rectangles: tightening needs the face boundary in chart coordinates
-status: open
+status: dispatched
 opened: 2026-09-03
+branch: trim/3-chart-bound
+pr: 1911
 ---
 
 ## What
@@ -60,3 +62,11 @@ direction of the looseness is preserved.
 `work/m10/` — the code is `crates/editor-core/src/clearance.rs`, an M10
 deliverable; the dependency (`pcurve`-layer chart boundaries) is not
 scheduled in M10, so this is a consumer waiting on it.
+
+## PR-1 merged (2026-09-07)
+
+PR #1911 landed the `topo` half: `chart_boundary`, `ChartBound`,
+`MetredBound::hull()`, `certifies_outside`, the six `chart_bound_*`
+rows, and 18 real-body rows from the dual. The item stays `dispatched`
+for PR-2 (the `clearance.rs` seam, branch `trim/3-window-seam`), which
+opens after the seam is announced to SHELL and M10.

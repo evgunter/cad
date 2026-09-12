@@ -55,22 +55,19 @@ use crate::revolve_common;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
+use crate::common::approx::band;
 use common::orient::{
     along_v, assert_walls_face_out, loft_contains, wall_outward, wall_outward_at,
 };
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point3, Vec3};
+use geom_core::{Affine3, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::test_support::swept_elbow_lofted;
 use sweep::{Extrusion, Lofted, Revolution, Section, extrude, loft_body, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::props::mass_properties(body, Tol::witness())

@@ -1,6 +1,6 @@
 ---
 name: test-suite-cost
-description: Standing rules for what a test may cost the suite — all fuzzing varies its seed, scales on an EFFORT dial and is gated to the code it tests; assertion-free tests never gate
+description: Standing rules for what a test may cost the suite — all fuzzing varies its seed, scales on an EFFORT dial, and runs every time at EFFORT=1, raised only for the code it tests; assertion-free tests never gate
 metadata:
   type: feedback
 ---
@@ -66,14 +66,14 @@ Three properties every fuzzer needs, together:
   unreproducible. Provide an env override for exact replay, and pin a
   genuine counterexample as an ordinary deterministic test alongside
   its fix.
-- **Counts as multiples of a shared EFFORT dial**, shipped at the level
-  a gated run should cost, so depth is one env var away.
-- **MARKED to run only on changes to the code it was written to test.**
-  "The chance it turns up something new isn't technically zero" does
-  not justify paying for it on every run — this is adversarially
-  reviewed code with good suites and no safety-critical exposure, so
-  depth is bought deliberately. A fuzzer that is not gated is a defect
-  in the fuzzer.
+- **Counts as multiples of a shared EFFORT dial**, shipped at the smoke
+  level every run pays, so a raise is one env var away.
+- **Every fuzzer runs every time at EFFORT = 1, and the marker selects
+  which ones run raised** (Ev, 2026-09-11). Match its named paths
+  against the diff rather than the crate closure, and raise only on a
+  match — so a run that cannot resolve the diff raises nothing. A fuzzer
+  whose EFFORT is not keyed to the code it tests is a defect in the
+  fuzzer.
 
 # Everything else
 

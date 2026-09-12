@@ -28,8 +28,8 @@ use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocumentId, EvalOptions, Expr, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, Node, ParamName, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, SplitHalf, StableName, clusters, member_of, product,
-    solve_document,
+    ProfileProgram, RecipeNodeId, RefusedRef, SitedRef, SplitHalf, StableName, clusters, member_of,
+    product, solve_document,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::seat::{assert_seated, seat_map};
@@ -802,27 +802,19 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
     );
 }
 
-// ---- the gate, measured on a nested document (out of this unit's scope) ----
+// ---- the gate on a nested document ----
 
 /// **What the at-rest gate says for a mate read BELOW the outer
-/// pattern** — measured on a nested document, pinned, and reported
-/// rather than fixed here.
-///
-/// `work/msolve/assembly-gate-refuses-vanished-on-a-mate-read-below-a-
-/// pattern` found this one level down: the SOLVE places such a mate
-/// correctly, and the gate then refuses `Reference { why: Vanished }`
-/// because the bare name has no row in the product's table — only the
-/// pattern is a root and its rows are `Instance(i)`-qualified. The
-/// nested document says the same thing, and this row is the
-/// measurement the unit owed: reading a mate at the `Part` under an
-/// outer pattern reproduces it, and reading the same document's mate
-/// AT the outer pattern (every other row here) does not, because
-/// there the name is a root's own row.
-///
-/// Nothing here is worse than it was: the refusal is the same one,
-/// raised for the same reason, at one more depth.
+/// pattern** — on a nested document. The SOLVE places such a mate;
+/// the gate refuses it, because the name's row is the `Part`'s own
+/// and the product lists only the outer pattern, whose rows are
+/// `Instance(i)`-qualified. The refusal is in the operand's voice:
+/// `ReadBelowARoot { at: part }`, naming the `Part` the mate reads
+/// at rather than calling the name vanished. Reading the same
+/// document's mate AT the outer pattern (every other row here) holds,
+/// because there the name is a root's own row.
 #[test]
-fn the_gate_on_a_mate_read_below_the_outer_pattern_still_says_vanished() {
+fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
     let s = scene("msolve2-gate");
     let (base, top) = (s.base, s.top);
     let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
@@ -856,18 +848,20 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_still_says_vanished() {
         "the product gathers"
     );
     let err = gate(&doc, &ev).expect_err("the gate refuses the unrooted name");
-    let AssemblyError::Reference { mate: at, side, .. } = &err else {
+    let AssemblyError::Reference {
+        mate: at,
+        side,
+        why,
+        ..
+    } = &err
+    else {
         panic!("expected the reference refusal, got {err:?}");
     };
     assert_eq!((*at, *side), (mate, MateSide::B));
-    // The measurement, asserted rather than printed: the gate says
-    // the name is absent from the product, not that the operand is
-    // not a root — which is the mis-description the issue names.
-    let said = err.to_string();
-    assert!(
-        said.contains("does not name a face of the product"),
-        "the gate reports the name as vanished: {said}"
-    );
+    // The gate names the operand the mate reads at, not a vanished
+    // name: the `Part`'s row is there, one level below the root. (The
+    // sentence is pinned in `display_contract`.)
+    assert_eq!(*why, RefusedRef::ReadBelowARoot { at: part });
     // Read AT the outer pattern instead, the same document gathers
     // and the gate holds: the difference is whether the name is a
     // product ROOT's own row.

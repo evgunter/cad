@@ -14,12 +14,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    AssemblyError, CapEnd, DeclareError, Diagnosis, Dimension, DimensionError, DocParamValue,
-    EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateFault, MateSide,
-    MeshPickError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId,
-    RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId, SnapshotError,
-    StableName, StepArg,
+    AssemblyError, CapEnd, ContactClass, DeclareError, Diagnosis, Dimension, DimensionError,
+    DocParamValue, EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateFault,
+    MateSide, MeshPickError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault,
+    RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg,
 };
+use geom_core::BandError;
 
 /// Asserts the F6 shape over one rendering: the wanted content is
 /// present, no variant identifier leaks, no Debug punctuation, and the
@@ -261,9 +262,16 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             },
             vec!["distance is a distance", "dimension angle"],
         ),
+        // The F6 shape only; the arm's REACHABILITY and the payload
+        // it must forward are pinned through the real doors in
+        // `wire_band_cause`, which is where a `BandError` can be
+        // obtained from `Band::linear` rather than written down.
         (
-            SelectRefusal::Band,
-            vec!["ambiguity band", "ambient tolerance"],
+            SelectRefusal::Band(BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            }),
+            vec!["ambiguity band", "ambient tolerance", "strictly below"],
         ),
     ];
     for (err, wants) in cases {
@@ -607,6 +615,12 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
         shown.contains(&format!("(a {phrase})")),
         "the mate reference re-spells the name instead of forwarding it: {shown:?}"
     );
+    assert!(
+        shown.contains(
+            "no entity answers to it, in the product or at the node the mate reads it at"
+        ),
+        "a vanished name is one neither table answers to: {shown:?}"
+    );
 
     let both = NodeErrorKind::DeclareBothOperands {
         name: Box::new(face_name()),
@@ -615,6 +629,49 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
     assert!(
         shown.contains(&format!("the declared {phrase} resolves")),
         "the declaration refusal re-spells the name instead of forwarding it: {shown:?}"
+    );
+}
+
+/// The WHY clause of a mate-reference refusal says what the gate
+/// checked and no more: a name read below a root names the operand
+/// and the rule (a reference resolves against a root's own rows); a
+/// tie names its width. Every other row asserting these sentences
+/// compares against the impl, so this is their one home.
+#[test]
+fn a_mate_reference_refusal_says_what_the_gate_checked() {
+    let below = AssemblyError::Reference {
+        mate: RecipeNodeId(2),
+        side: MateSide::B,
+        name: Box::new(face_name()),
+        why: RefusedRef::ReadBelowARoot {
+            at: RecipeNodeId(5),
+        },
+    };
+    assert_f6(
+        &below,
+        &[
+            "mate 2's b reference",
+            "does not name a face of the product",
+            "it is read at node 5, which is not a root of the product, and a reference \
+             resolves against a root's own rows",
+        ],
+        &["ReadBelowARoot", "Reference"],
+    );
+
+    let tied = AssemblyError::Reference {
+        mate: RecipeNodeId(2),
+        side: MateSide::A,
+        name: Box::new(face_name()),
+        why: RefusedRef::Ambiguous { width: 2 },
+    };
+    assert_f6(
+        &tied,
+        &[
+            "mate 2's a reference",
+            "2 entities answer to it",
+            "a tie is never broken by picking",
+        ],
+        &["Ambiguous", "Reference"],
     );
 }
 
@@ -661,10 +718,50 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     );
 }
 
+/// The mint door's at-rest refusal ends on
+/// [`editor_core::NO_AT_REST_RECORD_RECOURSE`] — and so does the
+/// `MintRefusal` row it is raised from, because one function renders
+/// the sentence for both. A recourse reached by only one of the two
+/// carriers is a user who sees the repair or not depending on how deep
+/// the mate was declared.
+#[test]
+fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
+    let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
+    let raised = AssemblyError::NoAtRestRecord {
+        mate: RecipeNodeId(5),
+        class: ContactClass::Tangent,
+        why,
+    };
+    assert_f6(
+        &raised,
+        &[
+            "mate 5's class Tangent has no at-rest kernel record",
+            why,
+            editor_core::NO_AT_REST_RECORD_RECOURSE,
+        ],
+        &["NoAtRestRecord"],
+    );
+
+    let row = editor_core::MintRefusal::NoAtRestRecord {
+        mate: RecipeNodeId(5),
+        class: ContactClass::Tangent,
+        why,
+    };
+    assert_f6(
+        &row,
+        &[why, editor_core::NO_AT_REST_RECORD_RECOURSE],
+        &["NoAtRestRecord"],
+    );
+}
+
 /// A mate-solve contradiction states WHO is at fault. Two mates that
 /// cannot both hold are named as a pair; one mate that contradicts
 /// itself is named ONCE, because "mates 6 and 6" reads as an indexing
 /// fault and hides the shape the payload states.
+///
+/// Both shapes end on [`editor_core::CONTRADICTORY_RECOURSE`], which
+/// is why that sentence names neither a pair nor a count: one recourse
+/// covers a repair that is the same either way.
 #[test]
 fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     let pair = MateFault::Contradictory {
@@ -676,7 +773,11 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     };
     assert_f6(
         &pair,
-        &["mates 3 and 5 cannot both hold", "a clash of 0.01 m"],
+        &[
+            "mates 3 and 5 cannot both hold",
+            "a clash of 0.01 m",
+            editor_core::CONTRADICTORY_RECOURSE,
+        ],
         &["Contradictory"],
     );
     assert!(
@@ -693,7 +794,11 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     };
     assert_f6(
         &itself,
-        &["mate 6 contradicts itself", "mate_clocking_redundant"],
+        &[
+            "mate 6 contradicts itself",
+            "mate_clocking_redundant",
+            editor_core::CONTRADICTORY_RECOURSE,
+        ],
         &["Contradictory"],
     );
     assert!(
@@ -746,6 +851,11 @@ fn a_levered_clash_prints_only_a_product_that_is_the_product() {
 /// that merely fails to be finite — a NaN, a negative infinity, or an
 /// infinity under some other predicate — is reported as the
 /// non-measurement it is and never borrows the empty set's sentence.
+///
+/// The four shapes below are every exit the arm has, and each is
+/// checked to end on [`editor_core::CONTRADICTORY_RECOURSE`]: the
+/// repair does not depend on which measurement the predicate could
+/// report, so no exit may drop it.
 #[test]
 fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     let empty = MateFault::Contradictory {
@@ -759,6 +869,10 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     assert!(
         shown.contains("meet in the empty set") && !shown.contains("inf"),
         "the structural refusal has no metre figure to print: {shown:?}"
+    );
+    assert!(
+        shown.contains(editor_core::CONTRADICTORY_RECOURSE),
+        "{shown:?}"
     );
 
     for (what, clash) in [
@@ -782,6 +896,10 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
             shown.contains("not a finite length"),
             "a {what} margin says it is no measurement: {shown:?}"
         );
+        assert!(
+            shown.contains(editor_core::CONTRADICTORY_RECOURSE),
+            "{shown:?}"
+        );
     }
 
     // An infinity that carries a lever is still levered: the empty-set
@@ -797,5 +915,9 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     assert!(
         shown.contains("a roll of") && !shown.contains("empty set"),
         "a levered clash keeps its halves whatever the stored figure is: {shown:?}"
+    );
+    assert!(
+        shown.contains(editor_core::CONTRADICTORY_RECOURSE),
+        "{shown:?}"
     );
 }

@@ -391,9 +391,11 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part (placement + validation of
-    // the placed body); 724 is the part's, on its own nodes.
+    // the placed body); 730 is the part's, on its own nodes — its
+    // profile's pre-pass on the Profile node's log, decided once (the
+    // pinned lift reuses the pre-pass's validated form).
     assert_eq!(first.len(), 466, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 724, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 730, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
@@ -821,7 +823,13 @@ fn row7_instantiate_and_placement_round_trip() {
         doc,
         DocEdit::SetPlacement {
             node: ids[1],
-            frame: Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.25, [2.0, 3.0, 0.0]),
+            frame: Frame::rotate_then_translate(
+                [0.0, 0.0, 1.0],
+                0.25,
+                [2.0, 3.0, 0.0],
+                fixture::band(),
+            )
+            .expect("a literal axis has a definite direction"),
         },
     );
 
@@ -1139,7 +1147,8 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
         [1.0, 2.0, 3.0],      // non-unit, oblique
         [-0.5, 0.25, -0.125], // non-unit, short
     ] {
-        let frame = Frame::rotate_then_translate(axis, angle, translation);
+        let frame = Frame::rotate_then_translate(axis, angle, translation, fixture::band())
+            .expect("a literal axis has a definite direction");
         // `eval::wire::wire_transform`'s own expression, verbatim: the
         // axis normalized (its `unit`), then `Mat3::rotation_about`,
         // then `Affine3::from_parts` with the translation.

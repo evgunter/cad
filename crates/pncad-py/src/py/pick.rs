@@ -55,7 +55,7 @@ use crate::py::quantity::Length;
 use crate::py::select::entity_kind;
 use crate::py::typed_err;
 use crate::py::value::{Evaluation, lengths};
-use crate::tags::{hit_test_error_tag, node_pick_error_tag};
+use crate::tags::{hit_test_error_tag, mesh_pick_error_tag, node_pick_error_tag};
 use pncad::select as s;
 
 /// A direction as the bare triple it is — dimensionless.
@@ -158,6 +158,18 @@ fn hit_test_value(py: Python<'_>, err: &s::HitTestError) -> Py<PyAny> {
 /// reads them. That is the `AssemblyError` precedent (a gather refusal
 /// arrives there under the gather's own tag, without the gather's
 /// `node`), and this class's docstring says so.
+///
+/// The index arm neither forwards nor withholds: `variant` stays
+/// `mesh_index`, which is the door whose invariant broke, and
+/// `index_variant` carries the payload's own discriminant beside it.
+/// A second indexing invariant added kernel-side would otherwise join
+/// the first under one word with no alarm anywhere, because the match
+/// a wrapper can write is on the carrier and not on what it carries.
+///
+/// Its three numbers cross beside that discriminant, as `patch`,
+/// `triangle` and `index` (`crate::pick_payload`) — the payload
+/// belongs to a type nothing raises, so it has no door of its own to
+/// carry them and this is the only crossing they get.
 fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
@@ -178,6 +190,26 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
             [none(), none(), none(), none()]
         }
     };
+    let index_variant = match err {
+        s::NodePickError::Index(inner) => PyString::new(py, mesh_pick_error_tag(inner))
+            .unbind()
+            .into_any(),
+        s::NodePickError::Standing(_)
+        | s::NodePickError::NotABody { .. }
+        | s::NodePickError::NoSuchBody { .. }
+        | s::NodePickError::Tessellate(_) => none(),
+    };
+    // `usize` and `u32` both convert infallibly, so these three
+    // degrade nowhere.
+    let count = |n: usize| -> Py<PyAny> {
+        match n.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let numbers = crate::pick_payload::index_payload(err);
+    let patch = numbers.patch.map_or_else(none, count);
+    let triangle = numbers.triangle.map_or_else(none, count);
+    let index = numbers.index.map_or_else(none, int);
     typed_err(
         py,
         ErrorClass::NodePick,
@@ -193,6 +225,10 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
             ("through", through),
             ("kind", kind),
             ("body", body),
+            ("index_variant", index_variant),
+            ("patch", patch),
+            ("triangle", triangle),
+            ("index", index),
         ],
     )
 }
@@ -452,11 +488,10 @@ impl NodePick {
     /// [`Self::mesh`]**, in polyline order — [`Self::patch_names`]'
     /// edge twin, same contract and same per-slot loud arm.
     ///
-    /// The polylines themselves are not bound (their content beside
-    /// indices is arena keys), so what this is FOR is a consumer that
-    /// hit-tests against drawn edges by POSITION — a display
-    /// coordinate valid for one tessellation — and reads the name out
-    /// of here.
+    /// `Mesh.boundaries` is the drawing side: entry `i` here names the
+    /// edge polyline `i` of that list, so a consumer that drew the
+    /// wireframe and hit-tested an edge reads its selectable name out
+    /// of here, with the arena key never leaving.
     fn boundary_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .boundary_names(&evaluation.inner)
