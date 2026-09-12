@@ -5209,3 +5209,15 @@ in both briefs, neither reviewer sees the other's report; the same
 shared-box note applies to both arms (the dispatch waited ~40 min for
 disk behind PERF-9's reviewers — a method note on both arms equally).
 Block PERF-B3's draw record stays branch-side until the block concludes.
+
+## D290 review ordinal fixed at dispatch (2026-09-12)
+
+D290 (SCALAR; PR #2461 open — frozen head `aad3c387a`): **ordinal
+4100** (SCALAR band; the band's first claim). Protocol v6 dual: draw =
+`/dev/urandom` byte **111**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**,
+concurrent on the frozen head, read-side isolation (v6 item 5), briefs
+identical and stored before either ran. Pre-draw difficulty
+**S / structural** (recorded branch-side at the block draw). Impl phase:
+~222k tokens (harness), ~46 min wall; impl CI **34717389869** GREEN on
+the head (twelve `test` jobs, five `k-lint (gate, …)`, nothing
+narrowed). Sample number at merge, in main's merge order. Row at merge.
