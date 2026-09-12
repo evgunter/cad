@@ -80,6 +80,9 @@ every row is shape 1, and `scaled()` only multiplies.
 
 The viewer site this file called "a third site" was fixed with the other
 two. `crates/editor-core/tests/r1_dual_probes.rs` was also the one
-unmarked file of the three and now carries a `gated_to!` naming
-`crates/editor-core/src/eval/`, `src/node.rs`, `crates/geom-core/src/dual.rs`
-and its two sibling helper modules.
+unmarked file of the three and now carries a `gated_to!` derived from
+what the suite ASSERTS ON — the evaluation and key modules, the product
+and edit doors it drives, the topo validator it calls, and the stored
+geometry its deep digest samples — rather than from the suite's subject
+alone. `crates/viewer/tests/review_gui0_r1.rs`'s pre-existing marker was
+widened for the same reason in the same PR.

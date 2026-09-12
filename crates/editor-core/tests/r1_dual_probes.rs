@@ -36,13 +36,29 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-// The dual value channel and the content key this suite is a
-// differential over, plus the sibling helper modules it draws its
-// corpus and its fixtures from.
+// What this suite ASSERTS ON, not what it is named after. The rows are a
+// differential between the f64 and the Dual64 evaluation of one document,
+// read through a digest that samples stored surfaces and certified curve
+// carriers, plus the two doors the rows drive directly (the product gather
+// and the incremental edit) and the validator they call on what comes back.
+// Every path below is upstream of an assertion in this file; the sibling
+// helper modules carry the corpus and the fixtures.
 test_utils::gated_to![
     "crates/editor-core/src/eval/",
     "crates/editor-core/src/node.rs",
+    "crates/editor-core/src/product.rs",
+    "crates/editor-core/src/edit.rs",
+    "crates/editor-core/src/program.rs",
+    "crates/editor-core/src/expr.rs",
+    "crates/editor-core/src/measure.rs",
     "crates/geom-core/src/dual.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/topo/src/body.rs",
+    "crates/topo/src/validate.rs",
+    "crates/topo/src/null.rs",
+    "crates/geom/src/",
+    "crates/geom-brep/src/certify.rs",
+    "crates/profile/src/",
     "crates/editor-core/tests/corpus/",
     "crates/editor-core/tests/fixture/",
 ];
@@ -432,7 +448,7 @@ fn r1_two_seeds_over_a_shared_subgraph_separate_exactly_on_the_cone() {
 /// counterexample anyway.
 #[test]
 fn r1_no_value_only_key_collision_search() {
-    let mut rng = fuzz::start("r1 dual: value-only key collision search");
+    let mut rng = fuzz::start("r1_no_value_only_key_collision_search");
     // Small integral values and tangents, where an FNV walk is most
     // likely to alias: the high bits of the two words agree.
     let draw = |rng: &mut fuzz::Rng| f64::from((rng.below(41) as i32) - 20) / 4.0;

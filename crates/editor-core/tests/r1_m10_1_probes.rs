@@ -68,7 +68,7 @@ fn normal_mass_oracle(sigma: f64, lo: f64, hi: f64) -> f64 {
 /// integration oracle, stays in `[0, 1]`, and complements sum to 1.
 #[test]
 fn sampled_masses_match_an_independent_integration_oracle() {
-    let mut rng = fuzz::start("r1 m10-1: box_mass against the integration oracle");
+    let mut rng = fuzz::start("sampled_masses_match_an_independent_integration_oracle");
     let rounds = fuzz::scaled(40);
     for round in 0..rounds {
         let sigma = rng.range(1e-4, 2.0);
@@ -78,15 +78,23 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             let y = rng.range(-4.0 * sigma, 4.0 * sigma);
             (x.min(y), x.max(y))
         };
-        let ctx = format!(
-            "round {round}: sigma {sigma}, sub ({a}, {b}) ({})",
-            fuzz::replay()
-        );
+        // A THUNK, not a string: this runs `scaled(40)` times and the
+        // message is wanted only on the round that fails.
+        let ctx = || {
+            format!(
+                "round {round}: sigma {sigma}, sub ({a}, {b}) ({})",
+                fuzz::replay()
+            )
+        };
 
         // Normal against the oracle.
         let got = box_mass(&p("x"), &Distribution::Normal { sigma }, (a, b)).expect("priceable");
         let want = normal_mass_oracle(sigma, a, b);
-        assert!((got - want).abs() < 1e-9, "{ctx}: normal {got} vs {want}");
+        assert!(
+            (got - want).abs() < 1e-9,
+            "{}: normal {got} vs {want}",
+            ctx()
+        );
 
         // TruncatedNormal against the renormalized oracle.
         let t = Distribution::TruncatedNormal {
@@ -105,7 +113,8 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             };
             assert!(
                 (got - want).abs() < 1e-8,
-                "{ctx}: truncated ({slo}, {shi}) {got} vs {want}"
+                "{}: truncated ({slo}, {shi}) {got} vs {want}",
+                ctx()
             );
         }
 
@@ -117,7 +126,8 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             let want = overlap / (shi - slo);
             assert!(
                 (got - want).abs() < 1e-12,
-                "{ctx}: uniform ({slo}, {shi}) {got} vs {want}"
+                "{}: uniform ({slo}, {shi}) {got} vs {want}",
+                ctx()
             );
         }
 
@@ -145,7 +155,8 @@ fn sampled_masses_match_an_independent_integration_oracle() {
             // mass on a point, so the sum is still 1.
             assert!(
                 (inside + left + right - 1.0).abs() < 1e-9,
-                "{ctx}: {dist:?} partition {inside} + {left} + {right}"
+                "{}: {dist:?} partition {inside} + {left} + {right}",
+                ctx()
             );
         }
     }
@@ -155,7 +166,7 @@ fn sampled_masses_match_an_independent_integration_oracle() {
 /// zero — `==`, not "small" — across sampled supports and sigmas.
 #[test]
 fn truncated_normal_tail_is_exactly_zero_on_its_own_support() {
-    let mut rng = fuzz::start("r1 m10-1: truncated-normal tail on its own support");
+    let mut rng = fuzz::start("truncated_normal_tail_is_exactly_zero_on_its_own_support");
     for round in 0..fuzz::scaled(50) {
         let sigma = rng.range(1e-6, 10.0);
         let lo = -rng.range(0.0, 5.0 * sigma);
@@ -214,7 +225,7 @@ fn band_answers_are_exactly_the_measure_free_ones() {
 /// at least (within an ulp's worth of scaling) the requested mass.
 #[test]
 fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
-    let mut rng = fuzz::start("r1 m10-1: quantile box determinism and monotonicity");
+    let mut rng = fuzz::start("the_quantile_box_is_deterministic_monotone_and_covers_its_mass");
     let dist = Distribution::Normal { sigma: 1.0 };
     let doc = {
         let doc = ProfileDoc::empty(DocumentId::derive("r1-quantile"), Tol::witness());

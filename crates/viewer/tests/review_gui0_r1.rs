@@ -53,7 +53,20 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
-test_utils::gated_to!["crates/viewer/src/", "crates/bvh/src/", "crates/pncad/src/"];
+// What this suite asserts on. The camera, input and scene rows are the
+// viewer's own (`crates/viewer/src/`) over `bvh`'s box type and the
+// `pncad` facade it reaches the kernel through; the two mesh rows assert
+// directly on what the TESSELLATOR returns for a display tolerance
+// (`crates/mesh/src/`), and every coordinate in every row is a
+// `geom_core` point compared under a `geom_core` tolerance
+// (`crates/geom-core/src/`).
+test_utils::gated_to![
+    "crates/viewer/src/",
+    "crates/bvh/src/",
+    "crates/pncad/src/",
+    "crates/mesh/src/",
+    "crates/geom-core/src/",
+];
 
 use std::collections::HashMap;
 
@@ -105,7 +118,11 @@ fn built(delta: f64) -> viewer::SceneMesh {
 /// Every claim `Camera`'s module docs make about a reachable state,
 /// checked on one camera. Labelled per assertion so a merged row still
 /// names the property that broke (`memories/test-suite-cost.md`).
-fn assert_camera_contract(camera: &Camera, provenance: &str) {
+///
+/// `provenance` is a THUNK, not a string: this runs once per step of a
+/// sweep whose depth rides `CAD_FUZZ_EFFORT`, and a message built eagerly
+/// is built on every passing step as well as the failing one.
+fn assert_camera_contract(camera: &Camera, provenance: impl Fn() -> String) {
     let limit = std::f64::consts::FRAC_PI_2;
     for (name, value) in [
         ("target.x", camera.target().x),
@@ -119,29 +136,34 @@ fn assert_camera_contract(camera: &Camera, provenance: &str) {
     ] {
         assert!(
             value.is_finite(),
-            "[{provenance}] {name} is not finite: {value}"
+            "[{}] {name} is not finite: {value}",
+            provenance()
         );
     }
     assert!(
         camera.distance() >= camera.min_distance() && camera.distance() <= camera.max_distance(),
-        "[{provenance}] distance {} escaped the band {}..{}",
+        "[{}] distance {} escaped the band {}..{}",
+        provenance(),
         camera.distance(),
         camera.min_distance(),
         camera.max_distance()
     );
     assert!(
         camera.pitch().abs() < limit,
-        "[{provenance}] pitch reached the pole: {}",
+        "[{}] pitch reached the pole: {}",
+        provenance(),
         camera.pitch()
     );
     assert!(
         camera.yaw() >= -std::f64::consts::PI && camera.yaw() < std::f64::consts::PI,
-        "[{provenance}] yaw escaped [-pi, pi): {}",
+        "[{}] yaw escaped [-pi, pi): {}",
+        provenance(),
         camera.yaw()
     );
     assert!(
         camera.near() > 0.0 && camera.near() < camera.far(),
-        "[{provenance}] depth range not ordered: near {} far {}",
+        "[{}] depth range not ordered: near {} far {}",
+        provenance(),
         camera.near(),
         camera.far()
     );
@@ -150,16 +172,19 @@ fn assert_camera_contract(camera: &Camera, provenance: &str) {
         let len = (v.x * v.x + v.y * v.y + v.z * v.z).sqrt();
         assert!(
             (len - 1.0).abs() < 1e-12,
-            "[{provenance}] {name} is not unit: {len}"
+            "[{}] {name} is not unit: {len}",
+            provenance()
         );
     }
     assert!(
         u.z > 0.0,
-        "[{provenance}] the up vector fell past the pole: {u:?}"
+        "[{}] the up vector fell past the pole: {u:?}",
+        provenance()
     );
     assert!(
         (r.x * u.x + r.y * u.y + r.z * u.z).abs() < 1e-12,
-        "[{provenance}] right and up are not orthogonal"
+        "[{}] right and up are not orthogonal",
+        provenance()
     );
 }
 
@@ -175,7 +200,7 @@ fn assert_camera_contract(camera: &Camera, provenance: &str) {
 /// walk through the whole vocabulary can reach.
 #[test]
 fn the_camera_contract_survives_random_operation_walks() {
-    let mut rng = fuzz::start("gui0-r1 camera operation walk");
+    let mut rng = fuzz::start("the_camera_contract_survives_random_operation_walks");
     let walks = fuzz::scaled(48);
     let steps = 16;
     let mut refusals = 0usize;
@@ -183,7 +208,9 @@ fn the_camera_contract_survives_random_operation_walks() {
     for walk in 0..walks {
         let aspect = rng.range(0.2, 5.0);
         let mut camera = Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
-        assert_camera_contract(&camera, &format!("walk {walk} step 0 ({})", fuzz::replay()));
+        assert_camera_contract(&camera, || {
+            format!("walk {walk} step 0 ({})", fuzz::replay())
+        });
         for step in 0..steps {
             // A quarter of the draws are deliberately not moves.
             let op = match rng.below(8) {
@@ -217,21 +244,19 @@ fn the_camera_contract_survives_random_operation_walks() {
             match camera::apply(&camera, &op) {
                 Ok(next) => {
                     camera = next;
-                    assert_camera_contract(
-                        &camera,
-                        &format!("walk {walk} step {step} after {op:?} ({})", fuzz::replay()),
-                    );
+                    assert_camera_contract(&camera, || {
+                        format!("walk {walk} step {step} after {op:?} ({})", fuzz::replay())
+                    });
                 }
                 Err(error) => {
                     refusals += 1;
                     // A refusal is a value, and the camera is untouched.
-                    assert_camera_contract(
-                        &camera,
-                        &format!(
+                    assert_camera_contract(&camera, || {
+                        format!(
                             "walk {walk} step {step} after refusal {error:?} ({})",
                             fuzz::replay()
-                        ),
-                    );
+                        )
+                    });
                 }
             }
             // The projection exists and is finite at every reachable state.
@@ -269,7 +294,7 @@ fn the_camera_contract_survives_random_operation_walks() {
 /// a mutation both shipped framing rows survive.
 #[test]
 fn the_projection_carries_the_field_of_view_and_the_aspect() {
-    let mut rng = fuzz::start("gui0-r1 projection fov/aspect");
+    let mut rng = fuzz::start("the_projection_carries_the_field_of_view_and_the_aspect");
     let cases = fuzz::scaled(96);
     for case in 0..cases {
         let aspect = rng.range(0.25, 4.0);
@@ -323,7 +348,7 @@ fn the_projection_carries_the_field_of_view_and_the_aspect() {
 /// random drags, viewport shapes, camera orientations and zoom levels.
 #[test]
 fn a_pan_moves_the_cursor_point_by_the_dragged_distance_on_both_axes() {
-    let mut rng = fuzz::start("gui0-r1 pan cursor-anchoring");
+    let mut rng = fuzz::start("a_pan_moves_the_cursor_point_by_the_dragged_distance_on_both_axes");
     let cases = fuzz::scaled(64);
     let map = InputMap::default();
     for case in 0..cases {

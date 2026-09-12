@@ -2021,19 +2021,35 @@ printed the first four draws of each row's own stream: two runs at one
 on all seven. That is the claim the item existed to establish, and it
 was false for all three files beforehand.
 
-**All seven rows are shape 1**, so `scaled()` is monotone in the safe
-direction everywhere and nothing wanted `fuzz::pinned`. The one mixed
-case the memory warns about — `the_camera_contract_survives_random_operation_walks`,
-a search with an anti-vacuity floor — is safe as written because its
-floor is a FRACTION of the count (`refusals > walks / 4`), so raising
-EFFORT raises both sides together; an absolute `K` there would have had
-to move.
+**Six of the seven rows are shape 1**; the seventh,
+`the_camera_contract_survives_random_operation_walks`, is a shape-1
+search with an anti-vacuity floor bolted on, which is the MIXED case
+`memories/test-suite-cost.md` names as the trap. Nothing wanted
+`fuzz::pinned`, and `scaled()` is monotone in the safe direction for the
+six. The mixed row's floor is a FRACTION of the count
+(`refusals > walks / 4`), so raising EFFORT raises both sides together
+where an absolute `K` would have had to move — but whether a floor of
+that shape can go red on a real degradation is a separate question,
+carried by its own row and not settled by this unit.
 
 **One file was ungated** (`r1_dual_probes`) and now carries a marker.
-Checked rather than assumed: `--gated-check` at 57 suites, and the
-marker's cross-crate path (`geom-core/src/dual.rs`) demonstrated NOT
-inert — a diff of that file alone puts `editor-core` in `PKGS` and
-leaves the suite out of the skip notices.
+Checked rather than assumed: `--gated-check` at 57 suites, and every
+named path demonstrated NOT inert — `scripts/ci-filter.py --files` over
+a one-line diff of each one leaves the suite out of the skip notices,
+while a path the marker does not name still skips it.
+
+**The first marker named too few paths, and so did `review_gui0_r1`'s.**
+A marker states what a suite ASSERTS ON, not what it is named after, and
+both were written to the suite's subject instead: `r1_dual_probes` drives
+`product_recorded`, `editor_core::apply` and `topo::validate_geometric*`
+and digests `topo::Body`'s stored surfaces and certified carriers, none
+of which the first set named; `review_gui0_r1` asserts on what the
+TESSELLATOR returns and compares `geom_core` points, and named neither
+crate. Both are widened, each addition proved to flip its suite from
+SKIPPED to running. This is the eleventh instance of the omission
+TCOST-9 swept ten of, and the arm `_unnamed_helper_imports` adds only
+covers the `tests/` half — the `src/` half is still the author's
+judgement, which is where both of these went wrong.
 
 **The sweep found no fourth instance of this class.** Exactly three
 private seed doors and exactly three private effort dials existed, and
