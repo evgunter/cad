@@ -1,5 +1,7 @@
 square_prism v=4020000000000005 a=4038000000000000 vpad=3d30155555555555 apad=3d95590000000000
+quintic_prism REFUSED Face { face: FaceKey(3v1), source: QuadratureBudget { width_len: 9.590767917362096e-8, target_len: 1.024e-9, rounds: 1 } }
 arc_prism REFUSED Face { face: FaceKey(4v1), source: QuadratureBudget { width_len: 1.1046012566786891e-7, target_len: 1.024e-9, rounds: 1 } }
 arc_taper REFUSED Face { face: FaceKey(4v1), source: QuadratureBudget { width_len: 3.626166065277822e-7, target_len: 1.024e-9, rounds: 1 } }
+tilted_cut_upper v=3fd921fb54443180 a=40096d2e7648ca17 vpad=3df3e03f15555555 apad=3e1dd05e00000000
 bulged_extrusion v=4022487ed5110b46 a=403995a0313fde5c vpad=0000000000000000 apad=0000000000000000
 box_extrusion v=4020000000000000 a=4038000000000000 vpad=0000000000000000 apad=0000000000000000
