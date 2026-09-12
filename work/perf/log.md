@@ -907,3 +907,40 @@ against a fresh build after every landing; the per-build triangle
 table is filed (`pick-index-triangle-table-rebuilt-every-build`).
 State-sync rode the PR; merged at `0ad4d28a3` (PR 2451). First B3
 unit landed; lane reclaimed.
+
+## 2026-09-12 — PERF-7 and the display probe adjudicated
+
+**PERF-7** (frozen `c26d3220f`): APPROVE-WITH-FIXES on both arms, one
+MAJOR each and they differ. One arm MEASURED that the tessellator's
+lanes decide K-funnel predicates (28 verdicts when the pass runs on
+the bracket's own thread, 0 on the normal path at any width), so the
+map silences `k_stats::FRAMES` exactly as it silenced the budget
+meter — and the PR's sweep disposed of the channel on a false
+enumeration (62 `Bracket::open` sites in 25 files, two in
+production). The other arm found the filed fixed-price item's premise
+wrong: the memo-primed `die` re-index regresses at FOUR threads
+(0.68 → 1.01 ms) and small memo-primed bodies are slower than serial
+at four threads; the split is ≈0.04 ms injection plus ≈1.5–2.2 µs per
+face on the hit path. Both arms found the sub-millisecond cost class.
+Fix pass in two parts: everything now (the item rewritten with both
+arms' numbers and an attempt at the hit-path slot cost; the arena-
+first error row; a guard that the parallelism did not vanish; a
+`Drop` guard on the meter swap; full-key re-stamp; the one-door
+`FaceBounds` shape; peak memory measured; the addendum's built target
+deleted under CLAUDE.md's re-word clause), and the funnel composed
+through PERF-8's `detached`/`splice` door once PERF-8 lands — the
+block's two parallel units meet at that seam. Unilateral MAJOR on the
+funnel channel (the opus arm); the pair is clean.
+
+**The display probe** (PR 2464): APPROVE-WITH-FIXES with two MAJORs
+about claims, not behaviour: the "never more than the picture"
+invariant is stated on the ladder's TOTAL and is false on the 13 all-
+planar corpus documents (2–3 tessellations of the same tiny mesh)
+while the named row passed by document selection; and the new
+derivation cites the one-sided-error sentence the same PR files as
+false — rustdoc, not ratified text, so the lane's to correct. Fix
+pass: the invariant restated per probe with a flat-count stop and a
+56-row pin; the two-sided law stated at both sites and the VIEW item
+re-scoped; a refusal at the scale probe must not leave a document
+un-budgeted; `Vec3::norm` for the hand-rolled diagonal; named stop
+reasons; the doc mass trimmed.
