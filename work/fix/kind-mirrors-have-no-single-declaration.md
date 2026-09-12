@@ -2,8 +2,9 @@
 id: kind-mirrors-have-no-single-declaration
 kind: issue
 title: a fieldless kind enum is a hand-mirror of its error enum, and only a source-scan row sees the phantom direction
-status: spec
+status: closed
 opened: 2026-09-04
+closed: 2026-09-12
 ---
 
 
@@ -248,3 +249,76 @@ spelling the pattern cannot match. Both predate 2026-09-11. `AttrKind`'s
 phantom direction is guarded twice over; only its pairing direction is
 open, across 3 arms. If anyone still wants it after the three land it
 gets its own row, owing a serde round-trip pin.
+
+## DECLINED (Ev, in-chat, 2026-09-12) — the macro does not happen
+
+The scale check (PR 2417, `docs/FIX-ERRKINDS-SPEC.md`) answered
+**feasible for three of the four pairs**, and the answer to *"should
+we"* is **no**. Ev's decision, on the evidence below. The spec is
+retired per `docs/DOC-LEDGER.md`; this row is its record.
+
+**The costs are four and each is real**: a new workspace crate (the
+layering objection to hosting an error-declaration macro in
+`geom-core`, the kernel's numeric root, is sound — and the tree's only
+`#[macro_export]` today is in a dev-only crate); **87 public variant
+declarations leaving rustfmt's care**; the spelling
+`enum PathError[T] where [T: Real];`, which E0229 **forces** and which
+a reader of `path.rs` meets before they meet the macro; and **one point
+of failure replacing four**, a bug in ~40 lines of macro being a bug in
+three pairs at once.
+
+**Against which the prize is smaller than this row claimed, in three
+ways that were measured rather than argued:**
+
+1. **The defect has no recorded instances.** Searched the tracker and
+   `docs/` for any guard catching a phantom variant or a wrong
+   pairing: nothing. This row's own framing — *"`Self::Merge(_) =>
+   Kind::Join` type-checks"* — is a hypothetical, and it was written by
+   a lane that had just landed one of these guards. Absence of a filed
+   instance is not proof the defect never occurred, but this tracker
+   files meticulously and three waves turned up no case.
+2. **Only TWO purpose-built guards exist**, not three or four:
+   `crates/topo/src/boolean/mod.rs:2878` and
+   `crates/editor-core/src/product.rs:963`. `PathErrorKind`'s
+   exhaustive consumer is `path_error_tag` — the **FFI tag map**, which
+   exists for its own job and catches phantoms as a side effect its
+   doc notes, and which the spec correctly keeps. `AttrKind` is covered
+   the same way by `pncad-py/src/tags.rs` and `appearance.rs`'s
+   `noun()`, and came off the migration list entirely as not an error
+   pair. So the macro retires purpose-built machinery for **two** pairs.
+3. **Roughly half of the headline deletion is that machinery.** The
+   spec's PR 2 removes ~400 lines from `boolean/mod.rs`, of which the
+   guard, its `label()` table and `sample_errors()` (whose only caller
+   it is) are the larger share. The biggest single win is deleting
+   scaffolding built to watch for something that has never happened.
+
+**And the prize does not cover the class this program actually bleeds
+from.** The spec's §5 establishes that the migration closes the pairing
+direction for `kind()` and **not** for `Display`:
+`BooleanError`'s hand-written ~400-line `Display` can still render a
+`Merge` arm with join prose and nothing objects. Every user-facing
+defect FIX has fixed in three waves lived in `Display` — a type
+identifier standing in a sentence, `VerbKind` writing
+`Boolean(Subtract)` for a door that does not exist, a synthesized
+margin nothing measured. This row's claim that the migration closes
+"the pairing direction" is true of `kind()` and false where it matters.
+
+## What survives, and it is not this row
+
+**A new pair arrives unguarded by default.** That is the one real gap
+this row identified, it is untouched by declining the macro, and it
+does not need a code generator — it needs a sentence in the error-type
+convention. Filed as
+`work/fix/a-new-kind-pair-arrives-unguarded-by-default.md`.
+
+**The question this row was obscuring** is cheaper and still open:
+given a defect with no instances, do the two purpose-built guards earn
+their ~230 lines at all? That is a live question either way — a cheap
+guard against a silent class is often worth keeping unfired — but it
+needs no crate and touches nothing a reader meets. It rides the residue
+row above.
+
+**Not re-litigable from the feasibility answer.** The macro *can* be
+written; `transition_table!` proves the shape and PR 2417 proved the
+grammar. This is a decision about whether it should be, and it was
+taken with the feasibility answer in hand.
