@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-11
 closed: 2026-09-12
 branch: door/vectorslot-all
+pr: 2446
 refs: [all-census-idiom-forces-the-visit-not-the-update, boolean-op-has-a-third-hand-written-complete-list, vectorslot-slots-has-no-reader, seven-vector-families-is-a-prose-count-at-two-tag-sites]
 ---
 
