@@ -148,6 +148,18 @@ although that type has a `Display`. A Debug rendering cannot carry a
 recourse a reader can act on, so the arm could not have delegated one
 even once its carrier has it. Changed to `{e}` in the same PR.
 
+**The Debug repair retired a tracked census row.**
+`pncad-py`'s `prose_census` keeps `KNOWN_BRACED`, a roster of every
+brace-shaped payload rendered through `Debug`, each with its count, and
+asks that an entry be struck in the PR that repairs it. The
+`offset_fit.rs` / `OffsetFitError` / `e` row was that site — recorded
+as *"found BY this census; reachability into `typed_err` not traced, so
+severity is undecided and the site is disclosed rather than claimed"*,
+and filed nowhere. Rendering `SplineError` through its `Display`
+retires it, so the row is struck (a third fence, LIB's, crossed by
+announcement). The `POSITIONAL` entry for the same file stands: the two
+`{:?}` over the window's `u` and `v` intervals are unchanged.
+
 **What pinned these messages: nothing.** Neither carrier had a single
 test discriminating any rendering — `validate.rs`'s Display-coverage
 row asserts only `!err.to_string().is_empty()`, and every other hit is
