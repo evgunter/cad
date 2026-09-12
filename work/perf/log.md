@@ -783,3 +783,25 @@ including `k-lint (gate, release-default)`. The lane also dropped the
 now-false `[BLOCKED]` title prefix and rewrote Ev's PR body around
 the same argument — flagged to Ev with the offer to restore it.
 Lane reclaimed; no PERF lane is running.
+
+## 2026-09-12 — Ev: cut the next block; block PERF-B3 drawn (BRANCH-SIDE)
+
+Ev on the proposed block ("parallel per-face tessellation and mass-
+property fluxes, the BVH residual, the fit-delta probe beside it"):
+"sounds good … proceed in the order that you see fit". Three units
+cut and specced: PERF-7 (`tessellation-is-serial-per-face`,
+`docs/PERF-7-SPEC.md`, MESH territory), PERF-8 (`mass-properties-are-
+serial-per-face`, `docs/PERF-8-SPEC.md`, PROPS/TOPO plus a composing
+door on `geom_core::k_stats` — the funnel's recording is thread-local,
+which is the real content of that unit), PERF-9 (`bvh-is-the-index-
+after-the-memo`, `docs/PERF-9-SPEC.md`, the index seam in editor-core
+and `crates/bvh`). All three are independent of each other and are
+dispatched together; the display probe follows as a side unit when a
+lane frees its disk.
+
+**Block PERF-B3 pre-draw fields, logged before the byte:** PERF-7 =
+M / structural (slot 0); PERF-8 = M–L / structural + numeric (slot 1);
+PERF-9 = M / structural (slot 2). Dual review on every unit (kernel
+and index-seam code; none is low risk). Ordinals continue in the PERF
+band from 3406.
+Draw: `/dev/urandom` byte **173** (< 252), 173 mod 3 = 2 ⇒ fable position 2. **Slot 0 PERF-7 = OPUS, slot 1 PERF-8 = OPUS, slot 2 PERF-9 = FABLE.**

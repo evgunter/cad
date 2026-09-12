@@ -571,6 +571,16 @@ demo-only and test-only units record no A/B row.
 - `gathers_on_this_thread` compiles without debug assertions — landed
   (PR 2328).
 
+**Block PERF-B3** (Ev, 2026-09-12: "your plan for the next block sounds
+good"; sequencing left to the orchestrator):
+
+- PERF-7 — the tessellator's face loop as D9 idiom 1 (`docs/PERF-7-SPEC.md`).
+- PERF-8 — per-face mass-property fluxes as idiom 1 with the K-funnel
+  composing across threads (`docs/PERF-8-SPEC.md`).
+- PERF-9 — the pick index's BVH as per-face trees under a top-level
+  tree, memoized beside the patches (`docs/PERF-9-SPEC.md`).
+- Beside the block, the display probe (viewer) as a side unit.
+
 **Block PERF-B2**, after B1 and Ev's D1 ruling:
 
 - The per-face patch memo across index builds — landed (PR 2315):
