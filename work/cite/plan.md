@@ -226,10 +226,22 @@ correction beneath it, so the rot stays legible.
 ### Where this text lives
 
 Here, which is the home that survives for as long as this program is
-open. **Where it binds every lane it belongs in
-`docs/prompts/implementer-discipline.md`, which is META's file and
-META's to land** — not taken from here, and announced to META in this
-PR. That is the one piece of this convention CITE does not own.
+open — and, where it binds every lane, in
+`docs/prompts/implementer-discipline.md` **§7**, which every implementer
+reads by path before starting. That is two sentences, deliberately:
+
+> **Cite by name; line numbers rot.** A number may ride along beside the
+> name and is allowed to go stale; a bare `file.rs:NNN` is not a
+> citation.
+
+Everything above is the argument for those two sentences and the
+evidence that they describe existing practice. The lane-facing rule does
+not need the argument, and a rule that needs a page to state is a rule
+nobody applies under time pressure.
+
+`docs/prompts/*` is META's territory. §7 was drafted through Ev
+(2026-09-12), cut down by him twice, and landed on his word rather than
+taken — announced to META in this PR.
 
 ## Review posture
 

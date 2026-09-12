@@ -204,3 +204,23 @@ be done.
 **CITE now holds no unstarted work.** `S351` is a standing watch and is
 unfired; `lane-scratchpad-…` is deferred; everything else is closed or
 re-homed. The exit walk is the next thing whenever Ev wants it.
+
+## §7 landed (2026-09-12)
+
+The convention's lane-facing half is now
+`docs/prompts/implementer-discipline.md` §7, two sentences:
+
+> **Cite by name; line numbers rot.** A number may ride along beside the
+> name and is allowed to go stale; a bare `file.rs:NNN` is not a
+> citation.
+
+Drafted long, cut twice by Ev — the first draft was three paragraphs, the
+second four sentences, and he cut *"usually inside the diff that writes
+them"* from the last one. The argument, the measurement and the three
+never-repointed shapes stay in `work/cite/plan.md`, where a reader who
+wants to know why can find them; the rule a lane reads before every unit
+is the two sentences. A rule that needs a page to state is one nobody
+applies under time pressure.
+
+`docs/prompts/*` is META's. Landed on Ev's word rather than taken, and
+announced to META in the PR.
