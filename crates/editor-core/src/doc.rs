@@ -457,8 +457,9 @@ impl<P> Doc<P> {
 
     /// Replaces the whole placement registry — the ONE door A11's
     /// cluster-record maintenance writes through
-    /// ([`crate::mate::solve::reconcile`]), so re-keying is a single
-    /// observable act rather than a scatter of per-row edits.
+    /// ([`crate::mate::solve::maintain`], deriving the rows or
+    /// re-applying recorded ones), so re-keying is a single observable
+    /// act rather than a scatter of per-row edits.
     pub(crate) fn set_placements(&mut self, rows: BTreeMap<RecipeNodeId, crate::placement::Frame>) {
         self.placements = rows;
     }

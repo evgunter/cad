@@ -1214,7 +1214,7 @@ fn undecided(fault: &MateFault) -> bool {
 /// [`undecided`] says which faults those are);
 /// [`EditError::MaintenanceUnrecorded`] when `solve` is `None` (a
 /// replay — [`Maintain::Never`]) and a row needed a solved frame.
-fn reconcile<P: crate::ProfilePayload>(
+pub(crate) fn reconcile<P: crate::ProfilePayload>(
     before: &Doc<P>,
     after: &mut Doc<P>,
     tol: Tol,
