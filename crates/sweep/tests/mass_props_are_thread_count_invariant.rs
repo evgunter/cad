@@ -19,6 +19,14 @@
 //! everything below — the bracket, the sink, the walk — sits on one
 //! thread of the pool being measured.
 //!
+//! **One row is `probe`-gated and it is rostered as EXECUTED**
+//! (`scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`, which
+//! `k_probe_sweep.sh` derives its default-selection loop from). The
+//! sample population is the thing k-lint counts, so a row asserting it
+//! does not move with the thread count is worth nothing if it only
+//! compiles: an inert pin reports the same green as one that ran. The
+//! other three rows are ungated and run on every merge as usual.
+//!
 //! The bodies are PERF-6's roster: rational-walled arc lofts, every wall
 //! face a certified quadrature, plus the thin strip whose sign the
 //! schedule cannot decide — the body that escalates and whose
