@@ -1043,3 +1043,27 @@ NaN-sign D9 scope, `Rim` storing its direction twice, certificate
 types forgeable, quadrature-budget display); they are slotted at the
 next plan update, `rim-stores-its-traversal-direction-twice` into the
 sphere lane beside sphere-pole-side.
+
+**Two PRs open, two duals claimed (2026-09-12).** Mignitude-floor
+PR #2469 at `c8fd64033` (run 34719680314 green): `e_lo/|d| = 0.56` at
+the micron row's sup cell (was 0.016), the round-4 bound 18.9× tighter,
+24 of 70 corpus requests moved (largest 808×), one door-level bound
+GREW 1.8% through the marking schedule (filed:
+`offset-fit-door-bound-is-not-monotone-in-the-cell-bound`), the stall
+face lost its only fixture (filed). Ordinal 2404, byte 253 ⇒ R1 fable /
+R2 opus. Sign-hull PR #2468 at `c6f5d7aea` (run 34719540390 green,
+6975 + 7699 rows): the door `Real::select_le_zero` on five impls; 51
+STEP `u_ref` records and 15 evaluation digests re-blessed with locus
+receipts; M10-5's re-chart retired; sweep hits filed on shell, blend,
+bool. **One deviation the orchestrator did not anticipate**: the
+spec's comparison (smallest component, ties high) put the seam through
+every axis direction — 778 of 817 corpus faces on its tie set, two
+prism walls hulled by a quarter turn, M10-5's pair budget blown — and
+the lane shipped `|n.z| ≤ max(|n.x|, |n.y|)` instead (seam on the 45°
+cone, 20 of 817 faces — `die_chamfer`'s chamfers). The ruling (option
+1, no sign transfer) is Ev's and holds; the comparison was the spec's
+and is put to the reviewers as C1 with the chamfer regression question
+and a ρ-sweep, then to Ev. Ordinal 2405, byte 34 ⇒ R1 opus /
+R2 fable. Briefs for both duals stored on `props/b2-block`; four
+review lanes run at once on the box now that the two implementer
+build trees (27 GB) are freed.
