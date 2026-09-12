@@ -165,9 +165,19 @@ fn an_empty_open_list_is_the_sealed_hollow() {
         "an outer shell and a cavity shell"
     );
     assert_eq!(body.faces().count(), 12, "two complete boxes");
-    // Euler on the two boxes: genus 0 each, so V − E + F = 2 per shell
-    // and the census door's whole-body genus is 0 over s = 2.
-    assert_eq!(euler_counts(body).genus(), Ok(0), "two genus-0 shells");
+    // Euler on the two boxes: genus 0 each, so V − E + F = 2 per shell —
+    // 4 over the two, no rings, and the door's whole-body genus is 0.
+    let counts = euler_counts(body);
+    assert_eq!(
+        (
+            counts.v - counts.e + counts.f,
+            counts.r,
+            counts.s,
+            counts.genus()
+        ),
+        (4, 0, 2, Ok(0)),
+        "two genus-0 shells"
+    );
     assert_exact(
         body,
         cup::sealed_forms(cup::L, cup::H, cup::T),

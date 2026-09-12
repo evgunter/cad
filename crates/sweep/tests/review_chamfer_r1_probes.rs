@@ -114,7 +114,12 @@ fn assert_chamfer_shape(body: &Body<f64>, census: (usize, usize, usize)) {
         body.faces().count(),
     );
     assert_eq!(got, census, "census");
-    assert_eq!(euler_counts(body).genus(), Ok(0), "Euler–Poincaré");
+    let counts = euler_counts(body);
+    assert_eq!(
+        (counts.r, counts.s, counts.genus()),
+        (0, 1, Ok(0)),
+        "Euler–Poincaré: one closed shell, no rings, genus 0"
+    );
     for (k, _) in body.faces() {
         let fd = body.get_face(k).expect("a face");
         assert!(

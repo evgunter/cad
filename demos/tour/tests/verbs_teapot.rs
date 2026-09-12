@@ -97,7 +97,9 @@ use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use pncad::topo::readback::euler_counts;
+#[path = "common/census.rs"]
+mod census;
+use census::{genus, rings};
 use pncad::topo::{Body, ReplaceFaceError, ShellError};
 
 /// Every fixture's mouth plane.
@@ -811,19 +813,6 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<pncad::topo::FaceKey> {
         })
         .map(|(k, _)| k)
         .collect()
-}
-
-/// The body's ring count, through the census door.
-fn rings(body: &Body<f64>) -> i64 {
-    euler_counts(body).r
-}
-
-/// The body's Euler–Poincaré genus, through the census door; an odd
-/// census is a torn store, and the row fails on the typed refusal.
-fn genus(body: &Body<f64>) -> i64 {
-    euler_counts(body)
-        .genus()
-        .expect("a census that satisfies Euler–Poincaré")
 }
 
 /// **The ANNULAR mouth: two disjoint rims, not one ring.**

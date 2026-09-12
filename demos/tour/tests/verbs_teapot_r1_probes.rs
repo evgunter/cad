@@ -114,11 +114,6 @@ fn loop_carriers(body: &Body<f64>, lk: pncad::topo::LoopKey) -> Vec<Curve3<f64>>
         .collect()
 }
 
-/// The body's ring count, through the census door.
-fn rings(body: &Body<f64>) -> i64 {
-    euler_counts(body).r
-}
-
 /// **P1 — #1082's fix, re-derived on the same fixture that first
 /// measured the defect** (a squared vase on stations, wall thickness
 /// and chord budget all outside the PR's sweep, kept verbatim).
@@ -234,7 +229,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
             }
         }
     }
-    assert_eq!(rings(&cup), 1, "and that is the body's only ring");
+    assert_eq!(euler_counts(&cup).r, 1, "and that is the body's only ring");
 
     // Euler bookkeeping on the returned data reads genus 0 — the census
     // door over the returned arenas, not the scene's helper.

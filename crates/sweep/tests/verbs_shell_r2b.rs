@@ -10,27 +10,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::readback::euler_counts;
 use topo::{Body, FaceKey, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-/// The body's ring count, through the census door.
-fn rings_of(body: &Body<f64>) -> i64 {
-    euler_counts(body).r
-}
-
-/// The body's Euler–Poincaré genus, through the census door; an odd
-/// census is a torn store, and the row fails on the typed refusal.
-fn genus_of(body: &Body<f64>) -> i64 {
-    euler_counts(body)
-        .genus()
-        .expect("a census that satisfies Euler–Poincaré")
 }
 
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {

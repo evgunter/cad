@@ -35,6 +35,8 @@
 
 use geom_core::Point3;
 use geom_core::Tol;
+use topo::EulerCounts;
+use topo::readback::euler_counts;
 use topo::{
     Body, EntityId, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated, Provenance, validate,
     validate_closed,
@@ -195,11 +197,22 @@ fn cube_by_hand_validates_with_minimal_counts() {
     assert_eq!(body.points().count(), 8);
     assert_eq!(body.curves().count(), 12);
     assert_eq!(body.surfaces().count(), 1);
-    // Euler–Poincaré: v − e + f = 8 − 12 + 6 = 2 = 2(s − h) + r with
-    // s = 1, h = r = 0. (The validator's per-shell component pass now
-    // checks this internally; the count check here is the acceptance
-    // criterion's explicit form.)
-    assert_eq!(8 - 12 + 6, 2);
+    // Euler–Poincaré on the built body: v − e + f − r = 8 − 12 + 6 − 0
+    // = 2 = 2(s − h) with s = 1, h = 0. (The validator's per-shell
+    // component pass checks this internally; the census door is the
+    // acceptance criterion's explicit form.)
+    let counts = euler_counts(&body);
+    assert_eq!(
+        counts,
+        EulerCounts {
+            v: 8,
+            e: 12,
+            f: 6,
+            r: 0,
+            s: 1
+        }
+    );
+    assert_eq!(counts.genus(), Ok(0));
     assert_eq!(validate(&body), Ok(()));
     // The finished cube is a tier-2 closed solid: no scaffolding, one
     // connected shell component.

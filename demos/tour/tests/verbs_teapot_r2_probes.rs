@@ -31,7 +31,9 @@ use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
 };
-use pncad::topo::readback::euler_counts;
+#[path = "common/census.rs"]
+mod census;
+use census::{genus, rings};
 use pncad::topo::{Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
 
 /// A closed polygon through `$first` and the rest, on the `path`
@@ -82,19 +84,6 @@ fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     )
     .expect("footprint extrudes")
     .body
-}
-
-/// The body's ring count, through the census door.
-fn rings(body: &Body<f64>) -> i64 {
-    euler_counts(body).r
-}
-
-/// The body's Euler–Poincaré genus, through the census door; an odd
-/// census is a torn store, and the row fails on the typed refusal.
-fn genus(body: &Body<f64>) -> i64 {
-    euler_counts(body)
-        .genus()
-        .expect("a census that satisfies Euler–Poincaré")
 }
 
 /// Every planar face whose plane origin sits at station `y`.

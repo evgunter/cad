@@ -85,17 +85,31 @@ every copy the row names, and the two the re-home counted on top:
   inherent method on the component walk, is not one of the nine — it is
   not the whole-body identity — and stays.
 - `crates/sweep/tests/verbs_shell.rs`, `verbs_shell_r2_probes.rs`,
-  `verbs_shell_r2b.rs`, `shellfix1_r1_probes.rs` — `rings_of`/`genus_of`
-  keep their names and are one-line delegates onto the door; the
-  "one of NINE copies" pointer is gone with the copies.
+  `verbs_shell_r2b.rs`, `shellfix1_r1_probes.rs` — their `rings_of`/
+  `genus_of` copies are deleted; the four suites import the pair from
+  `crates/sweep/tests/common/census.rs`, defined once for the crate.
 - `demos/tour/src/teapot.rs` — `genus` deleted, call sites ask the door.
 - `demos/tour/tests/verbs_teapot.rs`, `verbs_teapot_r2_probes.rs` —
-  `rings`/`genus` delegate; `verbs_teapot_r1_probes.rs`'s `rings` and its
-  hand identity likewise.
+  their `rings`/`genus` copies are deleted; both mount
+  `demos/tour/tests/common/census.rs` through `#[path]` (the tour is a
+  detached cargo root, so this is its one home, beside `rim_select`).
+  `verbs_teapot_r1_probes.rs`'s `rings` and its hand identity are
+  inlined onto the door.
 - The two the re-home counted beyond nine: `demos/tour/src/skinned.rs`
   (`genus` deleted) and `demos/tour/src/torusvessel.rs` (`genus`
   deleted, `census` reads the door).
 
 The parity guard the row worried about now lives once, typed
-(`EulerParityError`), so a copy can no longer drop it. Nothing the row
-names remains, so it closes.
+(`EulerParityError`), so a copy can no longer drop it.
+
+**What remains, and where.** The identity is spelled nowhere outside
+the door. Two named helper PAIRS remain, one per test crate — the
+shared homes this row asked for: `sweep`'s `common::census::{rings_of,
+genus_of}` and the tour's `common/census.rs::{rings, genus}` — each a
+one-line read of the door that re-raises its typed refusal verbatim.
+They are two definitions across two cargo roots, not nine copies of
+an identity, and the row's own fix ("a shared test-support surface …
+plus one deletion pass") is what they are. `review_m1_pr4`'s
+per-component `ShellComponent::genus` is not one of the nine and stays
+(`work/topo/euler-characteristic-has-three-carriers.md` carries it).
+Nothing the row names remains, so it closes.

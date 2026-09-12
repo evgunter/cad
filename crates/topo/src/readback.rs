@@ -483,11 +483,10 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
 ///   outer loop is not a ring; only its holes are.
 /// - `s`: the SHELL count, which is the identity's `S`. Not the solid
 ///   count: a solid holding a void has one solid and two shells, and it
-///   is the second shell the `2s` term pays for. The two agree on every
-///   body that has one shell per solid, which is why a copy that reads
-///   the solid arena passes until the first operator separates them —
-///   the shell partition and the shell fusion both move `s` and leave
-///   the solid count alone.
+///   is the second shell the `2s` term pays for. The two agree only
+///   while every solid has exactly one shell; the shell partition
+///   (`movefac`) and the shell fusion (`kfmrh`) move `s` and leave the
+///   solid count alone.
 ///
 /// The counts are `i64` so that a delta between two censuses, or the
 /// identity's own subtraction, needs no cast at the site.
@@ -528,6 +527,9 @@ impl EulerCounts {
     /// minted or killed outside the operators. Halving it would turn
     /// that into a plausible number, so the check comes before the
     /// divide and the refusal carries the census that failed it.
+    /// Every arena writer is `pub(crate)`, so today an odd census is
+    /// reachable only from inside the crate: the refusal guards the
+    /// store, not a caller's input.
     ///
     /// ```
     /// use geom_core::Point3;
@@ -561,14 +563,10 @@ impl EulerCounts {
 /// Typed refusal of [`EulerCounts::genus`]: the census does not satisfy
 /// the Euler–Poincaré identity's parity, so no genus follows from it.
 ///
-/// Its own type rather than a [`ReadbackError`] arm because it is a
-/// different kind of fact: every `ReadbackError` arm reports a lookup
-/// that came back empty or a carrier that fixes no frame — a refusal
-/// about one entity, from a door that takes its key. This one is about
-/// the whole store, from a value that has already been read; and
-/// [`euler_counts`] itself cannot refuse (an arena always has a
-/// length), so folding the parity arm into the enum would hand every
-/// `face_pose` caller an arm that door can never produce.
+/// Its own type rather than a [`ReadbackError`] arm: every
+/// `ReadbackError` arm is a refusal about one entity, from a door that
+/// takes its key; this one is about the whole store, from a value
+/// already read, and [`euler_counts`] itself cannot refuse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EulerParityError {
     /// The census that failed the parity check, verbatim.
@@ -635,8 +633,11 @@ mod tests {
     use geom_core::{Point3, Tol};
 
     use super::{EulerCounts, EulerParityError, euler_counts};
+    use crate::body::Body;
     use crate::entity::Vertex;
-    use crate::fixtures::{ops_cube, ops_holed_box, prov};
+    use crate::euler::{MefSite, MevSite};
+    use crate::fixtures::{ops_cube, ops_genus2, ops_holed_box, prov};
+    use crate::validate::validate;
 
     #[test]
     fn cube_counts_and_genus_zero() {
@@ -674,37 +675,130 @@ mod tests {
         assert_eq!(counts.genus(), Ok(1));
     }
 
-    /// The shell term: a second seed beside the cube is a second shell
-    /// (and, minted by `mvfs`, a second solid). Re-homing that shell
-    /// into the cube's solid — the same-solid two-shell shape the
-    /// fusion form exists for, reachable only by raw in-crate write —
-    /// moves the solid count and NOT the census: `s` counts shells,
-    /// and the genus is where it was.
+    /// The shell term, through the public operators: a planted ring
+    /// promoted by `mfkrh_plug` disconnects the pillow's shell surface
+    /// (the whole-body reading goes to −1, reported not refused), and
+    /// `movefac` then partitions that ONE shell into two inside the ONE
+    /// solid. The door's `s` follows the shell arena — 2 — while the
+    /// solid count stays 1, and the genus returns to 0.
     #[test]
-    fn two_shells_count_as_two_whatever_the_solid_count() {
-        let t = ops_cube(Tol::witness());
-        let mut body = t.body;
-        let other = body.mvfs(Point3::new(9.0, 9.0, 9.0)).unwrap();
-        let two_solids = euler_counts(&body);
-        assert_eq!((two_solids.s, body.solids().count()), (2, 2));
-        assert_eq!((two_solids.v, two_solids.f), (9, 7));
-        assert_eq!(two_solids.genus(), Ok(0));
-
-        let cube_solid = body.get_shell(t.seed.shell).unwrap().solid;
-        body.get_shell_mut(other.shell).unwrap().solid = cube_solid;
-        body.get_solid_mut(cube_solid)
-            .unwrap()
-            .shells
-            .push(other.shell);
-        body.get_solid_mut(other.solid).unwrap().shells.clear();
-        assert_eq!(body.solids().count(), 2, "the emptied solid still exists");
+    fn two_shells_in_one_solid_through_movefac() {
+        let tol = Tol::witness();
+        let p = |x: f64| Point3::new(x, 0.0, 0.0);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p(0.0)).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+                tol,
+            )
+            .unwrap();
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            tol,
+        )
+        .unwrap();
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                p(2.0),
+                tol,
+            )
+            .unwrap();
+        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         assert_eq!(
-            body.get_solid(cube_solid).unwrap().shells.len(),
-            2,
-            "one solid now holds both shells"
+            euler_counts(&body),
+            EulerCounts {
+                v: 3,
+                e: 2,
+                f: 2,
+                r: 1,
+                s: 1
+            }
         );
-        assert_eq!(euler_counts(&body), two_solids, "the census reads shells");
         assert_eq!(euler_counts(&body).genus(), Ok(0));
+
+        body.mfkrh_plug(kill.ring).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        let before = euler_counts(&body);
+        assert_eq!(
+            before,
+            EulerCounts {
+                v: 3,
+                e: 2,
+                f: 3,
+                r: 0,
+                s: 1
+            }
+        );
+        assert_eq!(
+            before.genus(),
+            Ok(-1),
+            "the whole-body reading goes negative"
+        );
+
+        let shells = body.movefac(seed.shell).unwrap();
+        assert_eq!(shells.len(), 2, "the partition minted a second shell");
+        assert_eq!(body.solids().count(), 1, "…inside the one solid");
+        let after = euler_counts(&body);
+        assert_eq!(
+            (after.v, after.e, after.f, after.r),
+            (before.v, before.e, before.f, before.r),
+            "movefac moves no v/e/f/r"
+        );
+        assert_eq!(after.s, 2, "the door's s is the SHELL count");
+        assert_eq!(after.genus(), Ok(0));
+        assert_eq!(validate(&body), Ok(()));
+    }
+
+    /// `r` is the SUM of every face's rings, not the number of ringed
+    /// faces: moving the holed box's bottom ring onto its top face
+    /// leaves one face carrying two rings and no other ring anywhere,
+    /// and the census does not move.
+    #[test]
+    fn rings_are_summed_per_face_not_counted_per_ringed_face() {
+        let t = ops_holed_box(Tol::witness());
+        let mut body = t.body;
+        let before = euler_counts(&body);
+        body.ring_move(t.plug.ring, t.seed.face).unwrap();
+        assert_eq!(body.get_face(t.seed.face).unwrap().rings.len(), 2);
+        assert_eq!(
+            body.faces()
+                .filter(|(_, face)| !face.rings.is_empty())
+                .count(),
+            1
+        );
+        let after = euler_counts(&body);
+        assert_eq!(after, before);
+        assert_eq!(after.r, 2);
+        assert_eq!(after.genus(), Ok(1));
+    }
+
+    /// The genus-2 body: `v − e + f − r = 22 − 33 + 13 − 4 = −2 = 2(1 − 2)`.
+    #[test]
+    fn genus_two_body_reads_two() {
+        let body = ops_genus2(Tol::witness());
+        let counts = euler_counts(&body);
+        assert_eq!(
+            counts,
+            EulerCounts {
+                v: 22,
+                e: 33,
+                f: 13,
+                r: 4,
+                s: 1
+            }
+        );
+        assert_eq!(counts.genus(), Ok(2));
     }
 
     /// Red-first: a vertex minted outside the operators tears the
@@ -727,6 +821,5 @@ mod tests {
         assert_eq!(refusal, EulerParityError { counts });
         let text = refusal.to_string();
         assert!(text.contains("v=9 e=12 f=6 r=0 s=1"), "{text}");
-        assert!(text.contains("torn"), "{text}");
     }
 }

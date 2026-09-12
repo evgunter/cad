@@ -68,7 +68,11 @@ fn the_chamfered_cube() {
 
     let counts = euler_counts(&out_body);
     assert_eq!((counts.v, counts.e, counts.f), (24, 48, 26), "census");
-    assert_eq!(counts.genus(), Ok(0), "Euler–Poincaré");
+    assert_eq!(
+        (counts.r, counts.s, counts.genus()),
+        (0, 1, Ok(0)),
+        "Euler–Poincaré: one closed shell, no rings, genus 0"
+    );
 
     // Every face is a plane — the whole claim of the analytic case.
     for (k, _) in out_body.faces() {

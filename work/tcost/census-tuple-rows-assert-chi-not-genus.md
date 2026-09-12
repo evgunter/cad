@@ -36,6 +36,32 @@ statements as they were (the S-TCOST seam: rows are ordinary tests and
 do not move), which is why this is a residue rather than part of that
 PR.
 
+## The same shape elsewhere (the class, not the instance)
+
+The χ-on-door-counts spelling is not only these two files. Every row
+below reads its counts through the door and then asserts the
+alternating sum by hand, for a reason of its own:
+
+- `crates/topo/tests/review_m3_pr1.rs` — `chi(body)` (`c.vertices −
+  c.edges + c.faces − c.rings` over the door-fed `EulerCensus`) and its
+  rows `cross_shell_kfmrh_connected_sum_and_genus_addition` and the
+  detached-component rows around it, which state χ per component sum
+  where the whole-body `genus()` would fold two shells into one number.
+- `crates/topo/tests/review_m1_pr5.rs` —
+  `nested_detachment_detached_component_with_genus`'s `v − e + f − r ==
+  2` is a component-aware statement (`c = 2` components in one shell)
+  the whole-body door cannot make.
+- `crates/topo/src/review_m1_pr2/mod.rs` — `euler_poincare_holds(body,
+  shells, genus)`, the caller-supplied `(s, h)` probe form used by
+  `cube_independent` and `degenerates_and_sequences`; its header asks
+  that the reviewer's re-derivations not be simplified to match the
+  implementation.
+
+The tcost/tint owner decides which of these move to `genus()` (the
+first file's single-shell rows and this file's nine can), which keep χ
+because they state something per component the door does not carry,
+and whether the review module's form is off-limits by its header.
+
 ## What to do
 
 Read `EulerCounts` whole at those rows (or have `counts` return it) and

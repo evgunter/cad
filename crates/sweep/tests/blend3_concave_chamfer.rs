@@ -83,7 +83,11 @@ fn the_chamfered_cavity() {
     // ceiling, and the same vent's mouth in the block's top — and a
     // ringed face is not a disk, so each costs the alternating sum one.
     assert_eq!(counts.r, 2, "the vent's two mouths");
-    assert_eq!(counts.genus(), Ok(0), "Euler–Poincaré, ring-corrected");
+    assert_eq!(
+        (counts.s, counts.genus()),
+        (1, Ok(0)),
+        "Euler–Poincaré, ring-corrected"
+    );
 
     let want = chamfered_cavity_volume(2.0, D);
     let props = topo::mass_properties(&out_body, Tol::witness()).expect("closed-form props");

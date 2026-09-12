@@ -216,7 +216,7 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions, tol: Tol) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), opts, tol)
 }
 
-/// The structural census the A4 acceptance identity compares: solids,
+/// The structural census the A4 acceptance identity compares: shells,
 /// faces, edges, vertices of a whole product.
 fn census(body: &Body<f64>) -> (i64, i64, i64, i64) {
     let EulerCounts { v, e, f, s, .. } = euler_counts(body);
