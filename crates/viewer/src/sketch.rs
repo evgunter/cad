@@ -476,9 +476,12 @@ fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionEr
 /// It reads the LANDED value rather than resolving the frame's
 /// expressions again: this is a picture, the evaluation already
 /// produced the placement, and a second derivation is a second answer
-/// waiting to disagree with the first. (The kernel's own f64 read is a
-/// different question — see `wire::profile_plane_f64` — and is about
-/// structure selection, not about drawing.)
+/// waiting to disagree with the first. The kernel reads by that same
+/// rule and asks a different question: `wire::profile_plane_f64` takes
+/// the `f64` placement the frame's own evaluation minted and carried
+/// (`NodeValue::placement`), which is for structure selection and not
+/// for drawing. The two differ in WHICH answer they take off the
+/// frame's value, not in whether they take one.
 pub fn frame_placement(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,

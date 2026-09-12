@@ -115,7 +115,7 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 /// part: the program's four junctions and the f64 validation of the
 /// assembled profile. The plane's two axes are NOT among them — the
 /// frame node decides its own placement, at both scalars, and the
-/// precompute READS it (`NodeValue::placement_f64`).
+/// precompute READS it (`NodeValue::placement`).
 const PRE_PASS: usize = 73;
 /// The one-solid part's log sizes by node: frame, profile, extrude.
 /// Under the pinned lift (the default) the Profile node's op reuses
@@ -125,7 +125,10 @@ const PRE_PASS: usize = 73;
 /// The FRAME's four are its axes decided twice, at the two scalars its
 /// two readers need: the lane read its value carries, and the `f64`
 /// placement every profile drawn on it reads. Twice per FRAME, not
-/// once per profile — a second profile on this frame would add none.
+/// once per profile — a second profile on this frame would add none,
+/// and a frame with NO profile on it still decides all four, because
+/// the placement is a component of the frame's own value and not a
+/// service to whoever happens to consume it.
 const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 653;

@@ -116,8 +116,8 @@ pub use drive::{
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
-    EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar, SplitSide, UnitVec3,
+    EvalOutcome, EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorKind,
+    NodeRefusal, NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar, SplitSide, UnitVec3,
     UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 pub use expr::{

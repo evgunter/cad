@@ -1,23 +1,31 @@
 //! **An authored frame's `f64` placement is carried on the frame's own
 //! value, not re-derived by each profile drawn on it** — the rows for
-//! `NodeValue::placement_f64` and the READ that `wire::profile_plane_f64`
+//! `NodeValue::placement` and the READ that `wire::profile_plane_f64`
 //! now is.
 //!
-//! The oracle is `fixture::plane_of`, which builds the plane from the
-//! DOCUMENT's authored literals through `SketchPlane::from_frame` and
-//! never touches the evaluator's `frame_from_slots` — so the equality
-//! is a claim about the carried value, not a restatement of how it was
-//! computed. Every number here is an exactly representable
-//! axis-aligned literal, so the rows separate at every eps the gate
-//! runs.
+//! Two oracles, neither built from the thing under test.
+//! `fixture::plane_of` builds the plane from the DOCUMENT's authored
+//! literals through `SketchPlane::from_frame` and never touches the
+//! evaluator's `frame_from_slots` — but it ASSERTS its fixture's `u`
+//! and `v` are already orthonormal, so on such a frame
+//! orthonormalization is the identity and an equality against it says
+//! only that nine literals were copied. The rows that need more write
+//! their expected plane out by hand: a frame whose `v` is not
+//! perpendicular, and a frame the document does not hold literals for
+//! at all. Every number is exactly representable in binary, so the
+//! rows separate at every eps the gate runs.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::BTreeMap;
+
 use crate::fixture;
 
+use editor_core::analysis::{BoxAxis, ParamBox};
+
 use editor_core::{
-    CancelToken, Datum, Dimension, DocEdit, DocParam, EvalOptions, Expr, Node, ParamName,
-    ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
+    CancelToken, Datum, Dimension, DocEdit, DocParam, EvalOptions, Expr, FramePlacement, Node,
+    ParamName, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 
@@ -34,13 +42,21 @@ fn eval(
     )
 }
 
-/// The carried placement of a node's value, or `None` where the value
-/// carries none.
-fn carried(
-    ev: &editor_core::Evaluation<f64>,
-    node: RecipeNodeId,
-) -> Option<profile::SketchPlane<f64>> {
-    ev.value(node).expect("the node evaluated").placement_f64
+/// What a node's value says its placement is.
+fn carried(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Option<FramePlacement> {
+    ev.value(node).expect("the node evaluated").placement
+}
+
+/// The plane an AUTHORED frame's value carries; panics on any other
+/// answer, naming it.
+fn authored(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> profile::SketchPlane<f64> {
+    match carried(ev, node) {
+        Some(FramePlacement::Authored(p)) => p,
+        other => panic!(
+            "node {} carries {other:?}, not an authored placement",
+            node.0
+        ),
+    }
 }
 
 /// Every component of a placement, as raw bits — the comparison an
@@ -79,10 +95,33 @@ fn p() -> ParamName {
     ParamName::new("lift")
 }
 
-/// A frame whose origin's z is the parameter `lift`, two square
+/// The parameter row 7 drives a frame's x axis LENGTH with — a
+/// `Scalar`, because a direction's components are not lengths.
+fn span() -> ParamName {
+    ParamName::new("span")
+}
+
+/// A one-axis degenerate box `name ∈ nominal + [offset, offset]`:
+/// the lane's parameter value at `f64`, moved off the nominal by an
+/// exact amount. `BoxAxis::Varying` need not contain zero — a leaf of
+/// the subdivision generally sits off the nominal — which is what
+/// makes "nominal" and "lane" two different points at one scalar.
+fn boxed_at(name: ParamName, offset: f64) -> Option<std::sync::Arc<ParamBox>> {
+    let mut axes = BTreeMap::new();
+    axes.insert(
+        name,
+        BoxAxis::Varying {
+            lo: offset,
+            hi: offset,
+        },
+    );
+    Some(std::sync::Arc::new(ParamBox::from_axes(axes)))
+}
+
+/// A frame whose origin's z is the parameter `lift`, **two** square
 /// profiles drawn on that one frame, and an extrude of the first.
-/// Returns the document and (frame, first profile, extrude).
-fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+/// Returns the document and (frame, both profiles, extrude).
+fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("wire_frame_placement_carry", Tol::witness());
     let doc = doc
         .apply(
@@ -113,7 +152,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recip
         doc,
         Node::Profile(fixture::desc(frame, vec![fixture::square(0.0, 0.0, 0.5)])),
     );
-    let (doc, _second) = fixture::insert(
+    let (doc, second) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(frame, vec![fixture::square(4.0, 0.0, 0.5)])),
     );
@@ -124,7 +163,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recip
             distance: fixture::len(1.0),
         },
     );
-    (doc, frame, first, extrude)
+    (doc, frame, [first, second], extrude)
 }
 
 /// Row 1 — an authored frame's value carries the placement the
@@ -149,15 +188,18 @@ fn an_authored_frames_value_carries_its_f64_placement() {
         }),
     );
     let ev = eval(&doc, None);
-    let got = carried(&ev, frame).expect("an authored frame carries a placement");
-    assert_same_plane(&got, &fixture::plane_of(&doc, frame), "the authored frame");
+    assert_same_plane(
+        &authored(&ev, frame),
+        &fixture::plane_of(&doc, frame),
+        "the authored frame",
+    );
     assert!(
         carried(&ev, profile).is_none(),
-        "a profile node carries no placement of its own"
+        "a profile node is not a frame and carries nothing"
     );
     assert!(
         carried(&ev, plane_datum).is_none(),
-        "a datum PLANE is not a frame and carries no placement"
+        "a datum PLANE is not a frame and carries nothing"
     );
 }
 
@@ -178,10 +220,10 @@ fn shared_frame_plane(lift: f64) -> profile::SketchPlane<f64> {
 /// exactly the parameter's delta.
 #[test]
 fn the_carry_moves_with_the_parameter_and_the_memo_cannot_stale_it() {
-    let (doc0, frame0, _first0, extrude0) = shared_frame_doc(0.0);
+    let (doc0, frame0, _profiles0, extrude0) = shared_frame_doc(0.0);
     let ev0 = eval(&doc0, None);
     assert_same_plane(
-        &carried(&ev0, frame0).expect("a placement at lift = 0"),
+        &authored(&ev0, frame0),
         &shared_frame_plane(0.0),
         "lift = 0",
     );
@@ -189,7 +231,7 @@ fn the_carry_moves_with_the_parameter_and_the_memo_cannot_stale_it() {
     // The same document at lift = 7, evaluated WITH the lift = 0
     // evaluation as the memo's prior: the frame's key moves with its
     // nominal slots, so the carried placement must move too.
-    let (doc7, frame7, _first7, extrude7) = shared_frame_doc(7.0);
+    let (doc7, frame7, _profiles7, extrude7) = shared_frame_doc(7.0);
     assert_eq!(
         (frame0, extrude0),
         (frame7, extrude7),
@@ -197,7 +239,7 @@ fn the_carry_moves_with_the_parameter_and_the_memo_cannot_stale_it() {
     );
     let ev7 = eval(&doc7, Some(&ev0));
     assert_same_plane(
-        &carried(&ev7, frame7).expect("a placement at lift = 7"),
+        &authored(&ev7, frame7),
         &shared_frame_plane(7.0),
         "lift = 7 over a lift = 0 prior",
     );
@@ -265,8 +307,9 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
         ev.node_error(derived)
     );
     assert!(
-        carried(&ev, derived).is_none(),
-        "a derived frame has no document elaboration and so no carried placement"
+        matches!(carried(&ev, derived), Some(FramePlacement::Derived)),
+        "a derived frame says so by NAME, not by an absence: {:?}",
+        carried(&ev, derived)
     );
     assert!(
         ev.value(up).is_some(),
@@ -294,7 +337,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
 ///
 /// The oracle is the log, not the carry — a reader that went back to
 /// re-deriving the plane would put those decisions back on every
-/// profile and move both counts, whatever `placement_f64` held.
+/// profile and move both counts, whatever the frame's value held.
 #[test]
 fn the_frames_axes_are_decided_once_per_frame_not_once_per_profile() {
     let axis_decisions = |ev: &editor_core::Evaluation<f64>, node: RecipeNodeId| {
@@ -305,12 +348,14 @@ fn the_frames_axes_are_decided_once_per_frame_not_once_per_profile() {
             .filter(|v| v.predicate == "datum_unit_norm")
             .count()
     };
-    let (one, frame, first, _extrude) = shared_frame_doc(0.0);
-    let ev_one = eval(&one, None);
-
-    // A third and a fourth profile on the SAME frame.
+    // `shared_frame_doc` already draws TWO profiles on the one frame;
+    // these make it four. The count under test is the frame's, so the
+    // two populations have to be different sizes and stated as the
+    // sizes they are.
+    let (two, frame, [first, second], _extrude) = shared_frame_doc(0.0);
+    let ev_two = eval(&two, None);
     let (three, third) = fixture::insert(
-        one.clone(),
+        two.clone(),
         Node::Profile(fixture::desc(frame, vec![fixture::square(-4.0, 0.0, 0.5)])),
     );
     let (four, fourth) = fixture::insert(
@@ -320,16 +365,17 @@ fn the_frames_axes_are_decided_once_per_frame_not_once_per_profile() {
     let ev_four = eval(&four, None);
 
     assert_eq!(
-        axis_decisions(&ev_one, frame),
+        axis_decisions(&ev_two, frame),
         4,
-        "the frame decides its two axes twice: once at the lane scalar for          the value it lands, once at the nominal for the placement it carries"
+        "the frame decides its two axes twice: once at the lane scalar for the \
+         value it lands, once at the nominal for the placement it carries"
     );
     assert_eq!(
         axis_decisions(&ev_four, frame),
-        axis_decisions(&ev_one, frame),
-        "two more profiles on one frame decide its axes no further times"
+        axis_decisions(&ev_two, frame),
+        "two MORE profiles on one frame decide its axes no further times"
     );
-    for profile in [first, third, fourth] {
+    for profile in [first, second, third, fourth] {
         assert_eq!(
             axis_decisions(&ev_four, profile),
             0,
@@ -337,4 +383,148 @@ fn the_frames_axes_are_decided_once_per_frame_not_once_per_profile() {
             profile.0
         );
     }
+}
+
+/// Row 5 — **the orthonormalization is carried, not the authored
+/// pair.** `v` is not perpendicular to `u`, so the placement's second
+/// column is the Gram-Schmidt RESIDUAL and a carry that copied the
+/// authored `v` would differ.
+///
+/// Every other row's frame is authored orthonormal — `fixture::plane_of`
+/// asserts that of its input — which makes orthonormalization the
+/// identity there and leaves a raw-`v` carry indistinguishable from a
+/// residual one. This row is the separating fixture: `u = x̂`,
+/// `v = x̂ + 2ŷ`, residual exactly `2ŷ`, unit `ŷ` — every step exact in
+/// binary, so the expected plane is written out and compared by bits.
+///
+/// Written by the review lane of 2026-09-12, adopted verbatim in
+/// substance.
+#[test]
+fn a_frame_whose_v_is_not_perpendicular_carries_the_orthonormalized_pair() {
+    let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_r5", Tol::witness());
+    let (doc, frame) = fixture::insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [0.0, 0.0, 0.0].map(fixture::len),
+            u: [1.0, 0.0, 0.0].map(fixture::scl),
+            v: [1.0, 2.0, 0.0].map(fixture::scl),
+        }),
+    );
+    let (doc, _profile) = fixture::insert(
+        doc,
+        Node::Profile(fixture::desc(frame, vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
+    let ev = eval(&doc, None);
+    assert_same_plane(
+        &authored(&ev, frame),
+        &profile::SketchPlane::from_frame(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+        ),
+        "v yields its component along u",
+    );
+}
+
+/// Row 6 — **an authored frame's profile is placed from the NOMINAL
+/// read, never from the frame's landed value.** That is what the
+/// carry's `Authored` arm is for, and it is invisible while the two
+/// agree — so this row drives the evaluation off the nominal with a
+/// degenerate `ParamBox` (`p ∈ nominal + [c, c]`, the shape
+/// `eval10_section_reads_the_nominal` uses), where they cannot.
+///
+/// A reader that answered "derived" for this authored frame would
+/// place its profile at the LANE and the body would sit `c` away.
+#[test]
+fn an_authored_frames_profile_places_at_the_nominal_not_at_the_boxed_lane() {
+    let (doc, _frame, _profiles, extrude) = shared_frame_doc(0.0);
+    let unboxed = eval(&doc, None);
+    let boxed = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            param_box: boxed_at(p(), 5.0),
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    assert_eq!(
+        point_bits(&boxed, extrude),
+        point_bits(&unboxed, extrude),
+        "the profile is placed from the frame's NOMINAL read, so a box that moves \
+         the lane off the nominal moves no point of it"
+    );
+}
+
+/// Row 7 — **a frame whose NOMINAL axes refuse does not poison the
+/// readers that never wanted the nominal.** The frame lands its value
+/// at the lane, an in-plane axis written against it evaluates, and the
+/// refusal is raised at the PROFILE, which is the reader that needed
+/// the nominal placement.
+///
+/// Reached the same way as row 6: `u = (p, 0, 0)` with `p` nominal
+/// zero — no direction at the nominal — under a box that binds
+/// `p = 1` at the lane.
+#[test]
+fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
+    let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_r7", Tol::witness());
+    let doc = doc
+        .apply(
+            &DocEdit::SetDocParam {
+                name: span(),
+                value: DocParam::continuous(Dimension::Scalar, 0.0),
+            },
+            Tol::witness(),
+        )
+        .expect("the parameter declares")
+        .doc;
+    let (doc, frame) = fixture::insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [0.0, 0.0, 0.0].map(fixture::len),
+            u: [
+                Expr::param(span(), Dimension::Scalar),
+                fixture::scl(0.0),
+                fixture::scl(0.0),
+            ],
+            v: [0.0, 1.0, 0.0].map(fixture::scl),
+        }),
+    );
+    let (doc, axis) = fixture::insert(doc, fixture::axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(fixture::desc(frame, vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            param_box: boxed_at(span(), 1.0),
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    assert!(
+        matches!(carried(&ev, frame), Some(FramePlacement::Unreadable { .. })),
+        "the frame carries its nominal refusal by name: {:?}",
+        carried(&ev, frame)
+    );
+    assert!(
+        ev.value(axis).is_some(),
+        "an in-plane axis reads the LANDED frame and does not care about the \
+         nominal: {:?}",
+        ev.node_error(axis)
+    );
+    assert!(
+        matches!(
+            ev.result(profile),
+            Some(editor_core::NodeResult::Failed(e))
+                if matches!(e.kind, editor_core::NodeErrorKind::DegenerateDirection { .. })
+        ),
+        "the profile is the reader that needed the nominal placement, so the \
+         refusal is raised there: {:?}",
+        ev.result(profile)
+    );
 }

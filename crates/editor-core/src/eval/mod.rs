@@ -36,6 +36,7 @@ pub(crate) use wire::{
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
+pub use wire::FramePlacement;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -292,25 +293,26 @@ pub struct NodeValue<T: Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
-    /// **An AUTHORED frame's `f64` placement** (`wire::frame_placement_f64`):
-    /// the node's nine slots at the document's nominal, orthonormalized
-    /// — the frame's own `DatumValue::Frame` answers the same question
-    /// at the LANE scalar, and the two ride side by side because they
-    /// have different readers (`wire::profile_plane_f64` and
+    /// **What a FRAME node's placement is** ([`FramePlacement`], minted
+    /// by `wire::frame_placement`): for an authored frame its nine
+    /// slots at the document's nominal, orthonormalized — the frame's
+    /// own `DatumValue::Frame` answers the same question at the LANE
+    /// scalar, and the two ride side by side because they have
+    /// different readers (`wire::profile_plane_f64` and
     /// `wire::frame_plane_lane`).
     ///
-    /// `None` for every node that is not an authored frame, DERIVED
-    /// frames included: a derived frame has no document elaboration at
-    /// any scalar, so there is no f64 placement to carry and its
-    /// profiles place at the lane. A reader that has already checked
-    /// the payload is a frame can therefore read `None` as "derived".
+    /// `None` means the node is NOT A FRAME, and only that. The three
+    /// answers a frame can give are the enum's three arms, so no reader
+    /// infers one of them from the absence of another, and a reference
+    /// to a non-frame gets the loud `WrongOperand` every by-value
+    /// reader of a frame raises.
     ///
     /// Rides the value, so memo reuse transfers the placement with the
-    /// geometry: the placement is a pure function of the node's nominal
-    /// slots and the tolerance, both of which the content key fixes, so
-    /// a hit's placement equals a recompute's bit for bit (the D9
-    /// argument the verdicts above ride on).
-    pub placement_f64: Option<profile::SketchPlane<f64>>,
+    /// geometry: it is a pure function of the node's nominal slots and
+    /// the tolerance, both of which the content key fixes, so a hit's
+    /// placement equals a recompute's bit for bit (the D9 argument the
+    /// verdicts above ride on).
+    pub placement: Option<FramePlacement>,
     /// RESERVED empty slot: the solved witness assignment (M6 fills).
     pub witness: WitnessSlot,
     /// The node's input-content hash (spec D4) — the memo currency.
@@ -2647,7 +2649,7 @@ where
     // slot and program-expression evaluation reach the funnel through
     // `check_unlogged`, which lands in no frame. A FRAME node decides
     // after its op as well as in it: its nominal placement
-    // (`wire::frame_placement_f64`) is the last thing in its frame.
+    // (`wire::frame_placement`) is the last thing in its frame.
     // The guard is `!Send`, so the
     // frame closes on the worker that opened it (idiom-1 parallelism
     // runs whole nodes on one worker each); an op that evaluates
@@ -2745,7 +2747,7 @@ where
             // The frame the profile is drawn on, at f64 — READ off
             // the frame node's own result, where its evaluation
             // minted it from the same nominal slots
-            // (`wire::frame_placement_f64`). The frame is a DAG input
+            // (`wire::frame_placement`). The frame is a DAG input
             // of this node, so its value is in hand and a failed
             // frame poisoned this node before the read.
             let placement = match wire::profile_plane_f64(results, program.plane) {
@@ -2858,7 +2860,7 @@ where
         // reused value's log opens with the same decisions. A
         // `Verdict` is (predicate, sign), and the inputs the content
         // key fixes — the resolved program, the placement the frame's
-        // own key fixes (`NodeValue::placement_f64`), the tolerance —
+        // own key fixes (`NodeValue::placement`), the tolerance —
         // are exactly what the precompute decides from, so D9 makes
         // the two sequences equal. It holds at EVERY scalar, and
         // `tag::slot` is why: the frame's key fixes its slots at the
@@ -2895,23 +2897,29 @@ where
         op_env,
         tol,
     );
-    // An AUTHORED frame's f64 placement, minted ONCE for the frame
-    // from the nominal slots already in hand and carried on its value
-    // — where every profile drawn on the frame reads it
+    // A FRAME node's placement, minted ONCE for the frame from the
+    // nominal slots already in hand and carried on its value — where
+    // every profile drawn on the frame reads it
     // (`wire::profile_plane_f64`) instead of evaluating those nine
-    // expressions again. `None` for every other node. It is a
-    // component of the VALUE, so it is minted only where there is a
-    // value to put it on: the op's own refusal at the lane scalar
+    // expressions again. `None` for every node that is not a frame. It
+    // is a component of the VALUE, so it is minted only where there is
+    // a value to put it on: the op's own refusal at the lane scalar
     // still answers first, and its decisions still precede these in
     // the frame opened above, which closes below.
-    let placement_f64 = match &op {
-        Ok(_) => wire::frame_placement_f64(node, &nominal_values, tol),
+    //
+    // It is minted for EVERY frame, including one no profile is drawn
+    // on, and that costs such a frame two direction decisions it did
+    // not make before. The alternative is a lookahead — mint only if
+    // some later node will ask — which makes a node's value depend on
+    // its consumers, and a node's value is the node's.
+    let placement = match &op {
+        Ok(_) => wire::frame_placement(node, &nominal_values, tol),
         Err(_) => Ok(None),
     };
     let recorded = bracket.finish();
     let escalations = Arc::new(recorded.escalations);
-    match (op, placement_f64) {
-        (Ok(out), Ok(placement_f64)) => NodeStep {
+    match (op, placement) {
+        (Ok(out), Ok(placement)) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 name_table: out.names,
@@ -2920,17 +2928,22 @@ where
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
-                placement_f64,
+                placement,
                 content_key,
                 naming_key,
             }),
             reused: false,
         },
         // The failure carries what the op escalated on its way to it:
-        // the frame is the node's whether or not the op built. A
-        // placement refusal is the node's too, and for the reason the
-        // nominal SLOT evaluation above already fails the node: no
-        // reader of that nominal could have read it either.
+        // the frame is the node's whether or not the op built. The
+        // mint's `Err` arm is the node's too, and it is deliberately
+        // narrow — a missing slot or a refused band, faults of the NODE
+        // that no environment could read around, the same shape the
+        // nominal SLOT evaluation above already fails on. A frame whose
+        // nominal AXES refuse is not one of them: that value lands, and
+        // the refusal is carried to the reader that wanted the nominal
+        // placement (`wire::FramePlacement::Unreadable`) rather than
+        // poisoning readers that only ever wanted the landed frame.
         (Err(kind), _) | (Ok(_), Err(kind)) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
