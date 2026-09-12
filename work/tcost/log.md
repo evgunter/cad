@@ -2030,9 +2030,11 @@ runs — N = 2 (control), 3, 4 and 6, three full runs each, four probe
 branches off one commit differing only in the shard literal, all four
 counts running in the same wave so a wave's runner weather is shared.
 Every run id is on the row. The probe PRs (#2428-#2431) were measurement
-only and are closed with their branches deleted; the landed diff is the
-row's verdict, two rewritten argument blocks in `ci.yml` and one
-corrected citation in `scripts/ci-filter.py`.
+only and are closed; their `tcost/probe-n*` branches are still on the
+remote, because this lane's token is refused ref deletion — whoever can,
+should delete them. The landed diff is the row's verdict, two rewritten
+argument blocks in `ci.yml` and one corrected citation in
+`scripts/ci-filter.py`.
 
 **The re-opening was right about the currency and wrong about the
 answer**, and the thing that decided it is the one clause the re-opening
