@@ -71,14 +71,9 @@ Three properties every fuzzer needs, together:
 - **Every fuzzer runs every time at EFFORT = 1, and the marker selects
   which ones run raised** (Ev, 2026-09-11). Match its named paths
   against the diff rather than the crate closure, and raise only on a
-  match — so a run that cannot resolve the diff raises nothing. EFFORT
-  is a count, never a time limit: a clock would make what a run explored
-  depend on the machine it ran on. A fuzzer whose EFFORT is not keyed to
-  the code it tests is a defect in the fuzzer.
-
-  The dial governs rows whose counts scale with it. A marked suite with
-  no dial, or one in a cargo root the run does not otherwise build, costs
-  what it costs and is a per-row decision.
+  match — so a run that cannot resolve the diff raises nothing. A fuzzer
+  whose EFFORT is not keyed to the code it tests is a defect in the
+  fuzzer.
 
 # Everything else
 
