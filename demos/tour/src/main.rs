@@ -378,6 +378,26 @@ fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
     )
 }
 
+/// What the tour knows about a body's volume once its tier-3 gate has
+/// run — the two LEVELS a certified quadrature can stop at.
+///
+/// Tier 3's +V check IS a certified quadrature, and the certificate it
+/// decides the sign on continues to the reporting target without
+/// re-running the rounds it has already paid for, so the gate and the
+/// number are one quadrature rather than two. The continuation can
+/// still refuse where the gate passed: the reporting target is a
+/// length that scales with ε, while the schedule's floor is a property
+/// of the part, so a body whose sign is definite may have no number at
+/// this ε. Such a body is VALID, and what the tour reports for it is
+/// the bracket its sign was decided on.
+enum Measured {
+    /// The reporting-level reading: volume, area, and their pads.
+    Number(pncad::topo::MassProperties<f64>),
+    /// The sign-level enclosure: two ends and the area lever, with no
+    /// volume number in it by construction.
+    Bracket(pncad::topo::VolumeEnclosure<f64>),
+}
+
 fn run_body(
     sb: &SceneBody,
     delta: f64,
@@ -396,7 +416,15 @@ fn run_body(
     // Tier 3 / 3′: boolean results validate AS THEY ARE, with the
     // op's declared contacts (3′); everything else through the plain
     // geometric gate (on contact-free bodies the two gates agree).
-    match &sb.contacts {
+    //
+    // The tier-3 arm keeps the SIGN CERTIFICATE its +V check decided
+    // on and asks that same quadrature for the number, so a body gated
+    // here is measured once. The 3′ arms gate and then measure through
+    // the reporting door, which is a second quadrature over the same
+    // body: the pair reads naturally and costs twice, and both
+    // spellings stand here because that contrast is the finding
+    // (`work/perf/gate-then-measure-pays-two-quadratures.md`).
+    let measured = match &sb.contacts {
         Some(contacts) if sb.at_rest => {
             match pncad::topo::validate_pseudomanifold(&sb.body, contacts, tol) {
                 Ok(()) => println!("   [{label}] tier-3' at rest: every declaration certified"),
@@ -406,17 +434,39 @@ fn run_body(
                     e.len()
                 ),
             }
+            Measured::Number(pncad::topo::mass_properties(&sb.body, tol).expect("mass properties"))
         }
         Some(contacts) => {
             pncad::topo::validate_pseudomanifold(&sb.body, contacts, tol).unwrap_or_else(|e| {
                 panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
             });
+            Measured::Number(pncad::topo::mass_properties(&sb.body, tol).expect("mass properties"))
         }
         None => {
-            pncad::topo::validate_geometric(&sb.body, tol)
+            let certificate = pncad::topo::validate_geometric_certificate(&sb.body, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}"));
+            // Read the bracket BEFORE the continuation consumes the
+            // certificate: it is the enclosure check 7 decided this
+            // body's orientation on, and the only thing left to report
+            // if the continuation cannot reach the reporting target.
+            let sign_level = certificate.enclosure();
+            match certificate.refine_to_target() {
+                Ok(props) => Measured::Number(props),
+                // A body tier 3 ADMITTED whose schedule cannot reach
+                // the reporting target: its sign is definite and its
+                // volume is not measurable at this ε. The bracket is
+                // the whole of what the quadrature is entitled to say,
+                // so the ribbon says it rather than the tour dying on a
+                // body the gate just certified. Every OTHER refusal is
+                // a body with no volume at all, and stays fail-loud.
+                Err(pncad::topo::MassPropsError::Face {
+                    source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+                    ..
+                }) => Measured::Bracket(sign_level),
+                Err(e) => panic!("{label}: mass properties failed: {e:?}"),
+            }
         }
-    }
+    };
 
     let (v, e, f, r, s, genus) = census(&sb.body);
     println!(
@@ -429,34 +479,64 @@ fn run_body(
         }
     );
 
-    // Exact B-rep mass properties (divergence theorem over the exact
-    // faces — not the mesh). Since M5 PR 11 curved-CUT faces
-    // contribute certified quadrature enclosures: `volume` is then a
-    // bracket midpoint with half-width `volume_pad` (0.0 on
-    // closed-form bodies).
-    let props = pncad::topo::mass_properties(&sb.body, tol).expect("mass properties");
-
     // Tessellate, self-check the mesh, and compare its signed volume
     // against the exact one as an end-to-end sanity ribbon.
     let mesh = pncad::mesh::tessellate(&sb.body, delta, tol).expect("tessellate");
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
-    let rel = ((v_mesh - props.volume) / props.volume).abs();
-    let certified = if props.volume_pad > 0.0 {
-        format!(" (certified enclosure ± {:.1e})", props.volume_pad)
-    } else {
-        String::new()
-    };
-    println!(
-        "   [{label}] exact: V = {:.6} m^3{certified}, A = {:.6} m^2; mesh (delta = {:.0e}): \
-         {} triangles, V_mesh = {v_mesh:.6} ({:.3}% off exact — chordal, inscribed)",
-        props.volume,
-        props.surface_area,
-        delta,
-        triangle_count(&mesh),
-        rel * 100.0
-    );
+    match &measured {
+        // The number: volume, area and their pads. Since M5 PR 11
+        // curved-CUT faces contribute certified quadrature enclosures,
+        // `volume` is a bracket midpoint with half-width `volume_pad`
+        // (0.0 on closed-form bodies).
+        Measured::Number(props) => {
+            let rel = ((v_mesh - props.volume) / props.volume).abs();
+            let certified = if props.volume_pad > 0.0 {
+                format!(" (certified enclosure ± {:.1e})", props.volume_pad)
+            } else {
+                String::new()
+            };
+            println!(
+                "   [{label}] exact: V = {:.6} m^3{certified}, A = {:.6} m^2; mesh (delta = \
+                 {:.0e}): {} triangles, V_mesh = {v_mesh:.6} ({:.3}% off exact — chordal, \
+                 inscribed)",
+                props.volume,
+                props.surface_area,
+                delta,
+                triangle_count(&mesh),
+                rel * 100.0
+            );
+        }
+        // The bracket, which has no number in it. The mesh is
+        // INSCRIBED at chordal budget `delta`, so it sags inside the
+        // exact surface by at most `delta` over each patch and the
+        // volume that costs is at most `delta * A` — the same slack the
+        // row above prints as a percentage and tolerates without a
+        // bound. Here it is the widening that lets the bracket be
+        // CHECKED rather than only printed.
+        Measured::Bracket(enclosure) => {
+            let slack = delta * enclosure.surface_area;
+            assert!(
+                v_mesh > enclosure.volume_lo - slack && v_mesh < enclosure.volume_hi + slack,
+                "{label}: mesh signed volume {v_mesh} is outside the certified SIGN-level \
+                 bracket [{}, {}] widened by the chordal slack {slack:e}",
+                enclosure.volume_lo,
+                enclosure.volume_hi
+            );
+            println!(
+                "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3 at SIGN level (tier 3 certified \
+                 the sign; the reporting target 1024·ε is under this body's quadrature floor, \
+                 so it has no volume NUMBER at this ε), A = {:.6} m^2; mesh (delta = {:.0e}): \
+                 {} triangles, V_mesh = {v_mesh:.6e} (inside the bracket, chordal slack ±{slack:.1e})",
+                enclosure.volume_lo,
+                enclosure.volume_hi,
+                enclosure.surface_area,
+                delta,
+                triangle_count(&mesh),
+            );
+        }
+    }
 
     // STL export — fail-loud on any refusal. The binary format's
     // 80-byte header is the one caller-visible identity it carries, so

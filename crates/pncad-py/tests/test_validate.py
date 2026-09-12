@@ -50,6 +50,8 @@ otherwise take `test_a_declared_glue_passes_the_fourth_rung` for
 evidence it is not.
 """
 
+import math
+import time
 import unittest
 
 import pncad
@@ -59,13 +61,17 @@ from pncad import (
     DocEdit,
     Expr,
     Node,
+    Open,
+    Start,
     ValidationError,
     ValidationFinding,
     assemble,
     circle,
+    circle_split,
     evaluate,
     m,
     product,
+    rad,
 )
 from test_assembly_eval import opened
 
@@ -520,6 +526,192 @@ class TestTheRefusalsShape(unittest.TestCase):
         )
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()  # raises if a record went stale
+
+
+def stacked_loft(doc, sections, length, radius):
+    """A loft up +y through `sections` closed loops, the loop at
+    station `t` given by `radius(t)`.
+
+    The one shape in reach of these bindings whose walls are
+    QUADRATURE faces rather than closed forms, which is what makes it
+    the fixture for a door about what a quadrature costs.
+    """
+    profiles = []
+    for i in range(sections):
+        t = i / (sections - 1)
+        plane = doc.insert(
+            Node.datum_frame(
+                (
+                    Expr.length_in(0.0, m),
+                    Expr.length_in(length * t, m),
+                    Expr.length_in(0.0, m),
+                ),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
+            )
+        )
+        profiles.append(doc.insert(Node.profile(radius(t), plane=plane)))
+    node = doc.insert(Node.loft(profiles, Expr.count(1)))
+    run = evaluate(doc)
+    assert run.succeeded(node), "the loft fixture evaluates"
+    return run.value(node).body()
+
+
+def polygonal_loft():
+    """A tapered square tube: the sides are STRAIGHT, so the lofted
+    walls are polynomial and every refinement round is cheap."""
+
+    def square(t):
+        half = (0.024 * (1 - t) + 0.012 * t) * m
+        return (
+            Open.at((-half, -half))
+            .line_to((half, -half))
+            .line_to((half, half))
+            .line_to((-half, half))
+            .line_to(Start)
+        )
+
+    return stacked_loft(Doc(), 3, 0.125, square)
+
+
+def oversized_round_loft():
+    """A tapered round tube 125 m long: RATIONAL walls, and a part big
+    enough that the certified quadrature cannot reach its target.
+
+    The size is the point rather than an accident. The reporting
+    target is `1024 * eps`, a length that shrinks with the run's
+    tolerance, while the refinement schedule's floor is a property of
+    the PART — so at the suite's own eps the two cross only on a part
+    this large. A teapot-sized version of this body certifies here and
+    refuses at eps = 1e-12; scaling it up brings that same crossing
+    within reach of a test that cannot set eps.
+    """
+    return stacked_loft(
+        Doc(),
+        2,
+        125.0,
+        lambda t: circle_split(
+            (0.0 * m, 0.0 * m), (23.4 * (1 - t) + 11.7 * t) * m, 2, 0.0 * rad
+        ),
+    )
+
+
+def _elapsed(call):
+    """Seconds one call takes."""
+    start = time.perf_counter()
+    call()
+    return time.perf_counter() - start
+
+
+class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
+    """**`validate_geometric_measured`** — the rung that hands back the
+    number its own +V check computed.
+
+    Tier 3's check 7 IS a certified quadrature, so the natural pair,
+    `validate_geometric()` then `mass_properties()`, runs one over the
+    body and then starts another from round 0. This door continues the
+    gate's own certificate to the reporting target instead.
+
+    The claims below are checked apart because they fail apart: that
+    the answer IS the pair's second call rather than an approximation
+    of it, that getting it did not cost a second quadrature, and that
+    the continuation's own refusal — which the pair does not have —
+    reaches a caller as the reporting door's refusal plus the bracket
+    the gate did certify.
+    """
+
+    def test_the_answer_is_the_reporting_door_s_own_bits(self):
+        """All four fields, `==` and not `assertAlmostEqual`.
+
+        The claim is that the continuation and the reporting walk are
+        the SAME computation over the same rounds in the same arena
+        order; an almost-equality would pass just as well for two
+        different quadratures that happened to agree.
+        """
+        body = polygonal_loft()
+        once = body.validate_geometric_measured()
+        twice = body.mass_properties()
+        self.assertEqual(once.volume, twice.volume)
+        self.assertEqual(once.surface_area, twice.surface_area)
+        self.assertEqual(once.volume_pad, twice.volume_pad)
+        self.assertEqual(once.area_pad, twice.area_pad)
+
+    def test_the_pair_pays_two_quadratures_and_the_door_pays_one(self):
+        """The saving, as wall clock, on a body whose walls are
+        quadrature faces.
+
+        A CATEGORICAL reading rather than a threshold on a schedule:
+        on this body the +V check runs the whole refinement schedule,
+        so the continuation has no round left to run and the one-call
+        door costs what the gate alone costs — half the pair. Each
+        half is the best of three, which drops a scheduling spike
+        without being able to invent a saving that is not there, and
+        the bar is 0.7 rather than 0.5 so that only the two-quadrature
+        shape can trip it.
+
+        What this row cannot see, stated: a body whose +V check
+        settles EARLY leaves rounds for the continuation to pay for,
+        and there the same door saves less — down to nothing. Both are
+        correct. The saving is a property of the body's schedule, not
+        a promise of the door.
+        """
+        body = polygonal_loft()
+
+        def best(call):
+            return min(_elapsed(call) for _ in range(3))
+
+        pair = best(lambda: (body.validate_geometric(), body.mass_properties()))
+        once = best(body.validate_geometric_measured)
+        self.assertLess(
+            once,
+            0.7 * pair,
+            f"gate then measure took {pair:.3f}s and the one-call door "
+            f"{once:.3f}s: the door is paying for a second quadrature",
+        )
+
+    def test_a_body_tier_3_admits_can_still_have_no_number(self):
+        """The refusal the pair does not have, and the bracket that
+        comes with it.
+
+        The reporting target scales with eps and the schedule's floor
+        does not, so a body can be tier-3 VALID — its volume's SIGN is
+        definite, which is all check 7 reads — and still have no
+        volume number at this eps. The door refuses there with the
+        reporting door's own class and `reason`, so a caller already
+        catching `mass_properties()` catches this unchanged. What is
+        new is the sign-level bracket the gate DID certify, which is
+        the whole of what the certified quadrature is entitled to say
+        about such a body — and it rides on THIS door's refusal only,
+        because the reporting door refuses with no certificate in hand
+        and has no bracket to offer.
+
+        Both doors run on one body, once each: each call here is a
+        certified quadrature over rational walls and this is the
+        suite's most expensive row.
+        """
+        body = oversized_round_loft()
+        with self.assertRaises(ValidationError) as reporting:
+            body.mass_properties()
+        with self.assertRaises(ValidationError) as gated:
+            body.validate_geometric_measured()
+        self.assertEqual(gated.exception.reason, reporting.exception.reason)
+        self.assertEqual(gated.exception.reason, "mass_properties_failed")
+        # A MEASUREMENT refusal and not a gate one: tier 3 admitted
+        # this body, so the door got past its gate half, whose refusals
+        # carry `door` / `failure_count` / `findings` instead.
+        self.assertFalse(hasattr(gated.exception, "door"))
+        self.assertFalse(hasattr(reporting.exception, "volume_lo"))
+        lo, hi = gated.exception.volume_lo, gated.exception.volume_hi
+        self.assertLess(lo, hi)
+        self.assertGreater(lo, 0.0, "the sign check 7 certified is in the bracket")
+        self.assertGreater(gated.exception.surface_area, 0.0)
+        # The bracket is THIS body's and not a placeholder: a tapered
+        # tube of radii 23.4 m and 11.7 m over a 125 m spine encloses
+        # the frustum on those radii, and the rational walls the loft
+        # fits sit around it.
+        frustum = math.pi * 125.0 * (23.4**2 + 23.4 * 11.7 + 11.7**2) / 3.0
+        self.assertLess(lo, frustum)
+        self.assertGreater(hi, frustum)
 
 
 if __name__ == "__main__":
