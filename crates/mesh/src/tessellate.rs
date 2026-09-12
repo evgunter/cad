@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use geom::Surface;
+use geom_core::k_stats::{self, Detached};
 use geom_core::{Band, Point3, Tol};
 use topo::{Body, FaceKey};
 
@@ -263,6 +264,11 @@ struct FaceWork<'m> {
     /// What the budget meter recorded while this face's lane ran, on
     /// whatever thread that was (`budget::record`).
     meter: budget::FaceRecording,
+    /// What the K-funnel recorded while it ran — the verdicts, the
+    /// escalations and (under `probe`) the margin samples, taken under
+    /// a frame of the lane's own (`geom_core::k_stats::detached`) and
+    /// spliced into the caller's in the fold.
+    decided: Detached,
     /// The memo's work for this face, absent on the memo-free path.
     memo: Option<FaceMemo>,
     /// What the fold puts in the mesh arena for this face — the lane's
@@ -383,61 +389,84 @@ fn tessellate_impl(
         faces
             .par_iter()
             .map(|&(fk, face)| {
-                let ((memo_work, place), meter) = budget::record(arming, || {
-                    let Some(surface) = body.get_surface(face.surface) else {
-                        return (
-                            None,
-                            Err(TessellateError::MissingEntity {
-                                what: "face surface",
-                            }),
-                        );
-                    };
-                    let lane = match lane_of(body, fk, surface) {
-                        Ok(lane) => lane,
-                        Err(error) => return (None, Err(error)),
-                    };
-                    // The lanes, each over `shared` — the whole of what
-                    // a face reads from outside itself.
-                    //
-                    // The planar lane derives its chart frame from the
-                    // face's own boundary (planar.rs module docs, #284)
-                    // — the stored plane axes are deliberately not
-                    // passed: imported axes carry translator noise that
-                    // projects valid boundaries below spade's
-                    // coordinate domain.
-                    let run = || match lane {
-                        Lane::Trimmed => crate::trimmed::tessellate_trimmed(
-                            body, fk, surface, &chords, shared, &tol, &bounds,
-                        ),
-                        Lane::Planar => tessellate_planar(body, fk, &chords.ids, shared),
-                        Lane::Curved => {
-                            tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
+                // ONE wrapper for both of the tessellation's
+                // thread-local channels, because they are one problem:
+                // a channel the CALLER owns and the worker does not.
+                // The budget meter's per-face rows
+                // (`budget::record`) and the K-funnel's verdicts,
+                // escalations and `probe` samples
+                // (`k_stats::detached`) are both recorded into
+                // thread-locals by the lane, both travel back in this
+                // face's slot, and the fold hands both on in arena
+                // order — so an armed meter and a `Bracket` around
+                // `tessellate` see what a serial walk would have
+                // written, element for element, at any thread count.
+                //
+                // NO PORTABILITY GATE, unlike `topo::props`' face walk,
+                // and the reason is this crate's scalar policy: `mesh`
+                // takes `&Body<f64>` and instantiates nothing else, so
+                // a lane's decisions never reach `Sym::sign_within` and
+                // never consult a symbolic session. What a session
+                // makes non-portable there — the decision itself, its
+                // receipt, the shape report — cannot arise here.
+                let (((memo_work, place), meter), decided) = k_stats::detached(|| {
+                    budget::record(arming, || {
+                        let Some(surface) = body.get_surface(face.surface) else {
+                            return (
+                                None,
+                                Err(TessellateError::MissingEntity {
+                                    what: "face surface",
+                                }),
+                            );
+                        };
+                        let lane = match lane_of(body, fk, surface) {
+                            Ok(lane) => lane,
+                            Err(error) => return (None, Err(error)),
+                        };
+                        // The lanes, each over `shared` — the whole of what
+                        // a face reads from outside itself.
+                        //
+                        // The planar lane derives its chart frame from the
+                        // face's own boundary (planar.rs module docs, #284)
+                        // — the stored plane axes are deliberately not
+                        // passed: imported axes carry translator noise that
+                        // projects valid boundaries below spade's
+                        // coordinate domain.
+                        let run = || match lane {
+                            Lane::Trimmed => crate::trimmed::tessellate_trimmed(
+                                body, fk, surface, &chords, shared, &tol, &bounds,
+                            ),
+                            Lane::Planar => tessellate_planar(body, fk, &chords.ids, shared),
+                            Lane::Curved => {
+                                tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
+                            }
+                        };
+                        let Some(memo) = reader else {
+                            return (None, run().map(Placement::Lane));
+                        };
+                        let inputs = match FaceInputs::gather(
+                            body, fk, lane, surface, &chords, shared, chordal, ambient,
+                        ) {
+                            Ok(inputs) => inputs,
+                            Err(error) => return (None, Err(error)),
+                        };
+                        let lookup = match memo.lookup(&inputs).answered() {
+                            Ok((placement, work)) => return (Some(work), Ok(placement)),
+                            Err(lookup) => lookup,
+                        };
+                        match run() {
+                            Ok(patch) => {
+                                let (placement, work) = lookup.ran(patch);
+                                (Some(work), Ok(placement))
+                            }
+                            Err(error) => (Some(lookup.refused()), Err(error)),
                         }
-                    };
-                    let Some(memo) = reader else {
-                        return (None, run().map(Placement::Lane));
-                    };
-                    let inputs = match FaceInputs::gather(
-                        body, fk, lane, surface, &chords, shared, chordal, ambient,
-                    ) {
-                        Ok(inputs) => inputs,
-                        Err(error) => return (None, Err(error)),
-                    };
-                    let lookup = match memo.lookup(&inputs).answered() {
-                        Ok((placement, work)) => return (Some(work), Ok(placement)),
-                        Err(lookup) => lookup,
-                    };
-                    match run() {
-                        Ok(patch) => {
-                            let (placement, work) = lookup.ran(patch);
-                            (Some(work), Ok(placement))
-                        }
-                        Err(error) => (Some(lookup.refused()), Err(error)),
-                    }
+                    })
                 });
                 FaceWork {
                     face: fk,
                     meter,
+                    decided,
                     memo: memo_work,
                     place,
                 }
@@ -460,6 +489,10 @@ fn tessellate_impl(
     let mut pending: Vec<Option<FaceMemo>> = Vec::with_capacity(work.len());
     let mut refusal = None;
     for face in work {
+        // Both channels, in arena order, up to AND INCLUDING the face
+        // that refuses: the serial walk recorded whatever the refusing
+        // face decided before it refused, and nothing after it.
+        k_stats::splice(face.decided);
         budget::absorb(face.meter);
         pending.push(face.memo);
         match face.place {
