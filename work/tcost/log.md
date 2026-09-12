@@ -1922,6 +1922,89 @@ is fixed puts a 66-83 s row on every pull request; after, the same step
 costs about a second of leg time. A lane may go first and owes the
 measurement of what it lands.
 
+## New orchestrator; the A/B protocol is off and the review axis changes (2026-09-12)
+
+The program changed hands. Ev's instruction on the handover, in chat, is
+the whole of the new review rule: *"don't use the AB protocol and just do
+style reviews unless it's a unit with high risk of being wrong which
+deserves a full review."*
+
+**What that retires.** The 2026-09-02 split decided the review track by
+**what the diff touched** — test-only work got a batched style review and
+no A/B row, kernel-logic work got the standard v6 dual from band
+1400-1499. Both halves go. There is now one default (a style review) and
+one exception (a full review), and the axis between them is **risk of
+being WRONG**, which is a different question from whether a diff reaches
+the kernel. A test-only diff that changes what CI RUNS can qualify; a
+kernel diff whose every claim a digest already checks can fail to.
+
+Written down in `work/tcost/plan.md` §Review with what raises the risk,
+because "high risk of being wrong" is a judgement and a judgement left
+unelaborated is re-derived differently by every dispatch. The
+orchestrator names the track **in the dispatch**, with its reason, so a
+reviewer knows what standard is being applied to them.
+
+**The band stays claimed and closed.** S-TCOST drew three ordinals —
+1400, 1401, 1402, for TCOST-K1/K2/K3 — and draws no more.
+`docs/MODEL-AB-LOG.md`'s banding entry records the ruling rather than
+releasing the range, on the VIEW precedent (Ev, 2026-09-04): recorded
+rows keep their ordinals for life, so releasing the band would put a
+future program's ordinals on top of three that already exist. Its entry
+also cited `docs/S-TCOST-LOG.md`, a path `work/README.md` now refuses
+outright; repointed to `work/tcost/log.md` in the same commit.
+
+## The board re-read cold, and one row was lying (2026-09-12)
+
+Ten rows live, read off `work.py status --program tcost` and not
+enumerated by hand — this program wrote two board counts wrong in one day
+by doing the latter.
+
+**`m10-3-chamber-row-reads-ten-times-its-recorded-cost` is parked**, not
+open. Its diagnosis is complete, its fix is a kernel change inside a tier
+M10 designed and owns, and it has had **no dispatchable work on this side
+since it was filed**. It was reporting as available work it is not.
+Parked on `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`,
+which is the thing that can actually fire.
+
+That is the same class this program has been auditing in other people's
+trees all week — a board figure describing a state that has moved — and
+it was on our own board. The general lesson holds and is already written
+in this log: a row's status is a claim, and a claim nobody re-derives
+goes stale silently.
+
+## Three lanes dispatched (2026-09-12)
+
+All three get **style reviews**; none is a full-review unit, and the
+reason is recorded per lane rather than assumed.
+
+- **`tcost/ci-filter-gui-log-citations`** — two comment lines repointing
+  `scripts/ci-filter.py`'s dead `docs/GUI-LOG.md` citations at the recipe
+  that opens them. No behaviour change.
+- **`tcost/c1-c3-restore`** — restore TCOST-C1/C2/C3 to the PR gate and
+  rewrite their demotion notes off billed minutes. Ask 1 of that row (a
+  hosted wall reading per job) was discharged on 2026-09-12; asks 2 and 3
+  are the work. The lane takes its own before/after rather than quoting
+  the row's table, per the row's own closing sentence.
+- **`tcost/shard-n-remeasure`** — the measured N the shard row has been
+  waiting for since its verdict was re-opened on a currency that no
+  longer exists. Explicitly allowed to land "stay at N=2": the
+  deliverable is a measurement, not a change.
+- **`tcost/r1-seeds-on-the-harness`** — route the R1 probe rows through
+  `test_utils::fuzz`. The `viewer` site the row calls "a third site" is
+  **in scope**: fixing two of three identical instances is the half-fix
+  this project's standing failure is made of.
+
+**Not dispatched, and why.** `fuzz-depth-not-existence-run-everything-at-effort-1`
+is the biggest live row and is ordered behind the M10 regression — wiring
+it now puts a 66-83 s row on every pull request, wiring it after costs
+about a second of leg time. Nothing forbids going first; the ordering is
+worth more than the week. `proptest-modules-in-src-ungated` closes with
+it. The two kernel units (`tcost-area-pad-lever`,
+`offset-composite-lazy-sign-gate`) each want a spec first and are the two
+rows that WILL take full reviews — both rest on bit-identical
+certificates and refusal classes that only a digest can check, which is
+the risk shape §Review names.
+
 ## The two ci-filter GUI-LOG citations resolve now (2026-09-12)
 
 `scripts/ci-filter.py` carried the fullest paraphrase of Ev's
@@ -1934,6 +2017,8 @@ ruling would dead-end on.
 
 Both sites now carry the house spelling that CIW unit 7 landed on the
 other six, copied from the landed text rather than re-invented. Comments
-only. The one live `GUI-LOG.md` hit left in the tree is
-`docs/MODEL-AB-LOG.md`'s banding entry, which records where a claim was
-made rather than asking a reader to open it.
+only. That closes the CI-code class at 8 of 8. The four left are the
+provenance class the CIW item separated out and declined —
+`docs/MODEL-AB-LOG.md`'s banding entry and three tracker items, none of
+them ours — and they wait on the ledger's rename note rather than on a
+re-point.

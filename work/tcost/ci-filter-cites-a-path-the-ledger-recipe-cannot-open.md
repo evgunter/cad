@@ -78,12 +78,22 @@ does not depend on the ledger note, and
 `work/meta/ledger-recovery-recipe-misses-renamed-then-deleted-docs.md`
 is still the right fix for citations nobody re-points.
 
-**What the sweep could not match.** `git grep -n "GUI-LOG.md"` over the
-tree, less this file, `work/STATUS.md`, `docs/DOC-LEDGER.md` and the
-originating CIW item, now leaves exactly one live hit:
-`docs/MODEL-AB-LOG.md:191`, a banding entry recording where a claim was
-made at the time — provenance, not a pointer a reader is asked to open,
-and outside this program's fence. The same blind spot CIW unit 7
+**What the sweep found, re-run on the merged tree.** `git grep -n
+"GUI-LOG.md"`, less this file, `work/STATUS.md`, `docs/DOC-LEDGER.md`,
+the originating CIW item and `work/ciw/log.md`'s account of it. **The
+CI-CODE class this item is about is now closed, 8 of 8**: CIW unit 7
+took six, this takes the last two. What remains is the other class the
+CIW item separated out and declined — **four provenance citations**,
+naming the file for something said at a moment in time rather than
+pointing a reader at a live ruling: `docs/MODEL-AB-LOG.md`'s banding
+entry and three tracker items (`work/chrome/`, `work/docm/`,
+`work/view/`). All four sit outside S-TCOST's fence, and the CIW item
+already ruled that re-pointing them buys little against the ledger note
+`work/meta/ledger-recovery-recipe-misses-renamed-then-deleted-docs.md`
+asks for. Untouched here, and reported.
+
+**What the sweep could not match.** The same blind spot CIW unit 7
 recorded still holds here: only the exact string `GUI-LOG.md` was
-swept, so a citation spelling it "the GUI log" or naming a different
-`docs/` file that was renamed before it died would not match.
+swept, so a citation spelling it "the GUI log", "the GUI program's
+log", or naming a different `docs/` file that was renamed before it
+died would not match.

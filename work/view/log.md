@@ -9900,3 +9900,63 @@ and so is not an example of a bare span. The number names its subject —
 the **quotation** is what is wrong, so nothing was repointed.
 
 **VIEW stands at 69 open / 83 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — the δ render, and the second path that committed it
+
+`delta-field-renders-a-sub-micrometre-delta-as-zero` is **closed**, both
+halves, by two changes with nothing between them.
+
+**The render is chosen by the property, not by a precision.**
+`DisplayTolerance::render_mm` returns the shortest decimal spelling of δ
+in millimetres that fits ten characters and reads back — through the
+`mm * 1.0e-3` the field's own commit path uses — as a δ
+`DisplayTolerance::new` accepts, within four significant figures of this
+one; `{:.3e}` carries the δ no decimal spelling can. So the fix has no
+threshold to go stale against a format string: the candidate is read
+back through the door that refuses zero, and the door is the only judge.
+0.4 µm reads `0.0004`, 1 pm reads `1.000e-9`, and a swept grid from
+`f64`'s smallest subnormal to a kilometre has no render the door would
+refuse.
+
+**The relative tolerance is derived, not chosen.** `{:.3e}` carries four
+significant figures, so it can misread the δ it renders by 5·10⁻⁴ of it.
+That is the number a decimal spelling is held to — a decimal form is
+preferred exactly while it is no less truthful than the form that would
+replace it — so the constant is the fallback's accuracy rather than a
+taste about how a field looks.
+
+**The field is 88 points, and the test says why.** A ten-character
+render needs 73.3 points of text area; 56 points offered 48, so anything
+past six characters was clipped, and a clipped render reads as a
+different δ — the defect the render's own bound exists to prevent.
+`the_field_shows_the_longest_render` measures both numbers through
+egui's font metrics at the widest character a render can use, so the
+width is pinned to the render's bound rather than to a sentence.
+
+**Half B needed no precision at all.** A draft that reads as the render
+commits nothing: the render is the text the box already held, so a field
+typed back to it carries no number the render does not, and since the
+render is a rounding of δ, committing it could only move δ to a coarser
+spelling of itself. The escape hatch is any other spelling of the same
+number, and a row holds it open.
+
+**Filed, not swept:**
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`.
+The badge and the budget sentence hold a `DisplayTolerance` and could
+call the new render today; what stops that being this unit is that both
+render δ inside a SENTENCE, so the change is a wording decision about a
+badge and a status line rather than a control's arithmetic, and
+`display_budget.rs`'s needles would move with it. `Bounds::wording`
+renders a probed length in the user's own unit and cannot use a δ method
+at all — it needs the same rule at its own precision. **And the sweep
+that wrote that row found a member the parent had not named**: the
+camera readout at `pane/view.rs:43`, `distance {:.1} mm (band …)`, where
+`min_distance` is `scene_radius * 0.05` so every part under about a
+millimetre reads `band 0.0–…`. It is in the same function as the δ
+field, and what keeps it out of this fix is the line above it — an
+ANGLE at the same precision, where `0.0°` is a yaw a camera really has.
+The pattern was a precision spec in a format string; what it cannot
+match is a render with no precision spec, a precision passed as a
+variable and a rounding done by hand, all three checked in the item.
+
+**VIEW stands at 69 open / 84 closed, nothing waiting on Ev.**
