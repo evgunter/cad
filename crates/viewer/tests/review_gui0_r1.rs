@@ -35,12 +35,11 @@
 //!
 //! # Randomised rows, per `memories/test-suite-cost.md`
 //!
-//! Two rows are counterexample searches (*for all sampled x, P(x)*), so
-//! the seed VARIES per run and is logged unconditionally. Replay a red
-//! run with `GUI0_R1_SEED=<the printed value>`; buy depth with
-//! `GUI0_R1_EFFORT=<n>` (counts are multiples of it). The generator is
-//! a five-line SplitMix64 inlined here rather than a new dev-dependency
-//! on `viewer`, whose manifest this suite deliberately does not touch.
+//! Three rows are counterexample searches (*for all sampled x, P(x)*),
+//! so they draw a fresh seed per run through `test_utils::fuzz` — the
+//! one harness every randomized sweep in the tree draws from, logged
+//! unconditionally, replayed by `CAD_FUZZ_SEED`, with every count a
+//! multiple of `CAD_FUZZ_EFFORT`.
 //!
 //! # One reporting row
 //!
@@ -60,59 +59,10 @@ use std::collections::HashMap;
 
 use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Tol};
+use test_utils::fuzz;
 use viewer::camera::{self, Camera, CameraError, CameraOp, CameraOpError};
 use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
 use viewer::scene::{self, DisplayTolerance};
-
-// ---------------------------------------------------------------- rng
-
-/// SplitMix64. A counterexample search wants a fresh draw per run, and
-/// this suite refuses to grow `viewer` a dev-dependency to get one.
-struct Rng(u64);
-
-impl Rng {
-    fn next_u64(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.0;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    /// Uniform in `[lo, hi)`.
-    fn range(&mut self, lo: f64, hi: f64) -> f64 {
-        let unit = (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64;
-        lo + unit * (hi - lo)
-    }
-
-    fn below(&mut self, n: u64) -> u64 {
-        self.next_u64() % n
-    }
-}
-
-/// A fresh seed unless `GUI0_R1_SEED` names one; printed either way, so
-/// a red run in a CI log is reproducible.
-fn seed(label: &str) -> u64 {
-    let s = match std::env::var("GUI0_R1_SEED") {
-        Ok(text) => text.parse().expect("GUI0_R1_SEED must be a u64"),
-        Err(_) => std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("a clock after 1970")
-            .as_nanos() as u64,
-    };
-    println!("{label}: GUI0_R1_SEED={s}");
-    s
-}
-
-/// Counts are multiples of this. Ships at the level a gated run should
-/// cost; depth is one env var away.
-fn effort() -> usize {
-    std::env::var("GUI0_R1_EFFORT")
-        .ok()
-        .and_then(|t| t.parse().ok())
-        .unwrap_or(1usize)
-        .max(1)
-}
 
 // ------------------------------------------------------------ fixtures
 
@@ -225,15 +175,15 @@ fn assert_camera_contract(camera: &Camera, provenance: &str) {
 /// walk through the whole vocabulary can reach.
 #[test]
 fn the_camera_contract_survives_random_operation_walks() {
-    let mut rng = Rng(seed("the_camera_contract_survives_random_operation_walks"));
-    let walks = 48 * effort();
+    let mut rng = fuzz::start("gui0-r1 camera operation walk");
+    let walks = fuzz::scaled(48);
     let steps = 16;
     let mut refusals = 0usize;
 
     for walk in 0..walks {
         let aspect = rng.range(0.2, 5.0);
         let mut camera = Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
-        assert_camera_contract(&camera, &format!("walk {walk} step 0"));
+        assert_camera_contract(&camera, &format!("walk {walk} step 0 ({})", fuzz::replay()));
         for step in 0..steps {
             // A quarter of the draws are deliberately not moves.
             let op = match rng.below(8) {
@@ -269,7 +219,7 @@ fn the_camera_contract_survives_random_operation_walks() {
                     camera = next;
                     assert_camera_contract(
                         &camera,
-                        &format!("walk {walk} step {step} after {op:?}"),
+                        &format!("walk {walk} step {step} after {op:?} ({})", fuzz::replay()),
                     );
                 }
                 Err(error) => {
@@ -277,7 +227,10 @@ fn the_camera_contract_survives_random_operation_walks() {
                     // A refusal is a value, and the camera is untouched.
                     assert_camera_contract(
                         &camera,
-                        &format!("walk {walk} step {step} after refusal {error:?}"),
+                        &format!(
+                            "walk {walk} step {step} after refusal {error:?} ({})",
+                            fuzz::replay()
+                        ),
                     );
                 }
             }
@@ -289,7 +242,8 @@ fn the_camera_contract_survives_random_operation_walks() {
                 for value in col {
                     assert!(
                         value.is_finite(),
-                        "walk {walk} step {step}: view_projection carried {value}"
+                        "walk {walk} step {step}: view_projection carried {value} ({})",
+                        fuzz::replay()
                     );
                 }
             }
@@ -299,8 +253,9 @@ fn the_camera_contract_survives_random_operation_walks() {
     // reached, or this row is only testing the happy path.
     assert!(
         refusals > walks / 4,
-        "the walk barely produced refusals ({refusals} in {} steps) — the generator has drifted",
-        walks * steps
+        "the walk barely produced refusals ({refusals} in {} steps) — the generator has drifted ({})",
+        walks * steps,
+        fuzz::replay()
     );
 }
 
@@ -314,10 +269,8 @@ fn the_camera_contract_survives_random_operation_walks() {
 /// a mutation both shipped framing rows survive.
 #[test]
 fn the_projection_carries_the_field_of_view_and_the_aspect() {
-    let mut rng = Rng(seed(
-        "the_projection_carries_the_field_of_view_and_the_aspect",
-    ));
-    let cases = 96 * effort();
+    let mut rng = fuzz::start("gui0-r1 projection fov/aspect");
+    let cases = fuzz::scaled(96);
     for case in 0..cases {
         let aspect = rng.range(0.25, 4.0);
         let camera = camera::apply(
@@ -351,13 +304,15 @@ fn the_projection_carries_the_field_of_view_and_the_aspect() {
         let want_y = du / half_height;
         assert!(
             (ndc[0] - want_x).abs() < 1e-9,
-            "case {case}: ndc.x {} against {want_x} (aspect {aspect}) — the aspect term is wrong",
-            ndc[0]
+            "case {case}: ndc.x {} against {want_x} (aspect {aspect}) — the aspect term is wrong ({})",
+            ndc[0],
+            fuzz::replay()
         );
         assert!(
             (ndc[1] - want_y).abs() < 1e-9,
-            "case {case}: ndc.y {} against {want_y} — the field-of-view term is wrong",
-            ndc[1]
+            "case {case}: ndc.y {} against {want_y} — the field-of-view term is wrong ({})",
+            ndc[1],
+            fuzz::replay()
         );
     }
 }
@@ -368,10 +323,8 @@ fn the_projection_carries_the_field_of_view_and_the_aspect() {
 /// random drags, viewport shapes, camera orientations and zoom levels.
 #[test]
 fn a_pan_moves_the_cursor_point_by_the_dragged_distance_on_both_axes() {
-    let mut rng = Rng(seed(
-        "a_pan_moves_the_cursor_point_by_the_dragged_distance_on_both_axes",
-    ));
-    let cases = 64 * effort();
+    let mut rng = fuzz::start("gui0-r1 pan cursor-anchoring");
+    let cases = fuzz::scaled(64);
     let map = InputMap::default();
     for case in 0..cases {
         let size = ViewportSize {
@@ -402,7 +355,10 @@ fn a_pan_moves_the_cursor_point_by_the_dragged_distance_on_both_axes() {
             delta_px: [dx, dy],
         };
         let Some(op) = map.map(&event, size, &camera) else {
-            panic!("case {case}: the pan button produced no operation for {event:?}");
+            panic!(
+                "case {case}: the pan button produced no operation for {event:?} ({})",
+                fuzz::replay()
+            );
         };
         let panned = camera::apply(&camera, &op).expect("a finite pan");
 
@@ -419,11 +375,13 @@ fn a_pan_moves_the_cursor_point_by_the_dragged_distance_on_both_axes() {
         let moved_y = -(after[1] - before[1]) * 0.5 * size.height_px;
         assert!(
             (moved_x - dx).abs() < 1e-6 * dx.abs().max(1.0),
-            "case {case}: a {dx} px horizontal drag moved the point {moved_x} px"
+            "case {case}: a {dx} px horizontal drag moved the point {moved_x} px ({})",
+            fuzz::replay()
         );
         assert!(
             (moved_y - dy).abs() < 1e-6 * dy.abs().max(1.0),
-            "case {case}: a {dy} px vertical drag moved the point {moved_y} px"
+            "case {case}: a {dy} px vertical drag moved the point {moved_y} px ({})",
+            fuzz::replay()
         );
     }
 }

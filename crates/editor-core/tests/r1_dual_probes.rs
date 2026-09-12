@@ -18,10 +18,12 @@
 //!    a two-seed pass with a SHARED subgraph, and asserts separation
 //!    exactly on the seeded cone and merging off it.
 //! 3. **A counterexample search for a value-only key collision**
-//!    (varying seed, EFFORT dial, logged unconditionally — shape 1 of
-//!    `memories/test-suite-cost.md`): can two `Dual64`s with different
-//!    (value, tangent) pairs feed one key, and in particular can one
-//!    pass's value bits alias another's value+tangent prefix?
+//!    (shape 1 of `memories/test-suite-cost.md`: a fresh seed per run
+//!    from `test_utils::fuzz`, logged unconditionally, replayed by
+//!    `CAD_FUZZ_SEED`, counts on `CAD_FUZZ_EFFORT`): can two `Dual64`s
+//!    with different (value, tangent) pairs feed one key, and in
+//!    particular can one pass's value bits alias another's
+//!    value+tangent prefix?
 //! 4. **The consumer e2e**: a corpus document AND a document written
 //!    here, driven through the public evaluation door at `Dual64`,
 //!    with the value channel read back and the certified doors poked.
@@ -34,8 +36,21 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// The dual value channel and the content key this suite is a
+// differential over, plus the sibling helper modules it draws its
+// corpus and its fixtures from.
+test_utils::gated_to![
+    "crates/editor-core/src/eval/",
+    "crates/editor-core/src/node.rs",
+    "crates/geom-core/src/dual.rs",
+    "crates/editor-core/tests/corpus/",
+    "crates/editor-core/tests/fixture/",
+];
+
 use crate::corpus;
 use crate::fixture;
+
+use test_utils::fuzz;
 
 use corpus::{Recorder, documents, eval, failures};
 use editor_core::eval::{ContentBits, KeyHasher};
@@ -417,52 +432,31 @@ fn r1_two_seeds_over_a_shared_subgraph_separate_exactly_on_the_cone() {
 /// counterexample anyway.
 #[test]
 fn r1_no_value_only_key_collision_search() {
-    let effort: u64 = std::env::var("EFFORT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(1);
-    let seed: u64 = std::env::var("R1_SEED")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or_else(|| {
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64
-                | 1
-        });
-    println!("r1_no_value_only_key_collision_search: R1_SEED={seed} EFFORT={effort}");
-    let mut s = seed;
-    let mut next = move || {
-        s ^= s << 13;
-        s ^= s >> 7;
-        s ^= s << 17;
-        s
-    };
+    let mut rng = fuzz::start("r1 dual: value-only key collision search");
+    // Small integral values and tangents, where an FNV walk is most
+    // likely to alias: the high bits of the two words agree.
+    let draw = |rng: &mut fuzz::Rng| f64::from((rng.below(41) as i32) - 20) / 4.0;
     let mut seen: std::collections::HashMap<u128, (f64, f64)> = std::collections::HashMap::new();
-    let n = 20_000 * effort;
-    for _ in 0..n {
-        // Small integral values and tangents, where an FNV walk is
-        // most likely to alias: the high bits of the two words agree.
-        let v = f64::from(((next() % 41) as i32) - 20) / 4.0;
-        let t = f64::from(((next() % 41) as i32) - 20) / 4.0;
+    for _ in 0..fuzz::scaled(20_000) {
+        let v = draw(&mut rng);
+        let t = draw(&mut rng);
         let mut h = KeyHasher::new();
         Dual64::new(v, t).feed(&mut h);
         let k = h.finish().0;
         if let Some(&(pv, pt)) = seen.get(&k) {
             assert!(
                 pv.to_bits() == v.to_bits() && pt.to_bits() == t.to_bits(),
-                "KEY COLLISION (R1_SEED={seed}): ({pv}, {pt}) and ({v}, {t}) \
-                 feed the same key"
+                "KEY COLLISION: ({pv}, {pt}) and ({v}, {t}) feed the same key ({})",
+                fuzz::replay()
             );
         }
         seen.insert(k, (v, t));
     }
     // The prefix question, stated directly: the value-only feed of one
     // pass must never equal the value+tangent feed of another.
-    for _ in 0..(2_000 * effort) {
-        let v = f64::from(((next() % 41) as i32) - 20) / 4.0;
-        let t = f64::from(((next() % 41) as i32) - 20) / 4.0;
+    for _ in 0..fuzz::scaled(2_000) {
+        let v = draw(&mut rng);
+        let t = draw(&mut rng);
         let mut a = KeyHasher::new();
         v.feed(&mut a); // the value channel alone
         let mut b = KeyHasher::new();
@@ -470,8 +464,8 @@ fn r1_no_value_only_key_collision_search() {
         assert_ne!(
             a.finish(),
             b.finish(),
-            "value-only and value+tangent feeds aliased at ({v}, {t}) \
-             (R1_SEED={seed})"
+            "value-only and value+tangent feeds aliased at ({v}, {t}) ({})",
+            fuzz::replay()
         );
     }
 }
