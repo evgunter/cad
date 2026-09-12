@@ -699,3 +699,26 @@ in full but excluded as interrupted pairs (the usage limit killed every
 running reviewer once or twice; each resumed on the same frozen head).
 The B2 draw and the row notes leave this branch with that fold; merged
 at `01ce06844` (PR 2439).
+
+## 2026-09-12 — the ribbon side unit is up for review
+
+PR 2440 (`perf/side-gate-then-measure`, head `1097d870f`, CI green):
+`run_body` takes the certificate from tier 3 and continues it; a
+`QuadratureBudget` refusal of an admitted body yields a `Measured::
+Bracket` and the ribbon prints `lo`, `hi`, `A` at SIGN level and
+checks the mesh volume against the bracket with the chordal slack;
+every other refusal still panics; the 3′ arms untouched. The spout at
+ε = 1e-12 now runs to completion (`V in [4.994e-5, 6.019e-5]`, the
+scene's own oracle 5.505e-5 inside). Main's scenes' stdout is
+md5-identical before/after at three ε. Python: `validate_geometric_
+measured`, one call that gates and measures, the bracket on its budget
+refusal; guide §2.4. Measured: the tour's 78 `run_body` bodies
+6.09 → 3.12 s of gate+measure (1.95×): on these bodies the sign does
+not settle early, so the continuation re-enters no lane; where it
+settles early the saving is nil (stated in the test). Deviations
+reported: the saving beyond the item's 1.3–1.8× expectation, the
+Python test class at 14.7 s, `ruff format` unapplied. Filed from its
+out-of-fence report: `gate-then-measure-class-remains-in-scene-modules`
+(the scene modules and an stl example; `validate_probe` stays as the
+telemetry instrument — ruled here). Single review dispatched (opus;
+brief stored).
