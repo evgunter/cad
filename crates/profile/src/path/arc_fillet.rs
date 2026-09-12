@@ -900,10 +900,35 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 /// `Ok(Dir { unit: (-0, 0), ang: π })` before this question went
 /// first — an angle asserted over a ray of nothing.
 ///
-/// **K consequence.** The refusal precedes the funnel, so such an
-/// anchor contributes no `path_arc_center_radius` sample; the one it
-/// used to contribute was a `+∞` margin recorded as a definite
-/// `Positive`.
+/// **Underflow before sign, too**, and it is the silent end. `|P − O|`
+/// below `Vec2::normalize`'s ~1e-162 underflow band squares to zero, so
+/// the radius is EXACTLY zero and the classifier answers `Zero`
+/// definitely — at which point the refusal is
+/// [`PathError::DegenerateArcCenter`] carrying `radius: 0`, whose
+/// sentence says the authored centre is within tolerance of an
+/// endpoint. It is not: an anchor `1e-200` from the centre is a
+/// perfectly good displacement naming a perfectly good tangent, and no
+/// tolerance recovers a norm the format lost, because the squared norm
+/// is zero at every ε. That is a different fact about the input and
+/// gets [`PathError::UnderflowedDirection`].
+/// [`geom_core::is_underflowed_length`] is asked against the largest
+/// `|component|` of `v` ([`Vec2::norm_witness`]), which is the pairing
+/// that predicate's contract requires, and it is asked SECOND because
+/// an overflowed or poisoned radius makes its two ratios non-finite for
+/// an unrelated reason.
+///
+/// **Point-scalar gates.** Both ask through the value channel, and at
+/// `T = Interval` neither bites: an overflowed enclosure answers finite,
+/// and a norm whose lower end underflowed still ENCLOSES the true
+/// length, so the underflow ratio is an unbounded enclosure rather than
+/// poison and the question answers `false`. Both gates bite at `f64` and
+/// `Probe` and wave an enclosure through to the sign decision below.
+///
+/// **K consequence.** Both refusals precede the funnel, so such an
+/// anchor contributes no `path_arc_center_radius` sample; the one the
+/// overflowed anchor used to contribute was a `+∞` margin recorded as a
+/// definite `Positive`, and the one the underflowed anchor used to
+/// contribute was an exact `0` recorded as a definite `Zero`.
 pub(crate) fn carrier_tangent<T: Decide>(
     p: Point2<T>,
     centre: Point2<T>,
@@ -914,6 +939,9 @@ pub(crate) fn carrier_tangent<T: Decide>(
     let radius = v.norm_squared().sqrt();
     if !geom_core::is_finite_length(radius) {
         return Err(PathError::NonFiniteDirection { dx: v.x, dy: v.y });
+    }
+    if geom_core::is_underflowed_length(radius, v.norm_witness()) {
+        return Err(PathError::UnderflowedDirection { dx: v.x, dy: v.y });
     }
     match decide("path_arc_center_radius", Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
