@@ -69,3 +69,44 @@ with `wire.rs:1283` copying the first into the second. Not wrong — it is
 a carry, not a re-derivation — but same name, same type, one derived
 from the other, two hops apart is what makes a reader stop and check
 which one they hold. Recorded here rather than given its own row.
+
+
+## Update from PR 2435's delta review (2026-09-12): they have stopped being one door
+
+When this row was filed the three sites were the same block copied. They
+are no longer even that: after PR 2435's re-shape, `wire.rs:1113` and
+`:1179` test the **payload** kind, while `:1072` tests the new
+**`placement`** carry. Two doors, three copies, and **three sentences
+each saying they are one** — `axis_frame`'s *"Same door as
+`frame_plane_lane`'s and same refusal"* (`:1170`), the mint's *"the door
+every operand's kind is checked at"*, and the one PR 2435 added at
+`:1056` (*"answering in the vocabulary `frame_plane_lane` uses"*).
+
+Confidence `sure` on the copies, `likely` that they can now diverge —
+which is worse than when this row was opened, because a copy that tests
+a *different thing* cannot be unified by a rename.
+
+Also recorded from the same review, as a second shape in the same
+family: **three `None`s in a two-hop chain**. `NodeValue::placement:
+None` now means "not a frame"; `profile_plane_f64`'s `Ok(None)` means
+"derived"; `ProfilePre::placement_f64: None` means "derived" again
+(`anchor.rs:140`, read at `wire.rs:1488`). PR 2435 fixed the overload at
+hop 0 and left hops 1 and 2 as `Option` — defensible, since by then both
+"not a frame" and "unreadable" are discharged — but it **deleted the
+sentence that reconciled them** and did not replace it. The
+replacement sentence is in that PR's own fix round; the structural
+question is this row's.
+
+## Also from that review: the invariant is convention, not type
+
+`NodeValue` has all-public fields and no constructor
+(`crates/editor-core/src/eval/mod.rs:315`), and
+`crates/editor-core/tests/m4_pr4_resolve.rs:314` builds one
+out-of-crate today. Nothing stops a caller pairing a
+`DatumValue::Frame` payload with `placement: None`, at which point
+`frame_plane_lane` and `axis_frame` accept the value while
+`profile_plane_f64` answers `WrongOperand { expected: "datum frame",
+found: "datum" }` **about a node that is a frame**. `frame_placement` is
+the only mint, but only by convention. Reviewer: `sure` about the
+mechanism, `unsure` it is worth paying for — so it is recorded here
+rather than given a row.
