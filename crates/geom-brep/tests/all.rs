@@ -173,6 +173,8 @@ mod revolved_point_anchor;
 mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]
 mod rim_dim_scale_twins;
+#[path = "review_d290_r1_probes.rs"]
+mod review_d290_r1_probes;
 #[path = "s58_iso_rectangle.rs"]
 mod s58_iso_rectangle;
 #[path = "s81_one_rim_level_rule.rs"]
