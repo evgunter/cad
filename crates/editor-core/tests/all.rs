@@ -494,6 +494,9 @@ mod m10_10_evidence_interval;
 #[path = "m10_10_pins_interval.rs"]
 mod m10_10_pins_interval;
 
+#[path = "m10_10_r1_probes_interval.rs"]
+mod m10_10_r1_probes_interval;
+
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
 #[path = "wire_frame_placement_carry.rs"]
