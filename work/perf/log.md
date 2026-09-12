@@ -658,3 +658,33 @@ pass closes the union, CI is green on the head — with the ledger
 section in the PR body as disclosure and the word "private" corrected
 (the certificate is public now). The demo-policy question is ruled
 (above); the PR carries no `[ev]` ask.
+
+## 2026-09-12 — PERF-6 merged; the demo's ribbon unit dispatched
+
+Fix pass landed the whole union with nothing disputed (head
+`d18fd313a`, CI run 34685286220 green). The correctness hole is
+closed by construction: `sign_certified` now returns a verdict beside
+the certificate, `PlusVVerdict::Uncomputable(source)` is the undecided-
+with-exhausted-schedule case and it carries the reporting door's own
+refusal; a strip row pins it in both senses at three ε. The digest
+roster reaches every certified lane with an ε-coupled body (a quintic
+loft on the composite rounds, a tilted cut on the cylinder Green form),
+cut on the merge base and byte-identical at three ε. The predicates
+are minted once per body again; the continuation short-circuits as the
+reporting walk does; the exit ladder is one helper; the stale premises
+are swept; `validate.rs`'s ledger count is back at its ratified 9 (the
+subject trait is gone) and `props.rs`'s paragraph says the certificate
+is public. Two items filed by the lane: `quadrature-setup-is-re-derived-
+per-round-window`, `sense-inversion-is-invisible-to-tier-3-on-arc-
+capped-lofts`. State-sync rode the PR (`PERF-6` and Ev's finding
+closed; the riding item re-homed as a standalone side unit — lint: a
+struck row may not delete its passengers); merged at `cfee8f155` (PR
+2339). Block PERF-B2 is complete on the code side; its A/B record
+folds into `docs/MODEL-AB-LOG.md` next.
+
+**Side unit dispatched**: `gate-then-measure-pays-two-quadratures`
+(opus, single review, brief stored): the tour and the Python pair gate
+then measure with one quadrature, and the tour's ribbon reports the
+sign-level bracket when the continuation refuses budget on a valid
+body — Ev's ruling. Its pin is the tour at 1e-12 on the teapot scene
+from PR 2306 running to completion; PR 2306 follows it.

@@ -559,7 +559,8 @@ demo-only and test-only units record no A/B row.
 
 - The display budget's probe never larger than the picture (viewer).
 - Gate-then-measure takes the certificate it already computed (tour,
-  Python surface).
+  Python surface) — dispatched 2026-09-12 with Ev's ruling: the ribbon
+  reports the bracket on a budget refusal of a valid body.
 - `budget_faces.rs` split into rows nextest can spread — landed (PR 2321).
 - `gathers_on_this_thread` compiles without debug assertions — landed
   (PR 2328).
@@ -576,7 +577,14 @@ demo-only and test-only units record no A/B row.
   memo'd index (`bvh-is-the-index-after-the-memo`).
 - Parallel per-face tessellation (idiom 1) and per-face mass-property
   fluxes (idiom 2).
-- Tier 3's +V check with a sign-sufficient door.
+- Tier 3's +V check with a sign-sufficient door — landed (PR 2339,
+  Ev's finding): `validate_geometric` certifies the volume enclosure's
+  SIGN (`SignCertificate`, no `volume` field) and stops at the first
+  settled round; the number is `refine_to_target()`, a continuation of
+  the same rounds; an undecided sign at the end of the schedule refuses
+  as before. The arc loft at 1e9·ε: tier 3 2379 → 768 ms; the reporting
+  door's bits pinned across every certified lane. The spout passes tier
+  3 at 1e-12; the demo's ribbon is `gate-then-measure-pays-two-quadratures`.
 - `assemble`'s aggregate census behind the BVH pre-filter.
 - D1 once-per-door — landed (PR 2313, Ev's ruling on PR 2305): the
   tier-1 sweep runs once per public door (a `Surgery` guard on `Body`,
