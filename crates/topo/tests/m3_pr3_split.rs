@@ -14,6 +14,7 @@ use crate::common;
 use common::prism;
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
+use topo::readback::euler_counts;
 use topo::{
     Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, Surface,
     mass_properties, plane_section, split, validate_closed, validate_geometric,
@@ -593,7 +594,7 @@ fn ring_rehoming_genus_one() {
     assert_eq!(census(below).vertices, 16);
     // Rings: below's top/bottom faces keep exactly one ring each;
     // above has none.
-    let rings = |b: &Body<f64>| b.faces().map(|(_, f)| f.rings.len()).sum::<usize>();
+    let rings = |b: &Body<f64>| euler_counts(b).r;
     assert_eq!(rings(below), 2);
     assert_eq!(rings(above), 0);
     // Volume: 4×2×2 box minus 1×1×2 hole = 14; above slab 1×2×2 = 4.
