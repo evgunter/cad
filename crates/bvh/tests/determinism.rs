@@ -199,3 +199,36 @@ fn a_deep_tree_answers_the_brute_force_set_and_its_whole_permutation() {
     let everything = boxed([-1.0, -1.0, -1.0], [101.0, 61.0, 31.0]);
     assert_eq!(tree.overlapping(&everything).len(), boxes.len());
 }
+
+/// `boxes()` is the build input in input order — a tree that handed
+/// back its leaf permutation, or a hull per item, would fail this.
+#[test]
+fn boxes_are_the_input_in_input_order() {
+    let input: Vec<Aabb> = (0..40)
+        .map(|i| {
+            let f = f64::from(40 - i);
+            boxed([f, -f, 0.5 * f], [f + 1.0, -f + 2.0, 0.5 * f + 3.0])
+        })
+        .collect();
+    let tree = Bvh::build(&input);
+    assert_eq!(tree.boxes().len(), input.len());
+    for (got, want) in tree.boxes().iter().zip(&input) {
+        assert_eq!(got, want);
+    }
+}
+
+/// The footprint counts what the tree holds: nothing for an empty
+/// tree, and more for a tree with more items — a door that answered a
+/// constant would fail the second.
+#[test]
+fn heap_bytes_grows_with_the_items() {
+    assert_eq!(Bvh::build(&[]).heap_bytes(), 0);
+    let small: Vec<Aabb> = (0..8)
+        .map(|i| boxed([f64::from(i); 3], [f64::from(i) + 1.0; 3]))
+        .collect();
+    let large: Vec<Aabb> = (0..800)
+        .map(|i| boxed([f64::from(i); 3], [f64::from(i) + 1.0; 3]))
+        .collect();
+    let (s, l) = (Bvh::build(&small).heap_bytes(), Bvh::build(&large).heap_bytes());
+    assert!(s > 0 && l > 8 * s, "8 items: {s} bytes; 800 items: {l} bytes");
+}

@@ -218,6 +218,9 @@ struct MemoReading {
     node_misses: usize,
     face_hits: usize,
     face_misses: usize,
+    trees: usize,
+    tree_hits: usize,
+    tree_misses: usize,
 }
 
 fn reading(seam: &InlineIndexer) -> MemoReading {
@@ -229,6 +232,9 @@ fn reading(seam: &InlineIndexer) -> MemoReading {
         node_misses: memo.node_misses(),
         face_hits: memo.patches().hits(),
         face_misses: memo.patches().misses(),
+        trees: memo.trees(),
+        tree_hits: memo.tree_hits(),
+        tree_misses: memo.tree_misses(),
     }
 }
 
@@ -242,8 +248,16 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
     let parts = index.parts().len();
     println!(
         "# {name} after {step}: {parts} parts / {faces} faces; memo nodes {} (hits {} misses {}), \
-         faces {} (hits {} misses {})",
-        r.nodes, r.node_hits, r.node_misses, r.faces, r.face_hits, r.face_misses
+         faces {} (hits {} misses {}), trees {} (hits {} misses {})",
+        r.nodes,
+        r.node_hits,
+        r.node_misses,
+        r.faces,
+        r.face_hits,
+        r.face_misses,
+        r.trees,
+        r.tree_hits,
+        r.tree_misses
     );
     assert_eq!(
         r.nodes, parts,
@@ -264,6 +278,20 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
         r.faces
     );
     assert!(r.faces >= 1 || faces == 0);
+    // The per-patch pick trees are keyed like the patches and looked
+    // up exactly where the patches are, so they hit and miss where
+    // the patches do, and are evicted with them.
+    assert_eq!(
+        (r.tree_hits, r.tree_misses),
+        (r.face_hits, r.face_misses),
+        "{name} after {step}: the pick trees hit and miss where the patches do"
+    );
+    assert!(
+        r.trees <= faces,
+        "{name} after {step}: the memo holds {} pick trees for a picture of {faces}",
+        r.trees
+    );
+    assert!(r.trees >= 1 || faces == 0);
 }
 
 /// The plain door's answer for the same run: the definition of the
@@ -733,6 +761,11 @@ fn assert_hit_floor(name: &str, step: &str, report: &MemoReport) {
                 report.node_hits,
                 report.face_hits
             );
+            assert!(
+                report.tree_hits >= faces,
+                "{name} after {step}: the memo answered {} pick trees; the floor is {faces}",
+                report.tree_hits
+            );
         }
     }
 }
@@ -791,12 +824,13 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     if let Ok(index) = &index {
         let r = reading(&seam);
         assert_eq!(
-            (r.node_hits, r.face_hits),
-            (0, self_hits),
+            (r.node_hits, r.face_hits, r.tree_hits),
+            (0, self_hits, self_hits),
             "{name}: a δ change misses everything the previous picture held"
         );
         assert_eq!(r.node_misses, index.parts().len());
         assert_eq!(r.face_misses + self_hits, faces_of(index));
+        assert_eq!(r.tree_misses + self_hits, faces_of(index));
         assert_memo_is_one_picture(name, "the δ change", &seam, index);
     }
     steps
@@ -928,8 +962,8 @@ fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
                     (parts, 0),
                     "{name}: the revert after a skipped generation is the open picture, served whole"
                 );
-                assert_eq!(done.memo.face_misses, 0);
-                assert!(done.memo.faces <= faces);
+                assert_eq!((done.memo.face_misses, done.memo.tree_misses), (0, 0));
+                assert!(done.memo.faces <= faces && done.memo.trees <= faces);
             }
             if landing == 3 {
                 assert_eq!(done.memo.node_hits + done.memo.node_misses, parts);

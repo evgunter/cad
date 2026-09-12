@@ -140,6 +140,23 @@ impl Bvh {
         self.boxes.is_empty()
     }
 
+    /// The item boxes, in input order — [`Bvh::build`]'s argument,
+    /// verbatim. The tree is a function of these alone, so a consumer
+    /// holding a tree can tell whether it is the tree over some boxes
+    /// by comparing them, without rebuilding.
+    pub fn boxes(&self) -> &[Aabb] {
+        &self.boxes
+    }
+
+    /// The tree's heap footprint: its nodes, its item permutation and
+    /// its boxes, by content (not by allocated capacity). A measurement
+    /// door, not a budget.
+    pub fn heap_bytes(&self) -> usize {
+        self.nodes.len() * core::mem::size_of::<Node>()
+            + self.items.len() * core::mem::size_of::<usize>()
+            + self.boxes.len() * core::mem::size_of::<Aabb>()
+    }
+
     /// All input indices whose item box overlaps `query`, in
     /// **ascending input order** (a subsequence of the arena order —
     /// the D9-relevant contract; tree shape never leaks into the
