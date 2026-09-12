@@ -1753,15 +1753,6 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
          work/docm/debug-in-prose-residue-after-finding-sink.md",
     ),
     (
-        "crates/geom-brep/src/offset_fit.rs",
-        "OffsetFitError",
-        "e",
-        1,
-        "`SplineError`'s variants are struct-shaped. Found BY this census;\
-         reachability into `typed_err` not traced, so severity is undecided and\
-         the site is disclosed rather than claimed",
-    ),
-    (
         "crates/step-import/src/error.rs",
         "StepImportError",
         "source",

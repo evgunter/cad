@@ -75,9 +75,9 @@ second roster to keep in step by hand.
 
 | item | class | what it is | where the work lands |
 | --- | --- | --- | --- |
-| `step-adopt-let-ok-iso-discards` | **E** | Two sites in one file; keep-with-comment or typed refusal, both options spelled out | `crates/step-import/src/adopt.rs:711`, `:877` (and its error enum if converting) |
+| ~~`step-adopt-let-ok-iso-discards`~~ | **E** | **Closed** (#2406). Both sites converted to a typed refusal; the new arm's doc had to be narrowed because the doors it wraps can only ever return a weight violation — filed as `trim/boundary-iso-doors-panic-before-they-can-refuse`. | `crates/step-import/src/adopt.rs` |
 | `S114` | **M** | **Re-classed E → M**: eighteen definitions across four crates, three in `src/` — not two in one crate. Measured on the row. | `crates/geom/src/curves.rs:1246`, `surfaces.rs:1263`, `crates/geom-core/src/spline/net.rs:365`, plus fifteen in `geom`/`geom-brep`/`sweep` tests. Home undecided: `geom-core` beside `Interval`, or `test-utils` (not a dev-dep of `geom` today). |
-| `viewer-grid-pitch-nonfinite-fallback` | **M** | Small refusal-shaped signature change, but caller and tests ripple; unowned, fence drawn in the PR | `crates/viewer/src/datums.rs:159-163` (`grid_pitch` + its sole caller), `crates/viewer/tests/datum_draw.rs` |
+| ~~`viewer-grid-pitch-nonfinite-fallback`~~ | **M** | **Closed** (#2411), after three rounds that each falsified the last: the row's hang claim was wrong, the first fix covered two of four datum kinds, and the restructure that fixed that still let one path through. Cited by name here because the line numbers moved twice. | `crates/viewer/src/datums.rs` (`grid_pitch`, `screen_metres_at`), `crates/viewer/tests/datum_draw.rs` |
 | `patherror-display-renders-float-noise` | **M** | **Narrowed**: the `profile` half is done; the cross-crate half and the helper's home are what is left. | `ProfileError` and other crates' error `Display`s; helper home `crates/geom-core/src` beside `Real`. NOT `path.rs`'s arms — all 38 already go through `num`. |
 | `viewer-pathverb-all-hand-written-seventeen` | **M** | The census half only; the hand-list half is closed in the tree. | `crates/viewer/src/forms.rs:145` (`PathVerb`), `crates/viewer/src/sketch.rs:147` (`PathStep`), reads `crates/profile/src/path/program.rs`'s `Verb::ALL` |
 

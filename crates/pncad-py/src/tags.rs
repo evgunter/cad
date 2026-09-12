@@ -132,6 +132,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::ArcContinueOffCarrier => "arc_continue_off_carrier",
         PathErrorKind::ZeroDirection => "zero_direction",
         PathErrorKind::NonFiniteDirection => "non_finite_direction",
+        PathErrorKind::UnderflowedDirection => "underflowed_direction",
         PathErrorKind::ArcViaCollinear => "arc_via_collinear",
         PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
         PathErrorKind::ArcCenterNotEquidistant => "arc_center_not_equidistant",
@@ -1223,7 +1224,6 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
     match err {
         LoftError::Band(_) => "band",
         LoftError::Skin(_) => "skin",
-        LoftError::Profile(_) => "profile",
         LoftError::Euler(_) => "euler",
         LoftError::CapPlane(_) => "cap_plane",
         LoftError::Pcurve(_) => "pcurve",

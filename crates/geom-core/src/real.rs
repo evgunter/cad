@@ -709,13 +709,16 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///   arm — the arm is the two chords' `min`, which has no witness of
 ///   its own and which an underflowed chord always wins, so asking the
 ///   arm would refuse without ever naming the cause.
+/// - `profile`'s `path::arc_fillet::carrier_tangent`, of the anchor's
+///   displacement from the arc centre.
 ///
-/// `profile`'s two 2-D director doors ask
-/// [`is_finite_length`] and not this: `unit_from_components` already
-/// renders an underflowed direction's components and already offers
-/// scale as the recourse, and `arc_fillet::carrier_tangent` wants a
-/// `PathError` arm that does not exist yet. Both are tracked on the
-/// FIX slate.
+/// `profile`'s OTHER 2-D director door, `unit_from_components`, asks
+/// [`is_finite_length`] and deliberately not this: the pair it refuses
+/// is SPELLED by the caller rather than derived, so its existing
+/// `ZeroDirection` sentence is true of an underflowed pair and its
+/// recourse — scale the components up, which costs nothing because only
+/// their ratio is read — is already the one that works. A new arm there
+/// would separate two inputs that want the same answer.
 ///
 /// **It bites at the point scalars, exactly as the finiteness
 /// question does.** At an interval scalar a norm whose lower end
