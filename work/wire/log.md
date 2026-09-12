@@ -930,3 +930,77 @@ because the cause is S-BOOL's and the instrument is INSTR's.
 `demos wild fmt + clippy` both succeeded at STEP level on run
 34666874179, and the `Probe` sweep really did re-cut. The lane's grep
 substitute was sound.
+
+## The lift pair is merged (2026-09-12)
+
+**PR 2409 merged** (`17e96880`) after a conflict round. CI run
+`34672529546` green on the full code tier at the resolved head —
+verified at check-run level before merge: 34 success / 4 skipped, twelve
+`test (…)`, five `k-lint (gate, …)`.
+
+**The conflict was one file and the lane's verification of the fix is
+the part worth recording.** `crates/sweep/tests/all.rs`'s mod list,
+against another lane's `census_containment_cause`. Resolved as the
+union. What the lane then did, on the two cautions
+`memories/agent-lane-operations.md` supplies:
+
+- it did **not** read CI off the PR's checks list — it polled the
+  workflow RUNS list for a run whose `head_sha` matched the resolved
+  head, then polled `/jobs` until `total_count > 0` before waiting on a
+  conclusion. That is the answer to "a CONFLICTING PR gets no run, and a
+  run can queue with zero jobs behind a superseded one";
+- it checked the post-condition against the **merged tree**, deriving
+  the declaration set from the merged `all.rs` and diffing it against
+  the directory listing — 261 declared, nothing declared-but-missing,
+  nothing on-disk-but-undeclared, and both suites' rows executing. A
+  dropped `mod` in that file silently stops compiling a whole suite and
+  would never appear in a diff.
+
+**What this unit actually was.** Not the door — the door was a morning,
+and half of it already existed. The weight was at `end_profile`, and the
+review found it was **re-deciding data already decided**:
+`validate_sections` validates every section at the geometry door, so
+`Profile::validate` there was a provable no-op and `LoftError::Profile`
+was unreachable from both public doors, carrying dead arms in two
+crates. `LoftGeometry` already kept its section curves *"no
+re-derivation, no drift"* and threw away the verdicts; it keeps them
+now, `end_profile` reads one, and `assemble` lost the parameter that
+existed only to feed it.
+
+**The gate out-reasoned both the lane and the reviewer**, which is the
+result to remember from this unit. The lane said no fixture could
+separate the two paths without knife-edge tuning. The reviewer **built
+one** from round parameters and proved it. Then CI reddened three ε rows
+on it: a **pinned** `(h,b)` separates the arithmetics only at the
+default ε — at 1e-12 the `f64` side escalates too, at 1e-6 the
+`Interval` enclosure fits inside the wider band — and scaling with ε
+fixes one and not the other, because the enclosure width and the `f64`
+residual come from the same rounding and only ε moves between them. The
+row now searches the ladder at the run's own ε and **panics when nothing
+separates**, so it cannot pass vacuously. Neither party's reading
+produced that shape; the three-ε matrix did.
+
+**Four of this program's seven merged units have now had their central
+test claim corrected by something other than reading** — two by
+mutation, one by a built fixture, one by the ε matrix. That is the
+strongest pattern this program has produced, and it is worth carrying
+into how the remaining units are reviewed: *ask what instrument answers
+the claim, not whether the claim is argued well.*
+
+## Program state at this point
+
+Merged: the three E units, the `[ev]` ratification, the lift pair.
+`plan.md`'s remaining slate is `frame-f64-placement-is-re-evaluated-per-profile`,
+`product-gather-…` (mechanism settled — `defer::TieRows` and
+`narrow_into` already exist; Ev approved carry-the-tie), then `D364`
+before `S195`, plus the rows this program has filed on itself.
+
+Deferred and not dispatchable: `S40`, `two-verb-seats-do-not-compose`,
+`axis-shaped-identity-channel` (ratified, unbuilt, and a SEQUENCE to cut
+rather than a lane to dispatch).
+
+**Still owed to Ev, and not blocking**: whether amending
+`docs/prompts/implementer-discipline.md` §5 with a worked example on
+choosing a sweep's instrument is his call, since that file is read by
+every lane by path — recorded on
+`work/issues/every-band-construction-is-the-class-not-every-map-err.md`.
