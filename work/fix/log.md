@@ -2627,3 +2627,64 @@ PRs **2415, 2417, 2418, 2419, 2420**. Slate **17 → 16 open** (four closed, thr
 underflow gate's four doors; the recourse carriers' whole chain), one
 spec written and waiting on Ev, one defect fixed by a mechanism its own
 item could not have prescribed.
+
+### `kind-mirrors-have-no-single-declaration` DECLINED (Ev, in-chat, 2026-09-12)
+
+The scale check said **feasible**; the decision is **no**. The spec is
+removed and recorded in `docs/DOC-LEDGER.md`; the item file is its
+record, and the one real gap is re-filed.
+
+**This is the first row this program has closed by deciding against the
+work rather than by doing it or refuting it**, and the shape is worth
+keeping. The unit that answered the feasibility question was
+deliberately scoped to migrate nothing, so the decision arrived with a
+measured answer in hand and cost nothing but the measurement. Had the
+row been dispatched as written — "lift `transition_table!` into a
+general `error_kinds!`, migrate the pairs biggest first" — the tree
+would have carried a new crate, a macro, and 87 relocated declarations
+before anyone asked whether it was worth it.
+
+**What actually decided it was not in the spec's §6.** The five choices
+there are real, but they are costs to weigh, and weighing needs the
+other pan. Three measurements filled it:
+
+1. **The defect has no recorded instance.** Searched the tracker and
+   `docs/` for a guard catching a phantom or a wrong pairing: nothing.
+   The row's framing — *"`Self::Merge(_) => Kind::Join` type-checks"* —
+   is a hypothetical, written by a lane that had just landed one of
+   these guards.
+2. **Only TWO purpose-built guards exist.** `boolean/mod.rs:2878` and
+   `product.rs:963`. `PathErrorKind`'s exhaustive consumer is
+   `path_error_tag`, the FFI tag map — it exists for its own job and
+   catches phantoms as a side effect its doc notes. `AttrKind` is the
+   same, and left the list entirely as not an error pair. The macro
+   retires purpose-built machinery for two pairs, not four.
+3. **About half the headline deletion IS that machinery** — of PR 2's
+   ~400 lines, the guard, its `label()` table and `sample_errors()`
+   (whose only caller it is) are the larger share. The biggest single
+   win was deleting scaffolding built to watch for something that has
+   never happened.
+
+**And the spec's own §5 had already removed the best argument**: the
+migration closes the pairing direction for `kind()` and **not** for
+`Display`. `BooleanError`'s hand-written ~400-line `Display` can still
+render a `Merge` arm with join prose. Every user-facing defect FIX has
+fixed in three waves lived in `Display`. The row's headline claim was
+true of the half nobody was bleeding from.
+
+**The lesson for dispatching, and it generalises past this row.** A row
+that proposes a MECHANISM states its cost and leaves its benefit as an
+assumption, because the benefit is the defect it prevents and a
+prevented defect has no instances to count. **The question to put in
+the brief is "how many times has this happened", asked of the tracker,
+before the question "can it be built".** Here the answers were
+*feasible* and *never*, and only the second decided anything.
+
+**What survives is one sentence's worth of work**, filed as
+`a-new-kind-pair-arrives-unguarded-by-default`: a new pair arrives
+unguarded by default, which wants a line in the error-type convention
+rather than a code generator, and whose home is Ev's to name. That row
+also carries the question this one was obscuring — whether two guards
+that have never fired earn their ~230 lines — stated without
+prejudging it, because a cheap guard against a SILENT class is often
+worth keeping unfired.
