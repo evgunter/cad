@@ -254,9 +254,12 @@ fn edge_findings(body: &Body<f64>) -> usize {
 }
 
 /// **A body the certified at-rest door calls valid is a body the
-/// kernel can move.**
+/// kernel can move** — through the door that names the lane. Which
+/// door a caller takes decides whether the map is attempted at all,
+/// and the lane-free door's refusal is a fact about that door's
+/// rights, never about the body.
 #[test]
-fn an_m7_8_body_validates_at_rest_and_moves() {
+fn an_m7_8_body_validates_at_rest_and_moves_through_the_lane() {
     let body = m7_8_cube();
     assert_eq!(
         edge_findings(&body),
@@ -264,11 +267,54 @@ fn an_m7_8_body_validates_at_rest_and_moves() {
         "the certified at-rest door re-derives all four M7-8 certificates"
     );
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0));
-    let moved = transform_rigid(&body, &map, Tol::witness())
-        .expect("an M7-8 body moves under a rigid map");
+
+    // The lane-free door refuses, TYPED, naming the class.
+    match transform_rigid(&body, &map, Tol::witness()) {
+        Err(topo::TransformError::Certify {
+            source: geom_brep::CertifyError::Unimplemented,
+            ..
+        }) => {}
+        other => panic!("lane-free door: expected Unimplemented, got {other:?}"),
+    }
+
+    // The same body and the same map, through the door that supplies
+    // the lane: it moves, and re-derives at rest afterwards.
+    let moved = topo::transform_rigid_via(
+        &body,
+        &map,
+        Tol::witness(),
+        Some(&geom_brep::plane_nurbs_limbs::<f64>),
+    )
+    .expect("an M7-8 body moves when the caller names the lane");
     assert_eq!(
         edge_findings(&moved),
         0,
         "and re-derives all four certificates after the map"
     );
+    // Topology and keys are untouched, exactly as for every other
+    // carrier class.
+    assert_eq!(validate_closed(&moved), Ok(()));
+    let before: Vec<_> = body.points().map(|(k, _)| k).collect();
+    let after: Vec<_> = moved.points().map(|(k, _)| k).collect();
+    assert_eq!(before, after, "point keys are stable across the map");
+}
+
+/// The lane changes ONE thing and the negative row is what says so: a
+/// body with no M7-8 edge maps identically through both doors, so the
+/// injected lane is not a second code path for the ordinary classes.
+#[test]
+fn the_lane_changes_nothing_for_a_body_that_does_not_carry_the_class() {
+    let b = brick((0.0, 2.0), (0.0, 1.0), 0.5);
+    let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0));
+    let plain = transform_rigid(&b, &map, Tol::witness()).unwrap();
+    let laned = topo::transform_rigid_via(
+        &b,
+        &map,
+        Tol::witness(),
+        Some(&geom_brep::plane_nurbs_limbs::<f64>),
+    )
+    .unwrap();
+    let pts = |body: &Body<f64>| -> Vec<_> { body.points().map(|(_, p)| *p).collect() };
+    assert_eq!(pts(&plain), pts(&laned));
+    tiers_ok(&laned);
 }
