@@ -388,8 +388,6 @@ pub struct MemoReport {
     pub tree_hits: usize,
     /// Patches whose pick tree was built.
     pub tree_misses: usize,
-    /// The tree level's heap footprint, approximately.
-    pub tree_bytes: usize,
 }
 
 impl MemoReport {
@@ -404,10 +402,9 @@ impl MemoReport {
             face_hits: patches.hits(),
             face_misses: patches.misses(),
             bytes: patches.bytes(),
-            trees: memo.trees(),
+            trees: memo.tree_len(),
             tree_hits: memo.tree_hits(),
             tree_misses: memo.tree_misses(),
-            tree_bytes: memo.tree_bytes(),
         }
     }
 }

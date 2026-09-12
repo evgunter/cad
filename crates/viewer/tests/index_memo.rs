@@ -232,7 +232,7 @@ fn reading(seam: &InlineIndexer) -> MemoReading {
         node_misses: memo.node_misses(),
         face_hits: memo.patches().hits(),
         face_misses: memo.patches().misses(),
-        trees: memo.trees(),
+        trees: memo.tree_len(),
         tree_hits: memo.tree_hits(),
         tree_misses: memo.tree_misses(),
     }
@@ -462,7 +462,10 @@ impl FlatReference {
 /// The exact ray/triangle test the pick service runs (Möller–Trumbore,
 /// both-sided, closed boundaries, non-finite `t` refused), restated
 /// here so the reference is a whole pick and not a call into the
-/// service it checks.
+/// service it checks. A change to the service's test — the guard
+/// `work/docm/pick-grazing-ray-answer-depends-on-candidate-order.md`
+/// asks for — must change both copies, or this pin reds on the rays
+/// whose answer the guard moves.
 fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
     let e1: Vec3<f64> = tri[1] - tri[0];
     let e2: Vec3<f64> = tri[2] - tri[0];
@@ -705,6 +708,18 @@ fn assert_same_picture(
             digest(a.mesh()),
             digest(b.mesh()),
             "{name} after {step}: node {:?} body {} — the seam's mesh is not the fresh tessellation",
+            a.node(),
+            a.body()
+        );
+        // The index itself, tree for tree: the memoised build's
+        // per-patch trees (nodes, leaf permutation, boxes — the
+        // tree's whole `Debug` form), triangle tables and top-level
+        // tree are the fresh build's. Direct, where the hit-for-hit
+        // rows are only implied by it.
+        assert_eq!(
+            format!("{:?}", a.target().pick),
+            format!("{:?}", b.target().pick),
+            "{name} after {step}: node {:?} body {} — the seam's index is not the fresh one, tree for tree",
             a.node(),
             a.body()
         );

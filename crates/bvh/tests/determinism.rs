@@ -200,10 +200,12 @@ fn a_deep_tree_answers_the_brute_force_set_and_its_whole_permutation() {
     assert_eq!(tree.overlapping(&everything).len(), boxes.len());
 }
 
-/// `boxes()` is the build input in input order — a tree that handed
-/// back its leaf permutation, or a hull per item, would fail this.
+/// `is_over` answers for the build input in its order and for nothing
+/// else — a tree that compared its leaf permutation, or a hull per
+/// item, or ignored order, would fail one of these; and poison equals
+/// itself, where `PartialEq` would make a poisoned tree never its own.
 #[test]
-fn boxes_are_the_input_in_input_order() {
+fn is_over_holds_for_the_input_bits_in_input_order_only() {
     let input: Vec<Aabb> = (0..40)
         .map(|i| {
             let f = f64::from(40 - i);
@@ -211,30 +213,26 @@ fn boxes_are_the_input_in_input_order() {
         })
         .collect();
     let tree = Bvh::build(&input);
-    assert_eq!(tree.boxes().len(), input.len());
-    for (got, want) in tree.boxes().iter().zip(&input) {
-        assert_eq!(got, want);
-    }
-}
-
-/// The footprint counts what the tree holds: nothing for an empty
-/// tree, and more for a tree with more items — a door that answered a
-/// constant would fail the second.
-#[test]
-fn heap_bytes_grows_with_the_items() {
-    assert_eq!(Bvh::build(&[]).heap_bytes(), 0);
-    let small: Vec<Aabb> = (0..8)
-        .map(|i| boxed([f64::from(i); 3], [f64::from(i) + 1.0; 3]))
-        .collect();
-    let large: Vec<Aabb> = (0..800)
-        .map(|i| boxed([f64::from(i); 3], [f64::from(i) + 1.0; 3]))
-        .collect();
-    let (s, l) = (
-        Bvh::build(&small).heap_bytes(),
-        Bvh::build(&large).heap_bytes(),
-    );
+    assert!(tree.is_over(&input));
+    let mut permuted = input.clone();
+    permuted.swap(3, 29);
+    assert!(!tree.is_over(&permuted));
+    assert!(!tree.is_over(&input[..39]));
+    let mut nudged = input.clone();
+    nudged[7].max_z = nudged[7].max_z.next_up();
+    assert!(!tree.is_over(&nudged));
+    let mut signed = input.clone();
+    signed[0].min_y = -0.0;
+    let mut zero = input.clone();
+    zero[0].min_y = 0.0;
     assert!(
-        s > 0 && l > 8 * s,
-        "8 items: {s} bytes; 800 items: {l} bytes"
+        !Bvh::build(&signed).is_over(&zero),
+        "-0.0 and 0.0 are different bits"
     );
+    let poisoned = vec![Aabb::poison(), input[1]];
+    assert!(
+        Bvh::build(&poisoned).is_over(&poisoned),
+        "poison is its own bits"
+    );
+    assert!(Bvh::build(&[]).is_over(&[]));
 }

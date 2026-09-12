@@ -247,34 +247,45 @@ impl MeshPick {
     /// [`MeshPick::build`]'s ([`PickMemo`]'s tree level).
     ///
     /// `keys` is the tessellation's, one digest per patch in the same
-    /// order; a patch beyond the keys (a kernel bug — a tessellation
-    /// carries one key per face) is built unmemoised, loudly in debug
-    /// builds.
+    /// order. Both come from one `tessellate_with`, which emits one
+    /// patch and one key per face, so a count mismatch is a state only
+    /// a kernel bug reaches: it panics (D9 — a bug announces itself),
+    /// in every build.
     ///
     /// # Errors
     ///
     /// As [`MeshPick::build`].
-    pub fn build_with(
+    pub(crate) fn build_with(
         mesh: &Mesh,
         keys: &PatchKeys,
         memo: &mut PickMemo,
     ) -> Result<Self, MeshPickError> {
-        debug_assert_eq!(
-            keys.len(),
-            mesh.patches.len(),
-            "a tessellation carries one key per patch"
-        );
+        if keys.len() != mesh.patches.len() {
+            unreachable!(
+                "pick index: {} keys for {} patches — a tessellation carries one key per face",
+                keys.len(),
+                mesh.patches.len()
+            );
+        }
         memo.open();
-        let keys: Vec<PatchDigest> = keys.iter().collect();
-        Self::assemble(mesh, |patch, boxes| match keys.get(patch) {
-            Some(&digest) => memo.tree(digest, boxes),
-            None => Arc::new(Bvh::build(boxes)),
+        Self::assemble(mesh, |patch, boxes| {
+            let Some(digest) = keys.get(patch) else {
+                unreachable!("pick index: patch {patch} has no key (the counts were checked above)")
+            };
+            memo.tree(digest, boxes)
         })
     }
 
     /// The walk both doors share: per patch, the triangles' corners
     /// and boxes, then `tree_for(patch position, boxes)`; then the
     /// top-level tree over the patches' hulls.
+    ///
+    /// Every build walks every triangle — the corner copy and the box
+    /// recompute run whether the patch's tree is then served or built,
+    /// so the tree memo saves `Bvh::build` alone and this walk is the
+    /// memoised build's residual. Memoising the table and the boxes
+    /// with the tree is
+    /// `work/perf/pick-index-triangle-table-rebuilt-every-build.md`.
     fn assemble(
         mesh: &Mesh,
         mut tree_for: impl FnMut(usize, &[Aabb]) -> Arc<Bvh>,
@@ -357,24 +368,6 @@ impl MeshPick {
         let patch = self.patches.get(cand.patch)?;
         Some((patch.tris.get(cand.tri)?, patch.face))
     }
-}
-
-/// Whether two box lists are bit-identical — the tree memo's hit
-/// test: a tree is a function of its boxes, so equal bits are the same
-/// tree, and a poison box (NaN bounds) equals itself here where
-/// `PartialEq` would say otherwise.
-fn same_boxes(a: &[Aabb], b: &[Aabb]) -> bool {
-    let bits = |x: &Aabb| {
-        [
-            x.min_x.to_bits(),
-            x.min_y.to_bits(),
-            x.min_z.to_bits(),
-            x.max_x.to_bits(),
-            x.max_y.to_bits(),
-            x.max_z.to_bits(),
-        ]
-    };
-    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| bits(x) == bits(y))
 }
 
 /// One displayed mesh offered to a pick: which node/body the mesh
@@ -543,17 +536,27 @@ struct PickEntry {
 /// its faces alive in that memo ([`PatchMemo::keep`]) without looking
 /// them up.
 ///
-/// **Tree level.** A patch's pick tree ([`PickPatch`]) is a function
-/// of its triangles' boxes, which are a function of the patch's own
-/// geometry — the inputs the patch memo's key names — so it is keyed
-/// by the patch's digest ([`PatchKeys`]) and lives here rather than in
-/// `mesh`, which stays free of `bvh`. A hit is by digest AND by the
-/// stored tree's boxes being bit-identical to the patch's
-/// ([`same_boxes`]): the digest finds the entry, the boxes prove it,
-/// so a digest collision is a miss and never a wrong tree. A patch the
-/// patch memo answered has the same boxes, so trees hit exactly where
-/// patches hit; a node reused at node level keeps its trees alive
-/// without looking them up, as it keeps its patches.
+/// **Tree level.** A patch's pick tree (`PickPatch`) is a function of
+/// its triangles' boxes alone — `bvh`'s arena-order build — and lives
+/// here rather than in `mesh`, which stays free of `bvh`. The entry is
+/// found by the patch's digest ([`PatchKeys`]) and PROVED by the
+/// boxes: a hit requires the stored tree to be the tree over exactly
+/// this patch's boxes, bit for bit ([`Bvh::is_over`]). That proof is
+/// what makes a wrong tree impossible, and it holds regardless of
+/// what the key covers — a digest collision, or a key that missed an
+/// input, is a miss and never a stale tree. What the key DOES cover
+/// (the boxes read the shared prefix's chord positions as well as the
+/// patch's own interior, and both are in the key) is stated where the
+/// key lives, `mesh::memo`'s module docs and `FaceInputs`; here it
+/// buys only that trees hit where patches hit, which the seam's
+/// differential pins. A node reused at node level keeps its trees
+/// alive without looking them up, as it keeps its patches.
+///
+/// **Memory.** The tree map holds `Arc`s to the same trees the
+/// node-level entries' [`NodePick`]s hold, so its marginal cost is one
+/// map slot per patch (a digest, a stamp and a pointer — about 4 KB
+/// on the tour die's 89 faces), not the trees; the trees are the
+/// index's own, retained by the node level for a picture either way.
 ///
 /// **Lifetime.** Whoever builds pictures owns the memo and calls
 /// [`PickMemo::end_picture`] after each: entries not used in the
@@ -561,7 +564,8 @@ struct PickEntry {
 /// holds exactly one picture's worth.
 ///
 /// The picture/open/close counter machinery here re-spells
-/// [`PatchMemo`]'s; the consolidation is
+/// [`PatchMemo`]'s, twice over (the node level and the tree level);
+/// the consolidation is
 /// `work/perf/fnv-digest-and-memo-machinery-copies.md`.
 #[derive(Default)]
 pub struct PickMemo {
@@ -636,8 +640,9 @@ impl PickMemo {
         self.node_misses
     }
 
-    /// How many per-patch pick trees the memo holds.
-    pub fn trees(&self) -> usize {
+    /// How many per-patch pick trees the memo holds (the tree level's
+    /// [`PickMemo::len`]).
+    pub fn tree_len(&self) -> usize {
         self.trees.len()
     }
 
@@ -650,13 +655,6 @@ impl PickMemo {
     /// Patches whose pick tree was built, over the same picture.
     pub fn tree_misses(&self) -> usize {
         self.tree_misses
-    }
-
-    /// The tree level's heap footprint, approximately: every stored
-    /// tree's nodes, permutation and boxes. A measurement door, not a
-    /// budget.
-    pub fn tree_bytes(&self) -> usize {
-        self.trees.values().map(|e| e.tree.heap_bytes()).sum()
     }
 
     /// The first build after a close starts the next picture's counts.
@@ -676,7 +674,7 @@ impl PickMemo {
     fn tree(&mut self, digest: PatchDigest, boxes: &[Aabb]) -> Arc<Bvh> {
         let picture = self.picture;
         if let Some(entry) = self.trees.get_mut(&digest)
-            && same_boxes(entry.tree.boxes(), boxes)
+            && entry.tree.is_over(boxes)
         {
             entry.picture = picture;
             self.tree_hits += 1;
@@ -709,6 +707,11 @@ impl PickMemo {
     /// Close the picture at all three levels: drop every entry not
     /// used in it. The counts then describe the picture just closed
     /// until the next build starts.
+    ///
+    /// The caller's obligation to call this after every picture is
+    /// what bounds the memo — the node map, the patch memo AND the
+    /// tree map: a picture never closed keeps every tree it looked up
+    /// or built, alive beside the index that holds it.
     pub fn end_picture(&mut self) {
         let picture = self.picture;
         self.nodes.retain(|_, entry| entry.picture == picture);
