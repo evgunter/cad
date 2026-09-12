@@ -404,3 +404,36 @@ site. S414's is the same instinct in a different key: its replacement
 refusal message named a cause it could not reach through the real door,
 so rather than leave the clause as a claim it pinned it with in-source
 rows that return `Ok((NaN, NaN))` and `Ok((1e308, inf))` on `main`.
+
+## Two rulings from Ev (2026-09-12)
+
+**The independent rows stay in DOOR.** The open question was whether
+`S114`, `grid-pitch`, `patherror`, `pathverb` and `step-adopt` should go
+to FIX, raised because FIX closed three of DOOR's opening rows on the
+day DOOR opened and the two charters read alike. Ev's answer: they stay
+— FIX is a grab bag of small things and DOOR is the more coherent home.
+
+**That does not by itself close the duplication risk**, which was the
+real subject. The mechanism that failed was one-time — the cut sorted
+two directories against the tree without reading the live slates of
+programs already working the same ground — but the adjacency is
+permanent. What replaces the re-home is a standing instruction, now on
+this program's `keep_out`: **read FIX's slate for a row before
+dispatching it**, and file nothing there that DOOR could carry. The
+per-row liveness check that caught all five overtaken rows is the same
+practice and stays.
+
+**README-level ratification changes need Ev's sign-off.** A crate README
+beside the code it governs is a design doc (`CLAUDE.md` says so), and
+retiring or amending a ratified clause in one is a design decision even
+when a code change forces it. On this program's `keep_out`, and it binds
+every program rather than only this one.
+
+The orchestrator merged one such amendment before the rule existed —
+#2387's retirement of a ratified KIND from `crates/viewer/README.md`,
+flagged to Ev at the time and merged on the reading that a crate README
+is not `docs/DESIGN.md`. That reading is superseded, so the amendment is
+put to Ev as a ruling rather than left standing unremarked:
+`readme-ratification-amendments-need-ev`, which sets out the three live
+answers and does not presume one. Nothing proposes reverting it —
+merge-only makes a merged amendment a thing to ratify or amend forward.
