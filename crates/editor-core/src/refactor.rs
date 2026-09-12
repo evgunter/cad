@@ -106,7 +106,7 @@ use crate::ident::{DocRef, DocumentId};
 use crate::mate::ClusterMaintenance;
 use crate::names::{NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
-use crate::part::{PartResolver, ResolveFailure, ResolveFault};
+use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
@@ -1333,11 +1333,7 @@ pub fn split(
     // The part side's edits are inserts into a document being built —
     // a Join at most, never a moved gauge — so they lever through the
     // caller's own seam; the remainder side, below, needs more.
-    let part_opts = crate::eval::EvalOptions {
-        resolver: resolver.cloned(),
-        ..crate::eval::EvalOptions::default()
-    };
-    let part_reach = crate::eval::mate_reach::<f64>(&part_opts, tol);
+    let part_reach = crate::eval::PartReach::<f64>::with_resolver(resolver, tol);
     let mut part = Recording::start(Doc::empty(part_id, tol));
     let part_apply =
         |part: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), SplitError> {
@@ -1538,11 +1534,7 @@ pub fn split(
         part: part.doc.clone(),
         inner: resolver.cloned(),
     });
-    let rem_opts = crate::eval::EvalOptions {
-        resolver: Some(carving),
-        ..crate::eval::EvalOptions::default()
-    };
-    let rem_reach = crate::eval::mate_reach::<f64>(&rem_opts, tol);
+    let rem_reach = crate::eval::PartReach::<f64>::with_resolver(Some(&carving), tol);
     let rem_apply = |remainder: &mut Recording,
                      edit: DocEdit<ProfileProgram>|
      -> Result<Option<RecipeNodeId>, SplitError> {
@@ -1674,11 +1666,7 @@ pub fn inline(
     // Deleting the instance moves its cluster's gauge, and the
     // maintenance that re-keys the cluster levers through the parts
     // the same resolver holds.
-    let opts = crate::eval::EvalOptions {
-        resolver: Some(std::sync::Arc::clone(resolver)),
-        ..crate::eval::EvalOptions::default()
-    };
-    let reach = crate::eval::mate_reach::<f64>(&opts, tol);
+    let reach = crate::eval::PartReach::<f64>::with_resolver(Some(resolver), tol);
     let Some(node) = doc.node(instance) else {
         return Err(InlineError::UnknownNode { id: instance });
     };
@@ -1937,23 +1925,18 @@ impl PartResolver for WithPart {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         if doc_ref.id == self.doc_ref.id {
             if doc_ref.pin != self.doc_ref.pin {
-                return Err(ResolveFailure {
-                    fault: ResolveFault::PinMismatch,
-                    message: "the reference names another version of the part this split is \
-                              minting"
-                        .to_string(),
-                });
+                return Err(ResolveFailure::pin_mismatch(
+                    "the reference names another version of the part this split is minting",
+                ));
             }
             return Ok(self.part.clone());
         }
         match &self.inner {
             Some(inner) => inner.resolve(doc_ref, tol),
-            None => Err(ResolveFailure {
-                fault: ResolveFault::Unresolved,
-                message: "the split was given no resolver, and the reference is not the part it \
-                          is minting"
-                    .to_string(),
-            }),
+            None => Err(ResolveFailure::unresolved(
+                "the split was given no resolver, and the reference is not the part it is \
+                 minting",
+            )),
         }
     }
 }

@@ -1,12 +1,10 @@
 //! **The mate solve** — reading edges, partitions, clusters, and the
 //! constructive placement (ASM-R2a D-2/D-3/D-4/D-5; A9/A10/A11/A12).
 //!
-//! Everything here is recipe data plus decided predicates: no geometry
-//! is inspected except each mated part's own extent — an upper bound
-//! taken from its evaluated body ([`MateReach`]), entering only as the
-//! lever a parallelism verdict is decided over — and nothing derived
-//! is stored beside the DAG. The entry points, in the order the
-//! layers use them:
+//! Everything here is recipe data plus decided predicates (with the
+//! one qualifier `ASSEMBLY.md` A11 rule 5 states for the lever —
+//! [`MateReach`]), and nothing derived is stored beside the DAG. The
+//! entry points, in the order the layers use them:
 //!
 //! - [`reading_edges`] — A12's second sort of edge, RECOMPUTED by
 //!   walking from each reference's OPERAND every time it is wanted.
@@ -391,17 +389,17 @@ fn opposed() -> Affine3<f64> {
 /// The clocking RIDER is applied here too, because it never stands
 /// alone: it modifies its carrier's target frame and cuts its residual.
 ///
-/// `parts_reach` is the two mated parts' reach from their own origins,
-/// summed ([`pair_reach`]); with the datum's own terms it is the lever
-/// the rider's redundancy is decided over ([`Alignment::lever_arm`]).
+/// `arm` is this mate's lever — the two mated parts' reach summed
+/// ([`pair_reach`]) plus the datum's own terms
+/// ([`Alignment::lever_arm`]), formed once by the caller — over which
+/// the rider's redundancy is decided.
 fn mate_coset(
     mate: RecipeNodeId,
     alignment: &Alignment,
-    parts_reach: f64,
+    arm: f64,
     band: Band,
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
-    let arm = parts_reach + alignment.lever_arm();
     let frame = |side: MateSide, f: &super::MateFrame| {
         f.placement(tol)
             .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
@@ -587,8 +585,11 @@ fn fold_pair<P: crate::ProfilePayload>(
                 parts
             }
         };
-        arm = arm.max(parts + alignment.lever_arm());
-        let mut coset = mate_coset(mate, alignment, parts, band, tol)?;
+        // This mate's lever, formed once: the pair's parts plus its
+        // own datum terms. The fold's is the largest so far.
+        let mate_arm = parts + alignment.lever_arm();
+        arm = arm.max(mate_arm);
+        let mut coset = mate_coset(mate, alignment, mate_arm, band, tol)?;
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.
         if (ha, hb) != (parent, child) {
@@ -1039,8 +1040,24 @@ pub enum ClusterMaintenance {
     },
 }
 
-/// **How the maintenance obtains a solved frame** when a row needs one
-/// — a cluster whose gauge moved. Every other row is structural.
+impl ClusterMaintenance {
+    /// The frame the row carries, if any: an absorbed cluster's, a
+    /// minted or rewritten gauge's, a dropped gauge's.
+    pub fn frame(&self) -> Option<&Frame> {
+        match self {
+            Self::Join { absorbed_frame, .. } => absorbed_frame.as_ref(),
+            Self::Split { frame, .. }
+            | Self::GaugeRewrite { frame, .. }
+            | Self::Drop { frame, .. } => frame.as_ref(),
+        }
+    }
+}
+
+/// **Where the maintenance's rows come from** for one edit: derived
+/// from the edit's motion of the mate graph with a solved frame
+/// obtained one of two ways when a row needs one (a cluster whose
+/// gauge moved; every other row is structural), or replayed verbatim
+/// from the log.
 #[derive(Clone, Copy)]
 pub(crate) enum Maintain<'a> {
     /// The live edit door: solve the PRIOR document through this
@@ -1049,6 +1066,34 @@ pub(crate) enum Maintain<'a> {
     /// Replay of a logged edit that recorded no rows: a row that needs
     /// a solved frame refuses, because replay never solves.
     Never,
+    /// Replay of a logged edit that recorded rows: they are what the
+    /// maintenance decided, re-applied verbatim, and nothing is
+    /// derived.
+    Recorded(&'a [ClusterMaintenance]),
+}
+
+/// **The maintenance for one accepted edit** — [`reconcile`] deriving
+/// the rows, or the recorded rows re-applied — leaving `after`'s
+/// registry keyed on its clusters and answering the rows that got it
+/// there. The one dispatch over [`Maintain`].
+///
+/// # Errors
+///
+/// [`reconcile`]'s.
+pub(crate) fn maintain<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    after: &mut Doc<P>,
+    tol: Tol,
+    how: Maintain<'_>,
+) -> Result<Vec<ClusterMaintenance>, EditError> {
+    match how {
+        Maintain::Recorded(rows) => {
+            after.set_placements(registry_after(before.placements(), rows));
+            Ok(rows.to_vec())
+        }
+        Maintain::Solve(reach) => reconcile(before, after, tol, Some(reach)),
+        Maintain::Never => reconcile(before, after, tol, None),
+    }
 }
 
 /// **The registry after the maintenance's acts**: the prior registry
@@ -1093,21 +1138,13 @@ pub(crate) fn registry_after(
 }
 
 /// The fault the prior solve recorded that explains a gauge with no
-/// pose: the gauge's own, else the first in document order (a welded
-/// instance the spanning tree could not reach owes its missing pose to
-/// a mate the solve refused, which carries the fault), else none —
-/// a state the solve's invariants exclude, reported rather than read
-/// as the identity.
-fn unsolved_because<P>(
-    doc: &Doc<P>,
-    poses: &SolvedPoses,
-    gauge: RecipeNodeId,
-) -> Option<Box<MateFault>> {
-    poses
-        .fault(gauge)
-        .or_else(|| doc.order().iter().find_map(|&id| poses.fault(id)))
-        .cloned()
-        .map(Box::new)
+/// pose: the gauge's OWN — a cluster's refusal reaches every member
+/// the solve could not pose, so a gauge with no pose and no fault is
+/// a state the solve's invariants exclude, and `None` reports it
+/// rather than borrowing another cluster's fault (which could be a
+/// decided one, and would let the door proceed to write a frame).
+fn unsolved_because(poses: &SolvedPoses, gauge: RecipeNodeId) -> Option<Box<MateFault>> {
+    poses.fault(gauge).cloned().map(Box::new)
 }
 
 /// **Whether a fault means the solve reached NO verdict** about the
@@ -1125,18 +1162,23 @@ fn unsolved_because<P>(
 /// every such refusal names — has always done. When the solve could
 /// NOT decide — no band, an in-band case split, a part whose extent
 /// or resolution is not in hand, a placer whose pose could not be
-/// derived — a pose may well exist and nothing here knows it, so the
-/// edit refuses rather than record a frame nothing decided.
+/// derived, a read mispaired against another document's solve — a
+/// pose may well exist and nothing here knows it, so the edit refuses
+/// rather than record a frame nothing decided.
 fn undecided(fault: &MateFault) -> bool {
     match fault {
         MateFault::Band { .. }
         | MateFault::Indeterminate { .. }
         | MateFault::Unleverable { .. }
-        | MateFault::PlacerRefused { .. } => true,
-        MateFault::PosesOfAnotherDocument { .. }
-        | MateFault::Frame { .. }
-        | MateFault::ClassNotAdmitted { .. }
+        | MateFault::PlacerRefused { .. }
+        // A caller's mispairing is no verdict about the document.
+        | MateFault::PosesOfAnotherDocument { .. } => true,
+        // An unsupported mate (a class the solve does not admit, a
+        // primitive the coset table lacks) has no pose, and deleting
+        // it is its recourse.
+        MateFault::ClassNotAdmitted { .. }
         | MateFault::TableLacks { .. }
+        | MateFault::Frame { .. }
         | MateFault::Contradictory { .. }
         | MateFault::Under { .. }
         | MateFault::DanglingHead { .. }
@@ -1170,13 +1212,13 @@ fn undecided(fault: &MateFault) -> bool {
 /// [`EditError::MaintenanceRefused`] when the prior solve reached no
 /// verdict for a gauge that moved (carrying the solve's fault;
 /// [`undecided`] says which faults those are);
-/// [`EditError::MaintenanceUnrecorded`] when `how` is
-/// [`Maintain::Never`] and a row needed a solved frame.
-pub(crate) fn reconcile<P: crate::ProfilePayload>(
+/// [`EditError::MaintenanceUnrecorded`] when `solve` is `None` (a
+/// replay — [`Maintain::Never`]) and a row needed a solved frame.
+fn reconcile<P: crate::ProfilePayload>(
     before: &Doc<P>,
     after: &mut Doc<P>,
     tol: Tol,
-    how: Maintain<'_>,
+    solve: Option<&dyn MateReach>,
 ) -> Result<Vec<ClusterMaintenance>, EditError> {
     // Neither side has a mate: every cluster is a singleton on both,
     // so the registry is already keyed by its own gauges and the
@@ -1218,14 +1260,14 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
             // PRIOR mate graph — the one number the maintenance must
             // solve for; a gauge that stayed put is the identity by
             // construction and asks nothing.
-            let relative = match how {
-                Maintain::Solve(reach) => {
+            let relative = match solve {
+                Some(reach) => {
                     let poses =
                         before_poses.get_or_insert_with(|| solve_document(before, reach, tol));
                     match poses.relative(gauge) {
                         Some(relative) => relative,
                         None => {
-                            let fault = unsolved_because(before, poses, gauge);
+                            let fault = unsolved_because(poses, gauge);
                             if fault.as_deref().is_none_or(undecided) {
                                 return Err(EditError::MaintenanceRefused { gauge, fault });
                             }
@@ -1235,7 +1277,7 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
                         }
                     }
                 }
-                Maintain::Never => return Err(EditError::MaintenanceUnrecorded { gauge }),
+                None => return Err(EditError::MaintenanceUnrecorded { gauge }),
             };
             let prior = before.placements().get(&old_gauge).copied();
             let frame = match (prior, relative.is_identity_bits()) {

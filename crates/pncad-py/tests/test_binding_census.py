@@ -860,10 +860,16 @@ BOUND_AS = {
     # `MateFault` arm that carries it (`mate_unleverable`), and its
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
-    # `no_extent`, `no_finite_bound`, `not_an_instance`). The instance
-    # it is about crosses as `MateFault.instance`, and a face that
-    # cannot be bounded names its kind in `MateFault.what`.
+    # `malformed_body`, `no_extent`, `no_finite_bound`,
+    # `not_an_instance`). The instance it is about crosses as
+    # `MateFault.instance`, and a face that cannot be bounded names its
+    # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
+    # What a frame fails to be a placement: the word `PersistError`'s
+    # `maintenance_frame` arm publishes on `inner_variant` (`non_finite`,
+    # `improper`) for a recorded maintenance row held to the
+    # `SetPlacement` door's rule at load.
+    "FrameFault": "PersistError.inner_variant",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
@@ -1919,6 +1925,7 @@ NOT_BOUND = {
     # have no Python shape to bind.
     "LoggedEdit": SHAPE,
     "apply_logged": SHAPE,
+    "replay_entry": SHAPE,
     "load_with": SHAPE,
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
@@ -2983,6 +2990,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::EditReplay": "PersistError.variant",
+    "PersistError::MaintenanceFrame": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",

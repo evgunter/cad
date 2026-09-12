@@ -2892,12 +2892,14 @@ impl<P> Node<P> {
         // with the best diagnostics, not at the kernel's rigidity
         // re-check downstream.
         for (index, frame) in frames.iter().enumerate() {
-            if !frame.is_finite() {
-                return Some(PlacementRuleFault::NonFiniteFrame { index });
-            }
-            let determinant = frame.determinant();
-            if determinant <= 0.0 {
-                return Some(PlacementRuleFault::ImproperFrame { index, determinant });
+            match frame.placement_fault() {
+                None => {}
+                Some(crate::placement::FrameFault::NonFinite) => {
+                    return Some(PlacementRuleFault::NonFiniteFrame { index });
+                }
+                Some(crate::placement::FrameFault::Improper { determinant }) => {
+                    return Some(PlacementRuleFault::ImproperFrame { index, determinant });
+                }
             }
         }
         None

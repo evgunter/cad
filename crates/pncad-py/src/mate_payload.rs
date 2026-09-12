@@ -396,9 +396,12 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload {
         MateFault::Unleverable { mate, refusal } => {
             let (instance, what) = match refusal {
                 LeverRefusal::PartUnresolved { instance, .. }
+                | LeverRefusal::MalformedBody { instance, .. }
                 | LeverRefusal::NoExtent { instance, .. }
                 | LeverRefusal::NoFiniteBound { instance, .. } => (*instance, None),
-                LeverRefusal::FaceUnbounded { instance, kind, .. } => (*instance, Some(*kind)),
+                LeverRefusal::FaceUnbounded { instance, kind, .. } => {
+                    (*instance, Some(kind.name()))
+                }
                 LeverRefusal::NotAnInstance { node } => (*node, None),
             };
             MateFaultPayload {

@@ -64,7 +64,7 @@
 // `MetaValue` and `MetaError` stay out, because the arm names neither.
 pub use editor_core::{
     Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, LoggedEdit, MetaVersionError,
-    ProgramRefusal, apply, apply_logged,
+    ProgramRefusal, apply, apply_logged, replay_entry,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -253,7 +253,8 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    AxisRefusal, Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
+    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure, ResolveFault,
+    product_named,
 };
 
 // Mates: the declaration node's
@@ -267,18 +268,18 @@ pub use editor_core::{
 // solve places (`Member` is its answer). `UNDER_RECOURSE` and
 // `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
 // own refusals end on.
-/// Why a mate's datum could not form a lever arm, which
+/// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
 ///
-/// A parallelism verdict is levered over the largest length the mate's
-/// own datum names, and a datum that names one too small decides
-/// nothing: at an arm of `L` the smallest tilt the predicate could call
-/// non-parallel is about ε/L, so a nanometre datum reads every pair as
-/// parallel. WHICH scale was named and WHAT floor it is under —
-/// `extent` and `floor` — is the whole of what the arm says beyond the
-/// name, and a consumer that could match `Unleverable` and not name
-/// this type read those two numbers out of the message prose.
+/// A parallelism verdict is levered over the mated parts' own extent
+/// (`MateReach`), and every arm names the instance whose part's reach
+/// was not in hand and why: the part does not resolve (the resolver's
+/// own fault, unaltered), a face of its body cannot be bounded (which
+/// face, and its `prelude::SurfaceKind`), the body is malformed, has no faces,
+/// or reads back non-finite, or the member stands on no instance. A
+/// consumer that could match `Unleverable` and not name this type
+/// would read all of that out of the message prose.
 ///
 /// Its only home is the refusal holding it: nothing else on the
 /// curated lists answers in a `LeverRefusal`, so it rides its carrier

@@ -409,13 +409,18 @@ class PersistError(PncadError):
     `variant` is the refusing arm's tag — `non_finite`,
     `profile_program`, `distribution`, `display_unit`, `serialize`,
     `header_id`, `id_mismatch`, `parse`, `unreadable`, `snapshot`,
-    `edit_replay`, `tolerance_conflict` or `tolerance_invalid`.
+    `edit_replay`, `maintenance_frame`, `tolerance_conflict` or
+    `tolerance_invalid`.
 
-    Four arms wrap a refusal of their own, and its word rides beside
+    Five arms wrap a refusal of their own, and its word rides beside
     the carrier's on `inner_variant`: a profile-program fault, a
-    distribution fault, a snapshot invariant, or the `EditError` a
-    replayed edit raised. The nested refusal's own payload is the
-    inner door's surface and stays in the message.
+    distribution fault, a snapshot invariant, the `EditError` a
+    replayed edit raised, or what a recorded maintenance row's frame
+    fails to be a placement (`non_finite`, `improper` — the
+    `SetPlacement` door's own rule, applied to the log's rows at load;
+    `index` is the entry's, and the row within it is in the message).
+    The nested refusal's own payload is the inner door's surface and
+    stays in the message.
 
     Two names are shared by arms that carry one concept under
     different spellings: `detail` is the underlying reporter's own
@@ -3106,7 +3111,17 @@ class Doc:
         A node this document does not hold raises EditError
         (`unknown_node`) rather than answering a word or `None`."""
 
-    def insert(self, node: Node, *, resolver: Optional[Workspace] = None) -> NodeId: ...
+    def insert(self, node: Node, *, resolver: Optional[Workspace] = None) -> NodeId:
+        """Insert a node, answering its minted id — `apply` of
+        `DocEdit.insert_node`.
+
+        `resolver` is the document seam an edit that moves a cluster's
+        gauge levers through: its cluster-record maintenance mints the
+        cluster's frame from a solve of the prior document, whose lever
+        is the mated parts' own extent. An insert is a Join at most
+        (the survivor keeps its gauge), so it never consults it; the
+        keyword is here because `insert` is `apply`, and takes what
+        `apply` takes."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -5368,7 +5383,18 @@ def split(
 
     The cut must be ancestor- and consumer-closed and a union of WHOLE
     placement clusters. Pure — `doc` is untouched. Raises SplitError,
-    typed, naming the offending edge, cluster, parameter or name."""
+    typed, naming the offending edge, cluster, parameter or name.
+
+    `resolver` is the document seam the split's own edits lever
+    through where one moves a cluster's gauge (the remainder's mate
+    deletes split the cluster they cut; the part's mate inserts
+    re-form it): its cluster-record maintenance mints the cluster's
+    frame from a solve of the prior document, whose lever is the
+    mated parts' own extent. The part being minted answers its own
+    reference; `resolver` answers every other. Absent, a cut that
+    moves a gauge raises `SplitError` carrying an `EditError` with
+    variant `maintenance_refused`; a cut that moves none is
+    unaffected."""
 
 class InlineOutcome:
     """What an inline produced: the spliced document value and the

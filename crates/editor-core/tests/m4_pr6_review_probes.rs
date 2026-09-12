@@ -501,7 +501,11 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     )
     .expect("save log");
     let loaded = load(&text, Tol::witness()).expect("load log");
-    assert_eq!(loaded.edits, edits, "edit log round-trip");
+    assert_eq!(
+        loaded.edits,
+        editor_core::LoggedEdit::bare_all(&edits),
+        "edit log round-trip"
+    );
     assert!(loaded.doc.bit_eq(&doc), "replayed doc bit-identical");
     // AND as a snapshot.
     let text2 = save(&doc, &[], Tol::witness()).expect("save snapshot");

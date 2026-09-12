@@ -288,26 +288,16 @@ fn r1_max_leaves_zero_with_the_tier_on() {
 
 // ------------------------------------------------------ D2: the mate lever
 
-/// **The mate lever no longer falls off a cliff at zero extent** — the
-/// row that found it, kept as the pin.
-///
-/// It was an EXPECTED-DEFECT row: the lever was
-/// `if extent > 0.0 { extent } else { 1.0 }`, so a datum AT the origin
-/// was levered at 1 m and a datum ONE NANOMETRE from it at 1e-9 m —
-/// nine orders apart, chosen by a bit-exact test against zero, with the
-/// small side being exactly the "prices every tilt at zero" failure the
-/// function's own docs warn about.
-///
-/// Now the datum's own contribution is CONTINUOUS and pure — the sum
-/// of both origins' norms and every authored length, with no branch
-/// on whether a scale was named, no constant and no floor — because
-/// the lever is completed in the solve by the two mated parts' own
-/// reach, which is never zero for a real part. A datum at the origin
-/// contributes nothing, a datum at a nanometre contributes a
-/// nanometre, and neither is a case the solve has to guard
-/// (`msolve6_part_extent` pins the whole lever, parts included).
+/// **The lever's datum term is pure and has no floor**: the sum of
+/// both origins' norms and every authored length, with no branch on
+/// whether a scale was named, no constant and no floor — the lever is
+/// completed in the solve by the two mated parts' own reach, which is
+/// never zero for a real part. A datum at the origin contributes
+/// nothing, a datum at a nanometre contributes a nanometre, and
+/// neither is a case the solve has to guard (`msolve6_part_extent`
+/// pins the whole lever, parts included).
 #[test]
-fn r1_mate_lever_is_discontinuous_at_zero_extent() {
+fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
     use editor_core::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
     let frame = |origin: [f64; 3]| MateFrame {
         origin,
@@ -321,17 +311,11 @@ fn r1_mate_lever_is_discontinuous_at_zero_extent() {
         sense: AxisSense::Aligned,
         clocking: None,
     };
-    println!(
-        "lever at origin 0: {:?}  at 1e-9: {:?}  at 1e-3: {:?}",
-        at(0.0).lever_arm(),
-        at(1e-9).lever_arm(),
-        at(1e-3).lever_arm()
-    );
     // A datum at the origin contributes NOTHING — no metre stands in
     // for the parts, which the solve adds from their own bodies.
     assert_eq!(at(0.0).lever_arm(), 0.0);
     // A datum at a nanometre contributes a nanometre: no floor, no
-    // refusal, no cliff — the parts on either side carry the lever.
+    // refusal — the parts on either side carry the lever.
     assert_eq!(at(1e-9).lever_arm(), 1e-9);
     assert_eq!(at(1e-3).lever_arm(), 1e-3);
     // Both origins and every authored length SUM: an upper bound on

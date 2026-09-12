@@ -141,6 +141,9 @@ pub(crate) fn validate_document(
     if let Some(site) = first_non_finite(snapshot, edits) {
         return Err(super::PersistError::NonFinite { site });
     }
+    if let Some((index, row, fault)) = first_maintenance_frame_fault(edits) {
+        return Err(super::PersistError::MaintenanceFrame { index, row, fault });
+    }
     if let Some((name, fault)) = first_distribution_fault(snapshot) {
         return Err(super::PersistError::Distribution { name, fault });
     }
@@ -188,6 +191,25 @@ fn first_display_unit_fault(
             (measured != *dim).then(|| (name.clone(), measured, *dim))
         }
         DocParam::Count { .. } => None,
+    })
+}
+
+/// **The first recorded maintenance row whose frame is not a
+/// placement** — the log's rows are trusted bytes otherwise, and a
+/// row's frame enters the registry at replay without passing the
+/// `SetPlacement` door, so it is held here to exactly what that door
+/// holds a frame to ([`crate::Frame::placement_fault`]: finite, and
+/// proper). Named by the entry's index in the log and the row's index
+/// in the entry.
+fn first_maintenance_frame_fault(
+    edits: &[LoggedEdit<ProfileProgram>],
+) -> Option<(usize, usize, crate::placement::FrameFault)> {
+    edits.iter().enumerate().find_map(|(index, entry)| {
+        entry.maintenance.iter().enumerate().find_map(|(row, act)| {
+            act.frame()
+                .and_then(|f| f.placement_fault())
+                .map(|fault| (index, row, fault))
+        })
     })
 }
 

@@ -58,8 +58,8 @@ use std::sync::Arc;
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
     DocEdit, DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram,
-    Node, ParamName, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject,
-    apply, assemble_gathered, cascade_delete_order, mate_reach, parse_expr, product_recorded,
+    Node, ParamName, PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
+    Subject, apply, assemble_gathered, cascade_delete_order, parse_expr, product_recorded,
     run_checks_on,
 };
 use pncad::geom_core::Tol;
@@ -831,12 +831,18 @@ impl DocSession {
     /// way the landed evaluation resolved it.
     pub fn eval_options(&self) -> EvalOptions {
         EvalOptions {
-            resolver: self
-                .resolver
-                .as_ref()
-                .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
+            resolver: self.resolver_seam(),
             ..EvalOptions::default()
         }
+    }
+
+    /// **The session's resolver as the document seam** — the directory
+    /// rule's resolver, widened to the trait every door that resolves
+    /// a part takes; `None` when the session has no directory.
+    fn resolver_seam(&self) -> Option<Arc<dyn PartResolver>> {
+        self.resolver
+            .as_ref()
+            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>)
     }
 
     /// The generation the session is waiting for a result on.
@@ -1531,7 +1537,7 @@ impl DocSession {
     /// driving operation has to be), and what it is not is about this
     /// drag.
     fn preview_gesture(&mut self, named: &GestureName, value: f64) -> OpOutcome {
-        let opts = self.eval_options();
+        let resolver = self.resolver_seam();
         let tol = self.tol;
         let Some(gesture) = self.gesture.as_mut() else {
             return OpOutcome::refused(Refusal::NoGesture);
@@ -1548,8 +1554,10 @@ impl DocSession {
         // another instead of composing, and the history never sees any
         // of them. The reach is the session's own seam: a gesture that
         // moved a gauge would mint a frame from the parts' extent, and
-        // with no directory to resolve against it refuses typed.
-        let reach = mate_reach::<f64>(&opts, tol);
+        // with no directory to resolve against it refuses typed. Built
+        // per tick, and lazy — a slot gesture moves no gauge, so what
+        // a tick pays for it is the construction and nothing more.
+        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
         match apply(&gesture.base, &edit, tol, &reach) {
             Ok(applied) => {
                 // **The display layer's identity, held rather than
@@ -2002,8 +2010,8 @@ impl DocSession {
         // (the directory rule; `None` refuses typed): each edit's
         // maintenance asks it only when a cluster's gauge moves, and
         // what it decided rides the logged entry into the history.
-        let opts = self.eval_options();
-        let reach = mate_reach::<f64>(&opts, self.tol);
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
         let mut produced: Option<Doc<ProfileProgram>> = None;
         let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::with_capacity(edits.len());
         for edit in &edits {
@@ -2059,10 +2067,7 @@ impl DocSession {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
-            resolver: self
-                .resolver
-                .as_ref()
-                .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
+            resolver: self.resolver_seam(),
         });
     }
 }

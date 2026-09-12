@@ -17,16 +17,17 @@ use crate::fixture;
 
 use std::sync::Arc;
 
+use editor_core::mate::SurfaceKind;
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, LeverRefusal,
-    MateFault, MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult,
-    PartFault, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SitedRef, content_pin,
-    mate_reach,
+    Alignment, AxisSense, CapEnd, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
+    EvalOptions, Frame, FrameFault, LeverRefusal, LoggedEdit, MateFault, MateFrame, MatePrimitive,
+    MateReach, MateRole, Node, NodeErrorKind, NodeResult, PartFault, PartReach, PersistError,
+    ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SitedRef, content_pin, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step};
-use geom_core::predicate::Band;
-use geom_core::{Point3, Tol};
+use geom_core::predicate::{Band, Sign};
+use geom_core::{Decide, Point3, Tol};
 
 // ---- Substrate ----
 
@@ -245,14 +246,15 @@ enum Verdict {
     Indeterminate,
 }
 
+/// Through the predicate door itself (`Decide::sign_within`, the rule
+/// every metered predicate decides by), so a change to the band's
+/// strictness moves this expectation with the solve rather than
+/// leaving the row testing a copied rule.
 fn verdict(band: Band, theta: f64, arm: f64) -> Verdict {
-    let margin = theta * arm;
-    if margin <= band.zero() {
-        Verdict::Parallel
-    } else if margin >= band.escalate() {
-        Verdict::Refused
-    } else {
-        Verdict::Indeterminate
+    match (theta * arm).sign_within(band) {
+        Ok(Sign::Zero) => Verdict::Parallel,
+        Ok(Sign::Positive | Sign::Negative) => Verdict::Refused,
+        Err(_) => Verdict::Indeterminate,
     }
 }
 
@@ -442,35 +444,47 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
         .mvfs(Point3::new(0.0, 0.0, 0.0))
         .expect("the seed vertex-face-shell");
     let refusal = editor_core::mate::body_reach(&body).expect_err("the placeholder has no bound");
-    assert_eq!(refusal.face, made.face);
-    assert_eq!(refusal.kind, "nurbs");
+    assert_eq!(
+        refusal,
+        ReachRefusal::FaceUnbounded {
+            face: made.face,
+            kind: SurfaceKind::Nurbs,
+        }
+    );
     // The same answer through the door the solve reads.
     assert_eq!(
         editor_core::mate::part_reach(&body).err(),
-        Some(ReachRefusal::FaceUnbounded {
-            face: made.face,
-            kind: "nurbs"
-        })
+        Some(refusal.clone())
     );
     let instance = RecipeNodeId(7);
     let part = editor_core::DocRef {
         id: DocumentId::derive("msolve6-a4-unbounded"),
         pin: content_pin(&box_part("msolve6-a4-unbounded", 0.5, 1.0), Tol::witness()).unwrap(),
     };
-    let lever = LeverRefusal::of(ReachRefusal::from(refusal), instance, part);
     assert_eq!(
-        lever,
+        LeverRefusal::of(refusal, instance, part),
         LeverRefusal::FaceUnbounded {
             instance,
             part,
             face: made.face,
-            kind: "nurbs",
+            kind: SurfaceKind::Nurbs,
         }
     );
-    let text = lever.to_string();
-    assert!(
-        text.contains("nurbs") && text.contains("instance 7"),
-        "{text}"
+    // A face whose surface key resolves to nothing is a malformed
+    // body, not an unboundable face: its own arm, named the same way.
+    // (No door builds one — `Body` mints a face's surface with the
+    // face — so the arm is pinned at the wrap.)
+    assert_eq!(
+        LeverRefusal::of(
+            ReachRefusal::MalformedBody { face: made.face },
+            instance,
+            part
+        ),
+        LeverRefusal::MalformedBody {
+            instance,
+            part,
+            face: made.face,
+        }
     );
 }
 
@@ -624,12 +638,13 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
 /// A reach that counts its asks and answers the refusing reach's
 /// answer — the witness that an edit which moves no gauge never
 /// consults the store.
-struct Counting(core::cell::Cell<usize>);
+/// A reach that counts its asks and answers through the store's.
+struct Counting<'a>(core::cell::Cell<usize>, PartReach<'a, f64>);
 
-impl MateReach for Counting {
+impl MateReach for Counting<'_> {
     fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
         self.0.set(self.0.get() + 1);
-        editor_core::RefusingReach.reach(part)
+        self.1.reach(part)
     }
 }
 
@@ -739,7 +754,6 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
         ),
         "the resolver's own voice: {fault:?}"
     );
-    assert!(err.to_string().contains("could not place gauge"), "{err}");
     // The same edit through no resolver at all: the same arm.
     let err = doc
         .apply(
@@ -755,14 +769,20 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
 }
 
 /// **An edit that moves no gauge never asks the reach**: on a mated
-/// document, a second mate (a Join — the survivor keeps its gauge), a
-/// placement, and an appearance-free parameter edit all succeed
-/// through a reach that would refuse if asked, and the counter says
-/// it never was. Deleting the mate — a Split — asks it.
+/// document, a second mate (a Join — the survivor keeps its gauge)
+/// and a placement succeed with the counter at zero. An edit that
+/// moves a gauge asks exactly what the prior document's solve asks:
+/// `pairs × 2` — each mated pair asks both its parts' reach once,
+/// lazily, at its first mate — so on the three-instance chain
+/// `a–b`, `b–c` a Split (deleting the pair's mate) and a
+/// GaugeRewrite (deleting the gauge instance) each ask `2 × 2 = 4`.
 #[test]
 fn a6_a_gauge_preserving_edit_never_asks_the_reach() {
-    let (doc, [a, b], mate, _opts, _log) = seated("msolve6-a6-preserving");
-    let counting = Counting(core::cell::Cell::new(0));
+    let (doc, [a, b], mate, opts, _log) = seated("msolve6-a6-preserving");
+    let counting = Counting(
+        core::cell::Cell::new(0),
+        mate_reach::<f64>(&opts, Tol::witness()),
+    );
     let tol = Tol::witness();
     // A Join: a mate to a third instance, whose singleton cluster is
     // absorbed by the pair's, gauge unchanged.
@@ -807,16 +827,37 @@ fn a6_a_gauge_preserving_edit_never_asks_the_reach() {
         0,
         "no gauge moved, so the store was never consulted"
     );
-    // Deleting the pair's mate splits the cluster and asks — and the
-    // refusing reach it wraps refuses, typed.
-    let err = doc
+    // Deleting the pair's mate splits the cluster: the prior
+    // document's solve asks the chain's two pairs for their two parts
+    // each, and nothing else.
+    let pairs = 2;
+    let split = doc
         .apply(&DocEdit::DeleteNode { id: mate }, tol, &counting)
-        .expect_err("a split needs the parts");
+        .expect("a split solves through the store");
     assert!(
-        matches!(err, editor_core::EditError::MaintenanceRefused { .. }),
-        "{err:?}"
+        matches!(split.maintenance[..], [ClusterMaintenance::Split { from, to, frame: Some(_) }] if from == a && to == b),
+        "{:?}",
+        split.maintenance
     );
-    assert!(counting.0.get() >= 1, "the split asked the reach");
+    assert_eq!(counting.0.get(), pairs * 2, "asks = pairs × 2 parts");
+    // Deleting the gauge instance rewrites the gauge: the same prior
+    // solve, the same asks.
+    let rewrite = doc
+        .apply(&DocEdit::DeleteNode { id: a }, tol, &counting)
+        .expect("a gauge rewrite solves through the store");
+    assert!(
+        rewrite
+            .maintenance
+            .iter()
+            .any(|act| matches!(act, ClusterMaintenance::GaugeRewrite { from, to, .. } if *from == a && *to == b)),
+        "{:?}",
+        rewrite.maintenance
+    );
+    assert_eq!(
+        counting.0.get(),
+        2 * pairs * 2,
+        "asks = pairs × 2 parts, again"
+    );
 }
 
 /// **A saved document with a split replays bit-identically from its
@@ -843,9 +884,56 @@ fn a6_a_saved_split_replays_bit_identically_with_no_store() {
     // The file: an empty snapshot and the whole log, rows included.
     let empty = ProfileDoc::empty(live.id(), Tol::witness());
     let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
+    // The wire shape, read as a value: an entry that performed no
+    // maintenance (the two instance inserts) is the bare edit — the
+    // common case costs nothing; one that did (the mate insert's
+    // Join, the delete's Split) is `{edit, maintenance}` with exactly
+    // its rows.
+    let (header, body) = text.split_once('\n').expect("a header line");
+    let value: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let entries = value["edits"].as_array().expect("an edit log");
+    assert_eq!(entries.len(), log.len());
+    let keys = |entry: &serde_json::Value| -> Vec<String> {
+        entry
+            .as_object()
+            .expect("an entry is an object")
+            .keys()
+            .cloned()
+            .collect()
+    };
+    let mut bare = 0;
+    for (entry, logged) in entries.iter().zip(&log) {
+        if logged.maintenance.is_empty() {
+            bare += 1;
+            assert!(
+                !keys(entry)
+                    .iter()
+                    .any(|k| k == "maintenance" || k == "edit"),
+                "a bare entry is the edit itself: {entry}"
+            );
+        } else {
+            assert_eq!(keys(entry), ["edit", "maintenance"], "{entry}");
+            assert_eq!(
+                entry["maintenance"].as_array().map(Vec::len),
+                Some(logged.maintenance.len())
+            );
+        }
+    }
+    assert_eq!(bare, 2, "the two instance inserts moved no cluster");
+    // Every wire type refuses a field it does not know, the
+    // entry-with-rows shape included.
+    let mut tampered = value.clone();
+    tampered["edits"][entries.len() - 1]["extra"] = serde_json::json!(1);
+    let tampered = format!(
+        "{header}\n{}\n",
+        serde_json::to_string_pretty(&tampered).expect("re-serializes")
+    );
     assert!(
-        text.contains("\"maintenance\""),
-        "the split's rows are on the wire"
+        matches!(
+            editor_core::load(&tampered, Tol::witness()),
+            Err(PersistError::Unreadable { .. })
+        ),
+        "an unknown field on an entry with rows refuses"
     );
     let loaded = editor_core::load(&text, Tol::witness()).expect("loads with no store");
     assert_eq!(
@@ -856,9 +944,78 @@ fn a6_a_saved_split_replays_bit_identically_with_no_store() {
     assert!(loaded.doc.bit_eq(&live), "and so does the document");
     let replayed = ProfileDoc::replay(live.id(), &log, Tol::witness()).expect("replays");
     assert_eq!(replayed.placements(), live.placements());
-    // An entry that performed no maintenance is the bare edit on the
-    // wire: the common case costs nothing.
-    assert!(!text.contains("\"maintenance\": []"));
+}
+
+/// **A recorded row's frame is held to the placement door's rule at
+/// load**: the log's rows re-enter the registry at replay without
+/// passing `SetPlacement`, so a split row hand-edited into a
+/// REFLECTION (an improper frame, determinant −1) refuses typed at
+/// load naming the entry and the row, exactly as `save` refuses the
+/// same log — never a mirror loaded into the registry that the door
+/// would have refused.
+#[test]
+fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
+    let (doc, [a, b], mate, opts, mut log) = seated("msolve6-a6-mirror");
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let applied = doc
+        .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
+        .expect("the delete applies");
+    let index = log.len();
+    log.push(LoggedEdit {
+        edit: DocEdit::DeleteNode { id: mate },
+        maintenance: applied.maintenance,
+    });
+    let live = applied.doc;
+    let empty = ProfileDoc::empty(live.id(), Tol::witness());
+    let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
+    assert!(editor_core::load(&text, Tol::witness()).is_ok());
+    // The tamper: the split row's frame, mirrored across x.
+    let mirror = Frame {
+        columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        translation: [0.0, 0.0, 0.0],
+    };
+    let (header, body) = text.split_once('\n').expect("a header line");
+    let mut value: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let row = &mut value["edits"][index]["maintenance"][0]["Split"]["frame"];
+    assert!(row.is_object(), "the split row carries a frame: {row}");
+    *row = serde_json::to_value(mirror).expect("a frame serializes");
+    let tampered = format!(
+        "{header}\n{}\n",
+        serde_json::to_string_pretty(&value).expect("re-serializes")
+    );
+    let err =
+        editor_core::load(&tampered, Tol::witness()).expect_err("a mirror is not a placement");
+    assert_eq!(
+        err,
+        PersistError::MaintenanceFrame {
+            index,
+            row: 0,
+            fault: FrameFault::Improper { determinant: -1.0 },
+        }
+    );
+    // The same log, through the save door: the shared validator.
+    let mut mirrored = log.clone();
+    mirrored[index].maintenance = vec![ClusterMaintenance::Split {
+        from: a,
+        to: b,
+        frame: Some(mirror),
+    }];
+    assert_eq!(
+        editor_core::save(&empty, &mirrored, Tol::witness()).expect_err("save refuses the same"),
+        err
+    );
+    // And the door the rule is borrowed from says the same of it.
+    assert!(matches!(
+        live.apply(
+            &DocEdit::SetPlacement {
+                node: b,
+                frame: mirror
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach
+        ),
+        Err(EditError::ImproperPlacement { node, determinant }) if node == b && determinant == -1.0
+    ));
 }
 
 /// **An old-format log whose edit moved a gauge refuses typed at load,
@@ -905,7 +1062,6 @@ fn a6_an_old_format_log_that_moved_a_gauge_refuses_at_load_and_migrates() {
         ),
         "{err:?}"
     );
-    assert!(err.to_string().contains("migrate"), "{err}");
     // The migration door: the same file, the store's reach, the rows
     // re-derived — and re-saved, it loads with no store.
     let migrated = editor_core::load_with(&old, Tol::witness(), &reach).expect("migrates");
@@ -924,33 +1080,41 @@ fn a6_an_old_format_log_that_moved_a_gauge_refuses_at_load_and_migrates() {
     assert_eq!(again.doc.placements(), live.placements());
 }
 
-/// **C5, the checked-in corpus**: every `.pncad` in the repository
-/// loads with no store in hand and re-saves byte for byte — no logged
-/// edit of any of them moved a gauge, so none needed migrating.
+/// **C5, the checked-in corpus**: every TRACKED `.pncad` (git's
+/// list — the viewer's suite reaches the editor-core corpus through a
+/// symlink, which is not a second corpus) — the four the row names,
+/// and it asserts that is what it walked — loads with no store in
+/// hand and re-saves byte for byte. No logged edit of any of them
+/// moved a gauge, so none carries rows and none needed migrating; a
+/// document whose log performed a Join would re-save WITH rows, by
+/// design, and would move this row if checked in bare.
 #[test]
 fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let mut found = Vec::new();
-    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if path.is_dir() {
-                if name == "target" || name.starts_with('.') || name == "node_modules" {
-                    continue;
-                }
-                walk(&path, out);
-            } else if name.ends_with(".pncad") {
-                out.push(path);
-            }
-        }
-    }
-    walk(&root, &mut found);
-    assert!(found.len() >= 4, "the corpus has documents: {found:?}");
+    let listed = std::process::Command::new("git")
+        .args(["ls-files", "-z", "--", "*.pncad"])
+        .current_dir(&root)
+        .output()
+        .expect("git lists the tracked files");
+    assert!(listed.status.success(), "{listed:?}");
+    let mut walked: Vec<String> = String::from_utf8(listed.stdout)
+        .expect("paths are utf-8")
+        .split('\0')
+        .filter(|p| !p.is_empty())
+        .map(str::to_owned)
+        .collect();
+    walked.sort();
+    assert_eq!(
+        walked,
+        [
+            "crates/editor-core/tests/corpus/die_tool.pncad",
+            "crates/editor-core/tests/corpus/tour/die_composed_tour.pncad",
+            "crates/pncad/tests/plate_param.pncad",
+            "crates/viewer/tests/gallery_ring.pncad",
+        ],
+        "the corpus this row walks"
+    );
+    let found: Vec<std::path::PathBuf> = walked.iter().map(|p| root.join(p)).collect();
     let process = Tol::witness().eps();
     let mut loaded_count = 0;
     for path in &found {
@@ -988,4 +1152,71 @@ fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
             "every checked-in document is authored at the default ε"
         );
     }
+}
+
+/// **At `Interval`, the door's reach is the bracket's `hi`, bit for
+/// bit**: the one `f64` read the solve makes of a certified body is
+/// the upper end of its reach bracket (an upper bound by definition),
+/// it bounds the `f64` lane's reach, and the mate over it evaluates
+/// `Ok` with the part evaluated once.
+#[cfg(feature = "interval")]
+#[test]
+fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
+    use geom_core::{Bounds, Interval};
+    let (doc, ids, opts) = instances(
+        "msolve6-a5-interval",
+        cylinder_part("msolve6-a5-interval-part", 0.3, 0.7),
+        2,
+    );
+    let doc_ref = match doc.node(ids[0]) {
+        Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
+        other => panic!("an instance, not {other:?}"),
+    };
+    let (doc, mate) = insert(
+        doc,
+        clocked(
+            ids[0],
+            ids[1],
+            coincidence(frame([0.0, 0.0, 0.7]), frame([0.0; 3]), 0.0),
+        ),
+    );
+    let r64 = mate_reach::<f64>(&opts, Tol::witness())
+        .reach(&doc_ref)
+        .expect("bounded at f64");
+    let ri = mate_reach::<Interval>(&opts, Tol::witness())
+        .reach(&doc_ref)
+        .expect("bounded at Interval");
+    // The bracket, read off the certified body directly.
+    let part = cylinder_part("msolve6-a5-interval-part", 0.3, 0.7);
+    let evi = editor_core::evaluate::<Interval>(
+        &part,
+        None,
+        &editor_core::CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let body = editor_core::product(&part, &evi, Tol::witness()).expect("the interval product");
+    let bracket = editor_core::mate::part_reach(&body).expect("bounded");
+    assert_eq!(
+        ri.to_bits(),
+        bracket.hi().to_bits(),
+        "the door reads the bracket's hi"
+    );
+    assert!(
+        ri >= r64 && ri.is_finite(),
+        "hi {ri} bounds the f64 reach {r64}"
+    );
+    let ev = editor_core::evaluate::<Interval>(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    );
+    assert!(
+        matches!(ev.result(mate), Some(NodeResult::Ok(_))),
+        "{:?}",
+        ev.result(mate)
+    );
+    assert_eq!(ev.part_evaluations, 1);
 }

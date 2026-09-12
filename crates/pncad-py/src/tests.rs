@@ -3912,9 +3912,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["readback_error_tag"],
     },
     TagEntry {
+        function: "frame_fault_tag",
+        values: &["improper", "non_finite"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "lever_refusal_tag",
         values: &[
             "face_unbounded",
+            "malformed_body",
             "no_extent",
             "no_finite_bound",
             "not_an_instance",
@@ -4225,6 +4231,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edit_replay",
             "header_id",
             "id_mismatch",
+            "maintenance_frame",
             "non_finite",
             "parse",
             "profile_program",

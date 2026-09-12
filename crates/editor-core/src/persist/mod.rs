@@ -113,7 +113,7 @@ mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
-use crate::edit::{Applied, EditError, EditRecord, LoggedEdit, apply_logged};
+use crate::edit::{Applied, EditError, EditRecord, LoggedEdit, replay_entry};
 use crate::ident::DocumentId;
 use crate::mate::MateReach;
 use crate::program::{ProfileDoc, ProfileProgram};
@@ -288,6 +288,22 @@ pub enum PersistError {
         /// The typed refusal.
         error: EditError,
     },
+    /// A recorded maintenance row carries a frame that is not a
+    /// placement — non-finite, or improper (a mirror). The rows are
+    /// re-applied at replay without passing the `SetPlacement` door,
+    /// so the shared validator holds them to that door's rule
+    /// ([`crate::Frame::placement_fault`]): save refuses before a
+    /// byte is written, and a hand-edited file refuses at LOAD with
+    /// the same diagnostics rather than loading the frame into the
+    /// registry.
+    MaintenanceFrame {
+        /// The entry's index in the log.
+        index: usize,
+        /// The row's index within the entry's maintenance.
+        row: usize,
+        /// What the frame fails.
+        fault: crate::placement::FrameFault,
+    },
     /// The document's recorded ε conflicts with the ε this process
     /// already committed (D4: one process = one ε; refuse loudly).
     ToleranceConflict {
@@ -364,6 +380,22 @@ impl core::fmt::Display for PersistError {
             Self::EditReplay { index, error } => {
                 write!(f, "persist: edit {index} refused on replay: {error}")
             }
+            Self::MaintenanceFrame { index, row, fault } => {
+                write!(
+                    f,
+                    "persist: edit {index}'s maintenance row {row} records a frame that is not \
+                     a placement: "
+                )?;
+                match fault {
+                    crate::placement::FrameFault::NonFinite => {
+                        write!(f, "a coordinate is not finite")
+                    }
+                    crate::placement::FrameFault::Improper { determinant } => write!(
+                        f,
+                        "its linear part is improper (determinant {determinant}), a mirror"
+                    ),
+                }
+            }
             Self::ToleranceConflict { process, document } => write!(
                 f,
                 "persist: document ε {document:e} conflicts with the process ε {process:e} \
@@ -405,7 +437,7 @@ pub fn save(
     // that would need a store to load refuses at save too.
     let mut replay = snapshot.clone();
     for (index, entry) in edits.iter().enumerate() {
-        replay = apply_logged(&replay, entry, tol)
+        replay = replay_entry(&replay, entry, tol, None)
             .map_err(|error| PersistError::EditReplay { index, error })?
             .doc;
     }
@@ -484,19 +516,14 @@ fn load_replaying(
     let mut records = Vec::with_capacity(body.edits.len());
     let mut edits = Vec::with_capacity(body.edits.len());
     for (index, entry) in body.edits.into_iter().enumerate() {
-        let replayed = match migrate {
-            // Migration: a bare entry goes through the live door and
-            // comes back with the rows it performed.
-            Some(reach) if entry.maintenance.is_empty() => {
-                crate::edit::apply(&doc, &entry.edit, tol, reach)
-            }
-            _ => apply_logged(&doc, &entry, tol),
-        };
+        // With `migrate` in hand a bare entry goes through the live
+        // door and comes back with the rows it performed.
         let Applied {
             doc: next,
             record,
             maintenance,
-        } = replayed.map_err(|error| PersistError::EditReplay { index, error })?;
+        } = replay_entry(&doc, &entry, tol, migrate)
+            .map_err(|error| PersistError::EditReplay { index, error })?;
         doc = next;
         records.push(record);
         edits.push(LoggedEdit {

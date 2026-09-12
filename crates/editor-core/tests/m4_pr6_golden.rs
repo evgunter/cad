@@ -504,7 +504,11 @@ fn golden_bytes_load() {
             assert_eq!(ambient.to_bits(), 1e-9f64.to_bits());
             let (doc, edits) = golden();
             assert!(loaded.snapshot.bit_eq(&doc), "golden snapshot drifted");
-            assert_eq!(loaded.edits, edits, "golden edit log drifted");
+            assert_eq!(
+                loaded.edits,
+                editor_core::LoggedEdit::bare_all(&edits),
+                "golden edit log drifted"
+            );
         }
         Err(PersistError::ToleranceConflict { process, document }) => {
             // The ε door is the LAST load door, so this outcome still

@@ -57,6 +57,21 @@ impl core::fmt::Display for AxisRefusal {
 /// authored rather than the frame it was going to build.
 pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 
+/// Why a frame cannot be a placement ([`Frame::placement_fault`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FrameFault {
+    /// A coordinate is not finite.
+    NonFinite,
+    /// The linear part is IMPROPER — determinant ≤ 0, a mirror (A6).
+    /// Admitting one is gated on the equivariance audit R4 owns; until
+    /// that lands a mirrored placement is refused rather than trusted
+    /// to leave every orientation-sensitive predicate intact.
+    Improper {
+        /// The linear part's determinant.
+        determinant: f64,
+    },
+}
+
 /// A placement frame: an affine map of world space, stored as the
 /// linear part's COLUMNS (the images of the basis vectors, matching
 /// [`Mat3::from_cols`]) plus the translation.
@@ -181,6 +196,18 @@ impl Frame {
         } else {
             out
         }
+    }
+
+    /// **What holds a placement frame** — the one rule every door a
+    /// frame enters the document by applies (`SetPlacement`, a
+    /// placement rule's explicit list, a recorded maintenance row at
+    /// load): finite, and proper. `None` when the frame passes.
+    pub fn placement_fault(&self) -> Option<FrameFault> {
+        if !self.is_finite() {
+            return Some(FrameFault::NonFinite);
+        }
+        let determinant = self.determinant();
+        (determinant <= 0.0).then_some(FrameFault::Improper { determinant })
     }
 
     /// Whether every stored coordinate is finite.

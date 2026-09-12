@@ -954,11 +954,8 @@ pub(crate) fn solve_document(
     resolver: Option<&super::store::Workspace>,
 ) -> SolvedPoses {
     let tol = Tol::witness();
-    let opts = d::EvalOptions {
-        resolver: resolver.map(super::store::Workspace::resolver),
-        ..d::EvalOptions::default()
-    };
-    let reach = d::mate_reach::<f64>(&opts, tol);
+    let seam = super::doc::seam(resolver);
+    let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
     SolvedPoses(d::solve_document(&doc.inner, &reach, tol))
 }
 

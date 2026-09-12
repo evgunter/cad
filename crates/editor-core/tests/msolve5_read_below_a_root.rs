@@ -643,7 +643,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, pattern) = insert(
+    let (doc, _) = insert(
         doc,
         Node::Pattern {
             input: xf,
@@ -704,5 +704,4 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         ),
         "the gather refuses at the failed root before any reference is read: {err:?}"
     );
-    let _ = pattern;
 }

@@ -115,6 +115,7 @@ pub use drive::{
 };
 pub use edit::{
     Applied, DocEdit, EditError, EditRecord, LoggedEdit, apply, apply_logged, cascade_delete_order,
+    replay_entry,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
@@ -170,7 +171,7 @@ pub use persist::{
     load, load_with, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
-pub use placement::{AxisRefusal, Frame};
+pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{

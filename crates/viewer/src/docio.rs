@@ -27,8 +27,7 @@
 use std::path::{Path, PathBuf};
 
 use pncad::document::{
-    Doc, DocRef, PartResolver, PersistError, ProfileDoc, ProfileProgram, ResolveFailure,
-    ResolveFault, load, save,
+    Doc, DocRef, PartResolver, PersistError, ProfileDoc, ProfileProgram, ResolveFailure, load, save,
 };
 use pncad::geom_core::Tol;
 use pncad::workspace::Workspace;
@@ -91,13 +90,12 @@ impl DirResolver {
 
 impl PartResolver for DirResolver {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let workspace = self.workspace().map_err(|error| ResolveFailure {
-            // The scan's refusal is the store's, verbatim; the fault
-            // classification is `Unresolved` because the reference
-            // itself was never reached.
-            fault: ResolveFault::Unresolved,
-            message: error.to_string(),
-        })?;
+        // The scan's refusal is the store's, verbatim; the fault
+        // classification is `Unresolved` because the reference itself
+        // was never reached.
+        let workspace = self
+            .workspace()
+            .map_err(|error| ResolveFailure::unresolved(error.to_string()))?;
         PartResolver::resolve(&workspace, doc_ref, tol)
     }
 }

@@ -14,8 +14,8 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, DocParam, EvalOptions, Evaluation, ParamName,
-    PartResolver, ProfileProgram, RecipeNodeId, SlotId, apply, evaluate, mate_reach,
+    CancelToken, Dimension, Doc, DocEdit, DocParam, EvalOptions, Evaluation, ParamName, PartReach,
+    PartResolver, ProfileProgram, RecipeNodeId, SlotId, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
@@ -111,11 +111,7 @@ pub(super) fn probe_bounds(
     // A probe's edit is a slot value on one node — it never moves a
     // cluster's gauge — but the door is the session's, so it levers
     // through the session's own seam like every other edit.
-    let opts = EvalOptions {
-        resolver: resolver.clone(),
-        ..EvalOptions::default()
-    };
-    let reach = mate_reach::<f64>(&opts, tol);
+    let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
     let result = bounds::probe(
         bounds::BoundsProbe::new(origin, seed, integral),
         |candidate| {

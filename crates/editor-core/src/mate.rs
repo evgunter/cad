@@ -33,11 +33,8 @@
 //! them, the axis sense, and the clocking rider. The frames are
 //! authored data, so the whole solve is a decided-predicate
 //! computation over the recipe (A11's "no geometry inspection, no
-//! numerics beyond decided predicates" — with the one qualifier A11
-//! states: the solve reads no geometry except each mated part's own
-//! extent, an upper bound taken from its evaluated body, which enters
-//! only as the lever a parallelism verdict is decided over —
-//! [`reach`]).
+//! numerics beyond decided predicates", with the one qualifier
+//! `ASSEMBLY.md` A11 rule 5 states for the lever — [`reach`]).
 //!
 //! Each primitive pins the pair's relative pose to a COSET of an
 //! SE(3) subgroup, and multiple mates on one pair fold by exact coset
@@ -76,7 +73,7 @@ pub mod solve;
 
 pub use coset::{Coset, Subgroup};
 pub use member::{Member, member_of};
-pub use reach::{MateReach, ReachRefusal, RefusingReach, body_reach, part_reach};
+pub use reach::{MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach};
 pub use solve::{
     ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
     relative_freedom_components, solve_document,
@@ -293,23 +290,12 @@ impl Alignment {
     /// mate is ordinarily written. With a real part on each side the
     /// lever is never zero, so no floor guards this door.
     ///
-    /// # Why there is no floor, and why there once was one
-    ///
-    /// The first shipped form of the lever was
-    /// `if extent > 0.0 { extent } else { 1.0 }` over the datum alone,
-    /// and a reviewer took it apart in one line: a datum at the origin
-    /// was levered at 1 m, and a datum ONE NANOMETRE from the origin at
-    /// 1e-9 m — nine orders apart, chosen by a bit-exact test against
-    /// zero, with the small side being exactly the failure the lever
-    /// exists to prevent: a lever of `L` makes the smallest decidable
-    /// tilt `ε / L`, which at 1 nm and the default ε is a whole radian,
-    /// so every tilt read parallel. A micron floor with a typed refusal
-    /// under it closed that gap while the datum was the only scale in
-    /// hand. The mated parts' extent is now in hand, and a part's reach
-    /// is its size at whatever scale the author works, so the case the
-    /// floor guarded — a scale named, too small to decide over — has no
-    /// document left that reaches it: the nanometre datum is levered by
-    /// the parts on either side of it.
+    /// A floor once stood under this term because the datum was the
+    /// only scale in hand, and a lever of `L` makes the smallest
+    /// decidable tilt `ε / L`, so a datum a nanometre from the origin
+    /// read every tilt as parallel. The parts' own reach is that scale
+    /// now, at whatever size the author works, so the case the floor
+    /// guarded has no document that reaches it.
     pub fn lever_arm(&self) -> f64 {
         let norm = |v: [f64; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
         self.primitive
@@ -475,8 +461,20 @@ pub enum LeverRefusal {
         part: crate::ident::DocRef,
         /// The face, in the part body's own arena.
         face: topo::entity::FaceKey,
-        /// The face's surface kind, by name.
-        kind: &'static str,
+        /// The face's surface kind.
+        kind: SurfaceKind,
+    },
+    /// The part's body has a face whose surface key resolves to no
+    /// surface in its own arena — a body that is not well formed,
+    /// refused in that voice rather than as a face this kernel cannot
+    /// bound.
+    MalformedBody {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+        /// The face whose surface is missing.
+        face: topo::entity::FaceKey,
     },
     /// The part's body has no faces, so it has no extent to lever
     /// over: a verdict formed over nothing is vacuous, and reporting
@@ -515,6 +513,11 @@ impl LeverRefusal {
                 face,
                 kind,
             },
+            ReachRefusal::MalformedBody { face } => Self::MalformedBody {
+                instance,
+                part,
+                face,
+            },
             ReachRefusal::NoExtent => Self::NoExtent { instance, part },
             ReachRefusal::NoFiniteBound => Self::NoFiniteBound { instance, part },
         }
@@ -537,9 +540,21 @@ impl core::fmt::Display for LeverRefusal {
                 kind,
             } => write!(
                 f,
-                "instance {}'s part {part} has a {kind} face ({face:?}) whose reach from the \
+                "instance {}'s part {part} has a {} face ({face:?}) whose reach from the \
                  part's origin cannot be bounded, so no upper bound on the part's extent can \
                  be stated",
+                instance.0,
+                kind.name()
+            ),
+            Self::MalformedBody {
+                instance,
+                part,
+                face,
+            } => write!(
+                f,
+                "instance {}'s part {part} has a face ({face:?}) whose surface key resolves to \
+                 no surface, so the body is not well formed and no bound on its extent can be \
+                 stated",
                 instance.0
             ),
             Self::NoExtent { instance, part } => write!(

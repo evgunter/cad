@@ -76,10 +76,10 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
     CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
     EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
-    MatePrimitive, MateReach, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartResolver,
+    MatePrimitive, MateReach, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach, PartResolver,
     PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, UNDER_RECOURSE,
-    apply, assemble, content_pin, evaluate, inline, load, mate_reach, mixed_pins, parse_expr,
-    product_named, save, solve_document, split,
+    apply, assemble, content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named,
+    save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -217,9 +217,16 @@ fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
 /// evaluable.
 fn with_store(ws: &Workspace) -> EvalOptions {
     EvalOptions {
-        resolver: Some(Arc::new(ws.clone())),
+        resolver: Some(store(ws)),
         ..EvalOptions::default()
     }
+}
+
+/// The workspace as the document seam the reach-taking doors resolve
+/// through — what an edit on a mated document levers the parts'
+/// extent with ([`PartReach::with_resolver`]).
+fn store(ws: &Workspace) -> Arc<dyn PartResolver> {
+    Arc::new(ws.clone())
 }
 
 fn run(doc: &ProfileDoc, opts: &EvalOptions, tol: Tol) -> Evaluation<f64> {
@@ -669,8 +676,8 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
     // The solve, read the way an author reads it: which instance is
     // the cluster's gauge, and what role each mate took (A11 rules
     // 3-4 — tree mates DETERMINE, the rest DECLARE).
-    let opts = with_store(ws);
-    let reach = mate_reach::<f64>(&opts, tol);
+    let store = store(ws);
+    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     let poses = solve_document(&stand.doc, &reach, tol);
     let gauge = poses.gauge(stand.shelf_i).expect("the shelf is placed");
     assert_eq!(
@@ -870,11 +877,11 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 /// that stopped being typed, stopped naming its subject, or stopped
 /// ending on its recourse breaks this walk.
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
-    // Every edit here is on a MATED document, so it levers through
-    // the workspace's own reach: the parts' extent, the way the
-    // evaluation resolves them.
-    let opts = with_store(ws);
-    let reach = mate_reach::<f64>(&opts, tol);
+    // Every edit and every solve here is on a MATED document, so it
+    // levers through the workspace's own reach: the parts' extent,
+    // the way the evaluation resolves them. ONE reach for the walk.
+    let store = store(ws);
+    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
     println!("\n-- the v1 boundary, walked: four refusals an author actually hits --");
@@ -940,7 +947,6 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         },
         tol,
     );
-    let reach = mate_reach::<f64>(&opts, tol);
     let poses = solve_document(&contra.doc, &reach, tol);
     let fault = poses
         .fault(clash)
@@ -1266,8 +1272,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     // Every edit here is on a MATED document, so it levers through
     // the workspace's own reach: the parts' extent, the way the
     // evaluation resolves them.
-    let opts = with_store(ws);
-    let reach = mate_reach::<f64>(&opts, tol);
+    let store = store(ws);
+    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     println!("\n-- the update door: moving a pin is a recorded edit --");
     let before = run(&stand.doc, &with_store(ws), tol);
     let (before_body, _) = product_of(&stand.doc, &before, tol);

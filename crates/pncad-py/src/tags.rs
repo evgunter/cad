@@ -62,8 +62,8 @@ use pncad::analysis::{
 };
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
-    Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
-    LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
+    Distribution, DistributionFault, DistributionField, EditError, EvalError, FrameFault,
+    InlineError, LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
     NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
     SnapshotError, SplitError, UpdateError,
@@ -1370,9 +1370,23 @@ pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
     match refusal {
         LeverRefusal::PartUnresolved { .. } => "part_unresolved",
         LeverRefusal::FaceUnbounded { .. } => "face_unbounded",
+        LeverRefusal::MalformedBody { .. } => "malformed_body",
         LeverRefusal::NoExtent { .. } => "no_extent",
         LeverRefusal::NoFiniteBound { .. } => "no_finite_bound",
         LeverRefusal::NotAnInstance { .. } => "not_an_instance",
+    }
+}
+
+/// The stable tag for what a frame fails to be a placement
+/// (`Frame::placement_fault`): the word `PersistError`'s
+/// `maintenance_frame` arm publishes on `inner_variant` — a recorded
+/// maintenance row's frame held to the `SetPlacement` door's rule at
+/// load. Exhaustive so a new way for a frame to fail arrives here as
+/// a compile error.
+pub fn frame_fault_tag(fault: &FrameFault) -> &'static str {
+    match fault {
+        FrameFault::NonFinite => "non_finite",
+        FrameFault::Improper { .. } => "improper",
     }
 }
 
@@ -1483,6 +1497,7 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         PersistError::Unreadable { .. } => "unreadable",
         PersistError::Snapshot(_) => "snapshot",
         PersistError::EditReplay { .. } => "edit_replay",
+        PersistError::MaintenanceFrame { .. } => "maintenance_frame",
         PersistError::ToleranceConflict { .. } => "tolerance_conflict",
         PersistError::ToleranceInvalid { .. } => "tolerance_invalid",
     }

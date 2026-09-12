@@ -479,6 +479,28 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
         ),
+        // The frame fault's own word rides on `inner_variant` the way
+        // the other nested arms' do; the entry's index is `index`, and
+        // the row's index within the entry stays in the message.
+        E::MaintenanceFrame {
+            index: at, fault, ..
+        } => (
+            word(crate::tags::frame_fault_tag(fault)),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*at),
+            none(),
+            none(),
+        ),
         E::ToleranceConflict {
             process: committed,
             document: recorded,
@@ -662,16 +684,16 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
 }
 
 /// A recipe node's identity within a document.
-/// The options the document's edit door resolves parts through: the
-/// same seam `evaluate(doc, resolver=)` crosses, so an edit whose
+/// The seam the document's edit door resolves parts through: the
+/// same one `evaluate(doc, resolver=)` crosses, so an edit whose
 /// cluster-record maintenance mints a frame from a solve levers the
 /// mated parts' own extent — and with no resolver refuses typed rather
-/// than recording a frame nothing decided.
-fn eval_options(resolver: Option<&super::store::Workspace>) -> d::EvalOptions {
-    d::EvalOptions {
-        resolver: resolver.map(super::store::Workspace::resolver),
-        ..d::EvalOptions::default()
-    }
+/// than recording a frame nothing decided. The reach is built over it
+/// by [`d::PartReach::with_resolver`] at each door.
+pub(crate) fn seam(
+    resolver: Option<&super::store::Workspace>,
+) -> Option<std::sync::Arc<dyn d::PartResolver>> {
+    resolver.map(super::store::Workspace::resolver)
 }
 
 #[pyclass(frozen, module = "pncad", from_py_object)]
@@ -764,8 +786,8 @@ impl Doc {
         resolver: Option<&super::store::Workspace>,
     ) -> Result<Option<NodeId>, d::EditError> {
         let tol = Tol::witness();
-        let opts = eval_options(resolver);
-        let reach = d::mate_reach::<f64>(&opts, tol);
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
         let applied = d::apply(&self.inner, &d::DocEdit::InsertNode { node }, tol, &reach)?;
         if applied.record.minted.is_none() {
             return Ok(None);
@@ -871,8 +893,8 @@ impl Doc {
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
-        let opts = eval_options(resolver);
-        let reach = d::mate_reach::<f64>(&opts, tol);
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
         let applied =
             d::apply(&self.inner, &edit.inner, tol, &reach).map_err(|err| edit_err(py, &err))?;
         Ok(self.accept(applied).minted.map(NodeId))

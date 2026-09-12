@@ -741,20 +741,22 @@ class TestAssemblyRefusals(BenchWorkspace):
             mate = doc.insert(
                 Node.mate(a_i, a_top, b_i, b_bottom, ContactClass.Rest, alignment)
             )
-            return doc, mate
+            return doc, mate, a_i
 
-        small, small_mate = clocked(0.01)
+        small, small_mate, small_a = clocked(0.01)
         self.assertIsNone(solve_document(small, resolver=self.ws).fault(small_mate))
         self.assertEqual(
             solve_document(small, resolver=self.ws).role(small_mate),
             MateRole.Determining,
         )
-        # No resolver, no extent: the typed refusal, not a guess.
+        # No resolver, no extent: the typed refusal, not a guess — the
+        # nested refusal's own word, and the instance it names.
         fault = solve_document(small).fault(small_mate)
         self.assertEqual(fault.variant, "mate_unleverable")
-        self.assertIn("part resolver", str(fault))
+        self.assertEqual(fault.inner_variant, "part_unresolved")
+        self.assertEqual(fault.instance, small_a)
 
-        large, large_mate = clocked(10.0)
+        large, large_mate, _ = clocked(10.0)
         fault = solve_document(large, resolver=self.ws).fault(large_mate)
         self.assertEqual(fault.variant, "mate_contradictory")
         self.assertEqual(fault.predicate, "mate_clocking_redundant")

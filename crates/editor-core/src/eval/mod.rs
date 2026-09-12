@@ -2327,6 +2327,37 @@ pub struct PartReach<'a, T: EvalScalar> {
     tol: Tol,
 }
 
+impl<'a, T: EvalScalar> PartReach<'a, T> {
+    /// **A reach from a resolver alone** — for the doors that are not
+    /// a run: the edit door, a solve read outside an evaluation, a
+    /// refactoring. Such a door has no evaluation options of its own,
+    /// so its parts evaluate under the defaults (`EvalOptions`'s sweep
+    /// strategy and profile lift), spelled here once; a door that IS
+    /// a run, or holds a run's options, goes through [`mate_reach`].
+    /// `None` is the refusing reach: every part is the typed
+    /// no-resolver fault.
+    pub fn with_resolver(
+        resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
+        tol: Tol,
+    ) -> Self {
+        let defaults = EvalOptions::default();
+        Self::over(resolver, defaults.boolean_sweep, defaults.profile_lift, tol)
+    }
+
+    /// A reach over a part cache built from these options' parts.
+    fn over(
+        resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
+        boolean_sweep: topo::SweepStrategy,
+        profile_lift: ProfileLift,
+        tol: Tol,
+    ) -> Self {
+        Self {
+            parts: parts::PartCache::<T>::new(resolver, &[], boolean_sweep, profile_lift, tol),
+            tol,
+        }
+    }
+}
+
 impl<T: EvalScalar> crate::mate::MateReach for PartReach<'_, T> {
     fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
         reach_over_cache(&self.parts, part, self.tol)
@@ -2342,16 +2373,12 @@ impl<T: EvalScalar> crate::mate::MateReach for PartReach<'_, T> {
 /// no-resolver fault, so the solve refuses each mate in the
 /// resolver's own voice rather than levering over nothing.
 pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartReach<'a, T> {
-    PartReach {
-        parts: parts::PartCache::<T>::new(
-            opts.resolver.as_ref(),
-            &[],
-            opts.boolean_sweep,
-            opts.profile_lift,
-            tol,
-        ),
+    PartReach::over(
+        opts.resolver.as_ref(),
+        opts.boolean_sweep,
+        opts.profile_lift,
         tol,
-    }
+    )
 }
 
 /// Evaluates the document (spec D2–D6): a TOTAL function — every

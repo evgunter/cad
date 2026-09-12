@@ -45,8 +45,11 @@
 //! Over-refusal is the safe direction, so every bound is an upper
 //! one and none is dropped: a face whose bound cannot be stated — a
 //! boundary that does not walk, an empty or placeholder (all-poison)
-//! control net — refuses typed through [`Unbounded`], never a guess;
-//! a bound that reads back non-finite refuses where it is read.
+//! control net — refuses typed ([`ReachRefusal::FaceUnbounded`]),
+//! never a guess; a face whose surface key does not resolve is a
+//! malformed body and refuses in that voice
+//! ([`ReachRefusal::MalformedBody`]); a bound that reads back
+//! non-finite refuses where it is read.
 
 use geom::Surface;
 use geom_core::{Decide, Point3};
@@ -106,8 +109,15 @@ pub enum ReachRefusal {
     FaceUnbounded {
         /// The face, in the part body's own arena.
         face: FaceKey,
-        /// Its surface kind, by name.
-        kind: &'static str,
+        /// Its surface kind.
+        kind: SurfaceKind,
+    },
+    /// The body has a face whose surface key resolves to no surface
+    /// in its own arena: not a face this module cannot bound but a
+    /// body that is not well formed, refused in that voice.
+    MalformedBody {
+        /// The face whose surface is missing.
+        face: FaceKey,
     },
     /// The body has no faces, so it has no extent to lever over.
     NoExtent,
@@ -135,24 +145,11 @@ impl MateReach for RefusingReach {
     }
 }
 
-/// Why a body's reach could not be bounded: the face and its surface
-/// kind. [`ReachRefusal::FaceUnbounded`] is this, on a part.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Unbounded {
-    /// The face whose reach has no bound this module can state.
-    pub face: FaceKey,
-    /// Its surface kind, by name.
-    pub kind: &'static str,
-}
-
-impl From<Unbounded> for ReachRefusal {
-    fn from(u: Unbounded) -> Self {
-        ReachRefusal::FaceUnbounded {
-            face: u.face,
-            kind: u.kind,
-        }
-    }
-}
+/// The kind a refusal names a face's surface by — `geom_brep`'s own
+/// closed mirror of [`Surface`], with its one name table
+/// ([`SurfaceKind::name`]), so no second string table stands beside
+/// it and a caller branches on the value.
+pub use geom_brep::SurfaceKind;
 
 /// **A part's reach as the solve reads it**: [`body_reach`] with a
 /// faceless body refused ([`ReachRefusal::NoExtent`]) — the one
@@ -160,7 +157,8 @@ impl From<Unbounded> for ReachRefusal {
 ///
 /// # Errors
 ///
-/// [`ReachRefusal::FaceUnbounded`], [`ReachRefusal::NoExtent`].
+/// [`ReachRefusal::FaceUnbounded`], [`ReachRefusal::MalformedBody`],
+/// [`ReachRefusal::NoExtent`].
 pub fn part_reach<T: Decide>(body: &Body<T>) -> Result<T, ReachRefusal> {
     body_reach(body)?.ok_or(ReachRefusal::NoExtent)
 }
@@ -175,20 +173,22 @@ pub fn part_reach<T: Decide>(body: &Body<T>) -> Result<T, ReachRefusal> {
 ///
 /// # Errors
 ///
-/// [`Unbounded`], naming the first face whose reach cannot be stated
-/// — in the body's own face order, so the answer is deterministic.
-pub fn body_reach<T: Decide>(body: &Body<T>) -> Result<Option<T>, Unbounded> {
+/// [`ReachRefusal::FaceUnbounded`], naming the first face whose reach
+/// cannot be stated — in the body's own face order, so the answer is
+/// deterministic; [`ReachRefusal::MalformedBody`] for a face whose
+/// surface key resolves to nothing, which is a fault of the body and
+/// not of this table.
+pub fn body_reach<T: Decide>(body: &Body<T>) -> Result<Option<T>, ReachRefusal> {
     let origin = Point3::<T>::origin();
     let mut reach: Option<T> = None;
     for (key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
-            return Err(Unbounded {
-                face: key,
-                kind: "unknown",
-            });
+            return Err(ReachRefusal::MalformedBody { face: key });
         };
-        let kind = surface_kind(surface);
-        let bound = face_reach(body, key, surface, origin).ok_or(Unbounded { face: key, kind })?;
+        let bound = face_reach(body, key, surface, origin).ok_or(ReachRefusal::FaceUnbounded {
+            face: key,
+            kind: SurfaceKind::of(surface),
+        })?;
         reach = Some(reach.map_or(bound, |r| r.max(bound)));
     }
     Ok(reach)
@@ -227,18 +227,5 @@ fn face_reach<T: Decide>(
                 .map(|p| from(*p))
                 .reduce(|a, b| a.max(b))
         }
-    }
-}
-
-/// The surface kind's name, for a refusal.
-fn surface_kind<T: geom_core::Real>(surface: &Surface<T>) -> &'static str {
-    match surface {
-        Surface::Plane { .. } => "plane",
-        Surface::Cylinder { .. } => "cylinder",
-        Surface::Cone { .. } => "cone",
-        Surface::Sphere { .. } => "sphere",
-        Surface::Torus { .. } => "torus",
-        Surface::Nurbs(_) => "nurbs",
-        Surface::Approx(_) => "approx",
     }
 }
