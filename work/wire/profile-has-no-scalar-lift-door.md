@@ -2,9 +2,12 @@
 id: profile-has-no-scalar-lift-door
 kind: issue
 title: crates/profile/ carries no map_scalar, so loft's end_profile hand-spells the ProfileLoop lift three rungs deep
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1782]
+branch: wire/profile-lift-door
+pr: 2409
+closed: 2026-09-12
 ---
 
 ## Finding
@@ -60,3 +63,39 @@ unchanged by the move.
 `work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
 and its closed rows went with it. `D320` and `D321` are now cited by the
 PR that closed both, 1782 — one entry, not two.
+
+## Closed (2026-09-12) — PR 2409, merged
+
+`crates/profile` has its scalar-lift door: `ProfileVertex::map` (leaf),
+`ProfileLoop::map_scalar` (**renamed** from `map`), `Profile::map_scalar`.
+`ValidatedLoop::lift` delegates its vertex rung. No production site in
+the tree lifts a profile type by hand.
+
+**The item was wrong about the tree in three ways**, each corrected by
+the lane and each worth keeping:
+
+- **Half the door already existed.** `ProfileLoop::map` landed with
+  BOOL-9 and is ratified in `crates/profile/README.md` V4. `end_profile`
+  was two lines of hand-spelling, not three rungs.
+- **`Section` cannot carry a door** — `pub type Section =
+  Vec<ProfileLoop<f64>>`, an `f64`-pinned alias in **sweep**. The top
+  rung is `Profile`.
+- **A second hand-spelled vertex rung existed inside the validated door
+  itself** (`validate.rs:997`), named by neither item: BOOL-9's fix for
+  the loop rung had minted a fresh copy one level down. The standing
+  trap, found by reading.
+
+**The rename is the decision this row made.** `crates/geom/src/scalar_lift.rs`
+is the written convention — `map` on every leaf, `map_scalar` on every
+type whose lift carries structure. BOOL-9 argued `map` by listing four
+**leaves**; `ProfileLoop` is not one. Following it: README V4's clause,
+`docs/PATHS-DESIGN.md`'s ratified paragraph (**both halves stale** — the
+name and the caller), eight test call sites and the census's pinned
+surface.
+
+Residues: `frame-linear-generic-door-has-no-consumers` (this closed
+**with both rungs having no production consumer**, and the PR removing
+the loop rung's last one — argued at the ratified home on the convention
+a library owes an external caller, and the row is now a class),
+`work/bool/arc-carrier-has-three-spellings-under-a-comment-saying-one.md`,
+`work/bool/validate-rs-hosts-a-quarter-of-the-fillet-subsystem-it-never-runs.md`.

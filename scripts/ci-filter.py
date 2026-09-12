@@ -82,16 +82,14 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
   RUN_STL=true|false            watertight (admesh) row
   RUN_STEP_EXPORT=true|false    step import (freecad) row
-  RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row — keyed on
-                                SEEDS, like RUN_VIEWER_TOOLKIT below, against
-                                the members a BUILD OF THE WHEEL compiles
-                                (pncad-py's non-dev dependency closure); see
-                                `pncad_py_seeds`
+  RUN_PNCAD_PY=true|false       whether this diff's SEEDS reach the members a
+                                BUILD OF THE WHEEL compiles (pncad-py's non-dev
+                                dependency closure; see `pncad_py_seeds`).
+                                REPORTED, GATES NOTHING — the python suite runs
+                                on every code-tier run in both halves
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
   RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
-  RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row. LOCAL-ONLY
-                                today — the hosted job moved to nightly.yml and
-                                runs ungated there; see JOB_ROOTS
+  RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row
   RUN_K_LINT=true|false         k-lint (gate) row
   LANE_ADVISORY=true|false      this diff touches `*interval*` files and this
                                 run was NARROWED to the default lane by a
@@ -159,11 +157,33 @@ TIER=all one**, against medians of 22 and 31.
 WALL CLOCK IS NOT FREE AND THE FIRST VERSION OF THIS NOTE SAID IT WAS. The eps
 legs do start together behind an archive that was already being built, but a
 run's wall follows their MAXIMUM, and the maximum of six legs is larger than
-the maximum of two: measured, ~+20 s of critical path on a run that would have
-drawn `interval` anyway, on top of the ~+172 s the interval archive adds to one
-that would have drawn `default` — about +96 s in expectation on a TIER=all run.
-The last job on that path is `test (interval, eps = default, 1/2)`, the first
-eps row's shard 1, which also carries the two editor-core steps.
+the maximum of two. THE SIZE OF THAT WAS FIRST WRITTEN AS ~+20 s OF CRITICAL
+PATH on a run that would have drawn `interval` anyway, and the 2026-09-12
+shard measurement falsifies it: the eps rows' cost on that lane is the
+ε = 1e-12 leg, which runs several times the ε = default leg beside it, so the
+term is hundreds of seconds and not tens. The "+96 s in expectation on a
+TIER=all run" that was composed from it — with the ~+172 s the interval
+archive adds to a run that would have drawn `default`, which nothing here
+re-took — goes with it. Neither figure is re-derived here: the readings that
+replace the first term are on
+`work/tcost/one-test-is-the-whole-ci-critical-path`.
+
+THE LAST JOB ON THAT PATH IS THE eps = 1e-12 INTERVAL LEG, AND IT USED TO BE
+NAMED AS `test (interval, eps = default, 1/2)` HERE (corrected 2026-09-12).
+That naming was right when every interval leg cost about the same; it is not
+now. The ε = 1e-12 row carries `editor-core::all
+r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`,
+which is most of its leg at that ε and a rounding error at the other two, so
+the leg holding it finishes last on EVERY code-tier run measured — 30 of them,
+18 at the live count of 2 and 12 more across counts 2, 3, 4 and 6. THE
+DURATIONS ARE NOT RESTATED HERE, because this note would be their fifth home
+and three of the four disagreed on the day they were written: they live once,
+on `work/tcost/one-test-is-the-whole-ci-critical-path`, with the per-run
+readings behind them on `work/tcost/nextest-shard-count-needs-remeasure`.
+WHICH shard of that row holds the test is not fixed: the count partition reads
+no timings, so it moves with the test list. Separately, and unchanged, the two
+editor-core steps ride on shard 1 of the FIRST eps row — that is where they
+are wired, not where the wall is.
 
 THE JOB-MINUTE FIGURES ARE FLOORS, NOT FORECASTS: three un-sampled runs came in
 at 54.0 / 44.4 / 49.7 job-minutes against a 30.6-minute TIER=all median. The
@@ -1343,35 +1363,20 @@ def _all_tier(root: str) -> dict[str, str]:
 #               for exactly those modules), and `rebuild latency` moved to
 #               nightly.yml. What still reads this is ci.yml's `test-interval`
 #               job — its two named interval rows — plus ci-local.sh.
-# pncad-py      NO LONGER HERE. `RUN_PNCAD_PY` is computed in `decorate`
-#               off the SEEDS, beside `RUN_VIEWER_TOOLKIT` and for the
-#               same reason; the argument is at that site. What this
-#               table said, and why it stopped being the right condition:
-#               the wheel compiles pncad-py's whole dependency graph —
-#               the entire façade stack — so `pncad-py in closure` is
-#               "something the wheel compiles moved", which is true of
-#               nearly every kernel change and therefore gates almost
-#               nothing while costing a second kernel compile under the
-#               `python` feature on almost every code-tier run.
+# pncad-py      NOT HERE, AND NOT A GATE ANYWHERE. `RUN_PNCAD_PY` is
+#               computed in `decorate` off the SEEDS and is REPORTING:
+#               the python suite runs on every code-tier run in both
+#               halves, so no job reads the key. A closure entry here
+#               would not have gated anything either — the wheel
+#               compiles pncad-py's whole dependency graph, the entire
+#               façade stack, so "something the wheel compiles moved" is
+#               true of nearly every kernel change.
 # topo          the release-profile corrupt-input row compiles
 #               `-p topo --lib`, so topo's own closure membership is
 #               exactly the condition under which anything it runs can
 #               have moved. It is the one root whose crate is where the
-#               suite lives rather than a downstream consumer.
-#
-#               THE HOSTED HALF OF THIS ROW IS GONE (S-TCOST C1,
-#               2026-09-03): `corrupt input (release profile)` moved to
-#               nightly.yml, where it runs UNGATED once a day, so no job
-#               in ci.yml reads this key any more and ci.yml's `filter`
-#               publishes no `run_topo_release` output. THE KEY STAYS
-#               because `local-scripts/ci-local.sh` still consumes it —
-#               nothing bills the local gate by the minute, so the row
-#               keeps its per-change scoping there. Deleting the key
-#               would silently promote a scoped local row to
-#               unconditional, which is the opposite of what the demotion
-#               decided. The soundness argument for the demotion is at
-#               the job in nightly.yml, per row, against
-#               docs/CI-MINUTES-2026-08.md's absence rule.
+#               suite lives rather than a downstream consumer. Both
+#               halves read it.
 JOB_ROOTS = {
     "RUN_EDITOR_CORE": {"editor-core"},
     "RUN_STL": {"stl"},
@@ -2488,51 +2493,28 @@ def decorate(
     else:
         seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
         res["RUN_VIEWER_TOOLKIT"] = "true" if seeds & VIEWER_TOOLKIT_SEEDS else "false"
-    # THE PYTHON SUITE — SEED-KEYED, over the members a BUILD OF THE WHEEL
-    # compiles. `pncad_py_seeds` derives that set from `cargo metadata`; the
-    # derivation and its dev-edge rule are argued there.
+    # THE PYTHON SUITE'S SEED REACH — REPORTED, NOT A GATE. What this
+    # computes is whether the diff's SEEDS reach the members a BUILD OF THE
+    # WHEEL compiles; `pncad_py_seeds` derives that set from `cargo metadata`
+    # and its dev-edge rule is argued there.
     #
-    # WHAT THE SET MEANS. The suite's subject is the bindings' observable
-    # surface: the .pyi lattice, the guide and north-star scripts, and every
-    # façade call they make. A crate the wheel compiles is a crate whose
-    # numbers, refusals and re-exported shapes those scripts can see — `bvh`
-    # included, whose `Ray` crosses into Python as a `#[pyclass]` and is
-    # driven by `tests/test_picking.py` in 37 places. So this is the closure
-    # condition the key carried before S-TCOST C3 (Ev, in chat 2026-09-03),
-    # up to dev edges, and it is restored deliberately.
+    # NO JOB READS IT. `python suite (wheel + guide + north-star)` runs on
+    # every code-tier run of ci.yml and unconditionally in ci-local.sh: the
+    # job hangs off `filter` in parallel beside the serial build -> test chain
+    # that sets a run's length, so narrowing it returns nothing to the
+    # contributor waiting on the gate while costing the attribution a per-PR
+    # row buys. What it gates is the ONLY execution of
+    # `crates/pncad-py/tests/*.py` and the only compile of the kernel under
+    # the non-default `python` feature that any run has.
     #
-    # WHAT C3 TRADED, AND THE MEASUREMENT THAT UNDOES THE TRADE. C3 withdrew
-    # the closure key because it is true on nearly every code-tier run while
-    # buying a second compile of the kernel under the non-default `python`
-    # feature. That cost was re-taken on 2026-09-06 and the row is off the
-    # critical path by an order of magnitude: it needs only `filter`, so it
-    # runs beside the serial build -> test chain that sets every code-tier
-    # run's length, and it adds ZERO wall clock. Minutes are free on a public
-    # repository, so wall clock is the currency and the currency reads nil.
-    # THE FIGURES AND THEIR CAVEATS HAVE ONE HOME —
-    # docs/CI-MINUTES-2026-08.md's entry of that date — and are not restated
-    # here, so the two cannot drift; what a reader needs at this site is the
-    # conclusion, which is that a gate almost always true costs nothing when
-    # the row it gates is free, and that what it buys is the only execution
-    # of `crates/pncad-py/tests/*.py` any run has.
+    # WHAT IT IS STILL FOR: the value is echoed with the seeds it was computed
+    # from, so the filter's log answers "did this change reach the bindings"
+    # for a reader triaging a python-suite red — a question about the diff,
+    # which this file is the one place that can answer.
     #
-    # NO REGISTER AND NO GUARD ON THAT FIGURE, since this repo's convention is
-    # that a measured claim gets one: it is a ONE-SHOT BOUND on a job's siting,
-    # not a tracked quantity. What it asserts is that this job cannot reach the
-    # critical path, and the quantity that could move — the run's own length —
-    # is the ledger's subject already. A guard here would watch a number this
-    # file cannot see and could not act on.
-    #
-    # WHAT STILL SKIPS IT: `viewer`, which nothing under `pncad-py` depends
-    # on, and `test-utils`, which reaches `pncad-py` only as a
-    # dev-dependency and so is compiled by no wheel build.
-    #
-    # RECORDED, NEVER SILENT (the KLINT_ROW lesson, and the viewer axis's own
-    # rule): this is an output key, the filter echoes it with the seeds it was
-    # computed from, and ci.yml prints the verdict in a step that always runs.
-    # A green job name over a skipped job is the failure mode this shape exists
-    # to avoid — and it is worse here than for the viewer rows, because a
-    # SKIPPED job shows no steps at all.
+    # THE ARMS BELOW KEEP THEIR FAIL-CLOSED DIRECTION, so the reported value
+    # never reads narrower than the truth: unscopable tiers and an unreadable
+    # graph both report `true`.
     if tier == "docs":
         res["RUN_PNCAD_PY"] = "false"
     elif tier == "all":
