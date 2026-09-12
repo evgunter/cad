@@ -6,6 +6,8 @@ status: closed
 opened: 2026-09-11
 closed: 2026-09-12
 refs: [a-keyboard-bump-lands-and-closes-the-pointers-own-probe, the-two-drags-name-their-gestures-in-two-shapes]
+pr: 2479
+branch: view/probe-identity
 ---
 
 
@@ -132,7 +134,7 @@ So the guard this item asked for is not a guard that cannot fire
 today; it is a guard that would fire on the one route that exists, and
 refuse it wrongly.
 
-**What landed** (#PR): the rule stated where the asymmetry was stated
+**What landed** (#2479): the rule stated where the asymmetry was stated
 — `crates/viewer/README.md`'s *A driving operation names its own
 gesture* and `SessionOp::PreviewFreeMove`'s doc — and
 `the_open_probes_own_instance_driven_again_lands_its_frame` holding
