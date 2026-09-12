@@ -280,6 +280,7 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol}
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
+use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
 use crate::contact::{ContactRefusal, DeclaredContact};
 use crate::geometry::CurveKey;
@@ -365,8 +366,8 @@ impl core::fmt::Display for CensusSubject {
 /// **WHY a census decline declined** — the refusing lane's own typed
 /// refusal, carried instead of discarded.
 ///
-/// [`ValidationError::CensusUnsupported`] is raised by three
-/// different lanes, and until this was carried all three arrived at a
+/// [`ValidationError::CensusUnsupported`] is raised by four
+/// different lanes, and until this was carried they all arrived at a
 /// consumer as one sentence about an uncertifiable inventory. That
 /// sentence is not always the true cause: a chart-region
 /// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
@@ -471,6 +472,41 @@ pub enum CensusUnsupportedCause {
     /// face's CARRIER refused here, so the inventory sentence the
     /// other two arms compose would name the wrong thing entirely.
     FaceUnboundable,
+    /// The point-in-face door refused typed: its own arm, whole.
+    ///
+    /// **Carried because the alternative was a FABRICATED margin.**
+    /// The census asks [`contfp`](crate::boolean::contfp) whether a
+    /// vertex, an edge midpoint or a crossing point lies inside a
+    /// planar face. Three of that door's arms carry no measured
+    /// quantity at all — an arc-bearing loop no walk expresses, an
+    /// exhausted parity schedule, unwalkable topology — and the census
+    /// used to answer all three with
+    /// [`ValidationError::CensusEscalated`] over an
+    /// [`Indeterminate`] it MINTED: predicate `pm_census_containment`,
+    /// margin [`MarginDiag::Invalid`](geom_core::MarginDiag::Invalid).
+    /// That reads as "a named predicate was posed and came back
+    /// poisoned", which is a claim about a measurement that never
+    /// happened, in the one field a reader uses to judge how close the
+    /// call was. No predicate of that name decides anything (the
+    /// dimension audit lists it among the names that never reach the
+    /// funnel); it was a tag standing in for a cause.
+    ///
+    /// [`ContainError::Escalated`] does not reach here, for the reason
+    /// [`Self::ChartRegion`] gives: that arm carries a margin a
+    /// predicate really metred, so it routes to
+    /// [`ValidationError::CensusEscalated`] with its own diagnostic
+    /// and nothing is invented. The type admits it anyway rather than
+    /// buying a second containment enum to say so.
+    ///
+    /// **The three are not one class and are not made one here.** An
+    /// unexpressible arc loop is an inventory fact about the MODEL, an
+    /// exhausted schedule is a verdict that the point sits within ε of
+    /// the boundary, and unwalkable topology is a kernel-invariant
+    /// violation; they want three different repairs and each says so
+    /// in its own `Display`. What is true of all three — and false of
+    /// `Escalated` — is only that nothing metred a margin, which is
+    /// exactly why none of them may carry one.
+    Containment(ContainError),
 }
 
 // Each arm renders the refusing LANE's own sentence, through
@@ -492,6 +528,7 @@ impl core::fmt::Display for CensusUnsupportedCause {
         match self {
             Self::ChartRegion(e) => write!(f, "{e}"),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
+            Self::Containment(e) => write!(f, "{e}"),
             Self::FaceUnboundable => write!(
                 f,
                 "census: the face has no boundary vertex — an empty outer loop, or a \\
@@ -1159,7 +1196,7 @@ pub enum ValidationError {
         /// that examine a candidate contact.
         subject: CensusSubject,
         /// WHY the lane declined — its own typed refusal, carried.
-        /// Three lanes raise this error and they decline for
+        /// Four lanes raise this error and they decline for
         /// unrelated reasons with unrelated recourses; without this
         /// they all reached a consumer as one sentence about an
         /// uncertifiable inventory, which is the true cause of some
