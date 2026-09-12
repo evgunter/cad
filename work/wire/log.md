@@ -652,3 +652,82 @@ the door announced to S-BOOL and the ordering announced to S-TINT, whose
 `D385` converts the two test copies afterwards. `frame-f64-placement-…`
 and `product-gather-…` follow, the second still waiting on Ev's read of
 the carry-the-tie recommendation.
+
+## The `[ev]` question is out, and the lift pair is dispatched (2026-09-12)
+
+**`[ev]` PR 2404** — `docs/AXIS-DECLARATION-DESIGN.md`, `needs_ev: true`
+on `axis-flavoured-declarations-have-no-channel`, a `docs/DESIGN.md`
+companion-table row marked OPEN QUESTION, and a PR subscription so Ev's
+comments wake this session. Docs and tracker only; marked not-for-merge
+until answered.
+
+**The fork this program opened with dissolved under Ev's pushback**, and
+the doc records the resolution rather than the fork. Ev confirmed the
+reading of `cs_pair_frame`'s sentence — "never inferred" means a
+declaration cannot be OBTAINED by measuring — and then rejected the
+premise:
+
+> *"I don't like relying on the numerical check to tell if it's been
+> rotated."*
+
+Right, and live rather than hypothetical: `Node::Declare`'s pairs name
+entities by `StableName` and re-resolve at every evaluation, so a
+rotated operand re-asserts the declaration and only a band check would
+catch it. The recommendation is therefore **(a) and (b) composed** —
+declared intent, invalidated structurally by comparing the two carriers'
+placement chains, on the fact that coaxiality is invariant under a rigid
+motion applied to BOTH carriers and destroyed by one applied to one.
+`SourceExpr::Placed`'s cons-list already carries what that comparison
+needs, and its own doc states the rule (*"Equal chains ⇒ equal maps
+applied to equal descriptions ⇒ equal bits (D9)"*).
+
+**Two of this orchestrator's claims were wrong and the doc carries both
+retractions.**
+
+- A variant hanging identity on the **axis datum** is inventing a
+  channel, not wiring one up: `DatumValue` is by its own doc *"geometry
+  VALUES, not kernel entities and not recipe references"*. Comparing
+  CARRIERS avoids that, which is most of why it is the recommendation.
+- **It is not a kernel-anchors problem.** Ev asked whether recipe-shaped
+  identity is required; it is not. `topo/src/source.rs`'s module doc:
+  the fields are *"the lowered pure-data forms (`u64` node ids,
+  structural expression addresses)… this crate only ever compares them
+  for identity and flips orientation"*, and nothing maps a
+  `GeomSource.node` back to a `RecipeNodeId`. The link this program drew
+  to `two-verb-seats-do-not-compose` is **withdrawn**. What a new minter
+  owes instead is the retirement theorem plus **namespace
+  disjointness** — load-bearing, because `RecipeNodeId(pub u64)` is a
+  full `u64` with no free high half and a collision would have the
+  boolean's coincidence rung glue two unrelated surfaces.
+
+**Ev's adoption-step idea is recorded** and is cheaper than it looks:
+`import_step` already keys its maps by the file's entity ids and
+discards them at the door, a STEP entity id is real identity, and M8
+instancing is a pattern in all but name so `Placed`'s `instance` field
+serves it unchanged. Not a prerequisite. It would shrink question 3 to
+hand-built bodies alone.
+
+**Dispatched: the lift pair, as ONE unit** — `wire-m1`, branch
+`wire/profile-lift-door`, carrying both
+`profile-has-no-scalar-lift-door` and
+`profile-embed-lift-has-two-homes-anchor-and-loft`. Staffing them apart
+mints the door twice, which is `plan.md`'s ordering rule 5.
+
+Three fence crossings, all of which the PR body must disclose and which
+the review will check: `crates/profile/src/*` and
+`crates/sweep/src/loft.rs` are **S-BOOL's** (the door is minted there by
+announced seam, as EVAL-1's and FILLET's were), and
+`crates/editor-core/tests/*` is **S-TCOST's/S-TINT's** glob. And the
+ordering constraint the lane may not break: it mints the door and
+retires the PRODUCTION copy only — the two test copies are S-TINT's
+`D385`, afterwards, against a door that by then exists. The PR body is
+how S-TINT learns the door landed, since `D385`'s list today names one
+of those two copies.
+
+The brief carries this program's three standing lessons by name, because
+this unit is the one most likely to hit the first: a fix for a
+structural finding tends to mint a fresh instance of the defect it
+closes, and this lane is retiring hand-spelled lifts.
+
+**Posture: FULL review**, per `plan.md`'s table — it changes what a loft
+builds if the door is wrong.

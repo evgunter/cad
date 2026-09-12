@@ -2,9 +2,10 @@
 id: profile-embed-lift-has-two-homes-anchor-and-loft
 kind: issue
 title: Profile<f64> -> Profile<T> is written twice, editor-core's anchor::embed_profile and sweep's loft::end_profile, and the home is a lift on the profile types
-status: open
+status: dispatched
 opened: 2026-09-08
 refs: [2139, 2186, D385]
+branch: wire/profile-lift-door
 ---
 
 (EVAL orchestrator) From EVAL-1's style review (PR 2139, S1/S4/S8).
