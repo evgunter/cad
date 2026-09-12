@@ -523,11 +523,11 @@ pub fn placement_rule_fault_tag(fault: &PlacementRuleFault) -> &'static str {
 /// kernel's own prose and the tag is the branchable discriminant. The
 /// degenerate arm tags per INPUT: which direction was unusable is what
 /// a caller branches on, and the wrapper arm alone would collapse four
-/// distinct refusals into one. The non-finite arm tags per input for
-/// the same reason, and stays separate from the degenerate one because
-/// the two carry different recourses — a degenerate direction is a
-/// coincidence at this tolerance, a non-finite one is not a
-/// coincidence at any.
+/// distinct refusals into one. The two FORMAT arms tag per input for
+/// the same reason, and both stay separate from the degenerate one
+/// because the three carry different recourses — a degenerate
+/// direction is a coincidence at this tolerance; a non-finite one and
+/// an underflowed one are not a coincidence at any, and want scale.
 pub fn frame_error_tag(err: &FrameError) -> &'static str {
     match err {
         FrameError::Degenerate { input, .. } => match input {
@@ -542,6 +542,12 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameVector::Tangent => "non_finite_tangent",
             FrameVector::RollReference => "non_finite_roll_reference",
             FrameVector::MirrorNormal => "non_finite_mirror_normal",
+        },
+        FrameError::UnderflowedLength { input } => match input {
+            FrameVector::Aim => "underflowed_aim",
+            FrameVector::Tangent => "underflowed_tangent",
+            FrameVector::RollReference => "underflowed_roll_reference",
+            FrameVector::MirrorNormal => "underflowed_mirror_normal",
         },
         FrameError::Band(_) => "band",
     }
@@ -1010,6 +1016,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
     match err {
         RevolveError::Band(_) => "band",
         RevolveError::NonFiniteAxis => "non_finite_axis",
+        RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
         RevolveError::AxisEscalated { .. } => "axis_escalated",
         RevolveError::DegenerateAngle => "degenerate_angle",
@@ -1139,6 +1146,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
+        BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
         BooleanErrorKind::UndeclaredCoincidence => "undeclared_coincidence",
         BooleanErrorKind::DeclarationContradicted => "declaration_contradicted",

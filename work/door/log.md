@@ -329,3 +329,78 @@ two rows from VIEW, is done. What remains is the five independent rows
 of the original cut plus the residue the class filed. Whether the five
 belong here or on FIX's slate is still Ev's open question, put to them
 in-chat and not blocking anything.
+
+## D306 and S414 landed; three things worth the next lane's time (2026-09-12)
+
+`D306` (#2394) and `S414` (#2395) are closed. Five of the cut's eleven
+rows remain: `S114`, `step-adopt`, `patherror` (narrowed), `grid-pitch`
+and `pathverb`, beside seven residue items the lanes filed.
+
+### A regex-shaped sweep has now missed an instance in its own PR's fence, three units running
+
+This is the program's standing pattern and it wants recording as one,
+not as three facts about three files.
+
+1. **The mirror class**: the readers sweep matched bracketed arrays, so
+   three complete enumerations written as consecutive statements were
+   invisible — **one of them in `crates/viewer`**, the crate the closed
+   row was about.
+2. **D306**: the orchestrator's sweep matched the
+   `eval_in_span`/`deriv_in_span` adjacency and declared a blind spot of
+   "a pair split across lines, or routed through a helper". It missed
+   `crates/geom/src/curves/projection.rs:242`, which binds `C″` to `_`
+   from `ders_in_span` — **the second consumer the door's own doc
+   names**. The stated blind spot did not include the shape the
+   documentation spelled out.
+3. **D306 again, one level down**: the residue file's own sweep declared
+   the same blind spot and missed `certify.rs:1743`/`:1805` — inside
+   D306's own crate — and `sweep/src/skin.rs:1120`/`:1160`, the
+   helper-routed case it had named and not looked for.
+
+**The lesson is not "sweep harder".** In every one of the three the
+missed shape was *already written down somewhere* — in a door's rustdoc,
+in the sweep's own blind-spot sentence. The cheap discipline is: after
+writing the blind-spot sentence, go and look for the shapes it names,
+and read the doc of any door the change promotes, because a door that
+says who should call it has already enumerated the call sites you are
+sweeping for.
+
+The same shape hit the counts three times too — `all-census-idiom…`
+filed at "three sites" and stale by one within the hour (really ≥9),
+`dimension-all-has-readers…` filed at five (really eight), and this
+program's own slate paragraph, which the orchestrator got wrong twice
+before deleting the number and pointing at `work.py status`.
+
+### Two dispatch errors, both the orchestrator's
+
+Recorded because they are cheap to repeat and neither is in any brief.
+
+- **Two lanes were dispatched into one checkout.** The D306 lane found
+  `HEAD` moved under it mid-task, the S414 lane's uncommitted edits in
+  the shared tree, and its own `git add` staging into their index; the
+  shared scratchpad overwrote its draft PR body between writing and
+  reading. Both PRs' file lists were verified clean and disjoint
+  afterwards, but under merge-only rules this was one `git add -A` from
+  an unrecoverable commit. **Every parallel lane gets its own
+  `git worktree`.**
+- **A live lane's worktree was removed.** The D306 lane mentioned
+  `/home/user/d306-wt` as a loose end and the orchestrator deleted it
+  while the lane was mid-fix-list, discarding six uncommitted edits. The
+  branch was intact and pushed, so nothing merged was lost, and the lane
+  rebuilt from context and re-executed every claim rather than carrying
+  one on trust — but the rework was avoidable. **A path a lane names is
+  not thereby free.**
+
+### What the two lanes did that is worth copying
+
+Both refused an instruction from their brief and were right to; that is
+now four lanes out of four. The one to copy is D306's: told to take a
+site and warned the swap might not be free, it found the claim it needed
+**did not exist** — the door is documented against `eval_in_span` +
+`deriv_in_span`, not against `ders_in_span`'s first two components, a
+different code path — so it wrote the missing pin, ran it green, **then
+falsified it with a one-ulp perturbation**, and only then moved the
+site. S414's is the same instinct in a different key: its replacement
+refusal message named a cause it could not reach through the real door,
+so rather than leave the clause as a claim it pinned it with in-source
+rows that return `Ok((NaN, NaN))` and `Ok((1e308, inf))` on `main`.

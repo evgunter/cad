@@ -11,6 +11,7 @@
 
 use geom_core::{
     Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3, is_finite_length,
+    is_underflowed_length,
 };
 use profile::ValidatedProfile;
 
@@ -52,17 +53,35 @@ impl<T: Decide> AxisFrame<T> {
     /// coordinate zero, every axial coordinate zero, out of a decided
     /// path. So the length is asked whether it is a NUMBER first.
     ///
-    /// **Point-scalar gate.** `is_finite_length` asks through the
-    /// value channel, and at `T = Interval` it is a no-op:
-    /// `Interval::is_poison` is `is_nai() || is_empty()`, and
-    /// `[1e200, ∞] − [1e200, ∞]` is `[−∞, ∞]`, which answers finite.
-    /// So this gate bites at `f64` and `Probe` and waves an overflowed
-    /// enclosure through to the sign decision below. No live caller
-    /// builds this frame at `Interval` today; see
+    /// **Underflow before sign, too.** The other end of the format is
+    /// the same failure and it is silent: an axis direction below
+    /// `Vec2::normalize`'s ~1e-162 underflow band squares to zero, so
+    /// the norm is EXACTLY zero and the classifier answers `Zero`
+    /// definitely — at which point the refusal says the axis is a
+    /// sliver or a coincidence and offers `COINCIDENCE_RECOURSE`, a
+    /// band for a quantity no band reaches. The axis has a direction;
+    /// what it does not have is a length this format can hold, and the
+    /// recourse is the overflow end's. `is_underflowed_length` is asked
+    /// against the largest `|component|` of `axis.dir`
+    /// (`Vec2::norm_witness`), which is the pairing that predicate's
+    /// contract requires, and it is asked SECOND because an overflowed
+    /// or poisoned length makes its two ratios non-finite for an
+    /// unrelated reason.
+    ///
+    /// **Point-scalar gates.** Both ask through the value channel, and
+    /// at `T = Interval` neither bites: `Interval::is_poison` is
+    /// `is_nai() || is_empty()`, and `[1e200, ∞] − [1e200, ∞]` is
+    /// `[−∞, ∞]`, which answers finite; and a norm whose lower end
+    /// underflowed still ENCLOSES the true length, so the underflow
+    /// ratio is an unbounded enclosure rather than poison and the
+    /// question answers `false`. So these gates bite at `f64` and
+    /// `Probe` and wave an enclosure through to the sign decision
+    /// below. No live caller builds this frame at `Interval` today; see
     /// `geom_core::is_finite_length` for the general statement.
     ///
     /// **The length is evaluated twice**, by `axis.dir.norm()` here
-    /// and again inside `Margin::norm2(axis.dir)` below, which is
+    /// (bound once for both gates) and again inside
+    /// `Margin::norm2(axis.dir)` below, which is
     /// `Self(v.norm())` verbatim — so the two are bit-identical and
     /// the gate cannot disagree with the decision it guards. It is
     /// spelled this way, rather than binding the norm once and
@@ -80,16 +99,22 @@ impl<T: Decide> AxisFrame<T> {
     /// # Errors
     ///
     /// [`RevolveError::NonFiniteAxis`] on a direction whose length is
-    /// not a finite number; [`RevolveError::DegenerateAxis`] on a
-    /// definitely-zero (or coincident-with-zero) direction;
-    /// [`RevolveError::AxisEscalated`] on a sliver length.
+    /// not a finite number; [`RevolveError::UnderflowedAxis`] on one
+    /// whose length underflowed out of the format;
+    /// [`RevolveError::DegenerateAxis`] on a definitely-zero (or
+    /// coincident-with-zero) direction; [`RevolveError::AxisEscalated`]
+    /// on a sliver length.
     pub(super) fn build(
         place: Affine3<T>,
         axis: &RevolveAxis<T>,
         band: Band,
     ) -> Result<Self, RevolveError> {
-        if !is_finite_length(axis.dir.norm()) {
+        let len = axis.dir.norm();
+        if !is_finite_length(len) {
             return Err(RevolveError::NonFiniteAxis);
+        }
+        if is_underflowed_length(len, axis.dir.norm_witness()) {
+            return Err(RevolveError::UnderflowedAxis);
         }
         match decide("revolve_axis_direction", Margin::norm2(axis.dir), band)
             .map_err(|source| RevolveError::AxisEscalated { source })?
