@@ -69,6 +69,7 @@ pub mod pickcache;
 pub mod pickindex;
 pub mod prefs;
 pub mod props;
+pub mod readout;
 pub mod revolvetool;
 pub mod scene;
 pub mod seats;

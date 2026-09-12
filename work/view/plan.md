@@ -354,6 +354,41 @@ defect one step earlier. Filed with the other three as
 (`pane/view.rs:38`'s `{:.1}°` is NOT a member: `0.0°` is a yaw a camera
 really has.)
 
+**THE COMMANDS IN THIS RULE WERE WRONG FOR A WEEK, AND LANES RETURNED
+EXIT 0 FROM THEM.** This register and every dispatch built on it said
+`scripts/doc-gate.sh --pr` and
+`scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit`.
+**Neither flag exists.** `doc-gate.sh` parses `--print-roots` and
+`--skip-viewer-toolkit` itself and hands everything else to
+`gate_parse_args` (`scripts/gates/lib.sh:55-64`), whose `*)` arm prints
+`usage: scripts/doc-gate.sh [--selftest] [--root DIR]` and **exits 2**.
+Verified by running it. The real commands are the ones CI runs
+(`ci.yml:1804-1808`): `scripts/doc-gate.sh --selftest`, then
+`scripts/doc-gate.sh`, then `scripts/doc-gate.sh --skip-viewer-toolkit`.
+
+Several lanes reported **exit 0** for the non-existent invocation. A
+command that cannot run cannot return 0, so those receipts were not
+measurements — whatever each lane actually ran, what it wrote down was
+not what it ran. The rule's SUBSTANCE survives untouched (both passes
+are owed, and the skip pass is the only rustdoc on a skip-mode run
+while the full pass is the only one that judges links — that rests on
+`RUSTDOC_LINTS_INERT` in the source, not on any receipt). **What did
+not survive is the verification chain.**
+
+The orchestrator re-established the fact directly rather than trusting
+any of it: on `main` at `d8988ee461`, `scripts/doc-gate.sh` exits **0**
+and `scripts/doc-gate.sh --skip-viewer-toolkit` exits **0**, both run
+here. So no bad doc state reached `main` — but that is now known
+because it was measured, not because it was reported.
+
+**The general rule, which is the expensive half:** a receipt for a
+command nobody has run is indistinguishable from a receipt for a
+command that passed, and a dispatch is the place a wrong command
+propagates fastest — it is copied verbatim into every lane. **Before
+putting a command in a dispatch, run it once.** A flag that does not
+exist fails loudly and instantly; a flag that is never tested is
+believed for a week.
+
 **Settle a CI-scope question by RUNNING the filter, not by reading a
 manifest.** The same review reported `prose_census` as possibly sited
 where it cannot fire on its own inputs — its subject is every `Display`
@@ -699,8 +734,7 @@ FIX's orchestrator found it from `crates/quantity` (#2335, #2340) and
 filed it rather than absorbing it. #2332 cleared it under Ev's ruling.
 
 **So: a VIEW diff that touches a doc comment in the renderer-free half
-owes `scripts/doc-gate.sh --pr --scope '-p viewer'
---skip-viewer-toolkit` LOCALLY**, and the green it gets from CI is not
+owes `scripts/doc-gate.sh --skip-viewer-toolkit` LOCALLY**, and the green it gets from CI is not
 that. The dispatch that found this said it about its own PR — *this
 PR's own CI cannot exercise the change it makes* — and the same
 sentence is true of every viewer diff, not only the one changing the
@@ -731,8 +765,7 @@ viewer pass stop judging link TARGETS, and the stated cost was that a
 genuinely broken link in the renderer-free half would no longer red
 there. #2358 collapsed `OpOutcome`'s three fields and left three
 intra-doc links to items it had just deleted:
-`doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit` **exited 0
-over them** while the full workspace pass exited 1. So the two passes
+`doc-gate.sh --skip-viewer-toolkit` **exited 0 over them** while the full workspace pass exited 1. So the two passes
 are not redundant in either direction — the skip pass is the only
 rustdoc on a skip-mode run, and the full pass is the only one that
 judges links — and a viewer lane owes BOTH, not whichever one its

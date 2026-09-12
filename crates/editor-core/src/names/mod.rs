@@ -39,6 +39,7 @@ mod select;
 mod table;
 
 pub use attribute::{NameOrigin, attribute};
+pub(crate) use defer::CarriedRows;
 pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
 pub(crate) use emit::{

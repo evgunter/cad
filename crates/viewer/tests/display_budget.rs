@@ -22,6 +22,7 @@
 #![allow(clippy::panic)]
 
 use pncad::geom_core::Tol;
+use viewer::readout;
 use viewer::scene::{self, DisplayTolerance, TRIANGLE_BUDGET};
 use viewer::session::DocSession;
 
@@ -200,8 +201,13 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
         .wording()
         .expect("a coarsened picture has a sentence");
     for needle in [
-        &format!("{:.3}", fitted.delta.get() * 1.0e3),
-        &format!("{:.3}", OVER_BUDGET_DELTA * 1.0e3),
+        // The renders, not a second formatting of them: a needle built
+        // with a format string of its own would hold the sentence to
+        // that string rather than to the δ, which is the defect the
+        // render exists to close (`no_delta_renders_as_a_number_a_
+        // delta_cannot_be`).
+        &fitted.delta.render_mm(),
+        &delta(OVER_BUDGET_DELTA).render_mm(),
         &TRIANGLE_BUDGET.to_string(),
         &"not a cap".to_owned(),
     ] {
@@ -213,16 +219,24 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
 }
 
 /// **No δ renders as a number a δ cannot be.** The field, the badge and
-/// the sentence above all show δ as millimetres of text, and
-/// `{:.3}` over millimetres reads `0.000` below half a micrometre —
-/// a value [`DisplayTolerance::new`] refuses, in the one place a user
-/// reads the δ in force as a number they can act on.
+/// the sentence above all show δ as millimetres of text, and `{:.3}`
+/// over millimetres reads `0.000` below half a micrometre — a value
+/// [`DisplayTolerance::new`] refuses, in every place a user reads the δ
+/// in force as a number they can act on. All three go through
+/// [`DisplayTolerance::render_mm`] now, so this row covers all three.
 ///
 /// The property is the whole range, so the row sweeps it: every δ from
 /// `f64`'s smallest subnormal to a kilometre renders as text that fits
 /// the bound, reads back through the millimetre conversion the δ field
 /// commits with, and lands on a δ the door accepts within the render's
 /// own stated accuracy.
+///
+/// **This is where the δ door's own acceptance is checked**, and it is
+/// deliberately not checked a second time inside the render. The render
+/// asks one question — does this text read back as the value — and for
+/// a strictly positive δ that implies the rest; the implication is what
+/// this row measures, over the whole type, rather than something the
+/// render restates as a predicate no input can falsify.
 #[test]
 fn no_delta_renders_as_a_number_a_delta_cannot_be() {
     let reads_back_as_a_delta = |value: f64| {
@@ -230,9 +244,9 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
         let text = d.render_mm();
         let mm = d.get() * 1.0e3;
         assert!(
-            text.chars().count() <= DisplayTolerance::RENDER_MM_MAX_CHARS,
+            text.chars().count() <= readout::MAX_CHARS,
             "δ {mm} mm renders as {text}, past the {} character bound",
-            DisplayTolerance::RENDER_MM_MAX_CHARS
+            readout::MAX_CHARS
         );
         let read: f64 = text.parse().unwrap_or_else(|error| {
             panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
@@ -242,7 +256,7 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
             "δ {mm} mm renders as {text}, which is not a δ this door accepts"
         );
         assert!(
-            (read - mm).abs() <= DisplayTolerance::RENDER_REL_TOLERANCE * mm,
+            (read - mm).abs() <= readout::REL_TOLERANCE * mm,
             "δ {mm} mm renders as {text}, further from it than the render's own accuracy"
         );
     };
@@ -292,7 +306,7 @@ fn a_budget_delta_renders_as_four_significant_figures() {
     let exact = format!("{}", d.get() * 1.0e3);
     assert_eq!(exact, "0.0003746123456789012", "seventeen figures");
     assert!(
-        exact.chars().count() > DisplayTolerance::RENDER_MM_MAX_CHARS,
+        exact.chars().count() > readout::MAX_CHARS,
         "and no field this crate has is that wide"
     );
     assert_eq!(d.render_mm(), "0.0003746", "four of them");

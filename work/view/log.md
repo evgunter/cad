@@ -10053,3 +10053,172 @@ docs-conflict` is open for Ev, which is the conservative side of that
 unresolved ruling.
 
 **VIEW stands at 69 open / 84 closed, nothing waiting on Ev.**
+### 2026-09-12 — the four fixed-precision length renders, through one door
+
+`fixed-precision-length-renders-can-read-as-a-value-they-cannot-be`
+**closed**. The shape chosen was ONE door, not four decisions and not a
+generalisation of `render_mm` off `DisplayTolerance`: two of the four
+sites hold no such value, so a rule living on that type would have been
+spelled twice — once as the method and once by hand at the sites
+without it, which is this program's N-spellings-no-home shape arriving
+while a different defect was being fixed.
+`crates/viewer/src/readout.rs` is the home; `render_mm` is the δ-facing
+door onto it and keeps every caller and every existing row.
+
+The camera readout took the decision the row asked for rather than a
+patch per number: its two ANGLES keep `{:.1}°` and its three DISTANCES
+do not, because `0.0` is a yaw a camera has and is not a distance a
+camera can be at.
+
+**`display_budget.rs` turned out to assert less than the row feared.**
+`a_coarsened_picture_says_so_in_both_numbers` built its needles with
+`format!("{:.3}", …)`, so it held the sentence to a FORMAT rather than
+to the δ — a needle that would have kept passing by accident on one of
+the two numbers (the budget δ's render is a superstring of its own
+`{:.3}` rounding) and failed on the other. The needles are the renders
+now. Nothing anywhere asserted the badge's label text or the camera
+readout's, and `valid_range.rs` asserted only phrases and the unit
+symbol, never a digit.
+
+**What the re-derivation moved: nothing in the population, one thing
+outside it.** The four members held at their cited lines against the
+merge base, each read rather than re-grepped. But the row's own sweep
+pattern — a precision spec in a format string — has a fifth blind spot
+its three stated ones do not cover: a widget that picks the precision
+itself. `egui::DragValue` derives max decimals from its DRAG SPEED, and
+a length field at `forms::FIELD_DRAG_SPEED` shown in millimetres falls
+back to `{:.3}`, the exact spec the δ field was filed against. Filed as
+`a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets`, with
+the eleven-hit census and each non-member's own reason — one of which is
+a length field at speed `0.5` that is excluded only because it lives in
+a `#[cfg(test)]` harness.
+
+Second residue, found by the unit's own new test rather than by reading:
+`the-scientific-arm-rounds-out-of-the-type`. `{:.3e}` rounds, and within
+half a unit in the fourth figure of `f64::MAX` it rounds out of the
+type, so `number(f64::MAX)` reads back as infinity. Pre-existing (worse
+in `render_mm`, where the millimetre multiply overflowed first), kept as
+a stated exception rather than fixed, because the truthful spelling is
+twenty-two characters and `readout::MAX_CHARS` is what `FIELD_WIDTH` is
+measured against. A row pins the exception so it is met rather than
+rediscovered.
+
+**VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — #2444 merged; and the doc-gate commands in this register never existed
+
+**#2444 merged** (`d8988ee461`). Job shape from the list: **42 jobs, 12
+`test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**, three
+`render drift (…)` neutral (passing), `python suite` **green** where a
+local `ci-filter.py` run said `RUN_PNCAD_PY=false` — the hosted filter
+saw a different base. The total has moved 38 → 42 in a day, which is the
+register's own point about carrying a number: **the tier evidence is the
+12 and the 5 and `gate ok`, not the total.**
+
+**One door, not four patches.** A new `crates/viewer/src/readout.rs`
+with `number(value)` — the shortest decimal spelling that reads back as
+the value within the render's own accuracy, scientific otherwise.
+`DisplayTolerance::render_mm` survives as the δ-facing door onto it,
+carrying only the millimetre conversion, so no existing caller moved.
+The lane's three arguments: two of the four sites hold no
+`DisplayTolerance`, so a rule on that type gets written twice — the
+N-spellings-no-home shape arriving while a different defect is fixed;
+it is **not** `render_mm` with δ removed, because δ is strictly positive
+and a probed bound may be zero or negative, so the general rule is *a
+text reads back as the value* and zero renders `0`; and `scene.rs` was
+the cheap home and the wrong one, since `bounds` and `pane::view`
+depending on the scene vocabulary for a text rule is a false edge.
+
+`bounds.rs` overclaimed at **both** ends of one sentence —
+`valid from 0.0000 mm` for a floor found above zero, and `1024.0000`
+for a reach a doubling probe established to one figure. The camera
+readout took the one decision the item asked for: three distances
+through the door, two angles keep `{:.1}°`.
+
+**`display_budget.rs` was holding a sentence to a FORMAT, not to a δ.**
+`a_coarsened_picture_says_so_in_both_numbers` built its needles with
+`format!("{:.3}", …)`, so it would have kept passing by accident on one
+number (the budget δ's render is a superstring of its `{:.3}` rounding)
+and failed on the other (`0.010` is not a substring of `0.01`). Needles
+are the renders now. Nothing anywhere asserted the badge label or the
+camera readout.
+
+**A fifth blind spot the item's three did not cover**, found by the
+lane and filed rather than swept: an `egui::DragValue` derives max
+decimals from its **drag speed** and falls back to the range maximum
+when nothing reads back, so a length field at `FIELD_DRAG_SPEED` in
+millimetres lands on `{:.3}` — the exact spec the δ field was filed
+against. Five production sites. Filed as
+`a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets`,
+with `the-scientific-arm-rounds-out-of-the-type` (the lane's own new
+test found `{:.3e}` rounds past `f64::MAX`; pre-existing, kept as a
+pinned exception with the width-vs-truth trade written down).
+
+### The correction that matters: the doc-gate commands never existed
+
+**This register and every dispatch built on it specified
+`scripts/doc-gate.sh --pr` and
+`scripts/doc-gate.sh --pr --scope '-p viewer' --skip-viewer-toolkit`.
+Neither flag exists.** `doc-gate.sh` parses `--print-roots` and
+`--skip-viewer-toolkit` itself and hands the rest to `gate_parse_args`
+(`scripts/gates/lib.sh:55-64`), whose `*)` arm prints a usage line and
+**exits 2**. I ran it: exit 2. The real commands are CI's
+(`ci.yml:1804-1808`) — `--selftest`, then bare, then
+`--skip-viewer-toolkit`.
+
+**Several lanes reported exit 0 for that invocation.** A command that
+cannot run cannot return 0, so those receipts were not measurements.
+The rule's SUBSTANCE is untouched — both passes are owed, the skip pass
+is the only rustdoc on a skip-mode run and the full pass the only one
+that judges links, and that rests on `RUSTDOC_LINTS_INERT` in the
+source rather than on any receipt. **What did not survive is the
+verification chain**, and it was the chain this program built two rules
+and a merged README section on.
+
+So I re-established the fact instead of trusting it: on `main` at
+`d8988ee461`, `scripts/doc-gate.sh` exits **0** and
+`scripts/doc-gate.sh --skip-viewer-toolkit` exits **0**, both run here.
+No bad doc state reached `main` — known now because it was measured.
+
+The general rule is in `plan.md`: **before putting a command in a
+dispatch, run it once.** A flag that does not exist fails loudly and
+instantly; a flag that is never tested is believed for a week, and a
+dispatch is where a wrong command propagates fastest because it is
+copied verbatim into every lane.
+
+**Two smaller corrections, both accepted.** `gate ok` is not a check run
+until the end — it appeared as the 42nd row, after the last
+`test (interval, …)` finished, so a poll that treats its absence as a
+verdict reads a tier off an incomplete list. And this register's stated
+test shape (`--test all` 524/0/1, `--lib` 37/1) was stale again at
+533/0/1 and 41 lib rows; the SHAPE assertion that replaced the count
+yesterday is what held.
+
+**Three VIEW citations were already wrong about their subject** at the
+merge base and were repointed by finding the subject, not by shifting:
+`scene.rs:492` was `.iter()`, `scene.rs:917-919` was a `FittedDelta`
+field rather than `fit_delta`, `scene.rs:410` was a comment rather than
+`build_parts_focused`. One of them, in
+`ui-thread-work-after-the-index-seam`, is a **split-span citation**
+(`crates/viewer/src/\n   scene.rs:917-919`) caught only because the
+census also matched the bare basename — the same split-span blind spot
+I walked into myself today grepping `implementer-discipline.md` §6.
+
+**Four out-of-fence citation shifts are recorded here and NOT applied**,
+which is a deliberate call rather than an omission: `work/chrome/
+mispaired-ids-exempts-the-empty-window.md:12` (`scene.rs:413`→`374`),
+`work/chrome/probe-rows-assert-in-one-direction-only.md` lines 17 and 28
+(`valid_range.rs:405`→`441`), plus `valid_range.rs:342`→`378` and
+`bounds.rs:380`→`399` on that row, and `work/tint/
+loud-skip-marker-is-a-hand-kept-idiom.md:39` (`lib.rs:92-100`→`93-101`).
+The lane verified all of them as true shifts. I checked that the new
+lines exist and stopped there: **repointing another program's row needs
+that row's CLAIM checked against the new line, not merely that a line is
+there** — this program's own rule is that a number can be wrong about
+its subject rather than merely shifted, and discharging that standard
+means reading three other programs' items in context. Getting it wrong
+would plant the exact defect this program keeps tabulating into two
+other slates. Handing them over is the honest move; silently shifting
+them would not be.
+
+**VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
