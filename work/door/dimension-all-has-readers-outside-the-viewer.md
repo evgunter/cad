@@ -213,8 +213,10 @@ them however wide its window.
   shape as `rt_params` (Python classes, not kernel variants) but in
   production code, so it is filed rather than left in prose:
   `work/lib/python-quantity-classes-map-to-dimension-by-hand-with-no-growth-alarm`.
-- The prose mirrors — `crates/viewer/README.md`'s GQ5 recap (this row
-  already excluded it), `crates/pncad-py/pncad.pyi`'s two docstrings,
+- The prose mirrors — the GQ5 recap this row excluded, which now lives
+  in `crates/viewer/GUI-DESIGN.md` rather than that crate's README
+  (PR #2462, merged into this branch),
+  `crates/pncad-py/pncad.pyi`'s two docstrings,
   `py::value::Measurement`'s field doc, `test_binding_census.py`'s
   comment. A doc mirror is a different class, as this row says.
 - `crates/editor-core/tests/display_contract.rs`'s SEVEN OTHER `dumps`

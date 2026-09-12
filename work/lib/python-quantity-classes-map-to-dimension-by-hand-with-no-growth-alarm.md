@@ -33,12 +33,19 @@ This is the shape `dimension-all-has-readers-outside-the-viewer` set
 aside for `u8a_parse::rt_params`: **not a projection**, because what is
 enumerated is this crate's own Python classes and not the kernel's
 variants, so there is nothing to read `Dimension::ALL` into. What it
-wants is a growth alarm — a row over an exhaustive match on `Dimension`
-asserting each variant either has a Python quantity class here or is
-named as deliberately without one, so the next dimension fails until
-someone decides which it is. DOOR's
-`mate-primitives-is-a-partial-mirror-with-no-growth-alarm` is the same
-question on the viewer's side and the two answers should look alike.
+wants is a growth alarm — a roster over an exhaustive match on
+`Dimension` asserting each variant either has a Python quantity class
+here or is deliberately without one, so the next dimension fails until
+someone decides which it is.
+
+**That instrument already exists**: `partial_mirror!`
+(`crates/viewer/src/forms.rs`), written for `MATE_PRIMITIVES` when
+DOOR's `mate-primitives-is-a-partial-mirror-with-no-growth-alarm`
+closed. It lives in the viewer today, so taking this row means deciding
+whether it moves somewhere both crates can read it or whether
+`pncad-py` grows its own;
+`work/view/two-partial-mirrors-in-the-viewer-have-no-growth-alarm` is
+asking a version of the same question for two more sites.
 
 Also in this crate and NOT this row: `py::value::Measurement`'s
 `dimension` field doc spells the four identifiers in prose (`:732`).
