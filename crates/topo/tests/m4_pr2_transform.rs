@@ -314,7 +314,14 @@ fn the_lane_changes_nothing_for_a_body_that_does_not_carry_the_class() {
         Some(&geom_brep::plane_nurbs_limbs::<f64>),
     )
     .unwrap();
-    let pts = |body: &Body<f64>| -> Vec<_> { body.points().map(|(_, p)| *p).collect() };
+    // Bit-identical, not merely close: the lane-free door and the lane
+    // door run the same checks over the same geometry here, so any
+    // difference at all would mean the lane is a second code path.
+    let pts = |body: &Body<f64>| -> Vec<_> {
+        body.points()
+            .map(|(_, p)| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
+            .collect()
+    };
     assert_eq!(pts(&plain), pts(&laned));
     tiers_ok(&laned);
 }
