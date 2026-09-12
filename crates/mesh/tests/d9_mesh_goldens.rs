@@ -185,7 +185,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
 /// The oblique cut of a cylinder, whose two halves carry an elliptical
 /// trim rim on an analytic wall — `m5_pr11_trimmed`'s fixture, whose
 /// header carries its provenance.
-fn tilted_halves() -> (Body<f64>, Body<f64>) {
+pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     use geom_core::{Point2, Point3, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
     use sweep::{Extrusion, extrude};
@@ -220,14 +220,14 @@ fn tilted_halves() -> (Body<f64>, Body<f64>) {
 
 /// The NURBS-walled corpus bodies, built the way `m7_nurbs_trimmed`
 /// builds them (its own header carries the provenance of each).
-mod nurbs_bodies {
+pub(crate) mod nurbs_bodies {
     use geom_core::{Affine3, Tol, Vec3};
     use sweep::loft_body;
     use topo::Body;
 
     use crate::common::quad;
 
-    pub(super) fn loft_prism() -> Body<f64> {
+    pub(crate) fn loft_prism() -> Body<f64> {
         let sections = vec![
             quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
             quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),

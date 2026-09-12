@@ -52,13 +52,17 @@
 //! assembly remains for consumers that already hold a mesh, and
 //! carries the loud contract.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use bvh::{Aabb, Bvh, Ray};
 use geom_core::{Decide, Point3, Tol, Vec3};
-use mesh::{Mesh, TessellateError};
+use mesh::{Mesh, PatchKeys, PatchMemo, TessellateError, tessellate_with};
 use topo::FaceKey;
 
 use super::hit::{HitTestError, entity_name};
-use crate::eval::{Evaluation, NodeResult, NodeValue};
+use crate::eval::{ContentKey, Evaluation, NamingKey, NodeResult, NodeValue};
+use crate::ident::DocumentId;
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
 use crate::product::sources_of;
@@ -312,14 +316,139 @@ fn standing_value<T: Decide>(
 ///
 /// The tessellated mesh rides along ([`NodePick::mesh`]) so a viewer
 /// can display exactly what it picks against — one tessellation, one
-/// source of truth. Cache a `NodePick` per displayed (node, body) and
-/// drop it when [`Evaluation::epoch`] moves.
+/// source of truth. The mesh and the index are shared, so a clone is
+/// a handle: [`PickMemo`] keeps one per displayed (node, body) across
+/// pictures, and the index the viewer holds is another.
 #[derive(Debug, Clone)]
 pub struct NodePick {
     node: RecipeNodeId,
     body: u32,
-    mesh: Mesh,
-    pick: MeshPick,
+    mesh: Arc<Mesh>,
+    pick: Arc<MeshPick>,
+}
+
+/// One memoised (node, body): what it was built for, and the pick.
+struct PickEntry {
+    document: DocumentId,
+    content_key: ContentKey,
+    naming_key: NamingKey,
+    /// δ and the ambient ε and k, by bit pattern.
+    tolerances: [u64; 3],
+    pick: NodePick,
+    keys: PatchKeys,
+    picture: u64,
+}
+
+/// What the pick index reuses across pictures: the previous picture's
+/// [`NodePick`]s, by (node, body), and the per-face patch memo under
+/// them.
+///
+/// **Node level.** The key is the evaluation memo's own reuse
+/// condition, exactly — [`NodeValue::content_key`] AND
+/// [`NodeValue::naming_key`] (`eval_node`'s memo hit, whose doc carries
+/// the argument: the content key proves the body's bits, the naming
+/// key its names and so the face keys the id map is built on) — plus
+/// the document's identity (node ids are minted per document) and
+/// `(δ, ε, k)`. Under that key the previous picture's `NodePick` IS this
+/// picture's, BVH included, because a `NodePick` is a pure function of
+/// what the key names.
+///
+/// **Face level.** A node that was recomputed is tessellated through
+/// [`mesh::tessellate_with`] over the patch memo, which answers every
+/// face whose inputs did not change; a node reused at node level keeps
+/// its faces alive in that memo ([`PatchMemo::keep`]) without looking
+/// them up.
+///
+/// **Lifetime.** Whoever builds pictures owns the memo and calls
+/// [`PickMemo::end_picture`] after each: entries not used in the
+/// picture just built are dropped, at both levels, so the memo holds
+/// exactly one picture's worth.
+///
+/// The picture/open/close counter machinery here re-spells
+/// [`PatchMemo`]'s; the consolidation is
+/// `work/perf/fnv-digest-and-memo-machinery-copies.md`.
+#[derive(Default)]
+pub struct PickMemo {
+    nodes: HashMap<(RecipeNodeId, u32), PickEntry>,
+    patches: PatchMemo,
+    picture: u64,
+    /// As [`PatchMemo`]'s: the counts describe the closed picture until
+    /// the next build starts.
+    closed: bool,
+    node_hits: usize,
+    node_misses: usize,
+}
+
+impl core::fmt::Debug for PickMemo {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("PickMemo")
+            .field("nodes", &self.nodes.len())
+            .field("patches", &self.patches)
+            .field("picture", &self.picture)
+            .field("node_hits", &self.node_hits)
+            .field("node_misses", &self.node_misses)
+            .finish()
+    }
+}
+
+impl PickMemo {
+    /// An empty memo.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// How many (node, body) picks the memo holds.
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Whether the memo holds nothing.
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    /// The face-level memo under the node-level one.
+    pub fn patches(&self) -> &PatchMemo {
+        &self.patches
+    }
+
+    /// (node, body)s answered whole from the memo in the current
+    /// picture — or, once [`PickMemo::end_picture`] has closed it and
+    /// no build has started the next, in that closed picture.
+    pub fn node_hits(&self) -> usize {
+        self.node_hits
+    }
+
+    /// (node, body)s tessellated (through the patch memo), counted as
+    /// [`PickMemo::node_hits`].
+    pub fn node_misses(&self) -> usize {
+        self.node_misses
+    }
+
+    /// The first build after a close starts the next picture's counts.
+    fn open(&mut self) {
+        if self.closed {
+            self.closed = false;
+            self.node_hits = 0;
+            self.node_misses = 0;
+        }
+    }
+
+    /// Close the picture at both levels: drop every entry not used in
+    /// it. The counts then describe the picture just closed until the
+    /// next build starts.
+    pub fn end_picture(&mut self) {
+        let picture = self.picture;
+        self.nodes.retain(|_, entry| entry.picture == picture);
+        self.picture += 1;
+        self.closed = true;
+        self.patches.end_picture();
+    }
+}
+
+fn tolerance_bits(delta: f64, tol: Tol) -> [u64; 3] {
+    let ambient = tol.get();
+    [delta.to_bits(), ambient.eps.to_bits(), ambient.k.to_bits()]
 }
 
 impl NodePick {
@@ -356,9 +485,73 @@ impl NodePick {
         Ok(Self {
             node,
             body,
-            mesh,
-            pick,
+            mesh: Arc::new(mesh),
+            pick: Arc::new(pick),
         })
+    }
+
+    /// [`NodePick::build`] over `memo`: the previous picture's pick for
+    /// this (node, body) when the node's content and naming keys, the
+    /// document and `(delta, tol)` all match, else a build whose
+    /// tessellation goes through the patch memo. The answer is byte-identical to
+    /// [`NodePick::build`]'s either way ([`PickMemo`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`NodePick::build`].
+    pub fn build_with(
+        eval: &Evaluation<f64>,
+        node: RecipeNodeId,
+        body: u32,
+        delta: f64,
+        tol: Tol,
+        memo: &mut PickMemo,
+    ) -> Result<Self, NodePickError> {
+        let value = standing_value(eval, node)?;
+        let Some(sources) = sources_of(value) else {
+            return Err(NodePickError::NotABody { node });
+        };
+        let Some((_, body_arc, _, _)) = sources.into_iter().find(|(ix, _, _, _)| *ix == body)
+        else {
+            return Err(NodePickError::NoSuchBody { node, body });
+        };
+        memo.open();
+        let tolerances = tolerance_bits(delta, tol);
+        let picture = memo.picture;
+        if let Some(entry) = memo.nodes.get_mut(&(node, body))
+            && entry.document == eval.document
+            && entry.content_key == value.content_key
+            && entry.naming_key == value.naming_key
+            && entry.tolerances == tolerances
+        {
+            entry.picture = picture;
+            memo.patches.keep(&entry.keys);
+            memo.node_hits += 1;
+            return Ok(entry.pick.clone());
+        }
+        memo.node_misses += 1;
+        let tessellation = tessellate_with(&body_arc, delta, tol, &mut memo.patches)
+            .map_err(NodePickError::Tessellate)?;
+        let pick = MeshPick::build(&tessellation.mesh).map_err(NodePickError::Index)?;
+        let pick = Self {
+            node,
+            body,
+            mesh: Arc::new(tessellation.mesh),
+            pick: Arc::new(pick),
+        };
+        memo.nodes.insert(
+            (node, body),
+            PickEntry {
+                document: eval.document,
+                content_key: value.content_key,
+                naming_key: value.naming_key,
+                tolerances,
+                pick: pick.clone(),
+                keys: tessellation.keys,
+                picture,
+            },
+        );
+        Ok(pick)
     }
 
     /// The pick target this index answers for — pre-paired, ready for
@@ -417,6 +610,32 @@ impl NodePick {
             .collect::<Vec<_>>()
             .into_iter()
             .map(|body| Self::build(eval, node, body, delta, tol))
+            .collect()
+    }
+
+    /// [`NodePick::build_all`] over `memo` — each body through
+    /// [`NodePick::build_with`].
+    ///
+    /// # Errors
+    ///
+    /// As [`NodePick::build_all`].
+    pub fn build_all_with(
+        eval: &Evaluation<f64>,
+        node: RecipeNodeId,
+        delta: f64,
+        tol: Tol,
+        memo: &mut PickMemo,
+    ) -> Result<Vec<Self>, NodePickError> {
+        let value = standing_value(eval, node)?;
+        let Some(sources) = sources_of(value) else {
+            return Err(NodePickError::NotABody { node });
+        };
+        sources
+            .into_iter()
+            .map(|(ix, _, _, _)| ix)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|body| Self::build_with(eval, node, body, delta, tol, memo))
             .collect()
     }
 
