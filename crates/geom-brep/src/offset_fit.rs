@@ -2314,7 +2314,7 @@ mod recourse_tests {
             weight: 0.0,
         };
         let arms = [
-            OffsetFitError::Meter(meter.clone()),
+            OffsetFitError::Meter(meter),
             OffsetFitError::PatchBound(patch_bound),
             OffsetFitError::Fit(fit.clone()),
             OffsetFitError::Structure(structure.clone()),
