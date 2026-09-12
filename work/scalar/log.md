@@ -19,6 +19,7 @@ substrate decided first.
 No branch exists yet. The first act is an `[ev]` PR carrying `D6`,
 `D283` and the unit-vector question as one conversation.
 
+<<<<<<< HEAD
 ## The first `[ev]` sitting: D6, D283, the unit vector (2026-09-12)
 
 Three surveys of the tree, read by the orchestrator before the
@@ -92,3 +93,109 @@ sound on an overflowed enclosure (`query.rs` tests). `cross_len` is a
 carried witness for `perp`'s length only; nothing carries `aim`'s.
 
 The `[ev]` PR is `scalar/ev-newtypes`; `needs_ev` is set on all three.
+=======
+## Orchestrator seated; the eighth row on the table (2026-09-12)
+
+A SCALAR orchestrator is seated (remote box; branch prefix `scalar/`,
+orchestrator branch `scalar/orchestrator`). DOOR re-homed
+`curve3-eval-and-deriv-at-one-t-run-two-basis-passes` here on
+2026-09-12 after the plan's slate table was written; the table now
+carries it at class **M** beside `S393`, and the program text counts
+eight rows. Sequencing, per the plan and Ev in-chat (2026-09-12):
+the `[ev]` PR carrying `D6`, `D283` and the unit-vector question is
+drafted first; `D290` dispatches beside it rather than behind it;
+`H5`'s own questions (Q1, RingInterval) go to a SECOND `[ev]` sitting
+once the door rows are in and its decomposition is cut.
+
+## D290 and S393 dispatched; the seams announced (2026-09-12)
+
+Both door rows are in flight on their own branches with a spec each
+(`docs/D290-SPEC.md`, `docs/S393-SPEC.md`), block SCALAR-B1 slots 0 and
+1; the block record is branch-side per the A/B log's redaction shape.
+
+**Seams, announced here and on each PR when it opens.** `D290` reaches
+PROPS' `crates/geom-core/src/spline/knots.rs`, `crates/geom/src/curves/nurbs.rs`
+and `crates/geom-brep/src/offset_fit.rs`, and TRIM's
+`crates/geom-brep/src/edge_nurbs.rs` — one `KnotVector` rescale door
+with exact pinned ends, replacing the private `offset_fit::rescaled_knots`
+and the inline map in `edge_nurbs::on_carrier_domain` (which does not
+pin its ends, so its image domain can sit an ulp off the carrier
+interval — the one behaviour change, argued in the spec). `S393`
+reaches S-TCOST's and S-TINT's `crates/sweep/tests/*`, BLEND's
+`crates/sweep/src/skin.rs` (docs only) and `demos/tour/src/skinned.rs`.
+
+**S393's premise corrected before dispatch.** The row says no public
+door hands out the start frame. `geom_core::linalg::frame::path_start_frame`
+does, is public, and is already bound into Python; the unit is the two
+copies going onto it, with the one semantic difference (a hard 0.9
+helper cone against the door's decided reference ladder) measured
+fixture by fixture. Class corrects M → E in the plan table via the PR.
+
+**The third door row waits on D290.** The v-reversal door on
+`NurbsSurface` needs the same exact-ends argument for a REFLECTED knot
+vector (`k ↦ lo + hi − k`) that D290 makes for a rescaled one; the test
+that rebuilds the net carries the knots verbatim, which is the same
+point set only when the v knots are symmetric — a door has to say what
+it does when they are not.
+>>>>>>> origin/main
+
+## The rate census, for the `[ev]` sitting (2026-09-12)
+
+Ev asked on PR 2457 whether a kernel-wide `Rate` would improve
+uniformity and semantic correctness. Every parameter ↔ meters crossing
+in `crates/*/src`, by shape (sup = certified upper bound on a speed,
+inf = certified lower, pt = pointwise sampled, exact = closed form):
+
+- **Through `Margin::metered` (span · rate)**: `certify.rs`
+  `nurbs_span_meter`/`interval_span_forward` (inf,
+  `speed_lower_bound`); `pcurve_cache.rs` `param_rate` and its four
+  consumers (line 1 exact / nurbs inf / circle radius / ellipse minor);
+  `pcurve_cache.rs` `trim_containment` (SUP, `chart_stretch_sup`);
+  the `pcurve_iso_*` slack meters (SUP, `nurbs_stretch_bounds`);
+  `topo/pcurves.rs` `pcurve_loop_continuity` v-channel (`v_meter`:
+  exact polar arm or SUP); `topo/split.rs`
+  `split_edge_param_interior` (inf per kind); `splitting/classify.rs`
+  conic roots; `chord_join.rs` `split_tangent_chord_forward` (exact).
+- **Through `Margin::levered` (angle · arm)**: `pcurve_loop_continuity`
+  u-channel (`azimuth_arm`: exact per analytic kind, SUP on splines);
+  `pcurve_azimuth_period`, `chart_windings` (`azimuth_lever`);
+  `chart_bound.rs` `assembled`.
+- **Through `levered_inv` (÷ rate)**: `ssi/certify.rs`
+  `ssi_foot_orthogonality` (pt jet norms); two curvature uses
+  (`kappa_rel`, 1/m) and one length use — not rates.
+- **Through `over_lever`**: `offset_meters.rs` `offset_normal_floor`
+  and `PatchRegularity::thinness` (inf area rate ÷ max SUP speed; the
+  only struct storing named speeds).
+- **By hand beside a predicate**: `ssi.rs` `plane_nurbs_ssi` (SUP,
+  u/v max-folded, three divisions: seed floor, pad, floor);
+  `ssi/certify.rs` limb-3 tube (SUP per axis) and transversality
+  (`stretch`); `chart_region.rs` `certified_arms` (inf per kind,
+  gated through `Margin::of`); `pcurve_cache.rs` slack products
+  outside the door; the sphere `polar_rate` composition debt.
+- **By hand outside the decide seam, by design**: the SSI march
+  (`coordinate_scale`, `tangent_speed`, pt); `offset_fit.rs`
+  `directional_mark` (structure selection); `coherence.rs`
+  `gap_is_noise` and `mesh/walk.rs` (lever 0 = every gap noise, on
+  purpose); `mesh/sizing.rs` `sagitta_step`/`curvature_step`/
+  `ellipse_step`/`torus_grid_steps` and `mesh/nurbs_cert.rs`
+  `split_steps` (second-order, m/param²); `mesh/chords.rs`
+  `nurbs_tighten` (chart units per `t`); the projection Newton
+  acceptances (pt); `enters_material_order2` (pt, squared).
+- **Hazards a single type would blur**: bound direction (the
+  `metered` doc promises inf, three sites pass SUP — PROPS' row
+  `metered-margin-doc-promises-an-inf-bound-three-sites-pass-a-sup`);
+  per-axis vs max-folded (`ssi.rs` vs limb 3 — TRIM's row
+  `ssi-tube-pad-folds-both-axes-by-max-speed-where-limb-3-proved-per-axis`);
+  the u/v door asymmetry in one predicate (TRIM's row
+  `loop-continuity-meters-u-through-levered-and-v-through-metered`);
+  certified vs sampled; second-order and param→param rates; 0 and ∞
+  meaning different things per site (the #762 guard, `thinness`
+  unguarded by contract, `gap_is_noise`'s zero lever); the NaN-fold
+  divergence `nan_propagating_max` vs plain `f64::max`
+  (`work/curved/ssi-lever-arm-min-fold-hides-poison.md`).
+
+Counts: door-mediated 20, hand-spelled beside a predicate 8, outside
+the seam 9, non-rate `levered_inv` uses 3. The recommendation put to
+Ev: `SupSpeed`/`InfSpeed` in `geom-core` beside `Margin`, scoped to the
+linear m-per-parameter crossing; everything in the last bullet stays
+out.

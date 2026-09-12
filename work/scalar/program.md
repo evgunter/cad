@@ -16,7 +16,7 @@ The scalar lane, which the kernel has been answering by hand: `H5`'s
 535 references and fifteen files of lane traits, the knot-rescale door
 `D290` needs, the two newtype questions (`D6`'s sense sign, the unit
 vector's invariant carried as prose), `D283`'s epsilon typing, and the
-two NURBS doors a caller has to reach around. Three of its seven rows
+three NURBS doors a caller has to reach around. Three of its eight rows
 are rulings or ruling-gated and nothing on the slate is `E`; it is the
 cut's smallest hard track and the one most likely to be answered by a
 single `[ev]` sitting. Charter and unit order: `work/scalar/plan.md`.
