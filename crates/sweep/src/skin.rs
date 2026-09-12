@@ -1046,6 +1046,14 @@ fn first_strip_parameters(
 /// tangent has no such rotation and refuses typed
 /// ([`SkinError::PathTangentReversal`]) rather than picking one.
 ///
+/// `place` — the STARTING frame the rest is carried from — is the
+/// caller's, and `geom_core::linalg::frame::path_start_frame` is where
+/// a caller gets it: the plane through the path's start point whose
+/// local +Z is the start tangent, its roll off a reference ladder
+/// decided under the band. A caller wanting a different roll composes
+/// a rotation about the tangent onto that frame; there is no second
+/// door.
+///
 /// # C6: the anti-parallel knife edge, stated honestly
 ///
 /// The turn is selected from `sin = |t₀ × tᵢ|` and `cos = t₀ · tᵢ` by

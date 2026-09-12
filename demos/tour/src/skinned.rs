@@ -58,6 +58,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::polygon;
+use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{Affine3, Point2, Point3, Vec3};
 use pncad::prelude::{Open, Start, Via};
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
@@ -174,15 +175,28 @@ pub fn narration(tol: Tol) {
         Affine3::identity(),
     )
     .expect("the path converts");
-    // The profile plane is normal to the path at its start — the
-    // frame the sweep then carries along (`sweep_geometry` turns it by
-    // the minimal rotation at each station).
-    let place = normal_start_place(&path);
+    // The starting placement comes from the kernel: `path_start_frame`
+    // is the door, and it wants the path's start point and start
+    // tangent. `sweep_geometry` carries that frame along the path from
+    // there.
+    let (t0, _) = path.domain();
+    let place = path_start_frame(path.eval(t0), path.deriv(t0), tol)
+        .expect("the arc path's start tangent fixes a frame");
     let swept =
         sweep_geometry(&chain(1.0, tol), place, &path, 5, 3, tol).expect("the arc sweep skins");
     println!(
         "== sweep: 1 profile carried along an arc path at {} stations, v-degree 3 ==",
         swept.section_params.len()
+    );
+    println!(
+        "   the START placement is the kernel's, not this caller's: \
+         geom_core::linalg::frame::path_start_frame(start point, start tangent, tol) \
+         returns the plane through the start whose local +Z is the tangent, with the \
+         roll off a reference LADDER — world +Z, then world +X — each rung taken only \
+         on a definite off-axis decision under the tolerance band, and a typed refusal \
+         when no rung decides. There is no second door for a different roll: roll is a \
+         composition, Affine3::rotation_about_axis(start, tangent, angle) * that frame \
+         (the twisted_tube scene below is that caller)"
     );
     println!(
         "   {} walls; the frame is path-FOLLOWING (each station turns the profile by \
@@ -229,34 +243,6 @@ pub fn narration(tol: Tol) {
 /// a consumer has.
 fn quad(pts: [(f64, f64); 4], tol: Tol) -> Section {
     vec![polygon(&pts, tol).expect("the quad section")]
-}
-
-/// **The placement a path sweep starts from**: the plane through the
-/// path's start point whose normal is the start TANGENT, with the
-/// in-plane axes built off whichever world axis is least parallel to
-/// it. `sweep_geometry`/`sweep_body` carry this frame along the path
-/// by minimal rotation, so a section placed here stays normal to the
-/// path — the first thing a real caller has to write, and the reason
-/// both sweep cells below open with it.
-///
-/// The kernel's own suites share this recipe from
-/// `sweep::test_support`'s neighbour in `sweep/tests/common`. The tour
-/// cannot reach either: both are test-only homes behind a dev-only
-/// feature, and this is a `src/` binary that links the façade as an
-/// ordinary dependency. So it is a stated copy — and the fact that a
-/// caller must write it at all is what the narration below is about.
-fn normal_start_place(path: &pncad::geom::NurbsCurve3<f64>) -> Affine3<f64> {
-    let (lo, _) = path.domain();
-    let d = path.deriv(lo);
-    let n = d / d.norm();
-    let helper = if n.z.abs() < 0.9 {
-        Vec3::unit_z()
-    } else {
-        Vec3::unit_x()
-    };
-    let u = helper.cross(n);
-    let u = u / u.norm();
-    Affine3::from_frame(path.eval(lo), u, n.cross(u))
 }
 
 /// The prism's end sections (also `common/mod.rs::PRISM_SQUARE`).
@@ -309,6 +295,27 @@ fn tube_taper(i: usize) -> f64 {
     (TUBE_TAPER_END - 1.0).mul_add(u, 1.0)
 }
 
+/// The twisted cubic `r(t) = (At, Bt², Ct³)` on `t ∈ [−1, 1]`, the
+/// degree-3 interpolant through 33 exact points — the spine the
+/// `twisted_duct` sweep cell and the `twisted_tube` loft cell share.
+/// Its torsion `τ = 12ABC/|r′×r″|²` has a constant numerator, so no
+/// point of it has an osculating plane the curve stays in.
+fn cubic_spine() -> pncad::geom::NurbsCurve3<f64> {
+    let points: Vec<Point3<f64>> = (0..=32)
+        .map(|k| {
+            let t = 2.0f64.mul_add(f64::from(k) / 32.0, -1.0);
+            Point3::new(TC_A * t, TC_B * t * t, TC_C * t * t * t)
+        })
+        .collect();
+    pncad::geom::NurbsCurve3::interpolate(&points, 3).expect("the cubic interpolates")
+}
+
+/// The twisted cubic's coefficients `(A, B, C)`: the spine's shape,
+/// and the torsion figure the `twisted_duct` note prints.
+const TC_A: f64 = 2.2;
+const TC_B: f64 = 1.3;
+const TC_C: f64 = 1.5;
+
 /// A centred square LOOP of half-width `h` — one loop, so an annular
 /// section is two of them.
 fn square(h: f64, tol: Tol) -> pncad::profile::ProfileLoop<f64> {
@@ -318,28 +325,28 @@ fn square(h: f64, tol: Tol) -> pncad::profile::ProfileLoop<f64> {
 /// Station `i`'s placement on `path`: the plane normal to the spine's
 /// tangent there, rolled `roll · u` about it.
 ///
-/// The in-plane axes are built off whichever world axis is least
-/// parallel to the tangent — [`normal_start_place`]'s recipe, applied
-/// at every station rather than only the first, because a loft places
-/// each section itself.
-fn tube_place(path: &pncad::geom::NurbsCurve3<f64>, i: usize, roll: f64) -> Affine3<f64> {
+/// **This is the roll answer, said in code.** The unrolled plane is
+/// the sweep cell's door, `path_start_frame`, and a caller wanting a
+/// different roll does not want a second door: it composes a rotation
+/// about the tangent onto the one frame the kernel hands out. A loft
+/// places every section itself, which is why the door is asked at each
+/// station rather than only the first.
+///
+/// GAP (library finding, `memories/demo-purpose.md`): the door is
+/// spelled for the path's START, and nothing in its signature is —
+/// it takes a point and a tangent. Asking it at an interior station is
+/// the only spelling a caller has for "the normal plane here", and the
+/// name reads wrong at every one of them.
+fn tube_place(path: &pncad::geom::NurbsCurve3<f64>, i: usize, roll: f64, tol: Tol) -> Affine3<f64> {
     let (lo, hi) = path.domain();
     #[allow(clippy::cast_precision_loss)]
     let u = i as f64 / (TUBE_STATIONS - 1) as f64;
     let t = (hi - lo).mul_add(u, lo);
-    let d = path.deriv(t);
-    let n = d / d.norm();
-    let helper = if n.z.abs() < 0.9 {
-        Vec3::new(0.0, 0.0, 1.0)
-    } else {
-        Vec3::new(1.0, 0.0, 0.0)
-    };
-    let a = n.cross(helper);
-    let a = a / a.norm();
-    let b = n.cross(a);
-    let (c, s) = (roll * u).sin_cos();
-    let (sin, cos) = (c, s);
-    Affine3::from_frame(path.eval(t), a * cos + b * sin, b * cos - a * sin)
+    let station = path.eval(t);
+    let tangent = path.deriv(t);
+    let plane = path_start_frame(station, tangent, tol)
+        .expect("the spine's tangent fixes a frame at every station");
+    Affine3::rotation_about_axis(station, tangent, roll * u) * plane
 }
 
 /// The widths of a body's two END CAPS — the largest distance between
@@ -761,18 +768,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // planar arcs — nothing glued from revolves has a spine with
     // nonzero torsion. The twisted cubic is THIS cell because it is
     // the mathematically definitive nonzero-torsion demonstration.
-    let (tc_a, tc_b, tc_c) = (2.2, 1.3, 1.5);
-    let cubic_points: Vec<Point3<f64>> = (0..=32)
-        .map(|k| {
-            let t = 2.0f64.mul_add(f64::from(k) / 32.0, -1.0);
-            Point3::new(tc_a * t, tc_b * t * t, tc_c * t * t * t)
-        })
-        .collect();
-    let cubic_path =
-        pncad::geom::NurbsCurve3::interpolate(&cubic_points, 3).expect("the cubic interpolates");
-    // Profile plane normal to the start tangent — the same recipe the
-    // narration opens with, spelled once.
-    let place = normal_start_place(&cubic_path);
+    let cubic_path = cubic_spine();
+    // Profile plane normal to the start tangent — the same door the
+    // narration opens with.
+    let (tc_t0, _) = cubic_path.domain();
+    let place = path_start_frame(cubic_path.eval(tc_t0), cubic_path.deriv(tc_t0), tol)
+        .expect("the twisted cubic's start tangent fixes a frame");
     let twisted = pncad::sweep::sweep_body::<f64>(
         &quad(
             [
@@ -814,7 +815,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         s * h / 3.0
     };
     let tc_al = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * interp_len;
-    let tau0 = 3.0 * tc_c / (tc_a * tc_b);
+    let tau0 = 3.0 * TC_C / (TC_A * TC_B);
 
     let twisted_color = [0.58, 0.42, 0.66];
     let shadow = |name: &'static str, caption: String, elev: f64, azim: f64| Stop {
@@ -852,10 +853,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // section; a solid of revolution has one axis, and a section whose
     // size varies along the spine has none.
     let tube_places: Vec<Affine3<f64>> = (0..TUBE_STATIONS)
-        .map(|i| tube_place(&cubic_path, i, TUBE_ROLL))
+        .map(|i| tube_place(&cubic_path, i, TUBE_ROLL, tol))
         .collect();
     let unrolled_places: Vec<Affine3<f64>> = (0..TUBE_STATIONS)
-        .map(|i| tube_place(&cubic_path, i, 0.0))
+        .map(|i| tube_place(&cubic_path, i, 0.0, tol))
         .collect();
     let tube_sections: Vec<Section> = (0..TUBE_STATIONS)
         .map(|i| {
@@ -1031,7 +1032,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              cancels and frame roll drops out), approached through the two \
              discretizations, not equalled. Fixture CANDIDATE for the next corpus \
              fold, beside the S",
-            12.0 * tc_a * tc_b * tc_c
+            12.0 * TC_A * TC_B * TC_C
         )),
         // The spine's biggest excursion is the cubic S in the xz
         // plane (down −y) with the parabolic bow in y adding depth;
@@ -1062,4 +1063,80 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         -90.0,
     ));
     stops
+}
+
+#[cfg(test)]
+mod start_frame {
+    use super::{TUBE_ROLL, TUBE_STATIONS, cubic_spine, tube_place};
+    use pncad::geom_core::linalg::frame::path_start_frame;
+    use pncad::geom_core::{Affine3, Tol};
+
+    /// The twelve stored numbers of a placement, as bits.
+    fn bits(a: &Affine3<f64>) -> [u64; 12] {
+        let (m, t) = (a.linear, a.translation);
+        [
+            m.c0.x, m.c0.y, m.c0.z, m.c1.x, m.c1.y, m.c1.z, m.c2.x, m.c2.y, m.c2.z, t.x, t.y, t.z,
+        ]
+        .map(f64::to_bits)
+    }
+
+    /// **The scene's station planes ARE the kernel's frame, and the
+    /// authored roll is composed onto it** — the tour's answer to
+    /// "does a caller wanting a different roll need a second door".
+    ///
+    /// Bits, not a tolerance: a scene that went back to a hand-written
+    /// recipe would not reproduce them even where it picked the same
+    /// helper axis, because the hand recipe spells the third column as
+    /// a cross product and the door stores the unit tangent.
+    ///
+    /// ANTI-VACUITY: the roll must actually move the frame, or the two
+    /// claims below collapse into one. The last station's local +X is
+    /// asserted to have turned by the authored angle.
+    #[test]
+    fn every_tube_station_is_the_door_with_the_roll_composed_on() {
+        let tol = Tol::witness();
+        let spine = cubic_spine();
+        let (lo, hi) = spine.domain();
+        for i in 0..TUBE_STATIONS {
+            #[allow(clippy::cast_precision_loss)]
+            let u = i as f64 / (TUBE_STATIONS - 1) as f64;
+            let t = (hi - lo).mul_add(u, lo);
+            let (p, d) = (spine.eval(t), spine.deriv(t));
+            let door = path_start_frame(p, d, tol).expect("the spine's tangent fixes a frame");
+
+            for roll in [0.0, TUBE_ROLL] {
+                assert_eq!(
+                    bits(&tube_place(&spine, i, roll, tol)),
+                    bits(&(Affine3::rotation_about_axis(p, d, roll * u) * door)),
+                    "station {i} at roll {roll} must be the kernel's start frame \
+                     with a rotation about the tangent composed onto it — no \
+                     second door"
+                );
+            }
+            let unrolled = tube_place(&spine, i, 0.0, tol).linear;
+            let off = [
+                (unrolled.c0 - door.linear.c0).norm(),
+                (unrolled.c1 - door.linear.c1).norm(),
+                (unrolled.c2 - door.linear.c2).norm(),
+            ]
+            .into_iter()
+            .fold(0.0f64, f64::max);
+            assert!(
+                off < 1e-15,
+                "station {i} without a roll must be the door itself: the identity \
+                 composition moved an axis by {off}"
+            );
+        }
+
+        let last = TUBE_STATIONS - 1;
+        let rolled = tube_place(&spine, last, TUBE_ROLL, tol).linear.c0;
+        let unrolled = tube_place(&spine, last, 0.0, tol).linear.c0;
+        let turned = rolled.dot(unrolled).clamp(-1.0, 1.0).acos();
+        assert!(
+            (turned - TUBE_ROLL).abs() < 1e-12,
+            "the authored roll must turn the last station's local +X by {TUBE_ROLL} \
+             rad, measured {turned} — a roll that did nothing would make both rows \
+             above the same claim"
+        );
+    }
 }
