@@ -2,10 +2,11 @@
 id: emit-topo-destroys-the-edge-key-in-a-split-lineage-cycle
 kind: issue
 title: names/emit_topo.rs:127 discards SplitLineageCycle's EdgeKey, keeping the kind honest and destroying the locator
-status: dispatched
+status: review
 opened: 2026-09-11
 refs: [2378]
 branch: wire/names-vocab
+pr: 2474
 ---
 
 

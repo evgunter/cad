@@ -1971,3 +1971,80 @@ test, and not one came from reading a diff. The `operand-door` brief
 additionally requires the lane's own adversarial re-read of its diff
 before pushing, and requires it to say what that found: it is the only
 thing that has ever caught the minting trap from inside a lane.
+
+## 2026-09-12 — two units back, and a question that turned out not to be Ev's
+
+`wire/placement-prose` (PR 2475) and `wire/names-vocab` (PR 2474) both
+returned green and are under light style review, which is the posture
+`plan.md` sets for them. CI verified at the check-run level here rather
+than read off the reports: both heads show **0 checks in flight, 0
+non-success, twelve `test (…)` jobs and five `k-lint (gate, …)` rows**.
+
+### The `Frame::linear` decision is WIRE's, not Ev's — checked rather than assumed
+
+`placement-prose`'s third deliverable was a **measurement, not a
+removal**, deliberately: the row is a CLASS whose real question was
+whether `crates/geom/src/scalar_lift.rs`'s *"one name, `map_scalar` on
+every geometry type"* convention should mint public doors ahead of
+consumers, and the lane filed that question on PROPS's slate as
+`DESIGN.md`-shaped and *"probably Ev's"*.
+
+It is not Ev's, and `CLAUDE.md`'s clause that landed today —
+**"check that Ev ever agreed, before you wait for Ev"** — is what
+settles it. Traced with `git log -S` over full history
+(`git rev-parse --is-shallow-repository` → `false` in this session's
+checkout, which the entry of 2026-09-12 above says to confirm before
+trusting any dating claim from here):
+
+- the convention was written by an agent in a **fix pass**, `b61d25ddc`
+  (2026-09-02, CERT-N1, PR 1536), as a module doc-comment.
+  `docs/DESIGN.md` does not mention `map_scalar` or scalar lifts at all,
+  and neither `geom` README names it;
+- the **opposite** rule — `crates/pncad/src/lib.rs`'s *"Re-export it the
+  day a consumer needs it"* — was written in the façade skeleton commit
+  `b43bb3e29` (2026-08-06). Also unratified, also a code comment.
+
+So there is no ratified clause to change, nothing waits on Ev, and the
+row records a real defect of a different kind: **two unratified
+conventions pointing opposite ways at the same altitude, with neither
+site aware of the other.** The evidence goes on the PROPS row through
+`placement-prose`'s fix pass, because that row lives on the lane's
+branch and one-file-one-item means it gets written once, where it lives.
+The first attempt to append it from here created a second, front-matterless
+copy and `work.py lint` caught it in one call — which is the rule working.
+
+**The disposition is therefore an ordinary engineering call and it is
+mine.** It is still held until the review returns, because the whole
+decision rests on the dead-code table and the reviewer's brief requires
+re-taking it with the instrument rather than reading it. The lane also
+established that `Frame::linear` is **not a rung of the convention** at
+all — `Frame` is a document-layer record in `editor-core`, spelled
+`linear`, not a type `scalar_lift.rs` names — so the two halves of the
+class are now cleanly separable and neither waits on the other.
+
+### What the measurement found that the row did not predict
+
+Of the **eight** `map_scalar` rungs, exactly **one** has a production
+consumer outside its crate. Both top rungs (`Curve3`, `Surface`) warn
+`never used`. `Vec2::map` has **zero** consumers workspace-wide, tests
+included, and `Mat3::map`'s only consumer anywhere is the dead
+`Frame::linear` this unit was measuring. The row opened as two instances;
+it is nearer eight.
+
+### Two disclosures the reviewers were pointed at by name
+
+`names-vocab` disclosed that its own central fix is **unguarded**: the
+refusal it repaired is defensive and unreachable from `editor-core`, so
+no row evaluates a cycling body and *"a mutant that reverted the call
+site to `map_err(|_| …)` would stay green."* Its three red mutants pin
+the `Display`, the `From` and the Python tag inventory — the plumbing,
+not the discard the item was filed about. That is an honest report of
+the exact gap `reviewer-style-lane.md` Q6 governs, and the reviewer is
+asked both to try to falsify the unreachability and, if it holds, to say
+whether the owed *"unguardable, and here is why"* sentence is at the
+claim site rather than only in a PR body.
+
+`placement-prose` disclosed that the S9 ratio finding is **not** closed
+and that the file got longer (430→458 lines). Same treatment: a
+disclosed shortfall owes a schedule, and the reviewer checks whether it
+has one.

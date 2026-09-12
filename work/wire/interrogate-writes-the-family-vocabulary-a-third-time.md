@@ -2,10 +2,11 @@
 id: interrogate-writes-the-family-vocabulary-a-third-time
 kind: issue
 title: names/interrogate.rs matches ValuePayload and spells six family words itself, a third copy of kind_name's match in a file that never sees eval::family
-status: dispatched
+status: review
 opened: 2026-09-11
 refs: [2376]
 branch: wire/names-vocab
+pr: 2474
 ---
 
 

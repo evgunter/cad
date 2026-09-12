@@ -4,7 +4,7 @@ kind: issue
 title: A CLASS - public generic doors with zero production call sites, kept alive by their own tests: Frame::linear<T> (PR 2375) and both profile map_scalar rungs (PR 2409)
 status: open
 opened: 2026-09-11
-refs: [2375, 2409]
+refs: [2375, 2409, 2475]
 ---
 
 
