@@ -600,6 +600,134 @@ fn pop_frame(depth: usize, id: u64) -> Recorded {
     })
 }
 
+/// **Everything one [`detached`] run recorded**, carried as a value so
+/// it can cross a thread — the composing half of the funnel.
+///
+/// A recording is made on the thread that decides. A walk that runs its
+/// units on rayon workers (D9 addendum idiom 1) therefore has its
+/// recordings scattered one per worker, in whatever order the schedule
+/// ran them; handing each unit's recording back as a value lets the
+/// walk's sequential fold [`splice`] them into the caller's frame and
+/// sink in ITS order, which is the order a serial walk would have
+/// recorded them in.
+///
+/// The two channels ride together for the reason `classify_in` writes
+/// them together: a consumer cannot take one and miss the other.
+#[derive(Debug, Clone, Default)]
+pub struct Detached {
+    recorded: Recorded,
+    #[cfg(feature = "probe")]
+    samples: Vec<MarginSample>,
+}
+
+impl Detached {
+    /// The verdict and escalation channels this run recorded, in
+    /// decision order.
+    #[must_use]
+    pub fn recorded(&self) -> &Recorded {
+        &self.recorded
+    }
+
+    /// The margin samples this run recorded, in decision order.
+    #[cfg(feature = "probe")]
+    #[must_use]
+    pub fn samples(&self) -> &[MarginSample] {
+        &self.samples
+    }
+}
+
+/// Installs a fresh sample sink for the [`detached`] run and restores
+/// the outer one when the guard goes — by any path, a panic unwinding
+/// through the run included, so a detached run can never leave another
+/// run's sink uninstalled.
+#[cfg(feature = "probe")]
+struct SinkSwap(Option<Vec<MarginSample>>);
+
+#[cfg(feature = "probe")]
+impl SinkSwap {
+    fn install() -> Self {
+        Self(SINK.with(|s| s.borrow_mut().replace(Vec::new())))
+    }
+
+    /// Takes what the run recorded; the outer sink goes back on drop.
+    fn finish(self) -> Vec<MarginSample> {
+        SINK.with(|s| s.borrow_mut().take()).unwrap_or_default()
+    }
+}
+
+#[cfg(feature = "probe")]
+impl Drop for SinkSwap {
+    fn drop(&mut self) {
+        SINK.with(|s| *s.borrow_mut() = self.0.take());
+    }
+}
+
+/// **Runs `work` on THIS thread under a frame and a sink of its own**,
+/// and hands back what it recorded beside its value.
+///
+/// The frame is a [`Bracket`], so everything the bracket contract says
+/// holds here: the frame is this thread's innermost while `work` runs,
+/// it is popped by every path including a panic, and an inner bracket
+/// `work` opens nests inside it. The sink is swapped the same way under
+/// `probe` — a run records into its own, and the outer one is back
+/// before this call returns.
+///
+/// Nothing about this call is parallel; it is the half that makes a
+/// parallel walk's recordings SURVIVE. The worker a face runs on has no
+/// open frame and no installed sink of the caller's, so its decisions
+/// would reach neither channel; under a detached frame they reach one
+/// this call owns, and [`splice`] puts them where the caller's own
+/// decisions went.
+pub fn detached<R>(work: impl FnOnce() -> R) -> (R, Detached) {
+    let bracket = Bracket::open();
+    #[cfg(feature = "probe")]
+    let sink = SinkSwap::install();
+    let out = work();
+    #[cfg(feature = "probe")]
+    let samples = sink.finish();
+    let recorded = bracket.finish();
+    (
+        out,
+        Detached {
+            recorded,
+            #[cfg(feature = "probe")]
+            samples,
+        },
+    )
+}
+
+/// **Appends a detached run's recording to this thread's open frame and
+/// installed sink**, in the order the calls are made.
+///
+/// The composing half: a walk that decided its units on workers splices
+/// their recordings back in ITS order — arena order for a face walk —
+/// and the verdict log, the escalation log and the sample population
+/// are then what a walk that decided the same units one at a time on
+/// this thread would have produced, element for element.
+///
+/// No open frame, or no installed sink, and that channel is dropped —
+/// which is what the serial walk does too: a decision taken outside any
+/// bracket is recorded nowhere.
+pub fn splice(recording: Detached) {
+    let Detached {
+        recorded,
+        #[cfg(feature = "probe")]
+        samples,
+    } = recording;
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            top.recorded.verdicts.extend(recorded.verdicts);
+            top.recorded.escalations.extend(recorded.escalations);
+        }
+    });
+    #[cfg(feature = "probe")]
+    SINK.with(|s| {
+        if let Some(sink) = s.borrow_mut().as_mut() {
+            sink.extend(samples);
+        }
+    });
+}
+
 /// How many brackets are open on this thread — the tests' witness that
 /// every path closes its frame.
 #[cfg(test)]
@@ -1281,8 +1409,11 @@ mod tests {
     /// The guard cannot cross a thread (the `compile_fail` block on
     /// [`Bracket`]), but WORK can: a decision made on another thread
     /// while this thread holds a bracket lands in no frame at all, the
-    /// stack being thread-local. Stated because the type does not
-    /// forbid it; no kernel op spawns today.
+    /// stack being thread-local. This is the defect [`detached`] and
+    /// [`splice`] exist to close — a walk that runs its units on rayon
+    /// workers records nothing here unless each unit's recording is
+    /// handed back as a value — and the row below is what that loss
+    /// looks like with neither door used.
     #[test]
     fn work_on_another_thread_records_nowhere_while_this_thread_holds_a_bracket() {
         let b = band();
@@ -1315,5 +1446,124 @@ mod tests {
         let log = first.finish();
         assert_eq!(log.verdicts.len(), 1);
         assert_eq!(log.verdicts[0].predicate, "vlog_n");
+    }
+    /// **A detached run's recording survives the thread it was taken
+    /// on** — the composing door's whole reason. The decision is made
+    /// on another thread, where no frame of this one's stack exists;
+    /// the recording comes back as a value and [`splice`] puts it in
+    /// the caller's frame.
+    #[test]
+    fn a_detached_run_on_another_thread_splices_into_this_frame() {
+        let b = band();
+        let outer = Bracket::open();
+        decide("vlog_before", Margin::of(1.0f64), b).unwrap();
+        let recording = std::thread::scope(|s| {
+            s.spawn(|| detached(|| decide("vlog_on_a_worker", Margin::of(1.0f64), b)).1)
+                .join()
+                .unwrap()
+        });
+        assert_eq!(
+            names(recording.recorded()),
+            ["vlog_on_a_worker"],
+            "the detached frame did not capture the worker's decision"
+        );
+        splice(recording);
+        decide("vlog_after", Margin::of(1.0f64), b).unwrap();
+        assert_eq!(
+            names(&outer.finish()),
+            ["vlog_before", "vlog_on_a_worker", "vlog_after"],
+            "the spliced recording did not land in the caller's decision order"
+        );
+    }
+
+    /// The order is the SPLICER's, not the schedule's: recordings
+    /// appended in the order the calls are made, whatever order they
+    /// were taken in. This is what makes an arena-order fold over
+    /// slots produce a serial walk's log.
+    #[test]
+    fn splice_appends_in_the_order_the_calls_are_made() {
+        let b = band();
+        let second = detached(|| decide("vlog_slot_1", Margin::of(1.0f64), b)).1;
+        let first = detached(|| decide("vlog_slot_0", Margin::of(1.0f64), b)).1;
+        let outer = Bracket::open();
+        splice(first);
+        splice(second);
+        assert_eq!(names(&outer.finish()), ["vlog_slot_0", "vlog_slot_1"]);
+    }
+
+    /// A detached run does not touch the frame it was opened under:
+    /// the caller's own decisions before and after are its own, and the
+    /// detached ones reach it only through [`splice`].
+    #[test]
+    fn a_detached_run_leaves_the_open_frame_alone() {
+        let b = band();
+        let outer = Bracket::open();
+        decide("vlog_mine", Margin::of(1.0f64), b).unwrap();
+        let (_, recording) = detached(|| decide("vlog_theirs", Margin::of(1.0f64), b));
+        let log = outer.finish();
+        assert_eq!(names(&log), ["vlog_mine"]);
+        assert_eq!(names(recording.recorded()), ["vlog_theirs"]);
+    }
+
+    /// Both channels travel: an indeterminate outcome taken inside a
+    /// detached run splices back as an escalation, not as a dropped
+    /// decision.
+    #[test]
+    fn a_detached_escalation_splices_as_an_escalation() {
+        let b = band();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        let (_, recording) = detached(|| decide("vlog_esc", Margin::of(mid), b));
+        let outer = Bracket::open();
+        splice(recording);
+        let log = outer.finish();
+        assert!(log.verdicts.is_empty(), "an escalation recorded a verdict");
+        assert_eq!(
+            log.escalations
+                .iter()
+                .map(Escalation::predicate)
+                .collect::<Vec<_>>(),
+            ["vlog_esc"]
+        );
+    }
+
+    /// **The sample population does not shrink**: a detached run's
+    /// samples reach the caller's sink, and the outer sink is back in
+    /// place while the run is going on — a run cannot record into it.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn a_detached_run_splices_its_samples_into_the_callers_sink() {
+        let b = band();
+        let (_, recording) = detached(|| Probe(1.0).sign_within(b));
+        assert_eq!(
+            recording.samples().len(),
+            1,
+            "the detached sink took no sample"
+        );
+        start_recording();
+        let _ = Probe(2.0).sign_within(b);
+        splice(recording);
+        let _ = Probe(3.0).sign_within(b);
+        let got: Vec<f64> = take_samples().iter().map(|s| s.margin).collect();
+        assert_eq!(
+            got,
+            [2.0, 1.0, 3.0],
+            "the spliced samples did not land in the caller's order"
+        );
+    }
+
+    /// A detached run taken with no sink installed on the caller's
+    /// thread still records its own samples — which is the worker's
+    /// case exactly.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn a_detached_run_records_samples_with_no_outer_sink() {
+        let b = band();
+        assert!(take_samples().is_empty(), "a sink was left installed");
+        let (_, recording) = detached(|| Probe(7.0).sign_within(b));
+        assert_eq!(recording.samples().len(), 1);
+        assert!(
+            take_samples().is_empty(),
+            "the detached sink was left installed on the caller"
+        );
     }
 }

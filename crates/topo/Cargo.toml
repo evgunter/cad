@@ -65,6 +65,11 @@ bvh = { path = "../bvh" }
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
 geom = { path = "../geom" }
+# D9 addendum idiom 1 over the per-face mass-property fluxes
+# (`props.rs`'s `decide_faces`): one slot per face in arena order, the
+# sum a sequential arena-order fold. The workspace pin; `editor-core`
+# takes the same edge for the same idiom.
+rayon = { workspace = true }
 slotmap = { workspace = true }
 
 [dev-dependencies]
