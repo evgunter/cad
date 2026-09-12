@@ -345,9 +345,36 @@ mod live {
         assemblies: usize,
     }
 
+    impl FaceRecording {
+        /// Nothing recorded: a disarmed meter, or a lane that panicked
+        /// out from under [`record`]'s guard.
+        fn nothing() -> Self {
+            Self {
+                faces: Vec::new(),
+                assemblies: 0,
+            }
+        }
+    }
+
     /// This thread's arming, read once before the per-face map.
     pub(crate) fn arming() -> Arming {
         Arming(STATE.with(|s| s.borrow().as_ref().map(|st| st.mode)))
+    }
+
+    /// Restores the thread's meter state when a face's lane ends —
+    /// **including when it ends by panicking**, which a bare swap
+    /// cannot. A worker thread outlives the lane that ran on it, so a
+    /// swap left unwound would leave that worker armed with a dead
+    /// face's accumulator and every later face on it would record into
+    /// a picture nobody reads. `k_stats::Bracket` is the tree's pattern
+    /// for this and this is the same shape: the guard, not the happy
+    /// path, is what puts the state back.
+    struct Restore(Option<State>);
+
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            STATE.replace(self.0.take());
+        }
     }
 
     /// Runs one face's lane with `a` installed on WHATEVER THREAD this
@@ -367,23 +394,21 @@ mod live {
     /// the picture's own accumulator (the chord pass has already
     /// recorded its assemblies into it).
     pub(crate) fn record<R>(a: Arming, f: impl FnOnce() -> R) -> (R, FaceRecording) {
-        let prior = STATE.replace(a.0.map(|mode| State {
+        let _restore = Restore(STATE.replace(a.0.map(|mode| State {
             mode,
             faces: Vec::new(),
             assemblies: 0,
-        }));
+        })));
         let out = f();
-        let mine = STATE.replace(prior);
-        let recording = mine.map_or(
-            FaceRecording {
-                faces: Vec::new(),
-                assemblies: 0,
-            },
-            |st| FaceRecording {
-                faces: st.faces,
-                assemblies: st.assemblies,
-            },
-        );
+        // Taken out from under the guard, which then puts the caller's
+        // own state back. A panic between the two takes this face's
+        // rows with it — a half-measured face is not a measurement —
+        // and still leaves the thread as it was found.
+        let mine = STATE.with(|s| s.borrow_mut().take());
+        let recording = mine.map_or_else(FaceRecording::nothing, |st| FaceRecording {
+            faces: st.faces,
+            assemblies: st.assemblies,
+        });
         (out, recording)
     }
 

@@ -12,7 +12,7 @@ use rayon::prelude::*;
 use crate::budget;
 use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
-use crate::memo::{FaceInputs, FaceMemo, PatchKeys, PatchMemo};
+use crate::memo::{FaceInputs, FaceMemo, PatchKeys, PatchMemo, Placement};
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
 use crate::sizing::{Eps, SizingTols, sizing_target};
@@ -258,17 +258,18 @@ fn lane_of(body: &Body<f64>, fk: FaceKey, surface: &Surface<f64>) -> Result<Lane
 /// is counted and inserted at this face's turn, and the meter's rows
 /// are handed over at this face's turn — however the map scheduled the
 /// faces.
-struct FaceWork {
+struct FaceWork<'m> {
     face: FaceKey,
     /// What the budget meter recorded while this face's lane ran, on
     /// whatever thread that was (`budget::record`).
     meter: budget::FaceRecording,
     /// The memo's work for this face, absent on the memo-free path.
     memo: Option<FaceMemo>,
-    /// The face's patch, or the error its lane refused with — carried
-    /// rather than propagated, so the fold reports the first refusal in
-    /// ARENA order rather than the map's first.
-    patch: Result<Patch, TessellateError>,
+    /// What the fold puts in the mesh arena for this face — the lane's
+    /// own patch, or the memo entry it borrows — or the error its lane
+    /// refused with, carried rather than propagated so the fold reports
+    /// the first refusal in ARENA order rather than the map's first.
+    place: Result<Placement<'m>, TessellateError>,
 }
 
 /// The one implementation behind both doors: `memo` is `None` for
@@ -277,7 +278,7 @@ fn tessellate_impl(
     body: &Body<f64>,
     chordal: f64,
     tol: Tol,
-    mut memo: Option<&mut PatchMemo>,
+    memo: Option<&mut PatchMemo>,
 ) -> Result<(Mesh, PatchKeys), TessellateError> {
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
@@ -355,11 +356,17 @@ fn tessellate_impl(
     // `bounds` (`nurbs_cert::FaceBounds`), and the memo is read through
     // its pure half (`PatchMemo::lookup`).
     //
-    // ERRORS ARE THE ONE PLACE THIS COSTS SOMETHING. The serial loop
-    // stopped at the first refusing face in arena order; the map
-    // computes every face and the fold below reports the FIRST `Err` in
-    // arena order. Same error, same everything the caller sees — more
-    // work done on the path that throws its result away.
+    // ERRORS. The fold reports the FIRST `Err` in arena order, which is
+    // the error the serial loop reported; what the map adds is the work
+    // of every later face, done and thrown away.
+    //
+    // PEAK MEMORY. Every face's patch is live at once here, where the
+    // serial loop held one at a time: the bound is the whole mesh's
+    // interior points and triangles, plus (with a memo) one
+    // `StoredPatch` per missed face — about one extra copy of the mesh.
+    // Measured on `tube_ring` (683 672 triangles over two faces, the
+    // corpus's largest), peak RSS 233 MB against 195 MB serial, +19 %
+    // on a figure the mesh itself dominates.
     let tol = SizingTols {
         delta: chordal,
         delta_s,
@@ -371,12 +378,12 @@ fn tessellate_impl(
     // which nobody armed (`budget`'s module docs).
     let arming = budget::arming();
     let reader = memo.as_deref();
-    let work: Vec<FaceWork> = {
+    let work: Vec<FaceWork<'_>> = {
         let shared = &positions[..shared_below];
         faces
             .par_iter()
             .map(|&(fk, face)| {
-                let ((memo_work, patch), meter) = budget::record(arming, || {
+                let ((memo_work, place), meter) = budget::record(arming, || {
                     let Some(surface) = body.get_surface(face.surface) else {
                         return (
                             None,
@@ -408,7 +415,7 @@ fn tessellate_impl(
                         }
                     };
                     let Some(memo) = reader else {
-                        return (None, run());
+                        return (None, run().map(Placement::Lane));
                     };
                     let inputs = match FaceInputs::gather(
                         body, fk, lane, surface, &chords, shared, chordal, ambient,
@@ -416,12 +423,15 @@ fn tessellate_impl(
                         Ok(inputs) => inputs,
                         Err(error) => return (None, Err(error)),
                     };
-                    let mut lookup = memo.lookup(&inputs);
-                    if let Some(patch) = lookup.take_hit() {
-                        return (Some(lookup.answered()), Ok(patch));
-                    }
+                    let lookup = match memo.lookup(&inputs).answered() {
+                        Ok((placement, work)) => return (Some(work), Ok(placement)),
+                        Err(lookup) => lookup,
+                    };
                     match run() {
-                        Ok(patch) => (Some(lookup.ran(&patch)), Ok(patch)),
+                        Ok(patch) => {
+                            let (placement, work) = lookup.ran(patch);
+                            (Some(work), Ok(placement))
+                        }
                         Err(error) => (Some(lookup.refused()), Err(error)),
                     }
                 });
@@ -429,27 +439,55 @@ fn tessellate_impl(
                     face: fk,
                     meter,
                     memo: memo_work,
-                    patch,
+                    place,
                 }
             })
             .collect()
     };
 
-    // The fold (idiom 2), in face-arena order.
+    // The fold (idiom 2), in face-arena order, and in TWO passes over
+    // the same slots.
+    //
+    // Placement first, for every face, while the memo is only read:
+    // a hit is renamed straight out of the entry the map found
+    // (`memo::Placement::Memo`), and an insert made during the fold
+    // could otherwise replace an entry a later hit still points at.
+    // Recording second, once no placement borrows the memo. The two
+    // passes are independent — one writes the mesh arena, the other the
+    // memo's counters and entries — so splitting them changes nothing
+    // either produces, and both walk the faces in arena order.
     let mut patches = Vec::with_capacity(work.len());
-    let mut keys = PatchKeys::default();
+    let mut pending: Vec<Option<FaceMemo>> = Vec::with_capacity(work.len());
+    let mut refusal = None;
     for face in work {
         budget::absorb(face.meter);
-        if let (Some(memo), Some(work)) = (memo.as_deref_mut(), face.memo) {
+        pending.push(face.memo);
+        match face.place {
+            // Each face's interior takes the arena as it stands at that
+            // face's turn, in face-arena order (D9).
+            Ok(placement) => patches.push(FacePatch {
+                face: face.face,
+                triangles: placement.place(&mut positions),
+            }),
+            // The first refusal in arena order. Its own memo work and
+            // meter rows are already in hand — the serial loop counted
+            // and recorded them before it ran the lane — and no later
+            // face's are.
+            Err(error) => {
+                refusal = Some(error);
+                break;
+            }
+        }
+    }
+
+    let mut keys = PatchKeys::default();
+    if let Some(memo) = memo {
+        for work in pending.into_iter().flatten() {
             memo.record(work, &mut keys);
         }
-        // Each face's interior takes the arena as it stands at that
-        // face's turn, in face-arena order (D9).
-        let triangles = face.patch?.place(&mut positions);
-        patches.push(FacePatch {
-            face: face.face,
-            triangles,
-        });
+    }
+    if let Some(error) = refusal {
+        return Err(error);
     }
 
     let mesh = Mesh {

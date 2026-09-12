@@ -273,26 +273,37 @@ impl PatchMemo {
         }
     }
 
-    /// The memo's PURE half of one face: its key, and the stored patch
-    /// restored against this tessellation's ids if the memo holds one.
+    /// The memo's PURE half of one face: its key, its boundary walk,
+    /// and the stored entry itself when the memo holds one.
     ///
     /// `&self` only — no counter, no picture stamp, no insert — which
     /// is what lets it run inside `tessellate`'s per-face parallel map
     /// (D9 idiom 1). Everything it decides travels to the arena-order
-    /// fold in a [`FaceMemo`], which [`PatchMemo::record`] applies.
+    /// fold: the [`Placement`] the fold performs, and the [`FaceMemo`]
+    /// [`PatchMemo::record`] applies.
+    ///
+    /// **A hit borrows rather than builds.** The entry is handed to the
+    /// fold as `&StoredPatch` and placed straight into the mesh arena
+    /// there, so the map allocates no patch for it — the two `Vec`s a
+    /// restored patch used to cost were allocated on a worker and freed
+    /// on the caller, which is the per-face price
+    /// `work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`
+    /// measures. What the hit still allocates is its key and its
+    /// boundary walk, and neither is avoidable: the key IS the lookup
+    /// and the boundary is what the stored corners are renamed against.
     ///
     /// `inputs` is the face's key; its boundary id sequence is what the
     /// stored patch's shared corners are named against.
-    pub(crate) fn lookup(&self, inputs: &FaceInputs) -> FaceLookup {
+    pub(crate) fn lookup(&self, inputs: &FaceInputs) -> FaceLookup<'_> {
         let key = inputs.key();
         let digest = PatchDigest::of(&key);
         let boundary = inputs.boundary_ids();
-        let hit = self.stored(digest, &key).map(|s| s.restore(&boundary));
+        let stored = self.stored(digest, &key);
         FaceLookup {
             digest,
             key,
             boundary,
-            hit,
+            stored,
         }
     }
 
@@ -310,9 +321,16 @@ impl PatchMemo {
         let picture = self.picture;
         keys.push(face.digest);
         match face.outcome {
-            Outcome::Hit => {
+            Outcome::Hit { key } => {
                 self.hits += 1;
-                if let Some(entry) = self.entries.get_mut(&face.digest) {
+                // Stamped on the FULL key, as the serial `get` had it.
+                // A same-picture insert can have replaced this digest's
+                // entry with one whose bytes are another face's; that
+                // entry is not this face's and keeping it alive on this
+                // face's behalf would serve a collision.
+                if let Some(entry) = self.entries.get_mut(&face.digest)
+                    && entry.key == key
+                {
                     entry.picture = picture;
                 }
             }
@@ -339,26 +357,37 @@ impl PatchMemo {
 
 /// One face's read of the memo, taken from `&PatchMemo` alone
 /// ([`PatchMemo::lookup`]).
-pub(crate) struct FaceLookup {
+pub(crate) struct FaceLookup<'m> {
     digest: PatchDigest,
     key: Vec<u8>,
     boundary: Vec<u32>,
-    hit: Option<Patch>,
+    stored: Option<&'m StoredPatch>,
 }
 
-impl FaceLookup {
-    /// The memo's answer for this face, if it held one. The lane runs
-    /// exactly when this is `None`.
-    pub(crate) fn take_hit(&mut self) -> Option<Patch> {
-        self.hit.take()
-    }
-
-    /// Closes a face the memo answered.
-    pub(crate) fn answered(self) -> FaceMemo {
-        FaceMemo {
-            digest: self.digest,
-            outcome: Outcome::Hit,
-        }
+impl<'m> FaceLookup<'m> {
+    /// Closes a face the memo answered: what the fold places, and what
+    /// it owes the memo. `Err` gives the lookup back — the memo did not
+    /// hold this face, so its lane runs and [`FaceLookup::ran`] or
+    /// [`FaceLookup::refused`] closes it.
+    ///
+    /// A `Result` rather than an `Option` plus a second accessor so the
+    /// caller cannot close a hit as a miss: the value that answers "was
+    /// it there" is the value that carries the answer.
+    #[allow(clippy::result_large_err)]
+    pub(crate) fn answered(self) -> Result<(Placement<'m>, FaceMemo), Self> {
+        let Some(stored) = self.stored else {
+            return Err(self);
+        };
+        Ok((
+            Placement::Memo {
+                stored,
+                boundary: self.boundary,
+            },
+            FaceMemo {
+                digest: self.digest,
+                outcome: Outcome::Hit { key: self.key },
+            },
+        ))
     }
 
     /// Closes a face whose lane refused. There is no patch to store,
@@ -379,13 +408,48 @@ impl FaceLookup {
     /// The renaming happens HERE, in the map, rather than in the fold:
     /// it is per-face work over the face's own patch, and the fold's
     /// only business is the order.
-    pub(crate) fn ran(self, patch: &Patch) -> FaceMemo {
-        FaceMemo {
-            digest: self.digest,
-            outcome: Outcome::Miss {
-                stored: StoredPatch::store(patch, &self.boundary),
-                key: self.key,
+    pub(crate) fn ran(self, patch: Patch) -> (Placement<'m>, FaceMemo) {
+        let stored = StoredPatch::store(&patch, &self.boundary);
+        (
+            Placement::Lane(patch),
+            FaceMemo {
+                digest: self.digest,
+                outcome: Outcome::Miss {
+                    stored,
+                    key: self.key,
+                },
             },
+        )
+    }
+}
+
+/// What the arena-order fold puts into the mesh arena for one face.
+///
+/// The two arms are the two places a face's triangles can come from,
+/// and neither builds a patch the fold then throws away: a lane's patch
+/// moves into the arena, and a memo hit is renamed straight out of the
+/// entry the map read.
+pub(crate) enum Placement<'m> {
+    /// The lane ran: its own patch, placed as it stands.
+    Lane(Patch),
+    /// The memo answered: this entry, renamed against `boundary`.
+    ///
+    /// It BORROWS the memo, which is why the fold places every face
+    /// before it records any of them — an insert during the fold could
+    /// otherwise replace the entry a later hit is still pointing at.
+    Memo {
+        stored: &'m StoredPatch,
+        boundary: Vec<u32>,
+    },
+}
+
+impl Placement<'_> {
+    /// This face's triangles, as mesh ids, with its interior points
+    /// appended to `positions` — the one allocation either arm makes.
+    pub(crate) fn place(self, positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
+        match self {
+            Self::Lane(patch) => patch.place(positions),
+            Self::Memo { stored, boundary } => stored.place(&boundary, positions),
         }
     }
 }
@@ -399,8 +463,9 @@ pub(crate) struct FaceMemo {
 
 /// Where the face landed in the memo, decided in the map.
 enum Outcome {
-    /// The memo held it; the fold counts a hit and re-stamps the entry.
-    Hit,
+    /// The memo held it; the fold counts a hit and re-stamps the entry
+    /// whose key these bytes are.
+    Hit { key: Vec<u8> },
     /// It missed; the fold counts a miss and inserts `stored`, which is
     /// `None` for the key-completeness defect [`PatchMemo::record`]
     /// names.
@@ -425,7 +490,7 @@ enum StoredVertex {
 /// A patch with its shared corners renamed to boundary positions, so
 /// it can be placed in a mesh whose ids differ from the one it was
 /// computed in.
-struct StoredPatch {
+pub(crate) struct StoredPatch {
     interior: Vec<Point3<f64>>,
     triangles: Vec<[StoredVertex; 3]>,
 }
@@ -455,20 +520,31 @@ impl StoredPatch {
         })
     }
 
-    fn restore(&self, boundary: &[u32]) -> Patch {
-        Patch {
-            interior: self.interior.clone(),
-            triangles: self
-                .triangles
-                .iter()
-                .map(|t| {
-                    t.map(|v| match v {
-                        StoredVertex::Boundary(i) => PatchVertex::Shared(boundary[i as usize]),
-                        StoredVertex::Local(i) => PatchVertex::Local(i),
-                    })
+    /// Places the stored patch in the mesh: its interior appended to
+    /// `positions`, its triangles returned as mesh ids, with `boundary`
+    /// naming the shared corners in this tessellation's ids.
+    ///
+    /// **`&self`, and one allocation.** This is [`Patch::place`]'s
+    /// counterpart for a memo hit, and the reason there is no
+    /// `restore`: rebuilding a `Patch` first cost an interior clone and
+    /// a triangle vector that the very next step renumbered and
+    /// dropped — and under the per-face parallel map those two `Vec`s
+    /// were allocated on a worker and freed on the caller. Renaming
+    /// straight into mesh ids does the same work once
+    /// (`work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`).
+    fn place(&self, boundary: &[u32], positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
+        #[allow(clippy::cast_possible_truncation)]
+        let base = positions.len() as u32;
+        positions.extend_from_slice(&self.interior);
+        self.triangles
+            .iter()
+            .map(|t| {
+                t.map(|v| match v {
+                    StoredVertex::Boundary(i) => boundary[i as usize],
+                    StoredVertex::Local(i) => base + i,
                 })
-                .collect(),
-        }
+            })
+            .collect()
     }
 }
 
@@ -1160,26 +1236,22 @@ mod tests {
         };
         let stored = StoredPatch::store(&patch, &[10, 11, 12, 12, 13, 10])
             .expect("every id is on the boundary");
-        let placed = stored.restore(&[20, 21, 22, 22, 23, 20]);
-        assert_eq!(placed.interior.len(), 1);
+        // Placed into an arena that already holds 30 points, so the
+        // interior's base is a number the renaming has to add and not
+        // one the row could pass by accident.
+        let mut positions: Vec<Point3<f64>> = (0..30).map(|i| p(f64::from(i))).collect();
+        let placed = stored.place(&[20, 21, 22, 22, 23, 20], &mut positions);
+        assert_eq!(positions.len(), 31, "the interior point was appended");
         assert_eq!(
-            placed.interior[0].x.to_bits(),
-            patch.interior[0].x.to_bits()
+            positions[30].x.to_bits(),
+            patch.interior[0].x.to_bits(),
+            "and it is the patch's own point"
         );
         assert_eq!(
-            placed.triangles,
-            vec![
-                [
-                    PatchVertex::Shared(20),
-                    PatchVertex::Shared(21),
-                    PatchVertex::Local(0)
-                ],
-                [
-                    PatchVertex::Shared(22),
-                    PatchVertex::Shared(20),
-                    PatchVertex::Local(0)
-                ],
-            ]
+            placed,
+            vec![[20, 21, 30], [22, 20, 30]],
+            "boundary corners renamed through the new ids, the interior one \
+             rebased on the arena it was appended to"
         );
         assert!(
             StoredPatch::store(&patch, &[10, 11]).is_none(),
@@ -1204,7 +1276,7 @@ mod tests {
         memo.record(
             FaceMemo {
                 digest,
-                outcome: Outcome::Hit,
+                outcome: Outcome::Hit { key: b"a".to_vec() },
             },
             &mut keys,
         );

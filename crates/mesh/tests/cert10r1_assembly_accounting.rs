@@ -23,7 +23,7 @@
 //!
 //! # What the fix pass did about it
 //!
-//! The memo now holds the CELL TABLE (`nurbs_cert::face_grid`), and the
+//! The memo now holds the CELL TABLE (`nurbs_cert::face_bound`), and the
 //! whole-patch bound is a reading of it. The chord pass fills the memo
 //! with the finer fact; the trimmed lane clones it. Re-measured:
 //!
