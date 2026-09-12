@@ -1354,32 +1354,6 @@ fn normalized(params: &[f64], lo: f64, hi: f64) -> Vec<f64> {
     out
 }
 
-/// A clamped knot vector affinely rescaled from `0 → 1` onto
-/// `[lo, hi]`, with the clamp runs pinned exactly — so the fitted
-/// surface lives on the base's own chart rectangle and the
-/// certificate's pointwise claim is about the same parameters on both
-/// sides.
-fn rescaled_knots(kv: &KnotVector, lo: f64, hi: f64) -> Result<KnotVector, SplineError> {
-    let span = hi - lo;
-    let n = kv.knots().len();
-    let p = kv.degree();
-    let scaled: Vec<f64> = kv
-        .knots()
-        .iter()
-        .enumerate()
-        .map(|(i, t)| {
-            if i <= p {
-                lo
-            } else if i + p + 1 >= n {
-                hi
-            } else {
-                lo + span * *t
-            }
-        })
-        .collect();
-    KnotVector::clamped(scaled, p)
-}
-
 /// **A9.4**, at the base's chart parameters (module docs): sample the
 /// exact offset on the `(us, vs)` grid, then two passes of curve
 /// interpolation on Eq. 9.8's averaged knot vectors.
@@ -1431,8 +1405,12 @@ fn interpolate_offset_grid(
             control.push(Point3::new(row[i * 3], row[i * 3 + 1], row[i * 3 + 2]));
         }
     }
-    let ku = rescaled_knots(&ku, ulo, uhi).map_err(OffsetFitError::Structure)?;
-    let kv = rescaled_knots(&kv, vlo, vhi).map_err(OffsetFitError::Structure)?;
+    // The interpolation's `0 → 1` knots onto the base's own chart
+    // rectangle, ends exact — so the fitted surface lives on the same
+    // parameters and the certificate's pointwise claim is about the
+    // same `(u, v)` on both sides.
+    let ku = ku.on_domain(ulo, uhi).map_err(OffsetFitError::Structure)?;
+    let kv = kv.on_domain(vlo, vhi).map_err(OffsetFitError::Structure)?;
     NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).map_err(OffsetFitError::Structure)
 }
 

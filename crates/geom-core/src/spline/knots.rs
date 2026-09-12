@@ -79,7 +79,7 @@ impl core::error::Error for SplineError {}
 
 /// The exact structural violation behind
 /// [`SplineError::KnotVectorInvalid`].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum KnotVectorIssue {
     /// Degree 0 is refused: a degree-0 "curve" is a step-function
     /// locus, not a curve — a designed absence until a consumer
@@ -109,6 +109,17 @@ pub enum KnotVectorIssue {
         /// Index of the first knot of the offending run.
         index: usize,
     },
+    /// The domain a vector was asked to be re-expressed on
+    /// ([`KnotVector::on_domain`]) is not a finite increasing interval:
+    /// an end is NaN or ±∞, or `hi ≤ lo` (collapsed or reversed). Named
+    /// as the domain's own defect rather than as whichever clause a
+    /// vector built on it would trip first.
+    DomainInvalid {
+        /// The requested lower end.
+        lo: f64,
+        /// The requested upper end.
+        hi: f64,
+    },
 }
 
 impl core::fmt::Display for KnotVectorIssue {
@@ -126,6 +137,12 @@ impl core::fmt::Display for KnotVectorIssue {
             }
             KnotVectorIssue::InteriorMultiplicityTooHigh { index } => {
                 write!(f, "interior knot {index} has multiplicity > degree")
+            }
+            KnotVectorIssue::DomainInvalid { lo, hi } => {
+                write!(
+                    f,
+                    "the domain [{lo}, {hi}] is not a finite increasing interval"
+                )
             }
         }
     }
@@ -496,6 +513,61 @@ impl KnotVector {
             self.knots[self.degree],
             self.knots[self.knots.len() - 1 - self.degree],
         )
+    }
+
+    /// The same clamped structure re-expressed affinely on `[lo, hi]`:
+    /// the two clamp runs are `lo` and `hi` **exactly** — assigned, not
+    /// computed, so the result's [`KnotVector::domain`] is `(lo, hi)`
+    /// bit for bit — and every interior knot `k` of this vector, whose
+    /// domain is `[a, b]`, becomes `lo + (hi − lo)·((k − a)/(b − a))`.
+    /// On the unit domain that is `lo + (hi − lo)·k`.
+    ///
+    /// Assigning the ends is what makes the door exact: `lo + (hi − lo)`
+    /// is not `hi` in `f64` in general (an ulp off either way), and a
+    /// vector whose last knot is an ulp past the interval it is meant
+    /// to be expressed on is on some other interval.
+    ///
+    /// **Degree and knot count are unchanged, so
+    /// [`KnotVector::control_count`] is unchanged** — the fact a curve
+    /// carrying its net verbatim onto the result rests on.
+    ///
+    /// The map cannot itself produce a vector `clamped` refuses: equal
+    /// source knots have equal images, and the map is monotone for
+    /// `hi > lo` (each of `− a`, `/ (b − a)`, `· (hi − lo)`, `+ lo` is a
+    /// monotone rounding of a monotone step), so the images keep the
+    /// source's order and end runs of exactly `degree + 1` copies each
+    /// of `lo < hi`. What rounding can still do is collapse two
+    /// DISTINCT interior knots onto one value, onto an end value, or
+    /// past it; those are the multiplicity, `StartNotClamped`/
+    /// `EndNotClamped` and `Decreasing` clauses, and the result goes
+    /// through [`KnotVector::clamped`] precisely so that such a collapse
+    /// is refused by the clause that names it rather than minted.
+    ///
+    /// # Errors
+    ///
+    /// [`KnotVectorIssue::DomainInvalid`] when `lo` or `hi` is not
+    /// finite or `hi ≤ lo`; otherwise whatever clause of
+    /// [`KnotVector::clamped`] a rounding collapse trips (above).
+    pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
+        if !(lo.is_finite() && hi.is_finite() && lo < hi) {
+            return Err(SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::DomainInvalid { lo, hi },
+            });
+        }
+        let p = self.degree;
+        let len = self.knots.len();
+        let (a, b) = self.domain();
+        let span = hi - lo;
+        // Slicing justified: len ≥ 2(p + 1) gives p + 1 ≤ len − p − 1
+        // (construction invariant).
+        let interior = self.knots[p + 1..len - p - 1]
+            .iter()
+            .map(|k| lo + span * ((k - a) / (b - a)));
+        let knots: Vec<f64> = core::iter::repeat_n(lo, p + 1)
+            .chain(interior)
+            .chain(core::iter::repeat_n(hi, p + 1))
+            .collect();
+        Self::clamped(knots, p)
     }
 
     /// The index of the first (nonempty) span: `degree`.
@@ -949,6 +1021,121 @@ mod tests {
             bad(&[0.0, 0.0, 0.0, 0.5, 0.5, 0.5, 1.0, 1.0, 1.0], 2),
             SplineError::KnotVectorInvalid {
                 reason: KnotVectorIssue::InteriorMultiplicityTooHigh { index: 3 }
+            }
+        );
+    }
+
+    /// The ends of a re-expressed vector are the requested ends BIT
+    /// FOR BIT, on a pair where the affine image of the source's end is
+    /// not: `0.3 + (0.9 − 0.3)` is one ulp above `0.9` in `f64`, so a
+    /// computed end would put the domain an ulp past the interval asked
+    /// for. Degree and count are unchanged, interior knots are the
+    /// affine image, and a repeated source knot stays repeated.
+    #[test]
+    fn on_domain_pins_the_ends_exactly_and_maps_the_interior_affinely() {
+        let (lo, hi) = (0.3_f64, 0.9_f64);
+        let computed_end = lo + (hi - lo);
+        assert_eq!(
+            computed_end.to_bits(),
+            hi.to_bits() + 1,
+            "the pair no longer documents the pin: {computed_end:e} vs {hi:e}"
+        );
+
+        // Unit-domain source with a double interior knot.
+        let src = kv(&[0.0, 0.0, 0.0, 0.25, 0.5, 0.5, 1.0, 1.0, 1.0], 2);
+        let out = src.on_domain(lo, hi).unwrap();
+        let (olo, ohi) = out.domain();
+        assert_eq!((olo.to_bits(), ohi.to_bits()), (lo.to_bits(), hi.to_bits()));
+        assert_eq!(out.degree(), src.degree());
+        assert_eq!(out.knots().len(), src.knots().len());
+        assert_eq!(out.control_count(), src.control_count());
+        let span = hi - lo;
+        let want: Vec<f64> = vec![
+            lo,
+            lo,
+            lo,
+            lo + span * 0.25,
+            lo + span * 0.5,
+            lo + span * 0.5,
+            hi,
+            hi,
+            hi,
+        ];
+        let bits = |v: &[f64]| v.iter().map(|k| k.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(out.knots()), bits(&want));
+
+        // A source off the unit domain maps through its own `[a, b]`.
+        let src = kv(&[1.0, 1.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2);
+        let out = src.on_domain(lo, hi).unwrap();
+        let want = vec![
+            lo,
+            lo,
+            lo,
+            lo + span * ((2.0 - 1.0) / (3.0 - 1.0)),
+            hi,
+            hi,
+            hi,
+        ];
+        assert_eq!(bits(out.knots()), bits(&want));
+        assert_eq!(out.control_count(), src.control_count());
+    }
+
+    /// A domain that is not a finite increasing interval refuses as
+    /// the domain's own defect, whatever clause a vector built on it
+    /// would have tripped first; an interior collapse under rounding
+    /// refuses through the clause that names it, never minting.
+    #[test]
+    fn on_domain_refusals_are_typed() {
+        let src = kv(&[0.0, 0.0, 0.5, 1.0, 1.0], 1);
+        let domain = |lo: f64, hi: f64| src.on_domain(lo, hi).unwrap_err();
+        for (lo, hi) in [
+            (f64::NAN, 1.0),
+            (0.0, f64::NAN),
+            (f64::NEG_INFINITY, 1.0),
+            (0.0, f64::INFINITY),
+        ] {
+            assert!(
+                matches!(
+                    domain(lo, hi),
+                    SplineError::KnotVectorInvalid {
+                        reason: KnotVectorIssue::DomainInvalid { lo: l, hi: h }
+                    } if l.to_bits() == lo.to_bits() && h.to_bits() == hi.to_bits()
+                ),
+                "({lo}, {hi})"
+            );
+        }
+        assert_eq!(
+            domain(2.0, 2.0),
+            SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::DomainInvalid { lo: 2.0, hi: 2.0 }
+            }
+        );
+        assert_eq!(
+            domain(1.0, 0.0),
+            SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::DomainInvalid { lo: 1.0, hi: 0.0 }
+            }
+        );
+
+        // Two distinct interior knots whose images coincide: at 1e16
+        // the ulp is 2, so `0.3·8` and `0.35·8` both round onto
+        // `1e16 + 2` — strictly inside the pinned ends, so the clause
+        // that fires is the multiplicity one (degree 1 admits one).
+        let (lo, hi) = (1e16_f64, 1.000_000_000_000_000_8e16_f64);
+        assert_eq!(hi.to_bits(), lo.to_bits() + 4, "hi is four ulps above lo");
+        let src = kv(&[0.0, 0.0, 0.3, 0.35, 1.0, 1.0], 1);
+        assert_eq!(
+            src.on_domain(lo, hi).unwrap_err(),
+            SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::InteriorMultiplicityTooHigh { index: 2 }
+            }
+        );
+        // An interior knot whose image rounds onto the pinned start.
+        let src = kv(&[0.0, 0.0, 1e-17, 1.0, 1.0], 1);
+        assert_eq!(
+            src.on_domain(lo, hi).unwrap_err(),
+            SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::StartNotClamped
             }
         );
     }

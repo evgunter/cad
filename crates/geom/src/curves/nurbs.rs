@@ -621,6 +621,36 @@ macro_rules! nurbs_curve {
                 )
             }
 
+            /// The same curve on another parameter domain: the knots
+            /// re-expressed on `[lo, hi]` by [`KnotVector::on_domain`]
+            /// (ends exact, interior affine), the control net and the
+            /// weights carried over verbatim. Construction goes through
+            /// [`Self::from_validated_parts`], and the argument is the
+            /// one `map_scalar` makes with the roles swapped: the
+            /// rescale changes neither degree nor knot count, so
+            /// [`KnotVector::control_count`] is unchanged and the
+            /// verbatim net and weights still agree with it.
+            ///
+            /// A reparameterization, not a change of locus: the result
+            /// at `lo + (hi − lo)·s` is this curve at `a + (b − a)·s`,
+            /// to the rounding of the knot map. The domain's own
+            /// validity is the knot door's question, and its `Result`
+            /// is that door's and nothing else.
+            ///
+            /// # Errors
+            ///
+            /// [`KnotVector::on_domain`]'s: the domain is not a finite
+            /// increasing interval, or a rounding collapse tripped a
+            /// clamp clause.
+            pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
+                let knots = self.knots.on_domain(lo, hi)?;
+                Ok(Self::from_validated_parts(
+                    knots,
+                    self.control.clone(),
+                    self.weights.clone(),
+                ))
+            }
+
             /// The same curve with every control point carried
             /// through `f`, the knots and the weights verbatim.
             /// Construction goes through
