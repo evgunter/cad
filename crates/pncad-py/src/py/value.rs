@@ -6,7 +6,7 @@
 //!
 //! | variant        | exposure |
 //! |----------------|----------|
-//! | `Body`         | full — opaque handle + `mass_properties` / `validate` doors |
+//! | `Body`         | full — opaque handle + `mass_properties` / `validate` doors, and `validate_geometric_measured`, the pair that pays once |
 //! | `Boolean`      | full — unwraps to a `Body`, or `None` when empty |
 //! | `Split`        | full — `above` / `below` as optional bodies |
 //! | `Instances`    | full — a list of bodies |
@@ -31,7 +31,7 @@
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyFloat, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
@@ -195,6 +195,53 @@ pub(crate) struct MassProperties {
     area_pad: f64,
 }
 
+impl From<topo::MassProperties<f64>> for MassProperties {
+    /// The kernel's four fields, unchanged and unrounded — one
+    /// crossing point, so the two measurement doors cannot answer
+    /// differently shaped values.
+    fn from(props: topo::MassProperties<f64>) -> Self {
+        Self {
+            volume: props.volume,
+            surface_area: props.surface_area,
+            volume_pad: props.volume_pad,
+            area_pad: props.area_pad,
+        }
+    }
+}
+
+/// The refusal a MEASUREMENT door raises: the kernel's own message
+/// under the `reason` a caller dispatches on, plus whatever the door
+/// itself has to add.
+///
+/// One construction site for the same reason
+/// [`Body::validator_err`] is one: two doors that refuse the same
+/// class must not drift on the word. `extra` is where they legitimately
+/// differ — the certificate door has a sign-level bracket to hand over
+/// and the reporting door has none.
+fn measurement_err(
+    py: Python<'_>,
+    err: &topo::MassPropsError,
+    extra: Vec<(&'static str, Py<PyAny>)>,
+) -> PyErr {
+    let mut fields = vec![(
+        "reason",
+        PyString::new(py, "mass_properties_failed")
+            .unbind()
+            .into_any(),
+    )];
+    fields.extend(extra);
+    typed_err(py, ErrorClass::Validation, err.to_string(), &fields)
+}
+
+/// A float payload attribute, `None` where the door has no value for
+/// it — the "every field on every arm" shape a caller branches on.
+fn pyfloat(py: Python<'_>, value: Option<f64>) -> Py<PyAny> {
+    match value {
+        Some(value) => PyFloat::new(py, value).unbind().into_any(),
+        None => py.None(),
+    }
+}
+
 #[pymethods]
 impl MassProperties {
     fn __repr__(&self) -> String {
@@ -258,28 +305,24 @@ impl Body {
 
 #[pymethods]
 impl Body {
-    /// Volume, area, and their certified pads.
+    /// Volume, area, and their certified pads — a certified
+    /// quadrature from round 0 over the whole body.
+    ///
+    /// **After a tier-3 gate this is a SECOND one.** Check 7 is itself
+    /// a certified quadrature over the same body at the same band, so
+    /// `validate_geometric()` then `mass_properties()` pays for the
+    /// measurement twice; [`Self::validate_geometric_measured`] is the
+    /// one-quadrature spelling of that pair. This door stays the right
+    /// one for a body that is not being gated here — measuring is not
+    /// validating, and asking for a volume does not imply a caller
+    /// wants tier 3 run.
     fn mass_properties(&self, py: Python<'_>) -> PyResult<MassProperties> {
         let tol = Tol::witness();
-        let props = topo::mass_properties(&self.inner, tol).map_err(|err| {
-            typed_err(
-                py,
-                ErrorClass::Validation,
-                err.to_string(),
-                &[(
-                    "reason",
-                    PyString::new(py, "mass_properties_failed")
-                        .unbind()
-                        .into_any(),
-                )],
-            )
-        })?;
-        Ok(MassProperties {
-            volume: props.volume,
-            surface_area: props.surface_area,
-            volume_pad: props.volume_pad,
-            area_pad: props.area_pad,
-        })
+        topo::mass_properties(&self.inner, tol)
+            .map(MassProperties::from)
+            // No bracket: this door refuses with no certificate in
+            // hand, so it has none to offer and must not appear to.
+            .map_err(|err| measurement_err(py, &err, Vec::new()))
     }
 
     /// Full validation. Raises `ValidationError` listing the failures.
@@ -303,7 +346,13 @@ impl Body {
         super::mesh::tessellate(py, &self.inner, chordal)
     }
 
-    /// Geometric validation only.
+    /// Geometric validation only — tier 3, the verdict and nothing
+    /// else.
+    ///
+    /// Its +V check runs a certified quadrature and this door drops
+    /// it. A caller that wants the volume as well should take
+    /// [`Self::validate_geometric_measured`], which is this gate with
+    /// the measurement it already computed carried out of it.
     fn validate_geometric(&self, py: Python<'_>) -> PyResult<()> {
         let tol = Tol::witness();
         self.run_validator(
@@ -311,6 +360,89 @@ impl Body {
             "validate_geometric",
             topo::validate_geometric(&self.inner, tol),
         )
+    }
+
+    /// **Tier 3 and the number it already computed, in ONE certified
+    /// quadrature** — the spelling that pays once.
+    ///
+    /// `validate_geometric()` then `mass_properties()` is the natural
+    /// pair and it runs the certified quadrature TWICE over the same
+    /// body at the same band: tier 3's +V check IS a certified
+    /// quadrature, and the reporting door starts another one from
+    /// round 0. This door keeps the certificate the gate decided the
+    /// sign on and continues THAT quadrature to the reporting target,
+    /// so the rounds the gate already paid for are not paid again. The
+    /// `MassProperties` it answers is the pair's second call bit for
+    /// bit, in all four fields.
+    ///
+    /// **Why a door and not a certificate.** The Rust certificate
+    /// BORROWS the body it was derived from, so it cannot be handed
+    /// out and asked for a number later — a lifetime does not survive
+    /// the FFI boundary, and memoizing one on a `Body` cannot be
+    /// spelled. Gating and measuring in one call is the shape that
+    /// does cross.
+    ///
+    /// # The refusal the pair does not have
+    ///
+    /// The continuation can refuse where the GATE passed, and that is
+    /// not this door misbehaving: the reporting target is a length
+    /// that scales with ε while the refinement schedule's floor is a
+    /// property of the part, so a body whose volume SIGN is definite
+    /// may have no volume number at this ε. Tier 3 admits it — the +V
+    /// check reads only the sign — and the measurement refuses, with
+    /// the same `ValidationError` and the same `reason`
+    /// (`"mass_properties_failed"`) `mass_properties()` raises on that
+    /// body. On THAT refusal the exception also carries the
+    /// sign-level bracket the gate decided on — `volume_lo`,
+    /// `volume_hi`, `surface_area` — which is the whole of what the
+    /// certified quadrature is entitled to say about the body, and is
+    /// `None` on every other refusal because no other refusal has one.
+    fn validate_geometric_measured(&self, py: Python<'_>) -> PyResult<MassProperties> {
+        let tol = Tol::witness();
+        let certificate = match topo::validate_geometric_certificate(&self.inner, tol) {
+            Ok(certificate) => certificate,
+            // The gate that spoke is `validate_geometric`, and that is
+            // the tag its refusal carries: a caller reading `door`
+            // learns which gate refused, not which door it called.
+            Err(failures) => {
+                return Err(Self::validator_err(py, "validate_geometric", &failures)?);
+            }
+        };
+        // The bracket has to be read BEFORE the continuation consumes
+        // the certificate, on the chance it turns out to be wanted.
+        //
+        // GAP (`memories/demo-purpose.md`): that read, and the
+        // two-crates-deep match below, are both the same missing
+        // affordance — a budget refusal is exactly the case that HAS
+        // a certified bracket and it carries neither the bracket nor
+        // its own classification. `SignCertificate::target_refusal`
+        // answers the classification but is unreachable once
+        // `refine_to_target` has consumed the certificate. Filed as
+        // `work/perf`'s
+        // `budget-refusal-drops-the-enclosure-the-caller-needs`.
+        let sign_level = certificate.enclosure();
+        certificate
+            .refine_to_target()
+            .map(MassProperties::from)
+            .map_err(|err| {
+                let bracket = matches!(
+                    &err,
+                    topo::MassPropsError::Face {
+                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+                        ..
+                    }
+                )
+                .then_some(sign_level);
+                measurement_err(
+                    py,
+                    &err,
+                    vec![
+                        ("volume_lo", pyfloat(py, bracket.map(|b| b.volume_lo))),
+                        ("volume_hi", pyfloat(py, bracket.map(|b| b.volume_hi))),
+                        ("surface_area", pyfloat(py, bracket.map(|b| b.surface_area))),
+                    ],
+                )
+            })
     }
 
     /// **Tier 3′** — the ladder's fourth rung: tier 3's whole local
@@ -371,13 +503,30 @@ impl Body {
         let Err(failures) = outcome else {
             return Ok(());
         };
+        Err(Self::validator_err(py, door, &failures)?)
+    }
+
+    /// The refusal a validate door raises over the verdict vector it
+    /// collected: `door`, `failure_count` and `findings`, the three
+    /// attributes every rung of the ladder carries.
+    ///
+    /// Split out of [`Self::run_validator`] because the gate half of
+    /// [`Self::validate_geometric_measured`] collects the SAME vector
+    /// and owes the same refusal, but carries a certificate rather
+    /// than `()` when it passes — so it cannot be spelled through a
+    /// `Result<(), _>`.
+    fn validator_err(
+        py: Python<'_>,
+        door: &str,
+        failures: &[topo::ValidationError],
+    ) -> PyResult<PyErr> {
         let count = failures.len().into_pyobject(py)?.unbind().into_any();
         let findings: Vec<ValidationFinding> = failures
             .iter()
             .map(|failure| ValidationFinding(validation::project(failure)))
             .collect();
         let findings = findings.into_pyobject(py)?.unbind().into_any();
-        Err(typed_err(
+        Ok(typed_err(
             py,
             ErrorClass::Validation,
             format!(
