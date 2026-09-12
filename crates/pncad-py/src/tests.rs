@@ -3906,7 +3906,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_stacking",
             "euler",
             "pcurve",
-            "profile",
             "reversed_stacking",
             "seam_structure",
             "section_structure",

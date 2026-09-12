@@ -4316,7 +4316,6 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
     let mut built =
         sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
             sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
-            sweep::LoftError::Profile(p) => NodeErrorKind::Profile(p),
             other => NodeErrorKind::Loft(other),
         })?;
     // Eager N4 emission from the builder's own maps, BEFORE the
