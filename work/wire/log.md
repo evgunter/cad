@@ -2048,3 +2048,100 @@ claim site rather than only in a PR body.
 and that the file got longer (430→458 lines). Same treatment: a
 disclosed shortfall owes a schedule, and the reviewer checks whether it
 has one.
+
+## 2026-09-12 — PR 2475's review: mergeable, and the answer to the adversarial question was yes
+
+**0 MAJOR, 2 MINOR, 4 NOTE, 7 style.** Verdict mergeable. Every one of
+the three claims the brief said reading was not enough for came back
+settled by an instrument.
+
+**The measurement reproduced exactly, and the reviewer made it
+stronger.** All five dead-code rows re-ran one mutation at a time in an
+independent target: `Frame::linear` warns `never used` with **no errors
+at all**, the `Frame::affine` control gives exactly three `E0624`,
+`Vec2::map` is clean at `pub(crate)` with the full workspace compiling,
+and `Mat3::map`'s only consumer anywhere is `Frame::linear` itself. The
+lane had caveated the table as a lower bound because cargo stops a
+crate's dependents at the first failure; the reviewer noticed that for
+three of those rows **no crate failed**, so cargo never short-circuited
+and **those are exact zeros, not lower bounds**.
+
+**And it closed the stated blind spot with a differently-shaped sweep.**
+The lane's excluded-roots check grepped `.linear::<`, which **cannot
+match a turbofish-free call** — `let m: Mat3<f64> = f.linear();`, the
+shape a demo would most plausibly write. Re-swept for the bare token
+`\.linear\b`: zero hits across all four roots. That is the Q1 rule
+working — *ask what the sweep's pattern could not match, then run one
+shaped differently.*
+
+**The `from_affine` inertness claim is now settled by execution.** The
+lane filed it from reasoning about bit patterns. The reviewer wrote a
+row comparing `from_affine` against a branch-free copy over six inputs
+including `-0.0` and a subnormal, showed it goes **red** under a mutation
+of the identity arm, and checked it is not vacuous. Adopted with
+authorship kept; the row moves from an argument to a guard.
+
+### The fix minted two fresh instances of its own defect
+
+Asked directly, and the answer is yes — the eighth and ninth on this
+program, and both inside a unit whose whole subject is "one rule, many
+homes":
+
+- **the guard census is a hand-written list.** `:102-110` names four test
+  functions in backticks. They cannot be intra-doc links — you cannot
+  link a test fn — so the rustdoc gate the row cites as proof cannot see
+  a rename, and **one entry of the new table is already wrong** against
+  the PR's own head.
+- **the `#[must_use]` rule is held by nothing.** It is written in the
+  tracker row only: not at the site, not as a lint
+  (`clippy::must_use_candidate` is off workspace-wide), not as a test.
+  The twelfth `Frame` method arrives without it and the file is back in
+  S8's state. The reviewer found the sibling instance already open on
+  WIRE's own ground —
+  `work/wire/the-third-tag-vocabulary-macro-owes-a-unification-trigger.md`
+  records the identical inconsistency one vocabulary over — which makes
+  fixing one and leaving the other the half-fix shape by name.
+
+**MINOR-1 is the sharpest single finding**: the new section's one
+genuinely new assertion is the false one. *"Every claim above is
+guarded"* is untrue of `Mat3::determinant`'s fixed-evaluation-order
+claim, which has **no test anywhere in `editor-core`**, and whose only
+guard in the tree asserts `1.0` and cannot distinguish evaluation orders
+at all.
+
+**"One home" is one home plus five survivors**, and the row overclaims:
+four methods carry a cross-reference, not the eight it says.
+
+### Two process notes
+
+**The reviewer was rate-limited out of the PR body for its whole
+session** and said so, working from the diff and the tracker rows
+instead. That is the right call and the right disclosure — the diff is
+the artefact of record — but it means no finding was made about the
+body's wording, and the report says so rather than leaving it implied.
+
+**A citation-rot class, found in passing and now owed a home.** Seven
+line-numbered citations of `placement.rs` across `work/` point at the
+wrong thing after this PR's 28-line growth, the code correct in every
+case. `implementer-discipline.md` §7 already states the rule they
+violate — *"cite by name; line numbers rot"* — so this is a stated rule
+with no instrument. The fix pass gives it a `work/meta/` row rather than
+fixing seven files from here, because one-file-one-item means those
+seven are seven programs' edits.
+
+### The `Frame::linear` decision, taken
+
+**Delete.** The measurement is now exact rather than a lower bound and
+was reproduced by two parties with the instrument; the blind spot that
+could have hidden a consumer is closed; `Frame::linear` is not a rung of
+the `scalar_lift.rs` convention, so that convention does not claim it;
+and the only stated position in the tree at the same altitude is
+`pncad/src/lib.rs`'s measurement-driven *"Re-export it the day a
+consumer needs it."* Fail-loud says an unused public door is a claim the
+library does not keep.
+
+**It is not in this fix pass, deliberately** — the same reasoning PR
+2375's fix pass used, one step on. A fix pass repairs what its review
+found wrong; a public API removal gets its own unit so the deletion's
+blast radius is reviewed on its own terms, including the finding it
+exports to PROPS that `Mat3::map` is consumerless the moment it lands.
