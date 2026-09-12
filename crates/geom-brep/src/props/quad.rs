@@ -683,6 +683,48 @@ fn displacement_len(width: f64, area: RingInterval) -> Result<f64, PropsError> {
     Ok(len)
 }
 
+/// **The round loop's exit ladder**, one home for the three lanes.
+///
+/// Asked after a round that did NOT converge: is there anything to
+/// return, or is there another round? `Some` is the lane's answer —
+/// the SCHEDULE's last round, which carries the budget refusal a
+/// number-wanting caller earns (its width is
+/// [`mean_boundary_displacement`]'s, finite and non-negative by that
+/// function's invariant, so the refusal carries a number the caller
+/// can act on — the `eps_posture` contract the suites pin), or the
+/// WINDOW's last, which carries no refusal because rounds remain.
+/// `None` means refine.
+///
+/// One home because the ladder is one decision written three times
+/// otherwise, and the three lanes differ in it only by their own
+/// last-round constant. What each lane keeps is what is genuinely
+/// its own: the after-round-0 budget exit, which reads a bound only
+/// that lane can compute.
+fn round_exit(
+    round: usize,
+    max_rounds: usize,
+    window: RoundWindow,
+    bounds: FaceCutBounds,
+    (width_len, target_len): (f64, f64),
+) -> Option<RoundOutcome> {
+    if round == max_rounds {
+        return Some(RoundOutcome::Open {
+            bounds,
+            round,
+            refusal: Some(PropsError::QuadratureBudget {
+                width_len,
+                target_len,
+                rounds: max_rounds + 1,
+            }),
+        });
+    }
+    (round == window.last).then_some(RoundOutcome::Open {
+        bounds,
+        round,
+        refusal: None,
+    })
+}
+
 /// The flux and area enclosures of a **cylinder** face with a curved
 /// trim loop (module docs: the Green form, the composite rule, the
 /// refinement funnel, the honesty pads).
@@ -709,6 +751,11 @@ pub fn cylinder_cut_face<T: Decide>(
 /// [`cylinder_cut_face`] over a [`RoundWindow`] — the same schedule,
 /// entered and left where the window says (that type's docs carry why
 /// the pieces of a schedule compose).
+///
+/// `pub` because its consumer is `topo`'s `props::quad_lane`, across
+/// the crate boundary; there is no narrower visibility that reaches
+/// it. Its whole-schedule wrapper [`cylinder_cut_face`] keeps the
+/// signature this file's own suites drive.
 ///
 /// # Errors
 ///
@@ -765,28 +812,14 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             }
             return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        // The schedule's own ending, reached by running it: the width
-        // is `mean_boundary_displacement`'s, which is finite and
-        // non-negative by that function's invariant, so the refusal
-        // carries a number the caller can act on (the `eps_posture`
-        // contract the suites pin).
-        if round == QUAD_MAX_ROUNDS {
-            return Ok(RoundOutcome::Open {
-                bounds: FaceCutBounds { flux, area },
-                round,
-                refusal: Some(PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    rounds: QUAD_MAX_ROUNDS + 1,
-                }),
-            });
-        }
-        if round == window.last {
-            return Ok(RoundOutcome::Open {
-                bounds: FaceCutBounds { flux, area },
-                round,
-                refusal: None,
-            });
+        if let Some(out) = round_exit(
+            round,
+            QUAD_MAX_ROUNDS,
+            window,
+            FaceCutBounds { flux, area },
+            (width_len, target_len),
+        ) {
+            return Ok(out);
         }
         pieces *= 2;
     }
@@ -3465,31 +3498,18 @@ fn rational_patch_face<T: Decide>(
                 });
             }
         }
-        // The schedule's own ending, reached by running it. The width
-        // is `mean_boundary_displacement`'s, finite and non-negative
-        // by that function's invariant, so the refusal carries a
-        // number the caller can act on.
-        if round == QUAD2_RATIONAL_MAX_ROUNDS {
-            debug_assert_eq!(
-                pieces, last_pieces,
-                "the schedule's last round is the bound's"
-            );
-            return Ok(RoundOutcome::Open {
-                bounds: FaceCutBounds { flux, area },
-                round,
-                refusal: Some(PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    rounds: QUAD2_RATIONAL_MAX_ROUNDS + 1,
-                }),
-            });
-        }
-        if round == window.last {
-            return Ok(RoundOutcome::Open {
-                bounds: FaceCutBounds { flux, area },
-                round,
-                refusal: None,
-            });
+        debug_assert!(
+            round < QUAD2_RATIONAL_MAX_ROUNDS || pieces == last_pieces,
+            "the schedule's last round is the bound's"
+        );
+        if let Some(out) = round_exit(
+            round,
+            QUAD2_RATIONAL_MAX_ROUNDS,
+            window,
+            FaceCutBounds { flux, area },
+            (width_len, target_len),
+        ) {
+            return Ok(out);
         }
         pieces *= 2;
     }
@@ -3576,6 +3596,11 @@ pub fn nurbs_patch_face<T: Decide>(
 /// enclosure. It therefore reports [`RoundOutcome::Open`] at round `0`
 /// carrying its own refusal — its enclosure is final, and a caller
 /// deciding a sign may use it while a caller wanting a number may not.
+///
+/// `pub` for the same reason [`cylinder_cut_face_rounds`] is: its
+/// consumer is `topo`'s `props::quad_lane`, across the crate
+/// boundary. [`nurbs_patch_face`] keeps the signature this file's own
+/// suites drive.
 ///
 /// # Errors
 ///
@@ -3864,31 +3889,18 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                 });
             }
         }
-        // The schedule's own ending, reached by running it. The width
-        // is `mean_boundary_displacement`'s, finite and non-negative
-        // by that function's invariant, so the refusal carries a
-        // number the caller can act on.
-        if round == QUAD2_MAX_ROUNDS {
-            debug_assert_eq!(
-                pieces, last_pieces,
-                "the schedule's last round is the bound's"
-            );
-            return Ok(RoundOutcome::Open {
-                bounds: FaceCutBounds { flux, area },
-                round,
-                refusal: Some(PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    rounds: QUAD2_MAX_ROUNDS + 1,
-                }),
-            });
-        }
-        if round == window.last {
-            return Ok(RoundOutcome::Open {
-                bounds: FaceCutBounds { flux, area },
-                round,
-                refusal: None,
-            });
+        debug_assert!(
+            round < QUAD2_MAX_ROUNDS || pieces == last_pieces,
+            "the schedule's last round is the bound's"
+        );
+        if let Some(out) = round_exit(
+            round,
+            QUAD2_MAX_ROUNDS,
+            window,
+            FaceCutBounds { flux, area },
+            (width_len, target_len),
+        ) {
+            return Ok(out);
         }
         pieces *= 2;
     }

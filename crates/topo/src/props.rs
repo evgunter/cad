@@ -453,10 +453,15 @@ impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, 
         write!(
             f,
             "SignCertificate {{ volume in [{:?}, {:?}], surface_area {:?}, \
-             rounds {:?}, target_refusal {:?} }}",
+             open_at {:?}, target_refusal {:?} }}",
             e.volume_lo,
             e.volume_hi,
             e.surface_area,
+            // The rounds that REMAIN, not the rounds run: `None` here
+            // is a finished walk (every face converged, exhausted its
+            // schedule, or is closed-form), which is what a certificate
+            // stopped at round 0 looks like and must not read as "no
+            // rounds".
             self.runs.iter().filter_map(|r| r.open_at).max(),
             self.target_refusal(),
         )
@@ -600,6 +605,14 @@ fn mass_properties_impl<T: Decide>(
             RoundWindow::SCHEDULE,
         )?);
     }
+    // The refusal arm is not dead, and it is not reachable from
+    // either hook this door is called with: both answer `Converged`
+    // or `Ok(None)`, so no face carries one. It is what makes this
+    // walk correct for the hook SIGNATURE rather than for today's two
+    // hooks — a hook that answers `Open` with a refusal would be
+    // silently dropping it otherwise, and the shape that drops it is
+    // the shape that reads the sum of a body one of whose faces has
+    // no number.
     match fold_runs(&runs) {
         (_, Some((face, source))) => Err(MassPropsError::Face { face, source }),
         (props, None) => Ok(props),
@@ -1064,6 +1077,9 @@ pub fn classify_shells_of<T: PropsQuadLane>(
                 RoundWindow::SCHEDULE,
             )
             .map_err(props)?;
+            // As at [`mass_properties_impl`]: unreachable from the
+            // hook above, and what keeps this walk correct for the
+            // hook signature rather than for one hook.
             if let Some(source) = run.refusal {
                 return Err(props(MassPropsError::Face {
                     face: face_key,
