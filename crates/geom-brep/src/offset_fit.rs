@@ -2195,6 +2195,7 @@ mod tests {
     }
 
     /// `(dist, tau, tau²/‖E‖, e_lo, bound)` at one cell.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn decompose(
         comp: &Composite,
         su: usize,
