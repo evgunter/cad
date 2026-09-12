@@ -1785,3 +1785,49 @@ already existed too), which makes it a pattern rather than an accident:
 own prose.** Review posture lowered from full to light in `plan.md`
 with the reason recorded — the census it was going to build already
 exists, so nothing here can report green over a hole.
+
+## 2026-09-12 — three wrong datings, one root cause: the orchestrator's clone is shallow
+
+S195's classification finding was corrected three times, each time by
+someone other than its author, and the last correction found the cause
+of all three.
+
+1. The lane's row cited PR 2445 as discharging one of three stale
+   claims, indicting the 2026-09-11 cut.
+2. The review caught that 2445 merged **2026-09-12**, the day AFTER the
+   cut, so it cannot be evidence against it — and this orchestrator had
+   repeated that error to Ev and in this log.
+3. The lane, re-checking commits rather than restating, found 2445
+   discharged **none** of the three: two commits on **2026-09-01**
+   (`70aaee60d`, `592685539`) discharged all three, ten days before the
+   cut. 2445 closed the `ProgramTarget`/`WireTarget` pair, a different
+   part of the row.
+
+Verified here against full history: both SHAs resolve with those exact
+dates and subjects, and D364's target census landed `7de944e91`,
+**2026-09-02**, nine days before the cut — not 2026-09-10 as this log
+previously recorded.
+
+**The cause of every one of the orchestrator's dating errors: this
+session's checkout is a SHALLOW clone whose history begins
+2026-09-09.** `git log -S … --reverse` in it bottoms out at the
+truncation and names the root commit — `7902971`, a
+`render(uv): re-baseline` with no parent and 3520 files — as where a
+change "first appears". That produced the false 2026-09-10 date, and it
+is why the lane's two real SHAs came back `Not a valid object name`
+when checked here, which read as the lane having invented them.
+
+**A lane's dating is more trustworthy than the orchestrator's**, and
+that is the reverse of the usual direction. `new-lane.sh` does a plain
+`git clone` and gets full history; the session checkout does not.
+
+Fixed for this session with `git fetch --unshallow origin main`.
+`git rev-parse --is-shallow-repository` answers the question in one
+call. **Any "X landed on date D" claim made from a session checkout
+without one of those two is unsound**, and this program made three.
+
+The corrected reading makes the case against the cut **stronger**: all
+three claims stale ten days before, not two. Recorded on
+`work/meta/the-2026-09-11-cuts-class-estimates-are-untested-and-both-tested-ones-were-wrong.md`
+with the root cause, because the next orchestrator to check a class
+against the tree will be reading from the same shallow clone.

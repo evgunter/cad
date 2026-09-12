@@ -31,20 +31,57 @@ the hatch. It is about what the sample says.
 ## What has actually been tested: two rows, both wrong, both checkable on the day
 
 **`D364`** — classed **M** at the cut, with *"a new census must be
-built."* Its target census, `every_target_form_is_a_document_program`,
-first appears in `crates/editor-core/tests/switch_program_vocabulary.rs`
-at `7902971`, **2026-09-10 00:27 UTC** — the day BEFORE the cut. The
-census the class said must be built already existed and was on main.
-(PR 2445 re-anchored it on a `TargetKind::ALL`, which was the real
-remaining work — smaller than the class implied and a different shape.)
+built."* Its target census,
+`every_target_form_is_a_document_program`, landed at `7de944e91`,
+**2026-09-02 11:22 UTC** — nine days before the cut. The census the
+class said must be built already existed and was on main. (PR 2445
+re-anchored it on a `TargetKind::ALL`, which was the real remaining
+work — smaller than the class implied and a different shape.)
 
 **`S195`** — classed **H**, *"four mirrored vocabularies … one-census-
 or-four is a design call."* Measured by PR 2447: three of its four
-claims were stale. Two of the three had been stale since **2026-09-01**
-(`70aaee60d`, `592685539`) — ten days before the cut. The third was
-discharged by PR 2445 on 2026-09-12, which is AFTER the cut and is
-therefore **not** evidence against it; an earlier draft of this finding
-used it as such and was wrong.
+claims were stale, and **all three** were discharged by two commits on
+**2026-09-01**, ten days before the cut:
+
+- `70aaee60d` 05:44 — *"arc modes: one declaration, a tag and an ALL;
+  document-side mode census"* — claims 1 and 2, plus the generated
+  `ArcTo` block;
+- `592685539` 06:47 — *"fix pass: exhaustive step classification in
+  both censuses, fused positions generated over every mode"* — claim 3,
+  the corpus generating from `ALL` at the fused positions.
+
+The fourth claim ("silently") follows from the third and is wrong for
+the same reason.
+
+**PR 2445 discharged none of them.** It closed the
+`ProgramTarget`/`WireTarget` pair, a different part of the row, on
+2026-09-12 — after the cut. Two earlier drafts of this finding got this
+wrong in opposite directions: the first counted 2445 as evidence
+against the cut, the second corrected that but still credited it with
+one of the three. Neither is right, and the corrected reading makes the
+case against the cut **stronger**, not weaker — all three, ten days
+before, not two.
+
+### How both errors happened, which is worth more than the dates
+
+**This orchestrator's own checkout is a SHALLOW clone whose history
+begins 2026-09-09.** `git log -S … --reverse` in it bottoms out at the
+truncation and reports the root commit — `7902971`, a
+`render(uv): re-baseline` with no parent and 3520 files — as the point
+a change "first appears". That is where the bogus 2026-09-10 date for
+D364's census came from, and it is why `70aaee60d` and `592685539`
+"did not exist" when first checked: they are real commits, nine days
+before the clone's floor.
+
+Lane clones are made by `local-scripts/new-lane.sh`, which does a plain
+`git clone` and gets full history — so **a lane's dating is
+trustworthy where the orchestrator's is not**, which is the reverse of
+the usual direction and is why the lane's SHAs were right and the
+orchestrator's correction of them was wrong.
+
+`git rev-parse --is-shallow-repository` answers this in one call, and
+`git fetch --unshallow origin main` fixes it. Any date claim made from
+a session checkout without one of those two is unsound.
 
 So: **two of 38 have been measured, and both were wrong at cut time on
 evidence that was in the tree that day.** 36 are untested.
