@@ -7,9 +7,12 @@ use geom::Surface;
 use geom_core::{Band, Point3, Tol};
 use topo::{Body, FaceKey};
 
+use rayon::prelude::*;
+
+use crate::budget;
 use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
-use crate::memo::{FaceInputs, PatchKeys, PatchMemo};
+use crate::memo::{FaceInputs, FaceMemo, PatchKeys, PatchMemo};
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
 use crate::sizing::{Eps, SizingTols, sizing_target};
@@ -245,6 +248,29 @@ fn lane_of(body: &Body<f64>, fk: FaceKey, surface: &Surface<f64>) -> Result<Lane
     })
 }
 
+/// One face's slot in [`tessellate_impl`]'s indexed parallel map: the
+/// lane's answer, and everything the arena-order fold still owes for
+/// that face.
+///
+/// Every field is a VALUE the map computed and the fold applies. That
+/// is what makes the fold the only order-dependent thing in the pass:
+/// the patch enters the mesh arena at this face's turn, the memo work
+/// is counted and inserted at this face's turn, and the meter's rows
+/// are handed over at this face's turn — however the map scheduled the
+/// faces.
+struct FaceWork {
+    face: FaceKey,
+    /// What the budget meter recorded while this face's lane ran, on
+    /// whatever thread that was (`budget::record`).
+    meter: budget::FaceRecording,
+    /// The memo's work for this face, absent on the memo-free path.
+    memo: Option<FaceMemo>,
+    /// The face's patch, or the error its lane refused with — carried
+    /// rather than propagated, so the fold reports the first refusal in
+    /// ARENA order rather than the map's first.
+    patch: Result<Patch, TessellateError>,
+}
+
 /// The one implementation behind both doors: `memo` is `None` for
 /// [`tessellate`] and the path is then exactly the memo-free one.
 fn tessellate_impl(
@@ -315,71 +341,113 @@ fn tessellate_impl(
         });
     }
 
-    // Per-face dispatch, face-arena order.
-    let mut patches = Vec::new();
+    // Per-face dispatch: **D9 idiom 1**, an indexed parallel map over
+    // the face arena into a pre-sized buffer, combined by the
+    // sequential arena-order fold below, which is **idiom 2**
+    // (`DESIGN.md`'s D9 addendum; `work/perf/plan.md` §2.2). Nothing
+    // here re-derives determinism: the map's combination is positional,
+    // so the mesh is the same bytes at any thread count, and the fold
+    // is where every order-dependent thing happens — the mesh arena,
+    // the memo's counters and entries, and the budget meter's rows.
+    //
+    // What a face reads is `positions[..shared_below]` and nothing else
+    // it does not own (above), the chord pass has finished writing
+    // `bounds` (`nurbs_cert::FaceBounds`), and the memo is read through
+    // its pure half (`PatchMemo::lookup`).
+    //
+    // ERRORS ARE THE ONE PLACE THIS COSTS SOMETHING. The serial loop
+    // stopped at the first refusing face in arena order; the map
+    // computes every face and the fold below reports the FIRST `Err` in
+    // arena order. Same error, same everything the caller sees — more
+    // work done on the path that throws its result away.
+    let tol = SizingTols {
+        delta: chordal,
+        delta_s,
+        eps,
+        band,
+    };
+    let faces: Vec<_> = body.faces().collect();
+    // The meter's arming as a value: a lane runs on a worker thread,
+    // which nobody armed (`budget`'s module docs).
+    let arming = budget::arming();
+    let reader = memo.as_deref();
+    let work: Vec<FaceWork> = {
+        let shared = &positions[..shared_below];
+        faces
+            .par_iter()
+            .map(|&(fk, face)| {
+                let ((memo_work, patch), meter) = budget::record(arming, || {
+                    let Some(surface) = body.get_surface(face.surface) else {
+                        return (
+                            None,
+                            Err(TessellateError::MissingEntity {
+                                what: "face surface",
+                            }),
+                        );
+                    };
+                    let lane = match lane_of(body, fk, surface) {
+                        Ok(lane) => lane,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    // The lanes, each over `shared` — the whole of what
+                    // a face reads from outside itself.
+                    //
+                    // The planar lane derives its chart frame from the
+                    // face's own boundary (planar.rs module docs, #284)
+                    // — the stored plane axes are deliberately not
+                    // passed: imported axes carry translator noise that
+                    // projects valid boundaries below spade's
+                    // coordinate domain.
+                    let run = || match lane {
+                        Lane::Trimmed => crate::trimmed::tessellate_trimmed(
+                            body, fk, surface, &chords, shared, &tol, &bounds,
+                        ),
+                        Lane::Planar => tessellate_planar(body, fk, &chords.ids, shared),
+                        Lane::Curved => {
+                            tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
+                        }
+                    };
+                    let Some(memo) = reader else {
+                        return (None, run());
+                    };
+                    let inputs = match FaceInputs::gather(
+                        body, fk, lane, surface, &chords, shared, chordal, ambient,
+                    ) {
+                        Ok(inputs) => inputs,
+                        Err(error) => return (None, Err(error)),
+                    };
+                    let mut lookup = memo.lookup(&inputs);
+                    if let Some(patch) = lookup.take_hit() {
+                        return (Some(lookup.answered()), Ok(patch));
+                    }
+                    match run() {
+                        Ok(patch) => (Some(lookup.ran(&patch)), Ok(patch)),
+                        Err(error) => (Some(lookup.refused()), Err(error)),
+                    }
+                });
+                FaceWork {
+                    face: fk,
+                    meter,
+                    memo: memo_work,
+                    patch,
+                }
+            })
+            .collect()
+    };
+
+    // The fold (idiom 2), in face-arena order.
+    let mut patches = Vec::with_capacity(work.len());
     let mut keys = PatchKeys::default();
-    for (fk, face) in body.faces() {
-        let surface = body
-            .get_surface(face.surface)
-            .ok_or(TessellateError::MissingEntity {
-                what: "face surface",
-            })?;
-        let tol = SizingTols {
-            delta: chordal,
-            delta_s,
-            eps,
-            band,
-        };
-        let lane = lane_of(body, fk, surface)?;
-        // The lanes, each over `positions[..shared_below]` — the whole
-        // of what a face reads from outside itself (above).
-        //
-        // The planar lane derives its chart frame from the face's own
-        // boundary (planar.rs module docs, #284) — the stored plane
-        // axes are deliberately not passed: imported axes carry
-        // translator noise that projects valid boundaries below
-        // spade's coordinate domain.
-        let run = |bounds| match lane {
-            Lane::Trimmed => crate::trimmed::tessellate_trimmed(
-                body,
-                fk,
-                surface,
-                &chords,
-                &positions[..shared_below],
-                &tol,
-                bounds,
-            ),
-            Lane::Planar => tessellate_planar(body, fk, &chords.ids, &positions[..shared_below]),
-            Lane::Curved => tessellate_curved(
-                body,
-                fk,
-                surface,
-                &chords.ids,
-                &positions[..shared_below],
-                &tol,
-            ),
-        };
-        let patch = match memo.as_deref_mut() {
-            None => run(&mut bounds)?,
-            Some(memo) => {
-                let inputs = FaceInputs::gather(
-                    body,
-                    fk,
-                    lane,
-                    surface,
-                    &chords,
-                    &positions[..shared_below],
-                    chordal,
-                    ambient,
-                )?;
-                memo.face(&inputs, &mut keys, || run(&mut bounds))?
-            }
-        };
+    for face in work {
+        budget::absorb(face.meter);
+        if let (Some(memo), Some(work)) = (memo.as_deref_mut(), face.memo) {
+            memo.record(work, &mut keys);
+        }
         // Each face's interior takes the arena as it stands at that
         // face's turn, in face-arena order (D9).
-        let triangles = patch.place(&mut positions);
+        let triangles = face.patch?.place(&mut positions);
         patches.push(FacePatch {
-            face: fk,
+            face: face.face,
             triangles,
         });
     }

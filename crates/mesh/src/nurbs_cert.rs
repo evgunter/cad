@@ -550,14 +550,30 @@ pub(crate) fn nurbs_cell_bounds(
         .collect())
 }
 
-/// One tessellation's memo of certified whole-patch NURBS bounds, one
-/// entry per described NURBS face.
+/// One tessellation's memo of certified NURBS cell tables, **one entry
+/// per described NURBS face and nothing per edge**.
 ///
 /// It lives HERE, beside the assembly it remembers, rather than in
 /// either pass that reads it: [`crate::chords`]' adjacent-face
 /// tightening and [`crate::trimmed`]'s band schedule both need the
 /// same per-face fact, and a cache hosted inside one of its two
 /// consumers is the shape that drifts.
+///
+/// **Who writes it, and when.** Its two consumers read it in two
+/// different phases of [`crate::tessellate`], and the phases are what
+/// make one `HashMap` safe under the per-face parallel map:
+///
+/// * the CHORD PASS walks the edge arena and fills the entry of every
+///   described NURBS face adjacent to an edge ([`face_bound`], through
+///   `chords::nurbs_tighten`). It is a per-edge walk writing per-FACE
+///   entries, and it is serial and complete before any face's lane
+///   runs;
+/// * a FACE's LANE then reads its OWN face's entry, once, through
+///   [`face_cells`], which takes `&FaceBounds`. No lane reads another
+///   face's entry and no lane writes.
+///
+/// So the map needs no lock and no per-face split of this type: the
+/// only mutation is the chord pass's, and it has finished.
 pub(crate) type FaceBounds = std::collections::HashMap<FaceKey, NurbsCellGrid>;
 
 /// A described NURBS face's certified cell table, assembled on first
@@ -605,6 +621,40 @@ pub(crate) fn face_grid<'m>(
     match memo.entry(fk) {
         std::collections::hash_map::Entry::Occupied(e) => Ok(e.into_mut()),
         std::collections::hash_map::Entry::Vacant(e) => Ok(e.insert(nurbs_cell_grid(payload, fk)?)),
+    }
+}
+
+/// [`face_grid`] for a reader that cannot write the memo: the face's
+/// certified cell table, cloned out of [`FaceBounds`] if it is there
+/// and assembled if it is not.
+///
+/// **The lane's door, and the reason there are two.** `tessellate`'s
+/// per-face dispatch is D9 idiom 1 over the face arena, so the lanes
+/// hold `&FaceBounds` and only the chord pass — which runs to
+/// completion before the map — holds `&mut`. Nothing is lost by not
+/// remembering here: the memo is keyed by [`FaceKey`], a face's lane
+/// asks only for ITS OWN key and asks once, and no other face ever
+/// reads that entry, so an entry written after the chord pass could
+/// only ever be read by the write that made it.
+/// `crates/mesh/tests/cert10r1_assembly_accounting.rs` pins the
+/// consequence: one assembly per described NURBS face, as before.
+///
+/// It clones because the caller needs an owned table anyway (the
+/// trimmed lane's `Lane::Nurbs` carries one), so the memo hit costs
+/// what it cost before.
+///
+/// # Errors
+///
+/// As [`face_grid`] — with the memo absent on a miss either way, so
+/// the refusal class is identical.
+pub(crate) fn face_cells(
+    bounds: &FaceBounds,
+    payload: &NurbsSurface<f64>,
+    fk: FaceKey,
+) -> Result<NurbsCellGrid, TessellateError> {
+    match bounds.get(&fk) {
+        Some(grid) => Ok(grid.clone()),
+        None => nurbs_cell_grid(payload, fk),
     }
 }
 

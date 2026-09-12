@@ -100,7 +100,7 @@ use topo::{Body, FaceKey};
 
 use crate::cert;
 use crate::chords::ChordPass;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_grid};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
@@ -166,7 +166,7 @@ pub(crate) fn tessellate_trimmed(
     chords: &ChordPass,
     shared: &[Point3<f64>],
     tol: &SizingTols,
-    bounds: &mut FaceBounds,
+    bounds: &FaceBounds,
 ) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
@@ -189,12 +189,12 @@ pub(crate) fn tessellate_trimmed(
         // (there is no placeholder state to screen: it is certified by
         // construction).
         // Both readings off ONE assembly: the memo holds the cell
-        // table (`nurbs_cert::face_grid`), and the whole-patch bound is
-        // a reading of it. The chord pass has normally already filled
-        // this entry, so the usual cost here is a clone of the table,
-        // not an assembly.
+        // table (`nurbs_cert::face_cells`), and the whole-patch bound
+        // is a reading of it. The chord pass has normally already
+        // filled this entry, so the usual cost here is a clone of the
+        // table, not an assembly.
         Surface::Approx(ref a) => {
-            let grid = face_grid(bounds, a.fit(), fk)?.clone();
+            let grid = face_cells(bounds, a.fit(), fk)?;
             let patch = grid.patch();
             Lane::Nurbs { grid, patch }
         }
@@ -204,7 +204,7 @@ pub(crate) fn tessellate_trimmed(
                 // refusal, kept for exactly this class (types docs).
                 return Err(TessellateError::UnsupportedSurface { face: fk });
             }
-            let grid = face_grid(bounds, payload, fk)?.clone();
+            let grid = face_cells(bounds, payload, fk)?;
             let patch = grid.patch();
             Lane::Nurbs { grid, patch }
         }

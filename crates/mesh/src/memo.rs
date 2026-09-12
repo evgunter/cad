@@ -244,25 +244,6 @@ impl PatchMemo {
         self.closed = true;
     }
 
-    /// The patch under `key`, if the memo holds one — compared by its
-    /// full bytes, so a digest collision is a miss and not a wrong
-    /// patch.
-    fn get(&mut self, digest: PatchDigest, key: &[u8]) -> Option<&StoredPatch> {
-        self.open();
-        let picture = self.picture;
-        match self.entries.get_mut(&digest) {
-            Some(entry) if entry.key == key => {
-                entry.picture = picture;
-                self.hits += 1;
-                Some(&entry.patch)
-            }
-            _ => {
-                self.misses += 1;
-                None
-            }
-        }
-    }
-
     fn insert(&mut self, digest: PatchDigest, key: Vec<u8>, patch: StoredPatch) {
         self.open();
         let picture = self.picture;
@@ -276,38 +257,154 @@ impl PatchMemo {
         );
     }
 
-    /// The memo's half of one face: answer the patch from the memo, or
-    /// run `lane` and remember its answer. `inputs` is the face's key;
-    /// its boundary id sequence is what the stored patch's shared
-    /// corners are named against.
-    pub(crate) fn face(
-        &mut self,
-        inputs: &FaceInputs,
-        keys: &mut PatchKeys,
-        lane: impl FnOnce() -> Result<Patch, TessellateError>,
-    ) -> Result<Patch, TessellateError> {
+    /// The patch under `digest`, if the memo holds one whose FULL key
+    /// bytes match — so a digest collision is a miss and not a wrong
+    /// patch.
+    fn stored(&self, digest: PatchDigest, key: &[u8]) -> Option<&StoredPatch> {
+        match self.entries.get(&digest) {
+            Some(entry) if entry.key == key => Some(&entry.patch),
+            _ => None,
+        }
+    }
+
+    /// The memo's PURE half of one face: its key, and the stored patch
+    /// restored against this tessellation's ids if the memo holds one.
+    ///
+    /// `&self` only — no counter, no picture stamp, no insert — which
+    /// is what lets it run inside `tessellate`'s per-face parallel map
+    /// (D9 idiom 1). Everything it decides travels to the arena-order
+    /// fold in a [`FaceMemo`], which [`PatchMemo::record`] applies.
+    ///
+    /// `inputs` is the face's key; its boundary id sequence is what the
+    /// stored patch's shared corners are named against.
+    pub(crate) fn lookup(&self, inputs: &FaceInputs) -> FaceLookup {
         let key = inputs.key();
         let digest = PatchDigest::of(&key);
-        keys.push(digest);
         let boundary = inputs.boundary_ids();
-        if let Some(stored) = self.get(digest, &key) {
-            return Ok(stored.restore(&boundary));
+        let hit = self.stored(digest, &key).map(|s| s.restore(&boundary));
+        FaceLookup {
+            digest,
+            key,
+            boundary,
+            hit,
         }
-        let patch = lane()?;
-        match StoredPatch::store(&patch, &boundary) {
-            Some(stored) => self.insert(digest, key, stored),
-            // A lane named a shared id outside its own boundary. The
-            // patch it produced is right — it was just computed — but
-            // the key cannot name that id, so nothing is stored and
-            // the face is meshed afresh every picture. Debug builds
-            // say so: it is a key-completeness defect, not a state.
-            None => debug_assert!(
-                false,
-                "a lane emitted a shared mesh id outside its face's boundary walk"
-            ),
-        }
-        Ok(patch)
     }
+
+    /// The memo's MUTATING half of one face, applied in face-arena
+    /// order: the digest into `keys`, the hit or miss counted, the
+    /// entry's picture stamped, and a missed face's patch stored.
+    ///
+    /// Arena order is the contract, not a convenience —
+    /// [`PatchMemo::hits`] and [`PatchMemo::misses`] are counts over an
+    /// ordered walk and `PatchKeys` is a per-face sequence, so both are
+    /// the numbers the serial loop produced only because this runs
+    /// where that loop's body did.
+    pub(crate) fn record(&mut self, face: FaceMemo, keys: &mut PatchKeys) {
+        self.open();
+        let picture = self.picture;
+        keys.push(face.digest);
+        match face.outcome {
+            Outcome::Hit => {
+                self.hits += 1;
+                if let Some(entry) = self.entries.get_mut(&face.digest) {
+                    entry.picture = picture;
+                }
+            }
+            Outcome::Refused => self.misses += 1,
+            Outcome::Miss { key, stored } => {
+                self.misses += 1;
+                match stored {
+                    Some(stored) => self.insert(face.digest, key, stored),
+                    // A lane named a shared id outside its own
+                    // boundary. The patch it produced is right — it was
+                    // just computed — but the key cannot name that id,
+                    // so nothing is stored and the face is meshed
+                    // afresh every picture. Debug builds say so: it is
+                    // a key-completeness defect, not a state.
+                    None => debug_assert!(
+                        false,
+                        "a lane emitted a shared mesh id outside its face's boundary walk"
+                    ),
+                }
+            }
+        }
+    }
+}
+
+/// One face's read of the memo, taken from `&PatchMemo` alone
+/// ([`PatchMemo::lookup`]).
+pub(crate) struct FaceLookup {
+    digest: PatchDigest,
+    key: Vec<u8>,
+    boundary: Vec<u32>,
+    hit: Option<Patch>,
+}
+
+impl FaceLookup {
+    /// The memo's answer for this face, if it held one. The lane runs
+    /// exactly when this is `None`.
+    pub(crate) fn take_hit(&mut self) -> Option<Patch> {
+        self.hit.take()
+    }
+
+    /// Closes a face the memo answered.
+    pub(crate) fn answered(self) -> FaceMemo {
+        FaceMemo {
+            digest: self.digest,
+            outcome: Outcome::Hit,
+        }
+    }
+
+    /// Closes a face whose lane refused. There is no patch to store,
+    /// and the miss is still a miss: the serial loop counted it before
+    /// it ran the lane, so the counters over a picture that failed are
+    /// what they were.
+    pub(crate) fn refused(self) -> FaceMemo {
+        FaceMemo {
+            digest: self.digest,
+            outcome: Outcome::Refused,
+        }
+    }
+
+    /// Closes a face whose lane ran, naming `patch`'s shared corners
+    /// against the boundary walk so the entry is placeable in a mesh
+    /// with different ids.
+    ///
+    /// The renaming happens HERE, in the map, rather than in the fold:
+    /// it is per-face work over the face's own patch, and the fold's
+    /// only business is the order.
+    pub(crate) fn ran(self, patch: &Patch) -> FaceMemo {
+        FaceMemo {
+            digest: self.digest,
+            outcome: Outcome::Miss {
+                stored: StoredPatch::store(patch, &self.boundary),
+                key: self.key,
+            },
+        }
+    }
+}
+
+/// What the arena-order fold still owes the memo for one face
+/// ([`PatchMemo::record`]).
+pub(crate) struct FaceMemo {
+    digest: PatchDigest,
+    outcome: Outcome,
+}
+
+/// Where the face landed in the memo, decided in the map.
+enum Outcome {
+    /// The memo held it; the fold counts a hit and re-stamps the entry.
+    Hit,
+    /// It missed; the fold counts a miss and inserts `stored`, which is
+    /// `None` for the key-completeness defect [`PatchMemo::record`]
+    /// names.
+    Miss {
+        key: Vec<u8>,
+        stored: Option<StoredPatch>,
+    },
+    /// It missed and its lane then refused: the miss is counted and
+    /// nothing is stored.
+    Refused,
 }
 
 /// One corner of a stored patch: a boundary point by its index in the
@@ -1096,12 +1193,34 @@ mod tests {
                 triangles: Vec::new(),
             },
         );
-        assert!(memo.get(digest, b"a").is_some());
+        let mut keys = PatchKeys::default();
+        assert!(memo.stored(digest, b"a").is_some());
+        memo.record(
+            FaceMemo {
+                digest,
+                outcome: Outcome::Hit,
+            },
+            &mut keys,
+        );
         assert!(
-            memo.get(digest, b"b").is_none(),
+            memo.stored(digest, b"b").is_none(),
             "same digest, other bytes: a miss"
         );
+        memo.record(
+            FaceMemo {
+                digest,
+                outcome: Outcome::Miss {
+                    key: b"b".to_vec(),
+                    stored: Some(StoredPatch {
+                        interior: Vec::new(),
+                        triangles: Vec::new(),
+                    }),
+                },
+            },
+            &mut keys,
+        );
         assert_eq!((memo.hits(), memo.misses()), (1, 1));
+        assert_eq!(keys.len(), 2, "one digest per face, in the fold's order");
         memo.end_picture();
         assert_eq!(memo.len(), 1);
         memo.end_picture();
