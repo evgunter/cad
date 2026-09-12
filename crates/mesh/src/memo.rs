@@ -39,8 +39,14 @@
 //! The planar lane reads nothing more: its chart frame comes from the
 //! boundary, not from the stored plane.
 //!
-//! The curved lane additionally reads the surface's fields (the chart)
-//! and the face's `sense` (the pole-to-pole band's azimuth choice).
+//! The curved lane additionally reads the surface's fields (the chart),
+//! the face's `sense` (the pole-to-pole band's azimuth choice), each
+//! edge description's `seam` flag (`topo::chart_iso::classify_kind`
+//! reads it before the carrier) and the identity structure of the
+//! edges' split-lineage carriers (`geom_brep::props`' torus folding
+//! asks whether two arcs are pieces of one original edge) — the last
+//! folded as a relabeling, like the chord ids, since a root edge key
+//! is an arena key.
 //!
 //! The trimmed lane additionally reads the surface's fields (an
 //! `Approx` face through its fit, which is the geometry the lane
@@ -61,11 +67,16 @@
 //! (eviction) is order-independent. A digest collision would be a
 //! wrong mesh, so every entry carries its full key bytes and a hit
 //! compares them — a false hit is impossible by construction.
+//!
+//! The FNV constants here are one of the tree's many copies, and the
+//! picture/open/close counter machinery is re-spelled by
+//! `editor_core::PickMemo`; both are named for consolidation in
+//! `work/perf/fnv-digest-and-memo-machinery-copies.md`.
 
 use std::collections::HashMap;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::Pcurve;
+use geom_brep::{EdgeDescription, Pcurve};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use topo::{Body, FaceKey};
@@ -76,7 +87,7 @@ use crate::types::TessellateError;
 use crate::walk::loop_half_edges;
 
 /// A face's content digest: 128 bits of FNV-1a over its key bytes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PatchDigest([u64; 2]);
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
@@ -175,6 +186,20 @@ impl PatchMemo {
         self.entries.is_empty()
     }
 
+    /// The memo's heap footprint, approximately: every entry's key
+    /// bytes, interior points and triangles. A measurement door, not a
+    /// budget.
+    pub fn bytes(&self) -> usize {
+        self.entries
+            .values()
+            .map(|e| {
+                e.key.len()
+                    + e.patch.interior.len() * core::mem::size_of::<Point3<f64>>()
+                    + e.patch.triangles.len() * core::mem::size_of::<[StoredVertex; 3]>()
+            })
+            .sum()
+    }
+
     /// Faces answered from the memo in the current picture — or, once
     /// [`PatchMemo::end_picture`] has closed it and nothing has started
     /// the next, in that closed picture.
@@ -182,7 +207,8 @@ impl PatchMemo {
         self.hits
     }
 
-    /// Faces run through their lane, counted as [`PatchMemo::hits`].
+    /// Faces run through their lane, over the same picture
+    /// [`PatchMemo::hits`] counts.
     pub fn misses(&self) -> usize {
         self.misses
     }
@@ -361,6 +387,13 @@ pub(crate) struct EdgeInputs {
     pub(crate) chord_params: Vec<f64>,
     /// The half-edge's stored pcurve, if any (the trimmed lane's).
     pub(crate) pcurve: Option<Pcurve<f64>>,
+    /// Whether the edge's description marks it a chart seam (the
+    /// curved lane's classification reads this before the carrier).
+    pub(crate) seam: bool,
+    /// The edge's split-lineage root, as an identity: `None` where the
+    /// lineage does not resolve. Folded as a relabeling, never as the
+    /// key it is.
+    pub(crate) lineage: Option<u32>,
 }
 
 /// Everything a face's lane reads — the memo key, as a value. The
@@ -381,6 +414,12 @@ impl FaceInputs {
     /// Read the face's inputs off the body and the chord pass. Refuses
     /// exactly where the lanes refuse on the same reads (a missing
     /// entity, an empty loop, a null-scaffold edge).
+    ///
+    /// This clones every carrier, pcurve and chord position list of
+    /// the face, hit or miss, once per picture: the memo's whole cost
+    /// on a face it cannot answer, measured at about 2 % of a ring
+    /// document's tessellation (the PR's table). A borrowing form
+    /// would save the copies at the price of a lifetime on the key.
     #[allow(clippy::too_many_arguments)] // one parameter per named input the lanes take
     pub(crate) fn gather(
         body: &Body<f64>,
@@ -396,6 +435,9 @@ impl FaceInputs {
             .get_face(fk)
             .ok_or(TessellateError::MissingEntity { what: "face" })?;
         let mut loops = Vec::with_capacity(1 + face.rings.len());
+        // Split-lineage roots relabeled by first occurrence over the
+        // whole face, the way the chord ids are.
+        let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
         for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
             let walk = loop_half_edges(body, lk, fk)?;
             let mut edges = Vec::with_capacity(walk.len());
@@ -422,6 +464,10 @@ impl FaceInputs {
                         what: "edge chord parameters",
                     })?
                     .clone();
+                let root = body.split_root(ek, |_| false).ok();
+                #[allow(clippy::cast_possible_truncation)]
+                let next = roots.len() as u32;
+                let lineage = root.map(|r| *roots.entry(r).or_insert(next));
                 edges.push(EdgeInputs {
                     forward,
                     carrier: curve.carrier().clone(),
@@ -430,6 +476,8 @@ impl FaceInputs {
                     ids,
                     chord_params,
                     pcurve: body.pcurve(hek).map(|cache| cache.pcurve().clone()),
+                    seam: matches!(curve.description(), EdgeDescription::Chart(c) if c.seam),
+                    lineage,
                 });
             }
             loops.push(edges);
@@ -502,6 +550,16 @@ impl FaceInputs {
                 w.len(e.positions.len());
                 for p in &e.positions {
                     w.p3(*p);
+                }
+                if curved {
+                    w.bool(e.seam);
+                    match e.lineage {
+                        None => w.u8(0),
+                        Some(c) => {
+                            w.u8(1);
+                            w.u32(c);
+                        }
+                    }
                 }
                 if trimmed {
                     w.len(e.chord_params.len());
@@ -811,6 +869,8 @@ mod tests {
                 p0: Point2::new(seed, 0.0),
                 pl: Vec2::new(0.0, 1.0),
             }),
+            seam: false,
+            lineage: Some(ids[0]),
         }
     }
 
@@ -924,6 +984,21 @@ mod tests {
             "a pcurve's presence",
             |f| f.loops[0][1].pcurve = None,
             [false, false, true],
+        ),
+        (
+            "an edge's seam flag",
+            |f| f.loops[0][1].seam = true,
+            [false, true, false],
+        ),
+        (
+            "the carriers' identity structure",
+            |f| f.loops[0][1].lineage = f.loops[0][0].lineage,
+            [false, true, false],
+        ),
+        (
+            "a carrier lineage that stops resolving",
+            |f| f.loops[0][1].lineage = None,
+            [false, true, false],
         ),
     ];
 

@@ -353,10 +353,51 @@ pub struct IndexDone {
     pub generation: Generation,
     /// The δ the request carried.
     pub delta: DisplayTolerance,
+    /// What the seam's memo did for this answer.
+    pub memo: MemoReport,
     /// The index, or the refusal that stopped it — a failed or
     /// poisoned root is an ordinary editing state and its refusal is
     /// the answer, not an absence.
     pub index: Result<PickIndex, PickIndexError>,
+}
+
+/// What the seam's memo did for one answer, and what it holds after
+/// it: the counts of the picture just closed. Carried on
+/// [`IndexDone`] so a consumer of either implementation reads the
+/// reuse the same way; the threaded seam's memo is otherwise
+/// unreachable from the thread that asked.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MemoReport {
+    /// (node, body) picks held after the build.
+    pub nodes: usize,
+    /// (node, body) picks answered without a build.
+    pub node_hits: usize,
+    /// (node, body) picks built (through the patch memo).
+    pub node_misses: usize,
+    /// Face patches held after the build.
+    pub faces: usize,
+    /// Faces answered from the memo.
+    pub face_hits: usize,
+    /// Faces run through their lane.
+    pub face_misses: usize,
+    /// The patch memo's heap footprint, approximately.
+    pub bytes: usize,
+}
+
+impl MemoReport {
+    /// The memo's counts, read after a picture closed.
+    pub fn of(memo: &PickMemo) -> Self {
+        let patches = memo.patches();
+        Self {
+            nodes: memo.len(),
+            node_hits: memo.node_hits(),
+            node_misses: memo.node_misses(),
+            faces: patches.len(),
+            face_hits: patches.hits(),
+            face_misses: patches.misses(),
+            bytes: patches.bytes(),
+        }
+    }
 }
 
 /// The index seam's vocabulary — [`EvalService`]'s shape, minus the
@@ -397,17 +438,19 @@ pub trait IndexService {
 /// faces without meshing them; the answer is byte-identical to a build
 /// with no memo, and the rows in `tests/index_memo.rs` are the proof.
 fn build_index(request: &IndexRequest, memo: &mut PickMemo) -> IndexDone {
+    let index = PickIndex::build_with(
+        &request.doc,
+        &request.evaluation,
+        request.generation,
+        request.delta,
+        request.tol,
+        memo,
+    );
     IndexDone {
         generation: request.generation,
         delta: request.delta,
-        index: PickIndex::build_with(
-            &request.doc,
-            &request.evaluation,
-            request.generation,
-            request.delta,
-            request.tol,
-            memo,
-        ),
+        memo: MemoReport::of(memo),
+        index,
     }
 }
 

@@ -42,7 +42,9 @@ fn fnv(h: &mut u64, x: u64) {
     }
 }
 
-/// Every byte of a mesh, the goldens' way.
+/// Every byte of a mesh, the goldens' way: positions by bit pattern,
+/// patches (face key, triangles), boundaries (edge key, polyline ids,
+/// endpoint vertex keys).
 fn digest(m: &mesh::Mesh) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     fnv(&mut h, m.positions.len() as u64);
@@ -53,10 +55,7 @@ fn digest(m: &mesh::Mesh) -> u64 {
     }
     fnv(&mut h, m.patches.len() as u64);
     for q in &m.patches {
-        fnv(&mut h, format!("{:?}", q.face).len() as u64);
-        for b in format!("{:?}", q.face).bytes() {
-            fnv(&mut h, u64::from(b));
-        }
+        fnv_str(&mut h, &format!("{:?}", q.face));
         fnv(&mut h, q.triangles.len() as u64);
         for t in &q.triangles {
             fnv(&mut h, u64::from(t[0]));
@@ -66,12 +65,22 @@ fn digest(m: &mesh::Mesh) -> u64 {
     }
     fnv(&mut h, m.boundaries.len() as u64);
     for b in &m.boundaries {
+        fnv_str(&mut h, &format!("{:?}", b.edge));
         fnv(&mut h, b.points.len() as u64);
         for id in &b.points {
             fnv(&mut h, u64::from(*id));
         }
+        fnv_str(&mut h, &format!("{:?}", b.start_vertex));
+        fnv_str(&mut h, &format!("{:?}", b.end_vertex));
     }
     h
+}
+
+fn fnv_str(h: &mut u64, s: &str) {
+    fnv(h, s.len() as u64);
+    for b in s.bytes() {
+        fnv(h, u64::from(b));
+    }
 }
 
 /// The corpus that meshes: name and body, one per lane and chart.
@@ -272,11 +281,21 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
     }
 }
 
+/// **What this proves is that the CARRIER is keyed.** A moved vertex
+/// moves the carriers of the edges at it, and with them their chord
+/// points; on the uniform chord schedule the points and parameters
+/// are functions of carrier, interval and count, all keyed already,
+/// so no body-level row can show the position and parameter folds
+/// doing work on their own. They stay in the key (a superset is
+/// safe) and are pinned where they can be falsified: the unit table
+/// in `memo.rs`. The control is δ: drop it from the key and both
+/// suites red.
 #[test]
-fn a_moved_vertex_misses_exactly_the_faces_that_read_its_chords() {
+fn a_moved_vertex_misses_exactly_the_faces_whose_carriers_changed() {
     // The L prism with one profile vertex moved: the two walls at that
-    // vertex and both caps read a changed chord position; the other
-    // four walls read nothing that moved. Planar lane throughout.
+    // vertex and both caps read a changed carrier (and its chord
+    // points); the other four walls read nothing that moved. Planar
+    // lane throughout.
     let moved = {
         let lp = ProfileLoop::polygon([
             p2(0.0, 0.0),

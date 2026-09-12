@@ -73,10 +73,11 @@
 //! returned as `Ok` unless the caller runs it — a qualifier this crate
 //! now carries at every site that names `check_mesh` as a backstop.
 //!
-//! **Invariant (ratified via PR #32): per-face tessellation is a pure
-//! function of (face surface, loops, per-edge chord points, δ).** This
-//! is the memo-key contract incremental re-tessellation consumes: a
-//! face whose surface, loops, and boundary chord points are unchanged
+//! **Invariant (ratified via PR #32, and the memo-key contract): per-face
+//! tessellation is a pure function of (face surface, loops — each
+//! edge's carrier, interval, direction, seam flag and lineage identity
+//! — per-edge chord points and parameters, the stored pcurves, δ, and
+//! the ambient ε and k).** A face whose inputs are unchanged
 //! re-tessellates identically and its patch can be reused across
 //! rebuilds. [`fn@tessellate_with`] is that consumer: [`memo::PatchMemo`]
 //! keys each face by the bits its lane reads (stated per lane in
@@ -94,7 +95,8 @@
 //!
 //! - **Per-face patch separability** (ratified): [`Mesh`] keeps one
 //!   [`FacePatch`] per face, individually addressable; nothing flattens
-//!   the per-face structure away. No keying machinery at M2.
+//!   the per-face structure away. The only keying machinery is
+//!   [`memo`]'s, beside the door that takes it.
 //! - **Entity back-references** (ratified, incl. the PR #32 Vertex-key
 //!   addition): every patch carries its source `FaceKey`; every
 //!   boundary polyline its source `EdgeKey` (each segment is a

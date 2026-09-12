@@ -26,7 +26,7 @@ use bvh::{Aabb, Ray};
 use editor_core::{Dimension, DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
-use viewer::evalseam::{IndexRequest, IndexService, InlineIndexer};
+use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
 use viewer::pickindex::PickIndex;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, SessionOp};
@@ -159,6 +159,35 @@ fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
     None
 }
 
+/// The request for the session's landed run at `at`.
+fn request_at(session: &DocSession, at: DisplayTolerance) -> IndexRequest {
+    let (doc, _) = session.landed_pair().expect("a landed pair");
+    IndexRequest {
+        generation: session
+            .landed_generation()
+            .expect("a landed evaluation has a generation"),
+        delta: at,
+        doc: doc.clone(),
+        evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
+        tol: session.tol(),
+    }
+}
+
+/// A seam's answer for a request, waited for: the inline seam answers
+/// inside `poll`, the threaded one when its worker is done.
+fn answer(seam: &mut impl IndexService, request: IndexRequest) -> IndexDone {
+    let generation = request.generation;
+    seam.submit(request);
+    for _ in 0..100_000 {
+        if let Some(done) = seam.poll() {
+            assert_eq!(done.generation, generation);
+            return done;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    panic!("the seam never answered")
+}
+
 /// The seam's answer for the session's landed run at `at`: the index,
 /// or the refusal (a failed or poisoned root is an ordinary editing
 /// state).
@@ -167,20 +196,7 @@ fn seam_index_at(
     session: &DocSession,
     at: DisplayTolerance,
 ) -> Result<PickIndex, viewer::pickindex::PickIndexError> {
-    let (doc, _) = session.landed_pair().expect("a landed pair");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    seam.submit(IndexRequest {
-        generation,
-        delta: at,
-        doc: doc.clone(),
-        evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
-        tol: session.tol(),
-    });
-    let done = seam.poll().expect("the inline seam answers inside poll");
-    assert_eq!(done.generation, generation);
-    done.index
+    answer(seam, request_at(session, at)).index
 }
 
 fn seam_index(
@@ -395,6 +411,40 @@ fn assert_same_picture(
     );
 }
 
+/// **A memo that never hits would pass the differential**, so the
+/// documents whose edits leave something reusable pin a floor on what
+/// the memo answered. The measured counts (this row under
+/// `--nocapture`) with a little slack, and the reason each is what it
+/// is:
+/// - `die_composed_tour`, the first edit (one pip moved): one root,
+///   recomputed, 85 of 89 faces bit-identical — level 2's case.
+/// - `die`, the first edit: 106 of 111 faces bit-identical.
+/// - `kitchen_sink`, the first edit (8 roots, the bump feeds 3): five
+///   roots reused whole — level 1's case.
+/// - `heat_sink`, the second edit (6 roots, the second slot feeds 1):
+///   five roots reused whole.
+///
+/// `(document, step, node-hit floor, face-hit floor)`.
+const HIT_FLOORS: &[(&str, &str, usize, usize)] = &[
+    ("die_composed_tour", "the first edit", 0, 80),
+    ("die", "the first edit", 0, 100),
+    ("kitchen_sink", "the first edit", 5, 0),
+    ("heat_sink", "the second edit", 5, 20),
+];
+
+fn assert_hit_floor(name: &str, step: &str, report: &MemoReport) {
+    for &(doc, at, nodes, faces) in HIT_FLOORS {
+        if doc == name && at == step {
+            assert!(
+                report.node_hits >= nodes && report.face_hits >= faces,
+                "{name} after {step}: the memo answered {} parts and {} faces; the floor is {nodes} and {faces}",
+                report.node_hits,
+                report.face_hits
+            );
+        }
+    }
+}
+
 /// Open → index; then each edit → land → index, asserting the seam's
 /// picture is the plain door's after every landing. Answers the
 /// per-step face counts of the picture, for the memo rows to read.
@@ -439,6 +489,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<(
         if let Ok(index) = &index {
             assert_memo_is_one_picture(name, step, &seam, index);
         }
+        assert_hit_floor(name, step, &MemoReport::of(seam.memo()));
         steps.push(((*step).to_owned(), faces));
     }
     // A δ change misses everything, at both levels: the same run,
@@ -491,6 +542,89 @@ fn every_parametric_corpus_document_indexes_the_same_through_the_seam_across_edi
         "the corpus carries at least eight parametric documents; saw {:?}",
         seen.keys().collect::<Vec<_>>()
     );
+    for &(doc, step, _, _) in HIT_FLOORS {
+        let steps = seen
+            .get(doc)
+            .unwrap_or_else(|| panic!("{doc} is a corpus document"));
+        assert!(
+            steps.iter().any(|(s, _)| s == step),
+            "{doc} reaches {step}, so its floor was checked"
+        );
+    }
+}
+
+/// **The production seam keeps its memo across pictures too.** The
+/// threaded worker owns a memo for its thread's life; this drives it
+/// over four landings of two documents, asking it for every picture
+/// but one, and asserts that each answer is the plain door's and that
+/// the picture after the skipped one is served from the memo at node
+/// level: the revert returns the document to the state the worker
+/// last indexed, so every root's content and naming keys match and
+/// nothing is tessellated.
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
+    let tol = Tol::witness();
+    for name in ["die", "kitchen_sink"] {
+        let c = corpus::documents()
+            .into_iter()
+            .find(|c| c.name == name)
+            .expect("a corpus document");
+        let (bump, revert) = bump_of(&c).expect("a parametric document");
+        let mut session = DocSession::inline(c.doc.clone(), tol);
+        session.pump();
+        let mut worker = viewer::evalseam::ThreadIndexer::spawn().expect("the worker starts");
+        // Landing 0: open, indexed. Landing 1: the bump, NOT indexed by
+        // the worker (a generation it never saw). Landing 2: the
+        // revert, indexed — the open picture again. Landing 3: the
+        // bump again, indexed.
+        let ops = [Some(bump.clone()), Some(revert), Some(bump)];
+        let asked = [true, false, true, true];
+        let mut parts = 0;
+        for (landing, ask) in asked.iter().enumerate() {
+            if landing > 0 {
+                let op = ops[landing - 1].clone().expect("an edit");
+                let outcome = session.perform(op.op());
+                assert!(
+                    outcome.refusal.is_none(),
+                    "{name}: landing {landing} refused"
+                );
+                session.pump();
+            }
+            if !ask {
+                continue;
+            }
+            let done = answer(&mut worker, request_at(&session, delta()));
+            let fresh = fresh_index(&session);
+            let faces = assert_same_answer(
+                name,
+                &format!("landing {landing}"),
+                &done.index,
+                &fresh,
+                &session,
+            );
+            if landing == 0 {
+                parts = done
+                    .index
+                    .as_ref()
+                    .map(|i| i.parts().len())
+                    .expect("the open picture indexes");
+                assert_eq!(done.memo.node_hits, 0, "{name}: nothing to reuse at open");
+            }
+            if landing == 2 {
+                assert_eq!(
+                    (done.memo.node_hits, done.memo.node_misses),
+                    (parts, 0),
+                    "{name}: the revert after a skipped generation is the open picture, served whole"
+                );
+                assert_eq!(done.memo.face_misses, 0);
+                assert!(done.memo.faces <= faces);
+            }
+            if landing == 3 {
+                assert_eq!(done.memo.node_hits + done.memo.node_misses, parts);
+            }
+        }
+    }
 }
 
 #[test]

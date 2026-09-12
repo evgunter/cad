@@ -61,7 +61,7 @@ use mesh::{Mesh, PatchKeys, PatchMemo, TessellateError, tessellate_with};
 use topo::FaceKey;
 
 use super::hit::{HitTestError, entity_name};
-use crate::eval::{ContentKey, Evaluation, NodeResult, NodeValue};
+use crate::eval::{ContentKey, Evaluation, NamingKey, NodeResult, NodeValue};
 use crate::ident::DocumentId;
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
@@ -331,6 +331,7 @@ pub struct NodePick {
 struct PickEntry {
     document: DocumentId,
     content_key: ContentKey,
+    naming_key: NamingKey,
     /// δ and the ambient ε and k, by bit pattern.
     tolerances: [u64; 3],
     pick: NodePick,
@@ -342,15 +343,15 @@ struct PickEntry {
 /// [`NodePick`]s, by (node, body), and the per-face patch memo under
 /// them.
 ///
-/// **Node level.** A node the evaluation memo REUSED has the same
-/// [`NodeValue::content_key`] as before, and the key proves its bodies
-/// are bit-identical (the evaluation memo's own theorem: same key ⇒
-/// same inputs ⇒ same output, D9). A `NodePick` is a pure function of
-/// the body, δ and the ambient tolerance, so under the same key and
-/// the same `(δ, tol)` the previous picture's `NodePick` IS this
-/// picture's, BVH included. The document's identity is part of the
-/// key too: node ids are minted per document, so two documents can
-/// carry the same id for different nodes.
+/// **Node level.** The key is the evaluation memo's own reuse
+/// condition, exactly — [`NodeValue::content_key`] AND
+/// [`NodeValue::naming_key`] (`eval_node`'s memo hit, whose doc carries
+/// the argument: the content key proves the body's bits, the naming
+/// key its names and so the face keys the id map is built on) — plus
+/// the document's identity (node ids are minted per document) and
+/// `(δ, ε, k)`. Under that key the previous picture's `NodePick` IS this
+/// picture's, BVH included, because a `NodePick` is a pure function of
+/// what the key names.
 ///
 /// **Face level.** A node that was recomputed is tessellated through
 /// [`mesh::tessellate_with`] over the patch memo, which answers every
@@ -362,6 +363,10 @@ struct PickEntry {
 /// [`PickMemo::end_picture`] after each: entries not used in the
 /// picture just built are dropped, at both levels, so the memo holds
 /// exactly one picture's worth.
+///
+/// The picture/open/close counter machinery here re-spells
+/// [`PatchMemo`]'s; the consolidation is
+/// `work/perf/fnv-digest-and-memo-machinery-copies.md`.
 #[derive(Default)]
 pub struct PickMemo {
     nodes: HashMap<(RecipeNodeId, u32), PickEntry>,
@@ -486,9 +491,9 @@ impl NodePick {
     }
 
     /// [`NodePick::build`] over `memo`: the previous picture's pick for
-    /// this (node, body) when the node's content key, the document and
-    /// `(delta, tol)` all match, else a build whose tessellation goes
-    /// through the patch memo. The answer is byte-identical to
+    /// this (node, body) when the node's content and naming keys, the
+    /// document and `(delta, tol)` all match, else a build whose
+    /// tessellation goes through the patch memo. The answer is byte-identical to
     /// [`NodePick::build`]'s either way ([`PickMemo`]).
     ///
     /// # Errors
@@ -516,6 +521,7 @@ impl NodePick {
         if let Some(entry) = memo.nodes.get_mut(&(node, body))
             && entry.document == eval.document
             && entry.content_key == value.content_key
+            && entry.naming_key == value.naming_key
             && entry.tolerances == tolerances
         {
             entry.picture = picture;
@@ -538,6 +544,7 @@ impl NodePick {
             PickEntry {
                 document: eval.document,
                 content_key: value.content_key,
+                naming_key: value.naming_key,
                 tolerances,
                 pick: pick.clone(),
                 keys: tessellation.keys,
