@@ -1579,7 +1579,7 @@ impl PickIndex {
 /// away; the failure being traded against is a mark drawn through
 /// solid material, which is the louder of the two.
 ///
-/// `gpu.rs`'s `EDGE_CLIP_Z_SHRINK` plays the same
+/// `crate::gpu`'s `EDGE_CLIP_Z_SHRINK` plays the same
 /// coincident-edge-over-its-own-face role on the GPU draw lane, in
 /// f32 clip z — a pointer each way, deliberately not one shared
 /// constant.

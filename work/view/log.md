@@ -9563,3 +9563,74 @@ in the population are records, not guards, and are untouched.
 
 **Nothing out of fence.** Every citation this diff moved is in
 `work/view/`.
+
+## 2026-09-12 — `view/possessive-spans`: the picker exists and it is `length_picker`; five possessives become links
+
+`possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule`
+closed. Both halves answered in one PR, which is what the row asked for.
+
+**Half 1, `blend.rs`.** `unit_picker` has a referent and it is
+`crate::widgets::length_picker`, *"The creation forms' written-unit
+picker"*. `pane/create.rs` draws it in the same `ui.horizontal` as the
+field `BlendKindChoice::size_label` labels, immediately after
+`unit_field` — so the affordance the sentence asserts exists and this was
+a bad NAME, not a false claim about the chrome. Both halves of the name
+were wrong: module and item. `length_picker`'s own doc carries the same
+clause nearly verbatim (*"free to say metres beside a field written in
+millimetres"*), so the sentence was copied from it and mis-attributed.
+The alternative outcome the brief asked me to watch for — that the chrome
+has no such control and the sentence is asserting an affordance that does
+not exist — did not obtain.
+
+**Half 2, the fork: LINKED, all four.** Ev's 2026-09-11 ruling is what
+made a bare span optional rather than forced, and it settles the spelling
+too: at `origin/main` this crate already links into the `app`-gated half
+nineteen times from the renderer-free half (thirty-three spans crate-wide),
+so *"a possessive span is prose"* would have been a second answer to a
+question already ruled, and the row's own complaint is that one
+relationship is spelled two ways. `ViewerApp::fit_delta_on_scene` is a
+private FIELD and `ViewerApp::remember_theme` a private method; both
+resolve because both host doc passes run `--document-private-items` with
+`rustdoc::private_intra_doc_links` allowed, and `doc-gate.sh`'s selftest
+already pins *a public link to a private sibling*. **The disposition is
+stated once**, in `crates/viewer/README.md`'s *Rustdoc posture* section,
+beside the ruling it follows from and carrying the sweep rule that
+produces its population.
+
+**The wider sweep found a second `unit_picker`.** Dropping the
+module-name requirement — any `` `X` ``'s `` `Y` `` pair on one `///` or
+`//!` line — gives fifteen sites at base where the row's rule saw four
+(`prefs.rs`'s pair is split across two lines, so the two rules together
+see sixteen). Resolving every second span turned up
+`widgets.rs`'s test-module `crate::pane::properties`'s `slot_row_ui`,
+which exists nowhere; it is `slot_value_ui`, the one `properties.rs`
+function that calls `drag_gesture_ops` directly. Also moved: `gpu.rs`'s
+`` `crate::pickindex`'s `OCCLUSION_SLACK_REL` ``, the other end of
+`pickindex.rs`'s deliberate pointer pair — leaving one end a link and the
+other a possessive would re-mint the defect inside the pair.
+
+**Two notes onto `comment-symbol-names-outside-rustdocs-reach-have-no-gate`,
+which are notes and not a diff to the gate.** A gate built to that row's
+spec (`<own-mod>::<ident>` resolves) would still have missed
+`unit_picker`, because `unit_picker` carries no module qualifier at all —
+the qualifier was in a separate span, and was the wrong module. And the
+`slot_row_ui` site is that row's own axis in a shape it does not list: a
+`///` comment inside a `#[cfg(test)] mod` is read by no rustdoc pass this
+repo runs, so a bracket there would be punctuation for a reason
+unrelated to `//` versus `///`.
+
+**One citation in the closed row is left alone and disclosed.** Its
+blind-spot list cites `theme.rs:69-70` and quotes *"`app` maps a
+[`Theme`] onto the chrome"*. `69-70` is a genuine member of the class
+(*"`app` maps this onto the toolkit's own light and dark `Visuals`"*),
+but the quoted words are at `theme.rs:7-8`, where `app` is already
+written `` [`crate::app`] `` and is therefore not an example of a bare
+span. The number names its subject; the quotation is what is wrong, so
+nothing is repointed.
+
+**What the widened rule still cannot see**, stated because the row was
+held to this standard and so is its closure: a module or item named in
+prose with no backtick span at all — `sketch.rs`'s *"(`app`'s drafts say
+so)"* names the `drafts` module in bare words, and the possessive
+pattern matches the `app` half while the thing it is about is unspanned;
+and any name in a `//` comment, which is the open row's subject.
