@@ -290,14 +290,24 @@ fn both_sweeps_evaluate_in_one_document() {
 /// They are goldens in the ordinary sense — when one moves the question
 /// is whether the new behaviour is right, never how to restore the old
 /// number.
+///
+/// RE-BLESSED for the orthonormal basis's world-axis comparison: the
+/// digest feeds each surface's `Debug`, and every planar carrier's
+/// stored `u_ref` is now `normalize(e_z × n)` or `normalize(e_y × n)`
+/// by `|n.z| ≤ max(|n.x|, |n.y|)`. The plane's LOCUS did not move —
+/// origin and normal are bit-identical, which the STEP fixtures'
+/// record-level diff shows directly — and the id-free body rows
+/// (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`'s
+/// realized-vs-idealized bit equality) were green across the change
+/// untouched.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x6049_75e9_75f5_d9ed),
-        ("corner_table", 0x01cf_cc62_a3f3_d986),
-        ("cut_cylinder", 0xeaea_81fa_b3df_29e3),
-        ("boss_union", 0x519a_7998_6394_49a3),
-        ("kitchen_sink", 0x8826_0b67_1ded_0c08),
+        ("die", 0x684b_8f67_7e35_885f),
+        ("corner_table", 0x24e0_8469_f5fd_b1fc),
+        ("cut_cylinder", 0x513a_c855_23ba_d6bf),
+        ("boss_union", 0x38fe_d51c_2db6_7441),
+        ("kitchen_sink", 0xff9f_0282_007e_7c16),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

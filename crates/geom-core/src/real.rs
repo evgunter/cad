@@ -460,6 +460,66 @@ pub trait Real:
     ///   unbounded slope).
     fn copysign(self, sign: Self) -> Self;
 
+    /// **The value-level decision door**: `when_le` if `self ≤ 0`, else
+    /// `when_gt` — a two-way selection keyed on the sign of a
+    /// difference, with the TIE (`self == 0`) on the `when_le` side.
+    ///
+    /// This is how comparison-free evaluation code picks between two
+    /// candidate computations. It is a *value* operation, not control
+    /// flow — it returns `Self`, so it cannot drive a branch, and no
+    /// topology-determining question passes through it (those go to a
+    /// named predicate, per Q1). Its consumer is
+    /// [`crate::Vec3::orthonormal_basis`], which chooses which world
+    /// axis to cross the normal with.
+    ///
+    /// **The tie is keyed on the VALUE zero, never on a zero's sign
+    /// bit** — `-0.0 ≤ 0` and `+0.0 ≤ 0` take the same arm. That is
+    /// what makes the tie decidable over an enclosure: a point
+    /// enclosure `[0, 0]` names one real, the tie-break is the same for
+    /// every point of it, so `Interval` DECIDES there. This is exactly
+    /// what [`Real::copysign`] cannot do — its zero-containing arm must
+    /// hull at a POINT zero, because an `f64` zero's sign bit is
+    /// invisible in an enclosure and a one-sided choice would fail to
+    /// contain an `f64` replay that saw `-0.0`. A construction that
+    /// spells a choice as `copysign` on the difference is therefore a
+    /// branch in disguise that hulls where a decision exists; this door
+    /// is the one that does not.
+    ///
+    /// **Poison: `self` propagates; a candidate propagates only where
+    /// it is read.** A poisoned decision value poisons the result — the
+    /// choice is unknown, and picking an arm would launder it. A
+    /// poisoned CANDIDATE poisons the result only when that candidate
+    /// is selected, or when both are (the straddle arm below). The
+    /// asymmetry is deliberate and load-bearing: the door exists to
+    /// pick the well-conditioned member of a candidate set whose other
+    /// members are degenerate at exactly the input being chosen away
+    /// from — `orthonormal_basis` at `n = ±e_z` evaluates
+    /// `normalize(e_z × n)`, which is `normalize(0)`, all poison, and
+    /// the axis order is what guarantees it is never the one read.
+    ///
+    /// Per-instantiation semantics:
+    ///
+    /// - `f64`: the IEEE comparison `self <= 0.0` behind the poison
+    ///   guard — a total order, exact and bit-deterministic (D9).
+    /// - `Interval`: DECIDED when the comparison holds for every point
+    ///   of the enclosure — `hi ≤ 0` (which includes the point tie
+    ///   `[0, 0]`) selects `when_le`, `lo > 0` selects `when_gt` — with
+    ///   the decoration capped by the deciding enclosure's (the choice
+    ///   is only as trustworthy as the enclosure that made it).
+    ///   UNDECIDED (`lo ≤ 0 < hi`, necessarily of positive width) is
+    ///   the **hull of both candidates**, decoration capped at `Def`:
+    ///   the question is real at every point of the box and the honest
+    ///   answer is both branches, never `Trv`, never empty
+    ///   (`docs/DUAL-DESIGN.md` DL6). The hull is what buys the
+    ///   enclosure property: an `f64` value inside the decision's
+    ///   enclosure lands on one of the two arms, and both are enclosed.
+    /// - `Dual<T>`: value channel is `T`'s door verbatim (the
+    ///   value-channel bit-identity contract); the tangent follows the
+    ///   chosen candidate's, ties keeping the tie-break's choice (the
+    ///   `min`/`max` kink convention), and hulls both tangents wherever
+    ///   the value channel hulls.
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self;
+
     /// Range reduction into one period: `self − period·floor(self/period)`
     /// — for `period > 0`, the representative of `self` modulo `period`
     /// lying in `[0, period)` up to rounding (see below). The intended
@@ -644,10 +704,9 @@ pub trait Real:
 /// it to put this one before — and closing it is not this predicate's
 /// job as things stand. Known instances, and the count is a floor
 /// rather than a total because nothing sweeps for them:
-/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
-/// normalized OUTPUT) and `geom-brep`'s `enters::enters_material`,
-/// which decides a caller-supplied arm and then normalizes a `dir`
-/// whose own length is never asked about — a `pub` door. Filed as
+/// `geom-brep`'s `enters::enters_material`, which decides a
+/// caller-supplied arm and then normalizes a `dir` whose own length is
+/// never asked about — a `pub` door. Filed as
 /// `work/fix/normalize-without-the-length-question-two-more-sites`.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
@@ -1654,6 +1713,23 @@ impl Real for f64 {
             f64::copysign(self, sign)
         }
     }
+
+    /// The IEEE comparison `self <= 0.0` behind the trait's poison
+    /// guard: a NaN decision cannot choose, so it poisons. Both signed
+    /// zeros take the `when_le` arm (`-0.0 <= 0.0` is true in IEEE
+    /// 754), which is what makes the tie sign-blind. An unread
+    /// candidate's NaN does not propagate — the trait docs give the
+    /// reason. Raw comparison is allowed inside scalar implementations
+    /// (Q1), as in [`Real::min`].
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
+        if self.is_nan() {
+            f64::NAN
+        } else if self <= 0.0 {
+            when_le
+        } else {
+            when_gt
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1911,6 +1987,36 @@ mod tests {
         assert!(<f64 as Real>::copysign(3.0, f64::NAN).is_nan());
         // Contrast: the IEEE bit operation launders the NaN sign.
         assert_eq!(f64::copysign(3.0, f64::NAN).abs(), 3.0);
+    }
+
+    /// The door at `f64`: a total order, sign-blind at the tie, and
+    /// poisoned only by the decision.
+    #[test]
+    fn select_le_zero_is_a_total_order_with_a_sign_blind_tie() {
+        let sel = <f64 as Real>::select_le_zero;
+        assert_eq!(sel(-1.0, 7.0, 9.0), 7.0);
+        assert_eq!(sel(1.0, 7.0, 9.0), 9.0);
+        // The tie takes `when_le`, and BOTH zeros are the same tie —
+        // this is the whole difference from `copysign`, which reads the
+        // zero's sign bit.
+        assert_eq!(sel(0.0, 7.0, 9.0), 7.0);
+        assert_eq!(sel(-0.0, 7.0, 9.0), 7.0);
+        assert_eq!(<f64 as Real>::copysign(1.0, -0.0), -1.0);
+        // Totality on the extremes; ±∞ is not poison.
+        assert_eq!(sel(f64::NEG_INFINITY, 7.0, 9.0), 7.0);
+        assert_eq!(sel(f64::INFINITY, 7.0, 9.0), 9.0);
+        assert_eq!(sel(f64::MIN_POSITIVE, 7.0, 9.0), 9.0);
+        assert_eq!(sel(-5.0e-324, 7.0, 9.0), 7.0);
+        // The chosen arm is returned BITWISE — a selection, not an
+        // arithmetic combination.
+        assert_eq!(sel(-1.0, -0.0, 9.0).to_bits(), (-0.0f64).to_bits());
+        // A poisoned decision cannot choose. An UNREAD candidate's
+        // poison does not propagate: that is what lets a construction
+        // select away from a degenerate branch.
+        assert!(sel(f64::NAN, 7.0, 9.0).is_nan());
+        assert_eq!(sel(-1.0, 7.0, f64::NAN), 7.0);
+        assert_eq!(sel(1.0, f64::NAN, 9.0), 9.0);
+        assert!(sel(-1.0, f64::NAN, 9.0).is_nan());
     }
 
     #[test]

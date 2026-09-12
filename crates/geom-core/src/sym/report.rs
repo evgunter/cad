@@ -222,6 +222,7 @@ fn render_indet(sess: &Session, id: u128, depth: usize) -> String {
             SymOp::Min => "min",
             SymOp::Max => "max",
             SymOp::Copysign => "copysign",
+            SymOp::Select => "select",
             _ => "?",
         };
         if depth >= DEPTH {

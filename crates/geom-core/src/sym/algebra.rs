@@ -208,7 +208,7 @@ mod tests {
             AtomInfo {
                 op: SymOp::Sqrt,
                 payload: 0,
-                args: [Some(std::rc::Rc::new(Form::poly(x.clone()))), None],
+                args: [Some(std::rc::Rc::new(Form::poly(x.clone()))), None, None],
             },
         );
         let mut resid = Poly::zero();

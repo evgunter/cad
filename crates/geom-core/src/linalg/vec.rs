@@ -432,126 +432,154 @@ impl<T: Real> Vec3<T> {
     /// right-handed frame: returns `(b1, b2)` with `(b1, b2, self)`
     /// orthonormal and right-handed (`b1 × b2 = self` up to rounding).
     ///
-    /// This is the **branchless Pixar construction** (Duff, Burgess,
-    /// Christensen, Hery, Kensler, Liani, Villemin, *Building an
-    /// Orthonormal Basis, Revisited*, JCGT 6(1), 2017), the ratified
-    /// resolution of the M0 watchlist's "orthonormal-basis is a
-    /// value-branch" concern: there is **no value branch to guard** —
-    /// the construction is a fixed straight-line arithmetic sequence
-    /// whose only sign decision is [`Real::copysign`], a total value
-    /// operation. No predicate is needed because no branch exists;
-    /// evaluation is deterministic and bit-identical across
-    /// instantiations in the value channel by the same argument as any
-    /// other fixed formula.
-    ///
-    /// **Derivation.** For `s = ±1` matching the sign of `n.z`, the
-    /// reflection `R` through the plane bisecting `s·e_z` and `n` maps
-    /// `s·e_z ↦ n`; its other two (sign-adjusted) columns are then unit,
-    /// mutually orthogonal, and orthogonal to `n` by orthogonality of
-    /// the reflection. Writing `a = −1/(s + n.z)` collapses the
-    /// reflection's columns to the closed forms below (the paper's §3
-    /// algebra); the sign flip keeps the frame right-handed on both
-    /// hemispheres AND keeps `s + n.z` away from zero — the naive
-    /// single-branch formula divides by `1 + n.z`, which cancels
-    /// catastrophically near `n = −e_z` (the classic failure direction).
-    ///
-    /// **Evaluation order (fixed, D9), and why it is spelled this way.**
-    /// The denominator's MAGNITUDE is computed first and its sign is
-    /// applied separately, because `s` and `n.z` are correlated —
-    /// `s + n.z` is `±(1 + |n.z|)`, never near zero — and an enclosure
-    /// scalar that evaluates each occurrence of `s` independently cannot
-    /// see that. Writing the sum literally hands `Interval` a
-    /// zero-containing denominator for every `n.z = [0, 0]` (issue
-    /// #1157: every axis-aligned VERTICAL plane), which divides to
-    /// `[−∞, +∞]` decorated `Trv` — a manufactured non-real from inputs
-    /// that pose a perfectly real question, which `docs/DUAL-DESIGN.md`
-    /// DL6 forbids in a certified lane. So:
+    /// **The construction.** Cross the normal `n = self` with a world
+    /// axis chosen by one comparison on `n.z`, and normalize:
     ///
     /// ```text
-    /// s  = 1.copysign(n.z)
-    /// r  = 1/(1 + s·n.z)          // = 1/|s + n.z| = 1/(1 + |n.z|) ∈ (0, 1]
-    /// br = (n.x·n.y)·r
-    /// b1 = (1 − (n.x²)·r, −br, −(s·n.x))
-    /// b2 = (−(s·br), s − s·((n.y²)·r), −n.y)
+    /// b1 = normalize(e_z × n)  when |n.z| ≤ max(|n.x|, |n.y|),
+    ///      normalize(e_y × n)  otherwise
+    /// b2 = n × b1
     /// ```
     ///
-    /// each component exactly as parenthesized.
+    /// The comparison is an order on the normal's own components — "is
+    /// `n` nearer the equator than the poles" — so it is
+    /// SCALE-INVARIANT, introduces no constant, and cannot overflow at
+    /// any magnitude (only `abs` and `max` enter it).
     ///
-    /// **`f64` is bit-identical to the `a = −1/(s + n.z)` spelling this
-    /// replaced, and that is measured, not derived** (`vec.rs`'s
-    /// `orthonormal_basis_matches_the_duff_spelling_bitwise` sweeps the
-    /// unit sphere plus the axis/equator edge set, signed zeros
-    /// included). The derivation the measurement confirms: `1 + s·n.z`
-    /// is the exact magnitude `|s + n.z|` (negation is exact and
-    /// addition is sign-symmetric), `1/s = s` exactly for `s = ±1`, so
-    /// `a = −s·r`; each component above then differs from its old
-    /// spelling only by multiplications by `±1`, which are exact and
-    /// sign-symmetric including on zeros.
+    /// `b1 × b2 = b1 × (n × b1) = n·(b1·b1) − b1·(b1·n) = n` exactly in
+    /// ℝ, so the frame is right-handed by construction rather than by a
+    /// sign convention. **No sign is transferred anywhere**, which is
+    /// the whole point: [`Real::copysign`]'s enclosure arm must hull at
+    /// any zero-containing sign, so a construction whose seam runs
+    /// through the equator hulls the frame of every vertical wall.
     ///
-    /// **What the new spelling buys at `Interval`.** `r`'s denominator
-    /// is `1 + |n.z|`, whose enclosure is `≥ 1` for EVERY `n.z`
-    /// enclosure — including the one-sided and straddling ones, which
-    /// is the whole point: `|·|` is a total, monotone map that needs no
-    /// sign decision, whereas `s · n.z` needs `copysign` to have
-    /// DECIDED a sign, and `Interval::copysign` is strict on both sides
-    /// (`interval.rs`), so it must return `[−1, 1]` for any `n.z`
-    /// enclosure touching zero. Writing the denominator as `1 + s·n.z`
-    /// therefore reintroduced the same defect one enclosure out from
-    /// the one #1157 filed: at `n.z = [0, 1]` — an ordinary one-sided
-    /// enclosure of a NON-NEGATIVE `z` — it gives `[0, 2]` and `r`
-    /// unbounded and `Trv`, while `1 + |n.z|` gives `[1, 2]` and
-    /// `r = [0.5, 1]`. The two spellings are bit-identical at `f64`
-    /// (`s · n.z ≡ |n.z|` there, signed zeros included), which is
-    /// exactly why the `f64` bitwise row cannot see the difference and
-    /// `orthonormal_basis_is_bounded_over_z_enclosures` exists.
+    /// **Why this comparison and this side of the cross**, in the terms
+    /// a user would state them: a vertical wall `n = (c, s, 0)` takes
+    /// `e_z` and gets `b1 = (−s, c, 0)` — horizontal in the plane —
+    /// with `b2 = e_z`, up; a horizontal cap `n = ±e_z` takes `e_y` and
+    /// gets `b1 = ±e_x`, `b2 = e_y`. Those are the frames a draughtsman
+    /// would draw.
     ///
-    /// `b1` loses
-    /// `s` entirely except in `b1.z`: at `n.z = [0, 0]` the enclosure is
-    /// then the exact hull of the two frames the equator's sign flip
-    /// admits — `(1 − n.x²·r, −n.x·n.y·r, ±n.x)` — rather than a wide
-    /// or non-real one, and for a vertical plane with `n.x = 0` (the
-    /// `newell_plane` case) it is the EXACT frame. `b2` keeps both of
-    /// its `s` occurrences: they are what makes its `f64` bits identical
-    /// (a widened `b2.y` would flip a signed zero at `n = (0, ±1, −0.0)`),
-    /// and both production consumers — `newell.rs` and
-    /// `step-import`'s `recognize.rs` — take `b1` and discard `b2`.
+    /// **Conditioning: no seam on the sphere.**
+    /// `|e_z × n|² = n.x² + n.y²` and `|e_y × n|² = n.x² + n.z²`. On
+    /// the `e_z` arm `n.z² ≤ max(n.x², n.y²) ≤ n.x² + n.y²`, so
+    /// `‖n‖² ≤ 2(n.x² + n.y²)` and `|e_z × n|² ≥ ‖n‖²/2`. On the `e_y`
+    /// arm `n.z²` strictly exceeds both `n.x²` and `n.y²`, so
+    /// `‖n‖² < 3n.z²` and `|e_y × n|² ≥ n.z² > ‖n‖²/3`. The
+    /// normalization is therefore well conditioned at every direction,
+    /// unit or not — there is no direction at which this is
+    /// near-degenerate, and in particular nothing happens at the
+    /// equator `n.z = 0`, where every vertical wall of every extrusion
+    /// lives.
+    ///
+    /// **The discontinuity, documented honestly.** One must exist (no
+    /// continuous global frame on the sphere — hairy ball). Here it is
+    /// the 45° cone `|n.z| = max(|n.x|, |n.y|)`: crossing it turns the frame
+    /// about `n` by a quarter turn, never a flip. **What is on that
+    /// cone matters more than that it exists**: no axis direction, no
+    /// axis-aligned face, no vertical wall and no horizontal cap. That
+    /// is what makes the seam affordable at an enclosure scalar, where
+    /// a normal whose components are noise around a seam cannot be
+    /// decided. An order over all three components — smallest magnitude
+    /// wins — puts the seam through EVERY axis direction instead (two
+    /// components tied at zero), which measures worse on exactly the
+    /// geometry a CAD kernel is made of. Consumers wanting a *stable*
+    /// frame across parameter changes store the frame (`u_ref`) as
+    /// data, per D2; this constructor is for *making* that data.
+    ///
+    /// **The comparison is a value-level door.** It goes through
+    /// [`Real::select_le_zero`], applied componentwise to the two
+    /// candidate vectors — three scalar calls on the SAME decision, so
+    /// an undecided enclosure answers with the hull of the two
+    /// candidate VECTORS rather than a box over three independent
+    /// choices. The door's tie-break keys on a value zero rather than a
+    /// zero's sign bit, which is what lets an enclosure decide it;
+    /// spelling the choice as `copysign` on the difference would be a
+    /// total order at `f64` and a hull at every point tie.
+    ///
+    /// **Evaluation order (fixed, D9).** Exactly as written:
+    ///
+    /// ```text
+    /// c_y = normalize(( n.z,  0,   −n.x))          // e_y × n
+    /// c_z = normalize((−n.y,  n.x,  0  ))          // e_z × n
+    /// b1  = select(|n.z| − max(|n.x|, |n.y|), c_z, c_y)  // ties → e_z
+    /// b2  = n × b1
+    /// ```
+    ///
+    /// **Each candidate is normalized before the selection, not after
+    /// it**, and that ordering is load-bearing at `Interval`. Selecting
+    /// first and normalizing once would divide a straddled tie's HULL
+    /// by its own norm enclosure, and that hull can contain the zero
+    /// vector — an unbounded, `Trv` answer to a question that is real
+    /// at every point of the box, which `docs/DUAL-DESIGN.md` DL6
+    /// forbids. Normalizing first makes the undecided answer the hull
+    /// of two unit vectors: bounded, decorated `Def`, and containing
+    /// whichever frame the `f64` program picked. At `f64` the two
+    /// orderings are bit-identical, since exactly one candidate is
+    /// read.
+    ///
+    /// **The unread candidate may be poison, and that is by design.**
+    /// `e_k × n` is the zero vector exactly when `n` is parallel to
+    /// `e_k`, so `normalize` poisons `c_z` at `n = ±e_z` and `c_y` at
+    /// `n = ±e_y`. The comparison guarantees such a candidate is never
+    /// the one selected, at ANY magnitude: the `e_z` arm needs
+    /// `max(|n.x|, |n.y|) ≥ |n.z|`, which makes `c_z` the zero vector
+    /// only for the zero vector itself, and the `e_y` arm needs
+    /// `|n.z| > max(|n.x|, |n.y|)`, which is impossible where `c_y` is
+    /// zero (`n.x = n.z = 0`) — and [`Real::select_le_zero`] propagates poison only from
+    /// the arm it reads. A poisoned INPUT still poisons everything,
+    /// through the decision.
+    ///
+    /// **When the answer is unbounded, and why that is honest.**
+    /// `normalize` reads each candidate's OWN norm, so an unbounded
+    /// answer needs the comparison undecided AND a candidate that is
+    /// the zero vector somewhere in the box. Those two together force
+    /// the box to contain the ZERO VECTOR: `c_z` vanishes only where
+    /// `n.x = n.y = 0`, which puts `max(|n.x|, |n.y|)` at zero, and an
+    /// undecided comparison then puts `|n.z|` at zero too; `c_y`
+    /// vanishes only where `n.x = n.z = 0`, and an undecided comparison
+    /// there puts `n.y` at zero as well. The zero vector names no
+    /// direction, so a box containing it poses no question at that
+    /// point and DL6 is satisfied — the construction manufactures a
+    /// non-real only where one entered.
     ///
     /// Both squares are the tight square (`powi(2)`), not the product
     /// `n·n`: at `Interval` the product treats the two factors as
-    /// independent, so an enclosure straddling zero — every direction
-    /// near an equator — acquires a spurious negative lower bound. Nor
-    /// is `powi(2)` unconditionally narrower: on this backend it is 1
-    /// ulp wider on each side once the square falls below `2^-960`, i.e.
-    /// `|n.x| < 2^-480`, which no unit direction reaches
-    /// (`scripts/gates/interval-square-allowlist.sh` carries the
-    /// measurement).
+    /// independent, so an enclosure straddling zero acquires a spurious
+    /// negative lower bound.
     ///
-    /// **Discontinuity, documented honestly:** the frame flips across
-    /// the equator `n.z = 0` (`s` jumps) — the construction is
-    /// deterministic and well-conditioned everywhere on the sphere, but
-    /// not continuous as a function of `n` there (no continuous global
-    /// frame on the sphere exists — hairy-ball; the seam had to go
-    /// somewhere, and `copysign`'s kink conventions carry it honestly
-    /// through duals and intervals). At `Interval` an `n.z` enclosure
-    /// containing zero cannot tell the two sides apart — a point
-    /// enclosure `[0, 0]` carries no sign bit — so the honest answer
-    /// there is the hull of both frames, which is what `b1.z` and `b2`
-    /// widen to. Consumers wanting a *stable* conventional frame across
-    /// parameter changes store the frame (`u_ref`) as data, per D2 —
-    /// this constructor is for *making* that data.
-    ///
-    /// **Precondition (conventional, unchecked):** `self` is unit. A
-    /// non-unit input yields a well-defined but non-orthonormal pair
-    /// (no poison, no check — same posture as unit-`dir` curve data;
-    /// tier-3 certification owns the invariant). A poisoned input
-    /// propagates poison.
+    /// **Precondition (conventional, unchecked):** `self` is unit —
+    /// same posture as unit-`dir` curve data; tier-3 certification owns
+    /// the invariant. A non-unit input is still total and still says
+    /// something exact: `b1` is unit and orthogonal to `n` whatever
+    /// `‖n‖` is, `b2 = n × b1` carries `‖n‖`, and `b1 × b2 = n` holds —
+    /// an ORTHOGONAL pair that is not orthonormal. What the precondition
+    /// buys is orthonormality itself; the conditioning bound
+    /// and the never-selected-poison argument hold at any magnitude,
+    /// because the comparison is scale-invariant. A poisoned input
+    /// propagates poison, and the zero vector — which names no
+    /// direction — poisons.
     pub fn orthonormal_basis(self) -> (Self, Self) {
-        let s = T::one().copysign(self.z);
-        let r = T::one() / (T::one() + self.z.abs());
-        let br = (self.x * self.y) * r;
-        let b1 = Self::new(T::one() - self.x.powi(2) * r, -br, -(s * self.x));
-        let b2 = Self::new(-(s * br), s - s * (self.y.powi(2) * r), -self.y);
-        (b1, b2)
+        let zero = T::zero();
+        let cy = Self::new(self.z, zero, -self.x).normalize();
+        let cz = Self::new(-self.y, self.x, zero).normalize();
+        let d = self.z.abs() - self.x.abs().max(self.y.abs());
+        let b1 = Self::select(d, cz, cy);
+        (b1, self.cross(b1))
+    }
+
+    /// [`Real::select_le_zero`] componentwise on one decision — `when_le`
+    /// if `d ≤ 0`, else `when_gt`.
+    ///
+    /// The SAME `d` steers all three components, which is what makes an
+    /// undecided enclosure the hull of the two candidate VECTORS rather
+    /// than a box over three independent choices.
+    fn select(d: T, when_le: Self, when_gt: Self) -> Self {
+        Self::new(
+            d.select_le_zero(when_le.x, when_gt.x),
+            d.select_le_zero(when_le.y, when_gt.y),
+            d.select_le_zero(when_le.z, when_gt.z),
+        )
     }
 }
 
@@ -915,57 +943,37 @@ mod tests {
             }
         }
 
-        /// The TANGENT channel of BOTH squared components — `b1.x` and
-        /// `b2.y` — against their closed-form derivatives, the channel
-        /// the test above cannot reach.
+        /// The TANGENT channel of the frame, against its closed form —
+        /// the channel the value-channel bit row above cannot reach.
         ///
-        /// The construction is spelled with the denominator's magnitude
-        /// separated from its sign (#1157; constructor docs), and the
-        /// closed form checked here is the ALGEBRAIC one it is equal to:
-        /// with `a = −1/(s + n.z)` and `s` locally constant
-        /// (`copysign`'s kink convention; the seam at `n.z = 0` is
-        /// documented at the constructor), `b1.x = 1 − n.x²/(1 + |n.z|)
-        /// = 1 + (s·n.x²)·a` and `b2.y = s − s·n.y²/(1 + |n.z|) =
-        /// s + n.y²·a`, so
+        /// Away from the 45° cone the axis choice is locally constant,
+        /// so `b1 = v/‖v‖` for the fixed `v = e_k × n`, which is LINEAR
+        /// in `n`; differentiating,
         ///
         /// ```text
-        /// d(b1.x) = 2·s·n.x·a·tx + s·n.x²·tz/(s + n.z)²
-        /// d(b2.y) = 2·n.y·a·ty   +   n.y²·tz/(s + n.z)²
+        /// v'   = e_k × n'
+        /// b1'  = v'/‖v‖ − v·(v·v')/‖v‖³
+        /// b2'  = n' × b1 + n × b1'
         /// ```
         ///
-        /// Well conditioned everywhere on the sphere: `|s + n.z|` is
-        /// `1 + |n.z| ≥ 1` by construction, which is the whole reason
-        /// the two-hemisphere form exists.
+        /// Well conditioned everywhere on the sphere: `‖v‖² = 1 − n_k²`
+        /// is at least `‖n‖²/3` on both arms of the comparison, which
+        /// is the whole reason the comparison is what it is. The row
+        /// therefore
+        /// needs no near-degenerate exclusion — only the cone itself,
+        /// where the derivative does not exist and the program's answer
+        /// is one side's (`prop_assume!` below drops a draw within a
+        /// whisker of it).
         ///
-        /// **`b1.x` is covered here because it is the component both
-        /// production callers consume** (`newell.rs` and `recognize.rs`
-        /// discard `b2`), and because a closed form is the only way to
-        /// check a derivative at all: `f64` has no tangent to compare
-        /// against, so the value-channel test above cannot reach this.
-        ///
-        /// **It is also what checks the respelling in the TANGENT
-        /// channel**, which the value-channel bit row cannot see: the
-        /// two spellings are equal in ℝ, and a respelling that got the
-        /// sign of `dr` wrong would leave every `f64` bit identical and
-        /// every derivative wrong.
-        ///
-        /// **What this test is NOT: a guard on the square's spelling.**
-        /// With `s` exactly `±1`, `Dual::mul`'s `x'·x + x·x'` and
-        /// `Dual::powi`'s `(2·x)·x'` both collapse to `±2·fl(x·x')` —
-        /// 0 bit differences over 300,000 samples in the live regime —
-        /// so writing `b1.x`'s square either way leaves this green. It
-        /// is a **correctness guard against a wrong closed form**: it
-        /// reds on a wrong power, a dropped `s`, or a swapped factor.
-        /// Worth having, and worth not mistaking for the other thing
-        /// given where it sits.
+        /// **What it catches that the value channel cannot**: a wrong
+        /// normalization derivative, a dropped `v·(v·v')` term, or a
+        /// tangent that followed the unchosen candidate — every one of
+        /// which leaves all six `f64` bits identical.
         ///
         /// **The tangents are NOT 1.** `Dual::variable` gives every
-        /// input a tangent of `1.0`, and at `ty = 1` the product rule
-        /// and the power rule agree bit-for-bit (`y + y` is `2·y`) — so
-        /// a fixture built that way exercises the one input at which
-        /// every spelling of a square is identical. Independent random
-        /// tangents are what make this a test of the rule rather than of
-        /// that coincidence.
+        /// input a tangent of `1.0`, at which the product rule and the
+        /// power rule agree bit-for-bit; independent random tangents are
+        /// what make this a test of the rule.
         #[test]
         fn orthonormal_basis_dual_tangent_matches_closed_form(
             v in vec3(),
@@ -976,20 +984,34 @@ mod tests {
             use crate::dual::Dual;
             let n = v.normalize();
             prop_assume!(n.x.is_finite() && n.y.is_finite() && n.z.is_finite());
+            // Off the seam, where the axis choice is locally constant.
+            prop_assume!((n.z.abs() - n.x.abs().max(n.y.abs())).abs() > 1e-6);
+            let t = Vec3::new(tx, ty, tz);
+            let axis = if n.z.abs() <= n.x.abs().max(n.y.abs()) {
+                Vec3::new(0.0, 0.0, 1.0)
+            } else {
+                Vec3::new(0.0, 1.0, 0.0)
+            };
+            let w = axis.cross(n);
+            let wd = axis.cross(t);
+            let norm = w.norm();
+            let b1 = w / norm;
+            let b1d = wd / norm - w * (w.dot(wd) / (norm * norm * norm));
+            let b2d = t.cross(b1) + n.cross(b1d);
             let nd = Vec3::new(
                 Dual::new(n.x, tx),
                 Dual::new(n.y, ty),
                 Dual::new(n.z, tz),
             );
             let (d1, d2) = nd.orthonormal_basis();
-            let s = 1.0f64.copysign(n.z);
-            let a = -1.0 / (s + n.z);
-            let dsq = tz / ((s + n.z) * (s + n.z));
-            let want1 = 2.0 * s * n.x * a * tx + s * n.x * n.x * dsq;
-            let want2 = 2.0 * n.y * a * ty + n.y * n.y * dsq;
-            for (got, want, which) in
-                [(d1.x.deriv, want1, "b1.x"), (d2.y.deriv, want2, "b2.y")]
-            {
+            for (got, want, which) in [
+                (d1.x.deriv, b1d.x, "b1.x"),
+                (d1.y.deriv, b1d.y, "b1.y"),
+                (d1.z.deriv, b1d.z, "b1.z"),
+                (d2.x.deriv, b2d.x, "b2.x"),
+                (d2.y.deriv, b2d.y, "b2.y"),
+                (d2.z.deriv, b2d.z, "b2.z"),
+            ] {
                 let scale = want.abs().max(1.0);
                 prop_assert!(
                     (got - want).abs() <= 1e-12 * scale,
@@ -1000,101 +1022,39 @@ mod tests {
             }
         }
 
-        /// The **±1 scale may cross a square** — a ring fact, kept as
-        /// one: `s·x` is a sign-bit flip, exact, and
-        /// round-to-nearest-even is symmetric under negation, so the
-        /// same rounding survives in both associations.
+        /// **The pinned `f64` spelling, swept bitwise**: `b1` is
+        /// `normalize(e_z × n)` when `|n.z| ≤ max(|n.x|, |n.y|)` and
+        /// `normalize(e_y × n)` otherwise, and `b2` is `n × b1`. The
+        /// reference below writes that out with a raw `if` — the
+        /// spelling the constructor may not use, since a value branch
+        /// does not survive an enclosure scalar — so the two
+        /// derivations are independent and the row measures the door
+        /// rather than restating it.
         ///
-        /// **It no longer has a production consumer in this file.** It
-        /// was `b1.x = 1 + (s·n.x²)·a`'s guard until #1157 respelled the
-        /// construction to `1 − n.x²·r`, which carries no scale across
-        /// its square (constructor docs). The row stays because the
-        /// property is exactly what makes that respelling bit-identical
-        /// — the identity is `s·(x²)·(−s·r) = −(x²·r)`, one ±1 crossing
-        /// a square in each direction — and
-        /// `orthonormal_basis_matches_the_duff_spelling_bitwise` is the
-        /// row that would red if it ever stopped holding.
+        /// The sweep is the drawn direction plus the edge set the
+        /// construction meets: the axes and the equator with both
+        /// signed zeros in `z` (the bits an enclosure cannot see), the
+        /// poles, and the 45° CONE `|n.z| = max(|n.x|, |n.y|)` — the
+        /// discontinuity,
+        /// and the only place a reference and a spelling can disagree
+        /// by a rotation about `n` rather than by an ulp.
         ///
-        /// **`powi(2) == x * x` at `f64` is NOT re-derived here** — it
-        /// is pinned over the full edge set (subnormals, `±0`, `±∞`,
-        /// `MAX`, NaN) by
-        /// `sweep/tests/review_m2_pr4.rs::survives_powi2_bitwise_equals_mul_at_f64`.
-        /// This test is only the scale half, and it is a property of the
-        /// `±1` scale alone: `mat.rs::rotation_about`'s diagonal carries
-        /// an arbitrary `t = 1 − cos θ`, does NOT have it, and is
-        /// guarded separately by
-        /// `mat.rs::tests::rotation_diagonal_takes_the_square_before_the_scale`.
+        /// Poison is out of scope on purpose (NaN bits are not a
+        /// contract — `project_reject_basis_poison` owns that door), so
+        /// a case whose reference frame is not finite is skipped.
         #[test]
-        fn unit_scale_square_reassociates_exactly(x in -1e6f64..1e6) {
-            // The generator reaches none of the interesting magnitudes —
-            // it will essentially never draw a subnormal or a signed
-            // zero and cannot draw a non-finite — so the edge set is
-            // enumerated rather than sampled.
-            let edges = [
-                0.0f64,
-                -0.0,
-                f64::MIN_POSITIVE,
-                f64::MIN_POSITIVE / 4.0,
-                5.0e-324,
-                1.0e160,
-                f64::MAX,
-                f64::INFINITY,
-                f64::NEG_INFINITY,
-            ];
-            for v in core::iter::once(x).chain(edges) {
-                for s in [1.0f64, -1.0] {
-                    prop_assert_eq!(
-                        ((s * v) * v).to_bits(),
-                        (s * <f64 as Real>::powi(v, 2)).to_bits(),
-                        "s = {}, x = {:e}",
-                        s,
-                        v
-                    );
-                }
-            }
-            for s in [1.0f64, -1.0] {
-                prop_assert!(((s * f64::NAN) * f64::NAN).is_nan());
-                prop_assert!((s * <f64 as Real>::powi(f64::NAN, 2)).is_nan());
-            }
-        }
-
-        /// **The `f64` path did not move: measured, not derived.**
-        /// #1157's fix respells the construction so an enclosure scalar
-        /// can see the `s`/`n.z` correlation (constructor docs). The
-        /// claim that costs nothing at `f64` is a claim about BITS, and
-        /// this is where it is paid: every component of both frames,
-        /// against the literal Duff spelling this replaced, to the bit.
-        ///
-        /// **The generator cannot reach the inputs that matter**, so the
-        /// edge set is enumerated beside it: `coord()` never draws a
-        /// zero or a signed zero, and `n.z = ±0.0` — the vertical-plane
-        /// case #1157 is about, and the one place the two spellings
-        /// could disagree on a signed zero — is exactly what the sweep
-        /// would miss. Poison is out of scope here on purpose: NaN bits
-        /// are not a contract (`project_reject_basis_poison` owns that).
-        #[test]
-        fn orthonormal_basis_matches_the_duff_spelling_bitwise(v in vec3()) {
-            /// The spelling in Duff et al. §3, verbatim, as the kernel
-            /// carried it before #1157 — `a = −1/(s + n.z)` with the
-            /// sum written literally.
-            fn duff(n: Vec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
-                let s = <f64 as Real>::copysign(1.0, n.z);
-                let a = -1.0 / (s + n.z);
-                let b = (n.x * n.y) * a;
-                (
-                    Vec3::new(
-                        1.0 + (s * <f64 as Real>::powi(n.x, 2)) * a,
-                        s * b,
-                        -(s * n.x),
-                    ),
-                    Vec3::new(b, s + <f64 as Real>::powi(n.y, 2) * a, -n.y),
-                )
+        fn orthonormal_basis_matches_the_pinned_spelling_bitwise(v in vec3()) {
+            /// The comparison, with the branch written out.
+            fn reference(n: Vec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
+                let axis = if n.z.abs() <= n.x.abs().max(n.y.abs()) {
+                    Vec3::new(-n.y, n.x, 0.0)
+                } else {
+                    Vec3::new(n.z, 0.0, -n.x)
+                };
+                let b1 = axis.normalize();
+                (b1, n.cross(b1))
             }
             let mut cases = vec![v, v.normalize(), Vec3::new(v.x, v.y, 0.0)];
-            // The equator and the axes, with both signed zeros in `z`
-            // (the sign bit `copysign` reads and an enclosure cannot),
-            // the poles, and the near-pole direction the naive formula
-            // fails on.
             for z in [0.0f64, -0.0] {
                 for (x, y) in [
                     (1.0f64, 0.0f64), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0),
@@ -1111,9 +1071,25 @@ mod tests {
                 Vec3::new(0.6, 0.8, -1e-12).normalize(),
                 Vec3::new(f64::MIN_POSITIVE, 1.0, -0.0),
             ]);
+            // The 45° cone itself and both sides of it, at several
+            // azimuths and both hemispheres.
+            let half = core::f64::consts::FRAC_1_SQRT_2;
+            for d in [0.0f64, 1e-12, -1e-12] {
+                for (x, y) in [(1.0f64, 0.0f64), (0.0, 1.0), (0.6, 0.8), (-0.6, 0.8)] {
+                    for s in [1.0f64, -1.0] {
+                        let z = s * (half + d);
+                        let r = (1.0 - z * z).max(0.0).sqrt();
+                        cases.push(Vec3::new(x * r, y * r, z));
+                    }
+                }
+            }
             for n in cases {
+                let (w1, w2) = reference(n);
+                let finite = |a: Vec3<f64>| a.x.is_finite() && a.y.is_finite() && a.z.is_finite();
+                if !finite(w1) || !finite(w2) {
+                    continue;
+                }
                 let (g1, g2) = n.orthonormal_basis();
-                let (w1, w2) = duff(n);
                 for (got, want, which) in [
                     (g1.x, w1.x, "b1.x"), (g1.y, w1.y, "b1.y"), (g1.z, w1.z, "b1.z"),
                     (g2.x, w2.x, "b2.x"), (g2.y, w2.y, "b2.y"), (g2.z, w2.z, "b2.z"),
@@ -1128,20 +1104,40 @@ mod tests {
         }
     }
 
-    /// The classic failure directions ±z (where the naive `1/(1 + n.z)`
-    /// construction cancels catastrophically), the equator seam, and
-    /// near-pole continuity.
+    /// The conventional frames at the axes, at a vertical wall and at a
+    /// horizontal cap, continuity away from the seam, and the seam
+    /// itself — the 45° cone `|n.z| = max(|n.x|, |n.y|)`.
     #[test]
-    fn orthonormal_basis_poles_and_equator() {
-        // Exactly +z and −z: exact frames (all arithmetic on 0s and 1s).
+    fn orthonormal_basis_poles_walls_and_the_cone() {
+        // A horizontal cap: `|n.z| > max(|n.x|, |n.y|)` takes the `e_y` arm, and
+        // the frame is the one a draughtsman draws — `x` across, `y` up
+        // the page.
         let (b1, b2) = Vec3::<f64>::unit_z().orthonormal_basis();
-        assert_eq!((b1.x, b1.y, b1.z), (1.0, 0.0, -0.0));
-        assert_eq!((b2.x, b2.y, b2.z), (0.0, 1.0, -0.0));
+        assert_eq!((b1.x, b1.y, b1.z), (1.0, 0.0, 0.0));
+        assert_eq!((b2.x, b2.y, b2.z), (0.0, 1.0, 0.0));
         let (b1, b2) = (-Vec3::<f64>::unit_z()).orthonormal_basis();
-        assert_eq!((b1.x, b1.y, b1.z), (1.0, -0.0, -0.0));
-        assert_eq!((b2.x, b2.y, b2.z), (-0.0, -1.0, -0.0));
-        // Near −z (the killer for the naive formula): still orthonormal
-        // to a few ulps.
+        assert_eq!((b1.x, b1.y, b1.z), (-1.0, 0.0, 0.0));
+        assert_eq!((b2.x, b2.y, b2.z), (0.0, 1.0, 0.0));
+        // The other four axis directions, each an exact frame.
+        for (n, w1, w2) in [
+            (Vec3::unit_x(), Vec3::unit_y(), Vec3::<f64>::unit_z()),
+            (-Vec3::<f64>::unit_x(), -Vec3::unit_y(), Vec3::unit_z()),
+            (Vec3::<f64>::unit_y(), -Vec3::unit_x(), Vec3::unit_z()),
+            (-Vec3::<f64>::unit_y(), Vec3::unit_x(), Vec3::unit_z()),
+        ] {
+            let (b1, b2) = n.orthonormal_basis();
+            assert_eq!((b1.x, b1.y, b1.z), (w1.x, w1.y, w1.z), "b1 at {n:?}");
+            assert_eq!((b2.x, b2.y, b2.z), (w2.x, w2.y, w2.z), "b2 at {n:?}");
+        }
+        // A vertical wall — the whole equator, where `n.z² = 0` takes
+        // the `e_z` arm: `b1` is horizontal in the plane and `b2` is
+        // up. The old sign-transfer construction put its seam here.
+        let wall = Vec3::new(0.6, 0.8, 0.0);
+        let (b1, b2) = wall.orthonormal_basis();
+        assert_eq!((b1.x, b1.y, b1.z), (-0.8, 0.6, 0.0));
+        assert_eq!((b2.x, b2.y, b2.z), (0.0, 0.0, 1.0));
+        // Near a pole (the direction the naive `1/(1 + n.z)` spelling
+        // cancels on): still orthonormal to a few ulps.
         let n = Vec3::new(1e-9, -1e-9, -1.0).normalize();
         let (b1, b2) = n.orthonormal_basis();
         assert!((b1.norm() - 1.0).abs() <= 1e-14);
@@ -1149,27 +1145,48 @@ mod tests {
         assert!(b1.dot(b2).abs() <= 1e-14);
         assert!(b1.dot(n).abs() <= 1e-14);
         assert!(b2.dot(n).abs() <= 1e-14);
-        // Continuity on each side of the equator seam: two nearby
-        // normals on the SAME side give nearby frames…
+        // Continuity across the equator, which is no longer a seam: two
+        // normals a picometre either side of `n.z = 0` give frames a
+        // picometre apart.
         let above = Vec3::new(0.6, 0.8, 1e-12).normalize();
-        let above2 = Vec3::new(0.6, 0.8, 2e-12).normalize();
-        let (a1, _) = above.orthonormal_basis();
-        let (a1b, _) = above2.orthonormal_basis();
-        assert!((a1.x - a1b.x).abs() <= 1e-9);
-        assert!((a1.y - a1b.y).abs() <= 1e-9);
-        assert!((a1.z - a1b.z).abs() <= 1e-9);
-        // …while crossing the seam flips the frame (the documented
-        // discontinuity: s jumps from +1 to −1): above the equator
-        // b1.z = −(s·n.x) ≈ −0.6, below it ≈ +0.6.
-        assert!((a1.z - -0.6).abs() <= 1e-9, "a1.z = {}", a1.z);
         let below = Vec3::new(0.6, 0.8, -1e-12).normalize();
-        let (c1, c2) = below.orthonormal_basis();
-        assert!((c1.z - 0.6).abs() <= 1e-9, "c1.z = {}", c1.z);
-        // Both sides are still perfectly valid right-handed frames.
-        let cross = c1.cross(c2);
-        assert!((cross.x - below.x).abs() <= 1e-14);
-        assert!((cross.y - below.y).abs() <= 1e-14);
-        assert!((cross.z - below.z).abs() <= 1e-14);
+        let (a1, _) = above.orthonormal_basis();
+        let (c1, _) = below.orthonormal_basis();
+        assert!(
+            (a1.x - c1.x).abs() <= 1e-11,
+            "a1.x = {}, c1.x = {}",
+            a1.x,
+            c1.x
+        );
+        assert!((a1.y - c1.y).abs() <= 1e-11);
+        assert!((a1.z - c1.z).abs() <= 1e-11);
+        // The seam that does exist: the 45° cone `|n.z| = max(|n.x|, |n.y|)`, which
+        // carries no axis direction and no axis-aligned face. Crossing
+        // it turns the frame a QUARTER TURN about `n` — the two
+        // candidates are orthogonal there, since
+        // `c_z · c_y = −n.y·n.z/((1 − n.z²)^½(1 − n.y²)^½)` and this
+        // fixture's `n.y` is zero — and never a flip. Both sides are
+        // exact right-handed frames of the same plane.
+        let half = core::f64::consts::FRAC_1_SQRT_2;
+        let on = |z: f64| Vec3::new((1.0 - z * z).sqrt(), 0.0, z);
+        let left = on(half - 1e-12);
+        let right = on(half + 1e-12);
+        let (l1, l2) = left.orthonormal_basis();
+        let (r1, r2) = right.orthonormal_basis();
+        assert!(
+            l1.dot(r1).abs() <= 1e-9,
+            "the cone's rotation is not a quarter turn: {}",
+            l1.dot(r1)
+        );
+        assert!((l1.dot(r2).abs() - 1.0).abs() <= 1e-9);
+        for (b1, b2, n) in [(l1, l2, left), (r1, r2, right)] {
+            let cross = b1.cross(b2);
+            assert!((cross.x - n.x).abs() <= 1e-14);
+            assert!((cross.y - n.y).abs() <= 1e-14);
+            assert!((cross.z - n.z).abs() <= 1e-14);
+            assert!(b1.dot(n).abs() <= 1e-14);
+            assert!(b2.dot(n).abs() <= 1e-14);
+        }
     }
 
     /// Poison propagation and the zero-`onto` totality outcome for
@@ -1187,10 +1204,11 @@ mod tests {
         assert!(poisoned.1.x.is_nan());
     }
 
-    /// The basis construction at the interval scalar: instantiates, and
-    /// the orthonormality residuals (dot products, norm² − 1) enclose 0
-    /// for a point-enclosure unit input — the containment form of the
-    /// f64 properties above.
+    /// The basis construction at the interval scalar: instantiates, the
+    /// orthonormality residuals enclose 0 for a point-enclosure unit
+    /// input (the containment form of the `f64` properties above), and
+    /// the two answers the axis order gives an enclosure — decided and
+    /// hulled — are both honest.
     #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_interval_residuals() {
@@ -1212,34 +1230,86 @@ mod tests {
         assert!(contains_zero(b2.dot(n)));
         assert!(contains_zero(b1.norm_squared() - Interval::one()));
         assert!(contains_zero(b2.norm_squared() - Interval::one()));
-        // A z-straddling enclosure crosses the seam: copysign's honest
-        // two-sided behavior widens rather than deciding — no poison,
-        // no branch, the enclosure just gets wide (and b1.z = −(s·x)
-        // spans both frames' values).
+        // A `z`-straddling enclosure at a WALL is not a seam any more:
+        // `|n.z|` is nowhere near `max(|n.x|, |n.y|)`, so it DECIDES and
+        // the frame comes back exactly horizontal.
         let straddle = Vec3::new(
             Interval::from_f64(0.6),
             Interval::from_f64(0.8),
             Interval::from_bounds(-1e-12, 1e-12),
         );
         let (s1, _) = straddle.orthonormal_basis();
-        assert!(s1.z.lo() <= -0.59 && s1.z.hi() >= 0.59);
+        assert!(
+            s1.z.lo() == 0.0 && s1.z.hi() == 0.0,
+            "a straddling n.z still widens the frame: [{}, {}]",
+            s1.z.lo(),
+            s1.z.hi()
+        );
+        assert!((s1.x.hi() - s1.x.lo()) <= 8.0 * f64::EPSILON);
+        // The seam that IS one: an enclosure straddling the 45° cone
+        // `|n.z| = max(|n.x|, |n.y|)`. The door hulls the two candidate frames —
+        // bounded, decorated `Def`, never a manufactured non-real — and
+        // the hull contains BOTH of the frames the box's points take.
+        let half = core::f64::consts::FRAC_1_SQRT_2;
+        let tie = Vec3::new(
+            Interval::from_f64(half),
+            Interval::from_f64(0.0),
+            Interval::from_bounds(half - 1e-6, half + 1e-6),
+        );
+        let (t1, t2) = tie.orthonormal_basis();
+        for (e, which) in [
+            (t1.x, "b1.x"),
+            (t1.y, "b1.y"),
+            (t1.z, "b1.z"),
+            (t2.x, "b2.x"),
+            (t2.y, "b2.y"),
+            (t2.z, "b2.z"),
+        ] {
+            assert!(
+                e.lo().is_finite() && e.hi().is_finite() && e.is_certified(),
+                "{which} at the tie is not a usable enclosure: [{}, {}]",
+                e.lo(),
+                e.hi()
+            );
+        }
+        for z in [half - 1e-6, half + 1e-6] {
+            let (f1, _) = Vec3::new(half, 0.0, z).normalize().orthonormal_basis();
+            for (e, v, which) in [
+                (t1.x, f1.x, "b1.x"),
+                (t1.y, f1.y, "b1.y"),
+                (t1.z, f1.z, "b1.z"),
+            ] {
+                assert!(
+                    e.lo() <= v && v <= e.hi(),
+                    "{which}: the f64 frame at n.z = {z} gives {v}, outside [{}, {}]",
+                    e.lo(),
+                    e.hi()
+                );
+            }
+        }
     }
 
-    /// **The GENERAL `n.z` enclosure, not just the point one #1157
-    /// filed** — the row that would have caught the partial fix.
+    /// **Bounded and certified over every `n.z` enclosure** — one-sided,
+    /// straddling zero, strictly signed and degenerate, the enclosures
+    /// a subdivision driver actually produces at a wall — and over a
+    /// tight enclosure straddling the 45° cone, where the answer is the
+    /// hull of two unit candidates, and over a whole meridian, which
+    /// the comparison still decides.
     ///
-    /// #1157 reported `n.z = [0, 0]`, and a denominator written
-    /// `1 + s·n.z` fixes exactly that case and no other: `copysign` at
-    /// `Interval` is strict on both sides, so ANY `n.z` enclosure
-    /// touching zero yields `s = [−1, 1]` and the product straddles.
-    /// `1 + |n.z|` needs no sign decision at all. The two are
-    /// bit-identical at `f64`, so no `f64` row can separate them — this
-    /// is the one that does.
+    /// **The limit, measured rather than implied**: an unbounded answer
+    /// needs a box containing the ZERO VECTOR, which names no direction
+    /// (the constructor's docs derive this). The row measures that too.
     ///
-    /// The second half is a REGRESSION GUARD with teeth: it measures
-    /// the old spelling directly and requires it to be unbounded at
-    /// `n.z = [0, 1]`. If someone respells the denominator back, this
-    /// reds instead of going quiet.
+    /// The second half is a REGRESSION GUARD with teeth on the one
+    /// ordering decision the construction makes: it measures the
+    /// select-THEN-normalize spelling directly and requires it to be
+    /// unbounded at a straddled cone. The hull of two un-normalized
+    /// candidates contains the zero vector there, so dividing it by its
+    /// own norm enclosure manufactures a non-real from a question that
+    /// is real at every point of the box (DL6). Normalizing each
+    /// candidate FIRST makes the same answer the hull of two unit
+    /// vectors. If someone reorders those two steps, this reds instead
+    /// of going quiet.
     #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_is_bounded_over_z_enclosures() {
@@ -1248,20 +1318,24 @@ mod tests {
 
         let iv = Interval::from_f64;
         let ivb = Interval::from_bounds;
-        // One-sided, straddling, strictly-signed and degenerate: the
-        // enclosures a subdivision driver actually produces.
+        let half = core::f64::consts::FRAC_1_SQRT_2;
         let zs = [
             ("[0,0]", ivb(0.0, 0.0)),
-            ("[0,1]", ivb(0.0, 1.0)),
-            ("[-1,0]", ivb(-1.0, 0.0)),
-            ("[-1,1]", ivb(-1.0, 1.0)),
-            ("[0.5,1]", ivb(0.5, 1.0)),
-            ("[-1,-0.5]", ivb(-1.0, -0.5)),
+            ("[-1e-9,1e-9]", ivb(-1e-9, 1e-9)),
+            ("[0,0.5]", ivb(0.0, 0.5)),
+            ("[-0.5,0]", ivb(-0.5, 0.0)),
+            ("[0.9,1]", ivb(0.9, 1.0)),
+            ("[-1,-0.9]", ivb(-1.0, -0.9)),
             ("[0,1e-30]", ivb(0.0, 1e-30)),
+            // Tight, straddling the cone: the hull of two unit
+            // candidates, which must still be bounded and certified.
+            ("cone±1e-9", ivb(half - 1e-9, half + 1e-9)),
+            ("-cone±1e-9", ivb(-half - 1e-9, -half + 1e-9)),
         ];
         for (name, z) in zs {
-            for (x, y) in [(0.0f64, 1.0f64), (1.0, 0.0), (0.6, 0.8), (0.0, 0.0)] {
-                let (b1, b2) = Vec3::new(iv(x), iv(y), z).orthonormal_basis();
+            for (x, y) in [(0.0f64, 1.0f64), (1.0, 0.0), (0.6, 0.8)] {
+                let r = (1.0 - z.hi() * z.hi()).max(0.0).sqrt();
+                let (b1, b2) = Vec3::new(iv(x * r), iv(y * r), z).orthonormal_basis();
                 for (e, which) in [
                     (b1.x, "b1.x"),
                     (b1.y, "b1.y"),
@@ -1287,102 +1361,123 @@ mod tests {
                 }
             }
         }
-        // The regression guard: `1 + s·n.z` — the spelling this
-        // replaced — is measurably NOT bounded at `[0, 1]`, which is
-        // what makes the token load-bearing rather than cosmetic.
-        let z = ivb(0.0, 1.0);
-        let s = Interval::one().copysign(z);
-        let old = Interval::one() / (Interval::one() + s * z);
-        assert!(
-            !old.lo().is_finite() || !old.hi().is_finite() || !old.is_certified(),
-            "the `1 + s·n.z` spelling is supposed to fail at [0, 1]; it gave \
-             [{}, {}] certified = {} — if this now holds, the guard is stale",
-            old.lo(),
-            old.hi(),
-            old.is_certified()
+        // A whole meridian at the azimuth whose `e_y` candidate
+        // degenerates: still DECIDED, because `max(|n.x|, |n.y|)` is 1
+        // there and `|n.z|` never exceeds it.
+        let (wide, _) = Vec3::new(iv(0.0), iv(1.0), ivb(0.0, 1.0)).orthonormal_basis();
+        for (e, want, which) in [(wide.x, -1.0, "b1.x"), (wide.y, 0.0, "b1.y")] {
+            assert!(
+                e.lo() == want && e.hi() == want,
+                "{which} over a whole meridian: [{}, {}] is not the exact {want}",
+                e.lo(),
+                e.hi()
+            );
+        }
+        // The limit: a box containing the zero vector, which names no
+        // direction. Recorded, not demanded.
+        let (origin, _) =
+            Vec3::new(ivb(-1.0, 1.0), ivb(-1.0, 1.0), ivb(-1.0, 1.0)).orthonormal_basis();
+        println!(
+            "note: n = [-1, 1]^3 (contains the zero vector) gives b1.x = [{}, {}] \
+             (bounded: {})",
+            origin.x.lo(),
+            origin.x.hi(),
+            origin.x.lo().is_finite() && origin.x.hi().is_finite()
         );
-        // …and the shipped one is bounded and certified on the same input.
-        let new = Interval::one() / (Interval::one() + z.abs());
-        assert!(new.lo().is_finite() && new.hi().is_finite() && new.is_certified());
+        // The guard: a straddled cone, where the two un-normalized
+        // candidates' hull contains the zero vector.
+        let n = Vec3::new(iv(half), iv(0.0), ivb(half - 1e-9, half + 1e-9));
+        let d = n.z.abs() - n.x.abs().max(n.y.abs());
+        let cz = Vec3::new(-n.y, n.x, Interval::zero());
+        let cy = Vec3::new(n.z, Interval::zero(), -n.x);
+        let hull = Vec3::new(
+            d.select_le_zero(cz.x, cy.x),
+            d.select_le_zero(cz.y, cy.y),
+            d.select_le_zero(cz.z, cy.z),
+        );
+        let late = hull.normalize();
+        assert!(
+            !late.x.lo().is_finite() || !late.x.hi().is_finite() || !late.x.is_certified(),
+            "select-then-normalize is supposed to fail at a straddled cone; it gave \
+             [{}, {}] certified = {} — if this now holds, the guard is stale",
+            late.x.lo(),
+            late.x.hi(),
+            late.x.is_certified()
+        );
+        // …and the shipped ordering is bounded and certified there.
+        let (b1, _) = n.orthonormal_basis();
+        assert!(b1.x.lo().is_finite() && b1.x.hi().is_finite() && b1.x.is_certified());
     }
 
-    /// **#1157, at the input that manufactured the poison.** A VERTICAL
-    /// plane's normal has `n.z = [0, 0]`, which contains zero without
-    /// straddling it, so `copysign` must return the two-sided hull
-    /// `[−1, 1]` — and the old spelling then divided by it. Every
-    /// component here is BOUNDED and carries a decoration that may
-    /// decide (`Def` or better); the `n.x = 0` case, which is what
-    /// `newell_plane` hands the extrude side-wall builder, is the EXACT
-    /// frame.
+    /// **The equator, at the input the sign-transfer construction could
+    /// not answer.** A VERTICAL plane's normal has `n.z = 0`, so
+    /// `|n.z| = 0 ≤ max(|n.x|, |n.y|)` DECIDES: the frame is the EXACT in-plane
+    /// horizontal, not a bounded hull of two hemispheres. The
+    /// comparison reads a squared value and not a sign bit, so `+0.0`
+    /// and `−0.0` give the same answer and a point enclosure of either
+    /// decides.
     ///
-    /// The residual width in `b1.z` and `b2` is not slack: at `[0, 0]`
-    /// the enclosure genuinely cannot tell `+0.0` from `−0.0`, the two
-    /// give different (both valid, both right-handed) frames, and the
-    /// hull of the two is the honest answer. It is asserted as the hull,
-    /// so a future spelling that narrowed it by DECIDING the sign would
-    /// red here.
+    /// The horizontal cap `n = ±e_z` is the other exact case, at the
+    /// far end of the same comparison (`|n.z| = 1 > 0`).
     #[cfg(feature = "interval")]
     #[test]
-    fn orthonormal_basis_at_a_vertical_plane_is_bounded_and_certified() {
+    fn orthonormal_basis_at_a_vertical_plane_and_a_cap_is_exact() {
         use crate::interval::Interval;
         use crate::real::Bounds;
 
         let iv = |x: f64| Interval::from_f64(x);
+        let exact = |e: Interval, want: f64, which: &str, n: (f64, f64, f64)| {
+            assert!(
+                e.lo() == want && e.hi() == want,
+                "{which} at n = {n:?}: [{}, {}] is not the exact {want}",
+                e.lo(),
+                e.hi()
+            );
+        };
         for zero in [0.0f64, -0.0] {
-            for (x, y) in [(0.0f64, 1.0f64), (0.0, -1.0), (1.0, 0.0), (0.6, 0.8)] {
+            // Axis-aligned vertical walls: exact frames, both signs of
+            // the zero, in both directions.
+            for (x, y) in [(0.0f64, 1.0f64), (0.0, -1.0), (1.0, 0.0), (-1.0, 0.0)] {
                 let n = Vec3::new(iv(x), iv(y), iv(zero));
                 let (b1, b2) = n.orthonormal_basis();
-                let f = Vec3::new(x, y, zero).orthonormal_basis();
-                for (e, v, which) in [
-                    (b1.x, f.0.x, "b1.x"),
-                    (b1.y, f.0.y, "b1.y"),
-                    (b1.z, f.0.z, "b1.z"),
-                    (b2.x, f.1.x, "b2.x"),
-                    (b2.y, f.1.y, "b2.y"),
-                    (b2.z, f.1.z, "b2.z"),
+                for (e, want, which) in [
+                    (b1.x, -y, "b1.x"),
+                    (b1.y, x, "b1.y"),
+                    (b1.z, 0.0, "b1.z"),
+                    (b2.x, 0.0, "b2.x"),
+                    (b2.y, 0.0, "b2.y"),
+                    (b2.z, 1.0, "b2.z"),
                 ] {
-                    assert!(
-                        e.lo().is_finite() && e.hi().is_finite(),
-                        "{which} at n = ({x}, {y}, {zero}) is unbounded: [{}, {}]",
-                        e.lo(),
-                        e.hi()
-                    );
-                    assert!(
-                        e.is_certified(),
-                        "{which} at n = ({x}, {y}, {zero}) cannot decide: [{}, {}]",
-                        e.lo(),
-                        e.hi()
-                    );
-                    assert!(
-                        e.lo() <= v && v <= e.hi(),
-                        "{which} at n = ({x}, {y}, {zero}): f64 {v} outside [{}, {}]",
-                        e.lo(),
-                        e.hi()
-                    );
+                    exact(e, want, which, (x, y, zero));
                 }
-                // The frame flip is enclosed on BOTH sides, never decided.
-                assert!(
-                    b1.z.lo() <= -x && x <= b1.z.hi(),
-                    "b1.z at n = ({x}, {y}, {zero}) drops a hemisphere: [{}, {}]",
-                    b1.z.lo(),
-                    b1.z.hi()
-                );
             }
-            // `newell_plane`'s own case: an axis-aligned vertical plane
-            // with `n.x = 0` gets the exact frame, not merely a bounded
-            // one — the chart residual it feeds is then exactly zero.
-            let (b1, _) = Vec3::new(iv(0.0), iv(-1.0), iv(zero)).orthonormal_basis();
-            for (e, want, which) in [
-                (b1.x, 1.0, "b1.x"),
-                (b1.y, 0.0, "b1.y"),
-                (b1.z, 0.0, "b1.z"),
-            ] {
+            // A wall off the axes: not exact (the normalization rounds),
+            // but tight — no hemisphere is hulled in.
+            let (b1, _) = Vec3::new(iv(0.6), iv(0.8), iv(zero)).orthonormal_basis();
+            for (e, which) in [(b1.x, "b1.x"), (b1.y, "b1.y"), (b1.z, "b1.z")] {
                 assert!(
-                    e.lo() == want && e.hi() == want,
-                    "{which}: [{}, {}] is not the exact {want}",
+                    e.hi() - e.lo() <= 8.0 * f64::EPSILON,
+                    "{which} at a wall is not tight: [{}, {}]",
                     e.lo(),
                     e.hi()
                 );
+            }
+        }
+        // The horizontal cap, both poles and both zeros in x and y.
+        for zx in [0.0f64, -0.0] {
+            for s in [1.0f64, -1.0] {
+                let n = Vec3::new(iv(zx), iv(zx), iv(s));
+                let (b1, b2) = n.orthonormal_basis();
+                for (e, want, which) in [
+                    (b1.x, s, "b1.x"),
+                    (b1.y, 0.0, "b1.y"),
+                    (b1.z, 0.0, "b1.z"),
+                    (b2.x, 0.0, "b2.x"),
+                    (b2.y, 1.0, "b2.y"),
+                    (b2.z, 0.0, "b2.z"),
+                ] {
+                    exact(e, want, which, (zx, zx, s));
+                }
             }
         }
     }

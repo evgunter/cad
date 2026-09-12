@@ -645,21 +645,33 @@ fn copysign_sign_tangent_discard_at_the_jump() {
 }
 
 // ---------------------------------------------------------------------
-// 3. The Duff basis: adversarial directions
+// 3. The axis-order basis: adversarial directions
 // ---------------------------------------------------------------------
 
-/// Ulp-straddles of the equator and the signed-zero seam: the flip
-/// happens EXACTLY at the sign bit of n.z, and both sides are
-/// orthonormal right-handed frames.
+/// The equator is NOT a seam: `|n.z|` is the strict smallest magnitude
+/// at a wall, so the axis choice is the same on both sides of it and on
+/// both signed zeros — the tie-break reads the value, not the sign bit.
+/// Every frame is an orthonormal right-handed one.
 #[test]
-fn basis_equator_seam_is_exactly_the_sign_bit() {
+fn basis_equator_is_not_a_seam() {
     let base = Vec3::new(0.6, 0.8, 0.0);
-    // +0.0 vs −0.0: the seam splits the two zeros.
+    // +0.0 vs −0.0: one frame, bitwise, and it is the in-plane
+    // horizontal.
     let (p1, p2) = Vec3::new(base.x, base.y, 0.0f64).orthonormal_basis();
     let (m1, m2) = Vec3::new(base.x, base.y, -0.0f64).orthonormal_basis();
-    assert!((p1.z - -0.6).abs() <= 1e-15, "b1.z above seam: {}", p1.z);
-    assert!((m1.z - 0.6).abs() <= 1e-15, "b1.z below seam: {}", m1.z);
-    // Smallest subnormal straddle: same flip, still orthonormal.
+    for (a, b, which) in [
+        (p1.x, m1.x, "b1.x"),
+        (p1.y, m1.y, "b1.y"),
+        (p1.z, m1.z, "b1.z"),
+        (p2.z, m2.z, "b2.z"),
+    ] {
+        assert_eq!(a.to_bits(), b.to_bits(), "{which} splits the two zeros");
+    }
+    assert!((p1.x - -0.8).abs() <= 1e-15, "b1.x: {}", p1.x);
+    assert!((p1.y - 0.6).abs() <= 1e-15, "b1.y: {}", p1.y);
+    assert_eq!(p1.z, 0.0, "b1 is horizontal in the plane");
+    assert!((p2.z - 1.0).abs() <= 1e-15, "b2 is up: {}", p2.z);
+    // Smallest subnormal straddle: still one frame, still orthonormal.
     let tiny = 5e-324;
     for nz in [tiny, -tiny] {
         let n = Vec3::new(0.6, 0.8, nz); // ||n|| = 1 + O(ulp): unit to f64
@@ -679,19 +691,31 @@ fn basis_equator_seam_is_exactly_the_sign_bit() {
     }
 }
 
-/// Non-unit input to orthonormal_basis: documented garbage-out (no
-/// poison, no panic, NOT orthonormal) — pin the documented posture.
+/// Non-unit input to orthonormal_basis: the documented posture, which
+/// the construction makes a precise one rather than "garbage". `b1` is
+/// `normalize(e_k × n)` and is therefore unit and orthogonal to `n`
+/// whatever `‖n‖` is; `b2 = n × b1` carries `‖n‖`, so the pair is
+/// ORTHOGONAL but not orthonormal — and `b1 × b2 = n` still holds
+/// exactly.
 #[test]
-fn basis_non_unit_garbage_out() {
-    let n = Vec3::new(0.0, 0.0, 2.0);
-    let (b1, b2) = n.orthonormal_basis();
-    assert!(!b1.x.is_nan() && !b2.y.is_nan(), "well-defined");
-    // And it is genuinely garbage (not secretly normalized):
-    let c = b1.cross(b2);
-    assert!(
-        (c.z - n.z).abs() > 0.5,
-        "cross = {c:?} ≠ n — garbage as documented"
-    );
+fn basis_non_unit_is_orthogonal_but_not_orthonormal() {
+    for n in [
+        Vec3::new(0.0, 0.0, 2.0),
+        Vec3::new(3.0, 0.0, 0.0),
+        Vec3::new(0.3, 0.4, 0.0),
+    ] {
+        let (b1, b2) = n.orthonormal_basis();
+        assert!(!b1.x.is_nan() && !b2.y.is_nan(), "well-defined at {n:?}");
+        assert!((b1.norm() - 1.0).abs() <= 1e-15, "b1 is unit at {n:?}");
+        assert!(
+            (b2.norm() - n.norm()).abs() <= 1e-15 * n.norm(),
+            "b2 carries the input's magnitude at {n:?}: {}",
+            b2.norm()
+        );
+        assert!(b1.dot(n).abs() <= 1e-15 * n.norm());
+        assert!(b1.dot(b2).abs() <= 1e-15 * n.norm());
+        assert!(close(b1.cross(b2), n, 1e-15), "b1 × b2 = n at {n:?}");
+    }
 }
 
 // ---------------------------------------------------------------------
