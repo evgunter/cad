@@ -534,16 +534,20 @@ impl core::fmt::Display for OffsetFitError {
             Self::Meter(e) => write!(f, "fit_offset refused at a door meter: {e}"),
             Self::PatchBound(e) => write!(f, "fit_offset: {e}"),
             Self::Fit(e) => write!(f, "fit_offset: the interpolation stack refused: {e}"),
-            Self::Structure(e) => write!(f, "fit_offset: spline structure refused: {e:?}"),
+            Self::Structure(e) => write!(f, "fit_offset: spline structure refused: {e}"),
             Self::InvalidRequest { d, tolerance } => write!(
                 f,
                 "fit_offset: the request is not fittable — offset distance {d} m must be \
-                 finite and non-zero, tolerance {tolerance} m finite and positive"
+                 finite and non-zero, tolerance {tolerance} m finite and positive; both are \
+                 this call's own arguments, so supply them from the request rather than \
+                 from a derived quantity that went non-finite"
             ),
             Self::NonFiniteSample { uv } => write!(
                 f,
                 "fit_offset: the base surface evaluated to a non-finite offset point at \
-                 (u, v) = ({}, {}) — poison in, refusal out",
+                 (u, v) = ({}, {}) — poison in, refusal out: the door meters admitted this \
+                 sample in bound, so the base's own description is what to repair, not the \
+                 offset request",
                 uv.0, uv.1
             ),
             Self::BudgetExhausted {
@@ -619,14 +623,18 @@ impl core::fmt::Display for OffsetFitError {
                 "fit_offset: the refinement loop STALLED on a {}x{} sample grid after \
                  {rounds} rounds — bisecting every failing cell in both directions did \
                  not lower the achieved sup bound of {achieved} m, against a tolerance \
-                 of {tolerance} m, so the remaining round budget cannot reach it; \
-                 nothing uncertified is returned",
+                 of {tolerance} m, so the remaining round budget cannot reach it and \
+                 raising OFFSET_FIT_BUDGET will not either; loosen the tolerance to \
+                 something this fit's structure reaches on this patch; nothing \
+                 uncertified is returned",
                 grid.0, grid.1
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
                 "the window (u {:?}, v {:?}) is not the base's own chart rectangle, and the \
-                 offset certificate covers that rectangle only",
+                 offset certificate covers that rectangle only — ask for the certificate \
+                 over the base's own chart rectangle; a narrower claim is a bound this \
+                 derivation never proved",
                 window.u, window.v
             ),
             Self::Limb {
@@ -635,7 +643,11 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: {} measured {bound} m against a tolerance of {tolerance} m",
+                "fit_offset: {} measured {bound} m against a tolerance of {tolerance} m \
+                 — a fit handed in does not certify at the tolerance asked (an on-locus \
+                 max above it is a fit wrong where the samples looked; a hull sup above it \
+                 is a bound too weak between them), so re-fit through fit_offset at this \
+                 tolerance rather than accepting the stored certificate",
                 limb.name()
             ),
         }
@@ -2243,5 +2255,143 @@ mod tests {
         let (mu, mv) = directional_mark(&us, &vs, &failing, 3.0, 3.0);
         assert_eq!(mu, vec![true, false]);
         assert_eq!(mv, vec![false, false]);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod recourse_tests {
+    use super::{OffsetFitError, OffsetLimb};
+    use crate::offset_meters::MeterError;
+    use crate::patch_bound::PatchBoundError;
+    use geom::curves::fit::FitError;
+    use geom_core::spline::SplineError;
+
+    /// **The recourse claim for the carrier tier 3 renders whole.**
+    /// `ValidationError::ApproxCertification { error }` contributes a
+    /// face key and nothing else, so whatever this enum fails to say is
+    /// absent from the message a user reads there.
+    ///
+    /// **Reading changed the verdict on this enum more than on any
+    /// other in the chain**, and the row records the outcome rather
+    /// than the sweep: four renderings already pointed at a lever
+    /// before this change — `BudgetExhausted` at `OFFSET_FIT_BUDGET`,
+    /// `SampleCapReached` at `OFFSET_FIT_SAMPLE_CAP`, and
+    /// `BoundNotFinite` at the limb's floors or at the schedule,
+    /// depending on `last_finite` — so what the vocabulary below
+    /// accepts is "the lever is X" as readily as an imperative. A row
+    /// that demanded a verb would have rewritten four correct messages.
+    ///
+    /// **The four delegating arms are asserted differently.** An arm is
+    /// checked TRANSITIVELY only where its carrier has an enforcement
+    /// row of its own, and none of `MeterError`, `PatchBoundError`,
+    /// `FitError` or `SplineError` has one — so for those four this row
+    /// asserts the DELEGATION (that the arm renders the carrier whole
+    /// rather than summarising it) and nothing about the recourse. The
+    /// chain's claim is unproved at that hop and this row does not
+    /// pretend otherwise.
+    ///
+    /// **A floor, not a proof**, on the terms `topo`'s
+    /// `every_chart_region_arm_names_a_recourse` states: a vocabulary
+    /// check cannot tell a recourse from a sentence containing one of
+    /// its words, and an arm whose recourse uses a word not listed
+    /// fails it honestly — extend the list in the same change.
+    #[test]
+    fn every_offset_fit_error_arm_names_a_recourse() {
+        // A vocabulary, not a part-of-speech test: an arm that names
+        // the lever the caller turns satisfies the claim the same way
+        // an imperative does.
+        const RECOURSE_WORDS: &[&str] = &[
+            "lever", "supply", "repair", "loosen", "ask", "re-fit", "schedule",
+        ];
+        let meter = MeterError::NormalFloor {
+            floor: 0.0,
+            thinness: 0.0,
+            speed_lever: 1.0,
+        };
+        let patch_bound = PatchBoundError::DegreeZero;
+        let fit = FitError::TooFewPoints { have: 1, need: 2 };
+        let structure = SplineError::NonPositiveWeight {
+            index: 0,
+            weight: 0.0,
+        };
+        let arms = [
+            OffsetFitError::Meter(meter),
+            OffsetFitError::PatchBound(patch_bound),
+            OffsetFitError::Fit(fit.clone()),
+            OffsetFitError::Structure(structure.clone()),
+            OffsetFitError::InvalidRequest {
+                d: 0.0,
+                tolerance: 0.0,
+            },
+            OffsetFitError::NonFiniteSample { uv: (0.5, 0.5) },
+            OffsetFitError::BudgetExhausted {
+                budget: 8,
+                grid: (5, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+            },
+            OffsetFitError::SampleCapReached {
+                cap: 64,
+                rounds: 3,
+                grid: (64, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+            },
+            OffsetFitError::BoundNotFinite {
+                rounds: 3,
+                grid: (5, 5),
+                d: 1e-3,
+                tolerance: 1e-9,
+                last_finite: None,
+            },
+            OffsetFitError::BoundNotFinite {
+                rounds: 3,
+                grid: (5, 5),
+                d: 1e-3,
+                tolerance: 1e-9,
+                last_finite: Some(2e-9),
+            },
+            OffsetFitError::RefinementStalled {
+                rounds: 3,
+                grid: (5, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+            },
+            OffsetFitError::WindowUnsupported {
+                window: geom::ApproxWindow {
+                    u: (0.25, 0.75),
+                    v: (0.25, 0.75),
+                },
+            },
+            OffsetFitError::Limb {
+                limb: OffsetLimb::OnLocus,
+                bound: 2e-9,
+                tolerance: 1e-9,
+            },
+        ];
+        // Twelve variants; `BoundNotFinite` is rendered at both of its
+        // `last_finite` cases, which are two different messages sending
+        // the caller to two different levers.
+        assert_eq!(arms.len(), 13, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            let delegated = match arm {
+                OffsetFitError::Meter(_) => Some(meter.to_string()),
+                OffsetFitError::PatchBound(_) => Some(patch_bound.to_string()),
+                OffsetFitError::Fit(_) => Some(fit.to_string()),
+                OffsetFitError::Structure(_) => Some(structure.to_string()),
+                _ => None,
+            };
+            if let Some(carrier) = delegated {
+                assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
+                continue;
+            }
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                "no recourse in: {msg}"
+            );
+        }
     }
 }
