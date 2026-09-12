@@ -800,7 +800,41 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Self, CertifyError> {
-        let (certificate, canonical) = run_checks(&spec, start, end, &surfaces, None, band)?;
+        Self::certify_via(spec, start, end, surfaces, band, None)
+    }
+
+    /// [`EdgeCurve::certify`] with the plane × NURBS lane
+    /// ([`NurbsLane`]) taken as an ARGUMENT rather than read off the
+    /// scalar — the MINT-side twin of [`EdgeCurve::recertify_via`],
+    /// and the one door for a pass whose own bound says nothing about
+    /// certification rights.
+    ///
+    /// `None` mints exactly what [`EdgeCurve::certify`] does; `Some`
+    /// mints exactly what [`EdgeCurve::certify_nurbs_lane`] does. The
+    /// two named doors are this one with the argument filled in, and
+    /// the caller that can name the certified lane is the caller that
+    /// supplies it.
+    ///
+    /// A caller holding `None` over an edge of the M7-8 class gets
+    /// [`CertifyError::Unimplemented`] — the class certifies only
+    /// through the lane, and there is no third outcome (see
+    /// [`NurbsLane`]). [`EdgeCurve::needs_nurbs_lane`] asks that
+    /// question of an already-certified carrier; at the mint the
+    /// caller knows the description it is handing in.
+    ///
+    /// # Errors
+    ///
+    /// As [`EdgeCurve::certify`], plus the lane's own refusals when
+    /// one is injected.
+    pub fn certify_via(
+        spec: EdgeCurveSpec<T>,
+        start: Point3<T>,
+        end: Point3<T>,
+        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        band: Band,
+        nurbs_lane: Option<NurbsLane<'_, T>>,
+    ) -> Result<Self, CertifyError> {
+        let (certificate, canonical) = run_checks(&spec, start, end, &surfaces, nurbs_lane, band)?;
         Ok(Self {
             authority: authority_of(&spec.description),
             description: canonical,
@@ -923,9 +957,12 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// the declare-and-check certificate of an `Intersection` between
     /// a PLANE and a described NURBS wall (M7-8).
     ///
-    /// Every other check is identical, in the same order. The dual
-    /// scalar reaches this door too and its refusing lane impl answers
-    /// there, so the outcome is typed rather than absent.
+    /// Every other check is identical, in the same order. No `Dual`
+    /// implements [`geom_core::CertifiedEnclosure`], so no `Dual`
+    /// reaches this door at all: a pass that is generic over a scalar
+    /// which may be one takes [`EdgeCurve::certify_via`] and supplies
+    /// `None`, which is a typed [`CertifyError::Unimplemented`] on the
+    /// M7-8 class rather than an absent answer.
     ///
     /// # Errors
     ///
@@ -938,22 +975,14 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Self, CertifyError> {
-        let (certificate, canonical) = run_checks(
-            &spec,
+        Self::certify_via(
+            spec,
             start,
             end,
-            &surfaces,
-            Some(&crate::edge_nurbs::plane_nurbs_limbs::<T>),
+            surfaces,
             band,
-        )?;
-        Ok(Self {
-            authority: authority_of(&spec.description),
-            description: canonical,
-            carrier: spec.carrier,
-            param_start: spec.param_start,
-            param_end: spec.param_end,
-            certificate,
-        })
+            Some(&crate::edge_nurbs::plane_nurbs_limbs::<T>),
+        )
     }
 
     /// [`EdgeCurve::recertify`] with the plane × NURBS lane wired in
