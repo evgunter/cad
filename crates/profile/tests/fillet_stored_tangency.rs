@@ -465,6 +465,10 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
     let dump: Vec<String> = corpus()
         .into_iter()
         .map(|(name, lp)| {
+            let verdict = match validates(lp.clone(), tol()) {
+                Ok(()) => "validates",
+                Err(_) => "refused",
+            };
             let verts: Vec<String> = lp
                 .vertices()
                 .iter()
@@ -477,7 +481,11 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
                     )
                 })
                 .collect();
-            format!("{name} | {:?} | {}", lp.tangent_joints(), verts.join(" "))
+            format!(
+                "{name} | {verdict} | {:?} | {}",
+                lp.tangent_joints(),
+                verts.join(" ")
+            )
         })
         .collect();
     if std::env::var("CAD_DUMP_FILLETS").is_ok() {
