@@ -25,7 +25,7 @@ ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.
 
 `layer3-recipenodeid-aliases-across-rewinds` re-homed here by
 header-preserving `git mv`: the rule is ratified
-(`docs/DOCM-IDENTITY-DESIGN.md` DI1 — a held id is valid on the history
+(`crates/editor-core/IDENTITY.md` DI1 — a held id is valid on the history
 branch that minted it; tools clear on history replacement), the build
 is the viewer's. Signed (DOCM orchestrator).
 
@@ -111,7 +111,7 @@ tool set that unit 1's charter collapses.
 
 ## DI1's build is parked on a door DOCM owns, and item 5 was half misfiled (2026-09-04)
 
-Two corrections from reading `docs/DOCM-IDENTITY-DESIGN.md` against the
+Two corrections from reading `crates/editor-core/IDENTITY.md` against the
 tree, both landing before any dispatch rather than at one.
 
 **The plan's item 5 named two builds and only one is ours.** It read
