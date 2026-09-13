@@ -22,10 +22,15 @@ them. Two failures are closed by that:
 - **a variant arrives without a witness** — `ALL_NAMES` is derived from
   the declaring tokens, so `tests/switch_program_vocabulary.rs` reds;
 - **a vocabulary arrives without a census** — the roster is projected
-  from the same invocation, and the invocation is single by
-  construction (the constant is emitted once per invocation, so a
-  second does not compile), so the census iterates it rather than
-  naming three vocabularies by hand.
+  from the same invocation, so the census iterates it rather than
+  naming the vocabularies by hand.
+
+  That invocation is single by construction **within one module**, and
+  the qualifier is load-bearing: `E0428` is scoped to a module's value
+  namespace, so a second invocation in a CHILD module compiles clean
+  and projects a second `DOCUMENT_VOCABULARIES` the census never reads.
+  `program.rs` has no child modules, so the list is complete today —
+  what makes it complete is that fact, not the macro.
 
 **What neither closes is a vocabulary declared with a plain
 `pub enum`.** It has no `ALL_NAMES`, it is absent from
@@ -33,11 +38,39 @@ them. Two failures are closed by that:
 have been in either. The census cannot see it, so it cannot red for it.
 
 That matters for the reason the macro exists: a document enum's
-construct hop (`res_step` / `res_spec` / `res_target`, or whatever a
-fourth one's would be) matches the document form and CONSTRUCTS the
-kernel one, so a variant that never reaches a witness is silently
-laundered into an existing kernel form, and every kernel-anchored
-census stays green.
+construct hop matches the document form and CONSTRUCTS the kernel one,
+so a variant that never reaches a witness is silently laundered into an
+existing kernel form, and every kernel-anchored census stays green.
+
+## The live instance, named — and resolved
+
+This row was first filed stating the class hypothetically. The review of
+PR 2501 found the instance sitting **four lines below the invocation's
+closing brace**: `LoopProgram`, declared with a plain `pub enum`, whose
+`resolve` is a **fourth construct hop of exactly this shape** — it
+matches the document vocabulary and builds `Step::Circle` /
+`Step::CircleSplit`. A carrier form added to `LoopProgram` alone and
+resolved into an existing kernel step left every kernel-anchored clause,
+`DOCUMENT_VOCABULARIES` and the census green, and `corpus_vocabulary`
+explicitly declined to witness it.
+
+**Decided on the evidence rather than the shape**: the construct hop is
+real, so `LoopProgram` IS a document vocabulary. It is now declared
+through the macro and witnessed from `corpus()`'s own loops — all three
+of its variants were already there, so the witness cost nothing but the
+decision to make it. That is the test for membership: *does a variant of
+it launder into an existing kernel form at a construct hop*, not what
+the type is called.
+
+`ProgramRefusal` and `RecordedProgramError` are the file's remaining
+plain enums and are deliberately out, now said at the site: they are the
+REFUSAL and ERROR vocabularies, produced for a caller to read, with no
+construct hop building a kernel form out of them and so no laundering
+direction to guard.
+
+**What stays open is the general case** — a future enum declared with a
+plain `pub enum` that should have been a vocabulary. Nothing detects it;
+the three named above are dispositioned by hand, in prose, at the site.
 
 ## Why WIRE did not close it
 

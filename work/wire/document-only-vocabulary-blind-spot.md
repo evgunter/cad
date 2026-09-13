@@ -161,10 +161,14 @@ in `program.rs`, so they are declared through ONE
 iterates that constant. A fourth vocabulary declared through the macro
 arrives in the census rather than waiting for a fourth call site.
 
-The invocation is **single by construction**: the roster constant is
-emitted once per invocation, so a second invocation does not compile.
-That is what makes "declared through the macro" a complete list rather
-than a convention.
+The invocation is **single by construction within one module**: the
+roster constant is emitted once per invocation, so a second invocation
+in the same module is an `E0428` duplicate. The qualifier is
+load-bearing and was missing from the first statement of this — `E0428`
+is scoped to a module's value namespace, so a second invocation in a
+CHILD module compiles clean and projects a second roster the census
+never reads. `program.rs` has no child modules, so the list is complete
+today; that fact is what makes it complete, not the macro.
 
 The witness SETS cannot be projected — only the suite knows which walk
 of `corpus()` answers for which vocabulary — so they are bijected
@@ -191,3 +195,26 @@ should have been in either. Closing that needs a walk over the file's
 declarations — a text scan, which is what this PR removed, measured, for
 being silently wrong on an attribute.
 `work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+
+## The fourth vocabulary, found by the delta round
+
+The disclosure above stated its residual class faithfully and
+**hypothetically**, while the live instance sat four lines below the
+invocation's closing brace. `LoopProgram::resolve` is a fourth construct
+hop of exactly the described shape — it matches the document vocabulary
+and builds `Step::Circle` / `Step::CircleSplit` — so a carrier form
+added to `LoopProgram` alone launders into an existing kernel step with
+every clause in the file green, and `corpus_vocabulary` explicitly
+declined to witness it.
+
+Decided on that evidence: **`LoopProgram` is a document vocabulary**, it
+is declared through the macro, and it is witnessed from `corpus()`'s own
+loops — all three of its variants were already in the corpus, so what
+the witness cost was the decision, not the code. The membership test is
+now stated at the site: *does a variant launder into an existing kernel
+form at a construct hop*. `ProgramRefusal` and `RecordedProgramError`
+fail that test — no construct hop builds a kernel form out of them — and
+the file now says so rather than leaving it to be inferred.
+
+Measured: a fourth `LoopProgram` carrier resolving into `Step::Circle`
+reds this census and nothing else.
