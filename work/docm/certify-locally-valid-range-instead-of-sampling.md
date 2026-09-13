@@ -35,3 +35,13 @@ Nothing here is a defect in what shipped; the sampling probe says plainly in its
 ## Home
 
 The three missing doors are the E6 interval subdivision driver's own — parameter-box replay, a slot-widening override and the indeterminate-verdict contract — which is M10's charter, and the issue names 1143 (M10's) as the question to settle alongside.
+
+## Ruled (2026-09-13)
+
+Ev, in chat, on pacing: the sampling probe stays the interactive
+answer; the certified range is an on-demand query whose result
+arrives later and replaces the probe's. Two of the three doors exist
+since M10 closed (the parameter box, the driver's refusal classes as
+the indeterminate-versus-failure distinction); the slot widening is a
+query-side derived document. Built as `DOCM-9` (`docs/DOCM-9-SPEC.md`);
+this file closes at its merge.

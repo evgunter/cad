@@ -1,6 +1,6 @@
 ---
 id: split-edge-children-lack-pcurve-rows-on-curved-charts
-kind: issue
+kind: unit
 title: Body::split_edge mints no pcurve cache rows for its children — a split on a curved chart leaves the body tier-3 invalid until mint_pcurves runs
 status: review
 opened: 2026-09-08
@@ -32,3 +32,49 @@ the op minting the children's rows (it has the parent's, so the
 parameter split of a cached pcurve is the natural mint) or the caveat
 stated at the op with `mint_pcurves` named as the caller's step.
 Signed (SHELL orchestrator).
+
+## Brief (TOPO, 2026-09-13) — block TOPO-B2 slot 1, dual at review
+
+**The answer to give.** After `Body::split_edge` on an edge whose
+half-edges carry pcurve cache rows, the two children carry rows too,
+and a body that was tier-3 valid before the split is tier-3 valid
+after it. Phase 1 decides between the two closings the row names and
+says why: (a) the op mints the children's rows from the parent's — a
+cached pcurve split at the parameter is the natural mint (the parent's
+row IS the description; the split of a fitted pcurve at `t` is
+exact where the pcurve is a line in the chart and a re-fit where it
+is not — say which, per pcurve kind); or (b) the op cannot honestly
+mint (it lacks the tolerance or the lane bound `mint_pcurves_of`
+needs — `split_edge<T: Real>` takes `Tol` today; check what
+`PcurveFittedLane` requires) and the caveat is stated at the op with
+`mint_pcurves_of(body, &[the two faces], tol)` named as the caller's
+step, beside the existing "Tier-3 caveat (review F2)" section. (a) is
+the answer the row wants; (b) is acceptable only with the bound
+mismatch shown.
+
+**Red-first row.** SHELL-7's measurement rebuilt as a fixture: the
+drum's cylinder seam split at mid-height — `validate_geometric`
+reports `Pcurve MissingCache` for each child on the merge base (assert
+it), and the head is tier-3 valid after the split with no caller
+mint. Control: the wedge's AXIS edge between two planar meridian caps
+(R2's measurement) — split, tier-3 valid on both trees. A third row
+pins the minted rows' content: the children's pcurves re-certify
+against the same band the parent's did.
+
+**Seams.** `crates/topo/src/pcurves.rs` is TRIM's: read `mint_pcurves`,
+`mint_pcurves_of` and the row types end to end; if (a) needs a
+helper that splits one cached row at a parameter, it lands in
+`pcurves.rs` by announced seam (one function, its doc, its rows),
+and the PR says so. `split.rs`'s module docs gain the closing's
+statement; the "Tier-3 caveat" section names this case beside the
+iso-rectangle one either way.
+
+**Class receipt.** Every operator that mints half-edges from a parent
+carrying rows: `split_edge` is the row's subject; list the others
+(`mev`/`mef` on a described edge? the merge door? `ring_move`?) with
+whether each mints, inherits, or leaves rows missing, and file what
+you find on the owning slate per discipline §6.
+
+Branch `topo/split-edge-pcurve-rows`. PR title: "TOPO: split_edge's
+children carry their pcurve rows". Do not close the item; the dual
+runs at review.
