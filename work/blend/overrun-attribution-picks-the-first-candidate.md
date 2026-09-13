@@ -2,10 +2,11 @@
 id: overrun-attribution-picks-the-first-candidate
 kind: unit
 title: The anchor-fit refusal reports the FIRST corner-side candidate, not the one it is metered against
-status: review
+status: closed
 opened: 2026-09-05
 branch: blend/11-overrun-nearest-fit
 pr: 2495
+closed: 2026-09-13
 ---
 
 
@@ -95,3 +96,16 @@ entries by both reviewers: followed as a radius reduction it is not a
 request at 469, leaves the same corner refusing at 2 111 and builds at 605,
 tight at 0. The metered form is the residue
 `anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`.
+
+## Closed (2026-09-13, PR 2495)
+
+The anchor-fit refusal reports the candidate the author is nearest to
+fitting in the setback metric — the least overrun on its worse leg —
+through `fillet_select::nearest_candidate` at the door, with the arm
+collecting every corner-side overrun at the scalar. The reported
+numbers are the overrun's; the recourse stays un-metered, because both
+reviewers measured that the deficit is not a radius amount (the
+orchestrator's spec sentence claiming it was is retracted; residue
+`anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`).
+Every fillet that built builds bit-identically; only
+`AnchorOutsideTrimmedExtent` payloads moved.

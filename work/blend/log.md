@@ -712,3 +712,15 @@ concurrently on the frozen head** — byte 214 ⇒ R1 = OPUS, R2 = FABLE;
 briefs stored with digests on `blend/b2-block` before either ran; the
 re-scope and the deviations stated in both briefs as hypotheses. The
 unit's log entry waits for the dual.
+
+**MERGED — unit 11 (2026-09-13)** on PR [#2495](https://github.com/evgunter/cad/pull/2495):
+the overrun refusal reports the nearest fit through the crate's one
+home for the pick; the item closed. Dual: bilateral MAJOR on the spec's
+own reason for the pick (retracted; the pick survives), no tally
+candidate; the fix pass routed the pick through
+`fillet_select::nearest_candidate`, corrected the reason at every
+site, re-classified the door's read in the bounds census, homed the
+fixtures, and filed the recourse-metering residue. Delta by R1 on the
+fixed head: recorded below. Sample #182 (main's order rules). Residues
+on the slate from this unit:
+`anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`.
