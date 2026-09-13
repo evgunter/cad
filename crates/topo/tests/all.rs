@@ -206,14 +206,14 @@ mod rim_dim_boolean_twins;
 mod rim_dim_review_probes;
 #[path = "seat3_flush_detector.rs"]
 mod seat3_flush_detector;
-#[path = "split_edge_pcurve_rows.rs"]
-mod split_edge_pcurve_rows;
 #[path = "shell_roles.rs"]
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]
 mod shell_tolerance_chain;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "split_edge_pcurve_rows.rs"]
+mod split_edge_pcurve_rows;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "void_door.rs"]

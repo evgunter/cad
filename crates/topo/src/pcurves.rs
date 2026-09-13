@@ -1381,7 +1381,7 @@ pub(crate) struct Walked<T: Real> {
 ///   [`mint_faces`]; until it lands, a split of a spline-chart edge
 ///   carrying a `General` row leaves that face exactly as it found it
 ///   — the pre-existing behaviour, tracked on TOPO's slate as
-///   `split-edge-general-lane-rows-stay-behind`.
+///   `split-edge-cannot-carry-a-fitted-or-general-pcurve-row`.
 ///
 /// In every `None` case the caller writes nothing, so the map is left
 /// exactly as found.

@@ -240,7 +240,9 @@ fn p4_split_edge_carries_its_childrens_pcurves() {
         .collect::<Vec<_>>();
     topo::mint_pcurves(&mut d, tol()).expect("pcurves mint");
     assert_eq!(
-        d.pcurves().map(|(he, c)| (he, c.params())).collect::<Vec<_>>(),
+        d.pcurves()
+            .map(|(he, c)| (he, c.params()))
+            .collect::<Vec<_>>(),
         carried,
         "the op's rows are the mint pass's rows"
     );
