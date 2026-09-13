@@ -611,3 +611,20 @@ brief (suite named `must_carry_rule.rs` by subject, superseding the
 spec's `blend8_` spelling; the seam edit is the wrapper and nothing
 else). Runs beside unit 6's and unit 7's fix passes; the reviewers'
 targets were reclaimed to make its room.
+
+**Unit 9 landed (2026-09-13)** on PR [#2491](https://github.com/evgunter/cad/pull/2491),
+head `3e8936715`, full matrix green (run 34736829969). The must-carry
+rule has one home at the edge level (`geom_brep::must_carry_over_edge`,
+gate first, the schedule's interior stations, a typed three-way
+answer); both verbs call it, `jet_determinate` is gone; the
+description differential over 22 fixtures and 264 edges is
+byte-identical; the behaviour change (a revolve's in-band latitude
+join now refuses typed) is pinned by the re-baselined H6 probe row and
+by the trio on both verbs. Five deviations reported, among them a
+claim that no out-of-lane smooth pair is constructible through either
+verb, and the cap rim's third smooth-description arm filed rather than
+routed. **Ordinal 2902 claimed (orchestrator PR to main); the v6 dual
+dispatched concurrently on the frozen head** — byte 93 ⇒ R1 = FABLE,
+R2 = OPUS; briefs stored with digests on `blend/b1-block` before
+either ran; the five deviations stated in both briefs as hypotheses.
+The unit's log entry waits for the dual.
