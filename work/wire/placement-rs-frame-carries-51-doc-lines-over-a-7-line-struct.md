@@ -3,6 +3,7 @@ id: placement-rs-frame-carries-51-doc-lines-over-a-7-line-struct
 kind: issue
 title: placement.rs's Frame carries ~51 lines of type doc over a 7-line struct - the accumulation the nine-paragraphs row left open, now concentrated rather than spread
 status: closed
+pr: 2499
 opened: 2026-09-13
 closed: 2026-09-12
 refs: [2375, 2475]

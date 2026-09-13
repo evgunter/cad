@@ -3,6 +3,7 @@ id: product-gate-says-verbatim-then-states-the-difference
 kind: issue
 title: the per-part at-rest gate's trigger is one decided policy with a home in neither of the two crates that implement it (product.rs called its copy verbatim)
 status: open
+pr: 2499
 opened: 2026-09-12
 ---
 
