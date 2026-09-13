@@ -697,3 +697,18 @@ measurement: the reported leg is the candidate's WORSE leg (the one
 whose overrun is the deficit), not "incoming first" — at two grid-A
 corners the arm's incoming-first ordering reported the smaller of the
 candidate's two overruns.
+
+**Unit 11 landed (2026-09-13)** on PR [#2495](https://github.com/evgunter/cad/pull/2495),
+head `21a5f1e45`, full matrix green (run 34741638444). The arm
+collects every corner-side overrun at the scalar; the door picks the
+least deficit on its worse leg by an enclosure read; both
+differentials over 19,104 authorings clean (0 outputs, 0 verdict
+sequences, 320 refusal payloads moved — all `AnchorOutsideTrimmedExtent`
+numbers); six rows, two mutants. Deviations reported: the stop and
+re-scope; the worse-leg rule moving 230 + 72 reports beyond the spec's
+19; C3's "tight" measured false (followable, not tight). **Ordinal
+2903 claimed (orchestrator PR to main); the v6 dual dispatched
+concurrently on the frozen head** — byte 214 ⇒ R1 = OPUS, R2 = FABLE;
+briefs stored with digests on `blend/b2-block` before either ran; the
+re-scope and the deviations stated in both briefs as hypotheses. The
+unit's log entry waits for the dual.
