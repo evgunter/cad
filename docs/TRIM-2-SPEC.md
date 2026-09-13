@@ -394,3 +394,36 @@ green with the filed residues.
 - **Q3** Whether PR-2 also flips `chords.rs`/`trimmed.rs`'s `Fitted`
   arms by the same mechanism (recommended: no — no producer, and a
   flipped arm with no row is a claim).
+
+---
+
+## 8. Rulings at ratification (TRIM orchestrator, 2026-09-13)
+
+Ratified as written. Answers to §7:
+
+1. **Q1 — keep the rectangle certificate as the all-iso fast path.**
+   `nurbs_face` dispatches by pcurve KIND; an all-iso loop keeps today's
+   lane bit-for-bit (row Q3 pins the agreement); only a loop carrying a
+   `General` image takes the trimmed lane. No golden moves.
+2. **Q2 — fence the Newton–Cotes window** (`p_u + p_v ≤ 4`) with a typed
+   refusal at its own named site, and file
+   `work/trim/trimmed-quadrature-composite-rounds.md` for the composite
+   fallback; no fixture reaches it today.
+3. **Q3 — the `Fitted` mesh arms stay** (no producer; a flip without a
+   row is a claim).
+4. **The item is corrected by PR-1**: the "six sites" list becomes the
+   measured trace (`props.rs::quad_lane::nurbs_face`'s non-iso site;
+   `chords.rs::nurbs_tighten`'s `General` arm), the offset refusal is
+   recorded as SHELL's `no-approx-faced-body-is-both-movable-and-valid`
+   class with the measurement, and the item's own title keeps its id.
+5. **PR-2's seam** (`crates/mesh/src/chords.rs`, `trimmed.rs`) is
+   S-MESH's ground: announced on the away channel by the orchestrator
+   at PR-2's dispatch; PR-2 does not merge without S-MESH's
+   acknowledgement or a week's silence.
+6. **Pre-log stands: PR-1 M / NUMERIC; PR-2 S / NUMERIC.** Branches
+   `trim/2-quadrature`, `trim/2-tessellation`.
+
+**Opening act (PR-1, before any code)**: re-take §0's fixture
+measurement on the implementer's head at all three ε cells and quote
+the two raising sites; if the degree-2 re-widening no longer mints,
+STOP.
