@@ -36,11 +36,11 @@
 
 use crate::fixture;
 
+use editor_core::measure::{MeasureExpr, MeasurePrimitive};
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult,
     ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName, evaluate,
 };
-use editor_core::measure::{MeasureExpr, MeasurePrimitive};
 use fixture::{ang, fname, insert, len, on_frame, square, wall};
 use geom_core::Tol;
 
@@ -207,7 +207,11 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
         ),
     ] {
         let (doc, _, face, edge, vertex) = solid();
-        let name = if select == EntityKind::Edge { edge } else { vertex };
+        let name = if select == EntityKind::Edge {
+            edge
+        } else {
+            vertex
+        };
         let (doc, measure) = insert(
             doc,
             Node::measure(
@@ -297,7 +301,9 @@ mod source_rules {
         for line in body.lines() {
             if let Some(head) = line.strip_prefix("    ")
                 && head.starts_with(|c: char| c.is_ascii_uppercase())
-                && let Some(name) = head.split(|c: char| !c.is_alphanumeric() && c != '_').next()
+                && let Some(name) = head
+                    .split(|c: char| !c.is_alphanumeric() && c != '_')
+                    .next()
             {
                 variant = Some(name);
             }
@@ -384,12 +390,14 @@ mod source_rules {
                 let mut fs = source::top_level_split(fields, ',')
                     .into_iter()
                     .map(|r| fields[r].trim());
-                let Some(found) = fs.find(|f| f.split(':').next().is_some_and(|n| n.trim() == "found"))
+                let Some(found) =
+                    fs.find(|f| f.split(':').next().is_some_and(|n| n.trim() == "found"))
                 else {
                     continue; // a pattern binding nothing, not a construction
                 };
                 assert!(
-                    found == "found" || found.split(':').nth(1).is_some_and(|v| v.trim() == "found"),
+                    found == "found"
+                        || found.split(':').nth(1).is_some_and(|v| v.trim() == "found"),
                     "eval/wire.rs line {}: `{name}` sets `found` to `{found}` — the entity \
                      door answers what was found and a road takes the word it is handed",
                     line(WIRE, at)
