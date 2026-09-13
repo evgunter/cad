@@ -2,8 +2,10 @@
 id: pick-index-triangle-table-rebuilt-every-build
 kind: issue
 title: the pick index copies every triangle and recomputes every box on every build, memo hit or miss
-status: open
+status: closed
 opened: 2026-09-12
+parent: PERF-10
+closed: 2026-09-13
 ---
 
 
