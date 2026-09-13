@@ -87,10 +87,9 @@
 
 use std::rc::Rc;
 
+use super::form::{Form, Mono, Poly, within};
 use super::rational::{Int, Rat};
-use super::{
-    AtomInfo, Form, INDET_PI, Mono, Poly, Session, SymBudget, SymOp, indet_atom, signed, within,
-};
+use super::{AtomInfo, INDET_PI, Session, SymBudget, SymOp, indet_atom, signed};
 
 /// **`atan2(0, N) = 0` for an `N` that is non-negative BY ITS SYNTAX**
 /// — the second fold of rule D, on the same posture as the half-angle

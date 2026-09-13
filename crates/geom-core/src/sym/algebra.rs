@@ -37,8 +37,9 @@
 //! can only add a discharge; the un-reduced form is kept wherever the
 //! cap or the budget stops a reduction.
 
+use super::form::{Form, Mono, Poly, within};
 use super::rational::Rat;
-use super::{AtomInfo, Form, IndetMap, Mono, Poly, SymBudget, SymOp, SymRules, indet_atom, within};
+use super::{AtomInfo, IndetMap, SymBudget, SymOp, SymRules, indet_atom};
 
 /// One reduction the atom algebra can apply: `id² → x`, an even power of
 /// the atom replaced by a power of `x` (rule A's `x` is the `sqrt`'s

@@ -40,8 +40,9 @@
 
 use core::f64::consts::PI;
 
+use super::form::{Form, Mono, Poly};
 use super::rational::Rat;
-use super::{Form, INDET_PI, IndetMap, Mono, Poly, SymBudget, SymOp};
+use super::{INDET_PI, IndetMap, SymBudget, SymOp};
 use crate::ring_interval::RingInterval;
 
 /// The most terms a candidate root may grow to before `poly_sqrt` gives

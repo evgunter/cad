@@ -17,10 +17,11 @@
 use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
+use super::form::{Form, Poly};
 use super::rational::Rat;
 use super::{
-    Discharge, Form, INDET_PI, ParamSymbol, Poly, SESSION, Session, SymId, SymOp, early_form,
-    indet_param, plain_form,
+    Discharge, INDET_PI, ParamSymbol, SESSION, Session, SymId, SymOp, early_form, indet_param,
+    plain_form,
 };
 use crate::predicate::{Indeterminate, MarginDiag, Sign};
 
