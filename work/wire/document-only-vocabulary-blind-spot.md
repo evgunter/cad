@@ -146,3 +146,48 @@ five clauses green, three red, one per vocabulary.
 
     declared and unwitnessed — give it a witness in `chain_steps` ...: ["Dash"]
     ... ["Chord"] ... ["Origin"]
+
+## The roster went the same way as the set (R1, second pass)
+
+`ALL_NAMES` closed *a variant arrives without a witness* and left *a
+VOCABULARY arrives without a census* open: three hand-typed call sites,
+nothing saying why three was the right number. That is the same soft
+edge one level up, and the same rule applies — prefer a bijection.
+
+**A bijection was available.** The three enums were already contiguous
+in `program.rs`, so they are declared through ONE
+`document_vocabulary!` invocation, which projects
+`DOCUMENT_VOCABULARIES` alongside each enum's `ALL_NAMES`. The census
+iterates that constant. A fourth vocabulary declared through the macro
+arrives in the census rather than waiting for a fourth call site.
+
+The invocation is **single by construction**: the roster constant is
+emitted once per invocation, so a second invocation does not compile.
+That is what makes "declared through the macro" a complete list rather
+than a convention.
+
+The witness SETS cannot be projected — only the suite knows which walk
+of `corpus()` answers for which vocabulary — so they are bijected
+instead: the names the test can supply a witness for and the names the
+roster carries are compared as sets. Measured, with a fourth vocabulary
+added to the invocation and no witness line:
+
+    declared and uncensused — add the walk of `corpus()` that answers for it
+    to `corpus_vocabulary` and its line to `witnesses` above; until then
+    nothing in this file says anything about it: ["ProgramHatch"]
+
+The loop also collects rather than asserts per vocabulary, so three
+offenders are reported as three. Measured, with a document-only variant
+in each vocabulary, each carrying `#[doc(hidden)]`: **`3 of the 3
+document vocabularies are short`**, naming `["Dash"]`, `["Chord"]` and
+`["Origin"]` in one run. Asserting inside the loop would have named
+only the first — the defect this row's own class is about, re-introduced
+by the loop that fixed a different one.
+
+**The residual is disclosed at the site and filed**: an enum declared
+with a plain `pub enum` rather than through the macro has no
+`ALL_NAMES`, is absent from the roster, and nothing detects that it
+should have been in either. Closing that needs a walk over the file's
+declarations — a text scan, which is what this PR removed, measured, for
+being silently wrong on an attribute.
+`work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
