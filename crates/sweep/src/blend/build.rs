@@ -200,7 +200,7 @@ fn repeated_edge_gate(edges: &[EdgeKey]) -> Result<(), BlendError> {
 /// The rule is a bracket read — `lo() > 0` — and nothing else: it
 /// screens a size that is not positive AT ALL, and says nothing about
 /// a positive size below the band's zero
-/// (`work/fillet/blend-size-gate-unmetered-under-epsilon.md` owns
+/// (`work/props/blend-size-gate-unmetered-under-epsilon.md` owns
 /// that). Written through `partial_cmp` rather than `<= 0` so the
 /// INCOMPARABLE case is an arm and not an accident: a poisoned size is
 /// not definitely positive either, and it refuses here with the other

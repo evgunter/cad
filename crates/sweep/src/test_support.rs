@@ -1038,6 +1038,165 @@ pub fn plane_sphere_cut(big_r: f64, r: f64) -> f64 {
     ])
 }
 
+/// **The plane×sphere corner where the ball rests OUTSIDE the sphere**,
+/// by Pappus — the sphere of radius `big_r` centred at the origin
+/// meeting the plane `y = 0` at the rim of radius `big_r`, with the
+/// material on the far side of the sphere from that centre and the
+/// fillet ball EXTERNALLY tangent to it at radius `r`.
+///
+/// The sibling of [`plane_sphere_cut`], and a different closed form: the
+/// ball's centre is `‖C‖ = R + r` rather than `R − r`, so
+/// `C = (sqrt((R+r)^2 - r^2), r)`, the feet are `F_a = (C_x, 0)` and
+/// `F_b = C·R/(R+r)` — and `F_b` now lies BETWEEN the centre and `C`,
+/// so the sphere's arc between the chord `K`–`F_b` and itself bulges
+/// INTO the kite `K, F_a, C, F_b` and its segment is SUBTRACTED, where
+/// the internal case adds it. The sector at `C` is subtracted in both.
+///
+/// It is the boss's dome rim and the dimple's, exactly: the two are
+/// mirror images through the rim's own plane, so one form serves both
+/// and the SIGN is the material side — the dome rim's 270° material
+/// wedge makes it CONCAVE and the band adds this region, the dimple's
+/// 90° wedge makes it CONVEX and the band removes it.
+#[must_use]
+pub fn plane_sphere_external_cut(big_r: f64, r: f64) -> f64 {
+    let k = (big_r, 0.0);
+    let cx = ((big_r + r).powi(2) - r.powi(2)).sqrt();
+    let c = (cx, r);
+    let fa = (cx, 0.0);
+    let scale = big_r / (big_r + r);
+    let fb = (c.0 * scale, c.1 * scale);
+    pappus::pappus_volume(&[
+        (1.0, pappus::triangle(k, fa, c)),
+        (1.0, pappus::triangle(k, c, fb)),
+        (-1.0, pappus::segment((0.0, 0.0), big_r, k, fb)),
+        (-1.0, pappus::sector(c, r, fa, fb)),
+    ])
+}
+
+/// **The boss**: a cylinder of radius 1 and height 1 whose flat top runs
+/// in to radius 0.5, where a hemisphere of radius 0.5 rises to the pole
+/// — `(0,0) (1,0) (1,1) (0.5,1)[bulge tan(π/8)] (0,1.5)` revolved fully.
+/// `up` false is its DIMPLE twin, the same hemisphere dug into the top
+/// instead (bulge `−tan(π/8)`, apex `(0, 0.5)`).
+///
+/// Pole-touching, so every wall is minted as two half-bands; the caller
+/// decides whether to repair. After `merge_coplanar_faces` the flat top
+/// is ONE plane ANNULUS carrying THREE closed rims of three shapes at
+/// once, which is why it is the fixture: its BASE rim `(1, 0)` is a
+/// hostless annulus on a ring-free host, its TOP OUTER rim `(1, 1)` is a
+/// hostless annulus on a host that also carries a RING, and its DOME rim
+/// `(0.5, 1)` is that ring and so a LADDER. Census after the repair:
+/// `V=7 E=10 F=6`.
+pub fn boss(up: bool, tol: Tol) -> Body<f64> {
+    // A quarter turn: `tan(theta/4)` at `theta = pi/2`.
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
+            ProfileVertex::new(Point2::new(0.5, 1.0), if up { q } else { -q }),
+            ProfileVertex::new(Point2::new(0.0, if up { 1.5 } else { 0.5 }), 0.0),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
+/// **The boss with its flat top narrowed** to outer radius `rr`, so the
+/// dome rim's widened trim circle can be made to spill past the host's
+/// circular outer boundary: `(0,0) (rr,0) (rr,1) (0.5,1)[dome] (0,1.5)`
+/// revolved fully. The dome stays at radius 0.5, so the ladder rim's
+/// containment margin against that boundary is `rr − √((0.5 + r)² − r²)`
+/// and `rr` is the dial. Pole-touching; the caller repairs.
+pub fn narrowed_boss(rr: f64, tol: Tol) -> Body<f64> {
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(rr, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(rr, 1.0), 0.0),
+            ProfileVertex::new(Point2::new(0.5, 1.0), q),
+            ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
+/// **The boss with its dome grown** to radius `a`, so the ring the flat
+/// top carries can be made to reach into the strip the top rim's carve
+/// excises: `(0,0) (1,0) (1,1) (a,1)[dome] (0,1+a)` revolved fully. The
+/// outer radius stays 1, so the hostless annulus rim's containment margin
+/// at fillet radius `r` is `(1 − r) − a` and `a` is the dial.
+/// Pole-touching; the caller repairs.
+pub fn domed_boss(a: f64, tol: Tol) -> Body<f64> {
+    let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
+            ProfileVertex::new(Point2::new(a, 1.0), q),
+            ProfileVertex::new(Point2::new(0.0, 1.0 + a), 0.0),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
+/// **The bored cylinder** — one extrude, no boolean. The outer loop is
+/// the unit circle with its two vertices at azimuths `outer_phi` and
+/// `outer_phi + π`; the INNER loop is a circle of radius `a` centred at
+/// `(d, 0)` with its two vertices on the `x` axis. Extruded 1 along `z`.
+///
+/// Its top cap is one plane face whose OUTER cycle is the top rim (a
+/// hostless annulus, mate the outer wall's two half-bands) and whose one
+/// RING is the bore's top rim (a ladder rim inside a circular outer
+/// boundary). The bore's closest approach to the outer rim is its vertex
+/// at `(d + a, 0)`, and with `outer_phi` off the outer rim's own sample
+/// lattice (`outer_phi + k·22.5°`) NO sample sits at azimuth 0 — so
+/// predicate 2's sampled gap is strictly larger than the true
+/// `1 − (d + a)` and the exact ring-clearance forms answer instead. That
+/// misalignment is why this fixture reaches the closed-form backstop
+/// where every coaxial one is screened first.
+pub fn bored_cylinder(a: f64, d: f64, outer_phi: f64, tol: Tol) -> Body<f64> {
+    let v = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
+    let outer = ProfileLoop::new(vec![
+        v(outer_phi.cos(), outer_phi.sin(), 1.0),
+        v(-outer_phi.cos(), -outer_phi.sin(), 1.0),
+    ]);
+    let inner = ProfileLoop::new(vec![v(d + a, 0.0, -1.0), v(d - a, 0.0, -1.0)]);
+    let pf = Profile::new(SketchPlane::xy(), vec![outer, inner])
+        .validate(tol)
+        .expect("a bored disc validates");
+    extrude(&pf, Extrusion::Distance(1.0), tol)
+        .expect("the bored disc extrudes")
+        .body
+}
+
+/// The whole rim at radius `r` in the plane `z = z0` of a `z`-extruded
+/// body, selected by its carrier's stored circle and by whether that
+/// circle's centre is OFF the `z` axis — the discriminator a bored
+/// cylinder's two coplanar rims need, since both are circles in one
+/// plane.
+pub fn z_rim(body: &Body<f64>, r: f64, z0: f64, off_axis: bool) -> Vec<EdgeKey> {
+    let seed = body
+        .edges()
+        .find(|(_, e)| {
+            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                return false;
+            };
+            matches!(c.carrier(), geom::Curve3::Circle { radius, center, axis, .. }
+                if (radius - r).abs() < 1e-9 && (center.z - z0).abs() < 1e-9
+                    && axis.z.abs() > 0.9
+                    && (center.x.hypot(center.y) > 0.1) == off_axis)
+        })
+        .map(|(k, _)| k)
+        .expect("the rim's seed edge");
+    topo::query::rim_of(body, seed).expect("one rim")
+}
+
 /// The rod's radius, meters.
 pub const ROD_R: f64 = 0.5;
 /// The flat's distance from the rod's axis, meters.

@@ -375,6 +375,102 @@ fn trio_spine_regularity() {
     );
 }
 
+/// **The two-tolerance trio for the CONTAINMENT relation the hostless
+/// annulus rim is metered under, at `fillet3_ring_clearance` itself.**
+///
+/// The fixture is `test_support::bored_cylinder`: an off-axis bore in a
+/// unit cylinder's cap, extruded (no boolean), with the outer rim's
+/// vertices at `11.25` degrees so its sample lattice misses the bore's
+/// nearest point at azimuth 0. Predicate 2's sampled gap is then
+/// STRICTLY larger than the true one and the screen passes, which is
+/// what lets the exact closed form take the decision. Blending the top
+/// rim at `r = 0.1` puts the band's host trim at `0.9`; the bore reaches
+/// `d + a`, so the containment margin is `0.9 - (d + a)` and `d` is the
+/// dial: definitely negative, exactly zero, and inside the band.
+#[test]
+fn trio_hostless_annulus_ring_containment() {
+    let phi = 11.25f64.to_radians();
+    let refuse = |d: f64| -> BlendError {
+        let body = sweep::test_support::bored_cylinder(0.16, d, phi, tol());
+        let arcs = sweep::test_support::z_rim(&body, 1.0, 1.0, false);
+        sweep::blend::build::fillet_edges(&body, &arcs, 0.1, tol())
+            .expect_err("a ring the trim circle does not contain refuses")
+            .error
+    };
+    // Definitely negative: the bore reaches 0.91, `0.01` past the trim.
+    let definite = refuse(0.75);
+    assert!(
+        matches!(&definite, BlendError::RingClearance { margin, .. }
+            if margin.predicate == "fillet3_ring_clearance"
+                && margin.sign == Sign::Negative
+                && margin.value().is_some_and(|m| (m - -0.01).abs() < 1e-12)),
+        "the definite arm classifies at the exact containment margin: {definite}"
+    );
+    // Exactly on: the bore reaches the trim circle - a refusal, not a
+    // pass, which is the polarity a clearance predicate has.
+    let exact = refuse(0.9 - 0.16);
+    assert!(
+        matches!(&exact, BlendError::RingClearance { margin, .. }
+            if margin.predicate == "fillet3_ring_clearance" && margin.sign == Sign::Zero),
+        "a ring exactly on the trim circle refuses: {exact}"
+    );
+    // In band: `5 eps` past it.
+    let escalated = refuse(0.9 - 0.16 + in_band());
+    assert!(
+        matches!(&escalated, BlendError::Escalated { source, .. }
+            if source.predicate == Some("fillet3_ring_clearance")),
+        "the in-band arm escalates under the ring predicate: {escalated}"
+    );
+    assert_same_recourse(&definite, &escalated, "reduce the blend size");
+}
+
+/// **The same relation as predicate 2's SCREEN sees it, on a coaxial
+/// body** - a different row pinning a different predicate.
+///
+/// The body is the boss with its dome grown to radius `a`
+/// ([`sweep::test_support::domed_boss`]), so the ring and the trim
+/// circle are concentric. There the sampled gap is the TRUE gap (nine
+/// samples on each of two arcs of a circle put a sample pair at a shared
+/// azimuth), so `gap - setback` computes the containment margin's own
+/// real and predicate 2 answers before the exact form ever runs. This
+/// row therefore pins `fillet3_face_clearance`'s three outcomes, not
+/// this unit's form: **it passes unchanged at the merge base**, and it
+/// is here because the two doors' agreement on a coaxial pair is the
+/// fact the exact backstop's soundness argument leans on.
+#[test]
+fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
+    let refuse = |a: f64| -> BlendError {
+        let mut body = sweep::test_support::domed_boss(a, tol());
+        body.merge_coplanar_faces(tol())
+            .expect("the pole-split caps repair");
+        let arcs = sweep::test_support::rim_arcs_at(&body, 1.0, 1.0);
+        sweep::blend::build::fillet_edges(&body, &arcs, 0.1, tol())
+            .expect_err("a ring the trim circle does not contain refuses")
+            .error
+    };
+    let definite = refuse(0.92);
+    assert!(
+        matches!(&definite, BlendError::FaceClearanceUncertified { margin, .. }
+            if margin.sign == Sign::Negative
+                && margin
+                    .value()
+                    .is_some_and(|m| m.to_bits() == ((1.0 - 0.1) - 0.92f64).to_bits())),
+        "the screen answers first, at the derived containment double: {definite}"
+    );
+    let exact = refuse(0.9);
+    assert!(
+        matches!(&exact, BlendError::FaceClearanceUncertified { margin, .. }
+            if margin.sign == Sign::Zero),
+        "a ring exactly on the trim circle refuses: {exact}"
+    );
+    let escalated = refuse(0.9 + in_band());
+    assert_same_recourse(
+        &definite,
+        &escalated,
+        "enlarge the support face whose clearance is uncertified",
+    );
+}
+
 #[test]
 fn trio_face_clearance() {
     let body = boxy();
