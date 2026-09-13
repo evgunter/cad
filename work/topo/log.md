@@ -486,6 +486,33 @@ demo sources (in no program's `paths`) in the same PR under the
 demo-purpose rule. Difficulty pre-logged M, task class STRUCTURAL —
 again written knowing the slot's arm; disclosed.
 
+## Census door delivered; dual out at ordinal 2702 (2026-09-08)
+
+`topo/census-door` delivered as PR 2131, head `11257506c`, full
+matrix green (run 34174452199). The door is the ratified (A) shape:
+`readback::euler_counts` returning five `i64` counts with `s` =
+shells, `EulerCounts::genus` refusing typed on odd parity before the
+halving, `EulerParityError` its own type (every `ReadbackError` arm
+is about one entity from a door that takes its key; this one is about
+the whole store from a value already read). Rows: the cube, the holed
+box, a two-shell body re-homed into one solid by raw write (pins `s`
+= shells), the red-first torn store. The class receipt widened the
+ruling's sweep from 26 sites to 42 converted plus one listed with its
+owner (`review_m1_pr4`'s per-component `ShellComponent::genus`, shape
+(C)'s consumer when one arrives); the ring-less spellings were the
+sites the ruling's pattern could not see. Deviations disclosed: test
+helpers in `sweep/tests` and `tour/tests` keep their names as one-line
+delegates rather than rewriting seventy call sites; two test rows
+changed type to the door's `i64`; three ring-less sites and
+`assembly.rs`'s structural census converted. The demos call the door
+directly and print the same narration. S79's disposition is the
+orchestrator's: the door retires its #758 third only, #757 and #759
+stay open elsewhere. Dual dispatched on the frozen head: ordinal 2702,
+parity byte 70 ⇒ R1 OPUS, R2 FABLE; briefs stored with sha256
+privately. The claim entry on main wrote the difficulty as S/M where
+the dispatch entry above pre-logged M; the pre-logged value is the
+record and the row will carry M with this line as its disclosure.
+
 ## Announced seam from SHELL (2026-09-08): an ownership re-partition op beside `movefac`
 
 SHELL-5 (`shell/5-hollow-operand`, `docs/SHELL-5-SPEC.md`) — shell of
@@ -536,3 +563,123 @@ STOP, that tier 1 has no per-shell entry (five of thirteen passes are
 arena-global by construction), kept on SHELL's
 `doors-still-read-the-whole-body-for-tier1` as a closure-check
 limitation rather than filed here. Signed (SHELL orchestrator).
+
+## The dual died at dispatch; four days idle; re-run on a merged-forward head (2026-09-12)
+
+Both blinded reviewers dispatched on the census door's frozen head
+`11257506c` (ordinal 2702) were killed by the account's usage limit
+within minutes of launch, before either had read past its brief — no
+report, no probe, no scratch file beyond the stored brief. The session
+then sat idle from 2026-09-08 01:15 UTC until Ev reset the limit on
+2026-09-12. Main moved by some 2,400 commits in between (SHELL's units
+5–10, the code-quality register leaving the tracker, PERF opening, the
+discipline documents rewritten) and `topo/census-door` now conflicts
+with it in four converted files (`verbs_shell.rs`,
+`verbs_shell_r2_probes.rs`, `demos/tour/src/main.rs`, `teapot.rs`),
+with 285 commits on the sweep's ground since its merge base.
+
+Decision: the implementer lane merges main forward FIRST — resolves
+the conflicts, re-derives the class receipt at the new merge base,
+files its two outside-the-fence findings per the rewritten
+`implementer-discipline.md` §6 (a lane files on the owner's slate in
+its own PR now; the census brief predated that rule), and rewrites its
+citations by name per the new §7 — then the dual runs on that head.
+Reviewing the stale head and merging forward afterwards would have
+put the conflict resolution and any new sites outside both reviews.
+Ordinal 2702 stays; the claim entry on main names `11257506c` as the
+frozen head and the row will carry the superseding SHA with this entry
+as its disclosure. Parity byte 70 stands (R1 OPUS, R2 FABLE); the
+briefs are regenerated from the merged PR body and re-hashed before
+dispatch. The dead reviewers' worktrees were removed; their scratch
+dirs held nothing but the brief.
+
+Rules that changed on main and bind this program's briefs from here:
+findings outside the fence are filed by the lane on the owner's slate
+(`work/README.md`, discipline §6); citations by name (§7); the style
+lane checks whether a structural fix mints a fresh instance of the
+defect it closes (`reviewer-style-lane.md`); PRs touching
+`docs/prompts/` or an already-ratified decision wait for Ev
+(`CLAUDE.md`). `S79` moved to `work/pipe/`; the nine-copies row to
+`work/suite/`. Ten rows were placed on this slate by other programs
+while the session was idle (SHELL's diagnoses on `revert`,
+`split_edge`, `move_shells_to_new_solid`, the attach postconditions,
+tier 3's shell roles and ring nesting; `D360`'s sweep rule;
+`geom-source-absence-conflates-four-origins`; the stale D107 citation)
+— read before the next unit is cut, not acted on here.
+
+## Census door merged forward; dual re-dispatched on `b5ead3c9f` (2026-09-12)
+
+The lane merged main (`0312083aa`) by merge commit, took main's side
+in the four conflicts with the door conversions on top (main had
+rewritten the teapot scene's `describe` and moved `band()` into the
+sweep tests' `common::approx`), re-derived the receipt at the new
+base — 49 converted, 1 listed with its owner, three sites new on main
+(`shell5_r1_probes`, the tour's `skinned` scene, editor-core's
+`lib_g17_shell_node`) — and filed per §6: the nine-copies row on
+`work/suite/` closed with every copy named, a new
+`work/tcost/census-tuple-rows-assert-chi-not-genus` for the rows whose
+`counts()` tuple carries no `s`. Citations rewritten by name. Full
+matrix green (run 34716391723). Nothing on main moved the door's
+premises. Correction to the entry above: the dead reviewers' scratch
+dirs were NOT empty — both had run differential tour builds and probes
+before the limit killed them; that material is archived privately and
+the dirs were cleared to the brief before re-dispatch, so the new
+reviews start cold. Briefs regenerated for the new head and re-hashed;
+ordinal 2702, byte 70 (R1 OPUS, R2 FABLE), concurrent on frozen
+`b5ead3c9f`.
+
+## Census door adjudicated (2026-09-12)
+
+Both blinded reviews on frozen `b5ead3c9f`, both MERGEABLE-AFTER-FIXES,
+both executed the same two mutants and converged on both MAJORs. The
+row the PR names as the pin for `s` = shells cannot fail for that
+reason: with the door's `s` read off the solid arena every one of the
+door's own rows and both doctests stay green, because the row keeps
+the emptied solid alive and solids = shells = 2 throughout; only S69's
+own instruments (`seqgen`'s property row, `review_m3_pr1`'s connected
+sum) go red. Both reviewers built the public-operator route the brief
+asked for — pillow + planted ring → `mfkrh_plug` → `movefac` — and
+both probes red the mutant. The class receipt is short: two
+`m9_3_zip` rows (one deriving `r` as loops − faces, a second spelling
+of the ring count no `rings.len()` pattern can see) converged; R1 adds
+`blend4_concave_fillet`'s vent-mouth row, the declared twin of a row
+the PR did convert, and `cube_by_hand`'s identity over constants.
+Converged MINORs: `r` not pinned as a sum (no door row has two rings on
+one face); the ring-less conversions changed their rows' claims and
+the PR body says otherwise; eleven same-named delegates with identical
+docs are a fresh instance of the closed duplication (the style lane's
+new trap check, raised by both); the `s` paragraph narrates S69;
+`contains("torn")` pins prose; `assembly.rs`'s doc says solids over
+the door's `s`. Unilateral, taken: the raw-write row's doc re-asserts
+the "reachable only by raw write" sentence this slate already holds
+false (R1); the tcost residue row names two of five instances (R2);
+`#759`'s item is closed so the PR body's S79 sentence is false and
+S79 waits on `#757` alone (R1); three review-module headers forbid
+the simplification the ruling ordered, undisclosed (R1 — disclose,
+headers untouched); `EulerCounts`, the validator's `ComponentCounts`
+and `ShellComponent` are three carriers of one characteristic (R1 —
+filed as a residue here). Both established that an odd census is
+unreachable from outside the crate (every arena writer `pub(crate)`)
+and that the demos print byte-identical narration across the change
+(78 topology lines, not the brief's 72). No unilateral executed
+MAJOR: no tally candidate. Nine-item fix pass to the same lane.
+
+## Census door merged; block TOPO-B1 concluded (2026-09-12)
+
+PR 2131 merged at `1072c130a` (green run 34721329369 on `39098c046`,
+full matrix, verified job by job). `no-public-census-or-genus-query`
+closed. The fix pass took every item: the `s` pin now runs through
+`mfkrh_plug` → `movefac` and is the only row red under the solids
+mutant; a `ring_move` row pins `r` as a sum (the lane measured that
+`ops_genus2` cannot — four rings on four faces — and said so); the
+receipt re-measured at 53 converted / 1 listed with the
+identifier-level patterns stated; the eleven delegates became one
+helper pair per cargo root, each re-raising the typed refusal; the
+suite row's closing restated truthfully; the tcost row widened to its
+class; `euler-characteristic-has-three-carriers` filed here. The A/B
+row is recorded at merge (ordinal 2702, sample #173) in
+`docs/MODEL-AB-LOG.md`'s TOPO section — no tally candidate — with the
+block TOPO-B1 CONCLUDED record published beneath it. `S79` on PIPE's
+slate edited to wait on `#757` alone, announced on `work/pipe/log.md`.
+The next kernel-answer unit draws block TOPO-B2. Twenty-seven items
+open; nothing dispatched.

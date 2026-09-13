@@ -8,67 +8,93 @@
 //!
 //! # What the two stops are for
 //!
-//! **Stop 1 is what a user gets today, and E12 moved WHY.** ±0.05 mm
-//! on the hole spacing and σ = 0.01 mm on each radius — a real study —
-//! and the answer is still `NothingCertified`. What changed is the
-//! reason, and it is now a single named family rather than "every
-//! certification identity widens".
+//! **Stop 1 is what a user gets today, and E12 turned it from a
+//! refusal into an ANSWER.** ±0.05 mm on the hole spacing and σ =
+//! 0.01 mm on each radius — a real study — and the driver now certifies
+//! it. At the cell's 512-leaf budget (release, default ε): 193 leaves
+//! certified, 319 refused at the budget and none for any other reason,
+//! 83.4% of the study's mass certified; the certified worst case on the
+//! web is `[0.419, 0.845]` mm against the asserted floor of 0.500 mm,
+//! the nominal 0.600 mm sits in a certified chamber, and the
+//! requirement — read off the ASSERTION NODE over each certified leaf,
+//! the way stop 2 reads it — is MIXED, with its masses: it HOLDS on
+//! 0.8337 of the study's mass and is VIOLATED on 0.0002, certified —
+//! the corner where the spacing is short and both holes are large —
+//! with 0.1661 in leaves the budget left unresolved. That is the
+//! study's answer, and it is a gating one: "with probability 2·10⁻⁴
+//! the web is under the floor" is now a sentence the kernel says.
+//! The hull `[0.4188, 0.8450]` mm pads the exact affine range over the
+//! certified leaves, `[0.4400, 0.7600]` mm, by 0.021 mm below and
+//! 0.085 mm above — the interval lane's dependency widening, pinned
+//! at both ends by the cell's row. Every sensitivity is
+//! chamber-certified (`∂web/∂spacing = 2`, `∂web/∂r = −1` each).
 //!
 //! The symbolic identity tier (`geom_core::sym`, ERROR-DESIGN E12)
 //! discharges a margin whose expression is identically zero in the
-//! parameters, at any box width. On this plate it discharges most of
-//! them — the drive's own receipt says how many — and the box still
-//! refuses on ONE: an arc rim's endpoint pinning. A swept arc's carrier
-//! is `Circle { u_ref: (q − c).normalize(), radius: r }`, so the
-//! endpoint residual is zero iff `‖q − c‖ = r`, whose normal form is an
-//! outer `sqrt` over nested `sqrt(…)²` atoms that no shipped rule
-//! reaches. M10-9 gave the tier a door for exactly that residual — a
-//! constructor can REGISTER an identity it guarantees — and the swept
-//! arc carrier's builder registers both of the ones it guarantees: the
-//! rim `‖q − c‖ = r` and the span `carrier.eval(param_end) = q_to`.
-//! BOTH endpoint pinnings are discharged on this plate (16 of 16
-//! numeric decisions each, at the nominal). The ceiling did not move —
-//! and neither did what BOUNDS it. MEASURED: the widest box of this
-//! plate that certifies whole is `7.81e2 · ε` of the real study
-//! (`7.81e-7` at the default ε) under M10-7's tier, M10-8's shipped
-//! tier and M10-9's door alike; and just past it exactly one predicate
-//! is over the band, door open and door SHUT alike —
-//! `carrier_matches_mapped_source`, the carrier against the scaffold
-//! pushforward, enclosure `[0, 1.0001e-9]` against a band of
-//! `zero = 1e-9`. Two independently built objects, which is not
-//! something a node alias reaches. So the identities the door
-//! discharges were never what bounded this plate. On a
-//! straight-walled
-//! extrude, where no normalization stands between a carrier and its
-//! endpoint, the same measurement moves by a factor of about 3.9·10^9
-//! (at the default ε; the slab's ceiling is ε-dependent and the factor
-//! with it).
+//! parameters, at any box width. On this plate it now discharges ALL
+//! of them. The arc family took three units and an amendment: M10-9's
+//! door lets the swept arc carrier's builder REGISTER the two
+//! identities it guarantees (the rim `‖q − c‖ = r` and the span
+//! `carrier.eval(param_end) = q_to`), and both endpoint pinnings go
+//! (16 of 16 each at the nominal); M10-10's form-level algebra writes
+//! the arc's trig in closed form — `sin`/`cos` of `q · atan(bulge)` as
+//! rational functions of the bulge and `sqrt(1 + bulge²)`, a theorem
+//! of the reals with no value read — and rules A/B per node close the
+//! ring, so the carrier against its scaffold pushforward
+//! (`carrier_matches_mapped_source`, 72 decisions), the cylinder
+//! residual at the carrier's samples (`carrier_on_surface_2`, 72) and
+//! at the strut witness (`witness_on_surface_2`, 8) go; and M10-10's
+//! amendment A1 folds the chart's own phase — `atan2(0, r²/sqrt(r²))`
+//! from the cylinder chart derivation is `atan2` of the zero form over
+//! a form non-negative BY SYNTAX, so it is the zero form, and on the
+//! negative frame `cos π = −1` — which takes the last one
+//! (`pcurve_map_residual`, 36). MEASURED: the widest box of this plate
+//! that certifies whole is 0.2368, 0.2631 and 0.2631 of THIS study at
+//! ε = 1e-6, 1e-9 and 1e-12 — a fraction of the study, not a multiple
+//! of ε any more (it was `1.25e3 · ε` before A1, and `7.81e2 · ε` under
+//! M10-7's, M10-8's and M10-9's tiers alike). What bounds that CEILING
+//! is `assert_bound`'s ENCLOSURE straddling zero — dependency widening
+//! of a real margin, not a flip (`work/m10/real-margin-dependency-widening`):
+//! the margin `web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b` is affine, its
+//! true range at the ceiling is `[5.8e-5, 1.4e-4]` m, positive
+//! everywhere, and the real flip first enters the box at 0.625 of the
+//! study. Beyond the ceiling the driver splits and the LEAVES certify
+//! up to that flip: every refusal at the budget sits along the surface
+//! where the web crosses the floor, and refining a refused leaf leaves
+//! `assert_bound` alone over the band. The cell prints the VIOLATED
+//! mass beside `Mixed` (the sentence E12 quotes as the one to become
+//! sayable), and the hull's padding beside the true range over the
+//! certified leaves, so "straddles the floor" is read against a
+//! number rather than a hull that pads its way across.
 //!
-//! **And the family is wider than this plate's rim — and M10-8 moved
-//! part of it.** M10-7's two reviews took the tier to a filleted
-//! L-bracket with bores — the ordinary shape of a machined part, where
-//! an arc stands between the profile and its walls — and it certified
-//! whole only below `3.7e1 · ε` of its study, the same with the tier on
-//! or off ("factor 1.0"). M10-8 measured WHY: the rim forms froze on
-//! constant `sqrt` atoms and `i128` coefficient overflow, not on the
-//! rim identity itself. Its shipped constant fold lifts the bracket to
-//! `3.9e2 · ε` (10.4×) and an annulus to `7.8e2 · ε` (39×), and a real
-//! ±0.1 study on M10-4's stepped shaft now certifies whole; the plate
-//! is the case it does NOT move. So the honest general statement is:
-//! **a real study on curved geometry still gets an ε-scale answer,
-//! an order of magnitude wider than before on the shapes measured,
-//! and this plate is the hard case rather than the mild one.**
-//! `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`
-//! carries what bounds it next, with numbers.
+//! **And the family is wider than this plate's rim.** M10-7's two
+//! reviews took the tier to a filleted L-bracket with bores — the
+//! ordinary shape of a machined part, where an arc stands between the
+//! profile and its walls — and it certified whole only below `3.7e1 ·
+//! ε` of its study; M10-8's constant fold lifted it to `3.9e2 · ε`
+//! (10.4×) and a real ±0.1 study on M10-4's stepped shaft certifies
+//! whole. Under M10-10 R1's eccentric annulus moves with the plate —
+//! 0.70–0.84 of ITS real study, bounded by the enclosures of its own
+//! dihedral and arc-diameter margins — while the bracket and R2's link
+//! do not move: the term/coefficient BUDGET freezes their carrier
+//! frames' squared components at any affordable width (the per-node
+//! cap is a cost wall, not a reach: raising it leaves the link
+//! byte-identical), so the scaffold residual stands there and their
+//! answers are still ε-scale, waiting on that residual's retirement
+//! (PCURVE/D3). And the mechanism's reach is the UNIT bulge — this
+//! plate's circles: a parameter bulge is entirely outside it and a
+//! literal bulge other than 1 leaves residue
+//! (`work/m10/rule-d-reaches-the-unit-bulge-only`). So the honest
+//! general statement is: **a real study on circle-authored geometry
+//! certifies up to its real flips, and a study whose arcs carry a
+//! frame the budget freezes, or a bulge that is not 1, still gets an
+//! ε-scale answer.** `work/m10/symbolic-tier-census` carries what
+//! bounds each document, with numbers.
 //!
-//! So the ε-scale ceiling is not gone from THIS document, and the cell
-//! says so rather than reporting a win it did not get. E12's reserved
-//! recourse for exactly this family is a provenance token; it is not
-//! built. The refusal is not silence either way: it carries the
-//! nominal, every sensitivity marked `LocalOnly`, the coverage saying
-//! where the mass went, and the drive's receipt. Beside it the
-//! Monte-Carlo lane answers the same question the only way anything can
-//! at that box — advisorily, labeled, with its count and seed.
+//! Where a leaf refuses it is not silence: the receipt says how many
+//! and why (here, all at the leaf budget), and the coverage says where
+//! the mass went. Beside it the Monte-Carlo lane answers the same
+//! question advisorily, labeled, with its count and seed.
 //!
 //! **Stop 2 is the MVP's reason to exist, at the scale where it
 //! works.** The same plate with every tolerance scaled to the box the
@@ -143,9 +169,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::analysis::{
-    AnalysisPolicy, AnalyzedBox, DriveConfig, MassBudget, McConfig, ParamBoxVerdict, Stackup,
-    StackupRefusal, analyzed_box, assertion_at, drive, leaf_histogram, monte_carlo,
-    render_sensitivity, stackup,
+    AnalysisPolicy, AnalyzedBox, BoxAxis, DriveConfig, MassBudget, McConfig, ParamBoxVerdict,
+    Stackup, StackupRefusal, analyzed_box, assertion_at, box_mass, drive, leaf_histogram,
+    monte_carlo, render_sensitivity, stackup,
 };
 use pncad::document::{ProfileDoc, RecipeNodeId};
 use pncad::geom_core::Tol;
@@ -154,17 +180,20 @@ use crate::plate::{Plate, WEB, plate};
 
 /// **Stop 1's leaf budget, and why it is not the default.**
 ///
-/// At ±0.05 mm nothing certifies at ANY budget — the box is six orders
-/// wider than the width the arc-rim endpoint identity survives (the
-/// module header names the family) — so the default 65,536 leaves
-/// spends about a minute subdividing its way to the same
-/// `NothingCertified` a thousand reach in a second. The cell caps it
-/// and says so, which is a statement about the COST of a refusal rather
-/// than a thumb on the answer: a reader who doubts it can raise the
-/// number and watch the report not change.
+/// At ±0.05 mm every leaf REPLAYS now (0.2–0.4 s each, release), and
+/// the driver splits toward the surface where the web crosses the
+/// asserted floor, so the default 65,536 leaves would spend hours
+/// refining a boundary the answer does not depend on. 512 leaves
+/// certify 83% of the study's mass in about three and a half minutes
+/// and already reach the violating corner (256 leaves certify 79% and
+/// do not; 1024 certify 89%, measured in
+/// `editor-core/tests/m10_10_evidence_interval`). The cell caps it and
+/// says so, which is a statement about the COST rather than a thumb
+/// on the answer: a reader who doubts it can raise the number and
+/// watch the certified mass grow and the verdict not change.
 fn starved() -> DriveConfig {
     DriveConfig {
-        max_leaves: 1024,
+        max_leaves: 512,
         ..DriveConfig::default()
     }
 }
@@ -179,7 +208,12 @@ pub fn narration(tol: Tol) {
 /// spacing, σ = 0.01 mm on each radius.
 fn real_study(tol: Tol) {
     let bound = WEB - 1.0e-4;
-    let Plate { doc, measure, .. } = plate(5.0e-5, 1.0e-5, bound, tol);
+    let Plate {
+        doc,
+        measure,
+        assertion,
+        ..
+    } = plate(5.0e-5, 1.0e-5, bound, tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     println!(
         "   the real study: web nominal {:.4} mm, asserted >= {:.4} mm, over ±0.05 mm of \
@@ -190,12 +224,71 @@ fn real_study(tol: Tol) {
 
     let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
     println!("{}", indent(&verdict.render(&analyzed)));
+    // The verdict on the requirement, read off the ASSERTION NODE over
+    // each certified leaf — stop 2's discipline, applied to the study
+    // a user actually has.
+    let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
+    let masses = requirement_masses(&doc, &analyzed, &verdict, assertion, tol);
     match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
         Ok(report) => {
-            // Not the expected answer today; if the arc-rim family the
-            // header names is ever discharged, this is what a reader
-            // should see.
             println!("{}", indent(&report.render(&analyzed)));
+            println!(
+                "   the assertion node {} is the recorded requirement, and THIS is the \
+                 study's answer: {} — over the certified leaves the floor HOLDS on \
+                 {:.4} of the study's mass, is VIOLATED on {:.4} (the web is under \
+                 {:.4} mm there, certified), and is undecided on {:.4}; {:.4} of the mass \
+                 is in leaves the budget left unresolved",
+                assertion.0,
+                describe(&decided),
+                masses.holds,
+                masses.violated,
+                bound * 1e3,
+                masses.unevaluated,
+                1.0 - masses.holds - masses.violated - masses.unevaluated
+            );
+            let slack = hull_slack(&verdict, (report.worst_case.lo, report.worst_case.hi));
+            println!(
+                "   the certified hull [{:.4e}, {:.4e}] m against the TRUE range over the \
+                 certified leaves [{:.4e}, {:.4e}] m (the web is affine in the parameters, \
+                 so that range is exact): padding {:.2e} m below and {:.2e} m above — the \
+                 interval lane's dependency widening, proportional to the leaf's width \
+                 (work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane)",
+                report.worst_case.lo,
+                report.worst_case.hi,
+                slack.true_lo,
+                slack.true_hi,
+                slack.below,
+                slack.above
+            );
+            println!(
+                "     WHY it certifies now: the symbolic identity tier (E12) discharges \
+                 every one of this plate's certification identities, so a leaf's width \
+                 is bounded by the numeric channel's enclosure of the study's own margins \
+                 and nothing else. MEASURED: the widest whole-certifying box is 0.2368 / \
+                 0.2631 / 0.2631 of THIS study at ε = 1e-6 / 1e-9 / 1e-12 — a fraction of \
+                 the study, not a multiple of ε (1.25e3·ε before M10-10's amendment A1; \
+                 7.81e2·ε under M10-7's, M10-8's and M10-9's tiers alike). What refuses \
+                 just past it is assert_bound, the web assertion's enclosure straddling \
+                 zero — and that straddle is DEPENDENCY WIDENING, not a flip: the margin \
+                 web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b is affine, its true range at the \
+                 ceiling is [5.8e-5, 1.4e-4] m > 0 everywhere while the enclosure is \
+                 [−2.1e-9, 2.0e-4], and the real flip first enters the box at 0.625 of \
+                 the study (work/m10/real-margin-dependency-widening). The LEAVES certify \
+                 up to that flip: every refusal above is the leaf budget, sitting along \
+                 the surface where the web crosses the floor, and refining a refused leaf \
+                 leaves assert_bound alone over the band. What moved it: M10-9's door \
+                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
+                 q_to; M10-10's rule D writes sin/cos of q·atan(bulge) in closed form and \
+                 rules A/B per node close the ring (carrier_matches_mapped_source 72, \
+                 carrier_on_surface_2 72, witness_on_surface_2 8 decisions); A1 folds the \
+                 chart's phase atan2(0, r²/sqrt(r²)) to the zero form and cos π to −1 \
+                 (pcurve_map_residual 36). No value was read by any of them. The reach: \
+                 the unit bulge (this plate's circles) — a parameter bulge is outside the \
+                 mechanism and a literal bulge other than 1 leaves residue \
+                 (work/m10/rule-d-reaches-the-unit-bulge-only); what still bounds R2's \
+                 bracket and link is the term budget freezing their carrier frames' \
+                 squared components (work/m10/symbolic-tier-census)."
+            );
         }
         Err(StackupRefusal::NothingCertified {
             nominal,
@@ -225,29 +318,11 @@ fn real_study(tol: Tol) {
             );
             println!("{}", indent(&MassBudget::of(&coverage, &analyzed).render()));
             println!(
-                "     WHY: the symbolic identity tier (E12) discharges most of this \
-                 plate's certification identities, and one it cannot reach — an arc \
-                 rim's endpoint pinning, whose residual is zero because ‖q − c‖ = r \
-                 rather than by algebra — still widens with the box. At ±0.05 mm no \
-                 leaf replays. MEASURED: the widest whole-certifying box is 7.81e2·ε of \
-                 this study (7.81e-7 at the default ε), the same under M10-7's tier, \
-                 under M10-8's shipped one and under M10-9's registered-identity door; \
-                 on a straight-walled extrude the same measurement moves by ~3.9e9. \
-                 WIDER than this plate, M10-8 moved the family: its constant fold lifts \
-                 a filleted L-bracket with bores from 3.7e1·ε to 3.9e2·ε (10.4x) and an \
-                 annulus from 2.0e1·ε to 7.8e2·ε (39x), and a ±0.1 study on a stepped \
-                 shaft certifies whole. M10-9 then DISCHARGED both of this plate's \
-                 endpoint identities outright — the swept arc carrier's builder \
-                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
-                 q_to, and carrier_endpoint_start and _end each go 16-of-16 from \
-                 numeric to registered at the nominal — and the ceiling still did not \
-                 move. Nor did the bound: just past the ceiling exactly one predicate \
-                 is over the band with the door open and with it SHUT, \
-                 carrier_matches_mapped_source, the carrier against the scaffold \
-                 pushforward, enclosure [0, 1.0001e-9] against a band of zero = 1e-9. \
-                 An identity between two INDEPENDENTLY BUILT objects, which a \
-                 node-aliasing door does not reach; filed as \
-                 work/m10/plate-ceiling-is-now-the-scaffold-pushforward."
+                "     This is NOT the expected answer any more: under M10-10's tier this \
+                 study certifies (the module header carries the numbers). A refusal \
+                 here means the arc family's identity residuals are bounding the plate \
+                 again — a regression in geom_core::sym, to be read off the over-band \
+                 set at ceiling + δ (editor-core/tests/m10_8_harness), not off this line."
             );
         }
         Err(other) => panic!("unexpected stackup refusal: {other}"),
@@ -422,6 +497,98 @@ fn assertion_over_leaves(
     seen.unwrap_or(Decided::Nothing)
 }
 
+/// **The requirement's answer WITH ITS MASSES**: over the certified
+/// leaves, how much of the study's probability mass sits where the
+/// assertion HOLDS, where it is VIOLATED, and where the kernel refuses
+/// to call it (`Unevaluated`) — each leaf's mass under the study's own
+/// distributions (`box_mass`, the same integral the driver's accounting
+/// takes). `Mixed` alone says the leaves disagree; this says by how
+/// much, which is the sentence E12 quotes as the one to become sayable
+/// ("with probability p the web is under the floor").
+struct RequirementMasses {
+    holds: f64,
+    violated: f64,
+    unevaluated: f64,
+}
+
+fn requirement_masses(
+    doc: &ProfileDoc,
+    analyzed: &AnalyzedBox,
+    verdict: &ParamBoxVerdict,
+    assertion: RecipeNodeId,
+    tol: Tol,
+) -> RequirementMasses {
+    let mut out = RequirementMasses {
+        holds: 0.0,
+        violated: 0.0,
+        unevaluated: 0.0,
+    };
+    for leaf in verdict.certified() {
+        let mass = leaf_mass(analyzed, &leaf.box_);
+        match assertion_at(doc, assertion, &leaf.box_, verdict.symbolic(), tol)
+            .and_then(|v| v.holds())
+        {
+            Some(true) => out.holds += mass,
+            Some(false) => out.violated += mass,
+            None => out.unevaluated += mass,
+        }
+    }
+    out
+}
+
+/// One leaf's mass under the study's distributions: the product over
+/// its varying axes.
+fn leaf_mass(analyzed: &AnalyzedBox, box_: &pncad::analysis::ParamBox) -> f64 {
+    let mut m = 1.0;
+    for (name, axis) in box_.axes() {
+        let Some(dist) = analyzed.get(name).and_then(|p| p.distribution.as_ref()) else {
+            continue;
+        };
+        if let BoxAxis::Varying { lo, hi } = axis {
+            m *= box_mass(name, dist, (*lo, *hi)).unwrap_or(f64::NAN);
+        }
+    }
+    m
+}
+
+/// **The hull's slack against the TRUE range over the certified
+/// leaves.** The web is AFFINE in the study's parameters — `web = WEB +
+/// 2·Δhalf_spacing − Δr_a − Δr_b` — so each certified leaf's true range
+/// is exact arithmetic on its box, and the union over the leaves is
+/// what a hull with no dependency padding would report. The slack
+/// below and above that union is the interval lane's padding, and a
+/// caption that says the hull "straddles the floor" has to say it
+/// beside this number: a padded hull straddles more easily, so the
+/// straddle alone gets EASIER as the padding grows (R2's Q3).
+#[derive(Debug)]
+struct HullSlack {
+    true_lo: f64,
+    true_hi: f64,
+    below: f64,
+    above: f64,
+}
+
+fn hull_slack(verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
+    let (mut true_lo, mut true_hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for leaf in verdict.certified() {
+        let span = |n: &str| match leaf.box_.axes().get(&pncad::document::ParamName::new(n)) {
+            Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
+            _ => (0.0, 0.0),
+        };
+        let (hs_lo, hs_hi) = span("half_spacing");
+        let (a_lo, a_hi) = span("hole_a_r");
+        let (b_lo, b_hi) = span("hole_b_r");
+        true_lo = true_lo.min(WEB + 2.0 * hs_lo - a_hi - b_hi);
+        true_hi = true_hi.max(WEB + 2.0 * hs_hi - a_lo - b_lo);
+    }
+    HullSlack {
+        true_lo,
+        true_hi,
+        below: true_lo - hull.0,
+        above: hull.1 - true_hi,
+    }
+}
+
 /// **A bound the run can decide, so the gate is seen gating.**
 ///
 /// The interesting bound — the one between the certified worst case and
@@ -558,7 +725,20 @@ fn indent(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use pncad::analysis::RefusalReason;
+
     use super::*;
+
+    /// The hull's padding below and above the true range over the
+    /// certified leaves at stop 1's budget (512 leaves, 193 certified),
+    /// MEASURED at the default ε in metres — `2.125e-5` below and
+    /// `8.500e-5` above the exact affine range `[4.400e-4, 7.600e-4]`
+    /// — and pinned at BOTH ends within 2% at the CI row (a hull that
+    /// padded more would fail, and so would one whose leaves narrowed:
+    /// the widening is proportional to the leaf's width), as a ceiling
+    /// at the other ε rows.
+    const HULL_SLACK_BELOW: f64 = 2.125e-5;
+    const HULL_SLACK_ABOVE: f64 = 8.500e-5;
 
     /// **The cell's own row, so it EXECUTES on hosted CI.**
     ///
@@ -566,32 +746,126 @@ mod tests {
     /// lane that walks the tour is a render lane which does not pass
     /// `--features interval`. This row is what puts the cell inside
     /// `ci.yml`'s `demos tour suite` step instead, and it asserts the
-    /// two findings the captions claim rather than merely running the
-    /// code: a real study certifies NOTHING, and at the certifiable box
-    /// the certified answer and the RSS's disagree.
+    /// findings the captions claim rather than merely running the
+    /// code: a real study CERTIFIES — every refusal the leaf budget,
+    /// the requirement `Mixed` over the certified leaves with a stated
+    /// violated mass, the hull straddling the floor, and the leaves
+    /// and padding the caption names (a padded hull straddles more
+    /// easily, so the straddle alone would get EASIER as the hull
+    /// pads) — and at the certifiable box the certified answer and the
+    /// RSS's disagree.
     #[test]
     fn the_two_stops_say_what_their_captions_say() {
         let tol = Tol::witness();
 
-        // Stop 1: the real study certifies nothing, and the refusal
-        // carries the answer.
+        // Stop 1: the real study CERTIFIES, every refusal is the leaf
+        // budget, and the requirement read off the assertion node is
+        // MIXED — held where the mass is, violated in the corner.
         let bound = WEB - 1.0e-4;
-        let Plate { doc, measure, .. } = plate(5.0e-5, 1.0e-5, bound, tol);
+        let Plate {
+            doc,
+            measure,
+            assertion,
+            ..
+        } = plate(5.0e-5, 1.0e-5, bound, tol);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
         assert!(
-            verdict.certified().is_empty(),
-            "the caption says a ±0.05 mm study certifies nothing; it certified {}",
-            verdict.certified().len()
+            !verdict.certified().is_empty(),
+            "the caption says a ±0.05 mm study certifies; it certified nothing: {:?}",
+            verdict.receipt()
         );
+        assert!(
+            verdict
+                .refused()
+                .iter()
+                .all(|l| matches!(l.reason, RefusalReason::Budget(_))),
+            "the caption says every refusal is the leaf budget: {:?}",
+            verdict.receipt()
+        );
+        let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
+        assert_eq!(
+            decided,
+            Decided::Mixed,
+            "the caption says the requirement holds where the mass is and is violated \
+             in the corner"
+        );
+        // The VIOLATED mass is a number, not only a `Mixed`: the floor
+        // fails on a certified part of the study, and holds on most of
+        // it.
+        let masses = requirement_masses(&doc, &analyzed, &verdict, assertion, tol);
+        println!(
+            "stop 1 at {} leaves: {:?}; holds {:.4}, violated {:.4}, unevaluated {:.4}",
+            starved().max_leaves,
+            verdict.receipt(),
+            masses.holds,
+            masses.violated,
+            masses.unevaluated
+        );
+        assert!(
+            masses.violated > 0.0 && masses.holds > masses.violated,
+            "the caption says the floor is violated on certified mass and holds on most: \
+             holds {:.4}, violated {:.4}, unevaluated {:.4}",
+            masses.holds,
+            masses.violated,
+            masses.unevaluated
+        );
+        // At the CI row (the default ε) the leaf counts the header
+        // quotes, exactly: a tier whose reach moved would move them.
+        if (tol.eps() / 1.0e-9 - 1.0).abs() < 1.0e-3 {
+            assert_eq!(
+                (verdict.certified().len(), verdict.refused().len()),
+                (193, 319),
+                "the header's leaf counts at 512 leaves: {:?}",
+                verdict.receipt()
+            );
+        }
         match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
-            Err(StackupRefusal::NothingCertified { sensitivities, .. }) => {
+            Ok(report) => {
                 assert!(
-                    !sensitivities.is_empty(),
-                    "the refusal carries the study's sensitivities"
+                    report.worst_case.lo < bound && bound < report.worst_case.hi,
+                    "the certified worst case straddles the floor: {:?} against {bound:e}",
+                    report.worst_case
+                );
+                // The straddle beside its padding (R2's Q3): the hull
+                // ENCLOSES the true range over the certified leaves
+                // and exceeds it by a padding proportional to the
+                // leaf's width — bounded here at both ends, so a hull
+                // that padded its way across the floor would fail.
+                let slack = hull_slack(&verdict, (report.worst_case.lo, report.worst_case.hi));
+                println!(
+                    "stop 1 hull [{:.6e}, {:.6e}] over {} leaves; {slack:?}",
+                    report.worst_case.lo, report.worst_case.hi, report.worst_case.leaves
+                );
+                assert!(
+                    slack.below >= 0.0 && slack.above >= 0.0,
+                    "the hull encloses the true range: {slack:?}"
+                );
+                assert_eq!(
+                    report.worst_case.leaves,
+                    verdict.certified().len(),
+                    "the hull is over every certified leaf"
+                );
+                assert!(
+                    slack.true_lo < bound,
+                    "the TRUE range over the certified leaves reaches under the floor — the \
+                     straddle is the study's, not the padding's: {slack:?} against {bound:e}"
+                );
+                let at_the_ci_row = (tol.eps() / 1.0e-9 - 1.0).abs() < 1.0e-3;
+                let within = |got: f64, want: f64| {
+                    if at_the_ci_row {
+                        (got - want).abs() <= 0.02 * want
+                    } else {
+                        got <= 1.05 * want
+                    }
+                };
+                assert!(
+                    within(slack.below, HULL_SLACK_BELOW) && within(slack.above, HULL_SLACK_ABOVE),
+                    "the padding is the measured one ({slack:?} against {HULL_SLACK_BELOW:e} / \
+                     {HULL_SLACK_ABOVE:e}); if it moved, the leaves moved"
                 );
             }
-            other => panic!("expected NothingCertified, got {other:?}"),
+            Err(other) => panic!("the real study's stackup refused: {other}"),
         }
         // The advisory lane still answers, and its label rides it.
         let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("replays");

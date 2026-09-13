@@ -51,6 +51,7 @@ use crate::euler::{EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::MekrSite;
 use crate::fixtures::{deep_snapshot, ops_cube};
 use crate::iso::{canonical_form, isomorphic};
+use crate::readback::euler_counts;
 use crate::seqgen;
 use crate::validate::validate;
 use geom_core::Tol;
@@ -787,13 +788,8 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
     // 2h = 2s − (v − e + f − r) goes NEGATIVE...
     body.mfkrh_plug(kill.ring).unwrap();
     assert_eq!(validate(&body), Ok(()), "tier-1 accepts the result");
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, fd)| fd.rings.len() as i64).sum();
-    let s = body.solids().count() as i64;
-    let twice_h = 2 * s - (v - e + f - r);
-    assert_eq!(twice_h, -2, "naive derived h = -1 (the finding)");
+    let counts = euler_counts(&body);
+    assert_eq!(counts.genus(), Ok(-1), "naive derived h = -1 (the finding)");
 
     // ...because the SHELL's surface disconnected: two components, each
     // a genus-0 closed piece (the pillow, and the lone-vertex+disk
@@ -808,7 +804,11 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
         2 * (components.len() as i64 - genus_sum),
         "per-shell component-aware Euler–Poincaré"
     );
-    assert_eq!(v - e + f - r, chi_sum, "shell totals = component sums");
+    assert_eq!(
+        counts.v - counts.e + counts.f - counts.r,
+        chi_sum,
+        "shell totals = component sums"
+    );
     assert_eq!(genus_sum, 0);
 }
 
@@ -1164,11 +1164,7 @@ fn genus_two_double_hole_body_tears_down_to_nothing() {
         tol,
     );
     // Genus 2 checkpoint: v − e + f − r = 2(1 − 2) = −2.
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, fd)| fd.rings.len() as i64).sum();
-    assert_eq!(v - e + f - r, -2, "genus 2");
+    assert_eq!(euler_counts(&body).genus(), Ok(2), "genus 2");
     seqgen::teardown(&mut body, tol);
 }
 

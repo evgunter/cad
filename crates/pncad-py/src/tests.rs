@@ -40,14 +40,14 @@ fn dimension_tags_are_stable() {
 /// but they do not, and a silent divergence between a refusal a user
 /// reads and the tag they branch on is worth a test rather than a
 /// convention.
+///
+/// The list is the kernel's own [`Dimension::ALL`] and not a copy of
+/// it here: a dimension added to the lattice is pinned by this row
+/// without an edit, where a list written here would leave the row
+/// green over the dimensions it happened to name.
 #[test]
 fn dimension_tags_match_the_kernel_prose() {
-    for dim in [
-        Dimension::Length,
-        Dimension::Angle,
-        Dimension::Count,
-        Dimension::Scalar,
-    ] {
+    for dim in Dimension::ALL {
         assert_eq!(
             dimension_tag(dim),
             dim.to_string(),
@@ -1355,16 +1355,13 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
     assert_eq!(expr_dimension_error_tag(&count), "count_is_integer");
     assert!(Expr::literal(1.5, Dimension::Length).is_ok());
 
-    // The reachable set, exhaustively: every dimension, a finite and
-    // a non-finite value each. Nothing here is a dimension MISMATCH,
+    // The reachable set, exhaustively: every dimension the kernel
+    // names (`Dimension::ALL`, so "exhaustively" is a claim about the
+    // lattice and not about a list copied here), a finite and a
+    // non-finite value each. Nothing here is a dimension MISMATCH,
     // which is what makes `LiteralError` the right class.
     let mut reachable = std::collections::BTreeSet::new();
-    for dim in [
-        Dimension::Length,
-        Dimension::Angle,
-        Dimension::Count,
-        Dimension::Scalar,
-    ] {
+    for dim in Dimension::ALL {
         for value in [0.0, 1.5, 3.0, -2.0, f64::NAN, f64::INFINITY] {
             if let Err(err) = Expr::literal(value, dim) {
                 reachable.insert(expr_dimension_error_tag(&err));

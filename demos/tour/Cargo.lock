@@ -237,6 +237,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "rayon",
  "spade",
  "topo",
 ]
@@ -495,6 +496,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "rayon",
  "slotmap",
 ]
 

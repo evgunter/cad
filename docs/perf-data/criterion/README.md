@@ -20,14 +20,32 @@ ranks, sited where the plan says the cost is.
 |---|---|
 | `tessellate/washer/1e-4` | CDT insertion (finding 7b); the cheap end |
 | `tessellate/washer/1e-6` | the same, where the quadratic bites — the row a `spade` bulk-load adoption (§2.1) has to move |
-| `kernel/validate/tier23_washer` | the commit lane's validation ladder (findings 4, 5, 16) |
-| `kernel/mass_props/washer` | per-face flux quadrature; §2.2's idiom-2 parallelism target |
+| `kernel/validate/tier23_washer` | the commit lane's validation ladder (findings 4, 5, 16), the face walk at ONE thread — the serial walk this column has always measured |
+| `kernel/validate/tier23_washer/t4` | the same at four threads; a NEW column, opened when the walk gained a thread count |
+| `kernel/mass_props/washer` | per-face flux quadrature (§2.2's idiom-1-then-idiom-2 target, built), at ONE thread — this column's whole history |
+| `kernel/mass_props/washer/t4` | the same at four threads; a new column |
 | `kernel/build/extrude` | Euler-op surgery through the sweep door (finding 9) |
 | `kernel/boolean/two_bricks` | the boolean commit path (findings 4, 13, 14, 15) |
 
 The two tessellation rows are one scenario measured twice on purpose: the
 finding is about the QUADRATIC, so the 1e-4 → 1e-6 ratio is the shape, and
 neither number alone is.
+
+**The `tessellate/*` rows became PARALLEL readings**, and a sample from
+before that is not comparable with one after it. `mesh::tessellate`'s
+per-face dispatch is D9 idiom 1 (an indexed parallel map over the face
+arena), so those four rows are wall clock at a thread count: read
+`rayon_threads` in the environment block, which is the width the pool
+actually built, asked for in the benchmark process itself. Beside it,
+`rayon_num_threads` is the REQUEST (empty when unset), kept because a
+sample where the two disagree had an environment its run did not ask
+for; and `rayon_threads` is `null` on a sample an older benchmark binary
+wrote, which is an absence and not a one. The row ids carry no thread
+count on purpose; the roster in `scripts/criterion-emit.py` is a fixed
+list, and an id that moved with the runner's size would read as a
+renamed benchmark. The `kernel/*` rows are no longer unaffected either —
+`kernel/mass_props/washer` became a parallel reading with PERF-8 — but
+the other three are: nothing under them is parallel.
 
 ## Before quoting a sample
 

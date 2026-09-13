@@ -308,16 +308,26 @@ pub enum SessionOp {
     /// drag, where the identity is one node rather than a target.
     ///
     /// **One node is the whole identity because an instance has one
-    /// probe**, and what that buys depends on the chrome driving it
-    /// from one gesture. The panel draws the probe as three millimetre
-    /// boxes; mapped a triple per box they are three gestures over one
-    /// probe, and this payload cannot separate them — both name the
-    /// same instance, so the second box's preview overwrites the
-    /// first's frame and its commit lands it and CLOSES the probe the
-    /// pointer is still holding. So the row is mapped once
-    /// ([`crate::widgets::vec3_row_ops`]). A second DRIVER on one
-    /// instance is still outside what this payload can refuse;
-    /// `work/view/probe-identity-stops-at-the-instance.md` owns that.
+    /// probe**, which is the subject rule and not a coarser one: a
+    /// slot has one drag and is named by a slot. The panel draws the
+    /// probe as three millimetre boxes; mapped a triple per box they
+    /// are three gestures over one probe, and this payload cannot
+    /// separate them — both name the same instance, so the second
+    /// box's preview overwrites the first's frame and its commit lands
+    /// it and CLOSES the probe the pointer is still holding. So the
+    /// row is mapped once ([`crate::widgets::vec3_row_ops`]).
+    ///
+    /// **A second DRIVER naming the open probe is accepted, and that is
+    /// what a target buys over a token.** The instance's one probe is
+    /// driven by whoever names it: a batch whose
+    /// [`SessionOp::BeginFreeMove`] is refused still previews and still
+    /// commits, into the probe its own payload names. That is the
+    /// recovery for a probe whose field stopped being drawn — the
+    /// selection moved off the instance, which
+    /// [`SessionOp::permitted_during_free_move`] allows — and a token
+    /// minted per begin would refuse it. The value gesture spends its
+    /// identity the same way; `crates/viewer/README.md`'s *A driving
+    /// operation names its own gesture* carries both rows.
     PreviewFreeMove {
         /// The instance being probed.
         instance: RecipeNodeId,
