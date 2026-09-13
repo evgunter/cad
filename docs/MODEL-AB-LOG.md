@@ -5628,3 +5628,6 @@ slot 1 = BLEND-14 implementer dispatch (2026-09-13, ~11:00Z, its spec on main vi
 slot 0 = BLEND-12 review dispatch (2026-09-13): ordinal 2906 claimed on main; R1/R2 byte 157 ⇒ parity 1 ⇒ R1 = FABLE, R2 = OPUS; briefs stored here before dispatch —
 387c2329dda1aba6c7815f2a6825db92780f464aee086927e14d5473c827bf7e  blend-12-review-brief-r1.md
 06187d2aea4ffc3e0504bf06d507f5a9bcb65cbe09fee9b79e53be6bb364430d  blend-12-review-brief-r2.md
+slot 1 = BLEND-14 review dispatch (2026-09-13): ordinal 2907 claimed on main; R1/R2 byte 201 ⇒ parity 1 ⇒ R1 = FABLE, R2 = OPUS; briefs stored here before dispatch —
+4ce133a20b69793fd9ba4718fdc8988f8c120792314323d00e0f78571985fb5e  blend-14-review-brief-r1.md
+5917520e8c06377c83927277b7704328e92d808eca242a7b4672e99801f8e5d1  blend-14-review-brief-r2.md
