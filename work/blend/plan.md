@@ -93,8 +93,20 @@ H, in dependency order:
     fillet arm on `PathError::Escalated` keyed on the predicate name
     (BLEND-10's shape), one map for name → sentence, the producerless
     `ProfileError` site arm retired; a door change, so it follows 10
-    and 11. Spec `docs/BLEND-12-SPEC.md`; block BLEND-B3 (S-BOOL seam
-    announced at dispatch).
+    and 11. Spec `docs/BLEND-12-SPEC.md`; block BLEND-B3 slot 0 (S-BOOL
+    seam announced at dispatch); 14 is slot 1, 15 is slot 2 and
+    dispatches after 12 merges.
+14. `blend-contact-edges-mint-the-intrinsic-description-without-the-rule`
+    — a blend's contact edge takes its description from the must-carry
+    rule (BLEND-9's residue: the fourth site minting the intrinsic
+    description outside the rule, measured Positive everywhere on the
+    corpus and not definite by construction). Spec `docs/BLEND-14-SPEC.md`;
+    block BLEND-B3.
+15. `escalation-recourse-dispatch-has-three-homes` — disposition (2):
+    one gap sentence at every unknown-name arm, a roster row per crate
+    over every decided name, the dispatch order pinned; follows 12
+    (which retires the third table). Spec `docs/BLEND-15-SPEC.md`;
+    block BLEND-B3 (S-BOOL seam announced at dispatch).
 13. `S90-impl` — stays blocked in fact on the lane-trait split `H5`
     names (PROPS' ground); this program owes the per-read
     classification of the nineteen bracket reads so the day `H5`
@@ -113,5 +125,7 @@ both routes, and the statement lives at `HostSide`'s doc).
 
 ## Exit shape
 
-The twelve land, the ruling is answered, Track T is empty; the walk
-convention applies.
+The twelve land (with 14 and 15, promoted from the slate's residues on
+2026-09-13, beside them; 13 stays blocked on PROPS' H5 and is walked as
+such), the ruling is answered, Track T is empty; the walk convention
+applies.
