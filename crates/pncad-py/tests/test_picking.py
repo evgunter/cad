@@ -27,6 +27,7 @@ from pncad import (
     CapEnd,
     Doc,
     EntityKind,
+    Expr,
     HitTestError,
     NamePat,
     Node,
@@ -56,10 +57,10 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
     return doc.insert(
         Node.polygon(
             [
-                ((x + 0.0) * m, (y + 0.0) * m),
-                ((x + side) * m, (y + 0.0) * m),
-                ((x + side) * m, (y + side) * m),
-                ((x + 0.0) * m, (y + side) * m),
+                (Expr.length_in(x + 0.0, m), Expr.length_in(y + 0.0, m)),
+                (Expr.length_in(x + side, m), Expr.length_in(y + 0.0, m)),
+                (Expr.length_in(x + side, m), Expr.length_in(y + side, m)),
+                (Expr.length_in(x + 0.0, m), Expr.length_in(y + side, m)),
             ],
             plane=doc.sketch_frame(),
         )
@@ -68,7 +69,7 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
 
 def unit_cube(doc, at=(0.0, 0.0)):
     """A 1 m cube on the ground plane — z from 0 to 1."""
-    return doc.insert(Node.extrude(square(doc, at=at), 1 * m))
+    return doc.insert(Node.extrude(square(doc, at=at), Expr.length_in(1, m)))
 
 
 def straight_down(x=0.5, y=0.5, z=3.0, scale=1.0):
@@ -223,7 +224,15 @@ class TestNearestAndTheTieBreak(unittest.TestCase):
         doc = Doc()
         lower = unit_cube(doc)
         upper = doc.insert(
-            Node.transform(lower, (0 * m, 0 * m, 2 * m), (0.0, 0.0, 1.0), 0 * deg)
+            Node.transform(lower, (
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.angle_in(0, deg))
         )
         ev = evaluate(doc)
         picks = [
@@ -245,7 +254,7 @@ class TestNearestAndTheTieBreak(unittest.TestCase):
         # other way when the list is reversed.
         doc = Doc()
         first = unit_cube(doc)
-        second = doc.insert(Node.extrude(square(doc), 1 * m))
+        second = doc.insert(Node.extrude(square(doc), Expr.length_in(1, m)))
         ev = evaluate(doc)
         a = NodePick.build(ev, first, 0, DELTA)
         b = NodePick.build(ev, second, 0, DELTA)
@@ -343,7 +352,15 @@ class TestEnumeratingAWholeNode(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         knife = doc.insert(
-            Node.datum_plane((0.5 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
+            Node.datum_plane((
+                Expr.length_in(0.5, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(1.0),
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+            ))
         )
         cut = doc.insert(Node.split(cube, knife))
         ev = evaluate(doc)
@@ -367,9 +384,14 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
     mesh whose triangles index outside their own position buffer — a
     kernel bug, not anything a caller can author — so no test below
     can provoke it. Its two words (`mesh_index` on `variant`,
-    `position_out_of_range` on `index_variant`) are pinned in Rust,
-    where the payload can be constructed:
-    `src/tests.rs::picking_refusal_tags_are_stable`.
+    `position_out_of_range` on `index_variant`) and its three numbers
+    (`patch`, `triangle`, `index`) are pinned in Rust, where the
+    payload can be constructed:
+    `src/tests.rs::picking_refusal_tags_are_stable` and
+    `every_pick_arm_projects_the_index_numbers_it_carries`. What the
+    rows below own is the other half of "present on every arm": that
+    the three attributes EXIST, and read `None`, on the arms a caller
+    can actually reach.
     """
 
     def setUp(self):
@@ -385,7 +407,15 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
     def test_a_node_that_never_draws_refuses_not_a_body(self):
         doc = Doc()
         datum = doc.insert(
-            Node.datum_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
+            Node.datum_plane((
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ))
         )
         ev = evaluate(doc)
         err = self.refusal(lambda: NodePick.build(ev, datum, 0, DELTA))
@@ -425,7 +455,15 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
         # reads the payload without first branching on `variant`.
         doc = Doc()
         datum = doc.insert(
-            Node.datum_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
+            Node.datum_plane((
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ))
         )
         ev = evaluate(doc)
         for call in (
@@ -442,11 +480,20 @@ class TestTheIndexRefusesTyped(unittest.TestCase):
                     "kind",
                     "body",
                     "index_variant",
+                    "patch",
+                    "triangle",
+                    "index",
                 ):
                     self.assertTrue(hasattr(err, field), field)
-                # The index arm is the only one that carries it, and
-                # none of these three is that arm.
+                # The index arm is the only one that carries these,
+                # and none of these three is that arm — so they read
+                # `None` rather than being absent, and a caller
+                # assembling a bug report needs no branch on
+                # `variant` to find that out.
                 self.assertIsNone(err.index_variant)
+                self.assertIsNone(err.patch)
+                self.assertIsNone(err.triangle)
+                self.assertIsNone(err.index)
 
     def test_the_refusal_is_a_pncad_error(self):
         err = self.refusal(lambda: NodePick.build(self.ev, self.cube, 9, DELTA))
@@ -467,7 +514,15 @@ class TestThePickRefusesTyped(unittest.TestCase):
         cube = unit_cube(doc)
         before = evaluate(doc)
         later_node = doc.insert(
-            Node.transform(cube, (0 * m, 0 * m, 2 * m), (0.0, 0.0, 1.0), 0 * deg)
+            Node.transform(cube, (
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.angle_in(0, deg))
         )
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
@@ -486,7 +541,15 @@ class TestThePickRefusesTyped(unittest.TestCase):
         cube = unit_cube(doc)
         before = evaluate(doc)
         later_node = doc.insert(
-            Node.transform(cube, (0 * m, 0 * m, 2 * m), (0.0, 0.0, 1.0), 0 * deg)
+            Node.transform(cube, (
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+                Expr.length_in(2, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.angle_in(0, deg))
         )
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)

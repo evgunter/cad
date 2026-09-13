@@ -32,8 +32,8 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
-    ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
+    CancelToken, EntityKey, Entry, EvalOptions, Evaluation, NameTable, Node, ProfileDoc,
+    RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom_core::Tol;
@@ -90,8 +90,8 @@ fn the_recorded_band_trim_counts_are_executable() {
     );
     assert_eq!(
         got.len() - nonzero.len(),
-        24,
-        "twenty-four registered documents carry no band trimline at all: {got:?}"
+        26,
+        "twenty-six registered documents carry no band trimline at all: {got:?}"
     );
 }
 
@@ -167,14 +167,7 @@ fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
 /// The mouth rim filleted, and the fillet node's id.
 fn filleted(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = lantern(mouth, top);
-    let rim = StableName {
-        kind: EntityKind::Edge,
-        node: revolve,
-        path: vec![RoleSeg::BandRim(ProfileVertexRef {
-            loop_index: 0,
-            vertex: 3,
-        })],
-    };
+    let rim = editor_core::band_rim(revolve, 0, 3);
     insert(
         doc,
         Node::Fillet {

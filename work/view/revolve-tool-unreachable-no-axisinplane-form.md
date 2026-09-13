@@ -16,7 +16,7 @@ because no unit's diff contains both halves.
 ## What happens
 
 `add_revolve` requires a `NodeKindWanted::SketchAxis` seat
-(`crates/viewer/src/session.rs:1638`, the `require_kind` at `:1642`;
+(`crates/viewer/src/session.rs:1767`, the `require_kind` at `:1677`;
 the seat itself is `crates/viewer/src/seats.rs:161`), and `admits`
 (`crates/viewer/src/session/refuse.rs:61`, the `SketchAxis` arm at
 `:65`) satisfies that seat for
@@ -24,7 +24,7 @@ the seat itself is `crates/viewer/src/seats.rs:161`), and `admits`
 
 The panel that authors datums offers four kinds — `DatumKind` is
 Plane, Axis, Point, Frame (`crates/viewer/src/forms.rs:93`; the four
-arms are built in `crates/viewer/src/pane/create.rs:358-371`) — and
+arms are built in `crates/viewer/src/pane/create.rs:359-372`) — and
 `AxisInPlane` is not among them. `add_datum_ui` is the only
 `DatumSpec` construction site in `src/`; every
 `DatumSpec::AxisInPlane` in the tree is in `crates/viewer/tests/`.

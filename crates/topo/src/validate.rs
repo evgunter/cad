@@ -192,6 +192,50 @@
 //! that keep their lanes: [`validate_pseudomanifold`],
 //! [`contact_marks`], [`crate::mass_properties`].
 //!
+//! **What check 7 costs, and what it cannot refuse.** Deciding a sign
+//! is cheaper than measuring a volume, and the tier pays only the
+//! former: the certified quadrature is refined round by round until
+//! the body's volume ENCLOSURE excludes zero, and stops there. So a
+//! valid solid cannot fail check 7 on quadrature budget while its
+//! sign is definite — the refusal that used to arrive when a fitted
+//! rational wall could not reach the REPORTING target `1024·ε` is a
+//! refusal of the caller who asks for the number, not of the body.
+//! Check 7 still refuses `VolumeUncomputable` where the quadrature
+//! produces no enclosure at all (an unsupported chart, a poisoned
+//! bracket, a degenerate face, an escalated funnel decision) and where
+//! the sign is still indefinite when the schedule runs out. The
+//! number, when a caller wants it, is
+//! [`validate_geometric_certificate`]'s continuation.
+//!
+//! **What it costs is not "less", and here is the bound.** The check
+//! reads EVERY face at every round until the sign settles, because a
+//! sum needs every term; the measurement door reads faces in arena
+//! order and stops at the first one whose lane refuses. So on a body
+//! whose sign settles early the check pays a fraction of the
+//! measurement, and on a body with a refusing face it can pay MORE —
+//! measured at about twice the measurement's quadrature verdicts on a
+//! rational-walled body whose schedule runs out. The honest bound is
+//! the schedule's own: at worst every face's whole schedule, which is
+//! what the measurement pays for its own first face and no more than
+//! it pays for all of them.
+//!
+//! **Gating and then measuring costs more than measuring**, and that
+//! is worth knowing before a caller reaches for the continuation as a
+//! saving. The piece evaluations compose exactly — the gate's rounds
+//! plus the continuation's are the measurement's — but each entry into
+//! a face's lane re-derives that face's per-round-independent SETUP
+//! (the derivative grids, the block hulls, the last round's cut lists
+//! and the bound taken from them), so the pair runs 1.3–1.8× one
+//! measurement's wall time on the bodies measured. Reusing a face's
+//! setup across windows is `work/perf/`'s
+//! `quadrature-setup-is-re-derived-per-round-window`.
+//!
+//! **Tier 3′ is not this**, and the difference is visible from
+//! outside: [`validate_pseudomanifold`] and [`contact_marks`] run
+//! their check 7 through the scalar's own lane at the reporting
+//! target, so a body tier 3 admits on a definite sign can still be
+//! refused there on quadrature budget.
+//!
 //! # All failures, not the first
 //!
 //! [`validate`] collects **every** failure before returning: a validator
@@ -280,7 +324,9 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol}
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
-use crate::contact::DeclaredContact;
+use crate::boolean::ContainError;
+use crate::chart_region::ChartRegionError;
+use crate::contact::{ContactRefusal, DeclaredContact};
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
 
@@ -357,6 +403,183 @@ impl core::fmt::Display for CensusSubject {
                     EntityId::Face(*b)
                 )
             }
+        }
+    }
+}
+
+/// **WHY a census decline declined** — the refusing lane's own typed
+/// refusal, carried instead of discarded.
+///
+/// [`ValidationError::CensusUnsupported`] is raised by four
+/// different lanes, and until this was carried they all arrived at a
+/// consumer as one sentence about an uncertifiable inventory. That
+/// sentence is not always the true cause: a chart-region
+/// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
+/// decline means the interior-witness SEARCH STOPPED on a pair whose
+/// overlap may be fat and perfectly decidable, and its recourse is to
+/// simplify the trims — not to declare the geometry or separate it.
+/// A refusal whose stated cause is not its real one sends the reader
+/// to the wrong repair.
+///
+/// **This is a cause, not a classification.** It does not partition
+/// the refusals into "the geometry cannot be decided" and "the
+/// schedule stopped", because that partition is not clean:
+/// [`MissingCache`](ChartRegionError::MissingCache) is a fact about
+/// the BODY (re-mint its pcurves),
+/// [`Corrupt`](ChartRegionError::Corrupt) is a kernel-invariant
+/// violation, and [`RayExhausted`](ChartRegionError::RayExhausted) is
+/// named for exhaustion and is not one.
+///
+/// **That last reading is the load-bearing one, so it is argued from
+/// the BAND and not from the schedule's length.** It would prove
+/// nothing to say the ray schedule is fixed while the witness budget
+/// is a cap: a seventeenth direction is available in exactly the
+/// sense a larger budget is. What separates them is what the spent
+/// work MEASURED. `RayExhausted` fires when every direction tried
+/// returned an IN-BAND margin, and an in-band margin is a verdict
+/// about where the point sits relative to the boundary — within ε of
+/// it — not about the direction that read it. Another direction reads
+/// the same configuration and lands in the same band; only moving the
+/// point or tightening ε changes the answer.
+/// [`WitnessBudgetExhausted`](ChartRegionError::WitnessBudgetExhausted)
+/// is the opposite: its cap stops the arrangement being BUILT, so
+/// nothing was measured at all, and the work it declined to do would
+/// have returned a definite answer on a fat overlap. One says the
+/// geometry is undecidable here; the other says nobody looked.
+///
+/// Carrying the arm itself says all of that and pre-judges none of
+/// it.
+///
+/// **NOT carried to the façade's curated list, and that is a
+/// decision rather than an omission** (`scripts/payload-rung-sweep.py`
+/// names this rung; the disposition table cites this paragraph as its
+/// home). A Rust caller can already name and match this type —
+/// `pncad` re-exports `topo` whole — so what the prelude list would
+/// add is two things it does not yet have: the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude`
+/// extended to cover a new published payload, and a Python word
+/// beside `subject_kind` so the binding's callers branch on the cause
+/// instead of reading it out of a sentence. Both are the façade
+/// crate's to write, and publishing the name without them is what a
+/// review refused: it would add two subjects to the rule that makes
+/// prelude payloads matchable and no row to check them.
+///
+/// **The falsifier is a Python caller who must tell a stopped search
+/// from a thin overlap.** Today that caller gets the whole of the
+/// lane's sentence on the message and no word to match — strictly
+/// more than it had, and less than a Rust caller gets. When the
+/// façade carries the cause, delete this paragraph and the
+/// disposition row with it.
+///
+/// It carries no bearing on ATTRIBUTION:
+/// `editor_core::assembly::attribute` reads which variant refused and
+/// what its [`CensusSubject`] was, and a decline is the census
+/// neither certifying nor contradicting a declaration whichever lane
+/// declined. So this widens what the refusal SAYS and moves no
+/// `AssemblyError` verdict.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CensusUnsupportedCause {
+    /// The chart-region overlap lane refused typed: its own arm,
+    /// whole, with the quantities it metred.
+    ///
+    /// [`ChartRegionError::Escalated`] does not reach here: both
+    /// census matches route an escalation to
+    /// [`ValidationError::CensusEscalated`], a different refusal with
+    /// a different recourse. The type admits it anyway, because
+    /// excluding it costs a second chart-region enum whose only
+    /// content is that routing — a type to carry one fact the
+    /// matches already carry.
+    ChartRegion(ChartRegionError),
+    /// The contact-pair certifier refused typed, whole.
+    ///
+    /// The refusal is carried rather than reduced to its `what`, for
+    /// the reason the chart arm is carried rather than reduced: an
+    /// enum that exists to stop refusals being flattened must not
+    /// itself be where one lane's refusal is flattened. Its `Display`
+    /// is what renders here, so `contact.rs`'s composition holds —
+    /// including the part that matters most,
+    /// [`ContactRefusal::NotCertifiable`] carrying NO recourse on
+    /// purpose: a declaration cannot move a configuration inside the
+    /// certifiable set, so the declare-or-separate menu is a false
+    /// lead there and the `what` is the only honest steering.
+    ///
+    /// Only `NotCertifiable` reaches this arm today — the census
+    /// sends `Contradicted` to
+    /// [`ValidationError::ContactContradicted`] and the other two to
+    /// [`ValidationError::CensusEscalated`] — and the type is not
+    /// narrowed to say so, for the same reason [`Self::ChartRegion`]
+    /// admits `Escalated`.
+    ContactLane(ContactRefusal),
+    /// The census's face-bounding sweep could not bound the face at
+    /// all: it has no boundary vertex, because its outer loop is
+    /// empty or its boundary does not resolve. Nothing about the
+    /// face's CARRIER refused here, so the inventory sentence the
+    /// other two arms compose would name the wrong thing entirely.
+    FaceUnboundable,
+    /// The point-in-face door refused typed: its own arm, whole.
+    ///
+    /// **Carried because the alternative was a FABRICATED margin.**
+    /// The census asks [`contfp`](crate::boolean::contfp) whether a
+    /// vertex, an edge midpoint or a crossing point lies inside a
+    /// planar face. Three of that door's arms carry no measured
+    /// quantity at all — an arc-bearing loop no walk expresses, an
+    /// exhausted parity schedule, unwalkable topology — and the census
+    /// used to answer all three with
+    /// [`ValidationError::CensusEscalated`] over an
+    /// [`Indeterminate`] it MINTED: predicate `pm_census_containment`,
+    /// margin [`MarginDiag::Invalid`](geom_core::MarginDiag::Invalid).
+    /// That reads as "a named predicate was posed and came back
+    /// poisoned", which is a claim about a measurement that never
+    /// happened, in the one field a reader uses to judge how close the
+    /// call was. No predicate of that name decides anything (the
+    /// dimension audit lists it among the names that never reach the
+    /// funnel); it was a tag standing in for a cause.
+    ///
+    /// [`ContainError::Escalated`] does not reach here, for the reason
+    /// [`Self::ChartRegion`] gives: that arm carries a margin a
+    /// predicate really metred, so it routes to
+    /// [`ValidationError::CensusEscalated`] with its own diagnostic
+    /// and nothing is invented. The type admits it anyway rather than
+    /// buying a second containment enum to say so.
+    ///
+    /// **The three are not one class and are not made one here.** An
+    /// unexpressible arc loop is an inventory fact about the MODEL, an
+    /// exhausted schedule is a verdict that the point sits within ε of
+    /// the boundary, and unwalkable topology is a kernel-invariant
+    /// violation; they want three different repairs and each says so
+    /// in its own `Display`. What is true of all three — and false of
+    /// `Escalated` — is only that nothing metred a margin, which is
+    /// exactly why none of them may carry one.
+    Containment(ContainError),
+}
+
+// Each arm renders the refusing LANE's own sentence, through
+// `Display` and never `Debug` — the S6 bug one variant over was a
+// `{:?}` that dropped a carrier's recourse entirely.
+//
+// The carrier owns the recourse, and two of the three say so
+// differently. `ChartRegionError` claims every arm names one, and
+// `chart_region.rs`'s `every_chart_region_arm_names_a_recourse` is
+// what makes that claim hold rather than aspire — eight arms had none
+// until this variant stopped the census papering over it.
+// `ContactRefusal::NotCertifiable` carries none ON PURPOSE, ratified
+// in `contact.rs`: a declaration cannot move a configuration inside
+// the certifiable set, so the declare-or-separate menu is a false
+// lead and `what` is the only honest steering. The arm that used to
+// append that menu to every decline appended it there too.
+impl core::fmt::Display for CensusUnsupportedCause {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::ChartRegion(e) => write!(f, "{e}"),
+            Self::ContactLane(refusal) => write!(f, "{refusal}"),
+            Self::Containment(e) => write!(f, "{e}"),
+            Self::FaceUnboundable => write!(
+                f,
+                "census: the face has no boundary vertex — an empty outer loop, or a \\
+                 boundary reference that does not resolve — so the bounding sweep \\
+                 could not read its extent; repair the face's loop before asking \\
+                 the census about it"
+            ),
         }
     }
 }
@@ -996,33 +1219,46 @@ pub enum ValidationError {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// Tier 3′: an entity or record outside the census's CERTIFIABLE
-    /// inventory (M9-2 — the blanket exact-on-planar refusal retired
-    /// with the census arms that replaced it). The census admits
-    /// every carrier kind; this refusal now names the residue: a
-    /// record or conformal candidate whose certifier lane refuses
-    /// typed (no exact-constant-arm chart, seam-branch divergence,
-    /// non-planar trims, a carrier kind outside the Rest ladder, a
-    /// scalar with no certified lane). Refused loudly rather than
-    /// sampled, exactly as before — only the inventory statement
-    /// moved.
+    /// Tier 3′: an entity or record the census did not certify,
+    /// because a certifying lane refused TYPED (M9-2 — the blanket
+    /// exact-on-planar refusal retired with the census arms that
+    /// replaced it). Refused loudly rather than sampled.
+    ///
+    /// **The inventory is the commonest cause, not the only one.**
+    /// Most of these are a carrier or a trim outside what a certifier
+    /// admits — no exact-constant-arm chart, seam-branch divergence,
+    /// non-planar trims, a carrier kind outside the Rest ladder — and
+    /// for those the recourse is the geometry or the declaration. But
+    /// the same arm carries a stopped interior-witness search and an
+    /// absent pcurve cache, whose recourses are simpler trims and a
+    /// re-mint. [`CensusUnsupportedCause`] is which one it was, and
+    /// the `Display` reads it rather than asserting the inventory of
+    /// every finding.
     CensusUnsupported {
         /// The unsupported subject, whole: an entity for the arms
         /// whose subject is one entity, the face PAIR for the arms
         /// that examine a candidate contact.
         subject: CensusSubject,
+        /// WHY the lane declined — its own typed refusal, carried.
+        /// Four lanes raise this error and they decline for
+        /// unrelated reasons with unrelated recourses; without this
+        /// they all reached a consumer as one sentence about an
+        /// uncertifiable inventory, which is the true cause of some
+        /// of them and not of the rest.
+        cause: CensusUnsupportedCause,
     },
     /// Tier 3′: the SCALAR has no certified chart-overlap lane, so the
     /// conformal face-pair arm could not examine this candidate —
     /// a fact about the run, not about the geometry.
     ///
     /// Distinct from [`ValidationError::CensusUnsupported`] on
-    /// purpose, and the distinction is the recourse: that one says
-    /// *this* record or candidate is outside the certified inventory
-    /// and wants the geometry declared, certified through a supported
-    /// lane, or separated; this one says the same candidate would be
-    /// examined at `f64`, the telemetry probe or the interval scalar
-    /// and wants the body replayed at one of them. The two used to be
+    /// purpose, and the distinction is the recourse: that one says a
+    /// certifying lane LOOKED at this record or candidate and refused
+    /// typed, and carries which lane and why; this one says the same
+    /// candidate would be examined at `f64`, the telemetry probe or
+    /// the interval scalar and wants the body replayed at one of
+    /// them. No lane refused here, which is why this arm carries no
+    /// [`CensusUnsupportedCause`] — there is none to carry. The two used to be
     /// the same variant on the same face, which made a run-wide fact
     /// read as a per-pair geometric refusal.
     /// [`ValidationError::ApproxLaneUnsupported`] is the same shape
@@ -1767,16 +2003,18 @@ impl fmt::Display for ValidationError {
                 "tier-3′ census predicate escalated: {cause} — indeterminate \
                  coincidence geometry at rest is a defect"
             ),
-            Self::CensusUnsupported { subject } => write!(
+            // The CAUSE supplies the recourse, and the arm no longer
+            // supplies one of its own. The blanket "declare and
+            // certify through a supported lane, or separate the
+            // geometry" tail was true of the inventory arms and FALSE
+            // of the rest — a stopped interior-witness search wants
+            // simpler trims, an absent pcurve cache wants a re-mint —
+            // so it named the wrong repair for every finding it did
+            // not describe.
+            Self::CensusUnsupported { subject, cause } => write!(
                 f,
-                "tier-3′ census: {subject} is outside the census's certifiable \
-                 inventory — the census admits every carrier kind, but \
-                 this record or conformal candidate has no certifier lane \
-                 (exact-constant-arm charts, the Rest carrier ladder and the \
-                 jet schedule are the certified set; the inf-stretch-bounds \
-                 extension is the named follow-up). Refused rather than \
-                 sampled; declare and certify through a supported lane, or \
-                 separate the geometry"
+                "tier-3′ census: {subject} was not certified — refused rather \
+                 than sampled, and the refusing lane says why. {cause}"
             ),
             Self::CensusLaneUnsupported { subject } => write!(
                 f,
@@ -2437,21 +2675,34 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedB
 /// so a caller that also wants the enclosure runs the identical
 /// computation again. This door returns what the gate computed.
 ///
-/// **THE value, not a second one.** The returned properties are the
-/// object `plus_v_invariant` decided on — moved out of the check, never
-/// recomputed — so they are bit-identical in all four fields to
-/// [`crate::mass_properties`] on the same body at the same `tol`, and
-/// that is a fact about identity rather than about agreement: this
-/// door's certified quadrature and the measurement door's lane
-/// quadrature are the same computation for every scalar that can reach
-/// here (`crate::props`' lane impls each forward to
-/// `quad_lane::cut_face`), against the same `Band::linear(tol)`, over
-/// the same face-arena order.
+/// **A SIGN, and the number on request.** What comes back is a
+/// [`crate::SignCertificate`]: the enclosure `plus_v_invariant`
+/// decided on, refined exactly as far as THIS check's certification
+/// needed and no further. There is no volume to read off it, by
+/// construction — a quadrature stopped at the round its caller was
+/// finished has not computed one — and
+/// [`crate::SignCertificate::refine_to_target`] is where a caller who
+/// wants the number asks for it, paying only the rounds that were not
+/// already run.
+///
+/// **THE value, not a second one.** That continuation is bit-identical
+/// in all four fields to [`crate::mass_properties`] on the same body
+/// at the same `tol`, and that is a fact about identity rather than
+/// about agreement: this door's certified quadrature and the
+/// measurement door's lane quadrature are the same computation for
+/// every scalar that can reach here (`crate::props`' lane impls each
+/// forward to `quad_lane::cut_face`), against the same
+/// `Band::linear(tol)`, over the same face-arena order, over the same
+/// rounds — a face left open at round `k` resumes at `k + 1`, and the
+/// lanes' rounds are independent recomputations, so a window changes
+/// no arithmetic.
 ///
 /// **What is evidence for that, and at which scalar.** At `f64` the
-/// identity is measured on a real rational-walled body —
+/// identity is measured on real rational-walled bodies —
 /// `sweep`'s `tcost_k3_certificate` compares all four fields as raw
-/// bits. At the other certifying scalars it rests on the lane impls
+/// bits, and `sign_certified_plus_v` does it over a roster whose
+/// schedules run past round 0, where the gate and the continuation
+/// genuinely split the rounds between them. At the other certifying scalars it rests on the lane impls
 /// agreeing, which is a fact about four function bodies rather than a
 /// type-system guarantee, so it is pinned as one:
 /// `topo`'s `quad_lane_is_the_certified_lane` asserts that every
@@ -2462,8 +2713,8 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedB
 /// not re-prove what the quadrature computes, which is the `f64` row's
 /// job.
 ///
-/// **A refusing arm returns no properties**: a refusal carries no
-/// blessed number, so the `Err` is the verdict vector exactly as
+/// **A refusing arm returns no certificate**: a refusal carries no
+/// blessed enclosure, so the `Err` is the verdict vector exactly as
 /// [`validate_geometric`]'s is — same rejections, same typed verdicts,
 /// same order.
 ///
@@ -2475,7 +2726,7 @@ pub fn validate_geometric_certificate<
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
     validate_geometric_certificate_declared(body, &[], tol)
 }
 
@@ -2590,15 +2841,43 @@ fn structural_declared_via<T: crate::props::PropsQuadLane>(
 fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     // ONE certified quadrature, held and then handed on: the check
-    // decides on this object and the caller receives this object.
-    let certificate = crate::props::mass_properties_certified(body, band, tol);
-    let errors = plus_v_invariant(&certificate, band);
+    // decides on this object and the caller receives this object —
+    // refined to the round where THIS check's certification is
+    // complete, which is where the enclosure's sign stops being in
+    // doubt, and continuable from there by a caller who wants the
+    // number.
+    //
+    // ONE decision, too, and that is load-bearing rather than tidy:
+    // the walk stops on the verdict it returns, so no second reading
+    // of a different round's enclosure can disagree with the round it
+    // stopped at, and the check's predicates are metered once per
+    // round rather than twice.
+    let settled = crate::props::sign_certified(
+        body,
+        band,
+        tol,
+        |e| match plus_v_decide(e, band) {
+            PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
+            PlusVOutcome::Refuse => Some(PlusVVerdict::Refuse),
+            PlusVOutcome::Undecided => None,
+        },
+        |refusal| plus_v_at_target(PlusVOutcome::Undecided, refusal),
+    );
+    let (errors, certificate) = match settled {
+        Ok((verdict, certificate)) => (plus_v_errors(&verdict), Ok(certificate)),
+        Err(source) => (
+            vec![ValidationError::VolumeUncomputable {
+                source: source.clone(),
+            }],
+            Err(source),
+        ),
+    };
     if errors.is_empty() {
         Ok(certificate_of_a_clean_verdict(Some(certificate)))
     } else {
@@ -2623,9 +2902,9 @@ pub(crate) type Check7Certificate<T> =
 /// state is a bug in the composition above, not a reachable input —
 /// D9's bug-state half, announced rather than papered over with a
 /// fabricated value.
-fn certificate_of_a_clean_verdict<T: geom_core::Decide>(
-    certificate: Check7Certificate<T>,
-) -> crate::props::MassProperties<T> {
+fn certificate_of_a_clean_verdict<C>(
+    certificate: Option<Result<C, crate::props::MassPropsError>>,
+) -> C {
     match certificate {
         Some(Ok(props)) => props,
         Some(Err(_)) | None => unreachable!(
@@ -2682,12 +2961,13 @@ pub fn validate_geometric_declared<T: crate::props::PropsQuadLane + geom_core::C
 ///
 /// As [`validate_geometric_declared`].
 pub fn validate_geometric_certificate_declared<
+    'b,
     T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     // The structural half runs WITH check 2's plane x NURBS lane
     // injected, which is what keeps this composed door re-deriving the
     // M7-8 certificate class at rest; the public structural door,
@@ -2754,35 +3034,139 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
     )
 }
 
-/// **Check 7's verdict**, given the mass properties however they were
+/// **What check 7 has decided, and whether refining could change it.**
+///
+/// The +V invariant reads a volume ENCLOSURE and refuses only on a
+/// definite disagreement, so its verdict on a bracket `[lo, hi]` is
+/// settled as soon as that bracket excludes zero — and refinement only
+/// tightens a bracket, never moves the truth out of it:
+///
+/// - `hi` definitely negative ⇒ the body's volume is `≤ hi < 0`, and
+///   no finer round produces an upper end above the volume. REFUSE.
+/// - `lo` definitely positive ⇒ the body's volume is `≥ lo > 0`, so
+///   every finer round's upper end is above `lo` too and none of them
+///   can read definitely negative. PASS.
+/// - otherwise the bracket straddles zero (or its margin is in-band),
+///   and a finer round may still decide it.
+///
+/// The two ends are read under two names, because they are two
+/// questions: `positive_volume` is the refusal this check has always
+/// made, on the same quantity and the same lever it always made it on;
+/// `positive_volume_enclosure` is the question the coupling to the
+/// reporting target used to leave unasked — *is the sign already
+/// certain?* — and it is the one an orientation gate actually consumes.
+///
+/// The lever is the surface area (`V/A`, a length: the mean boundary
+/// displacement the volume defect corresponds to). Closed-form bodies
+/// have `pad = 0.0`, so `lo` and `hi` are the volume itself and the
+/// refusing margin is bit-identical to the pre-PR-11 one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PlusVOutcome {
+    /// The volume is definitely negative: orientation corruption.
+    Refuse,
+    /// The volume is definitely positive: the invariant holds, and no
+    /// finer round can change that.
+    Pass,
+    /// The enclosure does not decide. At the reporting target this is
+    /// a PASS — only a definite disagreement refuses — but before it,
+    /// it is a reason to refine.
+    Undecided,
+}
+
+/// **Check 7's whole verdict**, which is what a sign-level walk stops
+/// on — never [`PlusVOutcome`], which is a reading of ONE enclosure and
+/// has an arm that decides nothing.
+///
+/// The difference is the bug this shape exists to make unwritable. An
+/// undecided enclosure is a reason to refine, and at the reporting
+/// target it is a PASS — but only for a body the quadrature could
+/// actually have measured. A body whose sign never became definite AND
+/// whose schedule ran out has not been validated at all, and passing
+/// it is the false ACCEPTANCE that mirrors the false refusal this unit
+/// removed. So the walk's return type carries no undecided arm: the
+/// enclosure reading that yields one is turned into a verdict at the
+/// moment the schedule ends, with the outstanding refusal in hand.
+#[derive(Clone, Debug)]
+pub(crate) enum PlusVVerdict {
+    /// The invariant holds.
+    Pass,
+    /// The volume is definitely negative: orientation corruption.
+    Refuse,
+    /// Check 7 could not be made: the sign was still undecided when
+    /// the certified quadrature ran out of schedule, so the body's
+    /// volume is neither measurable nor sign-certifiable at this ε.
+    /// The payload is the refusal a target-level reading earns, which
+    /// is the refusal the reporting door makes on the same body.
+    Uncomputable(crate::props::MassPropsError),
+}
+
+fn plus_v_decide<T: geom_core::Decide>(
+    enclosure: crate::props::VolumeEnclosure<T>,
+    band: Band,
+) -> PlusVOutcome {
+    let lever = enclosure.surface_area;
+    if let Ok(Sign::Negative) = decide(
+        "positive_volume",
+        Margin::over_lever(enclosure.volume_hi, lever),
+        band,
+    ) {
+        return PlusVOutcome::Refuse;
+    }
+    if let Ok(Sign::Positive) = decide(
+        "positive_volume_enclosure",
+        Margin::over_lever(enclosure.volume_lo, lever),
+        band,
+    ) {
+        return PlusVOutcome::Pass;
+    }
+    PlusVOutcome::Undecided
+}
+
+/// **Check 7's verdict**, given the volume enclosure however it was
 /// derived — the +V global orientation invariant's whole decision, in
 /// one place, so the lane-dispatched and the certified derivations are
 /// two ways of getting the argument and not two copies of the check.
-///
-/// The margin consumes the CERTIFIED bound (M5 PR 11): for quadrature
-/// faces `volume` is an enclosure midpoint with half-width
-/// `volume_pad`, so the honest "definitely negative" statement is about
-/// the UPPER end `volume + pad` — a thin positive volume inside a wide
-/// bracket must never refuse. Closed-form bodies have `pad = 0.0` and
-/// the margin is bit-identical to the pre-PR-11 one.
 fn plus_v_invariant<T: geom_core::Decide>(
-    props: &Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
+    subject: &Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
     band: Band,
 ) -> Vec<ValidationError> {
-    match props {
-        Ok(props) => {
-            let v_hi = props.volume + T::from_f64(props.volume_pad);
-            if let Ok(Sign::Negative) = decide(
-                "positive_volume",
-                Margin::over_lever(v_hi, props.surface_area),
-                band,
-            ) {
-                vec![ValidationError::NegativeVolume]
-            } else {
-                Vec::new()
-            }
-        }
+    match subject {
+        Ok(subject) => plus_v_errors(&plus_v_at_target(
+            plus_v_decide(subject.enclosure(), band),
+            None,
+        )),
         Err(source) => vec![ValidationError::VolumeUncomputable {
+            source: source.clone(),
+        }],
+    }
+}
+
+/// **What an enclosure reading means once there is nothing left to
+/// refine** — the one place the undecided arm is resolved, shared by
+/// the lane-dispatched derivation (which reads only the target-level
+/// enclosure, so `refusal` is `None` and its walk already refused for
+/// it) and by the sign-level walk's `last_word`.
+fn plus_v_at_target(
+    outcome: PlusVOutcome,
+    refusal: Option<crate::props::MassPropsError>,
+) -> PlusVVerdict {
+    match (outcome, refusal) {
+        (PlusVOutcome::Refuse, _) => PlusVVerdict::Refuse,
+        // Undecided with the schedule run out is NOT a pass: the
+        // quadrature never produced an enclosure tight enough to
+        // decide, and the body is exactly as unvalidatable as the
+        // reporting door says it is.
+        (PlusVOutcome::Undecided, Some(source)) => PlusVVerdict::Uncomputable(source),
+        (PlusVOutcome::Pass | PlusVOutcome::Undecided, _) => PlusVVerdict::Pass,
+    }
+}
+
+/// Check 7's verdict as the tier's error vector.
+fn plus_v_errors(verdict: &PlusVVerdict) -> Vec<ValidationError> {
+    match verdict {
+        PlusVVerdict::Pass => Vec::new(),
+        PlusVVerdict::Refuse => vec![ValidationError::NegativeVolume],
+        PlusVVerdict::Uncomputable(source) => vec![ValidationError::VolumeUncomputable {
             source: source.clone(),
         }],
     }
@@ -4003,7 +4387,23 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     errors.push(ValidationError::CurvedSenseInverted { face: face_key });
                 }
             }
-            Ok(geom_brep::props::MaterialSign::Unencoded) | Err(_) => {}
+            // The boundary encodes no side, so there is no second
+            // encoding to cross-check the stored bit against: the
+            // rimless sphere band, the documented residual above.
+            // An ANSWER, not a refusal.
+            Ok(geom_brep::props::MaterialSign::Unencoded) => {}
+            // A REFUSED derivation is exempt here, never a
+            // disagreement (the posture above, and the contract on
+            // `boundary_material_sign` itself). It is not a discard:
+            // every cause reachable on this arm is a premise the flux
+            // lane runs before it integrates, so the same face refuses
+            // there and check 7 reports it cause-carrying as
+            // `VolumeUncomputable { source }`. Pushing anything here
+            // would DESTROY that report rather than add to it, check 7
+            // being gated on `errors.is_empty()` — the recorded
+            // exception is the conic-trimmed wall named above, whose
+            // quadrature flux is winding-derived and answers.
+            Err(_) => {}
         }
     }
 
@@ -6471,11 +6871,31 @@ mod tests {
             ValidationError::CensusEscalated {
                 cause: indeterminate(),
             },
+            // Three causes, not one three times: the Display-coverage
+            // row renders every arm in this list, and an arm whose
+            // cause is only ever the chart-region one would leave the
+            // other two composition paths unrendered here. The
+            // segment figure is derived from the cap it is one past,
+            // never restated.
             ValidationError::CensusUnsupported {
                 subject: CensusSubject::FacePair(t.face_a, t.face_b),
+                cause: CensusUnsupportedCause::ChartRegion(
+                    ChartRegionError::WitnessBudgetExhausted {
+                        segments: crate::chart_region::WITNESS_BUDGET.segments + 1,
+                        cells: 0,
+                    },
+                ),
             },
             ValidationError::CensusUnsupported {
                 subject: CensusSubject::Entity(EntityId::Face(t.face_a)),
+                cause: CensusUnsupportedCause::FaceUnboundable,
+            },
+            ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Edge(e)),
+                cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
+                    what: "a declared face's surface kind is outside the Rest ladder's \
+                           inventory (plane, sphere, cylinder)",
+                }),
             },
             ValidationError::CensusLaneUnsupported {
                 subject: CensusSubject::FacePair(t.face_a, t.face_b),
@@ -7377,6 +7797,139 @@ mod tests {
             prop_assert!(validate(&cloned).is_err());
             prop_assert_eq!(validate(&t.body), Ok(()));
         }
+    }
+
+    /// A census decline says WHICH lane declined and why, so two
+    /// declines with opposite recourses do not read as one refusal.
+    ///
+    /// The pair here is the sharpest one the chart-region lane has. A
+    /// `TouchingBoundary` decline is a statement about the GEOMETRY —
+    /// the trims touch, the area is not decidable at this ε — and a
+    /// `WitnessBudgetExhausted` decline is a statement about the
+    /// WORK: the interior-witness search stopped, on a pair whose
+    /// overlap may be fat and perfectly decidable. The repairs are
+    /// unrelated, and while the census flattened both onto its
+    /// subject the two sentences were byte-identical.
+    ///
+    /// The falsifier is the inequality below: drop the cause from
+    /// either push site in `census.rs` and the two messages coincide
+    /// again.
+    ///
+    /// **Every quantity here is derived, none restated.** The segment
+    /// figure comes from [`crate::chart_region::WITNESS_BUDGET`], so
+    /// raising the cap moves this row with it instead of leaving it
+    /// green over a state the guard can no longer reach; and each
+    /// arm's sentence is asserted as its carrier's own `Display`
+    /// output rather than as a fragment this row believes that
+    /// carrier emits.
+    #[test]
+    fn a_census_decline_names_the_lane_and_the_arm_that_declined() {
+        let subject = CensusSubject::FacePair(FaceKey::default(), FaceKey::default());
+        let says = |cause: CensusUnsupportedCause| {
+            let msg = ValidationError::CensusUnsupported {
+                subject,
+                cause: cause.clone(),
+            }
+            .to_string();
+            // The whole of what the lane said reaches the reader —
+            // `Display` on the cause, never `Debug`, which is the S6
+            // bug one variant over.
+            assert!(msg.contains(&cause.to_string()), "{msg}");
+            msg
+        };
+
+        let thin = says(CensusUnsupportedCause::ChartRegion(
+            ChartRegionError::TouchingBoundary,
+        ));
+        // One past the cap: the state the guard actually answers, and
+        // it moves when the cap moves.
+        let over_cap = crate::chart_region::WITNESS_BUDGET.segments + 1;
+        let stopped = says(CensusUnsupportedCause::ChartRegion(
+            ChartRegionError::WitnessBudgetExhausted {
+                segments: over_cap,
+                cells: 0,
+            },
+        ));
+        assert_ne!(thin, stopped);
+        assert!(
+            stopped.contains(&format!("{over_cap}-segment")),
+            "{stopped}"
+        );
+        // And the blanket recourse the arm used to append to every
+        // decline is gone: it is the inventory lanes' repair, and it
+        // is the wrong instruction for a stopped search.
+        assert!(!stopped.contains("separate the geometry"), "{stopped}");
+
+        // The other two lanes compose from their own vocabularies.
+        // The `what` is one of production's own, copied from
+        // `boolean/contact_verify.rs`'s Rest-ladder arm rather than
+        // invented, so a reader grepping the string finds the site
+        // that emits it.
+        let contact = says(CensusUnsupportedCause::ContactLane(
+            ContactRefusal::NotCertifiable {
+                what: "a declared face's surface kind is outside the Rest ladder's \
+                       inventory (plane, sphere, cylinder)",
+            },
+        ));
+        // `NotCertifiable` carries NO recourse on purpose
+        // (`contact.rs`): a declaration cannot move a configuration
+        // inside the certifiable set, so the menu the census used to
+        // append there was a false lead, and its absence is the fix
+        // rather than a loss.
+        assert!(!contact.contains("separate the geometry"), "{contact}");
+        let unboundable = ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
+            cause: CensusUnsupportedCause::FaceUnboundable,
+        }
+        .to_string();
+        assert!(unboundable.contains("no boundary vertex"), "{unboundable}");
+        assert_ne!(contact, unboundable);
+    }
+
+    /// **Every decline the census can raise ends in a recourse.**
+    ///
+    /// This arm used to append one of its own to all of them, which
+    /// is what kept the gap invisible: eight `ChartRegionError` arms
+    /// named none, and the blanket tail stood in for them — while
+    /// naming the wrong repair for every arm it did not describe. The
+    /// tail is gone, so the carriers owe it, and this is the row that
+    /// says they pay.
+    ///
+    /// The one deliberate exception is stated rather than excluded:
+    /// [`ContactRefusal::NotCertifiable`] carries no recourse because
+    /// `contact.rs` ratified that it must not — a declaration cannot
+    /// move a configuration inside the certifiable set. That arm is
+    /// asserted to carry its `what` instead, which `contact.rs` calls
+    /// the only honest steering there is.
+    #[test]
+    fn no_census_decline_renders_without_a_repair_to_make() {
+        let what = "a declared face's surface kind is outside the Rest ladder's \
+                    inventory (plane, sphere, cylinder)";
+        // The chart lane's own row proves all thirteen of its arms
+        // (`chart_region::tests::every_chart_region_arm_names_a_recourse`);
+        // what this one adds is that the census's wrapper does not
+        // swallow it, and that the other two causes are covered too.
+        let chart = ValidationError::CensusUnsupported {
+            subject: CensusSubject::FacePair(FaceKey::default(), FaceKey::default()),
+            cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::TouchingBoundary),
+        }
+        .to_string();
+        assert!(chart.contains("Move the boundaries"), "{chart}");
+        let unboundable = ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
+            cause: CensusUnsupportedCause::FaceUnboundable,
+        }
+        .to_string();
+        assert!(
+            unboundable.contains("repair the face's loop"),
+            "{unboundable}"
+        );
+        let contact = ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(EntityId::Edge(EdgeKey::default())),
+            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable { what }),
+        }
+        .to_string();
+        assert!(contact.contains(what), "{contact}");
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the census pair —

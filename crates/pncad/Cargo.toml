@@ -32,6 +32,14 @@ interval = [
     "sweep/interval",
     "topo/interval",
 ]
+# Forwards `topo`'s per-operator postcondition scalpel so a consumer of
+# the façade — the demos, the GUI, a Python caller through `pncad-py` —
+# can localize a door-level tier-1 failure to the operator that caused
+# it without depending on `topo` directly. D1's whole-body sweep runs
+# once per public door; with this on it runs after every operator
+# again, and the panic names the op. Opt-in, never default-on, and it
+# changes no result.
+per-op-postcondition = ["topo/per-op-postcondition"]
 # Forwards `mesh`'s tessellation-budget meter (issue #320) so
 # demos/tour can drive its `tess-budget` sweep. Only `mesh` has the
 # feature — it is per-face telemetry, not a scalar — so this row has
@@ -79,13 +87,18 @@ getrandom = { workspace = true }
 # ONE test binary for the whole suite (see tests/all.rs). Each extra
 # test target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
 #
-# No dev-dependencies, as hygiene — NOT as an enforcement mechanism.
-# An earlier comment here claimed an empty dev-dependency list made
-# the closure tests incapable of naming a kernel crate; that is false.
-# Cargo passes `--extern` for the ordinary [dependencies] above to
-# test targets too, so all twelve are in scope in tests/all.rs
-# regardless. What actually enforces the closure property is the
-# self-scanning guard test in that file.
+# The one dev-dependency is the shared Rust reader the suite's
+# source-scanning guards read through, and it is not a hole in the
+# closure property — an empty dev-dependency list never enforced that
+# and an earlier comment here was wrong to say it did. Cargo passes
+# `--extern` for the ordinary [dependencies] above to test targets
+# too, so all twelve are in scope in tests/all.rs regardless. What
+# enforces the closure property is the self-scanning guard test in
+# that file, which admits `test_utils` as a `use` root and no kernel
+# crate.
+[dev-dependencies]
+test-utils = { path = "../test-utils" }
+
 [[test]]
 name = "all"
 path = "tests/all.rs"

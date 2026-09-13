@@ -1,5 +1,5 @@
 //! The viewer: layer 3 of the GUI/editor architecture
-//! (`crates/viewer/README.md` G1) — interaction over the headless
+//! (`crates/viewer/GUI-DESIGN.md` G1) — interaction over the headless
 //! `editor-core` document and the kernel below it.
 //!
 //! # What is a value here, and what is a widget
@@ -69,6 +69,7 @@ pub mod pickcache;
 pub mod pickindex;
 pub mod prefs;
 pub mod props;
+pub mod readout;
 pub mod revolvetool;
 pub mod scene;
 pub mod seats;
@@ -152,7 +153,7 @@ pub use pickindex::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgePick, IdMap, IdMapError, PatchId, PickError,
     PickIndex, PickIndexError, PickKinds,
 };
-pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
+pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use revolvetool::RevolveTool;
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};

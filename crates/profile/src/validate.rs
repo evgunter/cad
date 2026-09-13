@@ -986,15 +986,15 @@ impl<T: Real> ValidatedLoop<T> {
 }
 
 impl ValidatedLoop<f64> {
-    /// The `f64` loop embedded at `U`: vertices and segments in place,
-    /// the role and the joint set carried. See
-    /// [`ValidatedProfile::lift_onto`].
+    /// The `f64` loop embedded at `U`: each vertex through
+    /// [`ProfileVertex::map`], the segments in place, the role and the
+    /// joint set carried. See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedLoop<U> {
         ValidatedLoop {
             vertices: self
                 .vertices
                 .into_iter()
-                .map(|v| ProfileVertex::new(v.pos().map(U::from_f64), U::from_f64(v.bulge())))
+                .map(|v| v.map(U::from_f64))
                 .collect(),
             segments: self.segments.into_iter().map(|s| s.lift()).collect(),
             tangent_joints: self.tangent_joints,

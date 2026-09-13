@@ -2123,7 +2123,8 @@ fn split_other_at_point<T: Decide>(
             Ok(Sign::Positive | Sign::Zero) => {}
             Ok(Sign::Negative) => {
                 return Err(BooleanError::ClassificationInvariant {
-                    what: "circle edge span exceeds one period; the split azimuth                                would alias by a turn",
+                    what: "circle edge span exceeds one period; the split azimuth \
+                           would alias by a turn",
                 });
             }
             Err(diag) => return Err(BooleanError::Escalated { diag }),

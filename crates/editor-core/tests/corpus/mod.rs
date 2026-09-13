@@ -59,6 +59,7 @@ pub mod face_sketch;
 pub mod heatsink;
 pub mod heatsink_union;
 pub mod hollow_tube_elbow;
+pub mod hollow_tube_ring;
 pub mod islands;
 pub mod kiss_carry;
 pub mod loft_prism;
@@ -69,6 +70,7 @@ pub mod sink;
 pub mod slots;
 pub mod table;
 pub mod tangency;
+pub mod tube_arc;
 pub mod tube_ring;
 pub mod vessel;
 
@@ -224,15 +226,29 @@ pub fn documents() -> Vec<CorpusDoc> {
         // tell a lowering that carries the tier-3′ records from one
         // that drops them.
         kiss_carry::document(),
-        // LIB-TUBE's two: the solid ring torus and the hollow elbow.
-        // Small on purpose — `die_chamfer`-sized recipes, two and two
-        // nodes, not transcriptions of the tour's tube stops — and
-        // deliberately opposite corners of the two-by-two this
-        // vocabulary has: solid/full against hollow/windowed. A pair
-        // that shared a window or a kind would leave half the
-        // vocabulary carrying no registry battery.
+        // LIB-TUBE's two-by-two, WHOLE. It began as the DIAGONAL —
+        // `tube_ring` (solid, full) against `hollow_tube_elbow`
+        // (hollow, windowed) — chosen because a pair sharing a window
+        // or a kind would leave half the vocabulary with no registry
+        // battery. That pair covers each term and separates neither:
+        // varying both axes at once, nothing here could tell "the
+        // solid door works" from "the full window works".
+        //
+        // The other two corners close that. `tube_arc` holds the kind
+        // and moves the window; `hollow_tube_ring` holds the window
+        // and moves the kind. Each axis is now varied with the other
+        // held, and the fourth corner earns its place twice over: a
+        // CLOSED hollow tube is the only one of the four whose body is
+        // TWO shells in one solid — the inner wall closes on itself
+        // into a sealed void — which is a topology no other corner of
+        // this square produces.
+        //
+        // All four stay `die_chamfer`-sized, two and two nodes, and
+        // none is a transcription of a tour stop.
         tube_ring::document(),
+        tube_arc::document(),
         hollow_tube_elbow::document(),
+        hollow_tube_ring::document(),
     ]
 }
 
@@ -325,8 +341,10 @@ pub const NODE_KINDS: [&str; 21] = [
     // zero rather than pretending coverage.
     "Loft",
     "Sweep",
-    // LIB-TUBE's pair — COVERED, by the registered `tube_ring` and
-    // `hollow_tube_elbow` documents. Two kinds because the two
+    // LIB-TUBE's pair — COVERED, by four registered documents now
+    // (`tube_ring`, `tube_arc`, `hollow_tube_elbow`,
+    // `hollow_tube_ring`): the whole two-by-two rather than its
+    // diagonal. Two kinds because the two
     // artifacts differ (RECIPE-DOORS D4 as revised), so they are two
     // tally rows and not one.
     "Tube",
@@ -371,7 +389,7 @@ pub const EDIT_KINDS: [&str; 15] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 18] = [
+pub const SUB_KINDS: [&str; 20] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::AxisInPlane",
@@ -395,16 +413,18 @@ pub const SUB_KINDS: [&str; 18] = [
     // `stepped_map` with the pattern node that the corpus does cover.
     "PlacedUnion::Linear",
     "PlacedUnion::Explicit",
-    // LIB-TUBE covers the DIAGONAL of its two-by-two — the solid ring
-    // and the hollow elbow — and lists only what it covers. The other
-    // two corners (`Tube::Arc`, `HollowTube::Full`) are deliberately
-    // absent for the `PlacedUnion::Circular` reason: no corpus
-    // document needs them, and a listed-but-uncovered sub-kind fails
-    // the tally. Both are exercised directly in `lib_tube_node.rs`,
-    // where `HollowTube::Full`'s cavity — the one topology no other
-    // corner produces — has its own closed-form row.
+    // LIB-TUBE's two-by-two, all four corners. The list carried the
+    // DIAGONAL only while the corpus did: `Tube::Arc` and
+    // `HollowTube::Full` were absent for the `PlacedUnion::Circular`
+    // reason — a listed-but-uncovered sub-kind fails the tally — and
+    // the registry now carries a document for each, so they are
+    // listed. `lib_tube_node.rs` still exercises both directly and
+    // keeps `HollowTube::Full`'s cavity closed-form row; what changed
+    // is that the registry battery reaches them too.
     "Tube::Full",
+    "Tube::Arc",
     "HollowTube::Arc",
+    "HollowTube::Full",
 ];
 
 /// The sub-kind tally names a node contributes (possibly none).

@@ -71,8 +71,8 @@ pub use ::profile::{
     ArcCarrierScalar, ArcData, ArcLen, ArcMode, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop,
     ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LineTarget, Open, PartialPath,
     PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, ReplayError, ReplayErrorKind,
-    Start, Step, Sweep, TangentArcTarget, Target, TipState, Verb, Via, circle, circle_split,
-    replay,
+    Start, Step, Sweep, TangentArcTarget, Target, TargetKind, TipState, Verb, Via, circle,
+    circle_split, replay,
 };
 // The §2c family's traits and arrival builders: the admissibility
 // matrix (one impl per admissible (state, mode) pair) and the states a

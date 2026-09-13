@@ -222,6 +222,7 @@ pub mod shell;
 pub mod source;
 pub mod split;
 pub mod splitting;
+pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
 // must be compiled wherever any of their three consumers is — the
@@ -268,6 +269,8 @@ pub mod test_support {
 #[cfg(test)]
 mod r2_probes;
 #[cfg(test)]
+mod shell10_r2_probes;
+#[cfg(test)]
 mod tier3_tests;
 pub mod transform;
 pub mod validate;
@@ -277,16 +280,17 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
     BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
     CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair,
-    ContactRecords, CurveContact, FaceContainment, FacePairDeclaration, NullEdgePairRecord,
-    Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy,
-    SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
+    ContactRecords, ContainError, CurveContact, FaceContainment, FacePairDeclaration,
+    NullEdgePairRecord, Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc,
+    PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment,
+    SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment,
+    VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
     boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
     flush_pair_relation, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
     point_in_solid, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
     union_with,
 };
+pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
@@ -309,7 +313,8 @@ pub use chart::{Chart, ChartKind};
 pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
-    ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
+    ChartOverlap, ChartRegionError, ChartRegionLane, WITNESS_BUDGET, WitnessBudget,
+    chart_region_overlap, declared_pair_overlap,
 };
 pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
@@ -332,11 +337,11 @@ pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
-pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, pcurve_of};
+pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
-    ShellClassification, ShellClassifyError, ShellRole, classify_shells, classify_shells_of,
-    mass_properties,
+    ShellClassification, ShellClassifyError, ShellRole, SignCertificate, VolumeEnclosure,
+    classify_shells, classify_shells_of, mass_properties,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
@@ -347,7 +352,7 @@ pub use query::{
     ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimError,
     SEL_DATUM_DISTANCE, SurfaceKindSet, UnitVec3, UnitVec3Error,
 };
-pub use readback::{DanglingRef, Pose, ReadbackError};
+pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
@@ -362,12 +367,12 @@ pub use splitting::{
     SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
     plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
-pub use transform::{TransformError, transform_rigid};
+pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
-    CensusContact, CensusSubject, ContactMark, RingContact, StaleDeclaration, ValidationError,
-    contact_marks, contact_marks_certified, contact_marks_declared,
-    contact_marks_declared_certified, validate, validate_closed, validate_geometric,
-    validate_geometric_certificate, validate_geometric_certificate_declared,
+    CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
+    StaleDeclaration, ValidationError, contact_marks, contact_marks_certified,
+    contact_marks_declared, contact_marks_declared_certified, validate, validate_closed,
+    validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
     validate_geometric_declared, validate_geometric_structural,
     validate_geometric_structural_declared, validate_pseudomanifold,
     validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_certified,

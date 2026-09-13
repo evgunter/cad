@@ -21,6 +21,7 @@
 
 use core::f64::consts::PI;
 
+use crate::common::approx::band;
 use geom::Surface;
 use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
@@ -36,10 +37,6 @@ use topo::{Body, BooleanDeclarations, CurveGeom, EdgeKey, ValidationError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> geom_core::Band {
-    geom_core::Band::linear(Tol::witness()).unwrap()
 }
 
 /// Every edge at rest still described through the scaffolding door.

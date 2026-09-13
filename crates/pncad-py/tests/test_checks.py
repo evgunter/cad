@@ -47,6 +47,7 @@ from pncad import (
     ChecksError,
     Doc,
     DocRef,
+    Expr,
     Node,
     Severity,
     enforce_checks,
@@ -64,15 +65,15 @@ def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0):
     profile = doc.insert(
         Node.polygon(
             [
-                (x0 * m, y0 * m),
-                (x1 * m, y0 * m),
-                (x1 * m, y1 * m),
-                (x0 * m, y1 * m),
+                (Expr.length_in(x0, m), Expr.length_in(y0, m)),
+                (Expr.length_in(x1, m), Expr.length_in(y0, m)),
+                (Expr.length_in(x1, m), Expr.length_in(y1, m)),
+                (Expr.length_in(x0, m), Expr.length_in(y1, m)),
             ],
-            plane=doc.sketch_frame(elevation=z0 * m),
+            plane=doc.sketch_frame(elevation=Expr.length_in(z0, m)),
         )
     )
-    return doc.insert(Node.extrude(profile, (z1 - z0) * m))
+    return doc.insert(Node.extrude(profile, Expr.length_in(z1 - z0, m)))
 
 
 def disjoint_union():
@@ -115,13 +116,17 @@ class TestTheConnectednessResident(unittest.TestCase):
         self.assertIsNone(finding.evidence.other_root)
         self.assertIsNone(finding.evidence.other_output)
         self.assertIsNone(finding.evidence.reason)
+        self.assertIsNone(finding.evidence.inner_variant)
+        self.assertIsNone(finding.evidence.boolean_variant)
         self.assertIn("component", str(finding))
 
     def test_a_connected_body_is_clean(self):
         doc, _ = one_box()
         report = run_checks(doc, evaluate(doc))
         self.assertEqual(report.findings, [])
-        self.assertEqual(report.skipped, [])
+        # The chart-coherence resident is Off by default and says so:
+        # "not checked" is an answer this report carries.
+        self.assertEqual(report.skipped, [CheckId.ChartCoherence])
         self.assertEqual(len(report), 0)
 
     def test_an_interior_void_is_boundary_and_not_a_component(self):
@@ -228,11 +233,13 @@ class TestTheReportGateSplit(unittest.TestCase):
         off = ChecksConfig(connectedness=Severity.Off)
         report = run_checks(doc, ev, off)
         self.assertEqual(report.findings, [])
-        self.assertEqual(report.skipped, [CheckId.Connectedness])
+        self.assertEqual(
+            report.skipped, [CheckId.Connectedness, CheckId.ChartCoherence]
+        )
         both = ChecksConfig(connectedness=Severity.Off, separation=Advisory.Off)
         self.assertEqual(
             run_checks(doc, ev, both).skipped,
-            [CheckId.Connectedness, CheckId.Separation],
+            [CheckId.Connectedness, CheckId.ChartCoherence, CheckId.Separation],
         )
 
 
@@ -240,6 +247,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
     def test_every_resident_carries_its_honesty_label(self):
         self.assertEqual(CheckId.Connectedness.kind, CheckKind.Certified)
         self.assertEqual(CheckId.Separation.kind, CheckKind.Certified)
+        self.assertEqual(CheckId.ChartCoherence.kind, CheckKind.Certified)
         self.assertEqual(str(CheckId.Connectedness), "connectedness")
 
     def test_the_configuration_reads_one_severity_vocabulary(self):

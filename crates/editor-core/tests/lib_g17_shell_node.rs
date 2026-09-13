@@ -44,6 +44,7 @@ use editor_core::{
 };
 use geom_core::{Dual64, Tol};
 use topo::ShellError;
+use topo::readback::euler_counts;
 
 /// A name under the shell node wrapping one source name in a role.
 fn shelled(shell: RecipeNodeId, kind: EntityKind, seg: RoleSeg) -> StableName {
@@ -61,18 +62,14 @@ fn cup_names(blank: RecipeNodeId, shell: RecipeNodeId) -> [StableName; 3] {
         shelled(
             shell,
             EntityKind::Face,
-            RoleSeg::Rim(Box::new(cup::top(blank))),
+            RoleSeg::Rim(cup::top(blank).into()),
         ),
         shelled(
             shell,
             EntityKind::Face,
-            RoleSeg::Inner(Box::new(cup::bottom(blank))),
+            RoleSeg::Inner(cup::bottom(blank).into()),
         ),
-        shelled(
-            shell,
-            EntityKind::Face,
-            RoleSeg::FromTarget(Box::new(fixture::fname(blank, fixture::wall(0)))),
-        ),
+        editor_core::carried(shell, fixture::fname(blank, fixture::wall(0))),
     ]
 }
 
@@ -168,13 +165,19 @@ fn an_empty_open_list_is_the_sealed_hollow() {
         "an outer shell and a cavity shell"
     );
     assert_eq!(body.faces().count(), 12, "two complete boxes");
-    // Euler on the two boxes: genus 0 each, so V − E + F = 2 per shell.
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
+    // Euler on the two boxes: genus 0 each, so V − E + F = 2 per shell —
+    // 4 over the two, no rings, and the door's whole-body genus is 0.
+    let counts = euler_counts(body);
+    assert_eq!(
+        (
+            counts.v - counts.e + counts.f,
+            counts.r,
+            counts.s,
+            counts.genus()
+        ),
+        (4, 0, 2, Ok(0)),
+        "two genus-0 shells"
     );
-    assert_eq!(v - e + f, 4, "two genus-0 shells");
     assert_exact(
         body,
         cup::sealed_forms(cup::L, cup::H, cup::T),
@@ -210,11 +213,7 @@ fn the_rim_inner_and_outer_names_resolve() {
     }
     // The designated face's own name is gone: what a selector says for
     // the mouth is `Rim(top)`, never `FromTarget(top)`.
-    let carried_top = shelled(
-        shell,
-        EntityKind::Face,
-        RoleSeg::FromTarget(Box::new(cup::top(blank))),
-    );
+    let carried_top = editor_core::carried(shell, cup::top(blank));
     assert!(
         table.lookup(&carried_top).is_none(),
         "the opened face's own name must vanish"
@@ -342,7 +341,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let rim = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(vessel::band(pot, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(editor_core::band(pot, 0, vessel::SEG_MOUTH).into()),
     );
     assert!(
         matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
@@ -351,7 +350,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let other = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(vessel::band_pi(pot, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH).into()),
     );
     assert!(
         table.lookup(&other).is_none(),
@@ -372,8 +371,8 @@ fn the_designation_order_moves_the_rim_and_the_content_key() {
     let a = vessel::document();
     let b = vessel::document_with_open(|pot| {
         [
-            vessel::band_pi(pot, vessel::SEG_MOUTH),
-            vessel::band(pot, vessel::SEG_MOUTH),
+            editor_core::band_pi(pot, 0, vessel::SEG_MOUTH),
+            editor_core::band(pot, 0, vessel::SEG_MOUTH),
         ]
     });
     let (sa, sb) = (a.result.unwrap(), b.result.unwrap());
@@ -388,7 +387,7 @@ fn the_designation_order_moves_the_rim_and_the_content_key() {
     let rim_pi = shelled(
         sb,
         EntityKind::Face,
-        RoleSeg::Rim(Box::new(vessel::band_pi(pot, vessel::SEG_MOUTH))),
+        RoleSeg::Rim(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH).into()),
     );
     assert!(
         matches!(
@@ -494,8 +493,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // completes no chart on the author's behalf.
     let v = vessel::document_with_open(|pot| {
         [
-            vessel::band(pot, vessel::SEG_MOUTH),
-            vessel::band(pot, vessel::SEG_BELLY),
+            editor_core::band(pot, 0, vessel::SEG_MOUTH),
+            editor_core::band(pot, 0, vessel::SEG_BELLY),
         ]
     });
     // Replace the two-name designation by the single half: the door
@@ -510,7 +509,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
         Node::shell(
             pot,
             fixture::len(vessel::WALL),
-            vec![vessel::band(pot, vessel::SEG_MOUTH)],
+            vec![editor_core::band(pot, 0, vessel::SEG_MOUTH)],
         ),
     );
     let e = refusal(&doc, n);

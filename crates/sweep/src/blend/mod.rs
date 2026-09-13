@@ -338,6 +338,27 @@ pub enum BlendSite {
     Chain,
 }
 
+/// The site names itself in prose.
+///
+/// Two of the three variants carry a field, so a `Debug` rendering of
+/// this type carries the field-brace fingerprint `" { "` that
+/// `pncad-py`'s prose gate rejects — and that gate is a live
+/// `debug_assert` on every Python raise, in every profile. A refusal
+/// that reaches a user through the bindings must therefore render the
+/// site through this impl, never through `Debug`.
+///
+/// Each arm is the noun phrase that follows "at", so a composing
+/// sentence supplies the preposition and nothing else.
+impl fmt::Display for BlendSite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Link { edge } => write!(f, "the link on edge {edge:?}"),
+            Self::Joint { vertex } => write!(f, "the joint at vertex {vertex:?}"),
+            Self::Chain => f.write_str("the chain as a whole"),
+        }
+    }
+}
+
 /// The **run-out policy vocabulary** (OQ6, decided by Ev at #85; the
 /// transverse cut-off ratified on PR 1736's thread). Two variants are
 /// refusal-payload names ONLY, with no constructor surface anywhere in
@@ -1382,13 +1403,13 @@ impl fmt::Display for BlendError {
                     other => {
                         return write!(
                             f,
-                            "escalated at {site:?}: {source} — no recourse is recorded for \
+                            "escalated at {site}: {source} — no recourse is recorded for \
                              predicate {other:?}; this is a gap in the error table, not \
                              advice to act on"
                         );
                     }
                 };
-                write!(f, "escalated at {site:?}: {source} — {recourse}")
+                write!(f, "escalated at {site}: {source} — {recourse}")
             }
             Self::RepeatedEdge { edge } => write!(
                 f,
@@ -1598,6 +1619,13 @@ mod recourse_tests {
     /// leave the other route unrendered and unchecked.
     /// `FaceClearanceUncertified` appears twice for the same reason —
     /// its recourse is chosen by `cross_chain`.
+    ///
+    /// `Escalated` appears at all three sites because what decides its
+    /// RENDERING is the variant of its payload, one level below the
+    /// variant this list enumerates: two of `BlendSite`'s three arms
+    /// carry a field and one does not, so a roster exhaustive over
+    /// `BlendError` alone samples the brace-free arm and reports green
+    /// over the two that are not.
     fn seeds() -> Vec<BlendError> {
         let band = Band::new(1e-9, 1e-6).expect("a band");
         let decided = |predicate, m: f64, sign| ClassifiedMargin {
@@ -1673,6 +1701,26 @@ mod recourse_tests {
                     margin: MarginDiag::Value(0.0),
                     band,
                     predicate: Some("fillet3_ring_clearance"),
+                },
+            },
+            BlendError::Escalated {
+                site: BlendSite::Link {
+                    edge: EdgeKey::default(),
+                },
+                source: Indeterminate {
+                    margin: MarginDiag::Value(0.0),
+                    band,
+                    predicate: Some("fillet3_radius_headroom"),
+                },
+            },
+            BlendError::Escalated {
+                site: BlendSite::Joint {
+                    vertex: VertexKey::default(),
+                },
+                source: Indeterminate {
+                    margin: MarginDiag::Value(0.0),
+                    band,
+                    predicate: Some("fillet3_chain_g1"),
                 },
             },
             BlendError::RepeatedEdge {
@@ -1802,6 +1850,33 @@ mod recourse_tests {
                 rendered.contains(&sentence),
                 "no seeded variant appends {sentence:?} — either the constant is dead or \
                  the variant that appends it is unseeded"
+            );
+        }
+    }
+
+    /// **No refusal this enum can render carries a `Debug` field
+    /// dump.**
+    ///
+    /// A `BlendError` reaches Python as the text of its `Display`, and
+    /// `pncad-py`'s prose gate asserts on every raise that the text
+    /// carries no `" { "` — the fingerprint `Debug` puts on a
+    /// named-field struct or struct variant. That assertion is live in
+    /// every profile, so a payload rendered through `Debug` here does
+    /// not degrade the message: it panics the binding at the arm that
+    /// means to refuse.
+    ///
+    /// The check is over [`seeds`] rather than over the payload types,
+    /// so it holds for whatever a new arm renders; what it cannot see
+    /// is a variant, or a payload variant, that [`seeds`] does not
+    /// carry.
+    #[test]
+    fn no_refusal_renders_a_field_brace_dump() {
+        for seed in seeds() {
+            let text = seed.to_string();
+            assert!(
+                !text.contains(" { "),
+                "{seed:?} renders a payload through `Debug`, which panics the \
+                 binding's prose gate instead of raising: {text}"
             );
         }
     }

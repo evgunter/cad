@@ -74,14 +74,20 @@
 //! reciprocal's reach, and it is a NORMAL FORM rather than a rewrite
 //! rule: nothing is factored, and no simplification is attempted.
 //!
-//! What remains outside the DEFAULT tier: no factoring, and no
-//! functional identity of any opaque atom. `sin² + cos² − 1` does not
-//! decide symbolically, `sqrt(x)·sqrt(x) − x` does not, and `|x| − x` on
-//! a nonnegative `x` does not. Each atom is an indeterminate keyed by
+//! What remains outside the PLAIN form: no factoring, and no functional
+//! identity of any opaque atom — each atom is an indeterminate keyed by
 //! its argument's form, so two occurrences of ONE atom cancel and
-//! nothing else about it is known. These are limits of the tier and not
-//! bugs in it — over-refusal is the safe direction, and every such
-//! margin falls to the numeric channel exactly as before.
+//! nothing else about it is known there. The SHIPPED tier layers the
+//! atom algebra on top (the M10-8, M10-9 and M10-10 sections below):
+//! `sqrt(x)·sqrt(x) − x` and `sin² + cos² − 1` DO decide as theorems
+//! under [`SymRules::shipped`] (rules A and B, over the top residual
+//! and per node), and `sin`/`cos` of `q · atan X` fold to closed forms
+//! (rule D). What still stands with the shipped set is what needs a
+//! SIGN: `|x| − x` on a nonnegative `x` is rule C's, and rule C is
+//! dial-off. These are limits of the tier and not bugs in it —
+//! over-refusal is the safe direction, and every such margin falls to
+//! the numeric channel exactly as before. (Through M10-9 this
+//! paragraph listed all three as undecided; R1 of M10-10 ran them.)
 //!
 //! # The arc family, and what reaches it (M10-8)
 //!
@@ -98,12 +104,12 @@
 //! rim form, and the products of three 53-bit mantissas overflowed the
 //! `i128` the coefficients were kept in.
 //!
-//! **What ships, by measurement** ([`SymRules::shipped`]): the constant
-//! fold **A0** — `sqrt(c)` and `abs(c)` of a constant form fold to the
-//! exact rational — in a second walk ALONGSIDE the plain form (the
-//! plain form is asked first and stays M10-7's, so nothing it proves is
-//! lost), over an arbitrary-precision coefficient ring bounded at
-//! [`COEFF_BITS`]. That alone moves R2's
+//! **The constant fold, by measurement** (M10-8; the first rule of the
+//! shipped set, [`SymRules::shipped`]): **A0** — `sqrt(c)` and `abs(c)`
+//! of a constant form fold to the exact rational — in a second walk
+//! ALONGSIDE the plain form (the plain form is asked first and stays
+//! M10-7's, so nothing it proves is lost), over an arbitrary-precision
+//! coefficient ring bounded at [`COEFF_BITS`]. That alone moves R2's
 //! filleted bracket's whole-certifying box from `3.7e1 · ε` to
 //! `3.9e2 · ε` (10.4×) and R1's annulus from `2.0e1 · ε` to `7.8e2 · ε`
 //! (39×), at about 1.8× the cost per leaf of M10-7's tier where the
@@ -117,29 +123,16 @@
 //! 234 → 225) and M10-6's min-clearance boxes, to coefficient freezes at
 //! the bound — which is why it ships alongside.
 //!
-//! **What is built and does not ship, by measurement** — each behind
-//! its own [`SymRules`] dial, so a future document can be measured
-//! against it: rules **A** `sqrt(X)² = X` and **B** `sin² + cos² = 1`
-//! over the top residual (`algebra`), which add no discharge on any of
-//! the four documents; the same two PER NODE in the early walk
-//! ([`SymRules::early_ab`]), which reach the nested `sqrt(…)²` the top
-//! residual cannot but cost minutes per replay (138 s for the plate's
-//! nominal); and rule **C** — `sqrt(X) = R` where `X = R²` as forms and
-//! `R`'s sign is certified over the box, clause 3, the one fold that
-//! reads a value (`signed`) — which is sound, unit-pinned, folds on no
-//! document at the shipped bound and moves no ceiling at any bound
-//! while costing 2× per leaf for the walk it rides.
-//!
-//! **What still bounds the plate.** The tour's two-hole plate certifies
-//! whole below `7.79e2 · ε` of its real study under every rule set,
-//! and through M10-8 the predicate that bounded it was
-//! `carrier_endpoint_start`: a rim residual whose plain form is an
-//! outer `sqrt` over a degree-12 polynomial in the radius with
-//! `sqrt((a + 2r)²)²`-shaped atoms nested inside — reachable only by
-//! the per-node reduction, and only at a coefficient bound (~640 bits
-//! and up) the shipped ring does not afford. The numbers, the rendered
-//! residual and what is owed are on
-//! `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`.
+//! **Rules A and B** — `sqrt(X)² = X` and `sin² + cos² = 1`
+//! (`algebra`) — add no discharge over the top residual on any
+//! measured document, and PER NODE in the early walk they are what
+//! closes the ring behind rule D (the M10-10 section below); M10-8
+//! built them per node at 138 s per nominal plate replay and measured
+//! them off on cost, and M10-10 made them affordable. **Rule C** —
+//! `sqrt(X) = R` where `X = R²` as forms and `R`'s sign is certified
+//! over the box, clause 3, the one fold that reads a value (`signed`)
+//! — is sound, unit-pinned, folds on no document at the shipped bound,
+//! moves no ceiling at any bound, and stays dial-off.
 //!
 //! # The registered-identity door (M10-9)
 //!
@@ -202,31 +195,157 @@
 //! which needs the SQUARED identity `v·v = r²` rather than either of
 //! these, and the three are different nodes.
 //!
-//! **What they do NOT move, and this is the unit's finding.** No
-//! ceiling on any of the five measured documents changes by a digit —
-//! and the predicate that BOUNDS each of them does not move either.
-//! Read as the over-band SET at the refusing end of the bisection
-//! (`m10_9_evidence_interval`), exactly one predicate is over the band
-//! on all five documents, at all three ε rows, door open and door
-//! shut: `carrier_matches_mapped_source`, the carrier against the
-//! `MappedCurve` pushforward at the certifier's own samples. An
-//! identity between two INDEPENDENTLY BUILT objects, which is the line
-//! E12's reserve draws and which no node alias reaches without carrying
-//! the certifier's sampling schedule into a construction site
-//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+//! **What the door alone does NOT move** (M10-9's finding): no
+//! ceiling on any of the five measured documents changes by a digit
+//! with the door alone — read as the over-band SET at the refusing end
+//! of the bisection, exactly one predicate is over the band on all five
+//! documents, at all three ε rows, door open and door shut:
+//! `carrier_matches_mapped_source`, the carrier against the
+//! `MappedCurve` pushforward at the certifier's own samples, an
+//! identity between two INDEPENDENTLY BUILT objects that meet only
+//! where their trig collapses
+//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). The
+//! door reaches its `i = 0` sample and no other — until the trig is
+//! written in closed form, which is the section below: with rule D on,
+//! the door is what closes that residual at EVERY sample, and the two
+//! move the plate together where neither does alone
+//! (`m10_10_pins_interval`).
 //!
 //! **The bound is a SET at ceiling + δ, never one drive's first
-//! refusal**, and this unit learned it the hard way. A drive stops at
-//! the first predicate that refuses, and at a scale well past the
-//! ceiling several are over the band at once, so which name comes back
-//! is evaluation ORDER — validation before certification. Read at twice
-//! the plate's ceiling, the reported refusal walks with each registrant
-//! (`carrier_endpoint_start` → `carrier_endpoint_end` →
-//! `carrier_matches_mapped_source`), and M10-9's first cut reported
-//! that walk as the bound moving. It is not: at ceiling + δ the plate
-//! is bounded by `carrier_matches_mapped_source` with the door SHUT
-//! too. The door discharges 40–60 decisions per document, and the
-//! identities it discharges were never what bounded one.
+//! refusal.** A drive stops at the first predicate that refuses, and at
+//! a scale past the ceiling several are over the band at once, so which
+//! name comes back is evaluation ORDER — validation before
+//! certification. Read at twice the plate's ceiling, the reported
+//! refusal walks with each registrant, and M10-9's first cut reported
+//! that walk as the bound moving; it was not. The instrument is one
+//! home now — `editor-core/tests/m10_8_harness`'s `over_band_set` and
+//! `bound`, the bracket and the set at its refusing end — and nothing
+//! in the tree spells a bound any other way.
+//!
+//! # The form-level algebra (M10-10)
+//!
+//! **Rule D — trig of `atan`, exact** ([`SymRules::trig_of_atan`],
+//! `trig`): in the early walk a `sin`/`cos` node whose argument form is
+//! `q · atan(X)`, `q = k/2ᵐ`, rewrites to its closed form in `X` and the
+//! atom `sqrt(1 + X²)` — `cos φ = 1/S`, `sin φ = X/S`, halves on the
+//! positive branch (a theorem of `atan`'s RANGE: `φ/2ʲ ∈ (−π/4, π/4)`
+//! has a positive cosine, so `cos(θ/2) = +sqrt((1 + cos θ)/2)` and
+//! `sin(θ/2) = sin θ/(2·cos(θ/2))`, no sign read), multiples by angle
+//! addition; and, under the same dial (amendment A1), `atan2(Z, N)` of
+//! the zero form over a form non-negative BY SYNTAX (`sqrt`/`abs`
+//! atoms, even powers, positive coefficients, perfect squares, and
+//! their products, quotients and sums — `trig::manifestly_nonneg`) is
+//! the zero form, and `sin`/`cos` at an exact half-multiple of π is
+//! its constant. Nothing folds at any other argument shape. The two
+//! spellings of an arc — the pushforward's `sin(s·θ)`, `−2·sin²(s·θ/2)`
+//! at `θ = 4·atan b` and the carrier's `cos t`, `sin t` at `t =
+//! (i/8)·4·atan|b|` — are then rational functions of the same atoms,
+//! and **rules A/B per node** ([`SymRules::early_ab`]) close the ring:
+//! the substitution is linear (`algebra::poly_subst_square` accumulates
+//! one numerator over one common denominator), bounded by
+//! [`EARLY_STEPS`] and [`EARLY_AB_TERMS`], and skipped on a form past
+//! the size cap. With them, the early walk also takes the **zero
+//! normalization** `0/d + x = x`, `0/d · x = 0` (`combine`): the
+//! quotient form cancels no common factor, so a zero numerator dragged
+//! its denominator into every sum — an arc's `n̂ · apothem` at bulge one
+//! is `0/‖chord‖`, its centre became `mid·‖chord‖/‖chord‖`, and rule A
+//! expanded the `‖chord‖²` that rode along into polynomials of rising
+//! degree with 53-bit coefficients that froze at every ring width.
+//! All three are behind dials; [`SymRules::without_the_algebra`] is
+//! M10-9's tier bit for bit, and `m10_9_pins_interval` holds M10-9's
+//! rows under it.
+//!
+//! **What it reaches on the plate, at the nominal** (theorem / gated /
+//! registered / numeric, `m10_10_pins_interval`): `carrier_on_surface_2`
+//! 108/0/0/72 → 180/0/0/0 and `witness_on_surface_2` 12/0/0/8 →
+//! 20/0/0/0 as THEOREMS; `carrier_matches_mapped_source` 180/0/8/64 →
+//! 180/0/72/0, every sample through the DOOR — rule D makes the trig
+//! meet, and the rim identity `‖q − c‖ = r` the registrant states is
+//! what closes it, so the count is `registered`, honestly. The fourth
+//! residual the staged walk names, `pcurve_map_residual`, 0/0/0/36 →
+//! 0/0/36/0 through the door as well: it carries the chart's phase
+//! `atan2(0, r²/sqrt(r²))` from the cylinder chart derivation
+//! (`pcurve_cache::stable_azimuth`, whose `u_ref` on the extrude's
+//! wall is the start's own radial), which the A1 fold takes as the
+//! zero form — `atan2` of the zero form over a form non-negative by
+//! syntax, positive wherever the arc exists, and the `r² = 0` box is
+//! one clause 1 refuses first — and on the definitely-negative frame
+//! the azimuth's `+ π` leaves `cos π = −1`; the rim identity closes
+//! what is left. Nothing read a sign: the fold is a fact about
+//! `atan2`'s value on a syntactic class, the same posture as the
+//! half-angle branch.
+//!
+//! **What it moves, measured at ε = 1e-6, 1e-9 and 1e-12** (the
+//! over-band set at ceiling + δ; `m10_10_evidence_interval`, pinned in
+//! `m10_10_pins_interval`):
+//!
+//! | document | M10-9 | M10-10 | over the band at ceiling + δ |
+//! | --- | --- | --- | --- |
+//! | two-hole plate | `7.81e2 · ε` | **0.2368 / 0.2631 / 0.2631 of its REAL study** (the three rows) | `assert_bound` — the web assertion, `[−2.1e-9, 2.0e-4]` at `1e-9` |
+//! | R1 annulus | `7.81e2 · ε` | **0.6963 / 0.8416 / 0.8415 of its real study** | `dihedral_wedge` `[1.0e-5, 5.3e-2]` at `1e-6`; `arc_diameter_clearance` `[−5.6e-8, 8.4e-4]` at the finer rows |
+//! | R2 link | `4.93e2 · ε` | unmoved | `carrier_matches_mapped_source` |
+//! | R2 filleted bracket | `3.87e2 · ε` | unmoved | `carrier_matches_mapped_source` |
+//! | R2 rounded pad | `2.08e3 · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` (identity-shaped) |
+//!
+//! The plate's and the annulus's whole-certifying CEILINGS stopped
+//! scaling with ε — each is a fraction of the document's real study —
+//! and what bounds each is DEPENDENCY WIDENING of a real margin, not a
+//! flip (`work/m10/real-margin-dependency-widening`, the class E12
+//! hands the ceiling to). On the plate the bound is the study's own web
+//! assertion, whose margin `web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b`
+//! is AFFINE: its true range at scale `s` of the study is `1e-4 ±
+//! 1.6e-4·s`, so the flip first enters the box at `s = 0.625`, while
+//! at the pinned ceiling `s ≈ 0.263` the true margin is `[5.79e-5,
+//! 1.42e-4] > 0` everywhere and the enclosure is `[−2.09e-9, 2.00e-4]`
+//! — widened by ~6e-5 on each side (pinned:
+//! `m10_10_pins_interval::m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`);
+//! at `1e-6` the same widened enclosure sits in the band. The annulus
+//! is the same class: `arc_diameter_clearance` cannot be zero for any
+//! `r > 0` — the widening finding's second site. The plate's rows are
+//! the staged walk's own end (0.2368, 0.2630, 0.2631 with every
+//! identity residual passed) to the bisection step, and passing
+//! further residuals moves nothing. The LEAVES certify up to the real
+//! flip: driven whole at 1024 leaves the plate's real study is 431
+//! certified / 593 refused, every refusal the leaf budget, and a
+//! refused leaf refined further is bounded by `{assert_bound}` alone
+//! at every depth (`m10_10_the_plates_real_study_driven_whole`; both
+//! reviews' refinements, adopted as `m10_10_r1_probes_interval` and
+//! `m10_10_r2_probes_interval`; the tour's stop 1). So "not by ε" is
+//! the ceiling's statement and "up to a genuine flip" the leaves'.
+//! The other three still scale with ε — each is bounded by an
+//! identity residual. On the link and the bracket the scaffold
+//! residual stands because the term/coefficient BUDGET freezes their
+//! carrier frames' squared components — the link's residual is
+//! `sqrt(Σ)` over two frozen squared components, the bracket's both
+//! components freeze before squaring — at any affordable width: the
+//! per-node size cap is a cost wall and not a reach (raising
+//! [`EARLY_AB_TERMS`] 512 → 4096 leaves the link at ceiling + δ
+//! byte-identical, and with the budget raised to 32,768 terms /
+//! degree 256 the bracket's bracket is unchanged at 16× the leaf cost;
+//! both reviews, by execution). What they wait on is the scaffold
+//! residual's retirement for arc carriers (PCURVE/D3). On the pad the
+//! fillet's identity-shaped `line_span` is a `Min` over frozen
+//! 60-term, degree-16 products (`work/m10/symbolic-tier-census`).
+//! And the reach is the UNIT bulge: a parameter bulge is outside the
+//! mechanism (R2's D-tab: `3.52e2 · ε` on and off alike) and a literal
+//! bulge other than 1 leaves residue (R1's boss at bulge 2: 6 of 54
+//! and 27 of 90 still numeric, ceiling unmoved) —
+//! `work/m10/rule-d-reaches-the-unit-bulge-only`.
+//!
+//! **What it costs** (release, one whole-box leaf, algebra off → on):
+//! plate at `1e2 · ε` 0.15 → 0.21 s; plate at its REAL study 0.02 →
+//! 0.20 s (the affordability line is 1.6 s; with A1 every residual is
+//! worked to the end, so the leaf costs what the whole walk costs);
+//! bracket 0.51 → 0.81 s; annulus 0.09 → 0.17 s; pad 2.2 → 10.1 s;
+//! link 0.42 → 5.0 s. The ring stays
+//! at [`COEFF_BITS`] = 256: the plate's four residuals discharge there
+//! once the zero normalization and A1's folds are in (the first three
+//! needed the normalization, the fourth A1 — neither needed a wider
+//! ring), and 512 and 1024 add no discharge (measured before the
+//! normalization: 512 moved nothing, 1024 reached two of the first
+//! three at 12 s per nominal replay — the coefficient growth was the
+//! artefact, not the reach; A1's folds are width-independent and are
+//! pinned at all three widths).
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -395,6 +514,10 @@ pub mod report;
 /// one value read the tier makes (a parameter bracket in the ring).
 #[path = "sym/signed.rs"]
 mod signed;
+/// Rule D: trig of `atan`, exact — the closed forms of `sin`/`cos` at
+/// `q · atan(X)`.
+#[path = "sym/trig.rs"]
+mod trig;
 
 // ---------------------------------------------------------------- ids
 
@@ -1379,16 +1502,22 @@ impl SymCounts {
     }
 }
 
-/// **The atom-algebra dials** — the three rewrite rules the normal form
-/// applies to its opaque atoms, each switchable so that its effect on
-/// a document is a measurement rather than an assumption, and so that
-/// all three off is the plain quotient form bit for bit.
+/// **The tier's dials** — every mechanism the normal form layers on
+/// the plain quotient form, each switchable so that its effect on a
+/// document is a measurement rather than an assumption, and so that
+/// every dial off ([`Self::none`]) is the plain quotient form bit for
+/// bit: the atom-algebra rules A, B and C; the constant fold A0
+/// (`const_fold`) and the early walk it runs in (`early`); rules A/B
+/// applied PER NODE inside that walk (`early_ab`); rule D, trig of
+/// `atan` in closed form with amendment A1's `atan2` and half-π folds
+/// (`trig_of_atan`); and the registered-identity door (`registered`).
 ///
 /// Every rule is an equality of reals under clause 1 of the theorem
 /// ([`Decide::sign_within`]'s docs), so a zero reached through any of
 /// them is still a zero of the real margin; what a rule can cost is
-/// only a cancellation it fails to find. The rules are named A, B and C
-/// where the tier's module docs discuss them.
+/// only a cancellation it fails to find. The rules are named A, B, C
+/// and D where the tier's module docs discuss them; the door is an
+/// axiom rather than a rule and is counted apart (`registered`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SymRules {
     /// **A — `sqrt(X)² = X`.** An even power of a `sqrt` atom reduces
@@ -1433,14 +1562,33 @@ pub struct SymRules {
     /// the DAG per decision the plain form did not answer, memoized per
     /// leaf.
     pub early: bool,
-    /// **Rules A/B PER NODE in the early walk**, under a small step cap
-    /// ([`EARLY_STEPS`]) with the un-reduced form kept where a
-    /// reduction does not fit. Measured expensive rather than a
-    /// runaway — and, on the BigInt ring, expensive enough not to ship:
-    /// the plate's nominal replay went from 0.6 s to 138 s with it on,
-    /// because with nothing freezing every node's reduction is real
-    /// work ([`Self::shipped`]). Needs `early`.
+    /// **Rules A/B PER NODE in the early walk**, under a step cap
+    /// ([`EARLY_STEPS`]) and a size cap ([`EARLY_AB_TERMS`]), with the
+    /// un-reduced form kept where a reduction does not fit. This is
+    /// how a nested atom is reached — `sqrt(…)²` inside another atom's
+    /// argument, which a reduction over the top residual never sees —
+    /// and it is what closes the ring behind rule D. Needs `early`, and
+    /// applies whichever of `sqrt_square`/`pythagoras` is on.
+    ///
+    /// Affordable by construction rather than by luck: the substitution
+    /// is LINEAR in the form (`algebra::poly_subst_square` accumulates
+    /// one numerator over one common denominator instead of
+    /// cross-multiplying term by term, which is what made the first
+    /// cut cost 138 s per nominal plate replay), memoized per node by
+    /// content-hash id like every form, and skipped outright on a form
+    /// past the size cap, where a reduction could only feed a product
+    /// the budget is about to freeze anyway.
     pub early_ab: bool,
+    /// **D — trig of `atan`, exact**: a `sin`/`cos` node in the early
+    /// walk whose argument form is `q · atan(X)`, `q` dyadic, rewrites
+    /// to its closed form in `X` and the atom `sqrt(1 + X²)` — integer
+    /// multiples by angle addition, halves on the positive branch,
+    /// which the RANGE of `atan` fixes ([`trig`] carries the argument).
+    /// Unconditional: no value is read, and a zero reached through it
+    /// is a theorem. Nothing folds at any other argument shape. Needs
+    /// `early`; the `sqrt` atoms it mints are rule A's shape, so it
+    /// pays off with `early_ab`.
+    pub trig_of_atan: bool,
     /// **C — `sqrt(X) = R` where `X = R²` as forms and `R` has a
     /// certified sign over the leaf's box** (and `abs(R) = ±R`
     /// likewise): clause 3 of the theorem, the one rule that reads a
@@ -1475,41 +1623,43 @@ impl SymRules {
             const_fold: true,
             early: true,
             early_ab: true,
+            trig_of_atan: true,
             signed_root: true,
             registered: true,
         }
     }
 
-    /// **The shipped set: A0 alone, in the early walk ALONGSIDE the
-    /// plain form** — the constant fold over the bounded
-    /// arbitrary-precision coefficient ring, with M10-7's plain form
-    /// asked first and kept whole.
+    /// **The shipped set: the constant fold, the registered-identity
+    /// door, and the form-level algebra — rule D with rules A/B per
+    /// node — in the early walk ALONGSIDE the plain form**, over the
+    /// bounded arbitrary-precision coefficient ring, with M10-7's plain
+    /// form asked first and kept whole.
     ///
-    /// Chosen by measurement (M10-8's fix pass, 2026-09-05), per
-    /// mechanism, on the two-hole plate, R2's filleted bracket, R1's
-    /// annulus and M10-4's stepped shaft:
+    /// Chosen by measurement, per mechanism, on the two-hole plate,
+    /// R2's filleted bracket, R1's annulus, R2's rounded pad and R2's
+    /// link (the module docs carry the tables):
     ///
     /// | mechanism | ceilings moved | cost per leaf | ships |
     /// | --- | --- | --- | --- |
     /// | A0 alongside (`const_fold` + `early`) | bracket 10.4×, annulus 39×, the shaft's ±0.1 study certifies whole; loses nothing | plate 0.35 → 0.65 s, bracket 1.47 → 2.7 s | **yes** |
-    /// | A0 replacing (`const_fold` alone) | the same ceilings | plate 0.37 s, bracket 1.46 s | no: loses theorems to bound freezes (two R2 rows; M10-6's min-clearance boxes refuse) |
-    /// | A/B over the top residual | none | ~0 | no (inert) |
-    /// | A/B per node (`early_ab`) | none measured (138 s per nominal replay) | minutes | no (cost) |
-    /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits, twice on the plate at 4096 | ~2× | no (inert, cost) |
+    /// | A0 replacing (`const_fold` alone) | the same ceilings | plate 0.37 s, bracket 1.46 s | no: loses theorems to bound freezes |
+    /// | the door (`registered`) | none alone; the `i = 0` sample of the scaffold residual and both endpoint pinnings | ~0 | **yes** |
+    /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`), with A1's `atan2` and half-π folds under D's dial | the plate's four identity residuals all go: the plate certifies 0.24–0.26 and the annulus 0.70–0.84 of their REAL studies, their ceilings bounded by dependency widening of real margins; pad 1.20× | plate 0.15 s at its real study, pad 2.1 → 10.5 s, link 0.43 → 4.1 s (with rule D's `sin`/`cos` pair built once) | **yes** |
+    /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
+    /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     ///
-    /// The plate's ceiling (`7.81e2 · ε`) is unmoved by every row. The
-    /// counts behind the table are the evidence rows in
-    /// `editor-core/tests/m10_8_arc_family_interval.rs` and
-    /// `m10_8_r1_probes_interval.rs`, and the pins in
-    /// `m10_8_pins_interval.rs` hold this set to what it measured.
+    /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
+    /// and `m10_10_pins_interval.rs` hold each layer to what it
+    /// measured, the earlier ones under [`Self::without_the_algebra`].
     #[must_use]
     pub const fn shipped() -> Self {
         Self {
-            sqrt_square: false,
-            pythagoras: false,
+            sqrt_square: true,
+            pythagoras: true,
             const_fold: true,
             early: true,
-            early_ab: false,
+            early_ab: true,
+            trig_of_atan: true,
             signed_root: false,
             registered: true,
         }
@@ -1525,8 +1675,26 @@ impl SymRules {
             const_fold: false,
             early: false,
             early_ab: false,
+            trig_of_atan: false,
             signed_root: false,
             registered: false,
+        }
+    }
+
+    /// **The shipped set with the form-level algebra OFF** — rules A/B
+    /// per node and rule D shut, the constant fold, the early walk and
+    /// the registered-identity door as they were: the tier exactly as
+    /// M10-9 shipped it, bit for bit, and the differential every claim
+    /// about what the algebra costs and what it buys is measured
+    /// against.
+    #[must_use]
+    pub const fn without_the_algebra() -> Self {
+        Self {
+            sqrt_square: false,
+            pythagoras: false,
+            early_ab: false,
+            trig_of_atan: false,
+            ..Self::shipped()
         }
     }
 
@@ -1632,6 +1800,13 @@ struct Session {
     /// per leaf replay, like everything else here; consulted by the
     /// EARLY walk only, and only under [`SymRules::registered`].
     registry: IdMap<SymId>,
+    /// **Rule D's closed forms, by argument form** (`trig::Closed`):
+    /// `sin` and `cos` of one argument are two nodes, and the recurrence
+    /// that builds `(cos kψ, sin kψ)` over the shared denominator yields
+    /// both at once — so a `sin_cos` pair minted from one node folded
+    /// TWICE before this memo (R2's Q7). Keyed by the argument form's
+    /// digest, per session like every other memo here.
+    trig_closed: IndetMap<Option<Rc<trig::Closed>>>,
     counts: SymCounts,
 }
 
@@ -1767,6 +1942,7 @@ pub fn with_session_rules<R>(
             params: IndetMap::default(),
             atoms: IndetMap::default(),
             registry: IdMap::default(),
+            trig_closed: IndetMap::default(),
             counts: SymCounts::default(),
         });
     });
@@ -2145,6 +2321,37 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             Rat::of_f64(f64::from_bits(node.payload)).map(|c| Form::poly(Poly::constant(c)))
         }
         SymOp::Pi => Some(Form::poly(Poly::indet(INDET_PI))),
+        // **The zero normalization the algebra needs** (early walk,
+        // with a rule that expands atoms on): `0/d + x = x`, `0/d · x =
+        // 0`. The quotient form cancels no common factor, so a zero
+        // NUMERATOR keeps its denominator and drags it into every sum
+        // it joins — an arc's `n̂ · apothem` at bulge one is `0/‖chord‖`,
+        // its centre becomes `mid · ‖chord‖/‖chord‖`, and rule A then
+        // expands the `‖chord‖²` that ride along into polynomials of
+        // rising degree with 53-bit coefficients, which is what froze
+        // the plate's odd-sample residuals at every ring width. Sound
+        // by the argument the quotient form already rests on: `0/d` is
+        // the zero rational function, and a point where `d` vanishes is
+        // one clause 1 has already refused. Kept behind the algebra
+        // dials so the tier with them off is the earlier one bit for
+        // bit; the plain walk never takes it.
+        SymOp::Add | SymOp::Sub | SymOp::Mul
+            if early
+                && (sess.rules.early_ab || sess.rules.trig_of_atan)
+                && !a.tainted(b)
+                && (a.is_zero() || b.is_zero()) =>
+        {
+            let gated = a.gated || b.gated;
+            let mut f = match (node.op, a.is_zero()) {
+                (SymOp::Mul, _) => Form::zero(),
+                (SymOp::Add, true) => b.clone(),
+                (SymOp::Add, false) => a.clone(),
+                (_, true) => b.neg()?,
+                (_, false) => a.clone(),
+            };
+            f.gated = gated;
+            Some(f)
+        }
         SymOp::Add => a.add(b, budget),
         SymOp::Sub => a.add(&b.neg()?, budget),
         SymOp::Mul => a.mul(b, budget),
@@ -2182,6 +2389,14 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 None => atom1(node.op, sess),
             }
         }
+        // Rule D (early walk only): `sin`/`cos` of `q · atan(X)` in
+        // closed form; any other argument shape keeps the atom.
+        SymOp::Sin | SymOp::Cos if early && sess.rules.trig_of_atan && !a.poisoned => {
+            match trig::fold(node.op, a, sess) {
+                Some(f) => Some(gate(f)),
+                None => atom1(node.op, sess),
+            }
+        }
         SymOp::Sqrt
         | SymOp::Abs
         | SymOp::Sin
@@ -2199,11 +2414,22 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             // nothing, so only the both-zero fold is taken. copysign
             // carries `a`'s MAGNITUDE, so a zero first argument is zero
             // whatever the sign argument does (±0 is one real).
-            // atan2(0, x) is 0 or π depending on the sign of x — not a
-            // fold the form can take without reading a value.
+            // atan2(0, x) is 0 or π depending on the sign of x, so the
+            // fold below is taken ONLY where the sign is a fact of the
+            // form: atan2(0, N) with N non-negative BY SYNTAX is 0 —
+            // rule D's second fold (amendment A1), early walk only
+            // (`trig::manifestly_nonneg` carries the argument); a plain
+            // parameter, a non-zero first argument, or a value-only
+            // zero never folds, and every other atan2 stays an atom.
             let folds = match node.op {
                 SymOp::Min | SymOp::Max => a.is_zero() && b.is_zero(),
                 SymOp::Copysign => a.is_zero(),
+                SymOp::Atan2 => {
+                    early
+                        && sess.rules.trig_of_atan
+                        && a.is_zero()
+                        && trig::manifestly_nonneg(b, sess)
+                }
                 _ => false,
             };
             if folds {
@@ -2341,22 +2567,29 @@ fn form_in(
             ];
             let combined = combine(&node, kids, sess, early);
             // The per-node A/B reduction (`SymRules::early_ab`),
-            // bounded, falling back to the un-reduced form when it does
+            // bounded in steps and in the size of the form it is asked
+            // over, falling back to the un-reduced form when it does
             // not fit.
             let combined = if early && sess.rules.early_ab {
                 combined.map(|f| {
+                    if f.num.terms.len() + f.den.terms.len() > EARLY_AB_TERMS {
+                        return f;
+                    }
                     algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS)
                         .filter(|g| within(budget, g))
-                        // The reduction rebuilds the quotient out of
-                        // polynomial pieces, so the gate is carried
-                        // across by hand: a reduced form is gated if
-                        // what it reduced was. Dropping it would report
-                        // a weaker claim as a stronger one, which is
-                        // the one direction the receipt may never move
-                        // in.
-                        .map(|g| Form {
-                            gated: g.gated || f.gated,
-                            ..g
+                        // The gate has ONE home: `algebra::apply`
+                        // carries the input form's gate through every
+                        // substitution step, so a reduced form is gated
+                        // if what it reduced was, and nothing here
+                        // carries it a second time (R1 MIN-7). Checked
+                        // rather than re-done: dropping a gate would
+                        // report a weaker claim as a stronger one, the
+                        // one direction the receipt may never move in.
+                        .inspect(|g| {
+                            debug_assert!(
+                                g.gated || !f.gated,
+                                "algebra::apply carries the gate through every step"
+                            );
                         })
                         .unwrap_or(f)
                 })
@@ -2389,7 +2622,20 @@ fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
 /// The most rule-A/B substitutions the early walk takes per node
 /// before it gives the un-reduced form back — the bound that makes the
 /// per-node reduction a fixed cost rather than a pass over the form.
-const EARLY_STEPS: usize = 8;
+/// One step clears every even power of ONE atom across the whole form,
+/// so the count is the number of distinct reducible atoms a node's
+/// form carries (plus the ones a substitution re-introduces), which on
+/// the arc family is under a dozen.
+const EARLY_STEPS: usize = 64;
+
+/// The largest form (numerator terms plus denominator terms) the
+/// per-node reduction is asked over. A form past it is left as it is:
+/// the reduction is linear in the form but a substituted argument
+/// multiplies into every term, and a form this size is one the budget
+/// is about to freeze in its next product whether or not its squares
+/// were cleared. The arc family's residuals are a handful of terms per
+/// node; this is a cost wall, not a reach.
+const EARLY_AB_TERMS: usize = 512;
 
 /// The early-reduced form of `root` (`SymRules::early`), memoized in
 /// its own table beside the plain one: the same walk as
@@ -3101,7 +3347,8 @@ impl<T: Decide> Decide for Sym<T> {
                     discharge(self.node),
                     Some(Discharge::Theorem | Discharge::SignGated)
                 ),
-                "the numeric channel proved this margin nonzero and the form says it is                  identically zero: the two channels contradict each other"
+                "the numeric channel proved this margin nonzero and the form says it is \
+                 identically zero: the two channels contradict each other"
             );
             count_decision(None);
             report::record(&numeric, None, None, self.value.enclosure_probe());
@@ -3859,10 +4106,11 @@ mod tests {
     /// reach it.** Written as polynomials the squared identity
     /// `‖v‖² − r²` IS a plain-form theorem, with no registration
     /// anywhere; written through the root — `sqrt(X)·sqrt(X) − X`, the
-    /// shape the construction actually produces — it is not, because
-    /// rule A is off and the atom is opaque. That gap is exactly what
-    /// the door states, and the two rows here are what make the axiom
-    /// consistent with the tier rather than merely asserted.
+    /// shape the construction actually produces — it is a theorem of
+    /// rule A per node, and with the algebra off it is not, because the
+    /// atom is then opaque. That gap is exactly what the door states
+    /// for the UNSQUARED identity, and the rows here are what make the
+    /// axiom consistent with the tier rather than merely asserted.
     #[test]
     fn the_squared_identity_is_a_plain_form_theorem() {
         let (row, _) = with_session(budget(), || {
@@ -3877,8 +4125,18 @@ mod tests {
             how(n2 - root * root)
         });
         assert_eq!(
+            row, "theorem",
+            "through the root, rule A per node reaches it"
+        );
+        let (row, _) = with_session_rules(budget(), SymRules::without_the_algebra(), || {
+            let (x, y) = (p("vx", 3.0), p("vy", 4.0));
+            let n2 = x * x + y * y;
+            let root = n2.sqrt();
+            how(n2 - root * root)
+        });
+        assert_eq!(
             row, "numeric",
-            "through the root it is not: rule A is off and the atom is opaque"
+            "with the algebra off the atom is opaque and the root form stays numeric"
         );
     }
 
@@ -3968,5 +4226,252 @@ mod tests {
         let b = run();
         assert_eq!(a, b, "identical across repeats");
         assert_eq!(a.0.0, ["registered", "registered"]);
+    }
+
+    // ------------------------------------------------ rule D (M10-10)
+
+    /// `atan X` at a point `x`, with `X` a parameter so the atom is a
+    /// function of a symbol and nothing folds on a constant.
+    fn atan_of(x: f64) -> (Sym<f64>, Sym<f64>) {
+        let x = p("bulge", x);
+        (x, x.atan())
+    }
+
+    /// **Rule D decides the closed forms of `sin`/`cos` at `k·atan X`
+    /// for `k ∈ {1, 2, 3, 4}`** — each against the closed form spelled
+    /// by hand through the scalar's own ops, at a positive, a negative
+    /// and a zero-valued `X` — and each is counted a THEOREM: no value
+    /// read, so `symbolic_zero` and nothing else.
+    #[test]
+    fn rule_d_decides_the_multiples_against_their_closed_forms() {
+        for xv in [1.0, -0.6, 2.75, 0.0] {
+            let (rows, counts) = with_session(budget(), || {
+                let (x, phi) = atan_of(xv);
+                let one = Sym::from_f64(1.0);
+                let s = (one + x * x).sqrt();
+                let q = one + x * x;
+                let k = |n: f64| Sym::from_f64(n) * phi;
+                let mul = |n: f64| Sym::from_f64(n);
+                [
+                    // sin φ = X/S, cos φ = 1/S.
+                    how(k(1.0).sin_cos().0 - x / s),
+                    how(k(1.0).sin_cos().1 - one / s),
+                    // sin 2φ = 2X/(1+X²), cos 2φ = (1−X²)/(1+X²).
+                    how(k(2.0).sin_cos().0 - mul(2.0) * x / q),
+                    how(k(2.0).sin_cos().1 - (one - x * x) / q),
+                    // sin 3φ = (3X − X³)/((1+X²)·S), cos 3φ = (1 − 3X²)/((1+X²)·S).
+                    how(k(3.0).sin_cos().0 - (mul(3.0) * x - x * x * x) / (q * s)),
+                    how(k(3.0).sin_cos().1 - (one - mul(3.0) * x * x) / (q * s)),
+                    // sin 4φ = 4X(1−X²)/(1+X²)², cos 4φ = (1 − 6X² + X⁴)/(1+X²)².
+                    how(k(4.0).sin_cos().0 - mul(4.0) * x * (one - x * x) / (q * q)),
+                    how(k(4.0).sin_cos().1 - (one - mul(6.0) * x * x + x * x * x * x) / (q * q)),
+                ]
+            });
+            assert_eq!(rows, ["theorem"; 8], "at X = {xv}: {counts:?}");
+            assert_eq!(
+                (counts.sign_gated, counts.registered),
+                (0, 0),
+                "a rule-D zero reads no value and rests on no axiom: {counts:?}"
+            );
+        }
+    }
+
+    /// **Halves and quarters, on the positive branch**: the identities
+    /// a half-angle satisfies against the whole angle — `sin φ =
+    /// 2·sin(φ/2)·cos(φ/2)`, `cos φ = 2·cos²(φ/2) − 1`, `cos(φ/2) =
+    /// 2·cos²(φ/4) − 1` — and the pushforward's own spelling `cos(sθ)
+    /// − 1 = −2·sin²(sθ/2)` at `θ = 4·atan X`, `s = i/8`, for every
+    /// sample of the certifier's schedule, decide `Zero` at a positive
+    /// and a NEGATIVE `X`. The sign of the half-angle's sine rides in
+    /// `X` as a form; nothing here reads it.
+    #[test]
+    fn rule_d_decides_the_halves_on_the_positive_branch() {
+        for xv in [0.8, -1.0, 3.5] {
+            let (rows, counts) = with_session(budget(), || {
+                let (_, phi) = atan_of(xv);
+                let one = Sym::from_f64(1.0);
+                let two = Sym::from_f64(2.0);
+                let half = phi * Sym::from_f64(0.5);
+                let quarter = phi * Sym::from_f64(0.25);
+                let mut rows = vec![
+                    how(phi.sin_cos().0 - two * half.sin_cos().0 * half.sin_cos().1),
+                    how(phi.sin_cos().1 - (two * half.sin_cos().1 * half.sin_cos().1 - one)),
+                    how(half.sin_cos().1 - (two * quarter.sin_cos().1 * quarter.sin_cos().1 - one)),
+                ];
+                // The pushforward's spelling at every schedule sample.
+                let theta = Sym::from_f64(4.0) * phi;
+                for i in 0..=8 {
+                    let s = Sym::from_f64(f64::from(i) / 8.0);
+                    let cos_m1 = -(two * (s * theta * Sym::from_f64(0.5)).sin_cos().0.powi(2));
+                    rows.push(how(((s * theta).sin_cos().1 - one) - cos_m1));
+                }
+                rows
+            });
+            assert!(
+                rows.iter().all(|r| *r == "theorem"),
+                "at X = {xv}: {rows:?} {counts:?}"
+            );
+            assert_eq!((counts.sign_gated, counts.registered), (0, 0));
+        }
+    }
+
+    /// **The two spellings of one arc meet.** The certifier's carrier
+    /// sample `cos t`, `sin t` at `t = 4·atan|b|·(i/8)` against the
+    /// pushforward's `sin(s·θ)` and `1 − 2·sin²(s·θ/2)` at `θ =
+    /// 4·atan b`, `s = i/8`, for a bulge that is a LITERAL (the circle
+    /// kernel's `1`, so `|b|` folds under A0) and for a parameter
+    /// bulge — where `atan|b|` and `atan b` are two atoms and the
+    /// residual stays numeric, which is the honest limit this rule
+    /// draws: the turn sign the carrier's axis carries is a `Sign`,
+    /// not a form.
+    #[test]
+    fn rule_d_meets_the_carrier_and_the_pushforward_at_every_sample() {
+        let (rows, _) = with_session(budget(), || {
+            let b = Sym::from_f64(1.0);
+            let theta = Sym::from_f64(4.0) * b.atan();
+            let span = Sym::from_f64(4.0) * b.abs().atan();
+            let one = Sym::from_f64(1.0);
+            let two = Sym::from_f64(2.0);
+            (0..=8)
+                .map(|i| {
+                    let s = Sym::from_f64(f64::from(i) / 8.0);
+                    let t = Sym::zero() + (span - Sym::zero()) * s;
+                    let (st, ct) = t.sin_cos();
+                    let sin = (s * theta).sin_cos().0;
+                    let cos_m1 = -(two * (s * theta * Sym::from_f64(0.5)).sin_cos().0.powi(2));
+                    (how(st - sin), how(ct - (cos_m1 + one)))
+                })
+                .collect::<Vec<_>>()
+        });
+        assert!(
+            rows.iter().all(|r| *r == ("theorem", "theorem")),
+            "literal bulge: {rows:?}"
+        );
+        let (rows, _) = with_session(budget(), || {
+            let b = p("bulge", 0.7);
+            let theta = Sym::from_f64(4.0) * b.atan();
+            let span = Sym::from_f64(4.0) * b.abs().atan();
+            let s = Sym::from_f64(3.0 / 8.0);
+            let (st, _) = (span * s).sin_cos();
+            how(st - (s * theta).sin_cos().0)
+        });
+        assert_eq!(
+            rows, "numeric",
+            "a parameter bulge: `atan|b|` and `atan b` are two atoms, and no rule here \
+             reads the sign that would relate them"
+        );
+    }
+
+    /// **Nothing folds at an argument that is not `q·atan(X)`**: an
+    /// `atan2`, an `atan` plus a constant, a non-dyadic multiple, a
+    /// product of two `atan`s — each a TRUE identity of the reals that
+    /// rule D must leave to the numeric channel, because the closed
+    /// form it states is not the one that holds there.
+    #[test]
+    fn rule_d_folds_nothing_at_any_other_argument() {
+        let (rows, counts) = with_session(budget(), || {
+            let (x, phi) = atan_of(0.9);
+            let one = Sym::from_f64(1.0);
+            let s = (one + x * x).sqrt();
+            let c = Sym::from_f64(0.3);
+            [
+                // atan2(X, 1) = atan X, but the op is `Atan2`.
+                how(x.atan2(one).sin_cos().0 - x / s),
+                // sin(φ + c) = sin φ·cos c + cos φ·sin c: `c` is opaque.
+                how((phi + c).sin_cos().0 - (x / s * c.sin_cos().1 + one / s * c.sin_cos().0)),
+                // A non-dyadic multiple has no closed form here.
+                how((phi / Sym::from_f64(3.0)).sin_cos().1 - (phi / Sym::from_f64(3.0)).sin_cos().1),
+                // A product of two atans is degree two in the atom.
+                how((phi * phi).sin_cos().0 - (phi * phi).sin_cos().0),
+            ]
+        });
+        assert_eq!(rows[0], "numeric", "atan2 never folds: {counts:?}");
+        assert_eq!(
+            rows[1], "numeric",
+            "atan plus a constant never folds: {counts:?}"
+        );
+        // The last two are `a − a`: the zero form by node identity,
+        // which is a theorem whether or not the atom folds — they are
+        // here so the shapes are exercised, and what they pin is that
+        // no fold PANICS or POISONS on them.
+        assert_eq!(&rows[2..], ["theorem", "theorem"]);
+    }
+
+    /// **Rule D's second fold: `atan2(0, N) = 0` for an `N` non-negative
+    /// BY SYNTAX** — a `sqrt` atom, an even power, and the chart phase's
+    /// own `r²/sqrt(r²)` with `r = nominal + δ` (a perfect square over a
+    /// `sqrt` atom) decide `Zero` as theorems; and it NEVER folds at
+    /// `atan2(0, X)` for a plain parameter, at `atan2(Y, N)` with `Y` a
+    /// numeric zero that is not the zero form (a coincidence of two
+    /// parameters at one nominal), or at `atan2(0, 0)` as a form.
+    #[test]
+    fn rule_d_folds_atan2_of_the_zero_form_over_a_manifestly_nonnegative_form_and_nothing_else() {
+        let (rows, counts) = with_session(budget(), || {
+            let x = p("x", 0.37);
+            let d = p("delta", 1.0e-5);
+            let zero = Sym::zero();
+            let r = Sym::from_f64(1.25e-3) + d;
+            let r2 = r * r;
+            [
+                how(zero.atan2(x.sqrt())),
+                how(zero.atan2(x * x)),
+                how(zero.atan2(r2 / r2.sqrt())),
+                how(zero.atan2(x.abs() * x.sqrt() + x * x)),
+            ]
+        });
+        assert_eq!(rows, ["theorem"; 4], "{counts:?}");
+        assert_eq!((counts.sign_gated, counts.registered), (0, 0));
+        let (rows, _) = with_session(budget(), || {
+            let x = p("x", 0.37);
+            let y = p("y", 0.0);
+            let x2 = p("x2", 0.37);
+            let zero = Sym::zero();
+            [
+                // A plain parameter has no sign the form knows.
+                how(zero.atan2(x)),
+                // A numeric zero in the first slot is not the zero form.
+                how(y.atan2(x.sqrt())),
+                // Two parameters equal at the nominal: a coincidence.
+                how((x - x2).atan2(x.sqrt())),
+                // `atan2(0, 0)` as a form claims nothing.
+                how(zero.atan2(zero)),
+                // An odd power in a positive-coefficient sum.
+                how(zero.atan2(x * x + x)),
+            ]
+        });
+        assert_eq!(rows, ["numeric"; 5]);
+    }
+
+    /// **Rule D's third fold: `sin`/`cos` at an exact half-multiple of
+    /// π** — `cos π = −1`, `sin π = 0`, `cos(π/2) = 0`, `sin(3π/2) =
+    /// −1`, `cos(2π) = 1` decide as theorems; `cos(π/3)` and
+    /// `cos(π + atan X)` never fold.
+    #[test]
+    fn rule_d_folds_trig_at_half_multiples_of_pi_and_nothing_else() {
+        let (rows, counts) = with_session(budget(), || {
+            let pi = Sym::<f64>::pi();
+            let one = Sym::from_f64(1.0);
+            let half = Sym::from_f64(0.5);
+            [
+                how(pi.sin_cos().1 + one),
+                how(pi.sin_cos().0),
+                how((pi * half).sin_cos().1),
+                how((pi * Sym::from_f64(1.5)).sin_cos().0 + one),
+                how(Sym::tau().sin_cos().1 - one),
+            ]
+        });
+        assert_eq!(rows, ["theorem"; 5], "{counts:?}");
+        assert_eq!((counts.sign_gated, counts.registered), (0, 0));
+        let (rows, _) = with_session(budget(), || {
+            let pi = Sym::<f64>::pi();
+            let x = p("x", 0.3);
+            // A value-equal spelling on the other side keeps each row
+            // a genuine identity that must stay NUMERIC.
+            [
+                how((pi / Sym::from_f64(3.0)).sin_cos().1 - Sym::from_f64(0.5)),
+                how((pi + x.atan()).sin_cos().1 + x.atan().sin_cos().1),
+            ]
+        });
+        assert_eq!(rows, ["numeric"; 2]);
     }
 }

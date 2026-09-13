@@ -29,8 +29,11 @@
 //! plane cuts the sphere in its circumcircle, exact); cone —
 //! `cos α · ρ_maxᵀ · (1 − cos(Δu/2))` (perpendicular distance to the
 //! generator ray at each point's azimuth; triangle-local max radius, so
-//! apex fans certify tightly); torus — `(3/4)(R + 2r)·L_uv²` (linear
-//! interpolation against the closed-form Hessian bound `R + 2r`);
+//! apex fans certify tightly); torus — `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8`
+//! over the triangle's UV extents (linear interpolation against the
+//! closed-form second-partial sups `A = R + r·max cos φ`,
+//! `B = r·max |sin φ|`, `C = r` over the triangle's own φ range — the
+//! doubly-curved bound `sizing::torus_grid_steps` derives and inverts);
 //! described NURBS (M7, the trimmed-NURBS lane) — the
 //! same interpolation derivation against a **hull-derived** Hessian
 //! bound (second-derivative control nets by knot differencing, sup by
@@ -70,12 +73,17 @@
 //! returned as `Ok` unless the caller runs it — a qualifier this crate
 //! now carries at every site that names `check_mesh` as a backstop.
 //!
-//! **Invariant (ratified via PR #32): per-face tessellation is a pure
-//! function of (face surface, loops, per-edge chord points, δ).** This
-//! is the memo-key contract future incremental re-tessellation
-//! consumes: a face whose surface, loops, and boundary chord points are
-//! unchanged re-tessellates identically and its patch can be reused
-//! across rebuilds. The chord points themselves are a pure function of
+//! **Invariant (ratified via PR #32, and the memo-key contract): per-face
+//! tessellation is a pure function of (face surface, loops — each
+//! edge's carrier, interval, direction, seam flag and lineage identity
+//! — per-edge chord points and parameters, the stored pcurves, δ, and
+//! the ambient ε and k).** A face whose inputs are unchanged
+//! re-tessellates identically and its patch can be reused across
+//! rebuilds. [`fn@tessellate_with`] is that consumer: [`memo::PatchMemo`]
+//! keys each face by the bits its lane reads (stated per lane in
+//! [`memo`]'s docs) and places a stored patch through the same fold the
+//! lane's fresh one takes, so its mesh is byte-identical to
+//! [`fn@tessellate`]'s. The chord points themselves are a pure function of
 //! (edge carrier + interval, endpoint vertex points, the adjacent
 //! faces' surface parameters, δ) — adjacent surfaces enter only through
 //! the torus and trimmed-NURBS boundary-step requirements, which reach
@@ -87,7 +95,8 @@
 //!
 //! - **Per-face patch separability** (ratified): [`Mesh`] keeps one
 //!   [`FacePatch`] per face, individually addressable; nothing flattens
-//!   the per-face structure away. No keying machinery at M2.
+//!   the per-face structure away. The only keying machinery is
+//!   [`memo`]'s, beside the door that takes it.
 //! - **Entity back-references** (ratified, incl. the PR #32 Vertex-key
 //!   addition): every patch carries its source `FaceKey`; every
 //!   boundary polyline its source `EdgeKey` (each segment is a
@@ -192,6 +201,56 @@
 //! leak is cocircular tie-breaking, which is a function of insertion
 //! order and therefore fixed here).
 //!
+//! **And it holds at any thread count.** The per-face dispatch is D9's
+//! idiom 1 — an indexed parallel map over the face arena into a
+//! pre-sized buffer — combined by the sequential arena-order fold that
+//! places each patch (idiom 2). Combination is positional, so the
+//! schedule cannot reach the bytes; the fold is where the mesh arena,
+//! the patch memo's counters and the budget meter's rows are touched,
+//! and it visits faces in arena order whatever the map did.
+//! `tests/d9_mesh_goldens.rs` digests the corpus under an explicit
+//! 1-thread and an explicit 4-thread pool and asserts both against the
+//! committed table.
+//!
+//! A refusal costs more than an answer does: every face is computed
+//! before the fold picks the first refusal in arena order, so a body
+//! that refuses pays for the faces after the refusing one and throws
+//! them away.
+//!
+//! # What a caller owes rayon (documented characteristic)
+//!
+//! [`tessellate()`] runs its per-face map on the **process-global rayon
+//! pool**, from whatever thread calls it, and three things follow that
+//! a caller may need:
+//!
+//! * a call from a thread that is not itself a pool worker injects the
+//!   map into the pool and parks — measured at about **0.05 ms** of
+//!   fixed cost per call on a 4-vCPU box, which is most of the cost of
+//!   a body under a few hundred triangles and nothing at all above
+//!   that (`work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`
+//!   has the sweep and the split);
+//! * a caller that owns a pool gets that pool:
+//!   `pool.install(|| tessellate(..))` runs the lanes on its workers,
+//!   which is how the width-pinned rows in
+//!   `tests/d9_mesh_goldens.rs` are written and how a caller keeps the
+//!   kernel off cores it wants for something else. `RAYON_NUM_THREADS`
+//!   configures the global pool ONCE per process, so it cannot give one
+//!   process two widths;
+//! * on **wasm32** there is no thread to spawn: the map runs on
+//!   rayon-core's current-thread fallback, so it is the serial walk with
+//!   the map's bookkeeping. Nothing in this tree executes that — the
+//!   wasm job is a compile — so it is a compile-time guarantee and not a
+//!   measured one.
+//!
+//! Both of the tessellation's thread-local recording channels survive
+//! the map: the budget meter ([`budget`]) and the K-funnel's verdicts,
+//! escalations and `probe` samples
+//! (`geom_core::k_stats::detached`/`splice`). Each face's lane records
+//! into a channel of its own and the arena-order fold hands both on, so
+//! a `Bracket` or an armed meter around [`tessellate()`] reads what a
+//! serial walk would have written, element for element
+//! (`tests/k_funnel_composition.rs`).
+//!
 //! # Performance (documented characteristic)
 //!
 //! Wall-clock on the CDT insertion path is **quadratic for faces whose
@@ -250,6 +309,10 @@ pub mod budget;
 pub mod cert;
 mod chords;
 mod curved;
+// The per-face patch memo behind `tessellate_with`: its key, stated
+// per lane, and its eviction rule. Public for the memo type and the
+// digests a caller keeps alive; the key itself is crate-private.
+pub mod memo;
 mod nurbs_cert;
 // `nurbs_cert`'s randomized sweeps, in a module of their own so the per-file
 // test gate can skip them without skipping that file's deterministic pins.
@@ -286,5 +349,6 @@ pub mod walk;
 #[allow(dead_code, unreachable_pub)]
 mod witness_bodies;
 
-pub use tessellate::tessellate;
+pub use memo::{PatchDigest, PatchKeys, PatchMemo};
+pub use tessellate::{Tessellation, tessellate, tessellate_with};
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};

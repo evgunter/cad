@@ -59,8 +59,12 @@ from pathlib import Path
 DEFAULT_ROSTER = (
     "tessellate/washer/1e-4",
     "tessellate/washer/1e-6",
+    "tessellate/torus/1e-3",
+    "tessellate/torus/1e-4",
     "kernel/validate/tier23_washer",
+    "kernel/validate/tier23_washer/t4",
     "kernel/mass_props/washer",
+    "kernel/mass_props/washer/t4",
     "kernel/build/extrude",
     "kernel/boolean/two_bricks",
 )
@@ -175,7 +179,24 @@ def cpu_identity() -> tuple[str | None, list[str] | None]:
     return model, ([] if flags is None else flags)
 
 
-def environment() -> dict:
+def rayon_threads(criterion_dir: Path) -> int | None:
+    """The EFFECTIVE rayon width the tessellate rows were taken at.
+
+    `benches/benches/kernel.rs` asks `rayon::current_num_threads()` and
+    writes it beside criterion's own output, because only the benchmark
+    process can answer it: `RAYON_NUM_THREADS` is a REQUEST (absent when
+    unset, ignored when malformed) and `nproc` is the machine, neither of
+    which is the number of workers the pool actually built. Absent file
+    means an older benchmark binary wrote the sample; `None` then, rather
+    than a guess that would read as a measurement.
+    """
+    try:
+        return int((criterion_dir / "rayon-threads").read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def environment(criterion_dir: Path | None = None) -> dict:
     """The block without which none of the numbers above mean anything."""
     overrides = sorted(
         f"{k}={v}" for k, v in os.environ.items() if k.startswith("CARGO_PROFILE_")
@@ -217,6 +238,23 @@ def environment() -> dict:
         "cpu_model": cpu_model,
         "cpu_flags": cpu_flags,
         "runner": os.environ.get("CRITERION_RUNNER", ""),
+        # THE TESSELLATE ROWS ARE PARALLEL (`mesh::tessellate`'s per-face
+        # dispatch is D9 idiom 1), so their wall clock is a reading at a
+        # thread count and two samples taken at different ones do not
+        # compare. The row IDS deliberately do not carry it —
+        # `DEFAULT_ROSTER` is a fixed list and a thread count in an id
+        # would make a renamed row out of a differently-sized runner — so
+        # these two fields are where a reader looks before comparing two
+        # entries' tessellate rows.
+        #
+        # `rayon_threads` is the one to read: the width the pool actually
+        # built, measured in the benchmark process (`rayon_threads`
+        # above). `rayon_num_threads` is the REQUEST beside it, empty
+        # when unset, and it is kept because a sample where the two
+        # disagree is a sample whose environment was not what its run
+        # asked for.
+        "rayon_threads": rayon_threads(criterion_dir) if criterion_dir else None,
+        "rayon_num_threads": os.environ.get("RAYON_NUM_THREADS", ""),
         "rustup_toolchain": toolchain,
         "rustflags": os.environ.get("RUSTFLAGS", ""),
         "cargo_profile_overrides": overrides,
@@ -246,16 +284,29 @@ def build_entry(criterion_dir: Path, commit: str, roster: tuple[str, ...], metho
         "commit": commit,
         "measured_at_epoch_s": int(time.time()),
         "method": method,
-        "environment": environment(),
+        "environment": environment(criterion_dir),
         "benchmarks": {row: rows[row] for row in roster},
     }
 
 
 def selftest() -> int:
-    """A fixture criterion tree through `collect` and the roster check.
+    """A fixture criterion tree through `collect`, the roster check and the
+    host-identity parser.
 
-    Two cases, and the second is the one that matters: a renamed row must
-    be an ERROR rather than a shorter history.
+    WHAT THIS HOLDS AND WHAT IT DOES NOT. The roster pin is the thing the
+    header says this script fails on, so all three of its shapes are driven
+    here: a row renamed (both sides move), a row ADDED and a row DROPPED —
+    the two real-world moves, each of which populates only one side of the
+    comparison. `collect` is held to `new/` rather than `base/`, which the
+    header spends a paragraph on. `cpu_identity` is driven against a
+    SYNTHETIC cpuinfo as well as an absent one, because an absent file
+    exercises only the OSError branch and the parse is the half that can
+    silently empty the flags.
+
+    What it does NOT hold is the VALUE of most collected fields: `plant`
+    writes one scalar into five of them, so a reader that swapped two is
+    invisible here. `work/ciw/criterion-selftest-fixture-is-one-scalar-in-five-fields`
+    carries the measurement and the repair.
     """
     failures = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -281,6 +332,14 @@ def selftest() -> int:
 
         plant("a/one", "a_one", 100.0)
         plant("a/two", "a_two", 200.0)
+        # `base/` IS CRITERION'S PREVIOUS RUN and must not be collected —
+        # the header says why. Planted with an id of its own so that a
+        # `collect` reading the parent of `new/` rather than `new/` shows up
+        # as a THIRD row rather than as a duplicate.
+        stale = root / "a_one" / "base"
+        stale.mkdir(parents=True)
+        (stale / "benchmark.json").write_text(json.dumps({"full_id": "a/previous"}))
+        (stale / "estimates.json").write_text(json.dumps({"median": {"point_estimate": 1.0}}))
 
         rows = collect(root)
         if sorted(rows) != ["a/one", "a/two"]:
@@ -292,6 +351,21 @@ def selftest() -> int:
         lo, hi = rows["a/two"]["median_ci_ns"]
         if abs(lo - 180.0) > 1e-9 or abs(hi - 220.0) > 1e-9:
             failures.append(f"confidence interval not carried through: {lo}, {hi}")
+
+        # The effective-width reader, both shapes: the file the
+        # benchmark writes beside criterion's own output, and its
+        # absence on a sample an older binary produced. `None` and `0`
+        # must not be confusable — one is "not recorded", the other
+        # would be a width.
+        if rayon_threads(root) is not None:
+            failures.append("rayon_threads invented a width with no file to read")
+        (root / "rayon-threads").write_text("3\n")
+        if rayon_threads(root) != 3:
+            failures.append(f"rayon_threads read {rayon_threads(root)} from a file saying 3")
+        (root / "rayon-threads").write_text("not a number\n")
+        if rayon_threads(root) is not None:
+            failures.append("rayon_threads accepted a non-numeric file")
+        (root / "rayon-threads").unlink()
 
         entry = build_entry(root, "deadbeef", ("a/one", "a/two"), "m")
         if list(entry["benchmarks"]) != ["a/one", "a/two"]:
@@ -305,14 +379,50 @@ def selftest() -> int:
         for key in ("cpu_model", "cpu_flags"):
             if key not in env:
                 failures.append(f"environment block lost `{key}`")
+        # This one is about the REAL host and is therefore one-directional:
+        # it catches a parser that returned MORE than the probed subset, and
+        # nothing else. An emptied parser satisfies it, which is why the
+        # synthetic below exists rather than instead of it.
         if env["cpu_flags"] is not None and not set(env["cpu_flags"]) <= set(HOST_CPU_FLAGS):
             failures.append(f"cpu_flags outside the probed subset: {env['cpu_flags']}")
 
-        # AND IT MUST DEGRADE, not crash and not take the block with it: a box
-        # with no readable /proc/cpuinfo still owes a complete environment.
+        # THE PARSE, against a cpuinfo whose answer is known. The indirection
+        # through `CPUINFO` exists to prove this branch rather than assert it,
+        # and an ABSENT file proves only the OSError arm below — a parser
+        # regressed to an empty flag list reads exactly like a box that has
+        # neither of the probed extensions.
+        synthetic = root / "cpuinfo-both"
+        synthetic.write_text(
+            "processor\t: 0\n"
+            "model name\t: Fixture CPU X9000 @ 1.00GHz\n"
+            "flags\t\t: fpu vme avx2 sse2 avx512f\n"
+            "processor\t: 1\n"
+            "model name\t: A SECOND SOCKET THAT MUST NOT WIN\n",
+            encoding="utf-8",
+        )
+        # And one with no `flags` line at all: `[]` and `None` say different
+        # things here (absent extensions vs an unreadable file) and a reader
+        # of the history has to be able to tell them apart.
+        flagless = root / "cpuinfo-flagless"
+        flagless.write_text("model name\t: Fixture CPU X9000 @ 1.00GHz\n", encoding="utf-8")
+
         saved_cpuinfo = globals()["CPUINFO"]
-        globals()["CPUINFO"] = root / "no-such-cpuinfo"
         try:
+            globals()["CPUINFO"] = synthetic
+            model, flags = cpu_identity()
+            if model != "Fixture CPU X9000 @ 1.00GHz":
+                failures.append(f"cpu model not parsed, or a later socket won: {model!r}")
+            if flags != ["avx2", "avx512f"]:
+                failures.append(f"probed flags not parsed out of a known cpuinfo: {flags!r}")
+
+            globals()["CPUINFO"] = flagless
+            model, flags = cpu_identity()
+            if flags != [] or model is None:
+                failures.append(f"a cpuinfo with no flags line did not read as []: {model!r}, {flags!r}")
+
+            # AND IT MUST DEGRADE, not crash and not take the block with it: a
+            # box with no readable /proc/cpuinfo still owes a complete block.
+            globals()["CPUINFO"] = root / "no-such-cpuinfo"
             degraded = environment()
         finally:
             globals()["CPUINFO"] = saved_cpuinfo
@@ -321,19 +431,28 @@ def selftest() -> int:
         if not degraded["arch"] or "rustflags" not in degraded:
             failures.append("an unreadable /proc/cpuinfo cost the rest of the block")
 
-        # The roster pin: a row the harness no longer emits must be fatal.
-        # `die` writes its diagnosis to stderr, which is the point of it —
-        # muffled HERE only so a passing selftest looks like one.
-        with open(os.devnull, "w", encoding="utf-8") as devnull:
-            saved, sys.stderr = sys.stderr, devnull
-            try:
-                build_entry(root, "deadbeef", ("a/one", "a/renamed"), "m")
-            except SystemExit:
-                pass
-            else:
-                failures.append("a moved roster did NOT fail")
-            finally:
-                sys.stderr = saved
+        # THE ROSTER PIN, in all three shapes. `die` writes its diagnosis to
+        # stderr, which is the point of it — muffled HERE only so a passing
+        # selftest looks like one. The two SINGLE-SIDED cases are the moves
+        # that actually happen: a benchmark added populates `extra` alone, one
+        # dropped populates `missing` alone, and a pin that demanded both at
+        # once would pass either of them through.
+        def refuses(what: str, roster: tuple[str, ...]) -> None:
+            with open(os.devnull, "w", encoding="utf-8") as devnull:
+                saved, sys.stderr = sys.stderr, devnull
+                try:
+                    build_entry(root, "deadbeef", roster, "m")
+                except SystemExit:
+                    return
+                else:
+                    failures.append(f"{what} did NOT fail")
+                finally:
+                    sys.stderr = saved
+
+        refuses("a renamed row", ("a/one", "a/renamed"))
+        refuses("a row the harness measured and the roster does not name", ("a/one",))
+        refuses("a row the roster names and the harness did not measure",
+                ("a/one", "a/two", "a/three"))
 
     for f in failures:
         print(f"SELFTEST FAILED: {f}", file=sys.stderr)

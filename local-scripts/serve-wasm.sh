@@ -9,10 +9,21 @@
 # to type into the phone. That URL is the whole point of the script.
 #
 # WHY THE RUSTFLAGS ARE HERE AND NOT EXPORTED. `getrandom` refuses to
-# build for wasm32 until a backend is named, and naming one takes both
-# halves: the `getrandom/wasm_js` feature (already in the viewer's
-# `cfg(target_arch = "wasm32")` stanza) AND this cfg flag. Setting only
-# the flag is the error crates/viewer/README.md (toolkit and CI posture) records. It is passed as
+# build for wasm32 until a backend is selected, and the viewer's
+# `cfg(target_arch = "wasm32")` stanza selects one with the
+# `getrandom/wasm_js` FEATURE. That feature is now sufficient on its own:
+# at the `getrandom` this tree pins (`Cargo.lock`; no literal here, it
+# goes stale), `src/backends.rs`'s final wasm32 arm takes
+# `mod wasm_js` under `cfg(feature = "wasm_js")`, and the
+# `compile_error!` still reading *"enabling the `wasm_js` feature flag
+# alone is insufficient"* sits in that arm's ELSE — so it is the sentence
+# a reader hits only when the feature is OFF, and it is where this
+# script's own prose (and crates/viewer/README.md's, which is that
+# crate's to correct) got the belief that both halves are required.
+# THE FLAG STAYS: it is free, getrandom's diagnostic still asserts it is
+# required, and ci.yml's viewer wasm32 row guards THIS command — a guard
+# and its subject drifting apart is worse than a redundant cfg. Setting
+# only the flag, without the feature, IS still an error. It is passed as
 # a per-command prefix rather than an `export` because RUSTFLAGS
 # silently REPLACES any .cargo/config.toml rustflags — see gate.sh's
 # hazard list. The repo sets none today, so scoping it costs nothing and

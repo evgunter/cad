@@ -2,8 +2,9 @@
 id: lib-per-arm-error-tags
 kind: issue
 title: per-arm Python error tags: one tag per op hides which arm refused
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-08
 ---
 
 
@@ -94,3 +95,31 @@ arm as a second attribute (`inner_kind` or the enum's own name where
 CUR5/CUR6 chose one), present on every op and `None` where the
 refusal has no arms; each inner enum matched exhaustively, no
 wildcard.** One mechanical unit over `node_error_tag`, no A/B row.
+
+## Closed (2026-09-08, LIB-ARMS)
+
+Shipped as (A), the rule as the ruling states it: `kind` stays the
+carrier's word on every op, and the kernel refusal's own arm arrives
+beside it — `EvaluationError.inner_kind`, and `EditError.inner_variant`
+at the second carrier. No shipped `kind` or `variant` value moved,
+which was the ruling's own argument for the shape.
+
+The measurement the file asked for: `revolve` covered ten
+`RevolveError` arms and now names which of twenty-one refused; `tube`
+covered every `TubeError` arm and now names which of eleven, the three
+hollow-only wall arms included — so a wall refusal and a frame refusal
+are two words apart from Python, not one prose sentence apart.
+`crates/pncad-py/tests/test_document.py`'s
+`TestTheInnerArmBesideTheOpWord` is the executed form.
+
+Ev's recorded reservation — "is a second attribute really the most
+natural place to store the division into coarser categories?" — is
+answered where a reader meets it rather than here: the `EvaluationError`
+docstring and `pncad.pyi` both say that the two words are two enums'
+discriminants and not one division stored twice, so the first unit
+under the rule states the reason once.
+
+Residue, each with its own file: the arm that could not be projected
+(`witness-bifurcation-arm-has-no-inner-word`), and the two halves this
+unit did not take — `pncad-py-seven-doors-lack-field-projection` (the
+arm's FIELDS) and `census-findings-cross-without-a-per-arm-tag`.

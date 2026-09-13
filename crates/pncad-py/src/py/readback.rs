@@ -183,6 +183,19 @@ impl Denotation {
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }
+
+    /// Consistent with [`Self::__eq__`]: a denotation IS the pair
+    /// `(tied, candidates)`, the comparison reads both and so does
+    /// this, so two denotations that compare equal hash equal.
+    ///
+    /// It is a key because a caller tallies by it — how many names in
+    /// this evaluation are ties, and how wide — and a tally is a dict.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (self.tied(), self.candidates()).hash(&mut h);
+        h.finish()
+    }
 }
 
 /// Raise `ReadbackError` carrying the refusal's stable tag and the

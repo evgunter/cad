@@ -11,6 +11,9 @@ from pncad import (
     AssertionDir,
     AnalysisPolicy,
     analyzed_box,
+    McConfig,
+    monte_carlo,
+    sample_offset,
     ArcSide,
     ChecksConfig,
     Severity,
@@ -21,12 +24,22 @@ from pncad import (
     Distribution,
     Doc,
     DocParam,
+    Expr,
     DocEdit,
     DocRef,
+    EditError,
+    PersistError,
+    StlError,
     EntityKind,
+    EvaluationError,
+    ValidationError,
+    ValidationFinding,
+    Body,
     Frame,
+    FrameError,
     GeomPred,
     NamePat,
+    CapEnd,
     Node,
     NodeId,
     NodePick,
@@ -46,6 +59,7 @@ from pncad import (
     Sweep,
     Workspace,
     enforce_checks,
+    import_step,
     run_checks,
     subject_body,
     Alignment,
@@ -58,7 +72,11 @@ from pncad import (
     content_pin,
     deg,
     rad,
+    band,
+    carried,
     evaluate,
+    meridian_vertex,
+    load,
     m,
     mm,
     WrittenAngle,
@@ -100,9 +118,10 @@ Node.profile(Open.at((0 * m, 0 * m)).line_to(Start), plane="yz")  # ty: error
 # origin — not the other way round.
 SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (0 * m, 1 * m, 0 * m), (0.0, 0.0, 1.0))  # ty: error
 
-# `v_degree` is a Count: a continuous quantity is not one, and neither
-# is a float.
+# `v_degree` is a Count EXPRESSION (`Expr.count`): a float is not one,
+# and neither is a bare integer.
 Node.loft([], 2.5)  # ty: error
+Node.loft([], 2)  # ty: error
 
 # LIB-PYBUNDLE. A real id to hang the node doors off — the refusals
 # below are about the ARGUMENT types, not about a missing name.
@@ -110,40 +129,59 @@ doc = Doc()
 solid: NodeId = doc.insert(
     Node.extrude(
         doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame())),
-        1 * m,
+        Expr.length_in(1, m),
     )
 )
 
+# THE SEAT IS AN `Expr`, AND NOTHING ELSE REACHES IT. A dimensioned
+# slot takes the expression its kernel slot holds, so the quantity a
+# caller computed is not a slot value until a constructor makes one of
+# it — `Expr.literal(1 * m)` for the canonical row, or
+# `Expr.written_length` for the notation the author wrote.
+Node.extrude(solid, 1 * m)  # ty: error
+Node.extrude(solid, 1.0)  # ty: error
+Node.revolve(solid, solid, 90 * deg)  # ty: error
+Node.fillet(solid, 1 * mm, [])  # ty: error
+
 # A fillet selection is NAMES — the text a materializer answered with,
 # never node ids.
-Node.fillet(solid, 1 * m, [solid])  # ty: error
+Node.fillet(solid, Expr.length_in(1, m), [solid])  # ty: error
 
-# A blend radius is a Length, not a bare number.
+# A blend radius is an `Expr`, not a bare number.
 Node.fillet(solid, 1.0, [])  # ty: error
 
-# The chamfer's setback is a Length as well, and its selection is
+# The chamfer's setback is an `Expr` as well, and its selection is
 # names — the twin holds the same two lines.
 Node.chamfer(solid, 1.0, [])  # ty: error
-Node.chamfer(solid, 1 * m, [solid])  # ty: error
+Node.chamfer(solid, Expr.length_in(1, m), [solid])  # ty: error
 
-# The shell's wall is a Length too, and its open list is names as text.
+# The shell's wall is an `Expr` too, and its open list is names as text.
 Node.shell(solid, 1.0, [])  # ty: error
-Node.shell(solid, 0.01 * m, [solid])  # ty: error
+Node.shell(solid, Expr.length_in(0.01, m), [solid])  # ty: error
 
-# A tube's radii are Lengths, its window is a `TubeWindow` and never a
+# A tube's radii are `Expr`s, its window is a `TubeWindow` and never a
 # pair of raw angles, and the hollow kind's WALL IS REQUIRED — the
 # three ways a caller reaches for the shape this vocabulary refuses to
 # have.
-Node.tube(solid, (1.0, 0.0, 0.0), 0.2, TubeWindow.full(), 0.05 * m)  # ty: error
-Node.tube(solid, (1.0, 0.0, 0.0), 0.2 * m, (0 * rad, 1 * rad), 0.05 * m)  # ty: error
-Node.hollow_tube(solid, (1.0, 0.0, 0.0), 0.2 * m, TubeWindow.full(), 0.05 * m)  # ty: error
+Node.tube(solid, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), 0.2, TubeWindow.full(), Expr.length_in(0.05, m))  # ty: error
+Node.tube(solid, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.2, m), (0 * rad, 1 * rad), Expr.length_in(0.05, m))  # ty: error
+Node.hollow_tube(solid, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.2, m), TubeWindow.full(), Expr.length_in(0.05, m))  # ty: error
 
-# A transform's axis is dimensionless and its angle is an Angle; the
-# two do not stand in for each other.
+# Every one of a transform's slots is an `Expr` — the translation, the
+# axis and the angle alike — so a quantity handed over raw is refused
+# whichever of them it was meant for. WHICH dimension each slot wants
+# is checked at the door and not by the type: one seat, one type.
 Node.transform(solid, (0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 1 * m)  # ty: error
 
-# A datum plane's normal is a dimensionless triple.
-Node.datum_plane((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m))  # ty: error
+# A datum plane's origin and normal are both `Expr` triples.
+Node.datum_plane((Expr.literal(0.0), Expr.literal(0.0), Expr.literal(0.0)), (0 * m, 0 * m, 1 * m))  # ty: error
+
+# A datum point's position is a triple of `Expr`s, like every other
+# position on this surface.
+Node.datum_point((0.0, 0.0, 0.0))  # ty: error
+
+# A datum frame takes three `Expr` triples and no raw quantity.
+Node.datum_frame((Expr.literal(0.0), Expr.literal(0.0), Expr.literal(0.0)), (1 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0))  # ty: error
 
 # A multi-loop profile is a list of LOOPS, and nothing else.
 Node.profile([circle((0 * m, 0 * m), 1 * m), "hole"])  # ty: error
@@ -161,13 +199,14 @@ SketchPlane.xy().origin = (0 * m, 0 * m, 0 * m)  # ty: error
 GeomPred.curve_kind(SurfaceKind.Plane)  # ty: error
 GeomPred.adjacent_kinds(CurveKind.Line, SurfaceKind.Sphere)  # ty: error
 
-# A datum-distance comparand is a Length: not a bare float, not an
-# Angle — the dimension crosses as the type.
+# A datum-distance comparand is an `Expr`: not a bare float, and not a
+# quantity either. That it must be a LENGTH is the kernel's check at
+# `select_where`, not the stub's.
 GeomPred.datum_distance(solid, Cmp.Approx, 1.0)  # ty: error
 GeomPred.datum_distance(solid, Cmp.Approx, 90 * deg)  # ty: error
 
 # The comparison is the trilean value, not a string spelling of one.
-GeomPred.datum_distance(solid, ">", 1 * m)  # ty: error
+GeomPred.datum_distance(solid, ">", Expr.length_in(1, m))  # ty: error
 
 # A selector unions NAME patterns; a segment pattern is not one, and
 # `tag`/`group`/`side` take their own vocabularies.
@@ -203,12 +242,12 @@ doc.declare("name-text")  # ty: error
 Node.declare([("a", "b")])  # ty: error
 evaluate(doc).find_flush_candidates(solid, "not-a-node")  # ty: error
 
-# LIB-PYPU. A spacing is a Length, not a bare number: the typed
-# quantity is the whole point of the boundary.
+# LIB-PYPU. A spacing is an `Expr`, not a bare number: the slot's own
+# type is the whole point of the boundary.
 PatternKind.linear((1.0, 0.0, 0.0), 0.5)  # ty: error
 
 # A rule is a PatternKind; a Frame is a placement, not a rule.
-Node.placed_union(solid, 5, Frame.translation((0 * m, 0 * m, 0 * m)))  # ty: error
+Node.placed_union(solid, Expr.count(5), Frame.translation((0 * m, 0 * m, 0 * m)))  # ty: error
 
 # The explicit door lists FRAMES, never raw coordinate triples.
 Node.placed_union_at(solid, [(0 * m, 0 * m, 0 * m)])  # ty: error
@@ -217,8 +256,8 @@ Node.placed_union_at(solid, [(0 * m, 0 * m, 0 * m)])  # ty: error
 # the value is frozen.
 Frame.translation((0 * m, 0 * m, 0 * m)).origin = (1 * m, 0 * m, 0 * m)  # ty: error
 
-# The count is the STRUCTURAL slot's integer, not a Length.
-Node.placed_union(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  # ty: error
+# The count is the STRUCTURAL slot's own expression, not a Length.
+Node.placed_union(solid, 5 * m, PatternKind.linear((Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.5, m)))  # ty: error
 
 # The narrowed count edit takes a ParamName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
@@ -234,10 +273,10 @@ PartSelect.split_half(0)  # ty: error
 # any more than a `Frame` is a `PatternKind`.
 Node.part(solid, SplitHalf.Below)  # ty: error
 
-# An index is an integer — the structural-slot exception — never a
-# dimensioned quantity, and the pattern's count is the same rule.
+# An index is a count `Expr` — never a dimensioned quantity, and the
+# pattern's count is the same rule.
 PartSelect.instance(2 * m)  # ty: error
-Node.pattern(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  # ty: error
+Node.pattern(solid, 5 * m, PatternKind.linear((Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.5, m)))  # ty: error
 
 # The instance edit is `bind_count_param`'s sibling, not its keyword
 # argument: the slot is named by the door, so there is no `slot=` to
@@ -245,6 +284,20 @@ Node.pattern(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  # ty: 
 # error, and the second argument is deliberately not.)
 name: ParamName = ParamName("which")
 DocEdit.bind_count_param(solid, name, slot="instance")  # ty: error
+
+# LIB-EDITS. The CONTINUOUS slot edit takes the slot's word and an
+# EXPRESSION, which is a dimension-checked tree `Doc.parse_expr`
+# builds — never a bare number and never a dimensioned quantity, both
+# of which would smuggle a second way of saying what a slot holds.
+DocEdit.set_param(solid, "distance", 1 * m)  # ty: error
+DocEdit.set_param(solid, "distance", 1.0)  # ty: error
+# And the word is TEXT: a slot is a name, so there is no slot type to
+# pass and an index is not one either.
+DocEdit.set_param(solid, 0, doc.parse_expr("1 m"))  # ty: error
+
+# The name repair takes two NAMES — opaque text, as every other
+# name-taking door on this surface does. A node is not one.
+DocEdit.rebind(solid, solid)  # ty: error
 
 # A reference is (identity, pin) in that order and neither is the
 # other's type: an id is the canonical hex TEXT, a pin is a value.
@@ -408,20 +461,18 @@ rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
 # three states" and "what kind of entity" are different questions.
 tag: EntityKind = evaluate(doc).resolve("a face").status  # ty: error
 
-# The derived sketch frame. The SPIN is an angle, and the typed
-# quantity boundary is what stops a bare number meaning radians by
-# convention — the `place.rs` rule the datum doors are written to: a
-# dimensionless direction crosses as floats, anything with a dimension
-# crosses typed.
+# The derived sketch frame. The SPIN is a slot, so what crosses is an
+# `Expr` and a bare number cannot mean radians by convention.
 Node.datum_face_frame(solid, "a face", 0.3)  # ty: error
 
-# ...and a LENGTH is not an angle, however plausible the arithmetic
-# looks.
+# ...and neither can a quantity, however plausible the arithmetic
+# looks: an authored angle reaches the slot through
+# `Expr.written_angle`.
 Node.datum_face_frame(solid, "a face", 1 * m)  # ty: error
 
 # The face is opaque TEXT, never the `NodeId` that minted it — the
 # same confusion the read doors refuse, on the authoring side.
-Node.datum_face_frame(solid, solid, 0 * rad)  # ty: error
+Node.datum_face_frame(solid, solid, Expr.angle_in(0, rad))  # ty: error
 
 # There is no default spin: which way a sketch faces on a face is an
 # authoring decision, and the door does not choose one.
@@ -502,7 +553,7 @@ verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: err
 # invite the same confusion, because `Node` and `NodeId` are two types
 # one sentence apart: the constructor value is not a handle onto an
 # inserted node, and the word that comes back is not the node.
-doc.node_kind(Node.extrude(solid, 1 * m))  # ty: error
+doc.node_kind(Node.extrude(solid, Expr.length_in(1, m)))  # ty: error
 which: Node = doc.node_kind(solid)  # ty: error
 
 # A structural count is FIXED under any error analysis, so the count
@@ -522,6 +573,24 @@ analyzed_box(doc).tail_mass("bore_r")  # ty: error
 # The policy is the ANALYSIS's knob and takes a bare mass, not a
 # quantity: a share of a distribution's mass is dimensionless.
 AnalysisPolicy(1 * mm)  # ty: error
+
+# The advisory run needs the BOX it is measured against — which
+# parameters vary and what counts as outside is not something the
+# document alone answers, so there is no one-argument spelling.
+monte_carlo(doc)  # ty: error
+
+# A sample count is a count and a seed is a seed: neither is a
+# quantity, and the type is what says so rather than a runtime check.
+McConfig(samples=1 * mm)  # ty: error
+# A report is a frozen value: a run is restated by running again,
+# never by editing the answer.
+monte_carlo(doc, analyzed_box(doc)).samples = 4  # ty: error
+
+# The draw door is keyed by a `ParamName` like every other door in
+# this vocabulary, and its quantile is a bare float in `[0, 1)` — a
+# share of a law's mass is dimensionless.
+sample_offset("bore_r", Distribution.normal(1 * mm), 0.5)  # ty: error
+sample_offset(ParamName("bore_r"), Distribution.normal(1 * mm), 1 * mm)  # ty: error
 
 # Two refusals in one line, and both are the point. A name the
 # document does not declare is not an axis, so `get` answers an
@@ -576,3 +645,110 @@ Node.assertion(solid, AssertionDir.AtLeast, 1 * mm)  # ty: error
 # The verb vocabulary is a frozen value: a primitive is restated by
 # building a new one, never by editing one in place.
 MeasurePrimitive.distance(0, 1).verb = "gap"  # ty: error
+
+# The two refusal words are OPTIONAL strings. `inner_kind` is `None`
+# wherever the refusal has no arms, so reading it as a `str` is the
+# narrowing the caller has not done — the `resolve().variant` rule
+# above, at the refusal carrier.
+try:
+    evaluate(doc).value(solid)
+except EvaluationError as _refusal:
+    _arm: str = _refusal.inner_kind  # ty: error
+
+# ...and the same at the edit door, where the CARRIER's word is always
+# a string and only the inner one is optional: the two are not
+# interchangeable however alike they read.
+try:
+    doc.apply(DocEdit.delete_node(solid))
+except EditError as _refused:
+    _edit_arm: str = _refused.inner_variant  # ty: error
+    # The arm's payload is optional for the same reason and reads the
+    # same way: every attribute is present on every arm, so the one a
+    # caller wants is `None` wherever the arm does not carry it and a
+    # bare read has not narrowed anything. The node id is the payload's
+    # most-reached attribute and the one worth pinning.
+    _dangling: NodeId = _refused.node  # ty: error
+    _which_slot: str = _refused.slot  # ty: error
+
+# The validator's findings are a SEQUENCE, not a scalar word. Reading
+# one as a `str` is the mistake the exception's shape exists to make
+# impossible to hold quietly: one raise carries N failures, so there is
+# no single word for it to be.
+try:
+    product(doc, evaluate(doc)).validate_pseudomanifold()
+except ValidationError as _validation:
+    _one_word: str = _validation.findings  # ty: error
+
+# A finding's payload words are OPTIONAL: an arm that carries no census
+# subject has `None` there, so reading one as a `str` is the narrowing
+# the caller has not done — the `inner_kind` rule at the validator.
+try:
+    product(doc, evaluate(doc)).validate_pseudomanifold()
+except ValidationError as _refusal_again:
+    _subject: str = _refusal_again.findings[0].subject_kind  # ty: error
+
+# And a finding is a frozen VALUE: it is restated by re-running the
+# validator, never by editing one in place — the `MeasurePrimitive`
+# rule at the refusal side of the surface.
+try:
+    product(doc, evaluate(doc)).validate_pseudomanifold()
+except ValidationError as _frozen:
+    _finding: ValidationFinding = _frozen.findings[0]
+    _finding.variant = "something_else"  # ty: error
+
+
+# The three projected doors' payloads are OPTIONAL on every arm — the
+# whole point of "present on every arm, `None` where the arm does not
+# carry one" is that reading one as its bare type is a narrowing the
+# caller has not done.
+try:
+    load("id: 00000000000000000000000000000000\n{}")
+except PersistError as _persist:
+    _at_line: int = _persist.line  # ty: error
+
+try:
+    Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+except FrameError as _frame:
+    _margin: float = _frame.margin  # ty: error
+
+try:
+    product(doc, evaluate(doc)).tessellate(1 * mm).to_stl_binary(header="x" * 81)
+except StlError as _stl:
+    _header_bytes: int = _stl.len  # ty: error
+
+
+# The import door answers a REPORT, not a body. The whole point of the
+# value is that the body is one field of it beside the gate's own
+# measurement, so a caller that treats the report as the handle is
+# reaching past the field it wanted.
+_import = import_step("ISO-10303-21;\nEND-ISO-10303-21;\n")
+_as_body: Body = _import  # ty: error
+_measured = _import.mass_properties()  # ty: error
+
+# And a report is FROZEN, like every other value on this surface: the
+# import is restated by importing again, never by editing one in place.
+_import.eps_in = 1.0  # ty: error
+
+# The record's absent fields are `Optional` on every row — reading one
+# as its bare type is a narrowing the caller has not done.
+for _row in _import.normalizations:
+    _residual: float = _row.residual  # ty: error
+for _placed in _import.instances:
+    _frame: Frame = _placed.placement  # ty: error
+
+
+# A role-name door mints a name from a NODE, a profile LOOP index and
+# an index into that loop's canonical chain. A name is not a node, an
+# index is not a length, the loop is not optional, and the end
+# vocabulary is closed: `MeridianEnd` names a revolve's ends and a
+# `CapEnd` is an extrude's.
+_names_doc = Doc()
+_names_node: NodeId = _names_doc.sketch_frame()
+_minted: str = band(_names_node, 0, 0)
+_from_a_name: str = band(_minted, 0, 0)  # ty: error
+_from_a_length: str = band(_names_node, 0, 1 * m)  # ty: error
+_a_loop_is_not_a_length: str = band(_names_node, 1 * m, 0)  # ty: error
+_the_loop_is_not_optional: str = band(_names_node, 0)  # ty: error
+_wrong_vocabulary: str = meridian_vertex(CapEnd.End, _names_node, 0, 0)  # ty: error
+_a_node_is_not_a_name: str = carried(_names_node, _names_node)  # ty: error
+_a_name_is_not_a_node: str = carried(_minted, _minted)  # ty: error

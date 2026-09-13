@@ -13,17 +13,14 @@
     clippy::float_cmp
 )]
 
-use geom_core::{Affine3, Band, Tol, Vec3};
+use geom_core::{Affine3, Tol, Vec3};
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
+use crate::common::approx::band;
 use crate::verbs_shell::{boxy, hollow_box, v, vessel};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::linear(tol()).expect("a band")
 }
 
 fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> {
@@ -126,9 +123,10 @@ fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
 /// untouched DEEPER than the pinned row measures.** The unit's own STOP
 /// row is the PLANAR door and compares vertex points only. This one
 /// runs `offset_charts_together` — whose write phase mints surfaces,
-/// re-authors edge carriers and then runs `mint_pcurves` over the WHOLE
-/// clone — and compares the out-of-scope solid's faces, surfaces, edge
-/// carriers, parameters, descriptions AND vertex bit patterns.
+/// re-authors edge carriers and then re-mints the pcurve rows of its
+/// SCOPE's faces — and compares the out-of-scope solid's faces,
+/// surfaces, edge carriers, parameters, descriptions AND vertex bit
+/// patterns.
 #[test]
 fn r1_axial_door_leaves_the_other_solid_deep_identical() {
     let pair = beside(&vessel(1.0, 2.0), &boxy(2.0, 3.0, 4.0), 10.0);

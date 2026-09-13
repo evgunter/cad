@@ -42,9 +42,9 @@ use pncad::document::{
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
-use pncad::prelude::{EntityKind, ProfileVertexRef, RoleSeg, StableName, fillet_edges, query};
+use pncad::prelude::{StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
-use pncad::select::edge_name;
+use pncad::select::{band_rim, carried, edge_name};
 use pncad::topo::{Body, EdgeKey};
 
 // ---- the lid's stations, from `src/teapot.rs` ----
@@ -78,25 +78,6 @@ fn lpt(x: f64, y: f64) -> [Expr; 2] {
 }
 fn line_to(x: f64, y: f64) -> ProgramStep {
     ProgramStep::LineTo(ProgramTarget::Point(lpt(x, y)))
-}
-
-fn band_rim(node: RecipeNodeId, vertex: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Edge,
-        node,
-        path: vec![RoleSeg::BandRim(ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        })],
-    }
-}
-
-fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
-    StableName {
-        kind: inner.kind,
-        node,
-        path: vec![RoleSeg::FromTarget(Box::new(inner))],
-    }
 }
 
 fn lid_meridian() -> LoopProgram {
@@ -204,7 +185,7 @@ fn bands(b: &Body<f64>) -> Vec<(u64, u64, u64)> {
 /// built, or the refusal it answered.
 fn roll_once(vs: &[u32], tol: Tol) -> Result<(usize, usize, usize), String> {
     let (mut doc, lid) = sharp_lid(tol);
-    let sel: Vec<StableName> = vs.iter().map(|&v| band_rim(lid, v)).collect();
+    let sel: Vec<StableName> = vs.iter().map(|&v| band_rim(lid, 0, v)).collect();
     let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
     let ev = eval(&doc, tol);
     match ev.node_error(rolled) {
@@ -266,7 +247,7 @@ fn two_requests_build_the_kernels_one_request_body() {
     let (mut doc, lid) = sharp_lid(tol);
     let first = insert(
         &mut doc,
-        Node::fillet(lid, len(ROLL), vec![band_rim(lid, ROLLED[0])]),
+        Node::fillet(lid, len(ROLL), vec![band_rim(lid, 0, ROLLED[0])]),
         tol,
     );
     let second = insert(
@@ -275,8 +256,8 @@ fn two_requests_build_the_kernels_one_request_body() {
             first,
             len(ROLL),
             vec![
-                carried(first, band_rim(lid, ROLLED[1])),
-                carried(first, band_rim(lid, ROLLED[2])),
+                carried(first, band_rim(lid, 0, ROLLED[1])),
+                carried(first, band_rim(lid, 0, ROLLED[2])),
             ],
         ),
         tol,
@@ -298,7 +279,7 @@ fn two_requests_build_the_kernels_one_request_body() {
         .map(|&v| {
             query::all_edges(&sharp)
                 .into_iter()
-                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(&band_rim(lid, v)))
+                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(&band_rim(lid, 0, v)))
                 .expect("each rolled rim's key, by its name")
         })
         .collect();

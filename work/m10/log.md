@@ -1309,6 +1309,167 @@ block was allowed to ship it. Either a form-level unit (a new block,
 M10-B5) before the exit walk is re-cut, or the walk re-cut now with
 the plate's four-identity distance stated as the frontier.
 
+## M10-10 dispatched: the form-level mechanism; block M10-B5 opens (2026-09-06)
+
+Ev ruled the form-level unit first ("1 sounds good!") and, standing:
+sequencing decisions with a recommendation do not wait on him (to
+`memories/` by its own PR). Block M10-B5 drawn (byte 234 ⇒ slot 1
+FABLE). The spec is M10-9's finding read to its conclusion: the arc's
+two spellings meet once their trig atoms of `q · atan(bulge)` are
+written in closed form — theorems of the reals with no value read,
+the half-angles on the positive branch by `atan`'s range — and rules
+A/B close the ring per node in the early walk, which has to be made
+affordable (138 s per replay as built; a reviewer's bounded variant
+at 2.55 s is the order to reach); the ring width measured, not
+assumed. Measurement first, as every unit in this program has had to
+be: the over-band-set instrument as the first commit, the 2× helper
+retired, the four residuals rendered and classified (an iterated
+witness is S-CERT's, not ours) before a rule ships. Acceptance is the
+program's exit condition verbatim.
+
+
+## Orchestrator-direct hotfix: main red at the selftest since 2026-09-07 (2026-09-07)
+
+Every run from 00:00Z was red at `gate ok`: `scripts/work.py
+--selftest` renders its committed fixture at a calendar date
+(2026-09-20) and expects the fixture's items stale by then — 19 days
+when written, 13 on the day the calendar caught up, one short of
+`STALE_DAYS`. Found on the memories PR (#2098), reproduced locally,
+fixed as #2099 (the three renders at `today + STALE_DAYS + 5`),
+merged at f30aabc36 on its own green run; #2098 re-based onto it by
+merge. The M10-10 lane was told not to chase it.
+
+## M10-10 amended before the freeze: the chart's phase (2026-09-07)
+
+The implementer's first report (PR #2100, green on the full matrix,
+~3 h 40 min): rule D and the per-node A/B walk made linear (one shared
+monomial denominator; caps 64/512; a zero normalization `0/d → 0`
+found through a new explain instrument) discharge three of the plate's
+four residuals — `carrier_on_surface_2` and `witness_on_surface_2` as
+theorems, `carrier_matches_mapped_source` through the door once D
+makes the trig meet — the 2× instrument retired and its finding
+closed, the driver K row at 48,842 symbolic per CSV (+160), the ring
+at 256 (512/1024 buy no reach), leaf costs within the line. The plate
+moved 1.60× to `1.25e3 · ε` and is bounded by ONE residual,
+`pcurve_map_residual`: the cylinder chart's phase `cos(atan2(0,
+‖a_r‖))` from `stable_azimuth`, with `‖a_r‖ = r²/sqrt(r²)`; with it
+passed the plate certifies 0.237/0.263/0.263 of its real study at the
+three ε rows, the ceiling no longer scaling with ε, the first refusal
+`assert_bound` — at 1e-12 a genuine flip. The spec's "nothing folds at
+an argument that is not `q · atan(X)`" excluded a fold that is
+value-free by the same argument as D's half-angle branch:
+`atan2(zero-form, manifestly non-negative) = 0`. Amendment A1 (#2102,
+on main) admits it with its negative pins; the lane resumed on it
+before the freeze. The other two routes in the finding — a rule-C
+sign read at the funnel's own certified decision, a structural phase
+from PCURVE — stay filed.
+
+## M10-10 frozen and under dual review: the acceptance is met (2026-09-07)
+
+The second report under A1: `atan2(zero-form, manifestly non-negative)
+= 0` and, unnamed by the amendment, trig at exact half-multiples of π
+(D14, without which two negative-frame rims stayed numeric) — the
+plate's last residual folds and the door closes the rest; the plate
+certifies 0.237/0.263/0.263 of its real study at the three ε rows,
+the ceiling stops scaling with ε, the first refusal beyond is
+`assert_bound`; driven whole, 431 of 1,024 leaves certify (89 % of the
+mass, hull `[0.419, 0.845]` mm vs the 0.5 mm floor, refusals all
+`Budget`); the tour's stop 1 is the certified study. The annulus
+certifies 0.70/0.84 of its study bounded by real margins; link,
+bracket and pad stay at identity residuals (the link's carrier frame
+past the cap). The K row lints 48,039 symbolic per CSV, rule 1 = 0.
+Knock-on: the bore/pin ±0.05 study certifies, so M10-3/M10-4 rows
+that pinned refusals are re-scaled to real studies and the padding
+pins re-baselined with the reason (D15). Frozen at e904d9691; ordinal
+511 drawn (branch-side). What the reviews are pointed at beyond
+soundness: whether the `Budget` refusals are bounded by the real flip
+or by something the finer leaves see; whether the re-baselined
+goldens assert the mechanism; why the link, bracket and pad's identity
+residuals do not fold.
+
+
+## M10-10 dual review adjudication (2026-09-12)
+
+Both arms on frozen e904d9691 (PR #2100, green on the full matrix).
+R1 MERGE-AFTER-FIXES (3 MAJ / 7 MIN / 4 NOTE, rubric 4/4/3), delivered
+2026-09-07; R2 MERGEABLE-WITH-CHANGES (1 MAJ / 7 MIN / 3 NOTE, rubric
+4/3/3), delivered 2026-09-12 after dying on the Fable limit before its
+first step and being resumed in place when Ev said the limit had reset
+— no work lost, the pair counts. Both re-drove the plate's real study
+at 1,024 leaves and reproduced 431 certified / 593 refused, 89.07 % of
+the mass and the hull to the digit; both refined refused leaves and
+found the over-band set `{assert_bound}` alone at every leaf and
+depth (R2: bisecting 16 refused leaves, 84 of 128 children certify);
+both found every rule sound under attack at every point clause 1 does
+not refuse; R2's merge-base differential of eleven fixtures is
+byte-identical. The mechanism stands, and the acceptance stands with
+one correction to what it says.
+
+R1, BY EXECUTION, on the CODE: rule D's argument reader forms the
+dyadic multiple with `i128::checked_shl`, which refuses only shifts
+≥ 128 and otherwise WRAPS, so the `|k| ≤ MAX_MULTIPLE` guard reads a
+wrapped value and `cos((2^123 + 1)·32·atan x) − cos(32·atan x)`
+decides `Zero` as a theorem — unreachable from any document (a 53-bit
+product is `Int::Big`, rejected), one line to fix, a red row on its
+probe branch; four rows still read a first refusal at 2× the ceiling
+(one of them gating) while the order-artefact finding is closed on
+"nothing in the tree spells a bound that way"; `sym.rs`'s header still
+states two limits the shipped tier no longer has, and `SymRules`'s doc
+describes three flags on a struct carrying eight. R1's own correction,
+by execution: raising the per-node cap eightfold buys not one decision
+on six documents and costs the link 7× — so the sentence "past the
+per-node cap, so nothing reduces it" is wrong in five places; what
+holds the link and bracket is the coefficient/term budget freezing the
+squared components at any affordable width. R1's e2e: a literal bulge
+other than 1 (a major arc at bulge 2) leaves a third of the residue
+numeric and the ceiling unmoved.
+
+R2, BY EXECUTION, on the CLAIM: the plate's whole-certifying ceiling
+at 0.263 of its study is bounded by DEPENDENCY WIDENING of the
+assertion's own affine margin, not by a flip — `web − bound = 1e-4 +
+2·Δhs − Δr_a − Δr_b` has true range `1e-4 ± 1.6e-4·s`, so the flip
+first enters the box at s = 0.625, and at s = 0.263 the true margin is
+`[5.8e-5, 1.4e-4] > 0` while the enclosure is `[−2e-9, 2e-4]`: the
+class M10-7's R1 filed (`real-margin-dependency-widening`), which the
+spec said to NAME. The annulus at the finer rows likewise
+(`arc_diameter_clearance` cannot be zero for r > 0). "Bounded by
+genuine flips, not by ε" is therefore half right — not by ε, and the
+whole drive's refusals do sit around the real flip at s ≥ 0.625 and
+refine away, but the ceiling number is widening's. R2 also: the
+hosted interval test leg TRIPLED (2.3 → 7.3 min on one shard) and the
+body reports only the tour's minutes — which meets the item S-TCOST
+filed on main while this unit was frozen (the tier is 95 % of the
+M10-3 drive, nothing profiled inside the normal form); a parameter
+bulge is entirely outside the mechanism (ceiling identical on and
+off); `MAX_HALVINGS = 3` admits `q = 3/8` but the ring does not close
+there; the tour's stop 1 never states the violated mass.
+
+Correspondence: the surviving 2× reads (R1 MAJ-2 ⊃ R2 m1), the cap
+prose (R1's correction ≡ R2 m6, both by execution), the `atoms_of`
+underflow, the stale K-REPORT padding paragraph and the one-sided
+padding pins are bilateral. TALLY CANDIDATES: R1's wrapping-shift
+false theorem (unilateral, by execution) and R2's dependency-widening
+reading of the ceiling (unilateral, by execution) — the program's
+third symmetric pair. Unilateral MINORs: R1's undisclosed A/B over the
+top residual, D14's π dependency, the two gate-carry homes; R2's CI
+cost, the parameter-bulge reach, the unclosed halving. Silent
+deviations: R1 counted 6, R2 counted 5.
+
+Fix pass IMPLEMENTER-INHERITED, and it begins by merging main (2,400
+commits since the freeze; conflicts in `editor-core/tests/all.rs`,
+`demos/tour/src/tolerance.rs`, `docs/K-REPORT.md`): the shift guarded
+and R1's red row adopted; the acceptance re-stated everywhere with the
+widening class named and R2's affine-margin row pinned, the whole
+drive's refusals stated as the flip's; the four 2× rows re-cut; the
+header, the `SymRules` doc, the cap prose in five places, the tour row
+doc and K-REPORT re-cut; the padding pins asserting the leaf count in
+the right direction; the A/B-over-top-residual scope disclosed with
+the M10-8 row restored; D14's π dependency stated and pinned; the
+halving schedule closed at m ≤ 2; the reach limits (parameter bulge;
+literal bulge ≠ 1) stated as the mechanism's statement and filed as
+the next ceiling class; the hosted cost deltas disclosed and the
+S-TCOST item linked. Durable homes: the reach-limit item; the CI cost
+in the exit walk with S-TCOST's item.
 ## Announced seam from SHELL (2026-09-08): SHELL-3's co-review
 
 SHELL-3 (ruled B on #1737, `work/shell/SHELL-3.md`; draft spec
@@ -1320,3 +1481,43 @@ M10 orchestrator to co-review at dispatch, which waits for PROPS'
 sign-hull unit to land (it edits the same file). M10-10 (#2100) does
 not touch `clearance.rs` (measured from its file list). Signed (SHELL
 orchestrator).
+
+## M10-10 MERGED (2026-09-12)
+
+PR #2100 merged, sample #173 (ordinal 511). The program's exit
+condition is met, and the reviews made the sentence exact. The arc's
+two spellings meet once their trig atoms of `q · atan(bulge)` are
+written in closed form — theorems of the reals, no value read, the
+half-angles on the positive branch by `atan`'s range and the chart's
+phase by the syntactic non-negativity of `r²/√r²` — and rules A/B
+close the ring per node in a walk made linear, so the plate's four
+identity residuals go at once. The two-hole plate's real study, the
+box the program was opened on, certifies: at 1,024 leaves 431 certify
+and 593 refuse on budget, 89.07 % of the mass, a certified worst-case
+hull of `[0.419, 0.845]` mm against the 0.5 mm floor, the nominal in
+a certified chamber, and every refused leaf bounded by the assertion
+itself at every depth — the real flip, which enters the box at 0.625
+of the study. The whole-certifying ceiling at 0.263 of the study no
+longer scales with ε; it is bounded by dependency widening of the
+assertion's affine margin, the class M10-7's review filed, which is
+what "a macroscopic box certifies, bounded by genuine flips, not by
+ε" comes to when read at the leaf and at the ceiling separately. The
+tour's stop 1 is the certified study and states its held, violated
+and unresolved mass. The annulus certifies 0.70–0.84 of its study.
+What the mechanism does not reach is stated and filed: the link, the
+bracket and the pad stay at identity residuals frozen at the
+coefficient/term budget at any affordable width (the cap is a cost
+wall — R1 proved it by raising it eightfold for nothing); a parameter
+bulge is outside the mechanism and a literal bulge other than 1
+leaves residue (`rule-d-reaches-the-unit-bulge-only`). The honest
+costs: the hosted interval leg tripled on one shard and S-TCOST
+measured the tier at 95 % of the M10-3 drive while this unit was
+frozen — disclosed, linked, one waste removed, the rest the exit
+walk's. Both reviews found the code sound under attack; R1 found a
+false theorem no document can reach (a wrapping shift in the
+argument reader) and R2 found the acceptance sentence half right. Two
+tally candidates, one each way — the third symmetric pair. The unit's
+own instrument finding closes for good: the four rows that still read
+a first refusal at twice the ceiling are re-cut. Twenty-two
+deviations. The spec leaves `docs/` with this merge; the exit walk
+(#1700) is re-cut against these numbers for Ev's ratification.

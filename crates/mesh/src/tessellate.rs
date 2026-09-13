@@ -4,15 +4,125 @@
 use std::collections::HashMap;
 
 use geom::Surface;
-use geom_core::{Band, Tol};
-use topo::Body;
+use geom_core::k_stats::{self, Detached};
+use geom_core::{Band, Point3, Tol};
+use topo::{Body, FaceKey};
 
+use rayon::prelude::*;
+
+use crate::budget;
 use crate::chords::{compute_chords, edge_vertices};
 use crate::curved::tessellate_curved;
+use crate::memo::{FaceInputs, FaceMemo, PatchKeys, PatchMemo, Placement};
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
 use crate::sizing::{Eps, SizingTols, sizing_target};
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
+
+/// One corner of a face patch's triangle, named the way the lane that
+/// emitted it can name it.
+///
+/// A lane reads the mesh arena but does not write it, so it cannot know
+/// where its own interior points will land in [`Mesh::positions`]: it
+/// names a point it shares with another face — a topology vertex or a
+/// chord point, both minted before any face runs — by that point's mesh
+/// id, and one of its own interior points by that point's index in
+/// [`Patch::interior`]. [`Patch::place`] turns the second into the
+/// first once [`tessellate`] has assigned the face its base.
+///
+/// **Two constructors rather than one integer with a threshold.** The
+/// two are different id spaces (`DESIGN.md` D9, engineering convention
+/// 1: tagged, never in-band), so a local index cannot be read as a mesh
+/// id: that half of the class is foreclosed by the type.
+/// [`unpaired_chord_segment`]'s class is the OTHER half — two faces
+/// emitting one chord point under different `Shared` ids — and nothing
+/// here forecloses it, which is why that census stays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PatchVertex {
+    /// A mesh id minted before any face ran: a topology vertex, or a
+    /// point on some edge's chord polyline.
+    Shared(u32),
+    /// An index into this patch's own [`Patch::interior`].
+    Local(u32),
+}
+
+impl PatchVertex {
+    /// This corner's position: from the shared prefix, or from the
+    /// patch's own interior. The lane certifies against these.
+    pub(crate) fn position(self, shared: &[Point3<f64>], interior: &[Point3<f64>]) -> Point3<f64> {
+        match self {
+            Self::Shared(id) => shared[id as usize],
+            Self::Local(i) => interior[i as usize],
+        }
+    }
+
+    /// This corner's mesh id once the patch's interior begins at
+    /// `base`.
+    fn rebase(self, base: u32) -> u32 {
+        match self {
+            Self::Shared(id) => id,
+            Self::Local(i) => base + i,
+        }
+    }
+}
+
+/// One face's tessellation AS A VALUE: the interior points the face
+/// mints for itself, and its triangles in [`PatchVertex`]s.
+///
+/// Nothing in this value depends on another face, which is what the
+/// per-face memo and the parallel map over faces both need
+/// (`work/perf/plan.md` §5). The lanes are pure functions of their
+/// face and the shared prefix: the trimmed lane's `bounds:
+/// &FaceBounds` is a `FaceKey`-keyed certificate memo the chord pass
+/// has finished writing before any lane runs, and each lane reads only
+/// its own face's entry (`nurbs_cert::FaceBounds`).
+pub(crate) struct Patch {
+    /// The face's own grid points, in the order the lane minted them —
+    /// which is the order they enter [`Mesh::positions`].
+    pub(crate) interior: Vec<Point3<f64>>,
+    /// The face's triangles, outward-wound (the [`FacePatch`]
+    /// contract), naming shared points by mesh id and interior points
+    /// by their index in `interior`.
+    pub(crate) triangles: Vec<[PatchVertex; 3]>,
+}
+
+impl Patch {
+    /// Places the patch in the mesh: its interior appended to
+    /// `positions`, its triangles returned as mesh ids.
+    ///
+    /// Consumes the patch, so the [`PatchVertex`] buffer is released as
+    /// the mesh-id one fills rather than living beside it.
+    pub(crate) fn place(self, positions: &mut Vec<Point3<f64>>) -> Vec<[u32; 3]> {
+        #[allow(clippy::cast_possible_truncation)]
+        let base = positions.len() as u32;
+        positions.extend(self.interior);
+        self.triangles
+            .into_iter()
+            .map(|t| t.map(|v| v.rebase(base)))
+            .collect()
+    }
+
+    /// The patch renumbered as if it were the FIRST face placed, for
+    /// the per-patch censuses the lanes run on their own emission.
+    ///
+    /// Those censuses count uses of the edges incident to a named set
+    /// of SHARED ids, and both quantities are invariant under any
+    /// injective renumbering THAT FIXES THE SHARED IDS — which this is,
+    /// for any base at or above `shared.len()`. So the base is
+    /// arbitrary within that range and this is the smallest of them.
+    ///
+    /// It materialises a whole copy of the patch, so a caller that has
+    /// nothing to census must not call it (`curved`, `trimmed`).
+    #[cfg(debug_assertions)]
+    pub(crate) fn census_ids(&self, shared: &[Point3<f64>]) -> Vec<[u32; 3]> {
+        #[allow(clippy::cast_possible_truncation)]
+        let base = shared.len() as u32;
+        self.triangles
+            .iter()
+            .map(|&t| t.map(|v| v.rebase(base)))
+            .collect()
+    }
+}
 
 /// Tessellates a closed body into a watertight [`Mesh`] within the
 /// chordal tolerance `chordal` (δ, meters) of its exact surfaces.
@@ -41,9 +151,145 @@ use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 /// not its own UV rectangle, empty loops, dangling keys, resolution
 /// overflow, certificate failure, CDT insertion failure.
 pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, TessellateError> {
+    tessellate_impl(body, chordal, tol, None).map(|(mesh, _)| mesh)
+}
+
+/// A mesh built through the memo, with the digest of each face's
+/// inputs so the caller can keep those faces alive across a picture
+/// it does not re-tessellate ([`PatchMemo::keep`]).
+#[derive(Clone, Debug)]
+pub struct Tessellation {
+    /// The mesh — byte-identical to [`tessellate`]'s for the same
+    /// `(body, chordal, tol)`.
+    pub mesh: Mesh,
+    /// One digest per face, in face-arena order.
+    pub keys: PatchKeys,
+}
+
+/// [`tessellate`], answering each face from `memo` where the memo
+/// holds a patch under the face's content key and running its lane
+/// otherwise — the incremental re-tessellation door the crate's
+/// memo-key contract exists for.
+///
+/// The chord pass runs as in [`tessellate`] (it is per edge and
+/// cheap); per face the lane is skipped on a memo hit and the stored
+/// patch is placed by the same fold. The mesh is byte-identical to
+/// [`tessellate`]'s: a hit is by the full key bytes, and the key is
+/// every input the lane reads (`crate::memo`'s module docs state it
+/// per lane). What a hit does NOT run is the lane's own per-patch
+/// census and, with the `budget` feature, its recording; the
+/// cross-face census at the end runs either way.
+///
+/// The memo's lifetime is the caller's: [`PatchMemo::end_picture`]
+/// after every picture is what keeps it one picture's size.
+///
+/// # Errors
+///
+/// As [`tessellate`].
+pub fn tessellate_with(
+    body: &Body<f64>,
+    chordal: f64,
+    tol: Tol,
+    memo: &mut PatchMemo,
+) -> Result<Tessellation, TessellateError> {
+    tessellate_impl(body, chordal, tol, Some(memo)).map(|(mesh, keys)| Tessellation { mesh, keys })
+}
+
+/// Which lane a face takes — the dispatch, named so the memo key can
+/// fold the same decision it is made by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Lane {
+    /// `planar::tessellate_planar`: CDT of the boundary in a chart
+    /// frame derived from the boundary itself.
+    Planar,
+    /// `curved::tessellate_curved`: the iso-rectangle walk plus UV
+    /// grid on a swept analytic chart.
+    Curved,
+    /// `trimmed::tessellate_trimmed`: the pcurve-driven lane, on a
+    /// cylinder chart with a trim carrier or on any NURBS chart.
+    Trimmed,
+}
+
+/// The dispatch.
+///
+/// Described NURBS faces route through the trimmed lane
+/// unconditionally (M7 — the flip of the historical first-arm
+/// refusal, whose record is on
+/// [`TessellateError::UnsupportedSurface`]): a NURBS face has no
+/// swept-rectangle chart, so the pcurve-driven walk is its only lane.
+/// The placeholder still refuses typed inside the lane;
+/// illegal-rational/C⁰ classes refuse
+/// [`TessellateError::UnsupportedNurbsFace`] there too. An
+/// approximating surface meshes through the SAME lane, on its fit: the
+/// fit is the geometry, so the triangles it produces are the face's
+/// own. The certificate's bound is deliberately NOT folded into the
+/// mesh tolerance — widening `tol` by the fit's ε so the mesh
+/// certifies against the DESCRIPTION is a separate statement, and this
+/// pass makes the plain one.
+///
+/// Structural routing (M5 PR 11): a conic/B-spline trim carrier means
+/// the face is not an iso-rectangle — the pcurve-driven trimmed lane
+/// takes it. The converse does NOT follow: this is a test on carrier
+/// KINDS, and iso carriers (`Line`, `Circle`) can bound a
+/// NON-rectangular domain — a keyway or milled flat on a cylinder is
+/// exactly that shape, and nothing on this path screens loop SHAPE. So
+/// an iso boundary reaching `tessellate_curved` is a routing decision,
+/// not a guarantee about the domain; the domain itself is checked
+/// there, twice over — its SHAPE through props' iso-rectangle door
+/// before the walk (`curved::require_iso_rectangle_face`, refusing
+/// [`TessellateError::UnsupportedCurvedShape`]) and the walk's
+/// consistency after it (`curved::require_swept_rectangle`, refusing
+/// [`TessellateError::UnsupportedCurvedDomain`]).
+fn lane_of(body: &Body<f64>, fk: FaceKey, surface: &Surface<f64>) -> Result<Lane, TessellateError> {
+    Ok(match *surface {
+        Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
+        Surface::Plane { .. } => Lane::Planar,
+        _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
+        _ => Lane::Curved,
+    })
+}
+
+/// One face's slot in [`tessellate_impl`]'s indexed parallel map: the
+/// lane's answer, and everything the arena-order fold still owes for
+/// that face.
+///
+/// Every field is a VALUE the map computed and the fold applies. That
+/// is what makes the fold the only order-dependent thing in the pass:
+/// the patch enters the mesh arena at this face's turn, the memo work
+/// is counted and inserted at this face's turn, and the meter's rows
+/// are handed over at this face's turn — however the map scheduled the
+/// faces.
+struct FaceWork<'m> {
+    face: FaceKey,
+    /// What the budget meter recorded while this face's lane ran, on
+    /// whatever thread that was (`budget::record`).
+    meter: budget::FaceRecording,
+    /// What the K-funnel recorded while it ran — the verdicts, the
+    /// escalations and (under `probe`) the margin samples, taken under
+    /// a frame of the lane's own (`geom_core::k_stats::detached`) and
+    /// spliced into the caller's in the fold.
+    decided: Detached,
+    /// The memo's work for this face, absent on the memo-free path.
+    memo: Option<FaceMemo>,
+    /// What the fold puts in the mesh arena for this face — the lane's
+    /// own patch, or the memo entry it borrows — or the error its lane
+    /// refused with, carried rather than propagated so the fold reports
+    /// the first refusal in ARENA order rather than the map's first.
+    place: Result<Placement<'m>, TessellateError>,
+}
+
+/// The one implementation behind both doors: `memo` is `None` for
+/// [`tessellate`] and the path is then exactly the memo-free one.
+fn tessellate_impl(
+    body: &Body<f64>,
+    chordal: f64,
+    tol: Tol,
+    memo: Option<&mut PatchMemo>,
+) -> Result<(Mesh, PatchKeys), TessellateError> {
     if !(chordal.is_finite() && chordal > 0.0) {
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }
+    let ambient = tol;
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
     // `Band::linear` prescribes; the curved lane's shape door is its
@@ -76,14 +322,14 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
     let chords = compute_chords(body, delta_s, &vids, &mut positions, &mut bounds)?;
-    // Every id a face can SHARE with another face is already minted:
+    // Every id a face can SHARE with another face is now minted:
     // topology vertices, then chord points, then (per face, below) that
     // face's own interior grid. So a shared id is exactly an id below
-    // this mark, and the census at the end of this function tests it
-    // with an integer compare rather than a lookup.
-    #[cfg(debug_assertions)]
-    #[allow(clippy::cast_possible_truncation)]
-    let shared_below = positions.len() as u32;
+    // this mark — which is what the census at the end of this function
+    // tests with an integer compare rather than a lookup, and what
+    // makes `positions[..shared_below]` the whole of what a face reads
+    // from outside itself.
+    let shared_below = positions.len();
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
         let (start_vertex, end_vertex) = edge_vertices(body, ek)?;
@@ -102,84 +348,185 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
         });
     }
 
-    // Per-face dispatch, face-arena order.
-    let mut patches = Vec::new();
-    for (fk, face) in body.faces() {
-        let surface = body
-            .get_surface(face.surface)
-            .ok_or(TessellateError::MissingEntity {
-                what: "face surface",
-            })?;
-        let tol = SizingTols {
-            delta: chordal,
-            delta_s,
-            eps,
-            band,
-        };
-        let triangles = match *surface {
-            // Described NURBS faces route through the trimmed lane
-            // unconditionally (M7 — the flip of the historical
-            // first-arm refusal, whose record is on
-            // [`TessellateError::UnsupportedSurface`]): a NURBS face
-            // has no swept-rectangle chart, so the pcurve-driven walk
-            // is its only lane. The placeholder still refuses typed
-            // inside the lane; illegal-rational/C⁰ classes refuse
-            // [`TessellateError::UnsupportedNurbsFace`] there too.
-            // An approximating surface meshes through the SAME lane,
-            // on its fit: the fit is the geometry, so the triangles it
-            // produces are the face's own. The certificate's bound is
-            // deliberately NOT folded into the mesh tolerance here —
-            // widening `tol` by the fit's ε so the mesh certifies
-            // against the DESCRIPTION is a separate statement, and
-            // this pass makes the plain one.
-            Surface::Nurbs(_) | Surface::Approx(_) => crate::trimmed::tessellate_trimmed(
-                body,
-                fk,
-                surface,
-                &chords,
-                &mut positions,
-                &tol,
-                &mut bounds,
-            )?,
-            // The planar lane derives its chart frame from the face's
-            // own boundary (planar.rs module docs, #284) — the stored
-            // plane axes are deliberately not passed: imported axes
-            // carry translator noise that projects valid boundaries
-            // below spade's coordinate domain.
-            Surface::Plane { .. } => tessellate_planar(body, fk, &chords.ids, &positions)?,
-            // Structural routing (M5 PR 11): a conic/B-spline trim
-            // carrier means the face is not an iso-rectangle — the
-            // pcurve-driven trimmed lane takes it.
-            //
-            // The converse does NOT follow: this is a test on carrier
-            // KINDS, and iso
-            // carriers (`Line`, `Circle`) can bound a NON-rectangular
-            // domain — a keyway or milled flat on a cylinder is exactly
-            // that shape, and nothing on this path screens loop SHAPE.
-            // So an iso boundary reaching `tessellate_curved` is a
-            // routing decision, not a guarantee about the domain; the
-            // domain itself is checked there, twice over — its SHAPE
-            // through props' iso-rectangle door before the walk
-            // (`curved::require_iso_rectangle_face`, refusing
-            // [`TessellateError::UnsupportedCurvedShape`]) and the
-            // walk's consistency after it
-            // (`curved::require_swept_rectangle`, refusing
-            // [`TessellateError::UnsupportedCurvedDomain`]).
-            _ if crate::trimmed::has_trim_carrier(body, fk)? => crate::trimmed::tessellate_trimmed(
-                body,
-                fk,
-                surface,
-                &chords,
-                &mut positions,
-                &tol,
-                &mut bounds,
-            )?,
-            _ => tessellate_curved(body, fk, surface, &chords.ids, &mut positions, &tol)?,
-        };
-        patches.push(FacePatch {
-            face: fk,
-            triangles,
-        });
+    // Per-face dispatch: **D9 idiom 1**, an indexed parallel map over
+    // the face arena into a pre-sized buffer, combined by the
+    // sequential arena-order fold below, which is **idiom 2**
+    // (`DESIGN.md`'s D9 addendum; `work/perf/plan.md` §2.2). Nothing
+    // here re-derives determinism: the map's combination is positional,
+    // so the mesh is the same bytes at any thread count, and the fold
+    // is where every order-dependent thing happens — the mesh arena,
+    // the memo's counters and entries, and the budget meter's rows.
+    //
+    // What a face reads is `positions[..shared_below]` and nothing else
+    // it does not own (above), the chord pass has finished writing
+    // `bounds` (`nurbs_cert::FaceBounds`), and the memo is read through
+    // its pure half (`PatchMemo::lookup`).
+    //
+    // ERRORS. The refusal a caller sees is the first in ARENA order,
+    // never the first the map finished. The price is that every face is
+    // computed before the fold picks it — work a refusing body does and
+    // throws away, at every width, on a path that never produces an
+    // answer.
+    //
+    // PEAK MEMORY. Every face's patch is live at once here, where the
+    // serial loop held one at a time: the bound is the whole mesh's
+    // interior points and triangles, plus (with a memo) one
+    // `StoredPatch` per missed face — about one extra copy of the mesh
+    // rather than one copy of its largest face. Measured, on the tour's
+    // hollow ring (four faces, the thing that makes a patch big here):
+    // at 164 940 triangles peak RSS is 18.6 MB serial against 19.8 MB
+    // at four threads, and at 546 864 triangles 46.0 MB against
+    // 54.1 MB — +18 % where it shows, on a figure the mesh value itself
+    // dominates. A body with MANY faces pays less, not more: the
+    // patches are smaller.
+    let tol = SizingTols {
+        delta: chordal,
+        delta_s,
+        eps,
+        band,
+    };
+    let faces: Vec<_> = body.faces().collect();
+    // The meter's arming as a value: a lane runs on a worker thread,
+    // which nobody armed (`budget`'s module docs).
+    let arming = budget::arming();
+    let reader = memo.as_deref();
+    let work: Vec<FaceWork<'_>> = {
+        let shared = &positions[..shared_below];
+        faces
+            .par_iter()
+            .map(|&(fk, face)| {
+                // ONE wrapper for both of the tessellation's
+                // thread-local channels, because they are one problem:
+                // a channel the CALLER owns and the worker does not.
+                // The budget meter's per-face rows
+                // (`budget::record`) and the K-funnel's verdicts,
+                // escalations and `probe` samples
+                // (`k_stats::detached`) are both recorded into
+                // thread-locals by the lane, both travel back in this
+                // face's slot, and the fold hands both on in arena
+                // order — so an armed meter and a `Bracket` around
+                // `tessellate` see what a serial walk would have
+                // written, element for element, at any thread count.
+                //
+                // NO PORTABILITY GATE, unlike `topo::props`' face walk,
+                // and the reason is this crate's scalar policy: `mesh`
+                // takes `&Body<f64>` and instantiates nothing else, so
+                // a lane's decisions never reach `Sym::sign_within` and
+                // never consult a symbolic session. What a session
+                // makes non-portable there — the decision itself, its
+                // receipt, the shape report — cannot arise here.
+                let (((memo_work, place), meter), decided) = k_stats::detached(|| {
+                    budget::record(arming, || {
+                        let Some(surface) = body.get_surface(face.surface) else {
+                            return (
+                                None,
+                                Err(TessellateError::MissingEntity {
+                                    what: "face surface",
+                                }),
+                            );
+                        };
+                        let lane = match lane_of(body, fk, surface) {
+                            Ok(lane) => lane,
+                            Err(error) => return (None, Err(error)),
+                        };
+                        // The lanes, each over `shared` — the whole of what
+                        // a face reads from outside itself.
+                        //
+                        // The planar lane derives its chart frame from the
+                        // face's own boundary (planar.rs module docs, #284)
+                        // — the stored plane axes are deliberately not
+                        // passed: imported axes carry translator noise that
+                        // projects valid boundaries below spade's
+                        // coordinate domain.
+                        let run = || match lane {
+                            Lane::Trimmed => crate::trimmed::tessellate_trimmed(
+                                body, fk, surface, &chords, shared, &tol, &bounds,
+                            ),
+                            Lane::Planar => tessellate_planar(body, fk, &chords.ids, shared),
+                            Lane::Curved => {
+                                tessellate_curved(body, fk, surface, &chords.ids, shared, &tol)
+                            }
+                        };
+                        let Some(memo) = reader else {
+                            return (None, run().map(Placement::Lane));
+                        };
+                        let inputs = match FaceInputs::gather(
+                            body, fk, lane, surface, &chords, shared, chordal, ambient,
+                        ) {
+                            Ok(inputs) => inputs,
+                            Err(error) => return (None, Err(error)),
+                        };
+                        let lookup = match memo.lookup(&inputs).answered() {
+                            Ok((placement, work)) => return (Some(work), Ok(placement)),
+                            Err(lookup) => lookup,
+                        };
+                        match run() {
+                            Ok(patch) => {
+                                let (placement, work) = lookup.ran(patch);
+                                (Some(work), Ok(placement))
+                            }
+                            Err(error) => (Some(lookup.refused()), Err(error)),
+                        }
+                    })
+                });
+                FaceWork {
+                    face: fk,
+                    meter,
+                    decided,
+                    memo: memo_work,
+                    place,
+                }
+            })
+            .collect()
+    };
+
+    // The fold (idiom 2), in face-arena order, and in TWO passes over
+    // the same slots.
+    //
+    // Placement first, for every face, while the memo is only read:
+    // a hit is renamed straight out of the entry the map found
+    // (`memo::Placement::Memo`), and an insert made during the fold
+    // could otherwise replace an entry a later hit still points at.
+    // Recording second, once no placement borrows the memo. The two
+    // passes are independent — one writes the mesh arena, the other the
+    // memo's counters and entries — so splitting them changes nothing
+    // either produces, and both walk the faces in arena order.
+    let mut patches = Vec::with_capacity(work.len());
+    let mut pending: Vec<Option<FaceMemo>> = Vec::with_capacity(work.len());
+    let mut refusal = None;
+    for face in work {
+        // Both channels, in arena order, up to AND INCLUDING the face
+        // that refuses: the serial walk recorded whatever the refusing
+        // face decided before it refused, and nothing after it.
+        k_stats::splice(face.decided);
+        budget::absorb(face.meter);
+        pending.push(face.memo);
+        match face.place {
+            // Each face's interior takes the arena as it stands at that
+            // face's turn, in face-arena order (D9).
+            Ok(placement) => patches.push(FacePatch {
+                face: face.face,
+                triangles: placement.place(&mut positions),
+            }),
+            // The first refusal in arena order. Its own memo work and
+            // meter rows are already in hand — the serial loop counted
+            // and recorded them before it ran the lane — and no later
+            // face's are.
+            Err(error) => {
+                refusal = Some(error);
+                break;
+            }
+        }
+    }
+
+    let mut keys = PatchKeys::default();
+    if let Some(memo) = memo {
+        for work in pending.into_iter().flatten() {
+            memo.record(work, &mut keys);
+        }
+    }
+    if let Some(error) = refusal {
+        return Err(error);
     }
 
     let mesh = Mesh {
@@ -202,19 +549,17 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     // emits NO triangles, its chord segments are used by no face, and
     // `check_mesh` passes the empty patch — the oblique lens with
     // debug assertions off; this census is what sees it): it was the
-    // first candidate and it was MEASURED against
-    // this one, both switched into one binary on the tour corpus, at
-    // all three ε rows and the byte instrument's three deltas.
+    // first candidate and it was MEASURED against this one.
     //
     // THE PRICE ARGUMENT IS NARROWER THAN IT LOOKS, and is stated at
-    // its real width. On the sub-millisecond rows the same-binary
-    // spread between rounds runs to ~98%, which swamps both columns;
-    // there `check_mesh` measures CHEAPER than the census below on
-    // several rows, and that is not evidence for it any more than
-    // against it. The rows that decide are the donut's, where the
-    // spread is 4-12% and the meshes are 7k-178k triangles per patch:
-    // `check_mesh` +24% to +33% of `tessellate`, this census −8% to
-    // +1%. That gap is the price argument, and it is the whole of it.
+    // its real width. On sub-millisecond bodies the round-to-round
+    // spread swamps both columns, and a reading there is not evidence
+    // either way. The rows that decide are the donut's — 648 to
+    // 16 080 triangles over δ = 0.1 to 0.004, dev profile with this
+    // crate at opt-level 2, median of four warm rounds whose spread
+    // is under 2 %: `check_mesh` costs 7 % to 8 % of `tessellate`,
+    // this census 0.1 % to 0.4 %. That gap is the price argument, and
+    // it is the whole of it.
     //
     // The rest is FOOTPRINT, which does not depend on the clock:
     // `check_mesh` censuses every edge of every patch — overwhelmingly
@@ -234,7 +579,8 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             .iter()
             .map(|p| p.triangles.as_slice())
             .collect();
-        let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below);
+        #[allow(clippy::cast_possible_truncation)]
+        let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below as u32);
         debug_assert!(
             bad.is_none(),
             "chord segment {:?} is used by {} face triangles rather than 2: the \
@@ -244,7 +590,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
         );
     }
 
-    Ok(mesh)
+    Ok((mesh, keys))
 }
 
 /// The chord segment that is NOT used by exactly two face triangles,
@@ -413,5 +759,104 @@ mod tests {
             unpaired_chord_segment(&poly, &[&tris], 2),
             Some(((0, 1), 1))
         );
+    }
+}
+
+// NOT GATED ON `debug_assertions`: the subject is the fold itself,
+// which runs in every profile.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod patch_tests {
+    //! Placing a patch: shared corners keep their mesh ids, local ones
+    //! take the base, and the interior lands at the base.
+    //!
+    //! The 20-body digests in `tests/d9_mesh_goldens.rs` are the
+    //! contract; this row is the arithmetic under them, so a wrong base
+    //! names itself here instead of moving 14 digest slots.
+
+    use super::{Patch, PatchVertex};
+    use geom_core::Point3;
+
+    fn p(x: f64) -> Point3<f64> {
+        Point3::new(x, 0.0, 0.0)
+    }
+
+    #[test]
+    fn a_placed_patch_keeps_shared_ids_and_offsets_local_ones() {
+        // Two faces into one arena that already holds 5 shared points.
+        let mut positions: Vec<Point3<f64>> = (0..5).map(|i| p(f64::from(i))).collect();
+
+        let first = Patch {
+            interior: vec![p(100.0), p(101.0)],
+            triangles: vec![
+                [
+                    PatchVertex::Shared(3),
+                    PatchVertex::Local(0),
+                    PatchVertex::Local(1),
+                ],
+                [
+                    PatchVertex::Shared(0),
+                    PatchVertex::Shared(4),
+                    PatchVertex::Local(1),
+                ],
+            ],
+        };
+        assert_eq!(
+            first.place(&mut positions),
+            vec![[3, 5, 6], [0, 4, 6]],
+            "the first face's interior starts at the arena's length, 5"
+        );
+        assert_eq!(positions.len(), 7, "its two interior points were appended");
+        assert_eq!(positions[5].x, 100.0, "local 0 is the point at base + 0");
+
+        let second = Patch {
+            interior: vec![p(200.0)],
+            triangles: vec![[
+                PatchVertex::Local(0),
+                PatchVertex::Shared(1),
+                PatchVertex::Shared(2),
+            ]],
+        };
+        assert_eq!(
+            second.place(&mut positions),
+            vec![[7, 1, 2]],
+            "the second face's base is the arena AFTER the first face's interior"
+        );
+        assert_eq!(positions[7].x, 200.0);
+    }
+
+    #[test]
+    fn a_patch_with_no_interior_is_placed_unchanged() {
+        // The planar lane's shape: every corner shared, nothing
+        // appended, so the base is unobservable.
+        let mut positions: Vec<Point3<f64>> = (0..4).map(|i| p(f64::from(i))).collect();
+        let patch = Patch {
+            interior: Vec::new(),
+            triangles: vec![[
+                PatchVertex::Shared(0),
+                PatchVertex::Shared(2),
+                PatchVertex::Shared(3),
+            ]],
+        };
+        assert_eq!(patch.place(&mut positions), vec![[0, 2, 3]]);
+        assert_eq!(positions.len(), 4);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn census_ids_fixes_the_shared_ids_and_separates_the_local_ones() {
+        // The census's premise: the renumbering is injective AND
+        // leaves every shared id where it was, so a set of shared ids
+        // still names the same corners in the renumbered patch.
+        let shared: Vec<Point3<f64>> = (0..3).map(|i| p(f64::from(i))).collect();
+        let patch = Patch {
+            interior: vec![p(9.0), p(10.0)],
+            triangles: vec![[
+                PatchVertex::Shared(2),
+                PatchVertex::Local(0),
+                PatchVertex::Local(1),
+            ]],
+        };
+        assert_eq!(patch.census_ids(&shared), vec![[2, 3, 4]]);
     }
 }

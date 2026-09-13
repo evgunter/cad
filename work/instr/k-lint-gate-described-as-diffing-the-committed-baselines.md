@@ -4,7 +4,7 @@ kind: issue
 title: two sites say the k-lint gate diffs the fresh sweep against docs/k-report-data/; nothing is diffed
 status: open
 opened: 2026-09-08
-refs: [k-report-baseline-fold-cert1-roster, 2140]
+refs: [2140]
 ---
 
 Found by unit 7 while re-deriving the K baseline. A self-declared
@@ -76,3 +76,7 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Refs at METER's sweep (2026-09-09)
+
+METER closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 10); `k-report-baseline-fold-cert1-roster` is now cited by its closing PR 2140 — which this row's `refs:` already carried, so the dying id was dropped rather than substituted into a duplicate.

@@ -74,6 +74,37 @@ impl core::fmt::Display for Dimension {
 }
 
 impl Dimension {
+    /// **Every dimension this enum names**, in declaration order — the
+    /// one enumeration, owned where the exhaustive matches live.
+    ///
+    /// A list cannot be derived from a match in safe Rust, so SOMEONE
+    /// writes it by hand; the only question is where. Written here, it
+    /// sits in the crate whose exhaustive matches over `Dimension`
+    /// (`Display` above, `Dimension::article` below, the checker's own
+    /// arms) fail to compile on a dimension added to the lattice — so
+    /// the author adding one is already on this page with the list in
+    /// front of them, and the `all_is_every_dimension` census
+    /// (`tests/m4_pr1_dims.rs`) puts a second visit right beside it.
+    /// **Neither forces the edit**: what they force is that the author
+    /// is here and has to decide, and the census's own doc measures how
+    /// far short of forcing it stops. A copy in a downstream crate gets
+    /// not even that. The enum is closed, so a consumer's own
+    /// exhaustive match does fence THAT consumer; but nothing ties an
+    /// array literal to a variant list, so a downstream list stays the
+    /// length it was written at, with no error anywhere and no author
+    /// standing over it.
+    ///
+    /// So this is the list downstream reads instead of writing its own
+    /// — the viewer's new-parameter radio row draws one button per
+    /// entry — and a consumer that RENDERS it renders declaration
+    /// order, which nothing here ranks: this is the lattice's own
+    /// order, not a recommendation.
+    ///
+    /// The words are not here and are not wanted here: a dimension
+    /// reaching a user is the `Display` above, which is this crate's
+    /// one home for that rule.
+    pub const ALL: [Self; 4] = [Self::Length, Self::Angle, Self::Count, Self::Scalar];
+
     /// The indefinite article agreeing with the `Display` noun, for
     /// the sentence positions that need one. **The value decides it**
     /// — a sentence that hard-codes "a" is wrong for every value whose
@@ -695,6 +726,39 @@ impl Expr {
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
     pub fn written_angle(written: quantity::WrittenAngle) -> Result<Self, DimensionError> {
         Self::literal_with_unit(written.radians(), Dimension::Angle, written.unit().def())
+    }
+
+    /// A continuous literal from a length authored as `value` in
+    /// `unit` — exactly
+    /// `Expr::written_length(WrittenLength::in_unit(value, unit))`,
+    /// the composition an authoring caller holding a number and a unit
+    /// writes at every authored length.
+    ///
+    /// Sugar over [`Expr::written_length`] and
+    /// [`quantity::WrittenLength::in_unit`], and nothing besides: it
+    /// stores the notation the same way, refuses exactly what
+    /// `written_length` refuses, and mints no type of its own. The two
+    /// halves stay the doors — reach for them when the
+    /// [`quantity::WrittenLength`] is already in hand.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn length_in(value: f64, unit: quantity::LengthUnit) -> Result<Self, DimensionError> {
+        Self::written_length(quantity::WrittenLength::in_unit(value, unit))
+    }
+
+    /// A continuous literal from an angle authored as `value` in
+    /// `unit` — [`Expr::length_in`]'s mirror, exactly
+    /// `Expr::written_angle(WrittenAngle::in_unit(value, unit))`, and
+    /// everything that door's docs say holds here with an
+    /// [`quantity::AngleUnit`].
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn angle_in(value: f64, unit: quantity::AngleUnit) -> Result<Self, DimensionError> {
+        Self::written_angle(quantity::WrittenAngle::in_unit(value, unit))
     }
 
     /// The display unit of a LITERAL expression — `None` for every

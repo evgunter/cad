@@ -417,6 +417,15 @@ fn every_suite_file_is_aggregated() {
 #[path = "m8_3_rational_volume.rs"]
 mod m8_3_rational_volume;
 
+#[path = "reporting_door_bit_digest.rs"]
+mod reporting_door_bit_digest;
+
+#[path = "mass_props_are_thread_count_invariant.rs"]
+mod mass_props_are_thread_count_invariant;
+
+#[path = "sign_certified_plus_v.rs"]
+mod sign_certified_plus_v;
+
 #[path = "m8_4_intersection_iso.rs"]
 mod m8_4_intersection_iso;
 
@@ -603,3 +612,39 @@ mod shell7_r1_diff;
 
 #[path = "shell7_r2_probes.rs"]
 mod shell7_r2_probes;
+
+#[path = "shell9_probe.rs"]
+mod shell9_probe;
+
+#[path = "shell9_rows.rs"]
+mod shell9_rows;
+
+#[path = "shell9_r1_probes.rs"]
+mod shell9_r1_probes;
+
+#[path = "shell9_r2_probes.rs"]
+mod shell9_r2_probes;
+
+#[path = "shell9_r2_dump.rs"]
+mod shell9_r2_dump;
+
+#[path = "shell10_scoped_walks.rs"]
+mod shell10_scoped_walks;
+
+#[path = "shell10_r1_probes.rs"]
+mod shell10_r1_probes;
+
+#[path = "shell10_r2_probes.rs"]
+mod shell10_r2_probes;
+
+#[path = "shell10_r2_cost.rs"]
+mod shell10_r2_cost;
+
+#[path = "shell10_r2_dump.rs"]
+mod shell10_r2_dump;
+
+#[path = "census_containment_cause.rs"]
+mod census_containment_cause;
+
+#[path = "wire_loft_end_profile_lift.rs"]
+mod wire_loft_end_profile_lift;
