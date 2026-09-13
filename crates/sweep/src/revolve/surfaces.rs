@@ -95,7 +95,7 @@ pub(super) fn revolved_strut_spec<T: Real>(
     // `frame.place`, so `‖q − center‖ = radius` at every parameter
     // value. Only the RIM: the span identity needs the far endpoint,
     // and this builder is handed the start point and the angle, never
-    // `q_to` — see `work/m10/revolve-carriers-state-only-the-rim`.
+    // `q_to` — see `work/blend/revolve-carriers-state-only-the-rim`.
     crate::swept::register_rim_identity(rim, radius);
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {

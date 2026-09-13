@@ -31,7 +31,7 @@ is the board and `work/README.md` its contract.
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
 | `crates/viewer/GUI-DESIGN.md` | Ratified; GUI v1 shipped | GUI architecture G1–G5, GQ1–GQ7: the three-layer split, egui as toolkit, what v1 ships. `crates/viewer/README.md` beside it is the implementation record, which the program maintains itself |
-| `docs/ERROR-DESIGN.md` | Ratified (#110); running as M10 | Error propagation E1–E12: duals, stackups, the subdivision driver, trichotomy |
+| `docs/ERROR-DESIGN.md` | Ratified (#110); M10 closed 2026-09-13 | Error propagation E1–E12: duals, stackups, the subdivision driver, trichotomy. M10 built it and its exit walk is `docs/DOC-LEDGER.md` sweep 13; the analysis lane is PROPS' and E12's symbolic tier continues as SYM |
 | `docs/DUAL-DESIGN.md` | Ratified (#1146) | The Dual contract DL1–DL6: a Dual is tangent transport and never certifies; ContentBits feeds both channels; the delegation rule; poison-vs-widen in certified lanes |
 | `docs/PATHS-DESIGN.md` | Ratified (#124) | The PartialPath authoring algebra |
 | `docs/LIBRARY-DESIGN.md` | Ratified (#229); program open | Usable-as-a-library L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, the authoring-ergonomics unit ladder |
@@ -1069,11 +1069,14 @@ Standing outcomes that still bind:
   `docs/K-REPORT.md`).
 
 Open work is the tracker's (`work/STATUS.md`); the programs it lists
-that execute ratified design here are M10 (error propagation,
-`docs/ERROR-DESIGN.md`; the sketch solver is NOT in its slate and
-re-opens as its own design pass when constraint-driven sketches have a
-consumer), LIB (`docs/LIBRARY-DESIGN.md`) and DOCM (the two DOCM
-designs); SEAT closed on 2026-09-06 with its design beside the code
+that execute ratified design here are PROPS and SYM between them
+(error propagation, `docs/ERROR-DESIGN.md` — M10 built E1–E12 and
+closed on 2026-09-13, `docs/DOC-LEDGER.md` sweep 13, leaving the
+analysis lane to PROPS and E12's symbolic identity tier to SYM; the
+sketch solver was NOT in M10's slate and re-opens as its own design
+pass when constraint-driven sketches have a consumer), LIB
+(`docs/LIBRARY-DESIGN.md`) and DOCM (the two DOCM designs); SEAT
+closed on 2026-09-06 with its design beside the code
 (`crates/verbs/README.md`). The
 missing modeling verbs are registered in `docs/KERNEL-VERBS.md` and
 worked as tracker issues and by the kernel programs that own their

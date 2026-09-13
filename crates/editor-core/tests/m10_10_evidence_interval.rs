@@ -1,8 +1,8 @@
 //! **M10-10's measurement bench** — the form-level mechanism (rule D:
 //! trig of `atan` made exact; rules A/B per node made affordable) on
-//! the five documents, read the way
-//! `work/m10/first-refusal-at-twice-the-ceiling-is-an-order-artefact`
-//! prescribes: a bound is the OVER-BAND SET at ceiling + δ, never the
+//! the five documents, read the way M10's closed
+//! `first-refusal-at-twice-the-ceiling-is-an-order-artefact`
+//! (`docs/DOC-LEDGER.md` sweep 13) prescribes: a bound is the OVER-BAND SET at ceiling + δ, never the
 //! first name a drive reports at a multiple of the ceiling.
 //!
 //! Every row here is an `#[ignore]`d evidence probe that prints and
