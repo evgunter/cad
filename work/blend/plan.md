@@ -89,10 +89,12 @@ H, in dependency order:
     for which corner-side candidate is reported, the FILLET-ATTR
     shape one level down: the nearest fit. Spec `docs/BLEND-11-SPEC.md`;
     block BLEND-B2 slot 2 (S-BOOL seam announced at dispatch).
-12. `fillet-escalation-site-has-no-producer` — one of the three
-    dispositions in the item (a fillet arm on `PathError::Escalated`,
-    route through `ProfileError` at the `Fillet` site, or retire the
-    six constants); a door change, so it follows 10 and 11.
+12. `fillet-escalation-site-has-no-producer` — disposition (1): a
+    fillet arm on `PathError::Escalated` keyed on the predicate name
+    (BLEND-10's shape), one map for name → sentence, the producerless
+    `ProfileError` site arm retired; a door change, so it follows 10
+    and 11. Spec `docs/BLEND-12-SPEC.md`; block BLEND-B3 (S-BOOL seam
+    announced at dispatch).
 13. `S90-impl` — stays blocked in fact on the lane-trait split `H5`
     names (PROPS' ground); this program owes the per-read
     classification of the nineteen bracket reads so the day `H5`
