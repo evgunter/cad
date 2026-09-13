@@ -2,10 +2,11 @@
 id: face-fragment-chase-returns-a-silently-wrong-root-on-exhaustion
 kind: issue
 title: emit_topo's chase() falls out of its budget and returns a wrong face root with no refusal
-status: open
+status: closed
 opened: 2026-09-12
 refs: [2474]
 pr: 2518
+closed: 2026-09-13
 ---
 
 
@@ -77,3 +78,58 @@ Whichever, the same Q6 note `chase_edge_to_table` now carries belongs at
 the new raise: cycles in this family are real (a graft copies
 `SplitEdge` records with their source keys), and no case constructs one
 this particular walk can reach.
+
+
+## Closed 2026-09-13 (PR 2518)
+
+`chase` returns `Result<FaceKey, NamingError>` and refuses
+`FragmentLineage { face }` on a spent budget — the face it was **asked
+about**, mirroring `Body::split_root`, not the cursor it happened to be
+holding. Seven call sites, not the four this row counted
+(`descend_face` has four arms); every one was already inside a
+`Result<_, NamingError>` function, so no signature moved.
+
+### The unguardable note was false, and the guard exhibits the defect
+
+The unit shipped *"no door reachable from this crate builds one"* at two
+claim sites. **`topo::BooleanNaming` is a public struct with public
+fields that the emitter takes as data, and this file's own rows had been
+minting synthetic `face_fragments_a` for two milestones.** The claim was
+about a call graph, made without reading the tests in the file being
+edited. Caught by the review, which wrote the guard in ~35 lines.
+
+The guard does better than pass. With the refusal removed,
+`name_boolean` returns `Ok` with a **total 27-row table** in which the
+two cap faces carry **each other's names**: `top = FaceKey(1v1)` takes
+`FromA([Cap(Start)])` and `bottom = FaceKey(2v1)` takes
+`FromA([Cap(End)])`. Nothing missing, nothing refusing, and the document
+wrong about which face is which. Re-measured by the lane rather than
+quoted from the review.
+
+### And the class reached PR 2474, which had already merged
+
+**`chase_b`'s identical note was wrong too, and it is now guarded** — one
+synthetic `graft_edges` row closes a loop that provenance records alone
+cannot, because that walk advances in two steps and only the first is the
+caller's data.
+
+**`chase_edge_to_table` genuinely cannot be reached, and the reason is
+now checkable rather than a survey**: it advances only on
+`Body::edge_provenance`, which is `pub(crate)` to `topo`; its one writer
+is `Body::split_edge`, which records the parent on a child it has just
+minted — so every record points at a key that already existed and a
+chain is **strictly decreasing in age**. `grep Unguardable` over
+`editor-core/src` now returns exactly one hit, at that site.
+
+**The dividing line the family turned out to have is writer access**, and
+that is the transferable part: a bounded walk is guardable exactly when
+something outside the crate can write a step of it.
+
+### The sibling the sweep found, priced and handed over
+
+`topo/boolean`'s `KeyView::live_vertex`/`live_face` answer `None` on a
+spent budget — **also** their answer for a chain that simply ends — so a
+cycle reads as "genuinely consumed" and a declared contact is dropped.
+Filed on BOOL with the reviewer's repro attached and its measured
+numbers: cycle → 0 records, dead end → 0 records, indistinguishable. BOOL
+inherits a measurement rather than an argument.
