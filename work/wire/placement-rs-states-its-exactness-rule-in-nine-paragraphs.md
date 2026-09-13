@@ -2,10 +2,11 @@
 id: placement-rs-states-its-exactness-rule-in-nine-paragraphs
 kind: issue
 title: placement.rs asserts exact / by bits / D9-deterministic in nine separate doc paragraphs, none the authority for any other, and is 60% prose
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2375]
 pr: 2475
+closed: 2026-09-13
 ---
 
 
@@ -204,3 +205,33 @@ comment lines, 9 are the `#[must_use]` rule block and 23 are prose.
 Inside `mod tests`: 137 -> 233, all of it the two new rows and their
 docs. **The S9 ratio finding is still not closed**, and the qualifier
 above stands: the remaining answer is fewer doors, not less prose.
+
+
+## Closed 2026-09-13 (PR 2475)
+
+**S6 and S8 discharged; S9 re-homed rather than disclosed.** The nine
+spellings became one home plus three sites that state rather than cite,
+each with its reason written at the site; `#[must_use]` is consistent
+across all eleven `Frame` methods with the rule recorded on `impl Frame`
+and its one exception argued. Both were re-taken by the style review,
+which also answered the adversarial question **yes** — the fix minted a
+hand-written census of test names and an unenforced rule — and the fix
+pass repaired both, by **inverting the reference** (each test row names
+the claim it keeps; nothing names a test from outside, so nothing rots)
+and by moving the rule to the site.
+
+The one genuinely new assertion in the first cut was the false one:
+*"every claim above is guarded"* was untrue of `Mat3::determinant`'s
+evaluation order, which had **no test anywhere** in `editor-core`. The
+fix pass **wrote the guard** rather than taking the "unguardable"
+escape, pinning the association `c0.dot(c1.cross(c2))` on a frame whose
+summands are `1.0`, `1e16`, `-1e16` — where the two groupings of one
+addition chain answer `0.0` and `1.0` — and asserting the groupings
+disagree *before* asserting which one the code answers, so it cannot
+pass vacuously.
+
+**The S9 residue is `placement-rs-frame-carries-51-doc-lines-over-a-7-line-struct`**,
+filed at the moment this row closed rather than disclosed in this
+section. `work/README.md` is explicit that a residue named only in a
+closing row's prose is invisible to the re-homing sweep and dies with
+the directory.
