@@ -1521,3 +1521,41 @@ own instrument finding closes for good: the four rows that still read
 a first refusal at twice the ceiling are re-cut. Twenty-two
 deviations. The spec leaves `docs/` with this merge; the exit walk
 (#1700) is re-cut against these numbers for Ev's ratification.
+
+## CLOSED — the walk ratified and the sweep run (2026-09-13)
+
+Ev, in chat: approve #1700 and do the exit sweep. The orchestrator
+that re-cut the walk had stopped, so a successor session carried the
+ratification and the sweep in one PR.
+
+`docs/M10-EXIT-WALK.md` reads RATIFIED and is M10's done-state of
+record until the next commit deletes it; from then the record is
+`docs/DOC-LEDGER.md` sweep 13, which names the SHA this directory and
+the walk are recoverable at.
+
+**Verified at the sweep, not taken on the walk's word**: the tour's
+own gating row — `demos/tour`'s
+`the_two_stops_say_what_their_captions_say`, the row that puts the
+cell inside `ci.yml` — ran green on the sweep head at the default ε:
+`Receipt { certified: 193, refused: 319, splits: 511 }`, holds 0.8337
+of the tolerance mass, violated 0.0002, in 320.6 s. Those are
+criterion 8's and honesty row 18's numbers to the digit.
+
+**The residue, twenty-two rows, re-homed before the deletion** (the
+moves are in this PR's earlier commits, so the deleting commit finds
+the directory holding only closed work): fourteen to `work/sym/`, the
+program opened for the E12 symbolic tier at Ev's call; four to PROPS
+with the analysis lane itself; two to BLEND; one to SHELL; one to
+CENSUS. Every id is unchanged and every row says in its own body why
+it landed where it did.
+
+**The territory goes with them.** PROPS takes `analysis.rs`,
+`distribution.rs`, `drive.rs`, `measure.rs`, `mc.rs`, the `m10*` and
+`e4_dual*` suites, `ERROR-DESIGN.md` and `DUAL-DESIGN.md` — the
+inheritance its `keep_out` had named since 2026-09-06. SYM takes
+`geom-core/src/sym.rs` and `sym/*` and the `geom-core/tests/m10_*`
+probes. `crates/bvh/src/*` was M10's by PROPS' clause alone and is
+now in no program's paths, which PROPS' `keep_out` says.
+
+The band 500–599 stays claimed and closed: the thirteen recorded rows
+keep their ordinals for life.

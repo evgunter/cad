@@ -479,38 +479,56 @@ soundness claim.
 
 ## Open, named, not this program's
 
-M10's own open items on main, each with its home: the
-dependency-widening class that bounds the plate's ceiling
-(`real-margin-dependency-widening`); the tier's cost
-(`symbolic-tier-costs-95-percent-of-the-m10-3-drive`, S-TCOST's
-measurement — the next unit anyone opens on this tier); the reach
-limits (`rule-d-reaches-the-unit-bulge-only`;
-`plate-ceiling-is-now-the-scaffold-pushforward` — the link and
-bracket wait on PCURVE/D3;
-`fillet-tangency-is-not-the-constructors-node`;
-`declared-tangency-needs-the-registered-identity-door`;
-`revolve-carriers-state-only-the-rim`); the door's limits
-(`the-span-identity-is-not-a-theorem-of-the-floats`;
-`the-witness-slack-is-eps-independent`;
-`sym-registration-flattens-two-axes`); the tier's hygiene
-(`registered-is-spelled-five-times-and-pinned-once`;
-`sym-rs-is-one-file-with-a-347-line-header`; `symbolic-tier-census`;
-`interval-self-dot-straddles-before-rule-a`;
-`derived-frame-placement-freezes-on-the-symbolic-lane`, DOCM's);
-the hull padding
-(`certified-hull-padding-is-the-leaf-width-not-the-lane`); the MC
-lane's draws
-(`mc-lanes-draws-are-not-reproducible-from-outside-the-crate`);
-`coincidence-zone-priced-budget-at-the-floor`; the stringly
-`MinClearanceRefusal` (row 19, `min-clearance-refusal-stringly-twin`);
-`pncad-py-eval-err-variants-outside-the-tag-inventory`; and the
-frontier — implicit and iterated quantities — at S-CERT
-(`work/cert/param-box-certification-of-implicit-quantities`). Outside
-`work/m10/`: CIW's `pipestatus-after-assignment-in-ci-yml` and
+**Re-homed at the sweep this ratification triggered** (2026-09-13;
+`docs/DOC-LEDGER.md` sweep 13 is the record, and Ev's call was that
+the fourteen rows standing on the symbolic tier are a successor's
+opening slate rather than residue). Twenty-two rows, each with the
+home it now has:
+
+- **SYM** (`work/sym/`, opened at this sweep — the E12 tier): the
+  dependency-widening class that bounds the plate's ceiling
+  (`real-margin-dependency-widening`); the reach limits
+  (`rule-d-reaches-the-unit-bulge-only`;
+  `plate-ceiling-is-now-the-scaffold-pushforward` — the link and
+  bracket wait on PCURVE/D3, which is TRIM's ground now;
+  `interval-self-dot-straddles-before-rule-a`, whose fix is one line
+  in PROPS' `linalg/vec.rs`); the door
+  (`declared-tangency-needs-the-registered-identity-door`;
+  `the-span-identity-is-not-a-theorem-of-the-floats`;
+  `the-witness-slack-is-eps-independent`;
+  `sym-registration-flattens-two-axes`); the cost
+  (`symbolic-tier-costs-95-percent-of-the-m10-3-drive`, S-TCOST's
+  measurement and still named as such — the next unit anyone opens on
+  this tier; `derived-frame-placement-freezes-on-the-symbolic-lane`,
+  DOCM's finding and the tier's mechanism); the reference and the
+  hygiene (`symbolic-tier-census`;
+  `sym-rs-is-one-file-with-a-347-line-header`;
+  `registered-is-spelled-five-times-and-pinned-once`); and the
+  frontier — implicit and iterated quantities —
+  (`param-box-certification-of-implicit-quantities`, which came to
+  M10 from S-CERT and follows the tier rather than S-CERT's
+  successor. The first cut cited it at `work/cert/`, where it has not
+  lived since S-CERT's own sweep.)
+- **PROPS** (`work/props/`, which inherits the analysis lane itself):
+  the hull padding
+  (`certified-hull-padding-is-the-leaf-width-not-the-lane`); the MC
+  lane's draws
+  (`mc-lanes-draws-are-not-reproducible-from-outside-the-crate`);
+  `coincidence-zone-priced-budget-at-the-floor`; and the stringly
+  `MinClearanceRefusal` (row 19, `min-clearance-refusal-stringly-twin`).
+- **BLEND** (`work/blend/`) — the two constructor changes SYM's door
+  waits on: `fillet-tangency-is-not-the-constructors-node` and
+  `revolve-carriers-state-only-the-rim`.
+- **SHELL** (`work/shell/`): `symbolic-tier-and-clearance-engine`,
+  which is SHELL-3's question from the other end.
+- **CENSUS** (`work/census/`):
+  `pncad-py-eval-err-variants-outside-the-tag-inventory`.
+
+Outside `work/m10/` already, and untouched by the sweep: CIW's
+`pipestatus-after-assignment-in-ci-yml` and
 `probe-interval-lane-has-no-clippy-row`; the mate lever's metre
-(`work/issues/mate-lever-needs-the-parts-extent`);
-`symbolic-tier-and-clearance-engine`. Carried from the first cut:
-issue 1143 (the poison-vs-widen contract), 1055 (the curved
+(`work/issues/mate-lever-needs-the-parts-extent`). Carried from the
+first cut: issue 1143 (the poison-vs-widen contract), 1055 (the curved
 wall-clearance consumer — VERBS + M10 design question), 1254 (the
 k_stats escalation channel — since redone by PROPS as the bracket),
 1255, 1274 (the reader census in worktree checkouts), 1183, the E10
