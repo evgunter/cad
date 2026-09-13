@@ -106,12 +106,9 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// The exception is the bit agreement, whose guard needs a whole
 /// document —
 /// `r1_the_placement_frame_matches_the_transform_node_bit_for_bit` in
-/// this crate's `asm2a_instantiate` suite. **That name is hand-written
-/// and nothing checks it.** A test function is not an intra-doc link
-/// target, so it cannot be spelled as a link, and a rename over there
-/// leaves this citation pointing at nothing with the rustdoc gate
-/// silent. Scheduled on `meta`'s slate as the class it is; until it is
-/// answered, treat the name as a hint and grep for the assertion.
+/// this crate's `asm2a_instantiate` suite. **A test function is not an
+/// intra-doc link target, so that name is hand-written and no gate
+/// reads it**: treat it as a hint and grep for the assertion.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Frame {
