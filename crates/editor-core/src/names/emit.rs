@@ -60,21 +60,21 @@ pub enum NamingError {
     /// [`Self::Emission`], carrying the one thing the repair needs
     /// that a sentence cannot supply: WHICH edge.
     ///
-    /// **Unguardable from this crate, and here is why.** A cycling
-    /// lineage is real — `topo::props`' carrier-identity fold
-    /// documents it as what a graft aliases, because the graft copies
-    /// `SplitEdge` records with their SOURCE keys and they chain into
-    /// strangers in the destination, and
+    /// **Raised from two chases, one guarded and one not, and the
+    /// dividing line is WRITER ACCESS.** `emit_topo`'s `chase_b` is
+    /// guarded (`a_cycling_graft_map_refuses_in_the_b_lane`): it hops
+    /// through a graft map the CALLER supplies between provenance
+    /// reads, so a loop closes from outside `topo`.
+    /// `chase_edge_to_table` is not, because it advances only on
+    /// `Body::edge_provenance`, which is `pub(crate)` to `topo` and is
+    /// written by one door — `Body::split_edge`, recording the parent
+    /// on a child it has just minted, so a chain is strictly
+    /// decreasing in age and no caller can close it. That a cycling
+    /// lineage exists at all is real: `topo::props`' carrier-identity
+    /// fold documents it as what a graft aliases, and
     /// `work/bool/graft-copies-provenance-keys-verbatim.md` records
     /// `Body::split_root`'s cycle arm firing on real assembly
-    /// products. What has no constructed case is this refusal's own
-    /// chase: `emit_topo`'s stops at the first key the operand's table
-    /// names, where `props`' passes a `stop` that never stops, so a
-    /// budget the unbounded walk spends the bounded one may not. No
-    /// row here evaluates a cycling body; the rows below pin the
-    /// locator's route from the caught record to the human, and the
-    /// reachability of the raise itself is **untested rather than
-    /// proven absent**.
+    /// products — `topo`-internally, where this crate has no door.
     SplitLineage(SplitLineageCycle),
     /// A face's FRAGMENT lineage cycles, caught where an emitter
     /// chased it to its root through a split's or a boolean's
@@ -94,18 +94,13 @@ pub enum NamingError {
     /// `naming_error_tag`, and a word already on the Python wire does
     /// not move for a tidier enum.
     ///
-    /// **Unguardable from this crate, and here is why.** The rows this
-    /// walk reads are minted by `topo`'s splitter and boolean
-    /// (`SplitNaming::face_fragments`,
-    /// `BooleanNaming::face_fragments_{a,b}`) in one pass over freshly
-    /// minted faces, so a cycle needs a corrupt mint, and no door
-    /// reachable from this crate builds one — the cycling-lineage
-    /// route that IS real,
-    /// `work/bool/graft-copies-provenance-keys-verbatim.md`, aliases
-    /// EDGE provenance records, which these rows are not. So this
-    /// refusal is **untested rather than proven unreachable**, exactly
-    /// as [`Self::SplitLineage`]'s is; what the rows below pin is the
-    /// locator's route from the caught key to the human.
+    /// **Guarded at the door it comes through.** These rows arrive as
+    /// `BooleanNaming::face_fragments_a` — a public field of a public
+    /// struct, handed to the emitter as data — so
+    /// `emit_topo`'s `a_cycling_fragment_map_refuses` writes a two-row
+    /// cycle and exercises this raise. With the refusal removed that
+    /// row shows what the old code did: a total table in which two
+    /// faces carry each other's operand name.
     FragmentLineage {
         /// The face whose fragment chain cycles — the key the chase
         /// was ASKED about, which is the one a repair starts from.
