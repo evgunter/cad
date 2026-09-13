@@ -1480,8 +1480,8 @@ pub enum NodeErrorKind {
     MeasureSelectionKind {
         /// Which primitive.
         verb: &'static str,
-        /// What the reference resolved to instead, as its class.
-        found: &'static str,
+        /// What it actually denotes.
+        found: crate::names::EntityKind,
     },
     /// The clearance engine refused a `min_clearance` measurement,
     /// typed and by its own class name (E7's refusal vocabulary,
@@ -1913,7 +1913,9 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MeasureSelectionKind { verb, found } => write!(
                 f,
                 "`{verb}` measures between two selections — a whole body or one of its faces — \
-                 and this reference resolves to {found}"
+                 and this reference resolves to {} {}",
+                found.article(),
+                found.noun()
             ),
             Self::MeasureClearanceRefused(refusal) => write!(f, "{refusal}"),
             Self::AssertionDimension { measured, bound } => write!(

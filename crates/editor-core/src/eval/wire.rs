@@ -1467,15 +1467,14 @@ fn wire_datum<T: Decide>(
             let table = &value_of(results, *at)?.name_table;
             // The fillet's ladder: rung 1 against the document, rungs
             // 2 and 3 against the body's own table.
-            let ent = ladder::resolve_in(face, doc, table, |error| {
-                NodeErrorKind::FaceFrameResolve { error }
-            })?;
-            let names::EntityKey::Face(key) = ent.key else {
-                return Err(NodeErrorKind::FaceFrameKind {
-                    name: Box::new(face.clone()),
-                    found: ent.key.kind(),
-                });
-            };
+            let key = named_entity(
+                face,
+                doc,
+                table,
+                |error| NodeErrorKind::FaceFrameResolve { error },
+                names::EntityKey::face,
+                |name, found| NodeErrorKind::FaceFrameKind { name, found },
+            )?;
             // DM1b / DM2: the carrier's KIND is a stored tag, and a
             // sketch frame wants a plane. A comparison of tags, not a
             // predicate.
@@ -2384,20 +2383,16 @@ fn resolve_open_faces(
     doc: &crate::doc::Doc<ProfileProgram>,
     target: &NameTable,
 ) -> Result<Vec<topo::FaceKey>, NodeErrorKind> {
-    use crate::names::EntityKey;
-
     let mut keys = Vec::with_capacity(open.len());
     for name in open {
-        let ent = ladder::resolve_in(name, doc, target, |error| NodeErrorKind::ShellOpenResolve {
-            error,
-        })?;
-        let EntityKey::Face(k) = ent.key else {
-            return Err(NodeErrorKind::ShellOpenKind {
-                name: Box::new(name.clone()),
-                found: ent.key.kind(),
-            });
-        };
-        keys.push(k);
+        keys.push(named_entity(
+            name,
+            doc,
+            target,
+            |error| NodeErrorKind::ShellOpenResolve { error },
+            names::EntityKey::face,
+            |name, found| NodeErrorKind::ShellOpenKind { name, found },
+        )?);
     }
     Ok(keys)
 }
@@ -2550,6 +2545,77 @@ mod ladder {
     }
 }
 
+// ENTITY-DOOR BEGIN — the region the `wire_entity_door` suite's
+// `source_rules` census reads. Those rows count every construction of
+// an entity-kind refusal in this file — the `NodeErrorKind` variants
+// `eval/mod.rs` declares with a `found: EntityKind` field, derived
+// from that file rather than listed here — and require each to sit in
+// a `refuse` argument handed to a door below; they also require
+// `EntityKey::kind`, the one call that answers `found:`, to be made
+// inside these sentinels and nowhere else in this file. A door added
+// here is measured the moment it is typed.
+
+/// **What kind of entity is this, and refuse if it is not** — the one
+/// home for that question, over a resolved [`names::EntityKey`].
+///
+/// `read` is the only thing a caller decides about the ADMITTED set:
+/// the projection that either finds on the key what this door's
+/// consumer needs ([`names::EntityKey::face`], [`names::EntityKey::edge`],
+/// or a wider one where a road takes two kinds), or says it is not
+/// there. `refuse` is that road's OWN refusal, and it stays its own:
+/// a shell designation names a face, a blend's names an edge under its
+/// verb, a measure's reference names a scope — three sentences a user
+/// reads, three variants, one question behind them.
+///
+/// **`found:` is not a caller's to write.** It is the kind the entity
+/// ACTUALLY has, read off the key HERE. A door that let a caller spell
+/// it could answer with the negation of its own wanted kind — *"denotes
+/// something that is not a face, not a face"* — which tells a reader
+/// what the name is not, twice, and what it is, never. It is also the
+/// half that a hand-written word gets wrong: the article agrees with
+/// the kind ("an edge", "a face"), so a literal is wrong for some kind
+/// its own arm can reach.
+fn entity<R>(
+    key: names::EntityKey,
+    read: impl FnOnce(names::EntityKey) -> Option<R>,
+    refuse: impl FnOnce(names::EntityKind) -> NodeErrorKind,
+) -> Result<R, NodeErrorKind> {
+    read(key).ok_or_else(|| refuse(key.kind()))
+}
+
+/// **The same question asked of an authored NAME** — the designation
+/// road, for every door that reads a name out of the recipe: resolve
+/// it through the [`ladder`] first, then test what it landed on.
+///
+/// It is a second door rather than a second copy of [`entity`] because
+/// the name is a second thing the refusal CARRIES, not a second way of
+/// asking: all three of these refusals name the offending designation
+/// so the author knows which of a list failed, and the boxed clone
+/// that puts it there is made here, once, rather than at each road.
+///
+/// `unresolved` is the road's N5 vocabulary and `refuse` its kind
+/// refusal; the two are separate because they are separate answers —
+/// a name that stopped resolving is not a name of the wrong kind, and
+/// rung 1 outranks this door entirely ([`ladder::Live`]).
+///
+/// # Errors
+///
+/// The [`ladder`]'s closed N5 trio through `unresolved`, and `refuse`'s
+/// own refusal when `read` finds the name denotes another kind.
+fn named_entity<R>(
+    name: &names::StableName,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    table: &NameTable,
+    unresolved: impl Fn(Box<crate::resolve::ResolveError>) -> NodeErrorKind,
+    read: impl FnOnce(names::EntityKey) -> Option<R>,
+    refuse: impl FnOnce(Box<names::StableName>, names::EntityKind) -> NodeErrorKind,
+) -> Result<R, NodeErrorKind> {
+    let ent = ladder::resolve_in(name, doc, table, unresolved)?;
+    entity(ent.key, read, |found| refuse(Box::new(name.clone()), found))
+}
+
+// ENTITY-DOOR END
+
 /// Resolves a fillet's edge selection against the target's name table
 /// (M6-5). Single-operand, so simpler than
 /// [`resolve_declarations`] — but the refusal vocabulary is the SAME
@@ -2567,24 +2633,19 @@ fn resolve_selection(
     doc: &crate::doc::Doc<ProfileProgram>,
     target: &NameTable,
 ) -> Result<Vec<topo::EdgeKey>, NodeErrorKind> {
-    use crate::names::EntityKey;
-
     if selection.is_empty() {
         return Err(NodeErrorKind::BlendSelectionEmpty { verb });
     }
     let mut keys = Vec::with_capacity(selection.len());
     for name in selection {
-        let ent = ladder::resolve_in(name, doc, target, |error| {
-            NodeErrorKind::BlendSelectionResolve { verb, error }
-        })?;
-        let EntityKey::Edge(k) = ent.key else {
-            return Err(NodeErrorKind::BlendSelectionKind {
-                verb,
-                name: Box::new(name.clone()),
-                found: ent.key.kind(),
-            });
-        };
-        keys.push(k);
+        keys.push(named_entity(
+            name,
+            doc,
+            target,
+            |error| NodeErrorKind::BlendSelectionResolve { verb, error },
+            names::EntityKey::edge,
+            |name, found| NodeErrorKind::BlendSelectionKind { verb, name, found },
+        )?);
     }
     // D9 order; the kernel refuses a repeated edge itself, so a
     // duplicate that survived canonicalization still fails loudly.
@@ -2619,18 +2680,18 @@ impl<T: Decide> Selected<'_, T> {
     /// [`NodeErrorKind::MeasureSelectionKind`], naming what was
     /// selected instead.
     fn faces(&self) -> Result<Vec<topo::entity::FaceKey>, NodeErrorKind> {
-        match self.key {
-            crate::names::EntityKey::Body => Ok(self.body.faces().map(|(k, _)| k).collect()),
-            crate::names::EntityKey::Face(k) => Ok(vec![k]),
-            crate::names::EntityKey::Edge(_) => Err(NodeErrorKind::MeasureSelectionKind {
+        entity(
+            self.key,
+            |key| match key {
+                names::EntityKey::Body => Some(self.body.faces().map(|(k, _)| k).collect()),
+                names::EntityKey::Face(k) => Some(vec![k]),
+                names::EntityKey::Edge(_) | names::EntityKey::Vertex(_) => None,
+            },
+            |found| NodeErrorKind::MeasureSelectionKind {
                 verb: "min_clearance",
-                found: "an edge",
-            }),
-            crate::names::EntityKey::Vertex(_) => Err(NodeErrorKind::MeasureSelectionKind {
-                verb: "min_clearance",
-                found: "a vertex",
-            }),
-        }
+                found,
+            },
+        )
     }
 }
 

@@ -504,7 +504,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
             err.kind,
             NodeErrorKind::MeasureSelectionKind {
                 verb: "min_clearance",
-                found: "an edge"
+                found: editor_core::EntityKind::Edge
             }
         ),
         "typed, naming what it found: {}",
