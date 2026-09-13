@@ -3107,3 +3107,98 @@ fix, authorised by §6, disclosed rather than buried, with the note that
 someone may have preferred a new row. Recording it here so that
 preference can be expressed against a visible decision rather than
 discovered later.
+
+## 2026-09-13 — 2501's full review: NOT mergeable, and the hole was found by adding one attribute
+
+**3 MAJOR (one a confirmation), 2 MINOR, 2 NOTE, 7 style.** The strongest
+round of the program, and it vindicates the full posture on a unit whose
+three rows all read as tidying.
+
+### MAJOR 1: the census goes green if you write an attribute
+
+`variant_name` takes alphanumerics off the front of a variant's range,
+and **an attribute sits in front of the name**. So `#[doc(hidden)] Chord`
+yields `""`, the empty-name filter discards it, the variant vanishes from
+`declared`, both sides of the bijection agree, and the census reports
+green.
+
+Measured twice over one mutant. The document-only laundering gives
+`5 passed; 2 failed`. **Adding only `#[doc(hidden)]` to those same two
+variants — nothing else changed — gives `7 passed; 0 failed`.** The
+variants still launder; the census built to catch exactly that is silent.
+
+The unit's stated limit was "a macro-generated variant is invisible to a
+textual walk". True, and not the whole of it: `#[cfg]`, `#[serde]`,
+`#[doc(hidden)]` are ordinary spellings in this tree. **And the
+non-emptiness guard does not reach it** — that guard catches a *total*
+scan failure and says so; a **partial** drop is the silent direction and
+nothing watched it.
+
+**This is the exact shape `plan.md` set the posture for** — *a census
+with a hole reports green* — and it took an instrument to find, in a
+census that was itself built to the rule a previous round produced.
+
+### MAJOR 2: two of three vocabularies, and the header claims all three
+
+`ProgramStep` is **the document vocabulary this file is named after**.
+`res_step` is its construct hop, `chain_steps()` is a `Vec` so nothing
+forces the verb side, and `Verb::ALL` stays fully witnessed. Measured:
+`ProgramStep::Dash` laundered to `Step::Line`, discharged at four
+compiler-named sites plus `step_label` — **7 of 7 green**. `step_label`'s
+exhaustive match forced a *label*, not a *witness*, which is the row's
+own finding one level up.
+
+And the header this PR added says *"the mirror failure is a variant added
+to `ProgramArcData` or `ProgramTarget` alone"* — a **false completeness
+claim in the file's own contract**, with the row closed on it. The
+class-not-instance rule in its exact form: swept two of three, and the
+third is the one the module is named after.
+
+### MAJOR 3 is a confirmation, and worth recording as one
+
+The five-of-seven measurement was **re-taken independently** — own
+mutation, own discharge across the nine sites the compiler named, every
+one legally dischargeable by laundering — and it **holds exactly**, with
+the rendered messages matching verbatim. Recorded as a finding because
+the brief asked for it to be settled, not because it failed. A number
+that survives an independent re-take is worth more than one that was
+never doubted.
+
+### The file's own words convict the fix
+
+`switch_program_vocabulary.rs:430-435`, written before this PR: *"There
+is no exception list … an empty escape hatch is a hatch that will be
+used."* This PR adds **two empty escape hatches** to that file, 330 lines
+below. Whichever is right, they cannot both be — and MINOR 4 is the
+sharper form: an allow-listed variant is **declared, not covered**, since
+it never enters `corpus()`, so the round-trip, the slot bijection and
+both corpus-reach clauses stay blind to it.
+
+Directed: **do not ship an empty exception list.** Refuse any unwitnessed
+document variant, and add the list the day one exists, with its argument.
+
+### The steer that was wrong was mine, and the reviewer took it on
+
+My brief pushed away from minting an `ALL` on the document enums — a
+third spelling in DOCM's file. The lane found a text-walk shape that
+avoided it, and the reviewer's Q7 says plainly it would not have anchored
+on text: **the walk bought avoidance of one spelling and paid with a
+failure mode that is silent.** It also names the long "third spelling"
+justification as the kind the style brief says to treat as *mild evidence
+for flagging*, which is the rule working against the orchestrator's own
+argument.
+
+Re-taken: my STOP condition was *"more than adding a derived constant"*
+in DOCM's file, and a derive- or macro-generated `ALL` **is** a derived
+constant — inside the fence with an announcement, and it fails at compile
+time. **Prefer the anchor that fails loudly** is the directive; patch the
+lexer only if the compile-time anchor genuinely cannot be had, and then
+file the residual class rather than leaving a silent mode undocumented.
+
+### Two instances of the class inside the code that closes it
+
+`declared_variants`'s own panic restates its expectation and never names
+what it got. And the verb census **re-derives its own subject** — a
+second freshly-built corpus agreeing with the first only by coincidence
+of construction — which is word for word the reasoning this same PR
+wrote fifteen lines away to justify doing the opposite.
