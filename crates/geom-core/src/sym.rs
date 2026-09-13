@@ -506,6 +506,8 @@ use crate::spline::{KnotVector, SpanLocate, SpanSet};
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
 mod algebra;
+#[cfg(feature = "sym-profile-testing")]
+pub mod profile;
 /// The shape report — the instrument that says, per decide site that
 /// stayed numeric, what blocked it.
 #[path = "sym/report.rs"]
@@ -709,6 +711,37 @@ impl SymOp {
         }
     }
 
+    /// The op's name, for the cost profile's tables.
+    #[cfg(feature = "sym-profile-testing")]
+    fn name(self) -> &'static str {
+        match self {
+            Self::Param => "Param",
+            Self::Opaque => "Opaque",
+            Self::Lit => "Lit",
+            Self::Pi => "Pi",
+            Self::Add => "Add",
+            Self::Sub => "Sub",
+            Self::Mul => "Mul",
+            Self::Neg => "Neg",
+            Self::Powi => "Powi",
+            Self::Inv => "Inv",
+            Self::Sqrt => "Sqrt",
+            Self::Abs => "Abs",
+            Self::Sin => "Sin",
+            Self::Cos => "Cos",
+            Self::Tan => "Tan",
+            Self::Asin => "Asin",
+            Self::Acos => "Acos",
+            Self::Atan => "Atan",
+            Self::Floor => "Floor",
+            Self::Atan2 => "Atan2",
+            Self::Min => "Min",
+            Self::Max => "Max",
+            Self::Copysign => "Copysign",
+            Self::Hull => "Hull",
+        }
+    }
+
     /// How many of the node's two child slots this op reads.
     fn arity(self) -> usize {
         match self {
@@ -842,12 +875,21 @@ impl Int {
         }
     }
 
+    /// Whether both are on the inline path (the cost profile's
+    /// promotion count).
+    #[cfg(feature = "sym-profile-testing")]
+    fn both_small(&self, o: &Self) -> bool {
+        matches!((self, o), (Self::Small(_), Self::Small(_)))
+    }
+
     fn add(&self, o: &Self) -> Self {
         if let (Self::Small(a), Self::Small(b)) = (self, o)
             && let Some(v) = a.checked_add(*b)
         {
             return Self::Small(v);
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(self.both_small(o));
         Self::from_big(self.big() + o.big())
     }
 
@@ -857,6 +899,8 @@ impl Int {
         {
             return Self::Small(v);
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(self.both_small(o));
         Self::from_big(self.big() * o.big())
     }
 
@@ -867,6 +911,8 @@ impl Int {
         {
             return Self::Small(v);
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(matches!(self, Self::Small(_)));
         Self::from_big(self.big() << k)
     }
 
@@ -879,6 +925,8 @@ impl Int {
                 Err(_) => Self::from_big(BigInt::from(g)),
             };
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(false);
         Self::from_big(self.big().gcd(&o.big()))
     }
 
@@ -889,6 +937,8 @@ impl Int {
         {
             return Self::Small(v);
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(self.both_small(d));
         Self::from_big(self.big() / d.big())
     }
 
@@ -1078,7 +1128,11 @@ impl Rat {
         let exp2 = exp2
             .checked_add(i32::try_from(nz).ok()?)?
             .checked_sub(i32::try_from(dz).ok()?)?;
+        #[cfg(feature = "sym-profile-testing")]
+        profile::coefficient_bits(num.bits().max(den.bits()));
         if num.bits() > COEFF_BITS || den.bits() > COEFF_BITS {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Coefficient);
             return None;
         }
         Some(Self { num, den, exp2 })
@@ -1088,6 +1142,8 @@ impl Rat {
     /// (which cannot be a coefficient of a real polynomial).
     fn of_f64(x: f64) -> Option<Self> {
         if !x.is_finite() {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Overflow);
             return None;
         }
         if x == 0.0 {
@@ -1122,11 +1178,15 @@ impl Rat {
         if other.is_zero() {
             return Some(self.clone());
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::rat_op();
         // Align on the smaller exponent, shifting the other numerator up.
         let lo = self.exp2.min(other.exp2);
         let shift = |r: &Self| -> Option<Int> {
             let k = usize::try_from(r.exp2.checked_sub(lo)?).ok()?;
             if k as u64 > COEFF_BITS {
+                #[cfg(feature = "sym-profile-testing")]
+                profile::note(profile::FreezeCause::Coefficient);
                 return None;
             }
             Some(r.num.shl(k))
@@ -1156,11 +1216,14 @@ impl Rat {
         if self.is_zero() || other.is_zero() {
             return Some(Self::zero());
         }
-        Self::from_parts(
-            self.num.mul(&other.num),
-            self.den.mul(&other.den),
-            self.exp2.checked_add(other.exp2)?,
-        )
+        #[cfg(feature = "sym-profile-testing")]
+        profile::rat_op();
+        let Some(exp2) = self.exp2.checked_add(other.exp2) else {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Overflow);
+            return None;
+        };
+        Self::from_parts(self.num.mul(&other.num), self.den.mul(&other.den), exp2)
     }
 
     /// The reciprocal; `None` for zero.
@@ -1338,9 +1401,23 @@ impl Poly {
     /// cancellation that a product of two nonzero polynomials over a
     /// field does not produce.
     fn mul(&self, other: &Self, budget: SymBudget) -> Option<Self> {
-        if self.terms.len().checked_mul(other.terms.len())? > budget.max_terms
-            || self.degree().checked_add(other.degree())? > budget.max_degree
+        if self
+            .terms
+            .len()
+            .checked_mul(other.terms.len())
+            .is_none_or(|t| t > budget.max_terms)
         {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Terms);
+            return None;
+        }
+        if self
+            .degree()
+            .checked_add(other.degree())
+            .is_none_or(|d| d > budget.max_degree)
+        {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Degree);
             return None;
         }
         let mut out = Self::zero();
@@ -1375,7 +1452,12 @@ fn mono_mul(a: &Mono, b: &Mono) -> Option<Mono> {
     while i < a.len() || j < b.len() {
         match (a.get(i), b.get(j)) {
             (Some(&(ia, ea)), Some(&(ib, eb))) if ia == ib => {
-                out.push((ia, ea.checked_add(eb)?));
+                let Some(e) = ea.checked_add(eb) else {
+                    #[cfg(feature = "sym-profile-testing")]
+                    profile::note(profile::FreezeCause::Overflow);
+                    return None;
+                };
+                out.push((ia, e));
                 i += 1;
                 j += 1;
             }
@@ -1948,9 +2030,12 @@ pub fn with_session_rules<R>(
         });
     });
     let out = f();
-    let counts = SESSION
-        .with(|s| s.borrow_mut().take())
-        .map_or_else(SymCounts::default, |s| s.counts);
+    let sess = SESSION.with(|s| s.borrow_mut().take());
+    #[cfg(feature = "sym-profile-testing")]
+    if let Some(s) = &sess {
+        profile::session_done(s.nodes.len(), s.atoms.len());
+    }
+    let counts = sess.map_or_else(SymCounts::default, |s| s.counts);
     (out, counts)
 }
 
@@ -2245,7 +2330,12 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
 /// exactly what a numerator does.
 fn within(budget: SymBudget, f: &Form) -> bool {
     let ok = |p: &Poly| p.terms.len() <= budget.max_terms && p.degree() <= budget.max_degree;
-    ok(&f.num) && ok(&f.den)
+    let inside = ok(&f.num) && ok(&f.den);
+    #[cfg(feature = "sym-profile-testing")]
+    if !inside {
+        profile::note_within(budget, f);
+    }
+    inside
 }
 
 /// `base^n` for `n >= 0`, budget-checked at every step so a large
@@ -2393,7 +2483,12 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
         // Rule D (early walk only): `sin`/`cos` of `q · atan(X)` in
         // closed form; any other argument shape keeps the atom.
         SymOp::Sin | SymOp::Cos if early && sess.rules.trig_of_atan && !a.poisoned => {
-            match trig::fold(node.op, a, sess) {
+            #[cfg(feature = "sym-profile-testing")]
+            let t0 = profile::clock();
+            let folded = trig::fold(node.op, a, sess);
+            #[cfg(feature = "sym-profile-testing")]
+            profile::trig_done(t0);
+            match folded {
                 Some(f) => Some(gate(f)),
                 None => atom1(node.op, sess),
             }
@@ -2532,6 +2627,8 @@ fn form_in(
             // Not in this session's table: an unrecorded leaf, or a node
             // minted before the session was installed. An unknown
             // function of the parameters is exactly an indeterminate.
+            #[cfg(feature = "sym-profile-testing")]
+            profile::record_unrecorded(profile::Walk::of(early, registry));
             let f = frozen(sess, id);
             memo.insert(id, f);
             continue;
@@ -2566,6 +2663,8 @@ fn form_in(
                 fa.as_deref().unwrap_or(&empty),
                 fb.as_deref().unwrap_or(&empty),
             ];
+            #[cfg(feature = "sym-profile-testing")]
+            profile::clear_note();
             let combined = combine(&node, kids, sess, early);
             // The per-node A/B reduction (`SymRules::early_ab`),
             // bounded in steps and in the size of the form it is asked
@@ -2576,7 +2675,13 @@ fn form_in(
                     if f.num.terms.len() + f.den.terms.len() > EARLY_AB_TERMS {
                         return f;
                     }
-                    algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS)
+                    #[cfg(feature = "sym-profile-testing")]
+                    let t0 = profile::clock();
+                    let reduced =
+                        algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS);
+                    #[cfg(feature = "sym-profile-testing")]
+                    profile::reduce_done(t0);
+                    reduced
                         .filter(|g| within(budget, g))
                         // The gate has ONE home: `algebra::apply`
                         // carries the input form's gate through every
@@ -2597,7 +2702,15 @@ fn form_in(
             } else {
                 combined
             };
-            combined.filter(|f| within(budget, f))
+            let made = combined.filter(|f| within(budget, f));
+            #[cfg(feature = "sym-profile-testing")]
+            profile::record_node(
+                node.op,
+                profile::Walk::of(early, registry),
+                kids,
+                made.as_ref(),
+            );
+            made
         };
         drop((fa, fb));
         let f = match made {
@@ -2615,7 +2728,11 @@ fn form_in(
 /// applied, no value read. Memoized in the session's persistent table.
 fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms);
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = profile::clock();
     let out = form_in(sess, &mut memo, root, false, false);
+    #[cfg(feature = "sym-profile-testing")]
+    profile::walk_done(profile::Walk::Plain, t0);
     sess.forms = memo;
     out
 }
@@ -2644,7 +2761,11 @@ const EARLY_AB_TERMS: usize = 512;
 /// [`EARLY_STEPS`] and rule C's fold at each `sqrt`/`abs`.
 fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_early);
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = profile::clock();
     let out = form_in(sess, &mut memo, root, true, false);
+    #[cfg(feature = "sym-profile-testing")]
+    profile::walk_done(profile::Walk::Early, t0);
     sess.forms_early = memo;
     out
 }
@@ -2656,7 +2777,11 @@ fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
 /// needed for.
 fn door_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_door);
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = profile::clock();
     let out = form_in(sess, &mut memo, root, true, true);
+    #[cfg(feature = "sym-profile-testing")]
+    profile::walk_done(profile::Walk::Door, t0);
     sess.forms_door = memo;
     out
 }
@@ -2721,12 +2846,15 @@ fn discharge(id: SymId) -> Option<Discharge> {
         // (An earlier cut asked the door here and said in its own
         // comment that it asked last; under `SymRules::all()` that
         // attributed A/B theorems to `registered`. R1 m1 / R2 MINOR-4.)
-        if (rules.sqrt_square || rules.pythagoras)
-            && algebra::reduce(&plain, rules, sess.budget, &sess.atoms)
-                .as_ref()
-                .is_some_and(|f| f.is_zero())
-        {
-            return Some(Discharge::Theorem);
+        if rules.sqrt_square || rules.pythagoras {
+            #[cfg(feature = "sym-profile-testing")]
+            let t0 = profile::clock();
+            let reduced = algebra::reduce(&plain, rules, sess.budget, &sess.atoms);
+            #[cfg(feature = "sym-profile-testing")]
+            profile::reduce_top_done(t0);
+            if reduced.as_ref().is_some_and(|f| f.is_zero()) {
+                return Some(Discharge::Theorem);
+            }
         }
         // THE DOOR, asked LAST and only where there is a registration
         // to ask about ([`Sym::register_equal`]): only where every walk
