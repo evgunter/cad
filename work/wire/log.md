@@ -2145,3 +2145,98 @@ library does not keep.
 found wrong; a public API removal gets its own unit so the deletion's
 blast radius is reviewed on its own terms, including the finding it
 exports to PROPS that `Mat3::map` is consumerless the moment it lands.
+
+## 2026-09-13 — PR 2474's review: mergeable, and it falsified one of the unit's own premises with a fixture
+
+**0 MAJOR, 5 MINOR, 3 NOTE, 9 style.** Verdict mergeable. The three
+claims the brief said reading could not settle were all taken with an
+instrument, and one of them came back **false**.
+
+**Claim 3 confirmed the right way.** A scratch `ValuePayload` variant
+produced exactly three `E0004`s, one of them `interrogate.rs`'s match —
+so exhaustiveness really is preserved and the compiler really is the
+door. That is the claim a reading would have passed on and an instrument
+settled in one build.
+
+**The sweep's two stated blind spots were swept differently and are
+empty.** The reviewer went after the two the lane said could hide a
+fourth reader — a word bound to a differently-named const, and a word
+built at runtime — by shape rather than by word (every file with a
+`ValuePayload::…` arm, nineteen of them, read individually). No fourth
+Rust reader exists. A blind spot that is *stated* is one someone else
+can close, which is the whole reason the rule asks for it.
+
+**The Python tag word is not an instance of the census class**, checked
+rather than assumed: the pin **parses `tags.rs` at test time**,
+enumerates the literals and diffs them against the committed inventory,
+naming the exact words added or gone. One spelling plus a census that
+localises — the opposite of
+`census-messages-assert-a-mismatch-without-naming-what-they-found`.
+
+### The finding that matters: a premise was false, and the fixture proves it
+
+The unit argued that deliverable 1 could carry **no test row at all**,
+because `output_body` is reached only through `entity_of` after a name
+resolves, so its six arms are unreachable through any public door.
+
+`crates/editor-core/src/clearance.rs:1979` calls it with a
+caller-authored `Selection` and no name, and `clearance::clearance` is
+public. The reviewer ran it: the arm is reachable, and the refusal a user
+reads is **`[selection] node 0's value carries no body at index 0`** —
+which asserts a *false fact*, since no index of a datum carries a body
+and index 0 is not the problem.
+
+**This is the same discard, one caller away from the function the unit
+rewrote** — and it is not a new row. `work/shell/clearance-reports-a-no-bodies-payload-as-a-bad-body-index.md`
+has covered `clearance.rs:1979` since 2026-09-11, filed by this program
+off PR 2378's sweep. What it gains is what it never had: **reachability
+from a public door, and an executable repro.** The fix pass appends it
+there with the reviewer's authorship, rather than opening a second row —
+which is the "grep the owner's directory first" rule paying off.
+
+The fix pass is told to be careful about *what* the false premise
+overturns: through that door the family word is destroyed by
+`map_err(|_| …)` immediately, so the conclusion may survive for a
+different reason. Asserting the old conclusion under a new premise is
+exactly the move a review exists to catch.
+
+### The trap fired again, and the sibling is worse than what was fixed
+
+**S1 — tenth instance on this program.** The unit that removed a
+vocabulary's third spelling added a **second spelling of a sentence**:
+`emit.rs:123` and `:130` now hand-write the same framing clause eight
+lines apart, with a comment disclosing the copy. Nothing keeps them
+equal, because the new suite asserts the substring against one arm only.
+
+**The Q4 sweep found something worse than the unit's own subject.**
+`emit_topo.rs:894-908`'s `chase_b` is a second hand-written
+split-lineage walk with its own budget, and on exhaustion it **returns a
+silently wrong root with no refusal at all**. The unit repaired a lost
+*locator*; its sibling forty lines away loses the whole *failure*, on
+the lane used for exactly the grafted operands that can produce a cycle.
+`chase()` has the same silent fallthrough. Directed: sweep it here if
+the repair is local and mechanical, otherwise file it and **label the
+half-fix** — an unlabelled one is the only unacceptable answer.
+
+### Two corrections against the lane's own honesty, and one against mine
+
+The unit's unreachability sentence was the **broad** claim — *"no door
+reachable from this crate constructs a cycling body"* — and the tree
+contradicts it in shipped kernel prose (`topo/src/props.rs:877-881`)
+plus a tracker row recording that `split_root`'s cycle arm **fired on
+real assembly products**. The narrow claim about this chase survives and
+is untested; it now says so.
+
+Two of the four announced territory crossings were **convenient, not
+forced**: `emit.rs` already contains `mod display_tests` in WIRE's own
+file, whose existing rows are the shapes the new suite needed. Put there,
+the new integration suite and its `all.rs` line — and two crossings of
+another program's territory — do not happen. Worth recording as a
+general lesson: *an announced crossing is still a crossing, and the
+question "is there already a home inside my own fence" is cheaper to ask
+than to announce.*
+
+And the lane filed a row against another program for a header claiming
+"every rung" while pinning five — then shipped a new instance of exactly
+that in the file it was editing (`every_variant_names_its_subject` is now
+five of seven). Recorded on the PR, not smoothed over.
