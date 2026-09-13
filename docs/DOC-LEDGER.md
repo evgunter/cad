@@ -2075,6 +2075,21 @@ are recorded in the PR body and the unit's log entry.
 
 - `BLEND-10-SPEC.md` — BLEND-10, the path fillet door never mints a joint the validator refuses (#2497)
 
+## Per-merge deletion — BLEND-12's spec (2026-09-13)
+
+Recoverable at `git show 594f484787444628d3b932f6933b1686e2fca9e1:docs/BLEND-12-SPEC.md`
+(the fix-pass head). Its Phase 1 table did not survive the dual: two of
+the five gates the unit called pre-empted are driveable in band through
+the public door at every ε row (`fillet_corner_turn`, whose margin is
+levered by the leg's extent; `fillet_offset_lever`, whose threshold
+grows with the corner's squared scale), so six of nine are driven and
+the two exact-order gates are pre-empted only at scalar `f64`. The
+retirement it asked for stands: `EscalationSite::Fillet` had no producer
+and is gone with its arm. Recorded in the PR body and the unit's log
+entry.
+
+- `BLEND-12-SPEC.md` — BLEND-12, the fillet door's in-band verdicts render their own sentence (#2508)
+
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
 Sweep SHA: `116d96c01d4a03084d4701d7d58fb3b5dcf1703b` — the commit
