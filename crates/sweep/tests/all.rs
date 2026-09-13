@@ -248,6 +248,8 @@ mod m9_d1_r2_probes;
 mod mass_props;
 #[path = "mass_props_interval.rs"]
 mod mass_props_interval;
+#[path = "must_carry_rule.rs"]
+mod must_carry_rule;
 #[path = "r1_probes_issue1362_donut.rs"]
 mod r1_probes_issue1362_donut;
 #[path = "readback_doors.rs"]
@@ -312,6 +314,10 @@ mod review_m6_3_loft_probes;
 mod review_m6_5_pr2_sweep_probes;
 #[path = "review_m6_surgery_probes.rs"]
 mod review_m6_surgery_probes;
+#[path = "review_must_carry_rule_r1_probes.rs"]
+mod review_must_carry_rule_r1_probes;
+#[path = "review_must_carry_rule_r2_probes.rs"]
+mod review_must_carry_rule_r2_probes;
 #[path = "review_pr12_probes.rs"]
 mod review_pr12_probes;
 #[path = "review_s11_adv.rs"]
