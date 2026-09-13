@@ -4,7 +4,7 @@ kind: issue
 title: A CLASS - public generic doors with zero production call sites, kept alive by their own tests: Frame::linear<T> is DELETED; the two profile map_scalar rungs (PR 2409) are the half still open
 status: open
 opened: 2026-09-11
-refs: [2375, 2409, 2487]
+refs: [2375, 2409, 2475, 2487]
 pr: 2487
 ---
 
@@ -149,10 +149,10 @@ reverted after each. Verbatim results:
 | `SurfaceDescription::map_scalar` (`geom/src/surfaces/approx.rs`) | B | **clean** — no warning, no error. In-crate callers only; nothing outside `geom` names it, not even a test. |
 | `ApproxSurface::map_scalar` (same file) | B | **clean**, same as above. |
 | `Vec2::map` (`geom-core/src/linalg/vec.rs`) | B | `warning: method 'map' is never used`, **no errors**. Zero consumers workspace-wide, tests included. |
-| `Vec3::map` (same file) | B | `E0624` ×15, **all** `crates/geom/src/scalar_lift.rs`. Its only consumers sit inside the dead `Curve3`/`Surface` ladder. |
+| `Vec3::map` (same file) | B | `E0624` ×15, all `crates/geom/src/scalar_lift.rs`, **and no `never used` warning** — the tell of an in-crate consumer level B cannot see. **CORRECTED 2026-09-12:** it has two, `Mat3::map` (`linalg/mat.rs`, ×3) and `Affine3::map` (`linalg/affine.rs`), and `Affine3::map` is live. **Live.** The struck claim was "its only consumers sit inside the dead ladder". |
 | `Point2::map` (`geom-core/src/linalg/point.rs`) | B | `warning: never used` in `geom-core` + `E0624` from `geom/src/curves/nurbs.rs:619` and `profile/src/lib.rs:206`, `profile/src/validate.rs:843,844`. Live. |
 | `Point3::map` (same file) | B | `warning: never used` in `geom-core` + `E0624` ×10, all inside `geom` (`scalar_lift.rs` ×8, `curves/nurbs.rs:619`, `surfaces/nurbs.rs:646`). Live only through the lift ladder. |
-| `Mat3::map` (`geom-core/src/linalg/mat.rs`) | B | **one** `error[E0624]` — `crates/editor-core/src/placement.rs`, in `Frame::linear`'s body. Its only consumer workspace-wide is the dead door this row is about. (The line number this table first carried was `:231`, read at the branch's first commit; the file has grown twice since, which is why the citation names the function. `implementer-discipline.md` §7.) |
+| `Mat3::map` (`geom-core/src/linalg/mat.rs`) | B | one `error[E0624]` — `crates/editor-core/src/placement.rs`, in `Frame::linear`'s body — **and no `never used` warning**, the tell of an in-crate consumer level B cannot see. **CORRECTED 2026-09-12:** it has one, `Affine3::map` (`linalg/affine.rs`), whose own doc says so; `Affine3::map` is live, so deleting `Frame::linear` did NOT orphan this. **Live.** The struck claim was "its only consumer workspace-wide". (The line number this table first carried was `:231`, read at the branch's first commit; the file has grown twice since, which is why the citation names the function. `implementer-discipline.md` §7.) |
 | `Affine3::map` (`geom-core/src/linalg/affine.rs`) | B | `warning: never used` in `geom-core` + `error[E0624]: crates/profile/src/lib.rs:638` (`SketchPlane::map`). `Frame::affine` is a second consumer the run could not show — `profile` failed first, so `editor-core` was never checked. |
 | `ProfileLoop::map_scalar` (`profile/src/lib.rs:453`) | B | `E0624` ×7, **all** in `profile/tests/` (`bool9_probes`, `bool9r1_probes`, `r2_bool9_review_probes`, `scalar_lift_door`). Test-only outside its crate. |
 | `Profile::map_scalar` (`profile/src/lib.rs:767`) | B | `warning: method 'map_scalar' is never used` + `E0624` ×2, both `profile/tests/scalar_lift_door.rs`. Test-only outside its crate. |
@@ -165,6 +165,17 @@ returns `Profile<U>`.
 
 **What the instrument could not see**, stated so the negative result is
 not read wider than it is:
+
+- **Level B cannot see a consumer inside the rung's own crate**, because
+  `E0624` is a privacy error and `pub(crate)` is not private to a
+  same-crate caller. A level-B run answers *"any consumer outside this
+  crate"* and nothing wider, so no level-B row licenses a
+  *workspace-wide* verdict on its own. The tell that a level-B row has
+  an in-crate consumer is already in this table: every level-B rung with
+  none reports a `warning: … is never used` beside its errors, and the
+  two rungs that report no warning at all — `Mat3::map` and `Vec3::map`
+  — are exactly the two whose verdicts were wrong. See the correction
+  section below.
 
 - `Cargo.toml` `exclude`s `demos/`, `tools/`, `benches/` and
   `interval-transcendentals/`, so `--workspace` compiles none of them and
@@ -296,9 +307,69 @@ written convention rather than having LOST their consumers, so the
 argument that decides them is the convention's, filed on PROPS's slate
 as `work/props/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`.
 
-**What the delete exported**, as this row's own counterargument
-predicted: `Mat3::map` (`crates/geom-core/src/linalg/mat.rs`) had exactly
-one consumer workspace-wide, `Frame::linear`'s body, and now has none.
-That is `geom-core`, PROPS's ground, not WIRE's — recorded on the PROPS
-row above rather than opened as a second one. `Mat3::map` was NOT
-deleted here.
+**The delete exported nothing.** The first version of this section
+claimed it orphaned `Mat3::map`; that was false and is retracted — see
+the correction section below. `Mat3::map`'s consumer is `Affine3::map`,
+in its own crate, and `Frame::affine` — the door this unit KEEPS —
+reaches it through exactly that path, so the test kept here still
+exercises it.
+
+
+## Correction (2026-09-12, PR 2487's review) — two verdicts were level-B results narrated as workspace-wide claims
+
+**The instrument was right; the write-up overstated it.** Level B
+(`pub` → `pub(crate)`) answers *"any consumer outside this crate"*.
+Two rows in the table above were then written up as claims about the
+whole workspace, which does not follow, and both are false:
+
+- **`Mat3::map` is LIVE.** `crates/geom-core/src/linalg/affine.rs` —
+  `Affine3::map`'s body — is `Affine3::from_parts(self.linear.map(&f),
+  self.translation.map(&f))`, and `self.linear` is a `Mat3<T>`. The
+  function's own doc comment says it in words: *"the linear part through
+  [`Mat3::map`], the translation through [`Vec3::map`]"*. `Affine3::map`
+  is live (`Frame::affine`, `SketchPlane::map`, `sweep`'s loft), so
+  deleting `Frame::linear` left `Mat3::map` with a live consumer, not
+  none.
+- **`Vec3::map` is LIVE outside the dead ladder.** The same two call
+  sites — `linalg/mat.rs`'s `Mat3::map` (three per call) and
+  `linalg/affine.rs`'s `Affine3::map` — are in-crate, so "its only
+  consumers sit inside the dead `Curve3`/`Surface` ladder" is false.
+
+**Every other level-B row was re-read for the same substitution**, and
+the sweep is complete over this table rather than stopping at the two
+the review named. Pattern swept for: a level-B verdict phrased as a
+claim about the workspace or about "anywhere", rather than about
+consumers *outside the crate*. Dispositions:
+
+- `Curve3::map_scalar`, `Surface::map_scalar` — **stand.** Both were run
+  at level **A** as well, which does answer the module-scope question,
+  and both warned there.
+- `Frame::linear`, `Frame::affine` — **stand.** Level A only.
+- `SurfaceDescription::map_scalar`, `ApproxSurface::map_scalar` — **stand.**
+  Their verdicts already read clean-at-B correctly, as *in-crate callers
+  only*.
+- `NurbsSurface::map_scalar`, `Point2::map`, `Point3::map`,
+  `Affine3::map`, `SketchPlane::map` — **stand.** Each says *live*, and
+  an in-crate consumer level B cannot see could only make that more
+  true.
+- `NurbsCurve2`/`NurbsCurve3::map_scalar` — **stands**, and it is the
+  transitive case rather than an exception: its in-crate caller
+  (`Curve3::map_scalar`) is itself dead, which is why a warning fired
+  anyway. The row already says so.
+- `ProfileLoop::map_scalar`, `Profile::map_scalar`, `ProfileVertex::map`
+  — **stand.** All three are phrased *"test-only outside its crate"*,
+  which is exactly the claim level B supports.
+- `Vec2::map` — **stands**, and it is the one remaining row carrying a
+  genuine workspace-wide claim off a level-B run, so it was re-checked
+  rather than assumed: `crates/geom-core/src/` contains no `Vec2::map`
+  call site at all (every non-iterator `.map(` in that tree is
+  `mat.rs`'s, `affine.rs`'s, or a `f64::to_bits` in a test), so the
+  `never used` warning is genuine and not the transitive case, and the
+  run's zero errors close the outside. **Zero consumers workspace-wide
+  stands.**
+
+What this sweep could NOT match: it re-reads the verdicts in THIS table
+against the level each was run at. It does not re-run the instrument, so
+a row whose recorded `E0624` list or warning was itself mis-transcribed
+would survive it — the two corrections above were found by reading the
+code, which is the check that catches that.

@@ -77,12 +77,12 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// **The one home of this rule**; the methods below are cases of it and
 /// do not restate it.
 ///
-/// A frame's stored coordinates are CARRIED, never recomputed: reading
-/// them back at any scalar ([`Frame::affine`]) is a structural map
-/// through [`Real::from_f64`], so it is exact wherever
-/// that conversion is and the identity at `f64`. Where a door does
-/// arithmetic the claim is weaker, deliberately — D9-deterministic, not
-/// exact: [`Mat3::determinant`]'s fixed evaluation order for the sign,
+/// A frame's stored coordinates are CARRIED, never recomputed:
+/// [`Frame::affine`] reads them back at any scalar as a structural map
+/// through [`Real::from_f64`], so it is exact wherever that conversion
+/// is and the identity at `f64`. Where a door does arithmetic the
+/// claim is weaker, deliberately — D9-deterministic, not exact:
+/// [`Mat3::determinant`]'s fixed evaluation order for the sign,
 /// [`Affine3`]'s own product in that operator's fixed association for
 /// [`Frame::compose`]'s general arm.
 ///
