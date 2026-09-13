@@ -4,8 +4,8 @@ kind: issue
 title: A CLASS - public generic doors with zero production call sites, kept alive by their own tests: Frame::linear<T> is DELETED; the two profile map_scalar rungs (PR 2409) are the half still open
 status: open
 opened: 2026-09-11
-refs: [2375, 2409]
-pr: 2475
+refs: [2375, 2409, 2487]
+pr: 2487
 ---
 
 
