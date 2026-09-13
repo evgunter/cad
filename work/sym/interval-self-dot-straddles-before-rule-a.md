@@ -4,7 +4,7 @@ kind: issue
 title: clause 1 refuses rule A on wide boxes because Vec::dot's v·v is an interval product, not a square
 status: open
 opened: 2026-09-05
-refs: [M10-8]
+refs: [1828]
 ---
 
 **Found by M10-8's R1 review (NOTE-9), by execution.** Rule A of the

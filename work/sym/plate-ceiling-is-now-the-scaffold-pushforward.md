@@ -146,8 +146,8 @@ decides the next unit's shape.
   PCURVE/D3 question, not an E12 one, and it would remove the bound
   rather than discharge it.
 - Either way the five documents re-measured, and this row re-cut
-  against it. `work/m10/plate-ceiling-is-now-the-arc-span-identity`
-  closed with A1 and stays closed.
+  against it. M10's `plate-ceiling-is-now-the-arc-span-identity`
+  closed with A1 and stays closed (`docs/DOC-LEDGER.md` sweep 13).
 
 ## What M10-10 measured against this table
 
@@ -165,7 +165,7 @@ non-negative form is the zero form; `sin`/`cos` at a half-multiple of
 | `carrier_matches_mapped_source` | 180/0/8/64 → 180/0/72/0 | rule D meets the two spellings' trig at every sample; the rim identity `‖q − c‖ = r` the door states closes it — `registered` |
 | `carrier_on_surface_2` | 108/0/0/72 → 180/0/0/0 | theorem: rule D with A/B per node |
 | `witness_on_surface_2` | 12/0/0/8 → 20/0/0/0 | theorem: rule D with A/B per node |
-| `pcurve_map_residual` | 0/0/0/36 → 0/0/36/0 | the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1, a syntactic fact, no sign read) and `cos π` on the negative frame to −1; the rim identity closes the rest — `registered`. `work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`, closed |
+| `pcurve_map_residual` | 0/0/0/36 → 0/0/36/0 | the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1, a syntactic fact, no sign read) and `cos π` on the negative frame to −1; the rim identity closes the rest — `registered`. M10's closed `pcurve-chart-phase-is-atan2-of-the-start-radial`, `docs/DOC-LEDGER.md` sweep 13 |
 
 The plate's ceiling, shipped tier, nothing passed: 0.2368 (ε = 1e-6),
 0.2631 (1e-9), 0.2631 (1e-12) of its REAL study — `[2.3680e5,
@@ -216,8 +216,9 @@ link and the bracket wait on.
 
 ## Two notes carried from review
 
-- The ring table (§4 of the PR) closes
-  `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring` **on
+- The ring table (§4 of the PR) closes M10's
+  `plate-rim-residual-needs-the-wide-coefficient-ring`
+  (`docs/DOC-LEDGER.md` sweep 13) **on
   cost** — a wider coefficient ring buys no ceiling at 41× and 56× the
   leaf — and not on the question that row asked, which was whether the
   rim residual is reachable at all. The door answered that one instead,

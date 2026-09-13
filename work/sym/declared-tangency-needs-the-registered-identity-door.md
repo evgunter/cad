@@ -4,7 +4,7 @@ kind: issue
 title: a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt
 status: open
 opened: 2026-09-05
-refs: [M10-8]
+refs: [1828]
 ---
 
 **Found by M10-8's R2 review, by execution**, on a document the unit

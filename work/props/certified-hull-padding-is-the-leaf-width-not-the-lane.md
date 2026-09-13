@@ -4,7 +4,7 @@ kind: issue
 title: "a stackup's certified worst-case hull pads by the LEAF width: a tier that certifies a study in fewer leaves reports a wider hull at the same leaf budget"
 status: open
 opened: 2026-09-07
-refs: [M10-10, M10-4]
+refs: [2100, 1627]
 ---
 
 **Found by M10-10**, when two of M10-4's padding pins flipped. The
