@@ -304,8 +304,6 @@ mod review_m5_pr10;
 mod review_m5_pr10_interval;
 #[path = "review_m5_pr9_base_props_probe.rs"]
 mod review_m5_pr9_base_props_probe;
-#[path = "review_must_carry_rule_r1_probes.rs"]
-mod review_must_carry_rule_r1_probes;
 #[path = "review_m5_pr9_boss_probe.rs"]
 mod review_m5_pr9_boss_probe;
 #[path = "review_m5_pr9_inband_at_rest.rs"]
@@ -316,6 +314,8 @@ mod review_m6_3_loft_probes;
 mod review_m6_5_pr2_sweep_probes;
 #[path = "review_m6_surgery_probes.rs"]
 mod review_m6_surgery_probes;
+#[path = "review_must_carry_rule_r1_probes.rs"]
+mod review_must_carry_rule_r1_probes;
 #[path = "review_must_carry_rule_r2_probes.rs"]
 mod review_must_carry_rule_r2_probes;
 #[path = "review_pr12_probes.rs"]

@@ -431,8 +431,7 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
     for (name, body) in [
         (
             "the filleted block",
-            filleted_block(free_length_for(definite_positive_margin()))
-                .expect("the block builds"),
+            filleted_block(free_length_for(definite_positive_margin())).expect("the block builds"),
         ),
         (
             "the bored ring",
@@ -464,7 +463,10 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
                 SurfaceKind::of(&b)
             );
         }
-        assert!(checked > 0, "{name}: the fixture has certified edges to read");
+        assert!(
+            checked > 0,
+            "{name}: the fixture has certified edges to read"
+        );
     }
 }
 
