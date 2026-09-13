@@ -2,8 +2,10 @@
 id: facade-guard-file-keeps-two-line-local-readers
 kind: issue
 title: Three readers in the façade's guard file still read a statement through a line
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-09
+parent: LIB-SMALL-2
 ---
 
 
@@ -83,3 +85,14 @@ which is why they are written down rather than left to a sweep. Item 1
 is best taken with the Track E conversion of this file; item 2 is
 worth re-deciding only if the column-0 rule is ever relaxed; item 3
 would follow item 1's reader for free and is not worth its own pass.
+
+## Closed
+
+All three converted, and the file now reads Rust through
+`test_utils::source` throughout — the Track E conversion its census
+entry owed, which is `Shared` now. Item 3's blind spot is not the one
+recorded above: replayed, the old line reader handles a wrapped
+`#[cfg(…)]` list. What it cannot see is an attribute sharing its line
+with the item it gates, where the line unit takes the NEXT declaration
+with it and a root export leaves the view silently. Carried by
+LIB-SMALL-2.

@@ -13,6 +13,7 @@ binding them would reach past the curation — and a caller-written
 divergence-theorem sum is the more honest cross-check anyway.
 """
 
+import itertools
 import math
 import unittest
 
@@ -20,10 +21,13 @@ import pncad
 from pncad import (
     BooleanOp,
     Doc,
+    Expr,
     Node,
+    NodePick,
     Open,
     SketchPlane,
     Start,
+    TubeWindow,
     circle,
     deg,
     evaluate,
@@ -88,7 +92,7 @@ def box(doc, width, depth, height):
         .line_to((0 * m, depth * m))
         .line_to(Start)
     )
-    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), height * m))
+    return doc.insert(Node.extrude(doc.insert(Node.profile(outline, plane=doc.sketch_frame())), Expr.length_in(height, m)))
 
 
 def body_of(doc, node):
@@ -200,6 +204,91 @@ class TestMeshReadBack(unittest.TestCase):
         )
 
 
+class TestBoundaryPolylines(unittest.TestCase):
+    """The MODEL's edges, in the same index alphabet the triangles
+    speak — what a wireframe or a hidden-line view is drawn from."""
+
+    def setUp(self):
+        self.doc = Doc()
+        self.node = box(self.doc, 2.0, 3.0, 1.0)
+        self.body = body_of(self.doc, self.node)
+        self.mesh = self.body.tessellate(1 * mm)
+
+    def test_a_box_carries_one_polyline_per_edge(self):
+        """Twelve edges, twelve polylines, and a planar edge is a
+        single chord: two indices, and no interior chord point."""
+        self.assertEqual(len(self.mesh.boundaries), 12)
+        for line in self.mesh.boundaries:
+            self.assertEqual(len(line), 2)
+
+    def test_every_boundary_index_points_into_the_shared_buffer(self):
+        """The same claim `triangles` makes, so the two can be drawn
+        against one position array: a segment endpoint IS a mesh vertex,
+        never a coordinate of its own."""
+        n = len(self.mesh.positions)
+        for line in self.mesh.boundaries:
+            self.assertGreaterEqual(len(line), 2)
+            for i in line:
+                self.assertIsInstance(i, int)
+                self.assertLess(i, n)
+                self.assertGreaterEqual(i, 0)
+
+    def test_a_boundary_segment_is_an_edge_of_some_triangle(self):
+        """A polyline traces the model edge the patches meet along, so
+        every segment is a triangle edge — decided on INDICES, which is
+        what the shared buffer buys."""
+        edges = set()
+        for a, b, c in self.mesh.triangles:
+            edges.update({(a, b), (b, c), (c, a), (b, a), (c, b), (a, c)})
+        for line in self.mesh.boundaries:
+            for seg in itertools.pairwise(line):
+                self.assertIn(seg, edges)
+
+    def test_a_closed_edge_closes_and_a_straight_one_does_not(self):
+        """A full-period self-loop edge repeats its single vertex INDEX
+        at both ends, so `line[0] == line[-1]` IS the closure — decided
+        on indices, never on coordinates, exactly as watertightness is.
+
+        A box's twelve straight edges are exactly the ones that do not
+        close; a full torus's two seam circles are edges that do. A
+        cylinder's rims are neither: the chart splits each into two
+        half-period arcs, so they close as a CHAIN of two polylines and
+        not as one."""
+        for line in self.mesh.boundaries:
+            self.assertNotEqual(line[0], line[-1])
+
+        doc = Doc()
+        spine = doc.insert(Node.datum_axis((
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
+        ring = doc.insert(
+            Node.tube(spine, (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)), Expr.length_in(0.5, m), TubeWindow.full(), Expr.length_in(0.1, m))
+        )
+        lines = body_of(doc, ring).tessellate(20 * mm).boundaries
+        closed = [line for line in lines if line[0] == line[-1]]
+        self.assertEqual(len(closed), 2)
+        for line in closed:
+            # A circle is not a chord: closing takes interior points.
+            self.assertGreater(len(line), 3)
+
+    def test_the_polylines_pair_with_the_names_entry_for_entry(self):
+        """A polyline's POSITION in the list is its handle: the pick
+        door answers one selectable name per polyline in the same
+        order, so a consumer that drew an edge can say which edge it
+        drew without an arena key ever crossing."""
+        ev = evaluate(self.doc)
+        pick = NodePick.build(ev, self.node, 0, 1 * mm)
+        names = pick.boundary_names(ev)
+        self.assertEqual(len(names), len(pick.mesh.boundaries))
+        self.assertTrue(all(isinstance(name, str) for name in names))
+
+
 class TestWatertight(unittest.TestCase):
     """The closure contract, checked on indices."""
 
@@ -215,7 +304,7 @@ class TestWatertight(unittest.TestCase):
         repair pass."""
         doc = Doc()
         disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
-        cyl = doc.insert(Node.extrude(disc, 2 * m))
+        cyl = doc.insert(Node.extrude(disc, Expr.length_in(2, m)))
         self.assertEqual(unmatched_half_edges(body_of(doc, cyl).tessellate(5 * mm)), [])
 
     def test_a_body_with_a_hole_is_watertight(self):
@@ -229,7 +318,7 @@ class TestWatertight(unittest.TestCase):
         )
         hole = circle((0 * m, 0 * m), 0.7 * m)
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile([outer, hole], plane=doc.sketch_frame())), 0.6 * m)
+            Node.extrude(doc.insert(Node.profile([outer, hole], plane=doc.sketch_frame())), Expr.length_in(0.6, m))
         )
         self.assertEqual(unmatched_half_edges(body_of(doc, plate).tessellate(5 * mm)), [])
 
@@ -240,7 +329,7 @@ class TestBudget(unittest.TestCase):
     def test_a_finer_budget_buys_more_triangles_on_a_curve(self):
         doc = Doc()
         disc = doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame()))
-        body = body_of(doc, doc.insert(Node.extrude(disc, 2 * m)))
+        body = body_of(doc, doc.insert(Node.extrude(disc, Expr.length_in(2, m))))
         coarse = body.tessellate(20 * mm)
         fine = body.tessellate(1 * mm)
         self.assertLess(coarse.triangle_count, fine.triangle_count)
@@ -287,17 +376,35 @@ class TestStlExport(unittest.TestCase):
         `endsolid <name>` unmatchable and the file unparseable."""
         with self.assertRaises(pncad.StlError) as caught:
             self.mesh.to_stl_ascii(solid_name="two\nlines")
-        self.assertEqual(caught.exception.variant, "solid_name_unrepresentable")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "solid_name_unrepresentable")
+        # The arm's payload: WHICH character the grammar refused.
+        self.assertEqual(refusal.character, "\n")
+        for absent in ("triangle", "index", "count", "len", "detail"):
+            self.assertIsNone(getattr(refusal, absent), absent)
 
     def test_a_header_that_sniffs_as_ascii_refuses(self):
         with self.assertRaises(pncad.StlError) as caught:
             self.mesh.to_stl_binary(header=" Solid v2")
-        self.assertEqual(caught.exception.variant, "binary_header_sniffs_ascii")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "binary_header_sniffs_ascii")
+        # The arm carries nothing: the header itself is the caller's
+        # own argument, and the fact is that it sniffs. Every
+        # attribute is still present, so `getattr` never raises.
+        for absent in (
+            "triangle", "index", "count", "character", "len", "detail"
+        ):
+            self.assertIsNone(getattr(refusal, absent), absent)
 
     def test_a_header_that_does_not_fit_refuses_rather_than_truncating(self):
         with self.assertRaises(pncad.StlError) as caught:
             self.mesh.to_stl_binary(header="x" * 81)
-        self.assertEqual(caught.exception.variant, "binary_header_too_long")
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "binary_header_too_long")
+        # The arm's payload: how long the header actually was, against
+        # the format's 80 bytes.
+        self.assertEqual(refusal.len, 81)
+        self.assertIsNone(refusal.character)
 
 
 class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
@@ -310,15 +417,15 @@ class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
         tool_p = doc.insert(
             Node.polygon(
                 [
-                    (1 * m, 1 * m),
-                    (3 * m, 1 * m),
-                    (3 * m, 3 * m),
-                    (1 * m, 3 * m),
+                    (Expr.length_in(1, m), Expr.length_in(1, m)),
+                    (Expr.length_in(3, m), Expr.length_in(1, m)),
+                    (Expr.length_in(3, m), Expr.length_in(3, m)),
+                    (Expr.length_in(1, m), Expr.length_in(3, m)),
                 ],
-                plane=doc.sketch_frame(elevation=0.5 * m),
+                plane=doc.sketch_frame(elevation=Expr.length_in(0.5, m)),
             )
         )
-        tool = doc.insert(Node.extrude(tool_p, 1 * m))
+        tool = doc.insert(Node.extrude(tool_p, Expr.length_in(1, m)))
         cut = doc.insert(Node.boolean(BooleanOp.Subtract, base, tool))
         body = body_of(doc, cut)
         body.validate()
@@ -344,11 +451,16 @@ class TestCrossCheckOnASketchPlane(unittest.TestCase):
         doc = Doc()
         sketch = doc.insert(
             Node.polygon(
-                [(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 1 * m), (0 * m, 1 * m)],
+                [
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(2, m), Expr.length_in(0, m)),
+                    (Expr.length_in(2, m), Expr.length_in(1, m)),
+                    (Expr.length_in(0, m), Expr.length_in(1, m)),
+                ],
                 plane=doc.sketch_frame(plane=plane),
             )
         )
-        prism = doc.insert(Node.extrude(sketch, 3 * m))
+        prism = doc.insert(Node.extrude(sketch, Expr.length_in(3, m)))
         body = body_of(doc, prism)
         body.validate()
 
@@ -376,9 +488,15 @@ class TestCrossCheckConverges(unittest.TestCase):
         frame = doc.sketch_frame()
         # The axis in the sketch's own coordinates: the frame's v is
         # world +y, so the world y axis IS its own +y through (0, 0).
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
+        axis = doc.insert(Node.datum_axis_in_plane(frame, (
+            Expr.length_in(0, m),
+            Expr.length_in(0, m),
+        ), (
+            Expr.literal(0.0),
+            Expr.literal(1.0),
+        )))
         ring = doc.insert(
-            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), axis, 360 * deg)
+            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), axis, Expr.angle_in(360, deg))
         )
         body = body_of(doc, ring)
         body.validate()

@@ -598,3 +598,197 @@ idiom/tests/docs: not scored by either reviewer.
 Block SHELL-B2 concludes (record on main with this sync). The next
 SHELL kernel unit draws block SHELL-B3. SHELL-3 still waits on PROPS'
 sign-hull unit (branch idle since 01:11 UTC).
+
+## Stock-take after SHELL-8, and SHELL-9 cut (2026-09-08)
+
+SHELL-3 still waits on PROPS' sign-hull unit (no PR; branch idle
+since 01:11 UTC), and SHELL-4 on SHELL-3. Of the followups, two were
+weighed and placed rather than cut: the three-quarter-turn cone
+frustum's `TogetherEdgeDisagreement` is the cone-hyperbola class the
+axial door already names in its `Line` arm and pins on a conical
+wedge (an offset meridian cap cuts a cone in a hyperbola; the
+kernel routes conics to rung 3 at C5 R1, permanently until a PR
+moves it) — the item's premises corrected (the quarter-turn `wedge`
+is a cylinder) and parked on the new design question
+`offset-lane-has-no-conic-carrier`, Ev's fork, not a SHELL unit
+(#2219); and the same-surface latitude-seam void refusal from
+SHELL-7 was DIAGNOSED by a lane before any cut (branch
+`shell/9-probe`, four rows, ~12 min): two defects, not one. The
+collinear-cap drum fails inside `Body::revert` — a plane's normal is
+negated with `u_ref` fixed, which mirrors the plane chart, and
+neither the `Chart` images nor the cache rows on that plane are
+transformed, so a same-plane `Chart` circle fails `ChartResidual` on
+the reverted body — a class that reaches boolean subtract's
+`revert(B)` on a split planar face, so TOPO's:
+`work/topo/revert-does-not-mirror-plane-chart-images` (#2221). The
+two-arc sphere fails because `shell` never runs the closing pcurve
+mint the posture table says every producer runs after the void door
+`Transfers` rows — `topo::mint_pcurves` on the assembled body makes it
+tier-3 valid at `4/3·π(r−t)³`. That half is SHELL's, small and
+exact, and is **SHELL-9** (`docs/SHELL-9-SPEC.md`, branch
+`shell/9-closing-mint`): the verb runs the mint once before its
+closing validate, the sphere row flips to its closed form, the drum
+row stays refusing and names TOPO's item, and the whole corpus's
+cache rows are diffed at the merge base and head (a row that moves
+on a tier-3-valid body is a finding for TOPO's pcurve pass).
+Rejected: making `insert_voids` `Maintains` (a posture-table change
+in S-BOOL's and TOPO's files; the void door does not finish the body
+it would mint). Alternative not taken: waiting idle for sign-hull —
+the fix flips a closed-form row now and opens block SHELL-B3 on a
+clean covariate (pre-draw S / STRUCTURAL logged here, before the
+byte). Lane at `/home/user/shell-lanes/shell-9/`, private target and
+scratch beside.
+
+## SHELL-9 MERGED (2026-09-08, PR #2223 — ordinal 2306, sample #165)
+
+`shell` and `shell_open` run the closing pcurve mint once on the
+assembled body before the closing validate — the producer's half of
+the posture table's `insert_voids` `Transfers` contract, which the
+boolean and the revolve kept and the verb never did, so the reverted
+cavity's rows rode into the result as they were. The two-arc sphere
+shells to `4/3·π(r³−(r−t)³)`; the drum still refuses at the void
+door, naming TOPO's `revert` plane-mirror item as its cause; the
+refusal is `ShellError::Pcurve`, typed and — every committed fixture
+says — unreachable. Every body that shelled at the true merge base
+carries bit-identical rows, measured by the unit's instrument and
+by both reviewers' corpora. Both reviews APPROVE-WITH-FIXES.
+**Unilateral, R2, by execution (MAJOR — tally candidate with a
+dedup caveat):** the closing mint LAUNDERS a wrong-content operand
+row — a vessel with one face's row attached to another face's
+half-edge fails tier 3 on its own and shells to a tier-3-valid body
+— a class wider than the missing-row instance the PR disclosed (and
+R1 noted at NOTE, unscheduled). No operand gate was added: the
+convention is kernel-wide (thirteen producers spell the same closing
+mint, none gates its operand's rows), so whether a producer should is
+a posture-table decision — filed by the lane as
+`shell-launders-a-stale-operand-row` with R2's rows as pins, and by
+this orchestrator for TOPO as
+`producer-closing-mint-is-a-convention-with-thirteen-copies`.
+**Convergent:** the mint's position is not load-bearing (moved before
+the partition, both lanes' suites stay green — said at the site with
+what would pin it); the corpus instrument asserted nothing; two
+spellings of one row dump; the header's accumulation; the
+differential's base was the cut point, not the merge base (both
+reviewers re-took it, same result); `validate_pcurves` is not
+exported, so a consumer reads pcurve findings only out of tier 3's
+error list. Spec premises this unit falsified, mine: the closed form
+named the cavity's volume where the thin solid's was meant, and its
+digits were the measured value, not the f64 closed form. Seams
+announced at merge: TOPO (two doc lines in `pcurves.rs`), LIB
+(`editor-core`'s and `pncad-py`'s exhaustive folds gain the arm —
+the second appeared on main mid-pass and cost one red round).
+Process: the unit was preceded by a diagnosis lane (no arm, ~12 min)
+that split the item in two; the cut commit carries no orchestrator
+trailer (an omission). K rows: none. Rubric idiom/tests/docs: not
+scored by either reviewer.
+
+Block SHELL-B3 slot 0 concludes; slots 1 and 2 remain (record
+branch-side). SHELL-3 still waits on PROPS' sign-hull unit.
+
+## SHELL-10 cut (2026-09-08)
+
+The doors' remaining whole-body walks, SHELL-8's disclosed item made
+concrete by SHELL-9's cost count (N + k + 1 whole-body mints on an
+opened N-solid body): spec `docs/SHELL-10-SPEC.md`, branch
+`shell/10-scoped-walks`, block SHELL-B3 slot 1 (the arm is in the
+branch-side record; the pre-draw fields S–M / STRUCTURAL are logged
+after the block byte — disclosed on the item, as every non-first
+slot's are). Decision bound by the spec: each simultaneous door reads
+exactly its scope — the partition built from the named solids'
+shells, the pcurve pass over the scope's faces through an additive
+`mint_pcurves_of` (TOPO seam), the closure check over the scope's
+shells through an additive `validate_closed_of` or the per-shell
+machinery that exists (never a second validator), with SHELL-9's
+cache-row instrument and SHELL-8's body dumps as the two
+differentials. Rejected: leaving the closure check whole-body as "a
+read" — a read that refuses is a write to the caller. Alternative not
+taken: idling until PROPS' sign-hull lands (branch idle since 01:11
+UTC, no PR) — the block has two slots open and this is the last
+in-fence kernel item with its evidence already built. Lane at
+`/home/user/shell-lanes/shell-10/`, private target and scratch beside.
+
+## SHELL-10 MERGED (2026-09-08, PR #2229 — ordinal 2307, sample #166)
+
+The two simultaneous offset doors read their scope: the partition is
+built from the named solids' shells, a moved face's solid is read in
+two hops, `re_scope` rebuilds when aimed at a solid it does not hold,
+and each door closes with `pcurves::mint_pcurves_of` over the scope's
+faces (an additive TOPO entry sharing `mint_faces` with the
+whole-body pass, which keeps the opening `clear()` that alone drops
+rows on dead keys). The closure check could NOT narrow: the spec's
+STOP fired — five of tier 1's thirteen passes count owners or
+refcounts arena-wide and no per-shell entry exists — and the lane
+filed it (`doors-still-read-the-whole-body-for-tier1`) and found,
+beside it, that the attach layer's setters run a whole-body tier-1
+`validate` as a postcondition on every write: 18 per scoped planar
+call, 16 axial, a PANIC under the release profile's
+`debug-assertions = true`, reachable through a public door on a
+malformed out-of-scope solid. Both reviewers reproduced the count and
+called it TOPO's own finding; placed by this orchestrator as
+`work/topo/attach-postconditions-validate-the-whole-body-and-panic`.
+Both differentials (SHELL-9's cache rows, SHELL-8's dumps) are empty
+at the true merge base, on the unit's corpora and on both reviewers'.
+Both reviews APPROVE-WITH-FIXES, no unilateral MAJOR in class code,
+no tally candidate. **Convergent, and what the unit had to say
+plainly:** the doors are still O(body) — the setter walks, three
+whole-arena decide iterations, the clone and tier 2 — so the direct
+door on one of N solids scales linearly with N on both trees and the
+narrowing is invisible in cost; the unit's cost table was inside the
+instrument's noise (1–7% spread, two rows slower on one lane's run)
+and is withdrawn to the one separable row, the §2.4 STOP declared
+undecidable by that instrument, and the reads account stated once in
+`Scope`'s doc (R1 rated the doors' false "one whole-body read left"
+sentence MAJOR — class doc). Also convergent: `mint_pcurves_of`
+cannot hold the `Maintains` posture for a caller that kills
+half-edges (two dead-key rows survive it, invisible to tier 3; the
+contract is now stated true and the guard's blind spot named);
+`re_scope`'s rebuild arm was unreachable and unpinned (kept, now
+pinned); the doors no longer launder an out-of-scope half-minted face
+(intended — two items' citations corrected). Spec premises this unit
+falsified, mine: that the closure check could be narrowed without a
+second validator; that a cost row could decide the STOP on this box.
+Seams announced at merge: TOPO (`mint_pcurves_of`, a `DECLARED` row,
+a `review_m1_pr5_internal::ALLOWED` row, the export). K rows: none.
+Rubric idiom/tests/docs: not scored by either reviewer.
+
+Block SHELL-B3 slot 1 concludes; slot 2 remains (record branch-side).
+SHELL-3 still waits on PROPS' sign-hull unit.
+
+## Second session close (2026-09-08, ~23:40 UTC)
+
+Six units landed in this session — SHELL-5, 6, 7 (block SHELL-B1
+concluded, SHELL-B2 opened), SHELL-8 (SHELL-B2 concluded), SHELL-9
+and SHELL-10 (SHELL-B3 slots 0 and 1) — samples #159–#161, #162,
+#165, #166; tally candidates: one at SHELL-6 (R2's, the per-chart
+cone door) and one at SHELL-9 (R2's, the laundered operand row, with
+a dedup caveat). **Block SHELL-B3 stays open at slot 2** (the arm is
+in the branch-side record on the orchestrator branch); it fills with
+the next SHELL kernel unit. What that unit is: **SHELL-3** the moment
+PROPS' sign-hull unit merges (branch `props/sign-hull`, idle since
+01:11 UTC, no PR), then SHELL-4. Nothing else in the fence is a
+kernel unit ready to cut on its own evidence: the naming-record gap
+(`shelled-result-does-not-name-the-wall-it-built`) has several viable
+shapes and is Ev's to weigh in on before a spec; the conic carrier
+(`offset-lane-has-no-conic-carrier`) is a C5 R1 fork for Ev; the
+laundering posture (`shell-launders-a-stale-operand-row`) is TOPO's
+posture-table decision; the dimension-audit and no-approx rows are
+docs and test hygiene, not block slots; the followups' winding rename
+is three owners' and waits on its announcements. Placed for other
+programs this session: TOPO —
+`tier-3-does-not-check-shell-roles-per-solid`,
+`tier3-accepts-a-ring-outside-its-outer-loop`,
+`split-edge-children-lack-pcurve-rows-on-curved-charts`,
+`a-chart-spans-solids-after-move-shells-to-new-solid`,
+`revert-does-not-mirror-plane-chart-images`,
+`producer-closing-mint-is-a-convention-with-thirteen-copies`,
+`attach-postconditions-validate-the-whole-body-and-panic`; BOOL —
+`subtract-of-a-hollow-operand-files-the-island-under-one-solid`,
+`boolean-mod-doc-links-a-feature-gated-variant`; issues —
+`cone-nappe-is-decided-in-five-places`. Seams announced: S-BOOL
+(`insert_voids`), PROPS (`classify_shells_of`), TOPO (`pcurves.rs`
+doc lines, `mint_pcurves_of` and its registry rows), LIB
+(`ShellError` arms in both exhaustive folds). The orchestrator branch
+`claude/work-shell-readiness-y31rxk` equals main plus the SHELL-B3
+draw and slot lines; a successor starts from it, reads this entry,
+and cuts SHELL-3 into slot 2 when sign-hull lands (ask M10's
+orchestrator for the co-review at dispatch, per plan item 5).

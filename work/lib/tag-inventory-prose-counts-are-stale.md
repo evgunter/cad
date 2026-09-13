@@ -2,8 +2,9 @@
 id: tag-inventory-prose-counts-are-stale
 kind: issue
 title: the tag-table prose counts drifted: thirty-seven functions / 361 literals stand at 42 / 402
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-08
 ---
 
 
@@ -42,3 +43,26 @@ Not fixed by LIB-POLYGON: that unit corrected only the count its own change
 moves (`path_error_tag`'s construction pins, three of thirty -> four of thirty,
 the second figure having been one short before it). Re-writing the aggregates
 without deciding between (1) and (2) would just restart the same clock.
+
+## Closed (2026-09-08, LIB-ARMS)
+
+Taken by LIB-ARMS, which added twenty-two tag functions and 206
+literals and so had to touch the counts. **Option (1)**: the three
+aggregates and both enumerated rosters are deleted, and the
+qualitative claim — construction pins are sampled, the inventory is
+the only guard over the unpinned maps, "the tag table is verified" is
+not a claim this page makes — stands unchanged.
+
+The choice was made by a measurement this file did not have. Option (1)
+kept the two rosters on the reading that they "are checkable by
+reading and do not go stale silently"; they had gone stale silently.
+`node_error_tag` stood in the never-pinned roster while
+`shell_refusal_tags_are_stable` had been constructing three of its arms
+and asserting their words. A roster that is wrong about which maps are
+pinned is worse than no roster, because it is read as a survey.
+
+What replaces the numbers is what was already carrying the weight: the
+two FLOORS in the test body, which are assertions rather than prose and
+so may carry numbers, re-set to 60 functions and 500 literals — well
+under the table as it now stands, which is the property the comment
+beside them states.

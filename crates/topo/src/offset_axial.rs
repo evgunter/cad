@@ -352,6 +352,11 @@ impl<T: Decide> Profile<T> {
 /// part; a solid the moves do not name is not offset and its geometry
 /// is not written.
 ///
+/// **What it READS is not as tight as what it writes**, and the whole
+/// account — which two reads are scope-sized, which four are still
+/// linear in the body, and what that costs — is [`crate::offset_together::Scope`]'s, stated
+/// there once for both doors.
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
@@ -578,7 +583,12 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
     }
 
     // ---- Mutation, on a clone (every decision is done). ----
-    let mut work = body.clone();
+    //
+    // Under a surgery scope for the whole of it: the setters below are
+    // this door's operator sequence, and the tier-2 gate the clone is
+    // adopted on is the door's own whole-body check.
+    let mut staged = body.clone();
+    let mut work = staged.begin_surgery();
     let mut minted: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
     for m in moves {
         let Some(&first) = m.faces.first() else {
@@ -625,15 +635,22 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                 error,
             })?;
     }
-    // Every edge was re-described, and the charts here DO mint pcurve
-    // rows (a cylinder, a cone and a sphere all do), so this pass is
-    // load-bearing rather than the planar door's inert one.
-    crate::pcurves::mint_pcurves(&mut work, tol)
+    // Every edge OF THE SCOPE was re-described, and the charts here DO
+    // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
+    // pass is load-bearing rather than the planar door's inert one. It
+    // runs over the scope's faces alone: an out-of-scope row belongs to
+    // an edge this door did not touch and stays exactly as it was found.
+    let minting = scope.faces_in_scope();
+    crate::pcurves::mint_pcurves_of(&mut work, &minting, tol)
         .map_err(|source| ReplaceFaceError::Pcurve { source })?;
-    if let Err(errors) = crate::validate::validate_closed(&work) {
+    // Tier 2 over the WHOLE clone, deliberately, and one of the four
+    // reads that stay linear in the body (`Scope`'s docs carry the
+    // account and the reason for each).
+    work.sweep_and_close();
+    if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
-    *body = work;
+    body.adopt(staged);
     Ok(())
 }
 

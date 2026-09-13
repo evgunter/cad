@@ -1,0 +1,13 @@
+# f64
+quintic_prism v=3f8b436424c44660 a=3fd89d360a67b436 vpad=3e66df16d48b5555 apad=3f69215a38e8dc40 | verdicts n=32 h=f73b74c08fd0b2f9 esc n=0 h=cbf29ce484222325
+tilted_cut_upper v=3fd921fb544818e5 a=40096d2e764bb7a3 vpad=3e83f7d3adaaaaab apad=3eadf3bd84300000 | verdicts n=10 h=7eecd91a7373752d esc n=0 h=cbf29ce484222325
+bulged_extrusion v=4022487ed5110b46 a=403995a0313fde5c vpad=0000000000000000 apad=0000000000000000 | verdicts n=19 h=c9f2412ce27cfdb0 esc n=0 h=cbf29ce484222325
+loft_prism v=4022000000000004 a=4039524a6c672f51 vpad=3d3e300000000000 apad=3fc84532b9a39d48 | verdicts n=8 h=682f20aee17acb35 esc n=0 h=cbf29ce484222325
+arc_loft_1e11eps REFUSED mass properties: face FaceKey(4v1): integral properties: the certified quadrature enclosure cannot reach the 1.024e-6 m target (which scales with the run's tolerance): its mean boundary displacement is 1.105e-5 m — the schedule's last round's, or the bound every remaining round was proven to exceed — after 1 refinement round(s); certified bounds or typed refusal, never a silently wide answer; loosen the tolerance or simplify the trim | verdicts n=4 h=77e953f037b0ae42 esc n=0 h=cbf29ce484222325
+arc_loft_1e9eps v=4022487ed6a9da27 a=403995a3b53c3c5b vpad=3eb0783f27d00000 apad=3fb5fb0bfc44aa40 | verdicts n=15 h=fb22889cccf6acbb esc n=0 h=cbf29ce484222325
+thin_strip REFUSED mass properties: face FaceKey(3v1): integral properties: the certified quadrature enclosure cannot reach the 1.024e-6 m target (which scales with the run's tolerance): its mean boundary displacement is 9.504e-5 m — the schedule's last round's, or the bound every remaining round was proven to exceed — after 1 refinement round(s); certified bounds or typed refusal, never a silently wide answer; loosen the tolerance or simplify the trim | verdicts n=2 h=bf6dcbf50767c0fd esc n=0 h=cbf29ce484222325
+# sym-session
+sym_arc_loft mass_properties OK decisions=15 sz=0 sg=0 reg=0 rref=0 rcon=0 num=15 frozen=0 shapes=15
+sym_arc_loft validate_geometric OK decisions=658 sz=40 sg=0 reg=0 rref=0 rcon=0 num=618 frozen=2057 shapes=658
+sym_thin_strip mass_properties REFUSED decisions=2 sz=0 sg=0 reg=0 rref=0 rcon=0 num=2 frozen=0 shapes=2
+sym_thin_strip validate_geometric REFUSED decisions=658 sz=26 sg=0 reg=0 rref=0 rcon=0 num=632 frozen=2176 shapes=658

@@ -17,7 +17,7 @@
 //!   chart angle, a UV coordinate), always `f64`. Steps come from a
 //!   closed-form deviation bound: [`sagitta_step`] and [`ellipse_step`]
 //!   here, [`curvature_step`] for a second-derivative bound,
-//!   [`torus_grid_step`] for the torus chart, and
+//!   [`torus_grid_steps`] for the torus chart, and
 //!   [`crate::nurbs_cert::NurbsFaceBound::grid_steps`] for a certified
 //!   NURBS patch. The cap on an angular one is [`MAX_ANGULAR_STEP`];
 //!   this module is the only place it is applied ([`cap_angular`], and
@@ -326,6 +326,10 @@ impl core::fmt::Display for Eps {
 /// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned`, which counts
 /// the named operations per file and reds when one lands. A list here
 /// could not, and one here was short by a read for two milestones.
+/// One place holds ε's bits without reading them: the patch memo's
+/// key (`crate::memo`) folds the ambient ε and k as bytes, so a
+/// tolerance change misses every memoised face. That is not a
+/// decision and not an [`Eps`]; the inventory row names it as such.
 /// **What KIND each read is, the type now carries**: every ε read in
 /// this crate is one of [`Eps`]'s four operations, so a fifth read
 /// picks a name or adds a method rather than spelling its own band
@@ -424,41 +428,174 @@ pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
     cap_angular(curvature_step(delta_s, r_eff))
 }
 
-/// The torus UV grid step `h = √(δ_s/(3(R+2r)))` — shared by the
-/// curved-face grid sizing and the chord pass's adjacent-torus
-/// tightening so boundary and interior steps agree.
+/// The torus chart's two grid steps `(h_u, h_v)` — azimuth θ and
+/// minor angle φ — for chord deviation ≤ `delta_s` on every triangle
+/// of an `h_u × h_v` cell grid, from the doubly-curved interpolation
+/// bound below. Shared by the curved-face grid sizing and the chord
+/// pass's adjacent-torus tightening ([`torus_boundary_step`]) so a
+/// boundary polyline and the interior grid agree on the rows they
+/// share.
 ///
-/// Uncapped here, and its two consumers differ on that. The curved
-/// lane steps a periodic chart coordinate with it directly and applies
-/// [`cap_angular`] itself; the chord pass takes it only as a *lower
-/// bound on a count* it has already sized from the circle sagitta, and
-/// that sagitta step is capped over the same span. `h` exceeds the cap
-/// only when `δ_s > (3π²/16)·(R + 2r) ≈ 1.85·(R + 2r)`, which is above
-/// every circle radius a torus carries (`R + r` at most), so the
-/// sagitta step is then exactly the cap and the capped and uncapped
-/// requirements coincide. No in-tree body reaches that regime, so the
-/// claim is pinned directly rather than by the mesh oracles:
-/// `torus_cap_regime_is_sagitta_capped` below goes red if either
-/// formula or [`MAX_ANGULAR_STEP`] moves.
+/// # The bound (proved; [`crate::cert::cert_torus`] is its forward form)
+///
+/// Write the torus as `P(θ, φ) = c + radial(θ)·(R + r·cos φ) +
+/// axis·(r·sin φ)`. Its second partials have `‖P_θθ‖ = R + r·cos φ`,
+/// `‖P_θφ‖ = r·|sin φ|` and `‖P_φφ‖ = r`; over the whole tube the sups
+/// are `A = R + r`, `B = r`, `C = r`. For a UV triangle `T` with
+/// vertices `a_i` and a point `x = Σ λ_i·a_i` of it, Taylor with the
+/// integral remainder at `x` gives, with `d_i = a_i − x`,
+///
+/// ```text
+/// P(a_i) − P(x) = DP(x)·d_i + ∫₀¹ (1−t)·D²P(x + t·d_i)(d_i, d_i) dt
+/// ```
+///
+/// and `Σ λ_i·d_i = 0` kills the first-order term, so the affine
+/// interpolant `Π(x) = Σ λ_i·P(a_i)` satisfies
+///
+/// ```text
+/// ‖Π − P‖(x) ≤ ½·Σ λ_i·(A·d_iu² + 2B·|d_iu·d_iv| + C·d_iv²)
+/// ```
+///
+/// (`‖D²P(d, d)‖ ≤ A·d_u² + 2B·|d_u·d_v| + C·d_v²` with the sups over
+/// `T`, and `∫₀¹ (1−t) dt = ½`). The three weighted sums are the
+/// λ-variance of u, the λ-covariance of |u|,|v|, and the λ-variance of
+/// v over the triangle's corners: a variable confined to an interval
+/// of length `Δ` has variance at most `Δ²/4` (Popoviciu), and
+/// Cauchy–Schwarz bounds the middle sum by the geometric mean of the
+/// two variances. With `Δu`, `Δv` the triangle's UV extents,
+///
+/// ```text
+/// ‖Π − P‖ ≤ (A·Δu² + 2B·Δu·Δv + C·Δv²) / 8          (★)
+/// ```
+///
+/// **The constant 8 is not slack.** On a cell-half with legs
+/// `(h_u, h_v)`, at the hypotenuse midpoint (λ = 0, ½, ½) all three
+/// sums attain their bounds at once, so (★) is exact for a constant
+/// Hessian whose blocks add with aligned signs — and at φ = 0 on the
+/// torus `P_θθ` and `P_φφ` are both radial-inward and `P_θφ` vanishes,
+/// so there the second-order deviation IS (★). `cert_torus`'s
+/// `certificate_is_attained_on_the_outer_equator` measures that.
+///
+/// # The steps: the optimum of (★) over the grid, closed-form
+///
+/// A grid cell splits (either diagonal) into right triangles with
+/// `Δu = h_u`, `Δv = h_v`, so the grid is sound when
+/// `A·h_u² + 2B·h_u·h_v + C·h_v² ≤ 8·δ_s`. Fewest cells is largest
+/// `h_u·h_v` under that. Put `x = h_u·√A`, `y = h_v·√C`,
+/// `β = B/√(A·C) = √(r/(R + r))`: the constraint reads
+/// `x² + 2β·x·y + y² ≤ 8·δ_s`, and for a fixed product `p = x·y`,
+/// `x² + y² ≥ 2p` (AM–GM), so `p ≤ 4·δ_s/(1 + β)` with equality iff
+/// `x = y`. The optimum is therefore
+///
+/// ```text
+/// h_u = √(4·δ_s / ((1 + β)·(R + r)))      h_v = √(4·δ_s / ((1 + β)·r))
+/// ```
+///
+/// — the two pure terms take equal shares `4δ_s/(1+β)` of the budget
+/// and the mixed term the rest, `8βδ_s/(1+β)`; equivalently the aspect
+/// is fixed at `h_u·√A = h_v·√C` and the scale solved. Nothing here is
+/// chosen: the split is the theorem, and
+/// `torus_grid_steps_meet_the_bound_with_equality` pins that the steps
+/// spend exactly `δ_s` of it. The only cost against this ideal is the
+/// `ceil` in [`ceil_count`], `≤ (1 + 1/n_u)(1 + 1/n_v)` in cells.
+///
+/// Against the per-direction sagitta steps `√(8δ_s/A)`, `√(8δ_s/C)`
+/// the cell count is `2(1 + β)` times higher — the 2 because a
+/// cell-half's hypotenuse midpoint sees BOTH pure sagittas at once
+/// (the naive schedule's deviation there is `2δ_s`), the `1 + β` for
+/// the mixed term. `β ∈ (0, 1/√2)` on a ring torus (`R > r`), so the
+/// factor lies in `(2, 2 + √2)`.
+///
+/// # What is deliberately NOT read: the face's φ window
+///
+/// A face avoiding the outer equator would admit `A_W = R + r·max_W
+/// cos φ < A` and a coarser `h_u` (at most `√((R + r)/R)` fewer
+/// columns), and the sharp joint maximum over φ of the two φ-dependent
+/// terms would buy a few percent more. The chord pass sizes an edge
+/// before any face's walk has established its window, and a window
+/// read on the grid side alone would put the boundary rows off the
+/// grid's; one rule for both keeps them coincident. The certificate
+/// does read each triangle's own window, so the pin measures the
+/// sizing's real slack. The lever and its price are
+/// `work/perf/torus-sizing-reads-no-phi-window.md`.
+///
+/// Uncapped here, and the two consumers differ on that. The curved
+/// lane steps periodic chart coordinates with these directly and
+/// applies [`cap_angular`] itself; the chord pass takes one as a
+/// *lower bound on a count* it has already sized from the circle
+/// sagitta, and that sagitta step is capped over the same span.
+/// `h_u` exceeds the cap only when `δ_s > (π²/64)(1 + β)(R + r)`
+/// (`≥ 0.154·(R + r)`), and every rim circle a torus carries has
+/// radius `≤ R + r`, over which the sagitta step is already the cap
+/// once `δ_s ≥ (R + r)(1 − cos(π/8)) ≈ 0.076·(R + r)`; `h_v` the same
+/// with `r`, the radius of every meridian circle. So in the capped regime
+/// the sagitta step is exactly the cap and the capped and uncapped
+/// requirements coincide, per direction. No in-tree body reaches that
+/// regime, so the claim is pinned directly rather than by the mesh
+/// oracles: `torus_cap_regime_is_sagitta_capped` below goes red if
+/// either formula or [`MAX_ANGULAR_STEP`] moves.
 ///
 /// The chord pass must NOT simply cap here to sidestep the argument:
 /// [`ceil_count`] refuses a non-finite step typed, while
 /// [`cap_angular`] turns one into the cap, so capping a poisoned torus
 /// step there would swallow a refusal.
-pub(crate) fn torus_grid_step(delta_s: f64, major: f64, minor: f64) -> f64 {
-    (delta_s / (3.0 * (major + 2.0 * minor))).sqrt()
+pub(crate) fn torus_grid_steps(delta_s: f64, major: f64, minor: f64) -> (f64, f64) {
+    let a = major + minor;
+    let beta = (minor / a).sqrt();
+    // Each direction is the plain second-derivative inversion
+    // (`h² · m / 8 ≤ share`) at a `2(1 + β)`-fold smaller share of
+    // δ_s: the 2 for the coupling of the two pure terms, the `1 + β`
+    // for the mixed one.
+    let share = delta_s / (2.0 * (1.0 + beta));
+    (curvature_step(share, a), curvature_step(share, minor))
 }
 
-/// The torus boundary-step requirement `h` (crate docs) for a face's
-/// surface, if that surface is a torus.
-pub(crate) fn torus_step(surface: &geom::Surface<f64>, delta_s: f64) -> Option<f64> {
-    match *surface {
-        geom::Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(torus_grid_step(delta_s, major_radius, minor_radius)),
-        _ => None,
+/// The torus boundary-step requirement for a circle edge adjacent to
+/// `surface`, if that surface is a torus: `h_u` for a rim (its carrier
+/// parameter is the azimuth), `h_v` for a meridian (the minor angle).
+///
+/// The rim/meridian rule is [`topo::chart_iso::classify_kind`]'s — the
+/// same rule the walk classifies the same edge with when it lays the
+/// boundary polygon on the face's grid, so the count sized here and
+/// the grid row it lands on agree by construction rather than by a
+/// second copy of the threshold. That rule is total on circle
+/// carriers (`|n · axis| > 0.5` splits rim from meridian, every
+/// direction falling on one side), so nothing refuses HERE: a circle
+/// on a torus that is neither iso-curve — a Villarceau circle, which
+/// no construction of this kernel authors — is refused by the face
+/// door (`geom_brep::props::require_iso_rectangle`, through
+/// [`crate::curved`]) before any grid is built on the face, and a
+/// whole-body refusal is what a mis-tightened count on such an edge
+/// could never outlive. The `None` the classifier reserves for conic
+/// and spline carriers is unreachable from a circle and is surfaced
+/// typed rather than defaulted, so a widened classifier cannot make
+/// this arm silently pick a direction.
+pub(crate) fn torus_boundary_step(
+    surface: &geom::Surface<f64>,
+    curve: &geom_brep::EdgeCurve<f64>,
+    edge: topo::EdgeKey,
+    delta_s: f64,
+) -> Result<Option<f64>, TessellateError> {
+    let geom::Surface::Torus {
+        major_radius,
+        minor_radius,
+        ..
+    } = *surface
+    else {
+        return Ok(None);
+    };
+    let Some(chart) = topo::chart::Chart::of(surface) else {
+        unreachable!("Chart::of answers every torus, and this surface is one: {surface:?}")
+    };
+    let (hu, hv) = torus_grid_steps(delta_s, major_radius, minor_radius);
+    match topo::chart_iso::classify_kind(&chart, curve) {
+        Some(topo::chart_iso::TravKind::Rim { .. }) => Ok(Some(hu)),
+        Some(topo::chart_iso::TravKind::Meridian { .. }) => Ok(Some(hv)),
+        None => Err(TessellateError::UnsupportedCurve {
+            edge,
+            note: "a circle edge on a torus that the iso-curve classifier left unclassified — \
+                   neither rim nor meridian, so no grid direction sizes its chords",
+        }),
     }
 }
 
@@ -622,29 +759,112 @@ mod tests {
         }
     }
 
-    /// [`torus_grid_step`]'s doc claim, which no meshing oracle
-    /// reaches: above `delta_s = (3*pi^2/16)*(R+2r)` the torus step
-    /// passes the angular cap, and there the sagitta step over the
-    /// widest circle a torus carries (`R + r`) is EXACTLY the cap — so
-    /// the chord pass's uncapped `max` and the curved lane's capped one
-    /// agree. Red if either formula or the cap moves.
+    /// [`torus_grid_steps`]' doc claim, which no meshing oracle
+    /// reaches, per direction: above `delta_s = (pi^2/64)(1+beta)(R+r)`
+    /// the u step passes the angular cap, and there the sagitta step
+    /// over the widest rim circle a torus carries (`R + r`) is EXACTLY
+    /// the cap; above `(pi^2/64)(1+beta)·r` the v step does, and there
+    /// the sagitta step over every meridian circle (`r`) is the cap —
+    /// so the chord pass's uncapped `max` and the curved lane's capped
+    /// count agree in both directions. Red if either formula or the
+    /// cap moves.
     #[test]
     fn torus_cap_regime_is_sagitta_capped() {
-        for &(major, minor) in &[(1.0, 0.25), (5.0, 3.0), (0.5, 0.4), (100.0, 1.0)] {
-            let threshold = 3.0 * core::f64::consts::PI.powi(2) / 16.0 * (major + 2.0 * minor);
-            let delta_s = threshold * 1.0001;
+        use core::f64::consts::PI;
+        let cases: &[(f64, f64)] = &[(1.0, 0.25), (5.0, 3.0), (0.5, 0.4), (100.0, 1.0)];
+        for &(major, minor) in cases {
+            let beta = (minor / (major + minor)).sqrt();
+            let (u_threshold, v_threshold) = (
+                PI.powi(2) / 64.0 * (1.0 + beta) * (major + minor),
+                PI.powi(2) / 64.0 * (1.0 + beta) * minor,
+            );
+            let (hu, _) = torus_grid_steps(u_threshold * 1.0001, major, minor);
             assert!(
-                torus_grid_step(delta_s, major, minor) > MAX_ANGULAR_STEP,
-                "the threshold no longer predicts the uncapped regime"
+                hu > MAX_ANGULAR_STEP,
+                "the u threshold no longer predicts the uncapped regime"
             );
             assert!(
-                sagitta_step(delta_s, major + minor) == MAX_ANGULAR_STEP,
-                "the sagitta step is not exactly the cap, so the two requirements diverge"
+                sagitta_step(u_threshold * 1.0001, major + minor) == MAX_ANGULAR_STEP,
+                "the rim sagitta step is not exactly the cap, so the two requirements diverge"
+            );
+            let (hu, _) = torus_grid_steps(u_threshold * 0.9999, major, minor);
+            assert!(
+                hu <= MAX_ANGULAR_STEP,
+                "the u threshold no longer predicts the capped regime"
+            );
+            let (_, hv) = torus_grid_steps(v_threshold * 1.0001, major, minor);
+            assert!(
+                hv > MAX_ANGULAR_STEP,
+                "the v threshold no longer predicts the uncapped regime"
             );
             assert!(
-                torus_grid_step(threshold * 0.9999, major, minor) <= MAX_ANGULAR_STEP,
-                "the threshold no longer predicts the capped regime"
+                sagitta_step(v_threshold * 1.0001, minor) == MAX_ANGULAR_STEP,
+                "the meridian sagitta step is not exactly the cap, so the two requirements diverge"
             );
+            let (_, hv) = torus_grid_steps(v_threshold * 0.9999, major, minor);
+            assert!(
+                hv <= MAX_ANGULAR_STEP,
+                "the v threshold no longer predicts the capped regime"
+            );
+        }
+    }
+
+    /// [`torus_grid_steps`] spends EXACTLY `delta_s` of the bound (★)
+    /// on a cell-half — `(A·hu² + 2B·hu·hv + C·hv²)/8 == delta_s` — at
+    /// the aspect `hu·√A == hv·√C` the closed-form optimum names, and
+    /// in the uncapped regime both steps sit strictly inside the
+    /// per-direction sagitta steps, which is what makes a rim or
+    /// meridian edge's torus count the one that binds (the boundary
+    /// and the grid coincide). The first equality is the row that goes
+    /// red if a constant drifts: a bound ten times too loose passes
+    /// every certifier and fails this.
+    #[test]
+    fn torus_grid_steps_meet_the_bound_with_equality() {
+        let cases: &[(f64, f64)] = &[(0.30, 0.07), (2.0, 0.5), (1.2, 1.0), (50.0, 1.0)];
+        for &(major, minor) in cases {
+            for &delta_s in &[1e-6_f64, 1e-4, 1e-2] {
+                let (hu, hv) = torus_grid_steps(delta_s, major, minor);
+                let (a, b, c) = (major + minor, minor, minor);
+                let spent = (a * hu * hu + 2.0 * b * hu * hv + c * hv * hv) / 8.0;
+                assert!(
+                    ((spent - delta_s) / delta_s).abs() < 1e-12,
+                    "R {major} r {minor} delta_s {delta_s}: the steps spend {spent} of the bound"
+                );
+                assert!(
+                    ((hu * a.sqrt() - hv * c.sqrt()) / (hv * c.sqrt())).abs() < 1e-12,
+                    "R {major} r {minor}: the aspect is off the optimum"
+                );
+                assert!(hu < sagitta_step(delta_s, a) && hv < sagitta_step(delta_s, c));
+                // The cost against the per-direction sagitta, in cells.
+                let naive = curvature_step(delta_s, a) * curvature_step(delta_s, c);
+                let ratio = naive / (hu * hv);
+                let beta = (minor / a).sqrt();
+                assert!(((ratio - 2.0 * (1.0 + beta)) / ratio).abs() < 1e-12);
+                assert!(ratio > 2.0 && ratio < 2.0 + core::f64::consts::SQRT_2);
+            }
+        }
+    }
+
+    /// [`torus_grid_steps`] and [`crate::cert::cert_torus`] are an
+    /// INVERSE PAIR through one arithmetic: the certifier's own bound
+    /// (`cert::torus_chord_bound`, which `cert_torus` evaluates at a
+    /// triangle's window sups and extents) on a cell-half of the
+    /// sizing's steps at the whole-tube sups is exactly `delta_s`. A
+    /// loosening of the certifier's constant alone passes every
+    /// per-triangle row and reds this one.
+    #[test]
+    fn torus_grid_steps_and_cert_torus_are_an_inverse_pair() {
+        let cases: &[(f64, f64)] = &[(0.30, 0.07), (2.0, 0.5), (1.2, 1.0), (50.0, 1.0)];
+        for &(major, minor) in cases {
+            for &delta_s in &[1e-6_f64, 1e-4, 1e-2] {
+                let (hu, hv) = torus_grid_steps(delta_s, major, minor);
+                let certified = crate::cert::torus_chord_bound(major + minor, minor, minor, hu, hv);
+                assert!(
+                    ((certified - delta_s) / delta_s).abs() < 1e-12,
+                    "R {major} r {minor} delta_s {delta_s}: the certifier reads {certified} on \
+                     the sizing's own cell-half"
+                );
+            }
         }
     }
 
@@ -652,7 +872,7 @@ mod tests {
     /// audit re-derived inside the tree, from the scenes' constants and
     /// nothing observed. `hollowring`'s two wall sizes, the
     /// `tube_along_arc` reference pair, and `diecomposed`'s pip-rim
-    /// blend tori are exactly what [`torus_grid_step`] prices — the
+    /// blend tori are exactly what [`torus_grid_steps`] prices — the
     /// rim torus's major radius and arc are derived here from the
     /// rolling-ball construction (ball tangent to the top plane and
     /// externally tangent to the cavity sphere), so no number in this
@@ -661,17 +881,18 @@ mod tests {
     fn tessfold_r1_torus_rows_rederive_from_scene_constants() {
         use core::f64::consts::PI;
         let tris = |delta: f64, major: f64, minor: f64, uspan: f64, vspan: f64| {
-            let h = cap_angular(torus_grid_step(delta * 0.5, major, minor));
-            2 * ceil_count(uspan, h).unwrap() * ceil_count(vspan, h).unwrap()
+            let (hu, hv) = torus_grid_steps(delta * 0.5, major, minor);
+            2 * ceil_count(uspan, cap_angular(hu)).unwrap()
+                * ceil_count(vspan, cap_angular(hv)).unwrap()
         };
         // hollowring (demos/tour/src/ring.rs): R = 0.30, walls
         // r_i = 0.05 / r_o = 0.07, delta = 2e-3; each wall is two
         // half-tube faces (uspan 2*pi, vspan pi).
-        assert_eq!(tris(2e-3, 0.30, 0.05, 2.0 * PI, PI), 47_524);
-        assert_eq!(tris(2e-3, 0.30, 0.07, 2.0 * PI, PI), 52_670);
+        assert_eq!(tris(2e-3, 0.30, 0.05, 2.0 * PI, PI), 1_932);
+        assert_eq!(tris(2e-3, 0.30, 0.07, 2.0 * PI, PI), 2_336);
         // tube_along_arc (demos/tour/src/tube.rs): R = 2, r = 0.5,
         // delta = 1e-2, arc T1 - T0 = 1.5.
-        assert_eq!(tris(1e-2, 2.0, 0.5, 1.5, PI), 17_152);
+        assert_eq!(tris(1e-2, 2.0, 0.5, 1.5, PI), 798);
         // diecomposed pip-rim blend (demos/tour/src/diefillet.rs):
         // RIM_R = 0.02 ball between the face plane and the
         // PIP_R = 0.09 cavity sphere whose centre stands
@@ -682,7 +903,7 @@ mod tests {
         let d = pip_r - pip_h;
         let major = ((pip_r + rim_r).powi(2) - (d + rim_r).powi(2)).sqrt();
         let vspan = ((d + rim_r) / (pip_r + rim_r)).acos();
-        assert_eq!(tris(5e-3, major, rim_r, 2.0 * PI, vspan), 2_080);
+        assert_eq!(tris(5e-3, major, rim_r, 2.0 * PI, vspan), 104);
     }
 
     /// [`cap_angular`]'s documented total behaviour. The obvious-looking

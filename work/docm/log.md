@@ -610,3 +610,7 @@ contact (kernel), the star's `JoinDesync` (`topo`). The spec is deleted
 into the ledger; DM4 carries the bound. Next: block B3 slot 2 (OPUS)
 banks for the certified range query (waits on M10); the v6 readout
 stays owed.
+
+## Announced from LIB (2026-09-09): a derive word on `MateSide`, `AxisSense` and `MateRole`
+
+LIB-MIRROR (PR #2271) adds `Hash` to `MateSide` (`mate.rs:84`), `AxisSense` (`mate.rs:144`) and `MateRole` (`mate/solve.rs:43`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; the serde attributes and every other line in both files are unchanged.

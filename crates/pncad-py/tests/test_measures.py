@@ -48,6 +48,7 @@ from pncad import (
     EditError,
     EntityKind,
     EvaluationError,
+    Expr,
     GeomPred,
     MeasureExpr,
     MeasurePrimitive,
@@ -64,14 +65,19 @@ from pncad import (
     rad,
 )
 
-SQUARE = [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)]
+SQUARE = [
+    (Expr.length_in(0, m), Expr.length_in(0, m)),
+    (Expr.length_in(1, m), Expr.length_in(0, m)),
+    (Expr.length_in(1, m), Expr.length_in(1, m)),
+    (Expr.length_in(0, m), Expr.length_in(1, m)),
+]
 
 
 def slab(doc, elevation, height=1.0):
     """A 1 m x 1 m x `height` prism whose base sits at `elevation`."""
-    plane = doc.sketch_frame(elevation=elevation * m)
+    plane = doc.sketch_frame(elevation=Expr.length_in(elevation, m))
     outline = doc.insert(Node.polygon(SQUARE, plane=plane))
-    return doc.insert(Node.extrude(outline, height * m))
+    return doc.insert(Node.extrude(outline, Expr.length_in(height, m)))
 
 
 def cylinder(doc, centre_x, radius, height=0.5):
@@ -79,7 +85,7 @@ def cylinder(doc, centre_x, radius, height=0.5):
     outline = doc.insert(
         Node.profile(circle((centre_x * m, 0 * m), radius * m), doc.sketch_frame())
     )
-    return doc.insert(Node.extrude(outline, height * m))
+    return doc.insert(Node.extrude(outline, Expr.length_in(height, m)))
 
 
 def wall(ev, node):
@@ -381,7 +387,15 @@ class TestTheClosedForms(unittest.TestCase):
         travel = 100.0
         prism = slab(doc, 0.0)
         moved = doc.insert(
-            Node.transform(prism, (travel * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 0 * rad)
+            Node.transform(prism, (
+                Expr.length_in(travel, m),
+                Expr.length_in(0, m),
+                Expr.length_in(0, m),
+            ), (
+                Expr.literal(0.0),
+                Expr.literal(0.0),
+                Expr.literal(1.0),
+            ), Expr.angle_in(0, rad))
         )
         ev = evaluate(doc)
         corner = sorted(ev.all_vertices(moved))[0]

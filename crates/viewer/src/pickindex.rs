@@ -9,8 +9,8 @@
 //! [`crate::marks`], which takes a built index as an argument, reads
 //! it through the public doors below only, and answers *what should
 //! be lit* for a different set of consumers (`gpu`, `blend`,
-//! `datums`, `app`, and `pane::viewport` alongside the cursor paths,
-//! which are `pane::viewport`'s alone).
+//! `datums`, `app`, and [`crate::pane::viewport`] alongside the cursor paths,
+//! which are [`crate::pane::viewport`]'s alone).
 //!
 //! # What is under the cursor
 //!
@@ -71,7 +71,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use pncad::document::{Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
-use pncad::select::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
+use pncad::select::{
+    HitTestError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray, pick_face,
+};
 
 use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
@@ -737,9 +739,54 @@ impl PickIndex {
         delta: DisplayTolerance,
         tol: Tol,
     ) -> Result<Self, PickIndexError> {
+        Self::assemble(doc, eval, generation, delta, |node| {
+            NodePick::build_all(eval, node, delta.get(), tol)
+        })
+    }
+
+    /// [`PickIndex::build`] over `memo`: a root whose node the
+    /// evaluation reused keeps its previous picture's `NodePick`, and a
+    /// root that was recomputed is tessellated through the per-face
+    /// patch memo — the same index, byte for byte, built from what did
+    /// not change ([`PickMemo`]).
+    ///
+    /// The picture is closed on the memo whether or not it was built:
+    /// a refused index (a root that failed or would not tessellate)
+    /// evicts what it did not reach, and the roots after the refusal
+    /// are rebuilt once the document is fixed. That keeps the memo one
+    /// picture's size through any sequence of answers — the node
+    /// map, the patch memo and the per-patch tree map alike.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::build`].
+    pub fn build_with(
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+        generation: Generation,
+        delta: DisplayTolerance,
+        tol: Tol,
+        memo: &mut PickMemo,
+    ) -> Result<Self, PickIndexError> {
+        let index = Self::assemble(doc, eval, generation, delta, |node| {
+            NodePick::build_all_with(eval, node, delta.get(), tol, memo)
+        });
+        memo.end_picture();
+        index
+    }
+
+    /// The walk both doors share: every root's bodies through `parts`,
+    /// then the id windows over them.
+    fn assemble(
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+        generation: Generation,
+        delta: DisplayTolerance,
+        mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
+    ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
         for &node in doc.roots() {
-            match NodePick::build_all(eval, node, delta.get(), tol) {
+            match build_parts(node) {
                 Ok(built) => parts.extend(built),
                 Err(NodePickError::NotABody { .. }) => {}
                 Err(error) => return Err(PickIndexError::Node { node, error }),
@@ -1579,7 +1626,7 @@ impl PickIndex {
 /// away; the failure being traded against is a mark drawn through
 /// solid material, which is the louder of the two.
 ///
-/// `gpu.rs`'s `EDGE_CLIP_Z_SHRINK` plays the same
+/// `crate::gpu`'s `EDGE_CLIP_Z_SHRINK` plays the same
 /// coincident-edge-over-its-own-face role on the GPU draw lane, in
 /// f32 clip z — a pointer each way, deliberately not one shared
 /// constant.
@@ -1788,7 +1835,8 @@ impl core::fmt::Display for EdgeNameFault {
                 drawn,
             } => write!(
                 f,
-                "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so                  this address was not one this index handed out",
+                "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so \
+                 this address was not one this index handed out",
                 node.0
             ),
             Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error}"),

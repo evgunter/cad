@@ -210,12 +210,13 @@ fn wire_door_refuses_a_tabled_unit_on_the_wrong_dimension() {
         // The wire tag and the prose word are two different spellings
         // of one dimension: the file carries `"dim":"Angle"`, the
         // message says "angle". A refusal reading the first back out
-        // is rendering through `Debug`.
+        // is rendering through `Debug`, so the banned words ARE the
+        // enum's `Debug`, over `Dimension::ALL`: every dimension the
+        // lattice has, not four named here.
         assert!(
-            !text.contains("Length")
-                && !text.contains("Angle")
-                && !text.contains("Scalar")
-                && !text.contains("Count"),
+            Dimension::ALL
+                .iter()
+                .all(|dim| !text.contains(&format!("{dim:?}"))),
             "the wire tag reached the message where the prose word belongs, got {text}"
         );
     }
@@ -406,25 +407,21 @@ fn golden_wire_form(symbol: &str) -> &'static str {
 /// never run).
 ///
 /// What is left for THIS crate to pin is the guard the seal leaves
-/// standing, stated over 6 rows × 4 dimensions rather than at one
-/// fixture. The complementary half — an ACCEPTED row is stored
+/// standing, stated over every table row × every dimension
+/// ([`Dimension::ALL`], so the cross-product is the lattice's and not
+/// a list written here) rather than at one fixture. The complementary
+/// half — an ACCEPTED row is stored
 /// unsubstituted, all three fields — belongs to
 /// `every_row_of_the_closed_table_is_a_working_display_unit` and is not
 /// restated here. Counts are asserted, so a table that quietly stopped
 /// being exercised cannot pass as green.
 #[test]
 fn a_display_unit_is_accepted_exactly_on_its_own_dimension() {
-    let dims = [
-        Dimension::Length,
-        Dimension::Angle,
-        Dimension::Scalar,
-        Dimension::Count,
-    ];
     let mut accepted = 0_u32;
     let mut refused = 0_u32;
     for r in quantity::UNITS {
         let row_dim = dim_of(r);
-        for dim in dims {
+        for dim in Dimension::ALL {
             match Expr::literal_with_unit(2.5, dim, r) {
                 Ok(_) => {
                     assert_eq!(
@@ -458,7 +455,45 @@ fn a_display_unit_is_accepted_exactly_on_its_own_dimension() {
     );
     assert_eq!(
         refused,
-        (quantity::UNITS.len() * (dims.len() - 1)) as u32,
+        (quantity::UNITS.len() * (Dimension::ALL.len() - 1)) as u32,
         "every other dimension refuses"
+    );
+}
+
+/// `Expr::length_in` and `Expr::angle_in` ARE the composition they
+/// document — same stored bits, same display unit, same refusal — so
+/// the sugar cannot drift from the two doors underneath it.
+#[test]
+fn the_authored_helpers_are_exactly_the_composition() {
+    let sugar = Expr::length_in(25.0, quantity::MM).unwrap();
+    let spelled =
+        Expr::written_length(quantity::WrittenLength::in_unit(25.0, quantity::MM)).unwrap();
+    assert!(
+        sugar.bit_eq(&spelled),
+        "the length helper is the composition"
+    );
+    assert_eq!(sugar.display_unit().unwrap().symbol(), "mm");
+    assert_eq!(
+        sugar.literal_value().unwrap().to_bits(),
+        0.025_f64.to_bits()
+    );
+
+    let sugar = Expr::angle_in(90.0, quantity::DEG).unwrap();
+    let spelled =
+        Expr::written_angle(quantity::WrittenAngle::in_unit(90.0, quantity::DEG)).unwrap();
+    assert!(
+        sugar.bit_eq(&spelled),
+        "the angle helper is the composition"
+    );
+    assert_eq!(sugar.display_unit().unwrap().symbol(), "deg");
+
+    // The refusal is `written_length`'s, reached through the sugar.
+    assert_eq!(
+        Expr::length_in(f64::NAN, quantity::MM),
+        Err(DimensionError::NonFiniteLiteral)
+    );
+    assert_eq!(
+        Expr::angle_in(f64::INFINITY, quantity::DEG),
+        Err(DimensionError::NonFiniteLiteral)
     );
 }

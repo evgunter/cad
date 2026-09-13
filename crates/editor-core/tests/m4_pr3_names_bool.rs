@@ -104,20 +104,12 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
         name1(
             EntityKind::Face,
             u,
-            RoleSeg::FromA(Box::new(name1(
-                EntityKind::Face,
-                a,
-                RoleSeg::Cap(CapEnd::End),
-            ))),
+            RoleSeg::FromA(name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End)).into()),
         ),
         name1(
             EntityKind::Face,
             u,
-            RoleSeg::FromB(Box::new(name1(
-                EntityKind::Face,
-                b,
-                RoleSeg::Cap(CapEnd::End),
-            ))),
+            RoleSeg::FromB(name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End)).into()),
         ),
     ];
     cap_constituents.sort_unstable();
@@ -149,9 +141,9 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             }),
         );
         let seg = if wrap_a {
-            RoleSeg::FromA(Box::new(inner))
+            RoleSeg::FromA(inner.into())
         } else {
-            RoleSeg::FromB(Box::new(inner))
+            RoleSeg::FromB(inner.into())
         };
         assert!(
             matches!(

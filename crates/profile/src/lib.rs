@@ -131,8 +131,8 @@ use geom_core::{Affine3, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
-    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TipState, Verb,
-    replay, replay_guided, replay_recording,
+    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TargetKind, TipState,
+    Verb, replay, replay_guided, replay_recording,
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
@@ -182,11 +182,28 @@ impl<T: Real> ProfileVertex<T> {
     /// as for [`Point2`]. Privacy here buys representation freedom, not
     /// mint-prevention. The funnel claim is about LOOPS: outside this
     /// crate a [`ProfileLoop`] cannot be spelled from a vertex table:
-    /// the lattice's emission layer and [`ProfileLoop::map`] are the
-    /// only doors a shipped build has, and neither takes one. A caller
-    /// holding a bag of vertices has nothing to put them in.
+    /// the lattice's emission layer and [`ProfileLoop::map_scalar`] are
+    /// the only doors a shipped build has, and neither takes one. A
+    /// caller holding a bag of vertices has nothing to put them in.
     pub fn new(pos: Point2<T>, bulge: T) -> Self {
         Self { pos, bulge }
+    }
+
+    /// **The leaf rung of the profile scalar lift**: the same vertex
+    /// read at another scalar — the position through [`Point2::map`],
+    /// the bulge through `f`.
+    ///
+    /// `map`, not `map_scalar`, because a vertex is a fixed pair of
+    /// scalars with no structure to carry: `geom`'s `scalar_lift`
+    /// convention is `map` on every leaf and `map_scalar` on every type
+    /// whose lift has counts or indices to carry
+    /// ([`ProfileLoop::map_scalar`], [`Profile::map_scalar`]).
+    ///
+    /// Structural, not arithmetic: every scalar goes through `f` and
+    /// nothing is computed, so the lift is exact whenever `f` is.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> ProfileVertex<U> {
+        ProfileVertex::new(self.pos.map(&f), f(self.bulge))
     }
 
     /// The vertex position in sketch-plane coordinates (meters).
@@ -221,9 +238,11 @@ impl<T: Real> ProfileVertex<T> {
 ///   It classifies every junction and declares every tangency as the
 ///   chain is written, then calls the crate's private constructor. The
 ///   only door on the presented surface.
-/// - **the materialization door** — [`ProfileLoop::map`]: a table that
-///   already exists, read at another scalar. It authors nothing; there
-///   is no table it can make that did not exist a moment earlier.
+/// - **the materialization door** — [`ProfileLoop::map_scalar`]: a
+///   table that already exists, read at another scalar. It authors
+///   nothing; there is no table it can make that did not exist a moment
+///   earlier. [`Profile::map_scalar`] is that same door run over a
+///   profile's loops, not a second one.
 /// - **fixtures** — `RawLoop` (unlinked deliberately: in a shipped
 ///   build it is a crate-private item, so a link from this public page
 ///   would name something the page's reader does not have), which IS
@@ -402,15 +421,18 @@ impl<T: Real> ProfileLoop<T> {
     /// **A materialization door**: the same loop read at another
     /// scalar.
     ///
-    /// The fourth member of the kernel's `map` family
+    /// The middle rung of this crate's scalar lift, between
+    /// [`ProfileVertex::map`] and [`Profile::map_scalar`], and named by
+    /// `geom`'s `scalar_lift` convention: `map` on every leaf
     /// ([`Point2::map`](geom_core::Point2::map),
     /// [`Vec2::map`](geom_core::Vec2::map),
     /// [`Affine3::map`](geom_core::Affine3::map),
-    /// [`SketchPlane::map`]) and named for it: every one of them is the
-    /// same X read at another scalar, and a fourth private word for that
-    /// was a fourth thing to learn. It takes `&self` where the family
-    /// takes `self`, because a loop owns two `Vec`s and its caller holds
-    /// a borrow.
+    /// [`SketchPlane::map`], [`ProfileVertex::map`] — a fixed tuple of
+    /// scalars), `map_scalar` wherever the lift has structure to carry,
+    /// which here is the vertex count and the joint index set. One name
+    /// per operation, on the type it lifts. It takes `&self` where a
+    /// leaf takes `self`, because a loop owns two `Vec`s and its caller
+    /// holds a borrow.
     ///
     /// This is re-materialization, not authoring. The table already
     /// exists — it was emitted by the lattice, or read back from a
@@ -427,13 +449,10 @@ impl<T: Real> ProfileLoop<T> {
     /// This door and the [`path`] lattice's emission layer are the whole
     /// production population; see [`ProfileLoop`]'s own docs for the two
     /// anticipated doors that do not exist.
-    pub fn map<U: Real>(&self, f: impl Fn(T) -> U) -> ProfileLoop<U> {
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ProfileLoop<U> {
         ProfileLoop {
-            vertices: self
-                .vertices
-                .iter()
-                .map(|v| ProfileVertex::new(v.pos.map(&f), f(v.bulge)))
-                .collect(),
+            vertices: self.vertices.iter().map(|v| v.map(&f)).collect(),
             tangent_joints: self.tangent_joints.clone(),
         }
     }
@@ -687,6 +706,23 @@ impl SketchPlane<f64> {
     }
 }
 
+/// `==` IS [`SketchPlane::bit_eq`] — the comparison this type already
+/// means, spelled as the trait so every caller reaches the same
+/// answer.
+///
+/// Only `f64` carries it, because only `f64` has the bit reading
+/// [`SketchPlane::bit_eq`] compares; a plane over another [`Real`] has
+/// no equality here.
+///
+/// PARTIAL and no [`Eq`], deliberately: the type carries no hash on
+/// either side of the binding boundary, and a plane is a placement to
+/// compare, not a key to tally by.
+impl PartialEq for SketchPlane<f64> {
+    fn eq(&self, other: &Self) -> bool {
+        self.bit_eq(other)
+    }
+}
+
 /// A sketch profile: closed loops on a sketch plane — the raw input
 /// data. [`Profile::validate`] is the only way to make it consumable by
 /// sweeps.
@@ -704,5 +740,34 @@ impl<T: Real> Profile<T> {
     /// Builds a profile from a plane and loops.
     pub fn new(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> Self {
         Self { plane, loops }
+    }
+
+    /// **The top rung of this crate's scalar lift**: the same RAW
+    /// profile read at another scalar — the plane through
+    /// [`SketchPlane::map`], every loop through
+    /// [`ProfileLoop::map_scalar`], the loop order carried.
+    ///
+    /// Structural, not arithmetic, at every rung: each stored scalar
+    /// goes through `f` and nothing is computed, so the lift is exact
+    /// whenever `f` is and bit-identical for any `U` whose `from_f64`
+    /// is exact on `f64`. Nothing here is decided: a raw profile
+    /// carries no verdict, and the loops that come out still owe
+    /// [`Profile::validate`] at `U`.
+    ///
+    /// **This is the raw door, and it is rarely the one a build wants.**
+    /// Lifting a raw profile and validating the result at `U` decides
+    /// the profile's structure a second time, in `U`'s arithmetic, over
+    /// data that is an exact embedding of the `f64` data a validation
+    /// already ran on — where `U` is certified that second opinion can
+    /// only agree or escalate, never disagree. A build that already
+    /// holds the `f64` verdict lifts THAT, through
+    /// [`ValidatedProfile::lift_onto`], which carries the decisions
+    /// instead of remaking them.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Profile<U> {
+        Profile::new(
+            self.plane.map(&f),
+            self.loops.iter().map(|lp| lp.map_scalar(&f)).collect(),
+        )
     }
 }

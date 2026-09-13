@@ -162,7 +162,9 @@ const PINNED: &[(&str, u64)] = &[
     // other row, which is the property this table exists to make
     // readable.
     ("tube_ring", 0x1293_7fbf_295c_f16c),
+    ("tube_arc", 0xb4e7_8002_f2ea_4ebc),
     ("hollow_tube_elbow", 0x98e4_97a0_679c_33ad),
+    ("hollow_tube_ring", 0xbdb5_5092_7bb6_1e80),
 ];
 
 #[test]

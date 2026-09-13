@@ -35,7 +35,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Point3, Vec3};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::Body;
@@ -43,7 +42,7 @@ use pncad::topo::Body;
 use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{polygon, validated};
+use pncad::authoring::{p3, polygon, v3, validated};
 use pncad::geom_core::Tol;
 
 /// Exact volume oracle: 880383/327680 (counter-hole A × Z), derived by
@@ -82,11 +81,8 @@ fn lp<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> ProfileLoop<S> {
 /// the only possible coincident carriers are y = const planes, and the
 /// two bodies' y-plane sets are disjoint by 1/16 straddles).
 fn a_prism<S: Scalar>(tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(
-        Point3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(-0.0625)),
-        Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
-        Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
-    );
+    let plane =
+        SketchPlane::from_frame(p3(0.0, 0.0, -0.0625), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
     extrude(
         &validated(plane, vec![lp(&A_OUTLINE, tol), lp(&A_COUNTER, tol)], tol)
             .expect("A x Z profile"),
@@ -113,11 +109,8 @@ fn z_prism<S: Scalar>(tol: Tol) -> Body<S> {
         (1.8125, 1.5625),
         (-0.0625, 0.4375),
     ];
-    let plane = SketchPlane::from_frame(
-        Point3::new(S::from_f64(-0.0625), S::from_f64(0.0), S::from_f64(0.0)),
-        Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
-        Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
-    );
+    let plane =
+        SketchPlane::from_frame(p3(-0.0625, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0));
     extrude(
         &validated(plane, vec![lp(&z_poly, tol)], tol).expect("A x Z profile"),
         Extrusion::Distance(S::from_f64(2.125)),

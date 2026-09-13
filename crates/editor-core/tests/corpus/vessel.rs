@@ -40,11 +40,11 @@
 //! every document green at `Dual64`.
 
 use editor_core::{
-    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileEdgeRef, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, StableName,
+    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
 };
 
-use crate::fixture::{ang, axis_in_plane, fname, frame, len};
+use crate::fixture::{ang, axis_in_plane, frame, len};
 
 use super::{CorpusDoc, Recorder};
 
@@ -99,28 +99,6 @@ pub fn meridian() -> LoopProgram {
     ])
 }
 
-/// The `[0, π)` face swept from a meridian segment.
-pub fn band(pot: RecipeNodeId, seg: u32) -> StableName {
-    fname(
-        pot,
-        RoleSeg::Band(ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        }),
-    )
-}
-
-/// The `[π, 2π)` face swept from a meridian segment.
-pub fn band_pi(pot: RecipeNodeId, seg: u32) -> StableName {
-    fname(
-        pot,
-        RoleSeg::BandPi(ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        }),
-    )
-}
-
 /// The vessel with its `open` list AUTHORED by the caller — two names,
 /// whatever faces they are: the mouth's two halves in either order
 /// (which decides which half carries the rim), or a designation the
@@ -164,5 +142,5 @@ pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDo
 
 /// The vessel's corpus document: the mouth's `Band` half named first.
 pub fn document() -> CorpusDoc {
-    document_with_open(|pot| [band(pot, SEG_MOUTH), band_pi(pot, SEG_MOUTH)])
+    document_with_open(|pot| [band(pot, 0, SEG_MOUTH), band_pi(pot, 0, SEG_MOUTH)])
 }

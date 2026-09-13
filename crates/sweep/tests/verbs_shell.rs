@@ -13,8 +13,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
+use crate::common::census::{genus_of, rings_of};
 use geom_core::k_stats::Bracket;
-use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
@@ -23,10 +25,6 @@ use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRol
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 /// A `w x d x h` box at the origin.
@@ -1101,12 +1099,17 @@ fn a_curved_two_shell_shell_refuses_step_export() {
 #[ignore = "a measurement, not a gate — see the doc comment"]
 fn the_shell_cost_is_measured_not_asserted() {
     use std::time::Instant;
-    let cases: Vec<(&str, Body<f64>, f64)> = vec![
-        ("box", boxy(2.0, 3.0, 4.0), 0.25),
-        ("vessel", vessel(1.0, 2.0), 0.2),
-        ("tube", tube(0.6, 1.0, 2.0), 0.1),
+    let v = vessel(1.0, 2.0);
+    let top = plane_chart_at_y(&v, 2.0);
+    let cases: Vec<(&str, Body<f64>, f64, Vec<FaceKey>)> = vec![
+        ("box", boxy(2.0, 3.0, 4.0), 0.25, Vec::new()),
+        ("vessel", v.clone(), 0.2, Vec::new()),
+        ("tube", tube(0.6, 1.0, 2.0), 0.1, Vec::new()),
+        // The opened arm: its lift door mints the whole body once more
+        // before the closing mint does.
+        ("vessel opened top", v, 0.2, top),
     ];
-    for (name, body, t) in cases {
+    for (name, body, t, open) in cases {
         // Counts are PRINTED, never spelled into the label: a hand
         // label drifts from the fixture (this row's first version said
         // "vessel (4 faces)" while printing 6) and a drifted label is
@@ -1119,7 +1122,7 @@ fn the_shell_cost_is_measured_not_asserted() {
             k.len()
         };
         let start = Instant::now();
-        let hollow = topo::shell(&body, t, Tol::witness())
+        let hollow = topo::shell_open(&body, t, &open, Tol::witness())
             .expect("the fixture shells")
             .body;
         let build = start.elapsed();
@@ -1317,26 +1320,6 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
         })
         .map(|(k, _)| k)
         .collect()
-}
-
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings_of(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
-}
-
-/// The Euler–Poincaré genus, parity-checked before halving.
-fn genus_of(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    let chi = v - e + f - rings_of(body) as i64;
-    assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
-    body.shells().count() as i64 - chi / 2
 }
 
 /// **The AXIS-TOUCHING cap: one rim annulus, and it meshes.**

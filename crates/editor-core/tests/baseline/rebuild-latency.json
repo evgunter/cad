@@ -95,8 +95,18 @@
       "nodes": 2,
       "cone": 1
     },
+    "tube_arc": {
+      "about": "a capped solid bend from its intent parameters, R = 2, r = 0.5, 1 rad",
+      "nodes": 2,
+      "cone": 1
+    },
     "hollow_tube_elbow": {
       "about": "an open elbow of annular section, R = 2, outer 0.5, wall 0.125",
+      "nodes": 2,
+      "cone": 1
+    },
+    "hollow_tube_ring": {
+      "about": "a sealed hollow ring torus \u2014 two shells, one solid \u2014 R = 2, outer 0.5, wall 0.125",
       "nodes": 2,
       "cone": 1
     },
