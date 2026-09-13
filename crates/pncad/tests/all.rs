@@ -452,7 +452,7 @@ fn stale_declaration_and_ring_contact_are_matchable(
 /// The profile refusals' payloads — what `ProfileError`,
 /// `CornerReason` and `PathError` say beyond their arm names.
 ///
-/// `EscalationSite` is where the rung under it shows: two of its four
+/// `EscalationSite` is where the rung under it shows: two of its three
 /// arms hand back a `SegmentRef`, and reading the site's loop and
 /// segment indices is the whole point of binding one.
 fn profile_payloads_are_matchable(
@@ -488,7 +488,6 @@ fn profile_payloads_are_matchable(
             named::<usize>(loop_index);
             "loop"
         }
-        EscalationSite::Fillet => "fillet",
     };
     let leg = match leg {
         FilletLeg::Incoming => "incoming",

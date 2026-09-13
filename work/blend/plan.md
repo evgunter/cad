@@ -20,7 +20,8 @@ FILLET finished the bands (the material-adding closed rim, the annulus
 band with hostless crossings, the ruled band with its transverse
 cut-off) and left, filed one file each, what its reviews measured on
 the way: shapes the surgery refuses at a gate that is about the wrong
-property, an unmeasured orientation in the ladder phase, two
+property, a fresh-key retirement in the ladder phase (called
+unmeasured, found live — unit 8), two
 must-carry arms with one rule and two policies, recourse sentences
 that under-describe their doors, and a profile fillet door whose
 output its own validator refuses. The substrate — `crates/sweep/README.md`

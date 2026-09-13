@@ -2075,6 +2075,37 @@ are recorded in the PR body and the unit's log entry.
 
 - `BLEND-10-SPEC.md` — BLEND-10, the path fillet door never mints a joint the validator refuses (#2497)
 
+## Per-merge deletion — BLEND-12's spec (2026-09-13)
+
+Recoverable at `git show 594f484787444628d3b932f6933b1686e2fca9e1:docs/BLEND-12-SPEC.md`
+(the fix-pass head). Its Phase 1 table did not survive the dual: two of
+the five gates the unit called pre-empted are driveable in band through
+the public door at every ε row (`fillet_corner_turn`, whose margin is
+levered by the leg's extent; `fillet_offset_lever`, whose threshold
+grows with the corner's squared scale), so six of nine are driven and
+the two exact-order gates are pre-empted only at scalar `f64`. The
+retirement it asked for stands: `EscalationSite::Fillet` had no producer
+and is gone with its arm. Recorded in the PR body and the unit's log
+entry.
+
+- `BLEND-12-SPEC.md` — BLEND-12, the fillet door's in-band verdicts render their own sentence (#2508)
+## Per-merge deletion — BLEND-8's spec (2026-09-13)
+
+Recoverable at `git show 968e8210415b03c0f75229119dfc6a73dfcd8c97:docs/BLEND-8-SPEC.md`
+(the fix-pass head). Its premise did not survive Phase 1: the item
+called the ladder phase's fresh-key retirement "unmeasured", and the
+spec asked for it to be measured, but it was LIVE on 14 shipped rows at
+the merge base (a revolve-minted cap seam running pole → rim) — the
+unit closed a defect the tree already exhibited. Two more sentences
+fell to measurement: its door (b) (a profile authored in reverse) is
+unreachable because `profile` canonicalizes traversal, and its
+document-layer row cannot exist — the witness body is not authorable
+through the recipe layer and `emit_blend`'s retired-set guard cannot
+observe the defect (filed for EVAL). All three are recorded in the PR
+body and the unit's log entry.
+
+- `BLEND-8-SPEC.md` — BLEND-8, the ladder rim phase never retires a fresh split key (#2505)
+
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
 Sweep SHA: `116d96c01d4a03084d4701d7d58fb3b5dcf1703b` — the commit
