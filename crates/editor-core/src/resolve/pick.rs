@@ -91,7 +91,7 @@ struct PickTri {
 /// the tree is `bvh`'s arena-order build over them, the hull is the
 /// fold over them left to right. That is what lets [`PickMemo`] serve
 /// the whole table across pictures under
-/// [`mesh::StoredPatchId`](mesh::StoredPatchId), which says the placed
+/// [`mesh::StoredPatchId`], which says the placed
 /// corners are bit-identical: same corners, same table, with nothing
 /// per triangle to recompute or compare. The `Arc` is the memo's
 /// handle and this index's, one build.
@@ -309,7 +309,7 @@ impl MeshPick {
     /// otherwise. Nothing per triangle runs on a served patch — no
     /// corner copy, no box, no tree — because the entry identity says
     /// the placed corners are the stored ones' bit for bit
-    /// ([`mesh::StoredPatchId`](mesh::StoredPatchId)). The top-level
+    /// ([`mesh::StoredPatchId`]). The top-level
     /// tree is built every time. The index is the same, table for
     /// table and tree for tree, as [`MeshPick::build`]'s
     /// ([`PickMemo`]'s table level).
@@ -576,7 +576,7 @@ struct PickEntry {
 /// — is a function of the patch's PLACED CORNERS alone, and lives
 /// here rather than in `mesh`, which stays free of `bvh`. The entry is
 /// found by the identity the tessellation reports for the patch
-/// ([`mesh::StoredPatchId`](mesh::StoredPatchId)), and that identity
+/// ([`mesh::StoredPatchId`]), and that identity
 /// is the proof: the patch memo mints one per stored entry and reports
 /// it only where it answered a face from that entry — after comparing
 /// the entry's FULL key bytes — so two patches under one id have the
