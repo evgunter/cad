@@ -5715,3 +5715,22 @@ f2a086f0661fb15fdd9b83caca3470f373572a00da734b48e743028534ceec1a  blend-8-review
 slot 1 = BLEND-10 MERGED (2026-09-13, PR #2497 at c428ff517; sample #183): delta by R1 on the fixed head confirmed all seven items (and showed the one shape it had left unconstructed is not reachable through the public door); the row is on main in that merge. Slot 1 concluded. Slot 0 (BLEND-8) is the block's last open slot, in its dual.
 slot 0 = BLEND-8 dual concluded (2026-09-13, ~11:50Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (OPUS) MERGEABLE-AFTER-FIXES 2/6/6, rubric 4/4/3; R2 (FABLE) MERGEABLE-AFTER-FIXES 0/5/5, rubric 4/4/3. R1's two MAJORs (the stale mutant table; the annulus's second spelling of the split half) are R2's MINOR-1 and MINOR-3 — bilateral at differing severity, both by execution ⇒ NO tally candidate. Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number; the block's CONCLUDED record folds into main with it.
 slot 0 = BLEND-8 MERGED (2026-09-13, PR #2505 at 24ba7f59c; sample #185 — BLEND-12 took #184 on main first): delta by R1 on the fixed head confirmed all seven items by execution (both mutants exact; the annulus reading re-taken at the refresh call site, 38 moved keys against the lane's 37, the reading holding; the record delta exact, the lane's base-side totals unreconciled) and caught one new MINOR the fix introduced (the boss's orientation stated backwards against the row it cites), corrected in the state-sync; the row is on main in that merge. Slot 0 concluded. **Block BLEND-B2 CONCLUDED**: three slots (OPUS / OPUS / FABLE), three duals, zero counted tally candidates (every headline bilateral by execution — at MAJOR on unit 11, at differing severity on units 10 and 8); v6 tally unchanged.
+
+Split-edge review ordinal fixed at dispatch (2026-09-13, PR #2531 open
+— frozen head `880654600`; unit
+`work/topo/split-edge-children-lack-pcurve-rows-on-curved-charts`,
+SHELL-7's placement): **ordinal 2703** (TOPO band). Pre-draw fields
+(logged in `work/topo/log.md` at `41edc9d2a` BEFORE block TOPO-B2 was
+drawn — clean): difficulty **S/M**, task class **STRUCTURAL-NUMERIC**.
+Implementer arm per block TOPO-B2 slot 1 (record branch-side on
+`topo/b2-block`). Protocol v6 dual: draw = `/dev/urandom` byte **20**,
+parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either
+review runs: CONCURRENT same-head on frozen `880654600`, both briefs
+authored and STORED with sha256 before either dispatches (identical
+text modulo lane name, target and scratch paths, verified by diff),
+neither reviewer sees the other's report, v6 item 5 isolation in both
+briefs; the implementer's unit log entry is not written until the
+dual concludes. Shared-box note applying to BOTH arms equally: one
+4-core cloud box beside one other lane (block slot 0's implementer),
+`-j2`; R1's target is the implementer's warm one, R2's is seeded from
+an older warm build — wall-clock asymmetry only.
