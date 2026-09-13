@@ -66,3 +66,29 @@ Whether `COINCIDENCE_RECOURSE`'s three levers should be conditioned at
 the geom-core end instead — one door's escalation is another door's —
 is the same question `escalation-recourse-dispatch-has-three-homes`
 raises from the routing side. The two want deciding together.
+
+## Another instance, repaired at the site (BLEND-10 fix pass, 2026-09-13)
+
+`PathError::Escalated`'s `Display` (`crates/profile/src/path.rs`) has the
+same shape: its fallback arm writes `"path junction classification:
+{source}"`, and `{source}` is `Indeterminate`'s own `Display` — the
+margin payload followed by `COINCIDENCE_RECOURSE`. Every escalation the
+path door relays without a keyed arm therefore tells the reader to
+declare a coincidence first.
+
+The instance BLEND-10 met: the fillet door now re-reads the loop it is
+about to emit through the verify layer's own segment and joint
+predicates, and relays an in-band classification through that arm. The
+reader of a refusal about a joint THE DOOR ITSELF MINTED was told to
+declare it — a declaration they never wrote and cannot add, since the
+door writes the declaration set. Repaired by giving those eight
+predicate names their own arm, which names the site ("reading back the
+fillet arc this door is about to store") and the levers the stored form
+actually has (`FILLET_STORED_FORM_INBAND_RECOURSE`), and which does not
+render `{source}` whole. The row is
+`fillet_recourse_followability.rs`'s
+`the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet`,
+which asserts the sentence does NOT contain "declare the coincidence".
+
+What stays open here: the fallback arm itself, and every other
+escalation that reaches it.
