@@ -711,15 +711,22 @@ fn assert_same_picture(
             a.node(),
             a.body()
         );
-        // The index itself, tree for tree: the memoised build's
-        // per-patch trees (nodes, leaf permutation, boxes — the
-        // tree's whole `Debug` form), triangle tables and top-level
-        // tree are the fresh build's. Direct, where the hit-for-hit
-        // rows are only implied by it.
+        // The index itself, TABLE FOR TABLE and tree for tree: every
+        // patch the memoised build served — its triangle corners, the
+        // boxes the tree was built over, the tree's nodes and leaf
+        // permutation, its hull — plus the top-level tree, are the
+        // fresh build's. The whole `MeshPick` `Debug` form is the
+        // comparison, and it is a comparison BY BITS: Rust prints an
+        // `f64` at shortest round-trip precision, so two distinct
+        // finite corners cannot print alike (a NaN payload is the one
+        // thing it cannot separate, and a poisoned box is poisoned in
+        // both). Direct, where the hit-for-hit rows are only implied
+        // by it — and the row that catches a served table whose
+        // corners are no longer the mesh's.
         assert_eq!(
             format!("{:?}", a.target().pick),
             format!("{:?}", b.target().pick),
-            "{name} after {step}: node {:?} body {} — the seam's index is not the fresh one, tree for tree",
+            "{name} after {step}: node {:?} body {} — the seam's index is not the fresh one, table for table and tree for tree",
             a.node(),
             a.body()
         );
@@ -757,6 +764,16 @@ fn assert_same_picture(
 /// - `heat_sink`, the second edit (6 roots, the second slot feeds 1):
 ///   five roots reused whole.
 ///
+/// **And a memo that hit EVERYTHING would pass them**, which is the
+/// other half of the same defect: the edited face's key must change,
+/// so every one of these steps also owes at least one face miss. The
+/// floor is 1 rather than the measured count (4, 5, 18 and 4) because
+/// what it guards is the existence of the miss, not the corpus's
+/// current shape — and the row that makes it sharp is the
+/// table-for-table comparison in `assert_same_picture`, which is what
+/// says the missed face's table is the FRESH build's and not a served
+/// one.
+///
 /// `(document, step, node-hit floor, face-hit floor)`.
 const HIT_FLOORS: &[(&str, &str, usize, usize)] = &[
     ("die_composed_tour", "the first edit", 0, 80),
@@ -778,6 +795,13 @@ fn assert_hit_floor(name: &str, step: &str, report: &MemoReport) {
                 report.tree_hits >= faces,
                 "{name} after {step}: the memo answered {} pick trees; the floor is {faces}",
                 report.tree_hits
+            );
+            assert!(
+                report.face_misses >= 1 && report.tree_misses >= 1,
+                "{name} after {step}: the edit changed a face, so the memo owes a miss; it \
+                 reported {} face misses and {} pick-table misses",
+                report.face_misses,
+                report.tree_misses
             );
         }
     }
