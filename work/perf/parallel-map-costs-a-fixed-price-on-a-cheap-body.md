@@ -46,26 +46,33 @@ the shipped width is not where the problem is. What pays these prices
 is a caller pinned to one thread, and any caller at all on a body below
 break-even.
 
-**The same price, one door over** (PERF-11, same box, release, under
-the slot, medians of 3): `topo::classify_shells`' per-shell face walk
-is now the same indexed map, and the corpus heat sink is the document
-below break-even that pays for it. Every face of it is planar and
-closed-form, and a shell of it has six:
+**The same price, one door over — measured, and it settled a grain**
+(PERF-11, same box, release, under the slot). `topo::classify_shells`'
+per-shell face walk was made the same indexed map and the map was then
+REVERTED, because the census meets no body that repays it:
 
-| document | solids / shells | faces | census @1t | census @4t |
-|---|---:|---:|---:|---:|
-| heat_sink, 40 fins | 41 / 41 | 271 | 0.1 ms | 0.3 ms |
-| heat_sink, 160 fins | 161 / 161 | 991 | 0.3 ms | 1.0 ms |
+| document | solids / shells | faces | serial | map @1t | map @4t |
+|---|---:|---:|---:|---:|---:|
+| heat_sink, 40 fins | 41 / 41 | 271 | 0.10 ms | 0.1 ms | 0.3 ms |
+| heat_sink, 160 fins | 161 / 161 | 991 | 0.37 ms | 0.3 ms | 1.0 ms |
 
-Serial on the merge base is the @1t column to within the rows' own
-spread; the @4t column is the pool round trip, paid **once per shell**
-because the map is per shell's faces and the loop over shells is
-sequential. That is the finding above with a second subject, and it
-adds one observation to it: on a document whose shells are cheap and
-NUMEROUS, the grain that would repay the price is the shell and not the
-face. Changing the grain is not this item — `classify_shells_of`'s
-outer loop is the census's, whose pair sweeps are PERF-12's ground —
-but the measurement says where to look.
+Three times slower at four threads on the heat sink, about 4.6× on a
+two-shell voided brick and 2× on a hollow box (the two review arms
+re-measured both), and a gain on **no** body in the corpus — every
+shell the census meets has a handful of faces, and no corpus shell is
+many-faced on the quadrature lane, which is the only thing that would
+carry the price. The cost is the finding above with a second subject,
+paid **once per shell** because the map is over a shell's faces while
+the loop over shells is sequential.
+
+**What that adds to this item**: on a document whose shells are cheap
+and NUMEROUS, the grain that could repay the price is the shell, not
+the face — and on the heat sink the shell grain measures at about
+break-even, so it is a question and not an answer. Changing it is not
+this item and not PERF-11's: `classify_shells_of`'s outer loop is the
+census's, whose pair sweeps are PERF-12's ground. The face grain is
+settled (serial), with the reason stated at
+`topo::props`' `decide_faces_serially`, so it does not want re-trying.
 
 ## What was tried, and did not work
 

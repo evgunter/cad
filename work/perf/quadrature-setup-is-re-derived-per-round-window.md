@@ -83,8 +83,10 @@ So the regime split this item already states holds, and the share of
 the continuation this item would remove runs from 8% to 99% depending
 on how much schedule the open faces have left. PERF-11 divided the term
 by the pool width instead of removing it (the continuation resumes its
-open faces as an indexed parallel map): on `teapotspout` that is
-15.3 s → 4.1 s at four threads. A body with ONE open face gets nothing
+open faces as an indexed parallel map): on `teapotspout`, through the
+tour, 16.2 s → 4.1 s at four threads, while at ONE thread the same
+body is 14.2 s → 14.7 s — the width is the whole of the saving, and
+this item's term is untouched by it. A body with ONE open face gets nothing
 from that width and is exactly this item's subject — the arc loft at
 1e7·eps, 99% setup, unchanged at any width.
 
