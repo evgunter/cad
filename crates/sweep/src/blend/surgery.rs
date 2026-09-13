@@ -2580,7 +2580,12 @@ pub(super) fn split_fragment<T: Decide + Bounds>(
 /// retirement, because [`Retired`](super::naming::Retired) names what
 /// the blend took from the body the caller handed in. A piece this
 /// carve minted and then killed reaches neither the output nor the
-/// source and owes a row in neither direction.
+/// source and owes a row in neither direction — and a STRUT, which is
+/// not a source key either, is the same case.
+///
+/// The one home of that rule for all three band carves: the ladder's
+/// meridian splits, the annulus's seam splits and the ruled band's cap
+/// rims.
 pub(super) fn retire_fragment(rec: &mut BlendNaming, dying: EdgeKey, source: EdgeKey) {
     if dying == source {
         rec.dead.edges.push(source);
@@ -3714,9 +3719,12 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         rec.dead.edges.push(l.edge);
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
-        // Only a SOURCE key can be retired: when the split handed the
-        // rim-side piece the new edge, the source seam survives as the
-        // far piece and nothing of it died. Under a seam refresh this
+        // The dying piece against the seam it came from, through
+        // [`retire_fragment`] — the one spelling of "only a SOURCE key
+        // is a retirement", shared with the ladder's meridian splits
+        // and the ruled band's cap rims.
+        //
+        // The seam keys here are the PLAN's. Under a seam refresh the
         // plan-key comparison and the live-key one COINCIDE today, and
         // structurally: `split_edge` keeps the parent key for the
         // `[t0, t]` child, a seam meridian's two ends are its wall's
@@ -3733,12 +3741,11 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         // birth row: it is not a source key, so its death is not a
         // retirement of anything the caller handed in.
         if let (HostAnchor::Seam { rim_side, .. }, HostFoot::Seam(seam)) = (&host_feet[ix], &c.host)
-            && *rim_side == *seam
         {
-            rec.dead.edges.push(*seam);
+            retire_fragment(rec, *rim_side, *seam);
         }
-        if ix != ann.closure && mate_feet[ix].1 == c.mate_seam {
-            rec.dead.edges.push(c.mate_seam);
+        if ix != ann.closure {
+            retire_fragment(rec, mate_feet[ix].1, c.mate_seam);
         }
         rec.dead.vertices.push(c.vertex);
     }
