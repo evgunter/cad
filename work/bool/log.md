@@ -460,3 +460,19 @@ variant, if Phase 1 confirms no producer) is retired; edits confined to
 shape moves). Branch `blend/12-fillet-recourse-arm`. Unit 15
 (`docs/BLEND-15-SPEC.md`) follows it on the same files and will be
 announced at its own dispatch.
+
+**Seam announced by BLEND (2026-09-13, at unit 15's dispatch):** BLEND
+unit 15 (`docs/BLEND-15-SPEC.md`, item
+`escalation-recourse-dispatch-has-three-homes`) follows unit 12 on the
+same files inside S-BOOL's glob `crates/profile/*`, by announced seam:
+`PathError::Escalated`'s Display answers an unknown predicate name with
+the one gap sentence (the "path junction classification" category
+assertion goes), the dispatch order of its three families is stated at
+the site and pinned by an order row, and a roster row
+(`crates/profile/tests/recourse_roster.rs`) enumerates every
+`decide("…")` name `crates/profile/src` decides and asserts each is
+routed or explicitly unrouted with a reason; every routed sentence
+renders as before. Edits confined to
+`crates/profile/src/{path.rs, validate.rs, lib.rs}` and
+`crates/profile/tests/**` (the FFI tag census only if a `PathError`
+shape moves — it should not). Branch `blend/15-recourse-roster`.
