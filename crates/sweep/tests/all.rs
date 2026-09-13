@@ -254,6 +254,8 @@ mod must_carry_rule;
 mod r1_probes_issue1362_donut;
 #[path = "readback_doors.rs"]
 mod readback_doors;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]
