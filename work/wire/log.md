@@ -3606,3 +3606,78 @@ tests locally will meet the hook for the first time at push, which is the
 worst moment to learn it. Its second push also **cancelled its own first
 CI run** — the green run reported is on the final head, and the review is
 told to confirm the `head_sha` rather than the run's colour.
+
+## 2026-09-13 — 2517's review: mergeable, and the sharpest sentence of the session
+
+**0 MAJOR, 2 MINOR, 11 style.** Verdict mergeable, and the round produced
+a general statement worth more than any of its individual findings.
+
+### The proof technique was re-taken, properly
+
+The reviewer built a detached worktree at `origin/main`, installed the
+suite's first 231 lines **verbatim** (`diff` IDENTICAL), mounted it and
+ran it: all four document rows pass on main, seven rendered strings
+including both arms whose `Display` expression changed. It then checked
+the thing that could have undermined the claim — **what had to be removed
+to make it compile** — and found it was only the source census, which is
+necessarily false on a main with no door and contributes nothing to the
+rendered-string claim.
+
+That is now the strongest evidence any text-preserving refactor on this
+program has produced, and the technique has crossed three units without
+being re-invented.
+
+### The sentence
+
+> **A census that finds sites by the spelling it is normalising can only
+> ever find the ones that already comply.**
+
+That is the reviewer's, and it explains a pattern this program has been
+circling since PR 2376: every vocabulary census built here keys on the
+canonical spelling, so it is structurally blind to exactly the sites the
+unit exists to find. The seventh spelling hid from the row's census that
+way; the eighth and ninth hid from this unit's the same way.
+
+### Four of nine, and the sweep had already printed them
+
+The review found an **eighth** site — `DeclareUnsupportedPair`, inside
+the enum this unit's census walks, in the door's own file, reporting
+**the declared kind off the `StableName` rather than the resolved key**,
+which is precisely what `entity`'s doc forbids a caller from doing,
+thirty lines from where that doc says it. Safe today only because
+`insert_ref` rejects a name whose kind disagrees with its key — an
+invariant, not a construction.
+
+And a **ninth** on the same road as the one converted, reached by the
+same verb, naming no found kind at all and conflating *"not a face"* with
+*"a face of the wrong body"*.
+
+**The damning part is not that they were missed.** `rg 'EntityKey::'`
+returns 156 lines and **both are in that output**. The sweep found them
+and stopped before triaging them. *"What would find an eighth is the
+sweep they already ran, triaged to the end."*
+
+### The trap, in the guard, in a PR whose thesis is the trap
+
+`line` and `boundary_before` are **byte-identical** to the operand door
+suite's, and `door()` is the same function modulo two sentinel strings —
+while `test_utils::source` is the declared one home and already hosts
+three siblings, with a module doc arguing guards must not each write
+their own. **A PR whose thesis is "three copies of five lines get one
+home" shipped two more copies of two helpers.**
+
+### And a vacuity that is the *partial* form of the one we knew about
+
+`built` is populated by iterating **over `declared`**, so a carrier that
+falls out of `declared` falls out of `built` too and the equality passes
+at the lower count. Measured: re-spelling one field's type path — using
+an import already in that file — left the suite **6/6 green with that
+carrier covered by nothing**. The non-emptiness assertion does not reach
+it, because that guards the **total** case, which is exactly what the
+unit's own mutant exercised.
+
+We have now met this vacuity three times in three shapes: both sides
+empty, a scan that went to zero, and now **one member silently leaving
+both sides at once**. The rule needs its third clause: *derive the two
+sides independently, or the equality is only a statement about one of
+them.*
