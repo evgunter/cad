@@ -994,3 +994,23 @@ no longer name the tolerance lever at their in-band site). **Ordinal
 concurrently on the frozen head** — byte 157 ⇒ R1 = FABLE, R2 = OPUS;
 briefs stored with digests on `blend/b3-block` before either ran. The
 unit's log entry waits for the dual; unit 15 dispatches when it merges.
+
+**Unit 14 landed (2026-09-13)** on PR [#2509](https://github.com/evgunter/cad/pull/2509),
+head `c603c8fb5`, full matrix green (run 34754771075). Phase 1 walked
+158 contact edges on the corpus (all in lane, all seven stations
+Positive, every minimum the closed form) and found the spec's
+near-osculating family screened by the battery before the rule
+(`fillet3_face_clearance` refuses below `R/r ≈ 1.2`); the stop clause
+did not fire because an admitted rod scaled into the band's octave
+reaches the in-band verdict at all three ε rows — today it builds the
+intrinsic description and then refuses from inside the attachment
+gate. `attach_contact`'s intrinsic arm now routes through
+`must_carry_over_edge` (`JetDeterminate` → the intrinsic description;
+`UnderDetermined` → the `he_plus` chart; `InBand` → `Escalated` with a
+new `FILLET3_CONTACT_RECOURSE` whose lever is ENLARGE the radius); the
+differential byte-identical; K 7 per contact edge where it was 0. A
+D-bore's concave fixture refuses `BodyNotIntact` at the ruled door and
+is filed. **Ordinal 2907 claimed (orchestrator PR to main); the v6
+dual dispatched concurrently on the frozen head** — byte 201 ⇒ R1 =
+FABLE, R2 = OPUS; briefs stored with digests on `blend/b3-block`
+before either ran. The unit's log entry waits for the dual.
