@@ -46,6 +46,27 @@ loses a DECLARED contact rather than refusing, and the declaration
 layer's whole argument is that a declared contact is not dropped
 without a word.
 
+## The repro, measured
+
+Not a reading. WIRE's review lane built it and ran it, in
+`boolean::ops`' own test module, against two mutually-referring dead
+face keys and one declared v-on-f contact:
+
+```
+PROBE_B a_on_b after a CYCLE:    0 record(s)
+PROBE_B a_on_b after a DEAD END: 0 record(s)
+```
+
+The two are **indistinguishable at the call site**, which is the
+finding. The probe is committed beside this row at
+`work/bool/probe-descendant-cycle.patch` — apply it to
+`crates/topo/src/boolean/ops.rs` to re-take the measurement. Authorship
+is the review lane's (2026-09-13); it is a probe, not a merge
+candidate, and it asserts the two counts EQUAL so that separating them
+is what turns it red.
+
+## The comment that says otherwise
+
 The row's own comment asserts the cycle cannot happen — *"rows never
 cycle: a dead key maps to its survivor"* — which is exactly the
 argument `emit_topo`'s three chases carried before one of them was

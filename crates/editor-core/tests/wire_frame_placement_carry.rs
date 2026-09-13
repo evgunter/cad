@@ -533,8 +533,10 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
             Some(editor_core::NodeResult::Failed(e))
                 if matches!(
                     &e.kind,
-                    editor_core::NodeErrorKind::FrameDirection { frame: named, refusal }
-                        if *named == frame && refusal.role == "datum frame x axis"
+                    editor_core::NodeErrorKind::FrameDirection { profile: reader, frame: named, refusal }
+                        if *reader == profile
+                            && *named == frame
+                            && refusal.role == "datum frame x axis"
                 )
         ),
         "the profile is the reader that needed the nominal placement, so the \
@@ -550,8 +552,17 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         .kind
         .to_string();
     assert!(
-        shown.contains(&format!("node {}", frame.0)),
-        "the sentence the user reads names the frame by id: {shown}"
+        shown.contains(&format!("datum frame node {}", frame.0))
+            && shown.contains(&format!("profile node {}", profile.0)),
+        "the sentence the user reads names both nodes by id: {shown}"
+    );
+    // The ids come BEFORE the fact: three of the four facts end in a
+    // remedy clause, and the escalation's runs to hundreds of
+    // characters, so a locator at the tail is one nobody reads.
+    let at = |needle: &str| shown.find(needle).expect(needle);
+    assert!(
+        at(&format!("datum frame node {}", frame.0)) < at("zero length"),
+        "the locator trails the fact it qualifies: {shown}"
     );
     assert!(
         shown.contains("datum frame x axis") && shown.contains("zero length"),
@@ -626,8 +637,10 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
             Some(editor_core::NodeResult::Failed(e))
                 if matches!(
                     &e.kind,
-                    editor_core::NodeErrorKind::FrameDirection { frame: named, refusal }
-                        if *named == frame && refusal.role == "datum frame y axis"
+                    editor_core::NodeErrorKind::FrameDirection { profile: reader, frame: named, refusal }
+                        if *reader == profile
+                            && *named == frame
+                            && refusal.role == "datum frame y axis"
                 )
         ),
         "and the profile reads the same axis back, off the same frame: {:?}",

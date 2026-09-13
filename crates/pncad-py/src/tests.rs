@@ -2039,21 +2039,29 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {
+        profile: RecipeNodeId(7),
         frame: RecipeNodeId(3),
         refusal: DirectionRefusal {
             role: "datum frame x axis",
             error,
         },
     };
-    for error in [
-        UnitVec3Error::Degenerate,
-        UnitVec3Error::NonFiniteLength,
-        UnitVec3Error::UnderflowedLength,
-        UnitVec3Error::Escalated(Indeterminate {
-            margin: MarginDiag::Value(2.0e-9),
-            band,
-            predicate: Some("datum_unit_norm"),
-        }),
+    // The WORD per fact, written down. Comparing the two sides alone
+    // would stay green if `wire::refusal` mapped `Degenerate` onto
+    // `NonFiniteDirection`: both sides move together, so only a
+    // literal catches a re-pointed arm.
+    for (error, word) in [
+        (UnitVec3Error::Degenerate, "degenerate_direction"),
+        (UnitVec3Error::NonFiniteLength, "non_finite_direction"),
+        (UnitVec3Error::UnderflowedLength, "underflowed_direction"),
+        (
+            UnitVec3Error::Escalated(Indeterminate {
+                margin: MarginDiag::Value(2.0e-9),
+                band,
+                predicate: Some("datum_unit_norm"),
+            }),
+            "escalated",
+        ),
     ] {
         let direct = DirectionRefusal {
             role: "datum frame x axis",
@@ -2062,22 +2070,31 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
         .node_error();
         assert_eq!(
             node_error_tag(&carried(error)),
-            node_error_tag(&direct),
-            "the carried refusal answers a different word from the one the \
-             frame's own node answers for the same fact, so a caller that \
-             matched the frame's word stops matching the profile's"
+            word,
+            "the carried refusal stopped answering the word this fact has \
+             always answered, so every Python caller matching it breaks"
         );
-        // The fact is the outer word here, as it is for the frame's
-        // own raise: there is no second discriminant to project.
-        assert_eq!(node_inner_kind_tag(&carried(error)), None);
+        assert_eq!(
+            node_error_tag(&carried(error)),
+            node_error_tag(&direct),
+            "the carried refusal and the frame's own raise have diverged"
+        );
+        // Compared, not pinned: today both are `None`, and if the
+        // direction family ever projects an inner discriminant, the
+        // carried road must project the same one rather than keeping
+        // a `None` this row froze in.
+        assert_eq!(
+            node_inner_kind_tag(&carried(error)),
+            node_inner_kind_tag(&direct),
+            "the carried road projects a different inner tag from the frame's own"
+        );
     }
 
-    // And the id the arm exists for reaches the prose.
+    // And the two ids the arm exists for reach the prose.
+    let shown = carried(UnitVec3Error::Degenerate).to_string();
     assert!(
-        carried(UnitVec3Error::Degenerate)
-            .to_string()
-            .contains("node 3"),
-        "the frame the refusal names is the whole point of the arm"
+        shown.contains("node 7") && shown.contains("node 3"),
+        "the arm names the profile that read and the frame that refused: {shown}"
     );
 }
 

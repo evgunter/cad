@@ -83,24 +83,14 @@ pub enum NamingError {
     /// [`Self::SplitLineage`], carrying the one thing the repair needs
     /// that a sentence cannot supply: WHICH face.
     ///
-    /// **A sibling word rather than one generalised over
-    /// [`super::table::EntityKey`], deliberately.** The two
-    /// cycles are corrupt records of DIFFERENT families — this one is
-    /// a mint-time `face_fragments` row, [`Self::SplitLineage`]'s is a
-    /// `SplitEdge` birth record `topo` itself refuses over — and one
-    /// word for the class would tell a caller the key's kind while
-    /// hiding which record family to go and read. Collapsing them
-    /// would also RETIRE `split_lineage_cycle` from
-    /// `naming_error_tag`, and a word already on the Python wire does
-    /// not move for a tidier enum.
+    /// A sibling word rather than one generalised over
+    /// [`super::table::EntityKey`]: the two cycles are corrupt records
+    /// of DIFFERENT families — a mint-time `face_fragments` row here,
+    /// a `SplitEdge` birth record for [`Self::SplitLineage`] — so one
+    /// word for the class would name the key's kind while hiding which
+    /// map to go and read.
     ///
-    /// **Guarded at the door it comes through.** These rows arrive as
-    /// `BooleanNaming::face_fragments_a` — a public field of a public
-    /// struct, handed to the emitter as data — so
-    /// `emit_topo`'s `a_cycling_fragment_map_refuses` writes a two-row
-    /// cycle and exercises this raise. With the refusal removed that
-    /// row shows what the old code did: a total table in which two
-    /// faces carry each other's operand name.
+    /// Guarded by `emit_topo`'s `a_cycling_fragment_map_refuses`.
     FragmentLineage {
         /// The face whose fragment chain cycles — the key the chase
         /// was ASKED about, which is the one a repair starts from.
@@ -175,9 +165,10 @@ impl core::fmt::Display for NamingError {
             // The category IS an emission inconsistency, so the framing
             // is the same one; what the caught record adds is the locator.
             Self::SplitLineage(cycle) => write!(f, "{EMISSION_FRAMING}: {cycle}"),
-            // The sibling sentence, one family over: `topo` writes
-            // the edge one, so this is the only place the face one
-            // can be written.
+            // The record family is in the sentence, not only the key:
+            // `fragment lineage` and `split lineage` are two different
+            // things to go and read, and a reader who gets the wrong
+            // one searches the wrong map.
             Self::FragmentLineage { face } => write!(
                 f,
                 "{EMISSION_FRAMING}: fragment lineage of face {face:?} cycles: its \
@@ -990,10 +981,10 @@ mod display_tests {
         (a, b)
     }
 
-    /// **Two distinct face keys, out of a real arena** —
-    /// [`two_edges`]' argument, one entity kind over. `mvfs` births a
-    /// face per solid, and two solids in ONE arena is what makes the
-    /// two keys different.
+    /// **Two distinct face keys, out of a real arena.** `FaceKey` is a
+    /// slotmap key and nothing in this crate mints one by hand, so the
+    /// arena is the only source; two solids in ONE arena is what makes
+    /// the keys different, and nothing below depends on their VALUES.
     fn two_faces() -> (FaceKey, FaceKey) {
         let mut body = topo::Body::<f64>::new();
         let mut mint = |x: f64| {

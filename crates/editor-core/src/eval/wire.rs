@@ -1258,11 +1258,13 @@ pub(crate) fn mint_frame_placement(
 /// one way it is asked and names the frame with the one phrase —
 /// [`NodeErrorKind::FrameDirection`] where the frame carried a
 /// direction refusal ([`FramePlacement::Unreadable`], raised HERE
-/// because this is the reader that needed it, and naming the frame
-/// because this is NOT the node that refused), and
-/// [`NodeErrorKind::MissingInput`] for a reference with no value.
+/// because this is the reader that needed it, and naming BOTH
+/// `profile` and the frame because neither is reliably the node the
+/// error ends up attached to — the section seam raises it on the loft),
+/// and [`NodeErrorKind::MissingInput`] for a reference with no value.
 pub(crate) fn profile_plane_f64<T: Decide>(
     results: &Results<T>,
+    profile: RecipeNodeId,
     plane: RecipeNodeId,
 ) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
     // The carry's `None` IS the kind refusal — a node that is not a
@@ -1276,6 +1278,7 @@ pub(crate) fn profile_plane_f64<T: Decide>(
         // exactly why it must name the frame: on this node the role
         // word alone says which AXIS refused and nothing says whose.
         FramePlacement::Unreadable(refusal) => Err(NodeErrorKind::FrameDirection {
+            profile,
             frame: plane,
             refusal,
         }),
@@ -4508,7 +4511,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // (`SectionScalar`, decided by the type); anywhere else the
     // section refuses typed, naming itself and the frame, rather than
     // placing on a fabricated point of the frame's bracket.
-    let plane = match profile_plane_f64(results, program.plane)? {
+    let plane = match profile_plane_f64(results, id, program.plane)? {
         Some(authored) => authored,
         None => {
             let lane_plane = frame_plane_lane(results, program.plane)?;

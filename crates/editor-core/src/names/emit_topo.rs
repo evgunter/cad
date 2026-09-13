@@ -102,20 +102,12 @@ fn face_extent<T: Decide>(
 ///
 /// # Errors
 ///
-/// A budget bounded by the row count is spent only by a walk that
-/// revisited a key, and a revisited key is a corrupt mint-time record
-/// — [`NamingError::FragmentLineage`], carrying the face this chase
-/// was asked about. The root this returns becomes a GROUP key and is
-/// handed to [`upstream_name`], so a chase that fell out of its loop
-/// with the cursor it happened to be holding would not refuse: it
-/// would name faces after a stranger, which for a naming kernel is
-/// worse than any refusal.
-///
-/// **Guarded**, by `a_cycling_fragment_map_refuses` below: the rows
-/// arrive as `BooleanNaming::face_fragments_a`, a public field of a
-/// public struct that a caller hands to [`name_boolean`] as data, so
-/// a two-row cycle is written at the door and the refusal is
-/// exercised rather than argued.
+/// A spent budget means the walk revisited a key, which is a corrupt
+/// mint-time record — [`NamingError::FragmentLineage`], carrying the
+/// face this chase was asked about. The root becomes a GROUP key and
+/// is handed to [`upstream_name`], so falling out of the loop with the
+/// cursor would name faces after a stranger instead of refusing.
+/// Guarded by `a_cycling_fragment_map_refuses` below.
 fn chase(rows: &BTreeMap<FaceKey, FaceKey>, f: FaceKey) -> Result<FaceKey, NamingError> {
     let mut at = f;
     for _ in 0..=rows.len() {
@@ -532,6 +524,13 @@ pub(crate) fn name_boolean<T: Decide>(
     // right key space).
     let descend_face = |f: FaceKey| -> Result<Descent, NamingError> {
         match (naming.a_keys, naming.b_keys) {
+            // The key the B arm chases — and therefore the key a
+            // refusal here renders — is a B-CLONE key, not a key of
+            // the result arena the other three arms name. That is the
+            // graft's key space, inherited rather than chosen: the
+            // rows are `face_fragments_b`, minted before the clone was
+            // grafted. A reader comparing the rendered key against the
+            // result body will not find it.
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_faces.get(&f) {
                 Some(&fb) => Ok(Descent::B(chase(&b_rows, fb)?)),
                 None => Ok(Descent::A(chase(&a_rows, f)?)),
@@ -1621,10 +1620,14 @@ mod tests {
     /// catch is writable at this door — which is why this raise is
     /// guarded rather than argued about.
     ///
-    /// The row is worth more than its pass: with `chase`'s refusal
-    /// removed, `name_boolean` returns `Ok` with a TOTAL table in
-    /// which `built.top` carries bottom's operand name and
-    /// `built.bottom` carries top's. That is the defect, exhibited.
+    /// The row is worth more than its pass. With `chase`'s refusal
+    /// removed, `name_boolean` returns `Ok` with a TOTAL table of 27
+    /// rows in which the two caps carry each other's operand names —
+    /// measured, not argued: `built.top` comes out
+    /// `FromA(Cap(Start))` and `built.bottom` comes out
+    /// `FromA(Cap(End))`, each the other's. Nothing is missing and
+    /// nothing refuses; the document is simply wrong about which face
+    /// is which.
     ///
     /// Written by the review lane of 2026-09-13; adopted with its
     /// argument.
