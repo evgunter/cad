@@ -494,3 +494,41 @@ No Co-Authored-By (blinded implementer). Do not merge; the orchestrator does.
 The §4 door chain is read from the source, not executed (no cargo run in this
 lane); the cap-vs-wall arena order at check 7; whether a genuine latitude fixture
 for row 5 exists; the Python mirror of `CurveKind`.
+
+---
+
+## 12. Rulings at ratification (CURVED orchestrator, 2026-09-13)
+
+Ratified as written, with these answers to §10 and one re-cut of §9:
+
+1. **Two PRs, not one.** The unit is H on breadth alone (~72 source
+   arms, ~99 test-side hits, four suite flips, a new pcurve lane with
+   thirteen external consumers), and §0 measured that the elbow reaches
+   check 7 WITHOUT the pcurve variant. So **PR-1a** = §1 (the variant
+   and its `geom` rows), §2 (the census arms), §4 (`mint_carrier` +
+   `param_on` + the suite flips + the opening/closing measurement),
+   §7's doc edits and audit rows, rows 1–8 and 11; **PR-1b** = §3 (the
+   `Pcurve::Spiric` variant and its certification/mint) + §5 (STEP)
+   with rows 9–10, opening after 1a merges. Ev's Q3(i) ruling puts the
+   pcurve variant in this UNIT; it is its second PR. Each PR is its own
+   v6 dual and its own A/B slot (1a = block CURVED-B2 slot 1, FABLE;
+   1b draws next). Branches `curved/spiric-1a`, `curved/spiric-1b`.
+2. **`readback::edge_pose` on a spiric answers the stored frame as a
+   pose** (the six fields ARE a canonical frame; `NoCanonicalFrame` is
+   for kinds without one). A reviewer who prefers the refusal argues it
+   in the dual.
+3. **Row 5**: mutation-demonstrated red-then-green is accepted, with
+   the fixture question answered in-row (the RIMCAP shape); if the
+   implementer finds a public-door latitude fixture, it is preferred.
+4. **The MESH finding** (the trimmed tessellation lane has no torus or
+   plane arm, so a spiric-bounded wall cannot mesh after this unit) is
+   filed by the orchestrator at ratification as
+   `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`
+   (S-MESH's crate); PR-1a's typed frontier row names it.
+5. **Pre-log stands: PR-1a H / STRUCTURAL; PR-1b M / STRUCTURAL**
+   (the pcurve certification is a structural identity check plus one
+   closed-form residual; the STEP spline is fitted for export only).
+
+**Opening act (PR-1a, before any code)**: the §8 STOP 1 measurement —
+both elbow rows, the two-arc row and the sectioned vessel at the head,
+payloads quoted; the authority of the rim measured `Derived`.
