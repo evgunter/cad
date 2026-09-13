@@ -2016,6 +2016,88 @@ fn inner_arm_tags_are_stable() {
     );
 }
 
+/// **A frame's direction refusal, carried to the node that read it,
+/// keeps the word the frame's own raise answers.**
+///
+/// `NodeErrorKind::FrameDirection` exists to add the frame's ID to a
+/// refusal a reader raises about ANOTHER node — the fact is
+/// unchanged, so the tag is unchanged, and a Python caller matching
+/// `degenerate_direction` keeps matching after the locator lands.
+/// That is a claim about the MAPPING, which the inventory cannot
+/// make: swap this arm for a freshly minted word and the inventory
+/// still has to be edited, but nothing would say the edit broke every
+/// caller of the old one.
+///
+/// All four of the direction door's facts, because the arm delegates
+/// and a delegation that answered one fixed word for all of them
+/// would pass a one-row pin.
+#[test]
+fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
+    use crate::tags::{node_error_tag, node_inner_kind_tag};
+    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId, UnitVec3Error};
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+
+    let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
+    let carried = |error| NodeErrorKind::FrameDirection {
+        profile: RecipeNodeId(7),
+        frame: RecipeNodeId(3),
+        refusal: DirectionRefusal {
+            role: "datum frame x axis",
+            error,
+        },
+    };
+    // The WORD per fact, written down. Comparing the two sides alone
+    // would stay green if `wire::refusal` mapped `Degenerate` onto
+    // `NonFiniteDirection`: both sides move together, so only a
+    // literal catches a re-pointed arm.
+    for (error, word) in [
+        (UnitVec3Error::Degenerate, "degenerate_direction"),
+        (UnitVec3Error::NonFiniteLength, "non_finite_direction"),
+        (UnitVec3Error::UnderflowedLength, "underflowed_direction"),
+        (
+            UnitVec3Error::Escalated(Indeterminate {
+                margin: MarginDiag::Value(2.0e-9),
+                band,
+                predicate: Some("datum_unit_norm"),
+            }),
+            "escalated",
+        ),
+    ] {
+        let direct = DirectionRefusal {
+            role: "datum frame x axis",
+            error,
+        }
+        .node_error();
+        assert_eq!(
+            node_error_tag(&carried(error)),
+            word,
+            "the carried refusal stopped answering the word this fact has \
+             always answered, so every Python caller matching it breaks"
+        );
+        assert_eq!(
+            node_error_tag(&carried(error)),
+            node_error_tag(&direct),
+            "the carried refusal and the frame's own raise have diverged"
+        );
+        // Compared, not pinned: today both are `None`, and if the
+        // direction family ever projects an inner discriminant, the
+        // carried road must project the same one rather than keeping
+        // a `None` this row froze in.
+        assert_eq!(
+            node_inner_kind_tag(&carried(error)),
+            node_inner_kind_tag(&direct),
+            "the carried road projects a different inner tag from the frame's own"
+        );
+    }
+
+    // And the two ids the arm exists for reach the prose.
+    let shown = carried(UnitVec3Error::Degenerate).to_string();
+    assert!(
+        shown.contains("node 7") && shown.contains("node 3"),
+        "the arm names the profile that read and the frame that refused: {shown}"
+    );
+}
+
 /// The same pair at the edit door: `variant` and `inner_variant`.
 #[test]
 fn edit_inner_variant_tags_are_stable() {
@@ -3968,6 +4050,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "duplicate",
             "emission",
             "escalated",
+            "fragment_lineage_cycle",
             "missing_upstream",
             "split_lineage_cycle",
             "unnamed",
@@ -4050,6 +4133,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         ],
         delegates: &[
             "mate_fault_tag",
+            "node_error_tag",
             "part_fault_tag",
             "placement_rule_fault_tag",
         ],
