@@ -222,3 +222,82 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         assert_ne!(shown, format!("{err:?}"));
     }
 }
+
+/// **The failure path's order is ARENA order, not the map's.**
+///
+/// `tessellate`'s per-face dispatch is D9 idiom 1, so every face's lane
+/// runs whatever the first one answers, and the refusal a caller sees
+/// is chosen by the fold rather than by whichever worker finished
+/// first. The serial loop got that for free by stopping at the first
+/// refusing face; here it is a property of the fold and so it is
+/// checked.
+///
+/// The body is the washer with TWO faces poisoned into refusing —
+/// differently, so the two refusals are distinguishable — one at the
+/// head of the face arena and one at its tail. The answer must be the
+/// head's, at every thread count.
+#[test]
+fn two_faces_refusing_differently_report_the_first_in_arena_order() {
+    use geom::Surface;
+    use geom_core::{Point3, Vec3};
+    use topo::{Body, FaceKey, FaceSurface};
+
+    fn poison(body: &mut Body<f64>, which: usize, surface: Surface<f64>) -> FaceKey {
+        let fk = body.faces().nth(which).expect("a face at that index").0;
+        body.set_face_surface(fk, FaceSurface::New(surface))
+            .expect("the surface swap is accepted");
+        fk
+    }
+    // Two surfaces a washer's face cannot be. Both refuse INSIDE a
+    // lane, which is the point: a poison the chord pass refuses (a
+    // placeholder NURBS, say) never reaches the map and would test the
+    // order of a pass that is still serial.
+    let sphere = || Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cone = || Surface::Cone {
+        apex: Point3::new(0.0, 0.0, 4.0),
+        axis: Vec3::new(0.0, 0.0, -1.0),
+        half_angle: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+
+    let clean = washer();
+    let n = clean.faces().count();
+    assert!(n >= 2, "the row needs a head and a tail face");
+
+    let mut head_only = clean.clone();
+    poison(&mut head_only, 0, sphere());
+    let head =
+        tessellate(&head_only, 0.05, Tol::witness()).expect_err("the poisoned head face refuses");
+
+    let mut tail_only = clean.clone();
+    poison(&mut tail_only, n - 1, cone());
+    let tail =
+        tessellate(&tail_only, 0.05, Tol::witness()).expect_err("the poisoned tail face refuses");
+    assert_ne!(
+        format!("{head:?}"),
+        format!("{tail:?}"),
+        "the two poisons must refuse differently, or this row proves nothing"
+    );
+
+    let mut both = clean;
+    poison(&mut both, 0, sphere());
+    poison(&mut both, n - 1, cone());
+    for threads in [1usize, 4] {
+        let got = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .expect("a rayon pool of the requested width")
+            .install(|| tessellate(&both, 0.05, Tol::witness()).expect_err("both faces refuse"));
+        assert_eq!(
+            format!("{got:?}"),
+            format!("{head:?}"),
+            "at {threads} thread(s) the reported refusal is the LAST face's, not the \
+             first in arena order — the fold is taking the map's order"
+        );
+    }
+}
