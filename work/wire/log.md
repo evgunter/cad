@@ -3540,3 +3540,69 @@ its one hard obligation — it is a structural unification of three
 copies, and three user-visible refusals move. `refusal-subject` gets a
 **full review**: it turns a silently wrong answer into a refusal, on a
 naming path, and adds public Python surface to do it.
+
+## 2026-09-13 — the entity door returned, and it proved its text claim instead of asserting it
+
+PR 2517, full matrix green (12 `test (…)`, 5 `k-lint`, 0 in flight, 0
+non-success — verified here). To a light style review.
+
+### The technique that made the difference
+
+The unit's central risk was the same as PR 2480's: **three user-visible
+refusals move through a new door.** Rather than claim byte-identity, the
+lane **compiled its new suite's four document rows, unchanged, on a
+worktree at `origin/main`** and showed all four pass there. Seven
+strings, including both `MeasureSelectionKind` arms whose `Display`
+expression changed.
+
+That is PR 2480's probe technique — render on both trees and compare —
+applied **unprompted**, and it is now the third unit to settle a
+text-preservation claim with an instrument rather than an argument. The
+review is told to re-take it, and specifically to check *what had to be
+removed to make it compile*, because that is where such a comparison
+quietly weakens.
+
+### Two dispositions argued rather than converted, which is the harder answer
+
+- `names::interrogate`'s `kind_mismatch` is **not an instance**: already
+  one home for four call sites, already computes `found.kind()` itself,
+  a different error type, and it **keeps a fact this door has no room
+  for** (`WholeBody`).
+- `stackup.rs` is **not this class at all**: `ResultArm`'s two words are
+  result arms of paired evaluations, not entity kinds.
+
+Both were on the row's own census as spellings of one question. Saying
+"this one is not the defect, and here is the fact that distinguishes it"
+is harder than converting it, and it is the answer a hit list is for.
+
+### A seventh spelling, and the blind spot that hid it
+
+`assembly.rs`'s `RefusedRef::NotAFace` computes its own word, so there is
+no correctness defect — the residue is a **third field name for one
+answer**. Filed on DOCM's slate.
+
+**And the lane named the reason its own census would miss an eighth**:
+the census walks `eval/mod.rs`'s `NodeErrorKind` body, so it **cannot see
+past that enum** — which is exactly what let the seventh hide from the
+row's census. Stated in the suite's own doc, in its own words. The review
+is asked for a judgement rather than a finding: is that an honestly
+scoped guard, or does it re-arm the defect one level out?
+
+### Two smaller things worth keeping
+
+`EntityKey::vertex` was **deliberately not added** — no consumer — which
+is this program's own `Frame::linear` lesson applied by a lane that did
+not live through it. And the census **projects its subject**: set A
+walked out of the enum's body, set B what the file constructs, equated
+both ways with a non-emptiness assertion whose message names its own
+failure mode, and a mutant aimed at each limb.
+
+### An operational fact worth the log
+
+The lane's first push was **rejected by the pre-push hook as
+unformatted**, and its observation is the transferable part: **`cargo
+test` is happy with formatting the hook rejects.** A lane that runs only
+tests locally will meet the hook for the first time at push, which is the
+worst moment to learn it. Its second push also **cancelled its own first
+CI run** — the green run reported is on the final head, and the review is
+told to confirm the `head_sha` rather than the run's colour.
