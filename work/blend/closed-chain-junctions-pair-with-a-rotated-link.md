@@ -48,3 +48,37 @@ Block BLEND-B1 slot 1 (reordered ahead of
 three-arc rim refusing is a user-facing defect; the ladder orientation
 is unmeasured). Spec `docs/BLEND-7-SPEC.md`, to be written; pre-draw
 fields logged there before dispatch.
+
+## Landed (PR 2483, with the fix pass)
+
+`battery::Junction { vertex, arriving, leaving }` — a chain's junction
+carries the two links the walk found incident to it, as positions
+into the chain's links (read-only accessors; the fields are
+crate-private), and the G1 check reads those. The record's order is
+walk order, kept so the record is the same chain from any seed; the
+check reads each junction's own pair. The `debug_assert!` on incidence
+is a tripwire in debug-assertion builds, not a pin.
+
+What the rows pin: `closed_chain_junctions::every_junction_of_every_walked_chain_touches_both_its_links`
+(and R1's/R2's twin rows) pin the RECORD and stay green under a check
+that mis-reads a correct record; the carve rows
+(`n_arc_discs_…`, `n_arc_pocket_floors_…`, `n_arc_bores_and_boss_feet_…`,
+the reviewers' N-past-the-suite rows, and
+`review_blend1_r1_probes::r1_a_three_arc_rim_carves_where_a_two_arc_rim_does`)
+pin the READ. The oracle is `test_support::wedge_fill` (the 90° corner
+at the meridian), not a second implementation. Both closed-rim doors
+carve N = 2…6 crossings on both material sides; the spec's "three-arc
+bore" is convex, the concave rims are a boss foot and a pocket floor.
+
+The `arcs.len() == 2` premise: every revolve/boolean site is a fixture
+fact stated at the site (`assert_full_revolve_rim`); the extruded
+two-arc fixtures (`m5_pr12_refusals::tilted_rim`, the r1 rows) were the
+premise that excluded the defect and now say so; `is_seam_vertex`'s
+`[(p, q), second]` and `cap_incidence`'s `[_, _, _]` are vertex
+invariants of chain ENDS, unexercised at N ≥ 3 because closed rims have
+none; `surgery.rs`'s per-crossing `arcs.len() != 2` is a vertex
+invariant holding at every crossing of an N-arc rim.
+
+Filed from here: `rim-of-refuses-extruded-multi-arc-rims`,
+`battery-holds-the-chain-data-model-beside-the-predicates`,
+`self-closed-link-sharing-its-vertex-records-two-junctions`.
