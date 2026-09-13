@@ -1359,6 +1359,30 @@ pub enum NodeErrorKind {
         /// The derived frame it is drawn on.
         frame: RecipeNodeId,
     },
+    /// A reader needed an AUTHORED frame's `f64` placement and the
+    /// frame's own direction slots refused, so the refusal is raised
+    /// on the reader (`wire::profile_plane_f64`) and names the frame
+    /// that actually refused. [`NodeErrorKind::DerivedFrameSection`]'s
+    /// shape: a refusal that lands on one node about another says
+    /// which other.
+    ///
+    /// **The carried refusal is the fact, not a second one.** A frame
+    /// slot that refuses reaches a human two ways — raised at the
+    /// frame by [`crate::Datum::Frame`]'s own evaluation, or carried
+    /// to the reader that needed the nominal
+    /// ([`crate::FramePlacement::Unreadable`]) — and both spell it
+    /// through [`DirectionRefusal::node_error`], so the sentence and
+    /// the tag are the same on both roads. What this arm adds is the
+    /// frame's id, which the role word alone cannot supply: "the datum
+    /// frame x axis has zero length", read on a profile, names no
+    /// frame in a document with two.
+    FrameDirection {
+        /// The frame node whose direction slot refused.
+        frame: RecipeNodeId,
+        /// The frame's own refusal, unaltered — which vector, and
+        /// which of the direction door's four facts.
+        refusal: DirectionRefusal,
+    },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed before
@@ -1872,6 +1896,16 @@ impl core::fmt::Display for NodeErrorKind {
             Self::FaceFrameReadback { error } => write!(
                 f,
                 "the derived frame's face resolved to a key its body could not read back: {error}"
+            ),
+            // The carried refusal speaks its own sentence — the same
+            // one the frame node shows — and this arm adds the
+            // locator the reader is missing.
+            Self::FrameDirection { frame, refusal } => write!(
+                f,
+                "{} — and it is datum frame node {} that refused, which this node is \
+                 drawn on",
+                refusal.node_error(),
+                frame.0
             ),
             Self::DerivedFrameSection { profile, frame } => write!(
                 f,

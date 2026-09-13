@@ -3968,6 +3968,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "duplicate",
             "emission",
             "escalated",
+            "fragment_lineage_cycle",
             "missing_upstream",
             "split_lineage_cycle",
             "unnamed",
@@ -4050,6 +4051,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         ],
         delegates: &[
             "mate_fault_tag",
+            "node_error_tag",
             "part_fault_tag",
             "placement_rule_fault_tag",
         ],

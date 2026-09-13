@@ -1026,8 +1026,12 @@ impl DirectionRefusal {
     /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
     /// because on this road the kernel type owns the value. **The one
     /// spelling**: every road from a carried or raised refusal to a
-    /// [`NodeErrorKind`] comes through here.
-    pub(crate) fn node_error(self) -> NodeErrorKind {
+    /// [`NodeErrorKind`] comes through here — including
+    /// [`NodeErrorKind::FrameDirection`]'s `Display` and its tag,
+    /// which is why this is `pub`: a carried refusal that named the
+    /// frame would otherwise have to re-spell the fact in the crate
+    /// that reads it.
+    pub fn node_error(self) -> NodeErrorKind {
         refusal(self.error, self.role, DATUM_UNIT_NORM)
     }
 }
@@ -1252,10 +1256,11 @@ pub(crate) fn mint_frame_placement(
 /// [`NodeErrorKind::WrongOperand`] when the reference does not name a
 /// frame — through [`operand`], so this reader asks the question the
 /// one way it is asked and names the frame with the one phrase —
-/// the nominal read's own direction refusal where the frame carried one
-/// ([`FramePlacement::Unreadable`], raised HERE because this is the
-/// reader that needed it), and [`NodeErrorKind::MissingInput`] for a
-/// reference with no value.
+/// [`NodeErrorKind::FrameDirection`] where the frame carried a
+/// direction refusal ([`FramePlacement::Unreadable`], raised HERE
+/// because this is the reader that needed it, and naming the frame
+/// because this is NOT the node that refused), and
+/// [`NodeErrorKind::MissingInput`] for a reference with no value.
 pub(crate) fn profile_plane_f64<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,
@@ -1266,7 +1271,14 @@ pub(crate) fn profile_plane_f64<T: Decide>(
     match operand(results, plane, super::phrase::DATUM_FRAME, |v| v.placement)? {
         FramePlacement::Authored(placement) => Ok(Some(placement)),
         FramePlacement::Derived => Ok(None),
-        FramePlacement::Unreadable(r) => Err(r.node_error()),
+        // The refusal is the frame's; raising it HERE is right (a
+        // frame nobody draws on must not poison the document) and is
+        // exactly why it must name the frame: on this node the role
+        // word alone says which AXIS refused and nothing says whose.
+        FramePlacement::Unreadable(refusal) => Err(NodeErrorKind::FrameDirection {
+            frame: plane,
+            refusal,
+        }),
     }
 }
 

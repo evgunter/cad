@@ -99,14 +99,38 @@ fn face_extent<T: Decide>(
 
 /// Chases a face key through fragment rows to its root (the key that
 /// is not itself a minted fragment). Bounded by the row count.
-fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
+///
+/// # Errors
+///
+/// A budget bounded by the row count is spent only by a walk that
+/// revisited a key, and a revisited key is a corrupt mint-time record
+/// — [`NamingError::FragmentLineage`], carrying the face this chase
+/// was asked about. The root this returns becomes a GROUP key and is
+/// handed to [`upstream_name`], so a chase that fell out of its loop
+/// with the cursor it happened to be holding would not refuse: it
+/// would name faces after a stranger, which for a naming kernel is
+/// worse than any refusal.
+///
+/// **Unguardable, and here is why.** These rows are minted by `topo`'s
+/// splitter and boolean in one pass over freshly minted faces, so a
+/// cycle needs a corrupt mint, and no door reachable from this crate
+/// builds one: the cycling-lineage route that IS real
+/// (`work/bool/graft-copies-provenance-keys-verbatim.md`, a graft
+/// copying provenance records with their source keys) aliases EDGE
+/// records — what `chase_edge_to_table` and `chase_b` below walk —
+/// and not the face-fragment rows this reads. The raise is therefore
+/// **untested rather than proven absent**, and what `names::emit`'s
+/// `display_tests` pin is the locator's route from the caught key to
+/// the human, not the catch.
+fn chase(rows: &BTreeMap<FaceKey, FaceKey>, f: FaceKey) -> Result<FaceKey, NamingError> {
+    let mut at = f;
     for _ in 0..=rows.len() {
-        match rows.get(&f) {
-            Some(&p) => f = p,
-            None => return f,
+        match rows.get(&at) {
+            Some(&p) => at = p,
+            None => return Ok(at),
         }
     }
-    f
+    Err(NamingError::FragmentLineage { face: f })
 }
 
 /// Chases an edge through `SplitEdge` birth records
@@ -302,7 +326,7 @@ fn name_split_edges_vertices<T: Decide>(
         // have no covariant order-along direction of their own.
         let mut chords_by_face: BTreeMap<FaceKey, Vec<EdgeKey>> = BTreeMap::new();
         for (&e, &other) in &chord_faces {
-            let root = chase(frag_rows, other);
+            let root = chase(frag_rows, other)?;
             chords_by_face.entry(root).or_default().push(e);
         }
         for (root, edges) in chords_by_face {
@@ -510,11 +534,11 @@ pub(crate) fn name_boolean<T: Decide>(
     let descend_face = |f: FaceKey| -> Result<Descent, NamingError> {
         match (naming.a_keys, naming.b_keys) {
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_faces.get(&f) {
-                Some(&fb) => Ok(Descent::B(chase(&b_rows, fb))),
-                None => Ok(Descent::A(chase(&a_rows, f))),
+                Some(&fb) => Ok(Descent::B(chase(&b_rows, fb)?)),
+                None => Ok(Descent::A(chase(&a_rows, f)?)),
             },
-            (OperandKeys::Direct, OperandKeys::Absent) => Ok(Descent::A(chase(&a_rows, f))),
-            (OperandKeys::Absent, OperandKeys::Direct) => Ok(Descent::B(chase(&b_rows, f))),
+            (OperandKeys::Direct, OperandKeys::Absent) => Ok(Descent::A(chase(&a_rows, f)?)),
+            (OperandKeys::Absent, OperandKeys::Direct) => Ok(Descent::B(chase(&b_rows, f)?)),
             _ => Err(NamingError::Emission {
                 what: "unsupported operand-key layout",
             }),
@@ -1384,7 +1408,10 @@ fn name_split_faces<T: Decide>(
     b: geom_core::Band,
 ) -> Result<(), NamingError> {
     // Every root that was ever divided: fragments cover it.
-    let divided: BTreeSet<FaceKey> = frag_rows.values().map(|&p| chase(frag_rows, p)).collect();
+    let divided: BTreeSet<FaceKey> = frag_rows
+        .values()
+        .map(|&p| chase(frag_rows, p))
+        .collect::<Result<_, NamingError>>()?;
     // (root, side-slot) → members.
     type Members = Vec<(u32, SplitHalf, FaceKey)>;
     let mut groups: BTreeMap<(FaceKey, u32), Members> = BTreeMap::new();
@@ -1393,7 +1420,7 @@ fn name_split_faces<T: Decide>(
             if section_keys.contains(&f) {
                 continue;
             }
-            let root = chase(frag_rows, f);
+            let root = chase(frag_rows, f)?;
             if root == f && !divided.contains(&root) {
                 // Uncut operand face: pass-through (N1: the split
                 // contributes no segment to survivors).

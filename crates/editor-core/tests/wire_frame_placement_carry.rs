@@ -533,13 +533,29 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
             Some(editor_core::NodeResult::Failed(e))
                 if matches!(
                     &e.kind,
-                    editor_core::NodeErrorKind::DegenerateDirection { role }
-                        if *role == "datum frame x axis"
+                    editor_core::NodeErrorKind::FrameDirection { frame: named, refusal }
+                        if *named == frame && refusal.role == "datum frame x axis"
                 )
         ),
         "the profile is the reader that needed the nominal placement, so the \
-         refusal is raised there, naming the axis: {:?}",
+         refusal is raised there, naming the axis AND the frame that refused: {:?}",
         ev.result(profile)
+    );
+    // The id is not decoration: it is the half a reader on this node
+    // cannot recover, because the role word is the same for every
+    // frame in the document.
+    let shown = ev
+        .node_error(profile)
+        .expect("the profile refused")
+        .kind
+        .to_string();
+    assert!(
+        shown.contains(&format!("node {}", frame.0)),
+        "the sentence the user reads names the frame by id: {shown}"
+    );
+    assert!(
+        shown.contains("datum frame x axis") && shown.contains("zero length"),
+        "and the fact the frame's own node states survives the carry: {shown}"
     );
 }
 
@@ -610,11 +626,11 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
             Some(editor_core::NodeResult::Failed(e))
                 if matches!(
                     &e.kind,
-                    editor_core::NodeErrorKind::DegenerateDirection { role }
-                        if *role == "datum frame y axis"
+                    editor_core::NodeErrorKind::FrameDirection { frame: named, refusal }
+                        if *named == frame && refusal.role == "datum frame y axis"
                 )
         ),
-        "and the profile reads the same axis back: {:?}",
+        "and the profile reads the same axis back, off the same frame: {:?}",
         ev.result(profile)
     );
 }
