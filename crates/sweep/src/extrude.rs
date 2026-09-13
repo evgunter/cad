@@ -31,10 +31,12 @@
 //!    sharing) keep the conventional description structurally;
 //!    otherwise `classify_dihedral` at the strut midpoint decides —
 //!    Transverse upgrades to `Intersection` via `set_edge_curve`,
-//!    Smooth descends one order through
-//!    [`geom_brep::tangent_second_order`] (jet-determinate ⇒
-//!    `TangentIntersection`, under-determined ⇒ an image in the
-//!    previous wall's chart), Indeterminate is a typed sliver error.
+//!    Smooth descends one order through the must-carry rule over the
+//!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
+//!    the certification schedule's interior stations, in its one home:
+//!    jet-determinate ⇒ `TangentIntersection`, under-determined ⇒ an
+//!    image in the previous wall's chart, in-band ⇒ the typed sliver),
+//!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
 //!    Newell plane.
@@ -412,6 +414,24 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
     }
 }
 
+/// **The strut's carrier, in one expression.** A strut is the ruling
+/// of the sweep through its seed vertex: the line from the vertex's
+/// bottom image along the extrusion direction, arc-length
+/// parameterized over `0..w_norm`. The mint writes it and the join
+/// pass RESTATES it when it re-describes the same edge — restating,
+/// never re-deriving, because `Curve3::line_between(q, q + w)`
+/// recomputes the direction and the interval from endpoints that need
+/// not be bitwise the ones the edge was minted with, which moves
+/// geometry in a pass whose whole contract is that only the
+/// DESCRIPTION moves. One expression is what makes "the same bits"
+/// a fact rather than three copies that agree today.
+fn strut_carrier<T: Real>(q_bottom: Point3<T>, w: Vec3<T>) -> Curve3<T> {
+    Curve3::Line {
+        origin: q_bottom,
+        dir: w.normalize(),
+    }
+}
+
 /// A strut-edge spec: `ExtrudedPoint` description, straight-line
 /// carrier from the bottom point along the extrusion vector,
 /// parameterized by arc length over `0..w_norm`.
@@ -434,10 +454,7 @@ fn extruded_strut_spec<T: Real>(
             place,
             vec: w,
         }),
-        carrier: Curve3::Line {
-            origin: q_bottom,
-            dir: w.normalize(),
-        },
+        carrier: strut_carrier(q_bottom, w),
         param_start: T::zero(),
         param_end: w_norm,
     }
@@ -907,50 +924,54 @@ fn sweep_loop<T: Decide>(
                         s2: k_next,
                         witness: mid,
                     },
-                    carrier: Curve3::Line {
-                        origin: qs[j],
-                        dir: w.normalize(),
-                    },
+                    carrier: strut_carrier(qs[j], w),
                     param_start: T::zero(),
                     param_end: w_norm,
                 };
                 body.set_edge_curve(struts[j].edge, spec, tol)?;
             }
             Ok(DihedralClass::Smooth) => {
-                // OQ7's must-carry, applied at construction (M5 PR 9):
-                // a definitely-smooth join whose SECOND-ORDER
-                // separation is definite is a jet-determinate tangency
-                // (the surfaces determine the locus — the fillet-grade
-                // line–arc profile join), upgraded to
-                // `TangentIntersection` exactly as the transverse arm
-                // upgrades to `Intersection`. A zero-side second order
-                // (G2/under-determined) keeps the conventional
-                // description BY THE PREDICATE; in-band escalates as
-                // the same typed sliver (F6).
-                match geom_brep::tangent_second_order(&s_prev, &s_next, mid, w, w_norm, band)
-                    .verdict
-                {
-                    Ok(geom_core::Sign::Positive) => {
+                // OQ7's must-carry, applied at construction over the
+                // WHOLE strut: a definitely-smooth join the rule finds
+                // jet-determinate is a genuine tangency (the surfaces
+                // determine the locus — the fillet-grade line–arc
+                // profile join), upgraded to `TangentIntersection`
+                // exactly as the transverse arm upgrades to
+                // `Intersection`. Under-determined keeps the
+                // conventional description BY THE PREDICATE; in-band
+                // escalates as the same typed sliver (F6). The gate,
+                // the stations and the three-way policy are the
+                // rule's, not this arm's
+                // ([`geom_brep::must_carry_over_edge`]).
+                let carrier = strut_carrier(qs[j], w);
+                match geom_brep::must_carry_over_edge(
+                    &s_prev,
+                    &s_next,
+                    &carrier,
+                    T::zero(),
+                    w_norm,
+                    w_norm,
+                    band,
+                ) {
+                    geom_brep::MustCarryVerdict::JetDeterminate => {
                         let spec = EdgeCurveSpec {
                             description: EdgeDescriptionSpec::TangentIntersection {
                                 s1: k_prev,
                                 s2: k_next,
                                 witness: mid,
                             },
-                            carrier: Curve3::Line {
-                                origin: qs[j],
-                                dir: w.normalize(),
-                            },
+                            carrier,
                             param_start: T::zero(),
                             param_end: w_norm,
                         };
                         body.set_edge_curve(struts[j].edge, spec, tol)?;
                     }
-                    Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
-                        // Zero-side second order: the surfaces
-                        // under-determine the locus, so the strut
+                    geom_brep::MustCarryVerdict::UnderDetermined => {
+                        // The surfaces under-determine the locus — a
+                        // zero-side second order, or a pair outside
+                        // the certificate's lane — so the strut
                         // "keeps the conventional description BY THE
-                        // PREDICATE" — the sentence above, unchanged.
+                        // PREDICATE" — the sentence above.
                         // The conventional form is a chart IMAGE, not
                         // the scaffolding the mint left (D3's
                         // transience fence), so spelling that sentence
@@ -964,8 +985,7 @@ fn sweep_loop<T: Decide>(
                         // does, so the choice is argued rather than
                         // taken. An extruded wall is the sweep of its
                         // profile segment along `w`, hence RULED in
-                        // `w`; the strut is
-                        // `Line { origin: qs[j], dir: w.normalize() }`
+                        // `w`; the strut is [`strut_carrier`]
                         // — the ruling through the vertex the two
                         // segments SHARE. That ruling lies in both
                         // walls exactly, so either chart is a
@@ -997,7 +1017,7 @@ fn sweep_loop<T: Decide>(
                         // above.
                         body.describe_at_rest(struts[j].edge, k_prev, tol)?;
                     }
-                    Err(source) => {
+                    geom_brep::MustCarryVerdict::InBand(source) => {
                         return Err(ExtrudeError::SliverJoin {
                             loop_index,
                             vertex_index: segs[j].chord.canonical_vertex,

@@ -82,8 +82,9 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DihedralClass, MaterialPairing, MaterialWedge, SecondOrder, classify_dihedral,
-    classify_material_pairing, folded_lever_arm, material_kappa_rel, tangent_second_order,
+    DihedralClass, MaterialPairing, MaterialWedge, MustCarryVerdict, SecondOrder,
+    classify_dihedral, classify_material_pairing, folded_lever_arm, material_kappa_rel,
+    must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
