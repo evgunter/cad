@@ -4726,3 +4726,380 @@ mod tests {
         assert!(rungs >= 30, "the magnitude ladder covered {rungs} rungs");
     }
 }
+
+/// **What a stored fillet arc can carry of the tangency the door
+/// computed** — the measurement behind the door's own stored-form
+/// check, over four decades of corner turn at whatever ε the run
+/// commits.
+///
+/// A fillet arc is emitted as a chord plus a bulge. Its sagitta,
+/// `L·b/2 = r(1 − cos(θ/2))`, is the margin `segment_straightness`
+/// classifies, so a fillet whose turn is small enough that
+/// `r·θ²/8 ≤ ε` is stored as a segment the validator reads as a
+/// **line**: the carrier the door computed is not in the stored form at
+/// all. The door's own carrier, by contrast, is tangent to both legs to
+/// within a few ulps at every turn — which is what
+/// [`the_door_computes_its_tangency_to_the_ulp`] asserts and what
+/// decides that the door, not the classifier, is the side that has to
+/// ask before it emits.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)]
+mod fillet_stored_form {
+    use super::*;
+    use crate::path::verbs::Center;
+    use crate::seg::{self, JointClass, Seg, SegIssue, SegKind};
+    use crate::sugar::ArcSweep;
+    use crate::{Profile, ProfileLoop, SketchPlane};
+
+    /// The fillet radius every corner below is rounded with.
+    const R: f64 = 0.2;
+
+    fn p2(x: f64, y: f64) -> Point2<f64> {
+        Point2::new(x, y)
+    }
+
+    /// The arrival leg's carrier. The door's fillet arc is tangent to it
+    /// at `t2`, so the carrier's unit tangent there plus the turn sense
+    /// reconstructs the centre the door computed — `fillet_arc_carrier`'s
+    /// `t2 + n̂·σr`, read from the stored end point.
+    #[derive(Clone, Copy)]
+    enum Arrival {
+        Ray(Vec2<f64>),
+        Circle { c: Point2<f64>, ccw: bool },
+    }
+
+    impl Arrival {
+        /// The direction of travel along the carrier at `p`.
+        fn tangent_at(self, p: Point2<f64>) -> Vec2<f64> {
+            match self {
+                Arrival::Ray(u) => u,
+                Arrival::Circle { c, ccw } => {
+                    let radial = p - c;
+                    let t = Vec2::new(-radial.y, radial.x) / radial.norm_squared().sqrt();
+                    if ccw { t } else { -t }
+                }
+            }
+        }
+    }
+
+    /// One corner of the sweep: the door that rounds it, the arrival
+    /// carrier its fillet arc ends tangent to, and a name for the table.
+    struct Corner {
+        name: &'static str,
+        build: fn(f64) -> Result<ProfileLoop<f64>, PathError<f64>>,
+        arrival: fn(f64) -> Arrival,
+    }
+
+    /// The margin `carrier_line_circle` / the `carrier_circles_*` family
+    /// decides the joint on, between `other` and the circle (`centre`,
+    /// `radius`): the funnel's branching, so the margin reported is the
+    /// one the classification actually stopped at.
+    fn circle_margin(other: &Seg<f64>, centre: Point2<f64>, radius: f64, band: Band) -> f64 {
+        match &other.kind {
+            SegKind::Line => radius - other.unit.perp_dot(centre - other.a).abs(),
+            SegKind::Arc(g) => {
+                let d = g.center.distance(centre);
+                let dr = (g.radius - radius).abs();
+                let identity = d + dr;
+                if decide("carrier_circles_identity", Margin::of(identity), band)
+                    != Ok(Sign::Positive)
+                {
+                    return identity;
+                }
+                let external = d - (g.radius + radius);
+                match decide("carrier_circles_external", Margin::of(external), band) {
+                    Ok(Sign::Negative) => d - dr,
+                    _ => external,
+                }
+            }
+        }
+    }
+
+    /// The margin the joint between `prev` and `next` is decided on as
+    /// the validator reads their stored forms — the line/line arm is
+    /// `chord_side` on the far endpoint, every other arm a carrier
+    /// clearance.
+    fn stored_margin(prev: &Seg<f64>, next: &Seg<f64>, band: Band) -> f64 {
+        match (&prev.kind, &next.kind) {
+            (SegKind::Line, SegKind::Line) => prev.unit.perp_dot(next.b - prev.a),
+            (SegKind::Line, SegKind::Arc(g)) => circle_margin(prev, g.center, g.radius, band),
+            (SegKind::Arc(g), _) => circle_margin(next, g.center, g.radius, band),
+        }
+    }
+
+    fn kind_of(s: &Seg<f64>) -> &'static str {
+        match s.kind {
+            SegKind::Line => "line",
+            SegKind::Arc(_) => "arc",
+        }
+    }
+
+    fn issue(e: &SegIssue) -> String {
+        match e {
+            SegIssue::Degenerate => "degenerate".to_string(),
+            SegIssue::NearFull => "near-full".to_string(),
+            SegIssue::Escalated(i) => format!("in band: {}", i.predicate.unwrap_or("?")),
+        }
+    }
+
+    fn class(c: Result<JointClass, Indeterminate>) -> &'static str {
+        match c {
+            Ok(JointClass::Tangent) => "tangent",
+            Ok(JointClass::Transversal) => "TRANSVERSAL",
+            Ok(JointClass::SameCarrier) => "same-carrier",
+            Err(_) => "escalated",
+        }
+    }
+
+    fn short(s: &str) -> String {
+        s.chars().take(72).collect()
+    }
+
+    /// The stored fillet arc of a door-built loop: the segment whose two
+    /// joints the door both declared tangent.
+    fn fillet_index(lp: &ProfileLoop<f64>) -> Option<usize> {
+        let vs = lp.vertices();
+        let n = vs.len();
+        let declared = lp.tangent_joints();
+        (0..n).find(|&i| {
+            declared.contains(&i) && declared.contains(&((i + 1) % n)) && vs[i].bulge() != 0.0
+        })
+    }
+
+    /// What the door emitted for one turn and what the validator reads
+    /// back out of it: one table row, and the door's own tangency
+    /// margins at both joints for the assertion above the table.
+    fn row(lp: &ProfileLoop<f64>, arrival: Arrival, theta: f64, tol: Tol) -> (String, [f64; 2]) {
+        let band = match Band::linear(tol) {
+            Ok(b) => b,
+            Err(e) => return (format!("| {theta:e} | band: {e} |"), [0.0; 2]),
+        };
+        let vs = lp.vertices();
+        let n = vs.len();
+        let Some(s) = fillet_index(lp) else {
+            return (
+                format!(
+                    "| {theta:e} | no joint-declared arc: n = {n}, declared = {:?}, bulges = {:?} |",
+                    lp.tangent_joints(),
+                    vs.iter().map(|v| v.bulge()).collect::<Vec<_>>()
+                ),
+                [0.0; 2],
+            );
+        };
+        let built: Vec<Result<Seg<f64>, SegIssue>> = (0..n)
+            .map(|i| seg::build_seg(vs[i].pos(), vs[(i + 1) % n].pos(), vs[i].bulge(), band))
+            .collect();
+        let validates = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
+            Ok(_) => "ok".to_string(),
+            Err(e) => format!("REFUSED: {}", short(&e.to_string())),
+        };
+        let bulge = vs[s].bulge();
+        let chord = vs[s].pos().distance(vs[(s + 1) % n].pos());
+        let head = format!(
+            "| {theta:e} | {:e} | {chord:e} | {bulge:e} | {:e} |",
+            R * theta,
+            (chord * bulge * 0.5).abs()
+        );
+        let (prev, next) = ((s + n - 1) % n, (s + 1) % n);
+        let (Ok(arc), Ok(p), Ok(nx)) = (&built[s], &built[prev], &built[next]) else {
+            let tag = |r: &Result<Seg<f64>, SegIssue>| match r {
+                Ok(s) => kind_of(s).to_string(),
+                Err(e) => issue(e),
+            };
+            return (
+                format!(
+                    "{head} prev {}, fillet {}, next {} | - | - | - | - | - | - | - | - | built | \
+                     {validates} |",
+                    tag(&built[prev]),
+                    tag(&built[s]),
+                    tag(&built[next])
+                ),
+                [0.0; 2],
+            );
+        };
+        let t2 = arc.b;
+        let u2 = arrival.tangent_at(t2);
+        let sigma = if bulge >= 0.0 { R } else { -R };
+        let door_centre = t2 + Vec2::new(-u2.y, u2.x) * sigma;
+        let door = [
+            circle_margin(p, door_centre, R, band),
+            circle_margin(nx, door_centre, R, band),
+        ];
+        let (d_centre, d_radius) = match &arc.kind {
+            SegKind::Arc(g) => (
+                format!("{:e}", g.center.distance(door_centre)),
+                format!("{:e}", (g.radius - R).abs()),
+            ),
+            SegKind::Line => ("stored as a line".to_string(), "-".to_string()),
+        };
+        (
+            format!(
+                "{head} {} | {d_centre} | {d_radius} | {:e} | {:e} | {:e} | {:e} | {} | {} | \
+                 built | {validates} |",
+                kind_of(arc),
+                stored_margin(p, arc, band),
+                stored_margin(arc, nx, band),
+                door[0],
+                door[1],
+                class(seg::joint_tangency(p, arc, band)),
+                class(seg::joint_tangency(arc, nx, band)),
+            ),
+            door,
+        )
+    }
+
+    /// The item's line × line bend: the incoming ray runs east from the
+    /// origin, the corner sits at (4, 0), the arrival leaves it at
+    /// `theta`, anchored three units along.
+    fn line_line(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+        let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+        Open.at(p2(0.0, 0.0))
+            .angle(0.0, Tol::witness())?
+            .fillet(R, Tol::witness())?
+            .at(anchor, Tol::witness())?
+            .angle(theta, Tol::witness())?
+            .line(1.0, Tol::witness())?
+            .line_to(Start, Tol::witness())
+            .map(|c| c.loop_)
+    }
+
+    /// The line × arc corner's arrival circle: radius 2, counterclockwise
+    /// tangent (cos θ, sin θ) at the corner (4, 0).
+    fn line_arc_centre(theta: f64) -> Point2<f64> {
+        p2(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
+    }
+
+    /// A line × arc corner turning by `theta`: the east ray from the
+    /// origin meets that circle at (4, 0) and the fillet closes along it.
+    fn line_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+        let c = line_arc_centre(theta);
+        let start = c + Vec2::new(2.0 * theta.cos(), 2.0 * theta.sin());
+        Open.at(start)
+            .line_to(p2(0.0, 0.0), Tol::witness())?
+            .toward(1.0, 0.0, Tol::witness())?
+            .fillet_arc(
+                R,
+                Center {
+                    c,
+                    winding: ArcSweep::Ccw,
+                    p: Start,
+                },
+                Tol::witness(),
+            )
+            .map(|c| c.loop_)
+    }
+
+    /// An arc × arc corner turning by `theta`: two radius-2 circles about
+    /// (−θ, 0) and (θ, 0) cross at (0, √(4 − θ²)), where their tangents
+    /// are an angle θ apart — the vesica of the arc × arc fixtures, with
+    /// its corner opened out to a shallow turn.
+    fn arc_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+        Open.arc_fillet_arc(
+            Center {
+                c: p2(-theta, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0 - theta, 0.0),
+            },
+            R,
+            Center {
+                c: p2(theta, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(theta - 2.0, 0.0),
+            },
+            Tol::witness(),
+        )?
+        .line_to(Start, Tol::witness())
+        .map(|c| c.loop_)
+    }
+
+    fn corners() -> [Corner; 3] {
+        [
+            Corner {
+                name: "line x line",
+                build: line_line,
+                arrival: |t| Arrival::Ray(Vec2::new(t.cos(), t.sin())),
+            },
+            Corner {
+                name: "line x arc",
+                build: line_arc,
+                arrival: |t| Arrival::Circle {
+                    c: line_arc_centre(t),
+                    ccw: true,
+                },
+            },
+            Corner {
+                name: "arc x arc",
+                build: arc_arc,
+                arrival: |t| Arrival::Circle {
+                    c: Point2::new(t, 0.0),
+                    ccw: true,
+                },
+            },
+        ]
+    }
+
+    /// The swept turns: `c·10^k`, `c ∈ {1, 2, 5}`, `k ∈ {−9 … −2}`.
+    fn turns() -> impl Iterator<Item = f64> {
+        (-9i32..=-2).flat_map(|k| [1.0, 2.0, 5.0].map(|c| c * 10f64.powi(k)))
+    }
+
+    /// **The door computes the tangency exactly; the stored form is what
+    /// loses it.** At every turn the door builds, the carrier the door
+    /// computed — radius `r`, centred `r` off the arrival carrier at the
+    /// arc's end — is tangent to both legs to within a few ulps of `r`,
+    /// whatever the stored chord-and-bulge form reads back as. The table
+    /// this prints (`--nocapture`) is the per-decade measurement: the
+    /// stored kind, the two carrier errors, the margins both sides
+    /// decide on, and both verdicts.
+    #[test]
+    fn the_door_computes_its_tangency_to_the_ulp() {
+        let tol = Tol::witness();
+        // A few ulps of the corners' coordinate extent: each margin is
+        // a difference of metre-scale lengths formed from coordinates
+        // within ten metres of the origin.
+        let ulps = 8.0 * f64::EPSILON * 10.0;
+        for corner in corners() {
+            println!(
+                "\n### {}   eps = {:e}  K = {}  band = ({:e}, {:e})  r = {R}",
+                corner.name,
+                tol.eps(),
+                tol.k(),
+                tol.eps(),
+                tol.eps() * tol.k()
+            );
+            println!(
+                "| turn | r*turn | chord | bulge | sagitta | stored kind | |dcentre| | |dradius| \
+                 | margin in | margin out | door in | door out | joint in | joint out | door | \
+                 validate |"
+            );
+            println!("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+            for theta in turns() {
+                match (corner.build)(theta) {
+                    Err(e) => println!(
+                        "| {theta:e} | {:e} | - | - | - | - | - | - | - | - | - | - | - | - | \
+                         REFUSED: {} | - |",
+                        R * theta,
+                        short(&e.to_string())
+                    ),
+                    Ok(lp) => {
+                        let (line, door) = row(&lp, (corner.arrival)(theta), theta, tol);
+                        println!("{line}");
+                        for (joint, margin) in door.iter().enumerate() {
+                            assert!(
+                                margin.abs() <= ulps,
+                                "{}, turn {theta:e}: the door's own carrier misses tangency at \
+                                 joint {joint} by {margin:e}",
+                                corner.name
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

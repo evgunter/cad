@@ -1,9 +1,10 @@
 ---
 id: path-fillet-door-validator-tangency-disagree
-kind: issue
+kind: unit
 title: The PATHS .fillet(r) door builds tangent joints Profile::validate refuses as transversal, for turns from 1e-7 to 1e-4 rad
-status: open
+status: dispatched
 opened: 2026-09-04
+branch: blend/10-fillet-stored-tangency
 ---
 
 ## The witness
