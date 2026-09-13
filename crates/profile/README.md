@@ -238,11 +238,38 @@ either is relayed as `PathError::Escalated` naming the same
 classification. The pins are `tests/fillet_stored_tangency.rs` and the
 three sentences' rows in `tests/fillet_recourse_followability.rs`.
 
+**Every fillet gate's in-band verdict carries that gate's own recourse.**
+`PathError::Escalated`'s `Display` asks `validate::fillet_recourse_for`
+for the sentence belonging to the escalation's predicate name — the one
+map from the nine `fillet_*` names to the six `FILLET_*_RECOURSE`
+sentences, several names sharing a sentence because they share a user
+situation (D4 ¶1's addendum) — and renders the site it was resolving
+with that sentence and no coincidence tail: a fillet the caller asked for
+has no joint they declared, so "declare the coincidence" names a
+declaration that does not exist. The fillet names are asked first, ahead
+of the stored-form classifications and the junction keys, and are
+disjoint from both. `tests/fillet_recourse_followability.rs` censuses the
+nine against the `decide("fillet_…")` call sites across `src`, so a gate
+added anywhere in the crate without a sentence is a red row, and so is a
+gate that disappears — the census is an equality with the tree.
+
+Six of the nine take an in-band verdict from a request a caller can
+author. Of the other three, `fillet_corner_arm` is shadowed by
+magnitude — its margin IS the lever arm, so putting it in the band puts a
+length-shaped path gate in the band on the same request — and
+`fillet_leg_fit` and `fillet_leg_reach` classify against the exact-order
+band, which no representable `f64` lies inside: that last is a statement
+about `f64` alone, and the interval lane already drives `fillet_leg_fit`
+in band. Two of the six are levered or scene-scaled rather than radius-
+scaled, which is why their sentences name the leg extent and the bound on
+the lever's own window.
+
 **What stays.** `Leg::tangent_point`'s antipodal flip (the ρ < 0 tangent
 point) remains as the closed form's sign rule, unit-pinned and
 unreachable by any door. No construction is known to reach
-`NoCornerReason::NoCornerSideCandidate` since the class refuses earlier
-(`work/issues/nocornersidecandidate-has-no-producer.md`). The pins are
+`NoCornerReason::NoCornerSideCandidate` since the class refuses earlier;
+the item that owned that reading was deleted with its program's tracker
+directory and is recoverable at the SHA `docs/DOC-LEDGER.md` names. The pins are
 `tests/review_s2.rs`'s `the_lattice_door_never_emits_an_enclosing_tangency`,
 `enclosing_fillet_swallows_both_leg_carriers` and
 `an_enclosing_leg_forces_an_equally_enclosing_partner`. The 3-D blend

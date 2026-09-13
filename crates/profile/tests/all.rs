@@ -124,8 +124,16 @@ mod r2_bool11_review_probes;
 mod r2_bool9_review_probes;
 #[path = "raw_door_census.rs"]
 mod raw_door_census;
+#[path = "review_fillet_recourse_arm_r2_probes.rs"]
+mod review_fillet_recourse_arm_r2_probes;
+
+#[path = "review_r2_differential.rs"]
+mod review_r2_differential;
+
 #[path = "rejections.rs"]
 mod rejections;
+#[path = "review_fillet_recourse_arm_r1_probes.rs"]
+mod review_fillet_recourse_arm_r1_probes;
 #[path = "review_fillet_stored_tangency_r1_probes.rs"]
 mod review_fillet_stored_tangency_r1_probes;
 #[path = "review_m2_pr2.rs"]

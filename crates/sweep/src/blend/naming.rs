@@ -135,7 +135,11 @@ pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
 pub struct Retired {
     /// Source edges that no longer exist: the requested chain edges
     /// (excised across their strips) and, on the rim path, the
-    /// meridian remnants killed with their rim vertex.
+    /// meridian remnants killed with their rim vertex that are the
+    /// SOURCE key. A remnant the carve itself minted dies unrecorded,
+    /// and owes no row: it reaches neither this set — which names what
+    /// the blend took from the body the caller handed in — nor the
+    /// output. `surgery::retire_fragment` is that rule's one home.
     pub edges: Vec<EdgeKey>,
     /// Source vertices that no longer exist: the sharp corners fused
     /// under their octants, and the rim vertices.

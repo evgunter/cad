@@ -161,3 +161,23 @@ without loss. `work.py --selftest`'s date-pinned fixture expired on
 ## Announced from LIB (2026-09-09): a derive word on `SurfaceKind` and `CarrierRelation`
 
 LIB-MIRROR (PR #2271) adds `Hash` to `geom_brep::SurfaceKind` (`intersect.rs:109`) and `topo::CarrierRelation` (`boolean/carrier_eq.rs:64`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; nothing else in either file moves.
+
+## Resumed after a six-day outage (2026-09-13)
+
+A Fable-side limit killed the merge-door lane mid-fix-pass on
+2026-09-07 and blocked this session until 2026-09-13; the account's
+weekly window has since reset (Ev, in-chat: proceed with the rest of
+the slate). Main moved ~3000 commits meanwhile; two items were filed
+onto this slate by other orchestrators and are acknowledged:
+`axis-coincident-lap-trips-the-planar-join-invariant` (a box lap whose
+plane contains the cylinder axis reaches `chord_join.rs`'s planar-lane
+conic guard through the public subtract door — the operand-reach lane)
+and LIB's derive announcement on `SurfaceKind`/`CarrierRelation`.
+Block CURVED-B2 drawn branch-side (byte 22 ⇒ fable at slot 1): slot 0 =
+CURVED-TORUS PR-2 (Opus) on `curved/torus-arm`; slot 1 = the spiric
+carrier unit (Fable; spec lane opened); slot 2 banks. The merge-door
+lane (B1 slot 2, Fable) resumes its re-scope. Operations: a merge of
+main into the block branch conflicted in the A/B log and the
+orchestrator committed the markers before noticing — repaired by a
+resolving commit (union of both appended sections), never rewritten;
+the whole-tree marker grep is now part of every merge here.
