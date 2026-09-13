@@ -1,9 +1,10 @@
 ---
 id: overrun-attribution-picks-the-first-candidate
-kind: issue
+kind: unit
 title: The anchor-fit refusal reports the FIRST corner-side candidate, not the one it is metered against
-status: open
+status: dispatched
 opened: 2026-09-05
+branch: blend/11-overrun-nearest-fit
 ---
 
 
