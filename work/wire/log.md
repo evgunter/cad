@@ -2485,3 +2485,90 @@ waiter self-test rule catching exactly what it exists to catch.
 first instance is deleted and the two `profile` `map_scalar` rungs are
 the half still live, with a `## Half disposed` section giving the reason
 their dispositions differ.
+
+## 2026-09-13 — CORRECTION: `Mat3::map` was never consumerless, and this log said it three times
+
+PR 2487's review returned **1 MAJOR** and it is against a claim **this
+orchestrator relayed upstream and wrote into this log at three places**
+(`:2030`, `:2063`, `:2147`). Those sentences are **wrong** and are
+corrected here rather than edited in place, because this log is
+append-only and the record of having been wrong is the useful part.
+
+**`crates/geom-core/src/linalg/affine.rs:48` is `Affine3::map`'s body:**
+
+```rust
+Affine3::from_parts(self.linear.map(&f), self.translation.map(&f))
+```
+
+`self.linear` is `Mat3<T>`, so that call **is** `Mat3::map`; the second
+is `Vec3::map`. Verified here, not taken on report. The function's own
+doc comment two lines above says it in words — *"the linear part through
+`Mat3::map`, the translation through `Vec3::map`"* — so the claim was
+refutable by reading the documentation of the function that makes the
+call.
+
+**The irony is load-bearing**: `Frame::affine`, the door PR 2487 *keeps*,
+is `affine_f64().map(T::from_f64)` → `Affine3::map` → `Mat3::map`.
+Deleting `Frame::linear` orphaned nothing, and the test the unit kept
+still exercises it.
+
+### The instrument was right; the narration overstated it
+
+This is the transferable part, and it is a **class**, not a slip.
+
+The measurement table defines level **B** as `pub` → `pub(crate)`,
+answering *"any consumer outside this crate"* — and `E0624` **cannot
+fire for a same-crate caller**. `Mat3::map` was measured at level B and
+then written up as *"its only consumer **workspace-wide**"*. Those are
+different claims and the second does not follow from the first.
+
+**The evidence that refutes it was inside the table the whole time.**
+Every level-B row with no in-crate use reports a `warning: method … is
+never used` beside its errors — `Vec2::map`, `Point2::map`,
+`Point3::map`, `Affine3::map` all do. The `Mat3::map` and `Vec3::map`
+rows report **no warning at all**, which is exactly what an in-crate
+consumer looks like. Nobody read the absent warning as data.
+
+**Three parties repeated it**: PR 2475's reviewer, who ran the level-B
+mutation and got exactly one `E0624` (a true result); PR 2487's lane,
+which inherited the narration; and this orchestrator, who relayed it to
+Ev as *"`Mat3::map`'s only consumer anywhere"*. A correct measurement
+narrated one notch too broadly survived two reviews and a merge, because
+each party checked the number and none re-read what the number measured.
+
+**Rule, stated for the rest of this program**: *a demotion measurement
+answers the question its LEVEL asks. `pub` → `pub(crate)` answers
+"outside this crate"; only dropping `pub` entirely answers "anywhere".
+Write the verdict in the level's own words, and treat an absent
+`never used` warning as evidence of an in-crate consumer.*
+
+### What is NOT affected
+
+**`Frame::linear`'s deletion stands.** Its own measurement was **level
+A** — drop `pub` entirely, `never used` with no errors, whole workspace
+compiling — which is the level that answers "anywhere", and the reviewer
+confirms the deletion is correct and complete, the surviving test still
+reds for real reasons, and nothing in code, docs, READMEs or `pncad.pyi`
+still claims the door exists. The decision was sound; the side-finding
+it exported was not.
+
+The fix pass is directed to sweep **every** level-B row for the same
+substitution rather than repairing the two named, and to label a
+half-fix if it stops.
+
+### The census blind spot is confirmed and sharper than reported
+
+The reviewer settled it and found a second instrument the lane had not
+named. The Rust census builds its alphabet with `module_pub_use_names`
+over `editor-core/src/lib.rs` — leaf names of root `pub use`. The Python
+side has **two** censuses, not one, and the member-level one
+(`test_every_member_of_a_matched_type_is_spelled_or_listed`) draws from
+`declared_members`, which reads enum variants and bare-`pub` struct
+fields and **never reads `impl` blocks**. So `Frame`'s two `pub` fields
+are guarded and every one of its methods is not.
+
+**The class: the surface censuses guard names and members, and no
+instrument in this tree guards a public *method*.** Every public method
+added or removed here is unseen by both. Filed on `work/meta/`, and
+cited from `crates/pncad/tests/all.rs`'s doc-comment as a fourth blind
+spot beside the three it already lists.
