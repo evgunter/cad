@@ -4,6 +4,7 @@ kind: issue
 title: assemble's tier-3 census over the aggregate body is quadratic in solids - 1.3 s at 161
 status: open
 opened: 2026-09-10
+parent: PERF-12
 ---
 
 ## The finding

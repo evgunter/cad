@@ -1069,3 +1069,26 @@ the scene-module gate-then-measure sweep, the per-build triangle
 table, the serial continuation walks, the quadrature setup re-entry,
 the fixed price of the map on cheap bodies, NURBS Q/8, the sphere
 margin, the theta-names naming step) — a next block is Ev's call.
+
+## 2026-09-13 — Ev: cut the fourth block; block PERF-B4 drawn (BRANCH-SIDE)
+
+Ev on the proposed block ("the triangle-table memo, the serial
+continuation walks, and the assemble census"): "that block sounds
+good!". Three units cut and specced: PERF-10 (`pick-index-triangle-
+table-rebuilt-every-build`, `docs/PERF-10-SPEC.md`, the index seam),
+PERF-11 (`face-walks-outside-mass-properties-are-still-serial`,
+`docs/PERF-11-SPEC.md`, PROPS/TOPO — the shell census maps; the
+continuation is measured and then either mapped or given a carried
+setup, executing `quadrature-setup-is-re-derived-per-round-window`
+if that is what the measurement says), PERF-12 (`assemble-aggregate-
+census-is-quadratic-in-solids`, `docs/PERF-12-SPEC.md`, TOPO's
+`census.rs` — the five all-pairs sweeps behind the BVH under the
+conservative-superset contract, with a measure-first clause that
+lets it stop as a finding). PERF-11 and PERF-12 both touch topo
+(`props.rs` and `census.rs`) and merge main before their PRs.
+
+**Block PERF-B4 pre-draw fields, logged before the byte:** PERF-10 =
+M / structural (slot 0); PERF-11 = M / structural + numeric (slot 1);
+PERF-12 = M–L / structural + numeric (slot 2). Dual review on every
+unit. Ordinals continue in the PERF band from 3409.
+Draw: `/dev/urandom` byte **8** (< 252), 8 mod 3 = 2 ⇒ fable position 2. **Slot 0 PERF-10 = OPUS, slot 1 PERF-11 = OPUS, slot 2 PERF-12 = FABLE.**

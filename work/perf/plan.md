@@ -578,6 +578,16 @@ demo-only and test-only units record no A/B row.
 - `gathers_on_this_thread` compiles without debug assertions — landed
   (PR 2328).
 
+**Block PERF-B4** (Ev, 2026-09-13: "that block sounds good!"):
+
+- PERF-10 — the pick index serves a patch whole under the patch key
+  (`docs/PERF-10-SPEC.md`).
+- PERF-11 — `classify_shells_of` as idiom 1; `refine_to_target`
+  measured, then mapped or given a carried setup (`docs/PERF-11-SPEC.md`).
+- PERF-12 — the at-rest census's all-pairs sweeps behind the BVH
+  pre-filter under the conservative-superset contract
+  (`docs/PERF-12-SPEC.md`).
+
 **Block PERF-B3** (Ev, 2026-09-12: "your plan for the next block sounds
 good"; sequencing left to the orchestrator):
 
