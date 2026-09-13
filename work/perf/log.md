@@ -1135,3 +1135,21 @@ the session arm and the refusal-order rule unpinned (both get rows;
 `quintic_prism` joins the roster), a false premise in the pieces
 arm, the continuation's second spelling of the dispatch and splice,
 three false doc sentences, dated numbers in doc comments.
+
+## 2026-09-13 — PERF-10 adjudicated: a clean pair
+
+APPROVE-WITH-FIXES on both arms (0 / 3 / 5 and 0 / 4 / 2), no MAJOR.
+Both arms traced the chain from key bytes to placed corners
+independently — the topology vertices are the first and last chord
+ids of every edge, so a vertex point is in the key by construction —
+and both reproduced the tour die's memo-primed index (25 → 15 ms;
+the seam's own work 14 → 4). One arm proved the table-for-table row
+reddens on a one-ULP corner; the other ran 44 286 rays over 1 125
+served patches with no disagreement. MINORs: `PatchKeys`'s derived
+equality became memo-history-dependent (content-only now); the "hits
+equal the patch memo's hits structurally" claim has a refusal-path
+gap; rename residue across `pickindex.rs`, the FNV item and
+`pick.rs`'s module doc; the id's memo scope held by prose; the
+key/boundary walk order held by two functions rather than one
+iterator. The index-seam announcement is this log's (the block's cut
+entry), not the implementer's deviation.
