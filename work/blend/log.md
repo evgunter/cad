@@ -628,3 +628,43 @@ dispatched concurrently on the frozen head** — byte 93 ⇒ R1 = FABLE,
 R2 = OPUS; briefs stored with digests on `blend/b1-block` before
 either ran; the five deviations stated in both briefs as hypotheses.
 The unit's log entry waits for the dual.
+
+**Unit 9's dual concluded (2026-09-13, ~05:30 UTC):** R1 (FABLE)
+MERGEABLE-AFTER-FIXES 0/3/2, rubric 4/3/4; R2 (OPUS)
+MERGEABLE-AFTER-FIXES 1/5/6 plus eight style findings, rubric 4/4/4.
+Both concurrent on the frozen head with private targets, neither
+interrupted, zero cross-lane reads disclosed. **The program's first
+unilateral MAJOR:** R2 found that the PR's sweep for "a site deciding
+what description a smooth join carries" has a blind spot on its own
+axis — none of its three patterns can match an intrinsic MINT — and
+that `blend/surgery.rs`'s `attach_contact` mints
+`TangentIntersection` for a blend's contact edge on a structural
+flag, inside the fence, undisclosed; R1 never mentioned the site at
+any severity. Adjudicated against the pre-registered instrument
+(item 3, attribution-stripped on the material; this coding session
+is the Fable orchestrator): (a) unilateral — yes; (b) defect class —
+a receipt-with-an-unstated-blind-spot is a claim finding, and whether
+the site is in the rule's class the reviewer rates `likely`; (c)
+single; (d) demonstrated by execution — NO: a grep hit, no red probe,
+no measured value; (e) fair pair — yes. **Recorded, excluded from the
+tally under 3(d)** (and arguably 3(b)); the fix pass decides the class
+question by measurement where it can and files the site either way.
+Everything else converged: `MustCarry.first` has no consumer and
+carries the wrong station's reading beside a non-positive verdict
+(both by probe); the verb-level lane row is a hand-written census;
+the unit's own rows do not pin the station positions (both by mutant
+— a midpoint-every-station wrapper leaves all ten green); deviation
+2's number is not derivable from what is written; the filed cap-rim
+item's diagnosis is incomplete (the arm is unreachable under both
+doors). Both reviewers verified all five deviations sound, including
+that no out-of-lane smooth pair is constructible through either verb
+and that `folded_lever_arm`'s three-sibling list is the accurate one.
+Unique R1: κ_rel varies on two tori sharing a meridian circle; the
+boolean rebuild keeps the very fold this unit corrects (`ops.rs`,
+outside the fence). Unique R2: the crate front door's stale sentence;
+the seven-rung ladder rows; the exhaustive `SurfaceKind` census; the
+new bitdump row carrying no intrinsic edge at all; the carrier
+re-derived three times in `extrude.rs`. Fix pass dispatched on the
+union (`/home/user/blend-briefs/fix-9-brief.md`), both probe branches
+to be adopted; delta by R1; then state-sync, merge, and block B1's
+CONCLUDED record.
