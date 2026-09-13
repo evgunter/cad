@@ -25,8 +25,7 @@
 //! `FILLET3_RING_RECOURSE` are both front-door reachable, on a
 //! non-circular ring and off the clearance screen's sample lattice
 //! respectively, and `review_fillet_e2_probes.rs` holds both witnesses
-//! (`work/fillet/geometry-recourse-dead-at-line-ring.md`,
-//! `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`).
+//! (issue 1278's dead-recourse class, and PR 1753's).
 //! Wording a fixture's reach as a door's reach is what hid them.
 //!
 //! Three constants are held composed elsewhere and are not duplicated
@@ -393,7 +392,7 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
 /// every door it names is executed.** Four of them, since the closed
-/// clause gained its "one ring-free face carries every arc" half.
+/// clause gained its "one face carries every arc" half.
 ///
 /// The refusal: an OPEN chain whose supports are not plane–plane (the
 /// edge between a wedge wall and the sphere zone of a PARTIAL revolve),
@@ -890,8 +889,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
 ///
 /// That premise — axis alignment — is the whole content of the row, and
 /// stating it as a property of the door is what made this suite file
-/// the ring recourse unreachable
-/// (`work/fillet/ring-clearance-reaches-front-door-off-lattice.md`).
+/// the ring recourse unreachable (PR 1753).
 #[test]
 fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
     let dimpled = subtract(&cube(1.0, tol()), &ball_at(Vec3::new(0.5, 0.5, 1.1)));
