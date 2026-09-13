@@ -65,6 +65,10 @@ mod fillet_refusal_envelope;
 mod review_fillet_attr_r1_probes;
 #[path = "review_fillet_attr_r2_probes.rs"]
 mod review_fillet_attr_r2_probes;
+#[path = "review_fillet_overrun_nearest_fit_r1_probes.rs"]
+mod review_fillet_overrun_nearest_fit_r1_probes;
+#[path = "review_fillet_overrun_nearest_fit_r2_probes.rs"]
+mod review_fillet_overrun_nearest_fit_r2_probes;
 
 #[path = "bool12_probes.rs"]
 mod bool12_probes;
@@ -90,6 +94,8 @@ mod cert4r2_e2e;
 mod declared_tangency;
 #[path = "enclose_refusal_r2_probes.rs"]
 mod enclose_refusal_r2_probes;
+#[path = "fillet_overrun_nearest_fit.rs"]
+mod fillet_overrun_nearest_fit;
 #[path = "fillet_recourse_followability.rs"]
 mod fillet_recourse_followability;
 #[path = "generic_replay.rs"]
