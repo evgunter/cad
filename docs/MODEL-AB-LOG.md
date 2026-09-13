@@ -4318,6 +4318,27 @@ TRIM-1 RECORDED AT MERGE (2026-09-07, PR #2095, sample #153 — prior highest #1
 
 | T1 | 2026-09-07 | TRIM-1 (PR #2095; spec docs/TRIM-1-SPEC.md, #1195, PCURVE P-2's named residue): the de Boor collapse extractor — `interior_iso_u<T: SpanLocate>` in `nurbs_iso.rs` (the homogeneous collapse `Q_j = Σ_i λ_i P_ij`, per span hulled with `enclosure_hull`; the rational class = weight nets separable by structure, cases (a)/(b) by bitwise tests, `WeightsNotSeparable` otherwise), `side_of` an `Option` decider with per-site texts, the seam class's interior route on the same `MapResidualIsoHull` argument with drift-only slack, `nurbs_iso_derive`'s wall–seam arm restoring the measured-foot fall-back with a per-outcome table (the `Intersection` arm untouched, `9v1` still `General`). The two probes the spec could not run: the arc-rim row refuses at check 3 (not `side_of`), and STOP 3 does not fire — the P-2 body's cache set COMPLETES and `validate_pcurves` is EMPTY (the first whole-body mint of a trimmed chart at rest); downstream, `mass_properties` refuses at the filed `props.rs` non-iso site and `tessellate` at `patch_bound::Degree1Crease` — NOT one of TRIM-2's six sites (TRIM-2's opening measurement re-cut). Riders S394 (three sites → `ChartRow { source }`) and `fitted-magnitude-nan-schedule-parameter` (`EndpointFootDistance`) carried and closed. Fix pass from the dual: the seam class meters its fixed channel against the chart's u domain (an out-of-domain `u` had certified via the end span's polynomial extension); the slack guarded by R1's drift row; case (a) fixtured (the symmetric unkillable mutant now killable); `den` hoisted, no division in case (a); the `Dual` no-foot-lane text; doc rot at the A6 rows | L (high end) / NUMERIC (pre-logged at the spec) | FABLE (block TRIM-B1 slot 1) | **DUAL (ordinal 2501; byte 95 parity 1 ⇒ R1 FABLE + R2 OPUS; CONCURRENT same-head on frozen 60476186; briefs stored with sha256 pre-dispatch; R2 disclosed a `pgrep` glimpse of the other lane's process line, benign; v6 instrument).** R1 MERGEABLE-AFTER-FIXES, rubric —/—/—/—/— (report file, agent stopped at report-final with its `[SWEEP]` rows unexecuted), 0 MAJ + 3 MIN + 3 NOTE — finds: the out-of-domain `u` certifying (12/12 executed, MINOR), the unguarded drift slack with an UNSOUND certificate measured without it, the missing case-(a) fixture, doc rot at the A6 rows, S394's undecided `adopt.rs` half. R2 MERGEABLE-AFTER-FIXES, rubric 4/4/3/4/5, 1 MAJ + 3 MIN + 3 NOTE — finds: the SAME out-of-domain `u` at MAJOR (with the `IsoUnsupported` doc invalidated in place), the same slack and case-(a) gaps, the CI sentence's 20 skipped steps, the TRIM-2 re-measurement living only in the PR body, `den` recomputed per `j`, the `no_boundary` text on the `Dual` arm. CONVERGED on every substantive finding at differing severities; both arms' independent fixtures agreed bitwise with `boundary_iso_u` at the domain ends and every Interval enclosure contained the truth. **Tally: no unilateral candidate (all bilateral); R1's agent was stopped by the orchestrator at report-final; neither arm killed by a limit; the implementer arm was paused four times by the usage limit and once by a Fable-side outage, recorded for 3(e)'s reading.** | 0 silent — every deviation reported before review (two pushes `--no-verify` after the hook outlived SSH, said in the body) | 4 | R1 — / R2 3 | R1 — / R2 4 | substantial, ADJUDICATED — all eleven union items taken, none declined; R1's `r1_c1_*`/`r1_c2_*`/`r1_c3_*` rows adopted authorship-preserving, every adopted row asserting; four mutants red | impl CI 34065398720 GREEN (twelve `test` jobs); fix CI 34098126083 GREEN (same matrix); merged #2095 at sample #153 | impl ~351k / fix ~453k / R1 ~? (stopped) / R2 ~290k | impl ~1.5 h agent time over ~3 days wall (usage pauses, the Fable outage, slot starvation) / fix ~1.2 h / R1 ~2.5 h+ / R2 ~3.5 h |
 
+## CURVED-MERGEDOOR review ordinal fixed at dispatch (2026-09-13)
+
+CURVED-MERGEDOOR (`work/curved/cylindrical-rest-pair-hits-planar-merge.md`,
+PR #2105 open — frozen head `3b42b3e1`): **ordinal 2202** (CURVED band).
+Pre-draw fields at the spec (`docs/CURVED-MERGEDOOR-SPEC.md`): difficulty
+**S**, task-class **STRUCTURAL**; implementer arm per block CURVED-B1
+slot 2 (record branch-side on `curved/b1-block`). Protocol v6 dual:
+draw = `/dev/urandom` byte **225**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `3b42b3e1`, both briefs authored and STORED with sha256 before
+either dispatches (bb0a91da98e907b7… r1 / f1b83f9804faacb0… r2 — identical text modulo lane
+names, verified by diff), neither reviewer sees the other's report, v6
+item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` per
+reviewer (fresh for both); the implementer's unit log entry is not
+written until the dual concludes. Method note applying to BOTH arms
+equally: the implementer lane's STOP 2 fired and was RE-SCOPED by the
+orchestrator (the measured frontier became the acceptance; comment
+5568446264 on the PR); the implementer arm was killed twice (a usage
+pause and a six-day Fable-side outage) and resumed from transcript,
+recorded for 3(e)'s reading at the blinded coding.
+
 ## DOCM program rows (work/docm/; band 1800–1899; blocks named DOCM-B<n>)
 
 Block DOCM-B1 pre-draw fields (2026-09-04, logged before the draw):
