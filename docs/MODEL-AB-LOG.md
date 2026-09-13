@@ -5478,3 +5478,6 @@ concurrently with it as lanes and disk allow.
 Block BLEND-B2 slot record (branch-side, appended as each slot concludes):
 slot 1 = BLEND-10 implementer dispatch (2026-09-13, ~05:30Z): arm OPUS per the draw above (byte 44); `docs/BLEND-10-SPEC.md` (M / NUMERIC, pre-draw); brief `/home/user/blend-briefs/unit-10-brief.md` (lane-local; the spec is the binding text); S-BOOL seam announced in `work/bool/log.md` before dispatch. Review ordinal claimed on main at the dual's dispatch.
 slot 2 = BLEND-11 implementer dispatch (2026-09-13, ~05:30Z): arm FABLE per the draw above (byte 44); `docs/BLEND-11-SPEC.md` (S / STRUCTURAL, pre-draw); brief `/home/user/blend-briefs/unit-11-brief.md`; same seam announcement. Slot 0 (BLEND-8, OPUS) dispatches when block B1's last slot merges.
+slot 2 = BLEND-11 review dispatch (2026-09-13): ordinal 2903 claimed on main; R1/R2 byte 214 ⇒ parity 0 ⇒ R1 = OPUS, R2 = FABLE; briefs stored here before dispatch —
+fd0b8d4fa60f6bfec9fc2bd78dbf6c45b57f6dcd067a944ed690ed1c95b8e750  blend-11-review-brief-r1.md
+bad047a3562e834e974a5eff8756840329f0255cc987c3e2c0a0ab2de678b3b2  blend-11-review-brief-r2.md
