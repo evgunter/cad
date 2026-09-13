@@ -2,7 +2,7 @@
 id: SYM-2
 kind: unit
 title: the tier's file split: the coefficient tower and the polynomial out of sym.rs, the header distributed with them
-status: spec
+status: review
 opened: 2026-09-13
 branch: sym/2-split
 refs: [sym-rs-is-one-file-with-a-347-line-header]

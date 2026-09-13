@@ -59,3 +59,31 @@ can review against a door), and not urgent.
 Here because it is this program's file and nothing else's.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## After SYM-2
+
+SYM-2 took the two moves the list above names and the header with them
+(`sym.rs` 4,478 -> 3,530 lines, its header 491 -> 447; `sym/rational.rs`
+533, `sym/form.rs` 433). The next cut, proposed by that lane and not
+taken by it:
+
+**The ids and the nodes -> `sym/dag.rs`, ~240 lines.** `SymId`,
+`Hash128`, `ParamSymbol`, `SymOp` with its `tag`/`arity` tables and
+`SymNode` with its `id` — the whole of what a node IS and how it is
+keyed, between the `// ids` and `// the session` banners. It has the
+same shape as the two SYM-2 took: no dependency on the session in any
+signature, one self-contained argument (D9 — content hashes, the
+explicit per-variant tag, the third FNV and why it is not shared), and
+a header section already written as its own (`# Node ids are CONTENT
+HASHES (D9)`). Two callers cross the line: `intern` (session state) and
+`indet_atom`/`indet_param`/`indet_opaque` (the form's keys), both of
+which stay where they are and reach `Hash128` and `SymOp::tag` through
+`pub(super)`, exactly as SYM-2's moves do.
+
+**Not the session and the walk, yet.** `Session`, `combine`, `form_in`,
+the three memos, `Discharge`, the registry and the `Decide` impl are
+the remaining ~1,200 lines and they are one argument, not two: the
+walk's memo discipline (plain first, early alongside, door last) is
+what the counts mean. Splitting it wants a decision about where the
+three-memo argument lives, which is a design question rather than a
+move.
