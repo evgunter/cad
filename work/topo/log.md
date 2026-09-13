@@ -729,3 +729,35 @@ decide, the parameter split of a cached pcurve for the mint — for
 phase 1 to verify; the usage-limit cut of 2026-09-12 23:00 to
 2026-09-13 21:45 sat between the draw and the dispatch, with nothing
 running.
+
+## Both slots delivered; the split-edge dual out at ordinal 2703 (2026-09-13)
+
+Slot 1 `topo/split-edge-pcurve-rows` delivered as PR 2531, head
+`880654600`, full matrix green (run 34787766875). Phase 1 chose
+closing (a): a `Pcurve` is a function of the carrier parameter with
+no interval of its own, so each child's chart image is the parent's
+restricted to its sub-interval; `PcurveCache::certify` needs only
+`T: Decide`, so the op carries its rows in the plan phase with no
+caller's bound moved. Phase 1 also found the parent halves' rows going
+stale in CONTENT on the merge base with `validate_pcurves` skipping
+any face it finds incomplete — filed on TRIM's slate — and that the
+half-edge-minting Euler operators leave a minted curved face
+incomplete (filed here, with the `Fitted`/`General` residue). SHELL-7's
+`p4` probe row re-baselined from pinning the defect to pinning the
+fix. Dual dispatched on the frozen head: ordinal 2703, parity byte 20
+⇒ R1 OPUS, R2 FABLE; briefs stored with sha256 privately.
+
+Slot 0 `topo/tier3-ring-nesting` delivered as PR 2529, head
+`a8703bdc9`, full matrix green (run 34787728506). Phase 1 corrected
+the brief's instrument — `ray_parity.rs` directly would have minted a
+second home for the 3-D frame; the entry is
+`splitting::containment::point_in_loop` — and showed `shell.rs`'s
+`encloses` unsound at rest (a 10×0.2 plate with an end hole reads
+un-nested: a false refusal), and the `shell.rs` comment already
+repaired on main before the lane. Check 9 gains its nesting half on
+planar faces whose outer loop is a polygon of line carriers; the
+arc-bounded and curved cases are the enumerated residue, filed. Its
+dual (byte 0 ⇒ R1 OPUS, R2 FABLE; briefs stored) dispatches when the
+split-edge pair frees the box — two reviewer pairs at once would
+starve four cores. The claim entry for its ordinal goes to main at
+that dispatch.
