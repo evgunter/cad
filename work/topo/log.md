@@ -729,3 +729,15 @@ decide, the parameter split of a cached pcurve for the mint — for
 phase 1 to verify; the usage-limit cut of 2026-09-12 23:00 to
 2026-09-13 21:45 sat between the draw and the dispatch, with nothing
 running.
+
+## `[ev]` PR: is "a chart lives in one solid" a `Body` invariant? (2026-09-13)
+
+The chart-spans-solids row (SHELL-8's placement) is a design choice,
+proposed to Ev on an `[ev]` PR from `topo/ev-chart-spans-solids`:
+(A) the mover re-mints and tier 1 states the invariant (recommended —
+what every other producer does; the shape the boolean's fix needs),
+(B) the shell doors group per (solid, surface), (C) keep the typed
+refusal. The attach postcondition's panic half rides in the same PR
+with a proposed close: no public input can present a torn body to a
+setter, so it is D1's contract firing late, not a D9 refusal owed.
+`needs_ev: true` on the chart row; the attach row waits unedited.
