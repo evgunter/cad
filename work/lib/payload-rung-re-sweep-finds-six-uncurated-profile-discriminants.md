@@ -149,3 +149,23 @@ FOUR curated lists — every one of these six was already on the fourth,
 (what a curated list owes is matchability THROUGH it, and the prelude
 carried the refusals and not their payloads), but the scan cannot tell
 "uncurated" from "curated on a list I do not read".
+
+## One row's carrier amended (BLEND-12, 2026-09-13)
+
+The `EscalationSite` row above says the variants are "one segment, a
+segment PAIR, a loop, or the fillet". The `Fillet` variant is gone:
+BLEND-12 (PR 2508) found it had no producer in `crates/*/src` — every
+`ProfileError::Escalated` mint carries a `Segment`, `SegmentPair` or
+`Loop` site — and retired the variant with the Display arm that was its
+only reader. The type now has three arms, and the fillet construction's
+own escalations leave through `PathError::Escalated`, whose Display
+picks the recourse off the predicate name rather than off a site
+discriminant.
+
+**The row's disposition is unchanged and still OPEN**: three arms is
+still a discriminant a caller must read to know which stage escalated,
+it still carries `SegmentRef`, and the rung under it is still there.
+Only the arm count and the fourth arm's name were stale.
+
+Filed from BLEND's side by the unit that retired it. Nothing else on
+this slate is touched.
