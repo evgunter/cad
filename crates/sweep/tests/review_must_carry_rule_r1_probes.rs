@@ -116,14 +116,14 @@ fn kappa_rel_varies_along_a_lane_admitted_carrier_and_the_second_station_decides
 
     let answer = must_carry_over_edge(&a, &b, &carrier, 0.0, TAU, extent, band());
     assert_eq!(
-        answer.verdict,
+        answer,
         MustCarryVerdict::UnderDetermined,
         "one zero-side station denies determinacy for the whole edge"
     );
-    // The `first` reading is the FIRST station's, which read Positive —
-    // not the station the verdict was decided at.
-    let first = answer.first.expect("the pair was metered");
-    assert_eq!(first.verdict, Ok(Sign::Positive));
+    // The whole answer is the verdict. Station 1 read `Positive` here
+    // (asserted above), so a rule that answered from the first station
+    // alone — or from any one station — would call this edge
+    // jet-determinate and store a description tier 3 refuses.
 }
 
 /// **C3 / C4, the K stream.** An under-determined edge spends as many
@@ -163,7 +163,7 @@ fn an_edge_decided_at_the_second_station_spends_two_samples() {
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")
         .count();
-    assert_eq!(answer.verdict, MustCarryVerdict::UnderDetermined);
+    assert_eq!(answer, MustCarryVerdict::UnderDetermined);
     assert_eq!(
         spent, 2,
         "the walk reads station 1 (Positive) and station 2 (Zero), then stops"

@@ -337,19 +337,23 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
     );
     let answer = must_carry_over_edge(&s1, &s2, &carrier, t0, t1, extent, band());
     assert_ne!(
-        answer.verdict,
+        answer,
         MustCarryVerdict::JetDeterminate,
         "one station that is not definitely positive denies the whole edge"
     );
-    let carried = answer
-        .first
-        .expect("a metered pair carries a station reading");
-    assert!(
-        matches!(carried.verdict, Ok(Sign::Positive)),
-        "the reading carried beside the verdict is the FIRST station's — definitely \
-         positive here — and not the station that decided, so a caller that reported \
-         its margin as the cause would report a margin that did not fail: {kappas:?}"
-    );
+    // The verdict is the whole answer, and the only number that rides
+    // with it is the DECIDING station's, inside `InBand`'s payload. A
+    // reading taken at station 1 would be definitely positive here
+    // (`stations[0]`, asserted through `deciding > 0` above), so a
+    // caller reporting it as the cause would report a margin that
+    // passed: {kappas:?} is the spread that makes that concrete.
+    if let MustCarryVerdict::InBand(source) = answer {
+        assert_eq!(
+            source.predicate,
+            Some("tangent_second_order"),
+            "the payload names the deciding station's predicate"
+        );
+    }
 }
 
 /// A sphere and a coaxial cylinder read along a MERIDIAN circle —

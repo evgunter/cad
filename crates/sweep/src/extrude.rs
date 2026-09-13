@@ -414,6 +414,24 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
     }
 }
 
+/// **The strut's carrier, in one expression.** A strut is the ruling
+/// of the sweep through its seed vertex: the line from the vertex's
+/// bottom image along the extrusion direction, arc-length
+/// parameterized over `0..w_norm`. The mint writes it and the join
+/// pass RESTATES it when it re-describes the same edge — restating,
+/// never re-deriving, because `Curve3::line_between(q, q + w)`
+/// recomputes the direction and the interval from endpoints that need
+/// not be bitwise the ones the edge was minted with, which moves
+/// geometry in a pass whose whole contract is that only the
+/// DESCRIPTION moves. One expression is what makes "the same bits"
+/// a fact rather than three copies that agree today.
+fn strut_carrier<T: Real>(q_bottom: Point3<T>, w: Vec3<T>) -> Curve3<T> {
+    Curve3::Line {
+        origin: q_bottom,
+        dir: w.normalize(),
+    }
+}
+
 /// A strut-edge spec: `ExtrudedPoint` description, straight-line
 /// carrier from the bottom point along the extrusion vector,
 /// parameterized by arc length over `0..w_norm`.
@@ -436,10 +454,7 @@ fn extruded_strut_spec<T: Real>(
             place,
             vec: w,
         }),
-        carrier: Curve3::Line {
-            origin: q_bottom,
-            dir: w.normalize(),
-        },
+        carrier: strut_carrier(q_bottom, w),
         param_start: T::zero(),
         param_end: w_norm,
     }
@@ -909,10 +924,7 @@ fn sweep_loop<T: Decide>(
                         s2: k_next,
                         witness: mid,
                     },
-                    carrier: Curve3::Line {
-                        origin: qs[j],
-                        dir: w.normalize(),
-                    },
+                    carrier: strut_carrier(qs[j], w),
                     param_start: T::zero(),
                     param_end: w_norm,
                 };
@@ -931,10 +943,7 @@ fn sweep_loop<T: Decide>(
                 // the stations and the three-way policy are the
                 // rule's, not this arm's
                 // ([`geom_brep::must_carry_over_edge`]).
-                let carrier = Curve3::Line {
-                    origin: qs[j],
-                    dir: w.normalize(),
-                };
+                let carrier = strut_carrier(qs[j], w);
                 match geom_brep::must_carry_over_edge(
                     &s_prev,
                     &s_next,
@@ -943,9 +952,7 @@ fn sweep_loop<T: Decide>(
                     w_norm,
                     w_norm,
                     band,
-                )
-                .verdict
-                {
+                ) {
                     geom_brep::MustCarryVerdict::JetDeterminate => {
                         let spec = EdgeCurveSpec {
                             description: EdgeDescriptionSpec::TangentIntersection {
@@ -978,8 +985,7 @@ fn sweep_loop<T: Decide>(
                         // does, so the choice is argued rather than
                         // taken. An extruded wall is the sweep of its
                         // profile segment along `w`, hence RULED in
-                        // `w`; the strut is
-                        // `Line { origin: qs[j], dir: w.normalize() }`
+                        // `w`; the strut is [`strut_carrier`]
                         // — the ruling through the vertex the two
                         // segments SHARE. That ruling lies in both
                         // walls exactly, so either chart is a

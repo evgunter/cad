@@ -194,18 +194,40 @@ fn tangent_intersections(body: &Body<f64>) -> usize {
         .count()
 }
 
-/// How many of `body`'s edges store a conventional chart image.
-fn chart_images(body: &Body<f64>) -> usize {
-    body.edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(geom_brep::EdgeCurve::description),
-                Some(EdgeDescription::Chart(_))
-            )
-        })
-        .count()
+/// The conventional chart images among the edges `pick` selects — a
+/// COUNT OVER A NAMED SET, never over the whole body: a body's cap
+/// rims are chart images too, so `chart_images(body) >= n` is met by
+/// edges that have nothing to do with the rule and rises on its own
+/// whenever a fixture grows.
+fn chart_images_among(body: &Body<f64>, pick: impl Fn(&Curve3<f64>) -> bool) -> (usize, usize) {
+    let mut selected = 0usize;
+    let mut charts = 0usize;
+    for (_, e) in body.edges() {
+        let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+            continue;
+        };
+        if !pick(c.carrier()) {
+            continue;
+        }
+        selected += 1;
+        if matches!(c.description(), EdgeDescription::Chart(_)) {
+            charts += 1;
+        }
+    }
+    (selected, charts)
+}
+
+/// The filleted block's STRUTS: the only edges whose carrier is a line
+/// along the extrusion direction (`+z`). Its cap rims are the profile
+/// segments, which lie in the sketch plane.
+fn is_strut(c: &Curve3<f64>) -> bool {
+    matches!(c, Curve3::Line { dir, .. } if dir.z.abs() > 0.5)
+}
+
+/// The bored ring's smooth latitude join: the one circle at the bore
+/// radius. Every other latitude circle of the fixture is wider.
+fn is_bore_circle(r_bore: f64) -> impl Fn(&Curve3<f64>) -> bool {
+    move |c| matches!(c, Curve3::Circle { radius, .. } if (radius - r_bore).abs() < r_bore * 1e-9)
 }
 
 /// The typed escalation an in-band row must carry: the predicate name
@@ -260,10 +282,14 @@ fn an_extrude_strut_with_a_definite_zero_margin_stores_the_conventional_descript
         0,
         "an under-determined join stores no intrinsic tangency"
     );
-    assert!(
-        chart_images(&body) >= SMOOTH_STRUTS,
-        "each under-determined strut rests in a chart: {} images for {SMOOTH_STRUTS} struts",
-        chart_images(&body)
+    let (struts, charts) = chart_images_among(&body, is_strut);
+    assert_eq!(
+        struts, SMOOTH_STRUTS,
+        "the fixture's eight struts are the edges this row is about"
+    );
+    assert_eq!(
+        charts, SMOOTH_STRUTS,
+        "every under-determined STRUT rests in a chart — not merely some edge of the body"
     );
 }
 
@@ -298,16 +324,22 @@ fn a_revolve_latitude_join_with_a_definite_positive_margin_stores_the_intrinsic_
 /// The revolve twin of the zero row.
 #[test]
 fn a_revolve_latitude_join_with_a_definite_zero_margin_stores_the_conventional_description() {
-    let body = bored_ring(free_length_for(definite_zero_margin()))
-        .expect("an under-determined join builds");
+    let r_bore = free_length_for(definite_zero_margin());
+    let body = bored_ring(r_bore).expect("an under-determined join builds");
     assert_eq!(
         tangent_intersections(&body),
         0,
         "an under-determined join stores no intrinsic tangency"
     );
-    assert!(
-        chart_images(&body) >= SMOOTH_LATITUDE_JOINS,
-        "the under-determined join rests in a chart"
+    let (bore_circles, charts) = chart_images_among(&body, is_bore_circle(r_bore));
+    assert_eq!(
+        bore_circles, 2,
+        "the bore cylinder's two latitude circles — the smooth join and the base rim"
+    );
+    assert_eq!(
+        charts, SMOOTH_LATITUDE_JOINS,
+        "the smooth latitude JOIN rests in a chart; the base rim is transverse and \
+         stores the plain intersection"
     );
 }
 
@@ -343,14 +375,13 @@ fn an_out_of_lane_pair_is_under_determined() {
     );
     let answer = must_carry_over_edge(&plane, &cone, &carrier, 0.0, 1.0, 1.0, band());
     assert_eq!(
-        answer.verdict,
+        answer,
         MustCarryVerdict::UnderDetermined,
         "an out-of-lane pair answers conventional"
     );
-    assert!(
-        answer.first.is_none(),
-        "nothing was metered, so there is no station reading to carry"
-    );
+    // That nothing was METERED is the K-stream row's claim, which
+    // counts samples rather than reading a field the answer no longer
+    // carries.
 }
 
 /// A cone tangent to a plane along one ruling, and that ruling as the
@@ -380,84 +411,61 @@ fn out_of_lane_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     (plane, cone, carrier)
 }
 
-/// **What the gate can and cannot catch on these two verbs.** Every
-/// wall an extrude or a revolve mints is one of the five elementary
-/// kinds, and every join carrier is a `Line` or a `Circle`; a smooth
-/// join's carrier is a `Line` only where both walls are ruled in the
-/// sweep direction, which is the plane/cylinder pair. So the gate is
-/// satisfied by construction today on both verbs — an argument this
-/// row turns into a check, so a new wall kind or a narrowed lane
-/// arrives here as a failure rather than as a silent behaviour change.
+/// **The lane gate over what the two verbs actually mint.** The lane
+/// TABLE — which (carrier kind, surface-kind pair) triples
+/// `tangent_certificate_lane` admits — is pinned exhaustively over
+/// `SurfaceKind` by
+/// `review_must_carry_rule_r2_probes::the_lane_census_is_exhaustive_over_surface_kind`,
+/// which stops compiling when a kind is added. This row pins the other
+/// half, and only that half: that every edge of the bodies these two
+/// fixtures BUILD presents the rule a triple the table admits.
+///
+/// **What it does not pin, stated rather than implied.** It reads the
+/// verbs' output, not the verbs' source, so it is evidence about these
+/// fixtures and not a theorem about the verbs: a door that minted a
+/// `Nurbs` wall on some OTHER profile would reach the rule out of lane
+/// and leave this row green. Making that mechanical needs a hook into
+/// the `FaceSurface::New(Surface::…)` mint sites that no test has.
 #[test]
-fn every_join_either_verb_can_present_to_the_rule_is_inside_the_lane() {
-    let p = Point3::new(0.0, 0.0, 0.0);
-    let axis = Vec3::new(0.0, 0.0, 1.0);
-    let u_ref = Vec3::new(1.0, 0.0, 0.0);
-    let plane = Surface::Plane {
-        origin: p,
-        normal: axis,
-        u_ref,
-    };
-    let cylinder = Surface::Cylinder {
-        origin: p,
-        axis,
-        radius: 1.0,
-        u_ref,
-    };
-    let sphere = Surface::Sphere {
-        center: p,
-        radius: 1.0,
-        axis,
-        u_ref,
-    };
-    let cone = Surface::Cone {
-        apex: p,
-        axis,
-        half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref,
-    };
-    let torus = Surface::Torus {
-        center: p,
-        axis,
-        major_radius: 2.0,
-        minor_radius: 0.5,
-        u_ref,
-    };
-    let line = Curve3::Line {
-        origin: p,
-        dir: axis,
-    };
-    let circle = Curve3::Circle {
-        center: p,
-        axis,
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    // The extrude strut: a `Line` carrier on the wall kinds extrude
-    // mints, which are exactly plane and cylinder.
-    for a in [&plane, &cylinder] {
-        for b in [&plane, &cylinder] {
+fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
+    for (name, body) in [
+        (
+            "the filleted block",
+            filleted_block(free_length_for(definite_positive_margin()))
+                .expect("the block builds"),
+        ),
+        (
+            "the bored ring",
+            bored_ring(free_length_for(definite_positive_margin())).expect("the ring builds"),
+        ),
+    ] {
+        let surface_of = |he| {
+            let face = body
+                .get_loop(body.get_half_edge(he).expect("a half-edge").parent_loop)
+                .expect("a loop")
+                .face;
+            body.get_surface(body.get_face(face).expect("a face").surface)
+                .expect("a surface")
+                .clone()
+        };
+        let mut checked = 0usize;
+        for (k, e) in body.edges() {
+            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                continue;
+            };
+            let (a, b) = (surface_of(e.he_plus), surface_of(e.he_minus));
+            checked += 1;
             assert!(
-                geom_brep::tangent_certificate_lane(&line, a, b),
-                "an extrude strut's pair is inside the lane"
+                geom_brep::tangent_certificate_lane(c.carrier(), &a, &b),
+                "{name}: edge {k:?} presents the rule a triple the certificate's lane \
+                 refuses — carrier {:?} over {:?} / {:?}",
+                SurfaceKind::of(&a),
+                SurfaceKind::of(&a),
+                SurfaceKind::of(&b)
             );
         }
+        assert!(checked > 0, "{name}: the fixture has certified edges to read");
     }
-    // The revolve latitude join: a `Circle` carrier on the wall kinds
-    // revolve mints.
-    let walls = [&plane, &cylinder, &sphere, &cone, &torus];
-    for a in walls {
-        for b in walls {
-            assert!(
-                geom_brep::tangent_certificate_lane(&circle, a, b),
-                "a revolve latitude join's pair is inside the lane"
-            );
-        }
-    }
-    // The kinds are the claim: a verb that grew a NURBS wall would
-    // reach the rule out of lane, and this is the row that says so.
-    assert_eq!(SurfaceKind::of(&plane), SurfaceKind::Plane);
-    assert!(!geom_brep::tangent_certificate_lane(&line, &plane, &cone));
 }
 
 // ---------------------------------------------------------------
@@ -512,7 +520,7 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_gate_meters_nothing()
     );
     let spent = count(k_stats::take_samples());
     assert_eq!(
-        determinate.verdict,
+        determinate,
         MustCarryVerdict::JetDeterminate,
         "a cylinder on its tangent plane determines the locus along the ruling"
     );
@@ -536,7 +544,7 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_gate_meters_nothing()
     );
     let spent_under = count(k_stats::take_samples());
     assert_eq!(
-        under.verdict,
+        under,
         MustCarryVerdict::UnderDetermined,
         "the derived arm puts the sagitta under ε"
     );
@@ -563,7 +571,7 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_gate_meters_nothing()
     );
     let after = k_stats::take_samples();
     assert_eq!(
-        answer.verdict,
+        answer,
         MustCarryVerdict::UnderDetermined,
         "the out-of-lane pair is conventional"
     );

@@ -307,6 +307,18 @@ pub struct SecondOrder<T: geom_core::Real> {
 ///   TYPED (D4 ¶3). An in-band verdict is never silently either side,
 ///   so no caller may fold it into "conventional".
 ///
+/// **The verdict is the whole answer, and the only number that rides
+/// with it is the DECIDING station's.** A reading taken beside the
+/// verdict would be the first station's, which on a refusal is the one
+/// station that did NOT fail — a caller reporting its margin as the
+/// cause would report a margin that passed. The station that decided
+/// is the one a caller has to name, and it is already inside
+/// [`MustCarryVerdict::InBand`]'s [`Indeterminate`]: its margin, its
+/// band and the predicate it was classified under. On the two definite
+/// verdicts there is no cause to report, and a caller that wants the
+/// jet re-reads it at the station it cares about through
+/// [`tangent_second_order`].
+///
 /// **The lane gate comes first, before any metering.**
 /// [`crate::tangent_certificate_lane`] says whether the jet
 /// certificate can certify this carrier over this pair at all, and a
@@ -351,54 +363,21 @@ pub fn must_carry_over_edge<T: Decide>(
     t1: T,
     extent: T,
     band: Band,
-) -> MustCarry<T> {
+) -> MustCarryVerdict {
     if !crate::tangent::tangent_certificate_lane(carrier, s1, s2) {
-        return MustCarry {
-            first: None,
-            verdict: MustCarryVerdict::UnderDetermined,
-        };
+        return MustCarryVerdict::UnderDetermined;
     }
-    let mut first = None;
     for i in 1..crate::CERT_SAMPLES - 1 {
         let t = crate::sample_param(t0, t1, i);
         let p = carrier.eval(t);
         let reading = tangent_second_order(s1, s2, p, carrier.deriv(t), extent, band);
-        let first = *first.get_or_insert(reading);
         match reading.verdict {
             Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => {
-                return MustCarry {
-                    first: Some(first),
-                    verdict: MustCarryVerdict::UnderDetermined,
-                };
-            }
-            Err(source) => {
-                return MustCarry {
-                    first: Some(first),
-                    verdict: MustCarryVerdict::InBand(source),
-                };
-            }
+            Ok(Sign::Zero | Sign::Negative) => return MustCarryVerdict::UnderDetermined,
+            Err(source) => return MustCarryVerdict::InBand(source),
         }
     }
-    MustCarry {
-        first,
-        verdict: MustCarryVerdict::JetDeterminate,
-    }
-}
-
-/// [`must_carry_over_edge`]'s answer: the verdict, and the reading the
-/// first station was taken from.
-#[derive(Clone, Copy, Debug)]
-pub struct MustCarry<T: Real> {
-    /// The FIRST interior station's [`SecondOrder`] — the jet and the
-    /// folded lever arm the verdict was read from, kept because a
-    /// caller that folds this into a longer walk needs the same
-    /// numbers a line later and computing them twice is how two
-    /// spellings start. `None` exactly when the pair is outside the
-    /// certificate's lane and nothing was metered.
-    pub first: Option<SecondOrder<T>>,
-    /// What the edge must carry.
-    pub verdict: MustCarryVerdict,
+    MustCarryVerdict::JetDeterminate
 }
 
 /// [`must_carry_over_edge`]'s three-way verdict.

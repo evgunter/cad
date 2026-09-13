@@ -126,16 +126,17 @@ pub(super) fn upgrade_intersection<T: Decide>(
             body.set_edge_curve(edge, spec, tol)?;
             Ok(())
         }
-        // **The lane's next retirement, taken (M5 PR 12).** A revolve
-        // join's carrier is a latitude CIRCLE, which the jet
-        // certificate's circle arm now covers on every surface of
-        // revolution — so a jet-DETERMINATE smooth join is a genuine
+        // A revolve join's carrier is a latitude CIRCLE, which the
+        // jet certificate's circle arm covers on every surface of
+        // revolution, so the rule can reach its determinate answer
+        // here: a jet-DETERMINATE smooth join is a genuine
         // `TangentIntersection` and prefer-intrinsic (D2/OQ7) demands
-        // it. A jet-UNDER-determined one (a G2 conventional join, a
+        // it; an under-determined one (a G2 conventional join, a
         // same-surface split: `κ_rel` at zero) keeps the conventional
-        // description, exactly as tier 3's must-carry exempts it —
-        // both sides read the same `tangent_second_order` predicate,
-        // so the demanded set and the stored set stay one set.
+        // description, exactly as tier 3's must-carry exempts it; an
+        // in-band one escalates typed. Both sides read the same
+        // predicate at the same stations, so the demanded set and the
+        // stored set stay one set.
         Ok(DihedralClass::Smooth) => {
             match must_carry_over_edge(
                 &surf1,
@@ -145,9 +146,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
                 data.t1,
                 data.extent,
                 band,
-            )
-            .verdict
-            {
+            ) {
                 MustCarryVerdict::JetDeterminate => {
                     let spec = EdgeCurveSpec {
                         description: EdgeDescriptionSpec::TangentIntersection {
