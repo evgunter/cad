@@ -26,6 +26,7 @@
 
 use crate::common::{anchor_fit_entries, arc_arc, grid_a};
 use geom_core::Point2;
+use profile::PathError;
 
 const PI: f64 = core::f64::consts::PI;
 
@@ -84,9 +85,22 @@ fn following_the_reported_deficit_can_leave_the_same_corner_refusing() {
             .any(|(q, ..)| same_point(*q, at)),
         "the same corner still refuses on the anchor fit: {err:?}"
     );
-    // Where it does start building: a reduction twenty-one times the
-    // reported one.
-    arc_arc(CASE_120, R_120 - 0.0482).expect("a reduction of 0.0482 builds");
+    // Where the anchor fit is first satisfied: a reduction twenty-one
+    // times the reported one. The fit gates classify on the exact band,
+    // so this bound does not move with ε; what can move is a gate
+    // DOWNSTREAM of the fillet — at `CAD_TOLERANCE_EPS=1e-6` the closing
+    // junction's side classification is in-band on this loop and the
+    // build escalates there instead of finishing. Either way the corner
+    // no longer refuses on the anchor fit.
+    match arc_arc(CASE_120, R_120 - 0.0482) {
+        Ok(_) => {}
+        Err(PathError::Escalated { source }) => assert_eq!(
+            source.predicate,
+            Some("path_junction_side"),
+            "an escalation past the fillet, at the closing junction"
+        ),
+        Err(e) => panic!("a reduction of 0.0482 satisfies the anchor fit, got {e:?}"),
+    }
     arc_arc(CASE_120, R_120 - 0.0480).expect_err("a reduction of 0.0480 still refuses");
 }
 
@@ -99,7 +113,13 @@ fn following_the_reported_deficit_can_leave_the_same_corner_refusing() {
 ///   the request cannot be made at all;
 /// - 2 111 where it is made and the same corner still refuses on the
 ///   anchor fit — the deficit was too small;
-/// - 605 where the loop builds.
+/// - 605 where the anchor fit is satisfied and the loop builds — or,
+///   at a wide ε, the CLOSER answers instead: the fit gates classify on
+///   the exact band, so this cell does not move with ε, but at
+///   `CAD_TOLERANCE_EPS=1e-6` two of its loops meet their closing
+///   junction in-band (`path_junction_turn`) or tangent
+///   (`JunctionTangent`), and are counted here by that name, never as
+///   a refusal of the corner.
 ///
 /// Zero entries where the deficit is the reduction. The cells are the
 /// observable of the pick: moving either the candidate rule or the leg
@@ -107,6 +127,7 @@ fn following_the_reported_deficit_can_leave_the_same_corner_refusing() {
 #[test]
 fn the_grid_a_recourse_census_says_which_way_the_reported_deficit_errs() {
     let (mut not_a_request, mut still_refusing, mut builds, mut other) = (0, 0, 0, 0);
+    let mut closer: Vec<&'static str> = Vec::new();
     grid_a(|_, case, r, out| {
         let Err(err) = out else { return };
         for (at, _, setback, available) in anchor_fit_entries(err) {
@@ -117,6 +138,22 @@ fn the_grid_a_recourse_census_says_which_way_the_reported_deficit_errs() {
             }
             match arc_arc(case, r - deficit - f64::EPSILON) {
                 Ok(_) => builds += 1,
+                // The corner's anchor fit is satisfied and the CLOSER
+                // (`line_to(Start)`) is what answers next: at a wide ε
+                // its junction can classify in-band or tangent — two
+                // loops at `CAD_TOLERANCE_EPS=1e-6`, one escalating at
+                // `path_junction_turn`, one `JunctionTangent` — which is
+                // a fact about the closing junction, never about the
+                // fillet corner (its fit gates classify on the exact
+                // band and cannot move with ε).
+                Err(PathError::Escalated { source })
+                    if source
+                        .predicate
+                        .is_some_and(|p| p.starts_with("path_junction_")) =>
+                {
+                    closer.push(source.predicate.unwrap_or("<unnamed>"));
+                }
+                Err(PathError::JunctionTangent { .. }) => closer.push("JunctionTangent"),
                 Err(e) => {
                     if anchor_fit_entries(&e)
                         .iter()
@@ -130,8 +167,9 @@ fn the_grid_a_recourse_census_says_which_way_the_reported_deficit_errs() {
             }
         }
     });
+    println!("recourse census: builds {builds}, the closer answered at this ε: {closer:?}");
     assert_eq!(
-        (not_a_request, still_refusing, builds, other),
+        (not_a_request, still_refusing, builds + closer.len(), other),
         (469, 2_111, 605, 0),
         "the recourse census over grid A"
     );
