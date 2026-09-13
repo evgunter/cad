@@ -2700,3 +2700,72 @@ The floor-message idiom is written three times in one file beside them.
 `every_site_that_reads_rust_source_is_in_the_ledger` is keyed on the
 **reader file**, so a second census inside an already-listed file
 arrives invisibly. This census is the first instance.
+
+## 2026-09-13 — PR 2480 MERGED (`585f2f62c`): the operand door, after a full review and a delta round
+
+Five rows close on one unit. **`WrongOperand` is constructed at exactly
+one site, down from seventeen**, and the door computes `found:` from the
+value it was handed — which is why the negation row closed as a
+consequence rather than as a text edit.
+
+### No third round, and the reason is evidence rather than fatigue
+
+The delta round broke the first census by hoisting a const to a call
+site. The rewrite could have been waved through on the lane's report; it
+was not. Three things settled it:
+
+- **the reviewer's own breaking mutation is now the first row of the
+  mutant table**, and six mutants each red for their stated reason;
+- **the floors became set equalities**, which have no slack by
+  construction — and the door roster is now *derived from the region's
+  `fn` signatures*, so the two holes about renaming and adding a door
+  died at the root rather than being patched;
+- **the one vacuity a set equality does NOT rule out was checked here,
+  directly.** `assert_eq!(a, b)` passes when both sides are empty, and
+  both sides derive from one scan, so a scan that died reads as a pass.
+  Read on the head: every equality is preceded by a non-emptiness
+  assertion on its own derived set, each with a message naming the
+  failure mode — *"eval/wire.rs mentions no `family::` or `phrase::`
+  const at all — the vocabulary moved and this row is reading the wrong
+  file"*. That is the check the whole census turns on, and it is there.
+
+**One floor survives and is argued**: `doors.len() >= 2`. The door set is
+what the row *computes*, not something it compares against a second set,
+so there is nothing to equate it with. That is exactly the exception the
+steer allowed — a floor is what you write when you have proved no
+bijection exists, and you write why.
+
+### What the lane did better than it was asked
+
+**MINOR 5 was deleted rather than extended.** `DegenerateDirection`'s
+doc carried a hand-written list of role words and the unit had added
+three more without updating it. The obvious repair is to add them; the
+lane removed the list and named the class instead, because a list there
+is a second copy of a set those modules already hold. That is the right
+instinct applied to the finding rather than to the instruction.
+
+**The census moved out of `eval/mod.rs` into `tests/`**, where the
+tree's other source censuses live, and `sentinel_region` was hoisted
+into `test_utils::source` — the declared home — with two of its three
+callers converted and the third announced with its own row plus the
+untaken sweep recorded.
+
+### Residues re-homed at the moment of closing, not disclosed
+
+`wire-rs-module-header-…` carried **three** findings and only the header
+is discharged, so the comment ratio and `wire_sweep`-exists-to-fail got
+their own file. The entity-kind door's six spellings, the role words
+that respell rather than compose, the three-homed sentinel extractor,
+and the reader ledger keyed on the file rather than the census are each
+a row. `work/README.md`'s rule was the operative one all evening: a
+residue named only in a closing section dies with the directory.
+
+### The tally this unit closes
+
+Three full rounds on one unit — a full review, a delta, and a fix pass
+that answered both MAJORs — and **every round found something the
+previous one could not have.** R1 could not review a census that did not
+exist; R2 broke the census R1's findings caused; the orchestrator's own
+read caught the vacuity R2 did not name. The lesson stands for the
+program: **a round is worth running when the diff contains a mechanism
+no previous round has seen**, and is not worth running otherwise.
