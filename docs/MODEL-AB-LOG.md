@@ -5623,3 +5623,4 @@ the block's last slot's reviews conclude. Dispatch order: slots 0 and 1
 concurrently as lanes and disk allow; slot 2 after slot 0 merges.
 
 Block BLEND-B3 slot record (branch-side, appended as each slot concludes):
+slot 0 = BLEND-12 implementer dispatch (2026-09-13, ~10:55Z): arm OPUS per the draw above (byte 124); `docs/BLEND-12-SPEC.md` (S / STRUCTURAL, pre-draw); brief `/home/user/blend-briefs/unit-12-brief.md` (lane-local; the spec is the binding text); S-BOOL seam announced in `work/bool/log.md` before dispatch. Review ordinal claimed on main at the dual's dispatch.
