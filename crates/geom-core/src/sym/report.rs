@@ -17,8 +17,9 @@
 use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
+use super::rational::Rat;
 use super::{
-    Discharge, Form, INDET_PI, ParamSymbol, Poly, Rat, SESSION, Session, SymId, SymOp, early_form,
+    Discharge, Form, INDET_PI, ParamSymbol, Poly, SESSION, Session, SymId, SymOp, early_form,
     indet_param, plain_form,
 };
 use crate::predicate::{Indeterminate, MarginDiag, Sign};
