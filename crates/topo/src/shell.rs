@@ -1484,15 +1484,18 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // back, so it is the counterpart's boundary that encloses — the
         // counterpart survives as the rim, facing the gap, and the
         // mouth dies. The role is read off the sealed arm's decided
-        // shell list and nothing re-derives it: `ring_outer_contact`
+        // shell list and nothing re-derives it HERE: `ring_outer_contact`
         // below decides CONTACT between the two loops, not which
-        // encloses which, and tier 3 states no ring-inside-outer check
-        // — an inverted assignment glues the larger loop in as a ring
-        // of the smaller face and validates with the right volume
-        // (`work/topo/tier3-accepts-a-ring-outside-its-outer-loop.md`).
-        // What pins the assignment is structural: the void-ceiling row
-        // asserts the designated void face DIES, and the pairing row
-        // reads each thin solid's twin through the record.
+        // encloses which. What falsifies an inverted assignment is tier
+        // 3's check 9, whose nesting half states ring-inside-outer and
+        // refuses the glued body at the verb's closing
+        // `validate_geometric` — on the shapes that half reaches, which
+        // is a planar rim face whose surviving outer loop is a polygon
+        // of line carriers (check 9's banner enumerates the rest). On a
+        // rim outside that reach the assignment is still pinned only
+        // structurally: the void-ceiling row asserts the designated void
+        // face DIES, and the pairing row reads each thin solid's twin
+        // through the record.
         let (host, guest) = match side {
             RimShell::Void => (counterpart, mouth),
             RimShell::Outer => (mouth, counterpart),

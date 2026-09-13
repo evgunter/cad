@@ -6948,6 +6948,16 @@ mod tests {
                 ring: t.loop_a,
                 source: indeterminate(),
             },
+            ValidationError::RingOutsideOuter {
+                face: t.face_a,
+                ring: t.loop_a,
+                ring_vertex: v,
+            },
+            ValidationError::RingNestingUndecided {
+                face: t.face_a,
+                ring: t.loop_a,
+                source: crate::boolean::ContainError::Escalated(indeterminate()),
+            },
             ValidationError::DanglingGeometry {
                 from: EntityId::Vertex(v),
                 to: GeomRef::Point(t.points[0]),
