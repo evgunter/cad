@@ -125,5 +125,7 @@ both routes, and the statement lives at `HostSide`'s doc).
 
 ## Exit shape
 
-The twelve land, the ruling is answered, Track T is empty; the walk
-convention applies.
+The twelve land (with 14 and 15, promoted from the slate's residues on
+2026-09-13, beside them; 13 stays blocked on PROPS' H5 and is walked as
+such), the ruling is answered, Track T is empty; the walk convention
+applies.
