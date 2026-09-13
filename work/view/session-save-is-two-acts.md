@@ -52,11 +52,11 @@ a target that is not a `*.pncad` file of this store.
 
 ## What the viewer owes
 
-1. `SessionOp::Save(PathBuf)` (`crates/viewer/src/session/op.rs:224`)
+1. `SessionOp::Save(PathBuf)` (`crates/viewer/src/session/op.rs:275`)
    routes through `Workspace::save_at` and surfaces
    `save_would_duplicate_id` as a refusal. Today it does not touch the
    store at all: `DocSession::save`
-   (`crates/viewer/src/session.rs:1517`) calls `docio::save_path`,
+   (`crates/viewer/src/session.rs:1639`) calls `docio::save_path`,
    which is `persist::save` + `std::fs::write`
    (`crates/viewer/src/docio.rs:171`) — the one production write of a
    document that goes around the store, and the reason the ruled

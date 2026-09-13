@@ -86,7 +86,8 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
                     ..
                 }
         ),
-        "a secant must refuse through the chart-image mint or the one meter, not elsewhere:          {err:?}"
+        "a secant must refuse through the chart-image mint or the one meter, not elsewhere: \
+         {err:?}"
     );
 }
 

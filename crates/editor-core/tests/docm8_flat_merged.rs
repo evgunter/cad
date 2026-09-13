@@ -228,7 +228,7 @@ fn from_a(node: RecipeNodeId, inner: StableName) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::FromA(Box::new(inner))],
+        path: vec![RoleSeg::FromA(inner.into())],
     }
 }
 
@@ -236,7 +236,7 @@ fn from_b(node: RecipeNodeId, inner: StableName) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::FromB(Box::new(inner))],
+        path: vec![RoleSeg::FromB(inner.into())],
     }
 }
 

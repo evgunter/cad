@@ -56,7 +56,7 @@ carried `pick.rs:103-121`, which after #2083's rename resolves to the
 tail of `IndexInputs::of` and the head of `PickCache`'s doc comment,
 neither of which is a gesture-reset site; the file is right, the range
 is not, and a taker should re-find the subject rather than trust it)
-and `crates/viewer/src/pane/create.rs:141,415`. Cite what the sweep
+and `crates/viewer/src/pane/create.rs:142,416`. Cite what the sweep
 could not match when it is done.
 
 ## What resolving it looks like

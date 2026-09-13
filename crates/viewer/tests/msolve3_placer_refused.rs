@@ -77,11 +77,12 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(2),
                 path: vec![RoleSeg::Cap(cap)],
-            }),
+            }
+            .into(),
         }],
     }
 }
@@ -126,7 +127,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
                     node: pattern,
                     path: vec![RoleSeg::Instance {
                         i: 1,
-                        of: Box::new(in_part(legs, CapEnd::End)),
+                        of: in_part(legs, CapEnd::End).into(),
                     }],
                 }),
                 b: SitedRef::at_mint(in_part(cap, CapEnd::Start)),

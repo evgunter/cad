@@ -171,19 +171,15 @@ pub enum PathStep {
     /// `line_to(target)` — a straight leg to an authored point, or to
     /// `Start`, which closes.
     LineTo(PathTarget),
-    /// `arc_to(spec)` — a sharp (non-tangent) arc leg, with its
-    /// declared split count: 1 is the plain leg, `n ≥ 2` splits the
-    /// leg into `n` arcs whose interior stations are declared tangent
-    /// joints on the one carrier.
-    ArcTo {
-        /// The arc.
-        spec: ArcSpec,
-        /// The declared split count (structural; 1 = unsplit).
-        splits: u32,
-    },
+    /// `arc_to(spec)` — a sharp (non-tangent) arc leg.
+    ArcTo(ArcSpec),
     /// `tangent_arc_to(target)` — an arc leaving along the bound
     /// direction and ending at `target`.
     TangentArcTo(PathTarget),
+    /// `arc_continue(p)` — a structural vertex ON the incoming
+    /// carrier: the declared-subdivision verb, which splits an arc
+    /// without changing it.
+    ArcContinue([f64; 2]),
     /// `.fillet(r)` — round the corner with radius `r`, line in, line
     /// out.
     Fillet(f64),
@@ -217,15 +213,6 @@ pub enum PathStep {
     FarEndTo([f64; 2]),
     /// `.to(Start)` — the seam fillet's close.
     CloseTo,
-}
-
-impl PathStep {
-    /// The plain (unsplit) sharp arc leg: `arc_to(spec)` with a split
-    /// count of 1.
-    #[must_use]
-    pub fn arc_to(spec: ArcSpec) -> Self {
-        Self::ArcTo { spec, splits: 1 }
-    }
 }
 
 /// One loop of the add-profile door: a template shape, or a PATH
@@ -446,11 +433,9 @@ fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionEr
         PathStep::Turn(d) => ProgramStep::Turn(n.angle(d)?),
         PathStep::Line(len) => ProgramStep::Line(n.length(len)?),
         PathStep::LineTo(target) => ProgramStep::LineTo(program_target(target, n)?),
-        PathStep::ArcTo { spec, splits } => ProgramStep::ArcTo {
-            spec: program_arc(spec, n)?,
-            splits,
-        },
+        PathStep::ArcTo(spec) => ProgramStep::ArcTo(program_arc(spec, n)?),
         PathStep::TangentArcTo(target) => ProgramStep::TangentArcTo(program_target(target, n)?),
+        PathStep::ArcContinue(p) => ProgramStep::ArcContinue(n.point(p)?),
         PathStep::Fillet(r) => ProgramStep::Fillet(n.length(r)?),
         PathStep::FilletArc { radius, spec } => ProgramStep::FilletArc {
             radius: n.length(radius)?,
@@ -491,9 +476,12 @@ fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionEr
 /// It reads the LANDED value rather than resolving the frame's
 /// expressions again: this is a picture, the evaluation already
 /// produced the placement, and a second derivation is a second answer
-/// waiting to disagree with the first. (The kernel's own f64 read is a
-/// different question — see `wire::profile_plane_f64` — and is about
-/// structure selection, not about drawing.)
+/// waiting to disagree with the first. The kernel reads by that same
+/// rule and asks a different question: `wire::profile_plane_f64` takes
+/// the `f64` placement the frame's own evaluation minted and carried
+/// (`NodeValue::placement`), which is for structure selection and not
+/// for drawing. The two differ in WHICH answer they take off the
+/// frame's value, not in whether they take one.
 pub fn frame_placement(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
@@ -662,6 +650,13 @@ pub enum PreviewError {
     },
 }
 
+// The preview's sentence is about the step the author is looking at,
+// so both halves of the (state, verb) pair are named in the author's
+// vocabulary: the verb through `profile::Verb`'s own `Display` — the
+// same word the row's combo shows, so a verb cannot be picked under
+// one name and refused under another — and the state through
+// [`tip_state_words`]. `profile`'s `ReplayError` renders the same pair
+// as the table's COORDINATE and says there why that sentence differs.
 impl core::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -675,7 +670,7 @@ impl core::fmt::Display for PreviewError {
             } => match verb {
                 Some(verb) => write!(
                     f,
-                    "loop {loop_} step {step}: {verb:?} is not well-typed there — the tip is {}",
+                    "loop {loop_} step {step}: {verb} is not well-typed there — the tip is {}",
                     tip_state_words(*state)
                 ),
                 None => write!(
@@ -1027,7 +1022,7 @@ fn arc_points(radius: f64, theta: f64, chord: f64) -> usize {
     ((theta.abs() / step).ceil() as usize).clamp(1, MAX_ARC_POINTS)
 }
 
-/// **How big the tip marks in a profile preview are**/// **How big the tip marks in a profile preview are**, in sketch-plane
+/// **How big the tip marks in a profile preview are**, in sketch-plane
 /// metres: a fraction of the whole preview's extent.
 ///
 /// Relative rather than absolute because a preview has no fixed scale

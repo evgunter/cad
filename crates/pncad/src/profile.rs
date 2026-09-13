@@ -71,15 +71,15 @@ pub use ::profile::{
     ArcCarrierScalar, ArcData, ArcLen, ArcMode, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop,
     ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LineTarget, Open, PartialPath,
     PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, ReplayError, ReplayErrorKind,
-    Split, Start, Step, Sweep, TangentArcTarget, Target, TipState, Verb, Via, circle, circle_split,
-    replay,
+    Start, Step, Sweep, TangentArcTarget, Target, TargetKind, TipState, Verb, Via, circle,
+    circle_split, replay,
 };
 // The §2c family's traits and arrival builders: the admissibility
 // matrix (one impl per admissible (state, mode) pair) and the states a
 // spec that leaves binders free completes through.
 pub use ::profile::path::{
     ArrivalSpec, LegEndIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt, RadiusArrivalDir,
-    Splittable, TangentIncoming, TangentLeg, ViaArrival, ViaArrivalStart,
+    TangentIncoming, ViaArrival, ViaArrivalStart,
 };
 
 // The data types (nameable, not mintable) and the bulge sugar that

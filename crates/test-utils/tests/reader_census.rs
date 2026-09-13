@@ -128,6 +128,12 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
+        path: "crates/editor-core/tests/wire_operand_door.rs",
+        disposition: Shared, // operand-door and expected-phrase census over
+                             // eval/wire.rs and verbs/split.rs, code and
+                             // code-and-literals views
+    },
+    Entry {
         path: "crates/geom-brep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -167,11 +173,21 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
-        disposition: Unconverted("Track E, issue #763 — `code_without_comments`, line-based"),
+        disposition: Shared, // the facade boundary guards, code and literal views
     },
     Entry {
         path: "crates/profile/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/profile/tests/fillet_recourse_followability.rs",
+        disposition: Shared, // the fillet gate census takes the nine predicate
+                             // names from sugar.rs, code+literal view
+    },
+    Entry {
+        path: "crates/profile/tests/generic_replay.rs",
+        disposition: Shared, // the stored-form exemption held against seg.rs's
+                             // own predicate names, code+literal view
     },
     Entry {
         path: "crates/profile/tests/r2_bool9_review_probes.rs",
@@ -272,6 +288,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the mutation-door walk, code view
     },
     Entry {
+        path: "crates/topo/src/surgery.rs",
+        disposition: Shared, // `Body`'s surgery-depth field declaration, code view
+    },
+    Entry {
         path: "crates/topo/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -298,6 +318,14 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/viewer/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/viewer/tests/frame_policy.rs",
+        disposition: Shared, // the README's badge-door and store-read counts, code view
+    },
+    Entry {
+        path: "crates/viewer/tests/gesture_table.rs",
+        disposition: Shared, // the cancel doors' chrome reader, code view
     },
     Entry {
         path: "crates/viewer/tests/landing_gathers.rs",
@@ -664,7 +692,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 5;
+const UNCONVERTED_TODAY: usize = 4;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what

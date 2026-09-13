@@ -36,6 +36,7 @@ pub(crate) use wire::{
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
+pub use wire::{DirectionRefusal, FramePlacement};
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -292,6 +293,26 @@ pub struct NodeValue<T: Decide> {
     /// **Not persisted**, like the verdicts and unlike their summary:
     /// an escalation is a fact about one run at one box, read in hand.
     pub escalations: Arc<EscalationLog>,
+    /// **What a FRAME node's placement is** ([`FramePlacement`], minted
+    /// by `wire::mint_frame_placement`): for an authored frame its nine
+    /// slots at the document's nominal, orthonormalized — the frame's
+    /// own `DatumValue::Frame` answers the same question at the LANE
+    /// scalar, and the two ride side by side because they have
+    /// different readers (`wire::profile_plane_f64` and
+    /// `wire::frame_plane_lane`).
+    ///
+    /// `None` means the node is NOT A FRAME, and only that. The three
+    /// answers a frame can give are the enum's three arms, so no reader
+    /// infers one of them from the absence of another, and a reference
+    /// to a non-frame gets the loud `WrongOperand` every by-value
+    /// reader of a frame raises.
+    ///
+    /// Rides the value, so memo reuse transfers the placement with the
+    /// geometry: it is a pure function of the node's nominal slots and
+    /// the tolerance, both of which the content key fixes, so a hit's
+    /// placement equals a recompute's bit for bit (the D9 argument the
+    /// verdicts above ride on).
+    pub placement: Option<FramePlacement>,
     /// RESERVED empty slot: the solved witness assignment (M6 fills).
     pub witness: WitnessSlot,
     /// The node's input-content hash (spec D4) — the memo currency.
@@ -418,22 +439,143 @@ pub enum ValuePayload<T: Decide> {
     Assertion(crate::measure::AssertionVerdict<T>),
 }
 
+/// **One family word, as a literal** — so [`concat!`] can compose a
+/// phrase out of it at compile time, which a `const` cannot be fed
+/// to. [`family`]'s consts are defined FROM this macro and
+/// [`phrase`]'s are composed from it, so each word is spelled once in
+/// the tree and a composed phrase cannot drift from the `found:` word
+/// that answers beside it.
+// OPERAND-VOCABULARY BEGIN — the region
+// `every_family_word_has_exactly_one_const` reads. An arm with no
+// const, or a const with no arm, reds that row.
+macro_rules! family_word {
+    (datum) => {
+        "datum"
+    };
+    (profile) => {
+        "profile"
+    };
+    (body) => {
+        "body"
+    };
+    (boolean) => {
+        "boolean"
+    };
+    (split) => {
+        "split"
+    };
+    (instances) => {
+        "instances"
+    };
+    (declarations) => {
+        "declarations"
+    };
+    (mate) => {
+        "mate"
+    };
+    (measure) => {
+        "measure"
+    };
+    (assertion) => {
+        "assertion"
+    };
+}
+
 /// **The family words** — the vocabulary a typed operand mismatch
-/// speaks ([`NodeErrorKind::WrongOperand`]'s `found`), written once.
-/// Three readers say them: [`ValuePayload::kind_name`] over a value,
-/// [`node_value_kind`] over a node, and the one-body door's refusal
-/// of an `Instances` operand.
+/// speaks ([`NodeErrorKind::WrongOperand`]'s `found` and `expected`),
+/// written once. [`ValuePayload::kind_name`] says them over a value,
+/// [`node_value_kind`] over a node, and `eval::wire`'s operand door
+/// says them in the refusals it builds.
 pub(crate) mod family {
-    pub(crate) const DATUM: &str = "datum";
-    pub(crate) const PROFILE: &str = "profile";
-    pub(crate) const BODY: &str = "body";
-    pub(crate) const BOOLEAN: &str = "boolean";
-    pub(crate) const SPLIT: &str = "split";
-    pub(crate) const INSTANCES: &str = "instances";
-    pub(crate) const DECLARATIONS: &str = "declarations";
-    pub(crate) const MATE: &str = "mate";
-    pub(crate) const MEASURE: &str = "measure";
-    pub(crate) const ASSERTION: &str = "assertion";
+    pub(crate) const DATUM: &str = family_word!(datum);
+    pub(crate) const PROFILE: &str = family_word!(profile);
+    pub(crate) const BODY: &str = family_word!(body);
+    pub(crate) const BOOLEAN: &str = family_word!(boolean);
+    pub(crate) const SPLIT: &str = family_word!(split);
+    pub(crate) const INSTANCES: &str = family_word!(instances);
+    pub(crate) const DECLARATIONS: &str = family_word!(declarations);
+    pub(crate) const MATE: &str = family_word!(mate);
+    pub(crate) const MEASURE: &str = family_word!(measure);
+    pub(crate) const ASSERTION: &str = family_word!(assertion);
+}
+// OPERAND-VOCABULARY END
+
+/// **The composed phrases** — every `expected:` a refusal names that is
+/// not exactly one family word.
+///
+/// # The rule
+///
+/// An `expected:` names what to author, and it comes from a const:
+/// [`family`] when it is exactly a value family, this module when it is
+/// anything else. **No `expected:` is a literal written at a call
+/// site.** The reason is not that two copies of a two-word phrase are
+/// expensive to keep in step — they are not — it is that the phrases a
+/// document author has to learn are then enumerable in one screen,
+/// instead of being the set you get by grepping every refusal that
+/// speaks one.
+///
+/// `found:` never appears here. The door computes it from the value it
+/// was handed ([`ValuePayload::kind_name`]) or from the node
+/// ([`node_value_kind`]), so no site can answer it with the negation of
+/// its own `expected:` and leave a reader told twice what the input is
+/// not and never what it is.
+///
+/// # The three shapes, and how each is composed
+///
+/// - **Narrower than a family** ([`phrase::DATUM_FRAME`], [`phrase::DATUM_AXIS`],
+///   [`phrase::DATUM_PLANE`]): a variant WITHIN a family. The family word is
+///   still in the phrase — and is exactly the word `found:` answers
+///   beside it — so it is composed from `family_word!` rather than
+///   respelled.
+/// - **Wider than a family** ([`phrase::BODY_OR_INSTANCES`]): two families and
+///   the conjunction between them, and nothing else; both words are
+///   composed.
+/// - **A whole sentence** ([`phrase::AXIS_IN_SKETCH_FRAME`]): a seat no family
+///   word names, so there is nothing to compose and the const is the
+///   literal. It is here for the rule above — one home per phrase —
+///   rather than for a vocabulary it shares.
+///
+/// # What this module is NOT, and where the neighbouring words live
+///
+/// The rule above governs `expected:` and nothing else. A second
+/// user-visible vocabulary sits beside it — the DIRECTION-ROLE words a
+/// [`NodeErrorKind::DegenerateDirection`] or
+/// [`NodeErrorKind::NonFiniteDirection`] refusal carries, which name the SLOT
+/// whose vector would not normalize rather than the kind an operand
+/// had to be. They keep their own home beside the arithmetic that
+/// raises them (`eval::wire`'s `*_ROLE` consts, `pub(crate)` because
+/// the mate solve re-derives the same refusals), and every one of them
+/// is a named const rather than a literal at its call site — that half
+/// of the rule they do follow.
+///
+/// **What they do NOT do is compose: they RESPELL.** Four of them open
+/// with a phrase declared here and write it out again as a literal —
+/// `"datum frame x axis"`, `"datum frame y axis"`, `"datum plane
+/// normal"`, `"datum axis direction"`. That is not a boundary and not
+/// a choice: `concat!` takes literals and a `const` is not one, so
+/// composing them needs this module's macro layer extended from the
+/// WORDS to the PHRASES, which is a design step rather than a rename.
+/// It is a residue, and it has a row —
+/// `work/wire/direction-role-words-respell-the-operand-phrases.md`.
+/// `TRANSFORM_AXIS_ROLE` and `PATTERN_DIRECTION_ROLE` share no family
+/// word with anything here, so they are not that row.
+pub(crate) mod phrase {
+    /// A frame datum: [`crate::node::Datum::Frame`] or
+    /// [`crate::node::Datum::FaceFrame`], the two nodes that carry a
+    /// [`super::DatumValue::Frame`].
+    pub(crate) const DATUM_FRAME: &str = concat!(family_word!(datum), " frame");
+    /// A 3-D axis datum ([`crate::node::Datum::Axis`]).
+    pub(crate) const DATUM_AXIS: &str = concat!(family_word!(datum), " axis");
+    /// A plane datum ([`crate::node::Datum::Plane`]).
+    pub(crate) const DATUM_PLANE: &str = concat!(family_word!(datum), " plane");
+    /// What a placer places: one body, or a list of placed ones.
+    pub(crate) const BODY_OR_INSTANCES: &str =
+        concat!(family_word!(body), " or ", family_word!(instances));
+    /// A revolve's axis seat. A 3-D [`crate::node::Datum::Axis`] lands
+    /// in this refusal, so the sentence has to say what to author
+    /// instead: the seat is not "an axis", it is an axis written in the
+    /// sketch the profile is drawn on.
+    pub(crate) const AXIS_IN_SKETCH_FRAME: &str = "an axis in a sketch frame (Datum::AxisInPlane)";
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -886,8 +1028,10 @@ pub enum NodeErrorKind {
     },
     /// A direction-valued vector decided to zero length. Which
     /// vectors those are is the ROLE constants' to say, not this
-    /// doc's: `wire`'s `DATUM_AXIS_ROLE`, `PATTERN_DIRECTION_ROLE` and
-    /// `TRANSFORM_AXIS_ROLE`, and `placement`'s `PLACEMENT_AXIS_ROLE`.
+    /// doc's — every `*_ROLE` const in `wire` and in `placement`, as a
+    /// CLASS rather than as a list, because a list here is a second
+    /// copy of a set those modules already hold and it went stale the
+    /// first time one of them was added.
     DegenerateDirection {
         /// Which vector, by role.
         role: &'static str,
@@ -898,6 +1042,19 @@ pub enum NodeErrorKind {
     /// recourse — the model is outside the range its own arithmetic
     /// can measure, and the fix is scale, not direction.
     NonFiniteDirection {
+        /// Which vector, by role.
+        role: &'static str,
+    },
+    /// A direction-valued vector whose LENGTH underflowed to zero:
+    /// components small enough (`≲1e-162` at `f64`) that their
+    /// squares are not representable, so the vector has a direction
+    /// and no measurable length. A separate fact from a zero length
+    /// and the same recourse as
+    /// [`NodeErrorKind::NonFiniteDirection`] — the model is outside
+    /// the range its own arithmetic can measure, and the fix is
+    /// scale, not direction. Which vectors those are is the ROLE
+    /// constants' to say, as for the two arms above.
+    UnderflowedDirection {
         /// Which vector, by role.
         role: &'static str,
     },
@@ -1201,6 +1358,37 @@ pub enum NodeErrorKind {
         profile: RecipeNodeId,
         /// The derived frame it is drawn on.
         frame: RecipeNodeId,
+    },
+    /// A profile needed an AUTHORED frame's `f64` placement and the
+    /// frame's own direction slots refused, so the refusal is raised
+    /// on the reader (`wire::profile_plane_f64`) and names BOTH nodes.
+    ///
+    /// **[`NodeErrorKind::DerivedFrameSection`]'s shape, and both of
+    /// its ids, because this refusal reaches the same third node.**
+    /// `profile_plane_f64` is read from the profile node's own
+    /// evaluation, where the error lands on the profile and its id is
+    /// confirmation — and from `wire`'s section seam, where the error
+    /// lands on the LOFT or SWEEP and neither node in the sentence is
+    /// the one it is attached to. One id would leave that road naming
+    /// half of what it refused about.
+    ///
+    /// **The carried refusal is the fact, not a second one.** A frame
+    /// slot that refuses reaches a human two ways — raised at the
+    /// frame by [`crate::Datum::Frame`]'s own evaluation, or carried
+    /// to the reader that needed the nominal
+    /// ([`crate::FramePlacement::Unreadable`]) — and both spell it
+    /// through [`DirectionRefusal::node_error`], so the sentence and
+    /// the tag are the same on both roads. What this arm adds is the
+    /// ids, which the role word alone cannot supply: "the datum frame
+    /// x axis has zero length" names no frame in a document with two.
+    FrameDirection {
+        /// The profile that needed the placement.
+        profile: RecipeNodeId,
+        /// The frame node whose direction slot refused.
+        frame: RecipeNodeId,
+        /// The frame's own refusal, unaltered — which vector, and
+        /// which of the direction door's four facts.
+        refusal: DirectionRefusal,
     },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
@@ -1547,6 +1735,13 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} has zero length")
             }
+            Self::UnderflowedDirection { role } => write!(
+                f,
+                "the {role} underflowed to zero length — its components \
+                 are too small for their squares to be represented, so it \
+                 has a direction but no measurable length; scale the \
+                 geometry into the session's range"
+            ),
             Self::NonFiniteDirection { role } => write!(
                 f,
                 "the {role} has no finite length — its components \
@@ -1708,6 +1903,22 @@ impl core::fmt::Display for NodeErrorKind {
             Self::FaceFrameReadback { error } => write!(
                 f,
                 "the derived frame's face resolved to a key its body could not read back: {error}"
+            ),
+            // Both ids FIRST, then the fact. Three of the four facts
+            // end in a remedy clause and the escalation's runs to
+            // hundreds of characters, so a locator appended after one
+            // of those is a locator nobody reaches.
+            Self::FrameDirection {
+                profile,
+                frame,
+                refusal,
+            } => write!(
+                f,
+                "profile node {} is drawn on datum frame node {}, and the frame refused \
+                 its own direction: {}",
+                profile.0,
+                frame.0,
+                refusal.node_error()
             ),
             Self::DerivedFrameSection { profile, frame } => write!(
                 f,
@@ -2601,11 +2812,15 @@ where
     // the first thing that can decide on its behalf to after the op,
     // so the node's log is every decision made evaluating THIS node,
     // pre-key and op alike, in the order made, through the one
-    // `k_stats` funnel. Before the key, only a Profile node decides:
-    // its plane read (`profile_plane_f64`) and its replay and f64
-    // validation (`prepare_profile`); slot and program-expression
-    // evaluation reach the funnel through `check_unlogged`, which
-    // lands in no frame. The guard is `!Send`, so the
+    // `k_stats` funnel. Before the key, only a Profile node decides,
+    // and only in its replay and f64 validation (`prepare_profile`) —
+    // its plane read decides nothing, because the frame it reads
+    // decided the placement on its own behalf and logged it there;
+    // slot and program-expression evaluation reach the funnel through
+    // `check_unlogged`, which lands in no frame. A FRAME node decides
+    // after its op as well as in it: its nominal placement
+    // (`wire::mint_frame_placement`) is the last thing in its frame.
+    // The guard is `!Send`, so the
     // frame closes on the worker that opened it (idiom-1 parallelism
     // runs whole nodes on one worker each); an op that evaluates
     // another document (an instantiated part) has that document's
@@ -2699,16 +2914,16 @@ where
     // under the guided lift.
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
-            // The frame the profile is drawn on, at f64 and from the
-            // DOCUMENT — the evaluation's nominal environment
-            // (`wire::LaneEnv::nominal`); `wire::profile_plane_f64`
-            // carries why that is the right scalar and the right
-            // source.
-            let placement =
-                match wire::profile_plane_f64(doc, program.plane, op_env.lane.nominal, tol) {
-                    Ok(placement) => placement,
-                    Err(kind) => return fail(bracket, kind),
-                };
+            // The frame the profile is drawn on, at f64 — READ off
+            // the frame node's own result, where its evaluation
+            // minted it from the same nominal slots
+            // (`wire::mint_frame_placement`). The frame is a DAG input
+            // of this node, so its value is in hand and a failed
+            // frame poisoned this node before the read.
+            let placement = match wire::profile_plane_f64(results, id, program.plane) {
+                Ok(placement) => placement,
+                Err(kind) => return fail(bracket, kind),
+            };
             match wire::prepare_profile(placement, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(bracket, kind),
@@ -2814,12 +3029,13 @@ where
         // The profile's f64 precompute ran inside this frame, and the
         // reused value's log opens with the same decisions. A
         // `Verdict` is (predicate, sign), and the inputs the content
-        // key fixes — the resolved program, the plane's slots through
-        // the frame's key, the tolerance — are exactly what the
-        // precompute decides from, so D9 makes the two sequences
-        // equal. It holds at EVERY scalar, and `tag::slot` is why: the
-        // precompute reads nominals, and the frame's key fixes its
-        // slots there as well as at the lane.
+        // key fixes — the resolved program, the placement the frame's
+        // own key fixes (`NodeValue::placement`), the tolerance —
+        // are exactly what the precompute decides from, so D9 makes
+        // the two sequences equal. It holds at EVERY scalar, and
+        // `tag::slot` is why: the frame's key fixes its slots at the
+        // nominal as well as at the lane, and the placement is a pure
+        // function of the nominal ones.
         // The reused value IS the record, so the fresh frame is
         // finished and dropped rather than spliced in, and the prefix
         // identity is asserted in every profile: one compare of a few
@@ -2851,10 +3067,29 @@ where
         op_env,
         tol,
     );
+    // A FRAME node's placement, minted ONCE for the frame from the
+    // nominal slots already in hand and carried on its value — where
+    // every profile drawn on the frame reads it
+    // (`wire::profile_plane_f64`) instead of evaluating those nine
+    // expressions again. `None` for every node that is not a frame. It
+    // is a component of the VALUE, so it is minted only where there is
+    // a value to put it on: the op's own refusal at the lane scalar
+    // still answers first, and its decisions still precede these in
+    // the frame opened above, which closes below.
+    //
+    // It is minted for EVERY frame, including one no profile is drawn
+    // on, and that costs such a frame two direction decisions it did
+    // not make before. The alternative is a lookahead — mint only if
+    // some later node will ask — which makes a node's value depend on
+    // its consumers, and a node's value is the node's.
+    let placement = match &op {
+        Ok(_) => wire::mint_frame_placement(node, &nominal_values, tol),
+        Err(_) => Ok(None),
+    };
     let recorded = bracket.finish();
     let escalations = Arc::new(recorded.escalations);
-    match op {
-        Ok(out) => NodeStep {
+    match (op, placement) {
+        (Ok(out), Ok(placement)) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 name_table: out.names,
@@ -2863,14 +3098,23 @@ where
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
+                placement,
                 content_key,
                 naming_key,
             }),
             reused: false,
         },
         // The failure carries what the op escalated on its way to it:
-        // the frame is the node's whether or not the op built.
-        Err(kind) => NodeStep {
+        // the frame is the node's whether or not the op built. The
+        // mint's `Err` arm is the node's too, and it is deliberately
+        // narrow — a missing slot or a refused band, faults of the NODE
+        // that no environment could read around, the same shape the
+        // nominal SLOT evaluation above already fails on. A frame whose
+        // nominal AXES refuse is not one of them: that value lands, and
+        // the refusal is carried to the reader that wanted the nominal
+        // placement (`wire::FramePlacement::Unreadable`) rather than
+        // poisoning readers that only ever wanted the landed frame.
+        (Err(kind), _) | (Ok(_), Err(kind)) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
                 kind,
@@ -3496,8 +3740,8 @@ where
     // the compile breaks. It cannot default to "tag plus slots" and
     // hash identically to a node that differs in that payload — a memo
     // hit would then serve another node's geometry, which is not
-    // hypothetical (see S4: two steps once shared a content-key tag,
-    // and a reviewer caught it rather than a type).
+    // hypothetical (see S4: `Step::AtToward`'s content-key tag collided
+    // with `ArcContinue`'s and was caught by a reviewer, not a type).
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
@@ -3984,6 +4228,7 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::CloseTo => 24,
         V::Circle => 26,
         V::CircleSplit => 27,
+        V::ArcContinue => 28,
         V::FilletArc => 38,
         V::ArcFillet => 39,
         V::ArcFilletArc => 40,
@@ -3998,7 +4243,6 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
     (19, "ArcVia"),
     (20, "ArcCenter"),
     (25, "CloseToOn"),
-    (28, "ArcContinue"),
     (29, "AtToward"),
 ];
 
@@ -4023,9 +4267,9 @@ fn arc_mode_tag(mode: profile::ArcMode) -> u8 {
 
 /// The content-key tag of a step's target KIND — the payload-free
 /// projection of [`profile::Target`], the one place the choice is
-/// made so `target_tags_are_injective` can check it over the closed
-/// list of kinds (`Target` is `crates/profile`'s and carries no `ALL`,
-/// so the list is local and an exhaustive match forces it complete).
+/// made so `target_tags_are_injective` can check it over
+/// `profile::TargetKind::ALL`, the form list projected from the same
+/// declaration as the variants.
 fn target_tag(t: &profile::Target<f64>) -> u8 {
     use profile::Target;
     match t {
@@ -4128,7 +4372,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     }
     h.write_tag(verb_tag(step.verb()));
     match step {
-        Step::At(p) | Step::FarEndTo(p) => {
+        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => {
             f(h, p.x);
             f(h, p.y);
         }
@@ -4141,14 +4385,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
         Step::Turn(delta) => f(h, *delta),
         Step::Line(len) => f(h, *len),
         Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
-        Step::ArcTo { spec: data, splits } => {
-            spec(h, data);
-            // The declared split count: a structural int under its own
-            // tag (3), as `CircleSplit`'s `n` is fed — two legs that
-            // differ only in their split are different geometry.
-            h.write_tag(3);
-            h.write_u64(*splits as u64);
-        }
+        Step::ArcTo(data) => spec(h, data),
         Step::Fillet { radius } => f(h, *radius),
         Step::FilletArc { radius, spec: sp } => {
             f(h, *radius);
@@ -4250,7 +4487,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
         }
     }
     match step {
-        Step::At(p) | Step::FarEndTo(p) => pt(h, p),
+        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => pt(h, p),
         Step::Angle(v) | Step::Turn(v) | Step::Line(v) => f(h, v),
         Step::Toward { dx, dy } => {
             f(h, dx);
@@ -4258,7 +4495,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
         }
         Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
-        Step::ArcTo { spec: s, splits: _ } => spec(h, s),
+        Step::ArcTo(s) => spec(h, s),
         Step::Fillet { radius } => f(h, radius),
         Step::FilletArc { radius, spec: s } => {
             f(h, radius);
@@ -4900,8 +5137,8 @@ mod tag_vocabulary_tests {
     /// it would stay green while a new inline node claimed 17 or 24 —
     /// which is precisely the accident that moving two tags out of the
     /// match created the room for, and precisely the accident the S4
-    /// lesson (two steps sharing one content-key tag, caught by a
-    /// reviewer rather than a type) says costs a memo hit serving
+    /// lesson (`Step::AtToward` colliding with `ArcContinue`, caught by
+    /// a reviewer rather than a type) says costs a memo hit serving
     /// another node's geometry.
     ///
     /// **It is a source census, and that is the honest shape here.** The
@@ -4931,13 +5168,15 @@ mod tag_vocabulary_tests {
     #[test]
     fn node_kind_vocabulary_is_injective() {
         const SOURCE: &str = include_str!("mod.rs");
-        let region = SOURCE
-            .split_once("NODE-KIND-VOCABULARY BEGIN")
-            .expect("the tag match carries its opening sentinel")
-            .1
-            .split_once("NODE-KIND-VOCABULARY END")
-            .expect("the tag match carries its closing sentinel")
-            .0;
+        // The sentinel walk is `test_utils::source`'s, not this row's:
+        // three sites had written it themselves, and the third was
+        // nearly line-for-line the second.
+        let region = &SOURCE[test_utils::source::sentinel_region(
+            SOURCE,
+            "eval/mod.rs",
+            "NODE-KIND-VOCABULARY BEGIN",
+            "NODE-KIND-VOCABULARY END",
+        )];
         // Comments inside the region discuss tag numbers in prose ("24
         // is the chamfer's"), which are not arms — blanked through the
         // SHARED Rust reader rather than a `split("//")` this test rolled
@@ -5171,46 +5410,42 @@ mod tag_vocabulary_tests {
         );
     }
 
-    /// A step's target KIND: three words, injective and pinned. The
-    /// list is local (`Target` carries a payload, so `closed_list!`
-    /// cannot build it); the `match` beside it is exhaustive with one
-    /// arm per list member, so a variant the enum gains fails to
-    /// compile here until it has an arm — what the match cannot force
-    /// is that the new arm's variant is also added to the list, which
-    /// the arm's comment says to do.
+    /// A step's target KIND: three words, injective and pinned, over
+    /// the form list `profile` projects from its own declaration.
+    ///
+    /// `closed_list!` cannot build the list here — `Target` carries a
+    /// payload, so its members are values rather than words — but
+    /// `TargetKind::ALL` is that list, and the witness below is a match
+    /// on the tag: a form the vocabulary gains has no arm, so it fails
+    /// to compile rather than quietly going untagged, and
+    /// [`injective_and_pinned`]'s pin-count clause then refuses it a
+    /// missing committed number.
     #[test]
     fn target_tags_are_injective() {
-        use profile::Target;
+        use profile::{Target, TargetKind};
         let origin = geom_core::Point2 { x: 0.0, y: 0.0 };
-        let all: [Target<f64>; 3] = [Target::Start, Target::StartArriving, Target::Point(origin)];
-        for t in &all {
-            // One arm per list member; a new arm means a new list member.
-            match t {
-                Target::Start | Target::StartArriving | Target::Point(_) => {}
-            }
-        }
-        let kind = |t: &Target<f64>| match t {
-            Target::Start => 0,
-            Target::StartArriving => 1,
-            Target::Point(_) => 2,
+        let witness = |kind: TargetKind| match kind {
+            TargetKind::Start => Target::Start,
+            TargetKind::StartArriving => Target::StartArriving,
+            TargetKind::Point => Target::Point(origin),
         };
-        let mut seen: Vec<(usize, u8)> = Vec::new();
-        for t in &all {
-            let tag = target_tag(t);
-            if let Some((other, _)) = seen.iter().find(|(_, u)| *u == tag) {
-                panic!(
-                    "target kind {} and {other} share content-key tag {tag}",
-                    kind(t)
-                );
-            }
-            seen.push((kind(t), tag));
-        }
-        assert_eq!(seen.len(), all.len());
-        assert_eq!(target_tag(&Target::Start), 4);
-        assert_eq!(target_tag(&Target::StartArriving), 44);
-        assert_eq!(target_tag(&Target::Point(origin)), 5);
+        injective_and_pinned(
+            "target",
+            TargetKind::ALL,
+            |kind| target_tag(&witness(kind)),
+            &[
+                (TargetKind::Start, 4),
+                (TargetKind::StartArriving, 44),
+                (TargetKind::Point, 5),
+            ],
+            |a, b| a == b,
+        );
         for retired in tag::target::RETIRED {
-            assert!(all.iter().all(|t| target_tag(t) != *retired));
+            assert!(
+                TargetKind::ALL
+                    .iter()
+                    .all(|kind| target_tag(&witness(*kind)) != *retired)
+            );
         }
     }
 

@@ -42,9 +42,137 @@ use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
 use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
 
+/// **One declaration, two projections** — a document vocabulary's enum,
+/// and the variant names it declares.
+///
+/// `profile` declares each of its three vocabularies once and projects
+/// `Verb::ALL`, `ArcMode::ALL` and `TargetKind::ALL` from the same
+/// declaration, so a census keyed on one grows with the vocabulary
+/// rather than behind it. The three enums below are those vocabularies'
+/// SECOND spelling — G1 layering keeps expressions and serde out of the
+/// kernel crate — and they had no such projection.
+///
+/// What that cost is one direction of the construct hop. A variant
+/// added to a document enum is forced through every match that consumes
+/// it, so it cannot ship un-noticed; but every one of those arms may
+/// legally resolve it into an EXISTING kernel form, and when one does
+/// the kernel-anchored censuses stay green (`Verb::ALL`, `ArcMode::ALL`
+/// and `TargetKind::ALL` are all still fully witnessed) while the
+/// document form silently authors something nobody wrote.
+///
+/// `ALL_NAMES` is the anchor for that direction. It is derived from the
+/// declaration at COMPILE time, so there is nothing to keep in step and
+/// **nothing in FRONT of a variant's name can hide it** — a doc comment,
+/// an attribute, a `cfg`, a `cfg_attr`, any stack of them: the macro
+/// captures them as metas and projects the name behind them.
+/// `tests/switch_program_vocabulary.rs` is keyed on it, and a variant
+/// that reaches no witness there reds.
+///
+/// Two places where the projection and the witness side disagree, both
+/// in the LOUD direction, because a census that is wrong quietly is the
+/// thing this replaced:
+///
+/// - a `#[cfg]` that gates a variant OUT removes it from the enum and
+///   leaves it in `ALL_NAMES` — the metas ride the variant, not the
+///   name list. So the projection is a SUPERSET under `cfg`: it
+///   over-demands a witness for a variant that is not there and reds.
+///   It cannot hide one.
+/// - a RAW IDENTIFIER projects as `stringify!` writes it (`r#type`)
+///   while the witness side reads a `Debug` rendering (`type`), so a
+///   correctly declared and correctly witnessed raw-ident variant would
+///   red spuriously. No variant here is one; if one arrives, the fix is
+///   to strip the `r#` on one side, and this note is the reason the red
+///   will make sense.
+macro_rules! document_vocabulary {
+    (
+        $(
+            $(#[$enum_meta:meta])*
+            $vis:vis enum $name:ident {
+                $(
+                    $(#[$variant_meta:meta])*
+                    $variant:ident $(( $($tuple:tt)* ))? $({ $($named:tt)* })?
+                ),* $(,)?
+            }
+        )*
+    ) => {
+        $(
+            $(#[$enum_meta])*
+            $vis enum $name {
+                $(
+                    $(#[$variant_meta])*
+                    $variant $(( $($tuple)* ))? $({ $($named)* })?
+                ),*
+            }
+
+            impl $name {
+                /// Every variant this vocabulary declares, in
+                /// declaration order — projected from the same
+                /// declaration as the variants, so a census keyed on it
+                /// grows with the vocabulary rather than behind it.
+                #[doc(hidden)]
+                pub const ALL_NAMES: &'static [&'static str] = &[$(stringify!($variant)),*];
+            }
+        )*
+
+        /// **Every document vocabulary, projected rather than typed.**
+        ///
+        /// `ALL_NAMES` closes *a variant arrives without a witness*.
+        /// This closes the same failure one level up — *a VOCABULARY
+        /// arrives without a census* — and it has to be closed the same
+        /// way, because a roster typed out on the test side is a second
+        /// list kept in step with this one by hand, which is the defect
+        /// the whole macro exists to remove.
+        ///
+        /// It is projected from the single invocation below, and that
+        /// invocation is single by construction **within this module**:
+        /// the constant is emitted once per invocation, so a second
+        /// invocation in the same module is an `E0428` duplicate. The
+        /// qualifier is load-bearing — `E0428` is scoped to one module's
+        /// value namespace, so a second invocation inside a CHILD module
+        /// compiles clean and projects a second roster that the census
+        /// never reads. `program.rs` has no child modules, so the list
+        /// is complete today; what makes it complete is that fact and
+        /// not the macro.
+        ///
+        /// **What it does not cover, stated, with the live instance
+        /// named:** an enum declared with a plain `pub enum` rather than
+        /// through this macro has no `ALL_NAMES`, is absent from this
+        /// list, and nothing detects that it should have been in either.
+        /// This file holds two such enums today — [`ProgramRefusal`] and
+        /// [`RecordedProgramError`] — and they are deliberately out:
+        /// they are the REFUSAL and ERROR vocabularies, produced by this
+        /// crate for a caller to read, with no construct hop that builds
+        /// a kernel form out of them and so no laundering direction to
+        /// guard. [`LoopProgram`] was the third, and it is IN: its
+        /// `resolve` is a construct hop like the other three. The test
+        /// for membership is that construct hop, not the naming.
+        /// Closing the general case needs a walk over the file's
+        /// declarations, which is a text scan, which is what this macro
+        /// replaced and for a reason. Filed:
+        /// `work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+        ///
+        /// **Cost, stated:** rustfmt does not format the body of a macro
+        /// invocation, so every declaration below is outside its reach
+        /// and no gate will report drift there. The trade was taken
+        /// deliberately — the macro closes a SILENT failure class and
+        /// formatting drift is visible to any reader — but it is a real
+        /// cost and it is not detected. Filed:
+        /// `work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`.
+        #[doc(hidden)]
+        pub const DOCUMENT_VOCABULARIES: &[(&str, &[&str])] =
+            &[$((stringify!($name), $name::ALL_NAMES)),*];
+    };
+}
+
+document_vocabulary! {
 /// Where a target-taking step ends: an authored point (two Length
 /// expressions) or the entry vertex (`Start` — structural; targeting it
 /// closes the loop). Mirrors `profile::Target`.
+///
+/// `res_target` matches THIS vocabulary and constructs
+/// [`profile::Target`], so a form added here alone can be resolved into
+/// an existing kernel form and never be seen. [`Self::ALL_NAMES`] is
+/// what forces it to reach a witness instead.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramTarget {
     /// An authored absolute point in the profile frame.
@@ -76,6 +204,11 @@ pub enum ProgramTarget {
 /// checked at the edit door via [`ProfileProgram::slots`] +
 /// [`StepArg::dimension`], and at the persistence doors' shared
 /// validator — never trusted from a parsed file).
+///
+/// The mirror direction is [`Self::ALL_NAMES`]'s: `res_step` matches
+/// THIS vocabulary and constructs [`profile::Step`], so a verb added
+/// here alone can be resolved into an existing kernel verb, leaving
+/// `Verb::ALL` fully witnessed and the document verb unexercised.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramStep {
     /// `.at(p)`.
@@ -104,19 +237,13 @@ pub enum ProgramStep {
     /// continuation; `Start` targets close the loop.
     ContinueTo(ProgramTarget),
     /// `arc_to(spec)` — the sharp arc leg, every §2c mode in the one
-    /// unified spec record (derived quantities re-derived at replay),
-    /// with the leg's DECLARED split count: 1 is the plain leg, `n ≥ 2`
-    /// is `arc_to(spec.split(n))`, whose `n − 1` interior stations are
-    /// declared tangent joints on the one carrier (structural, like
-    /// `circle_split`'s `n`).
-    ArcTo {
-        /// The arc spec.
-        spec: ProgramArcData,
-        /// The declared split count (structural; 1 = unsplit).
-        splits: u32,
-    },
+    /// unified spec record (derived quantities re-derived at replay).
+    ArcTo(ProgramArcData),
     /// `tangent_arc_to(target)`.
     TangentArcTo(ProgramTarget),
+    /// `arc_continue(target)` — the declared-subdivision step
+    /// (LIB-SWITCH §5-1): a STRUCTURAL vertex on the incoming carrier.
+    ArcContinue([Expr; 2]),
     /// `.fillet(r)` — line incoming, line arrival.
     Fillet(Expr),
     /// **§2c** `fillet_arc(r, spec)` — line incoming, arc arrival.
@@ -149,16 +276,6 @@ pub enum ProgramStep {
     CloseTo,
 }
 
-impl ProgramStep {
-    /// The plain (unsplit) sharp arc leg — `arc_to(spec)` with a split
-    /// count of 1, which is what every arc leg records unless the
-    /// author declared a split.
-    #[must_use]
-    pub fn arc_to(spec: ProgramArcData) -> Self {
-        Self::ArcTo { spec, splits: 1 }
-    }
-}
-
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
 /// arc-spec record): continuous fields [`Expr`], structural tags
 /// literal (`side`, `winding`, `Start`).
@@ -175,6 +292,11 @@ impl ProgramStep {
 /// `tests/switch_program_vocabulary.rs`, keyed on
 /// [`profile::ArcMode::ALL`]: its witness is a match on the mode tag,
 /// so a mode with no document spelling is a compile error there.
+///
+/// That census is keyed on the KERNEL vocabulary and says nothing about
+/// a mode added HERE alone — `res_spec` would resolve it into an
+/// existing kernel mode and every clause keyed on `ArcMode::ALL` would
+/// stay green. [`Self::ALL_NAMES`] is that direction's anchor.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
@@ -232,6 +354,13 @@ pub enum ProgramArcData {
 /// form is structural). The chain-vs-carrier distinction is the enum,
 /// so "a circle program is exactly one step" is unrepresentable to
 /// violate.
+///
+/// **It is a document vocabulary, and [`Self::resolve`] is its construct
+/// hop**, the fourth one: it matches THIS enum and builds
+/// `Step::Circle` / `Step::CircleSplit`, so a carrier form added here
+/// alone can be resolved into an existing kernel step and never be
+/// seen. That is [`ProgramStep`]'s hazard one level out, and
+/// [`Self::ALL_NAMES`] is its anchor for the same reason.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LoopProgram {
     /// A chain-vocabulary step list (must end in a `Start`-targeting
@@ -256,6 +385,7 @@ pub enum LoopProgram {
         /// The first vertex's angle from +x.
         phase: Expr,
     },
+}
 }
 
 /// The profile node's payload: the sketch frame it is drawn on, named
@@ -534,7 +664,8 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
         P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_slots(t, out),
-        P::ArcTo { spec, .. } => spec_slots(spec, false, out),
+        P::ArcContinue(_) => out.extend([A::TargetX, A::TargetY]),
+        P::ArcTo(spec) => spec_slots(spec, false, out),
         P::Fillet(_) => out.push(A::Radius),
         P::FilletArc { spec, .. } => {
             out.push(A::Radius);
@@ -627,6 +758,8 @@ macro_rules! step_arg_access {
         match ($step, $arg) {
             (P::At(p), A::PointX) | (P::FarEndTo(p), A::PointX) => Some($($ref_kw)* p[0]),
             (P::At(p), A::PointY) | (P::FarEndTo(p), A::PointY) => Some($($ref_kw)* p[1]),
+            (P::ArcContinue(p), A::TargetX) => Some($($ref_kw)* p[0]),
+            (P::ArcContinue(p), A::TargetY) => Some($($ref_kw)* p[1]),
             (P::Angle(e), A::AngleVal) => Some(e),
             (P::Toward { dx, .. }, A::DirX) => Some(dx),
             (P::Toward { dy, .. }, A::DirY) => Some(dy),
@@ -638,7 +771,7 @@ macro_rules! step_arg_access {
             (P::LineTo(ProgramTarget::Point(p)), A::TargetY)
             | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetY)
             | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetY) => Some($($ref_kw)* p[1]),
-            (P::ArcTo { spec, .. }, a) => $spec_fn(spec, a, false),
+            (P::ArcTo(spec), a) => $spec_fn(spec, a, false),
             (P::Fillet(e), A::Radius)
             | (P::FilletArc { radius: e, .. }, A::Radius)
             | (P::ArcFillet { radius: e, .. }, A::Radius)
@@ -820,19 +953,36 @@ fn res<T: Decide>(
     eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
 }
 
-/// Resolves a target's expressions.
+/// Resolves a target's expressions, addressing its coordinates at the
+/// slot roles the caller names (a fused step's second spec carries the
+/// `Target2*` twins, exactly as [`spec_slots`] enumerates them).
+///
+/// This is the target vocabulary's ONE construct hop: every target a
+/// document program carries — a straight leg's, a continuation's, a
+/// tangent arc's, and the endpoint inside every endpoint-bearing arc
+/// mode — resolves here, so the form set is matched in exactly one
+/// place below the document type's own declaration. The direction the
+/// compiler cannot check is the one this function runs in: it MATCHES
+/// [`ProgramTarget`] and CONSTRUCTS a [`profile::Target`], so a form
+/// the kernel vocabulary gains is invisible here. The census keyed on
+/// `profile::TargetKind::ALL`
+/// (`tests/switch_program_vocabulary.rs`) is what sees it, and it
+/// checks the other half of the same arm too: that each form resolves
+/// to ITS OWN form rather than being laundered into a neighbour's.
 fn res_target<T: Decide>(
     t: &ProgramTarget,
     env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
+    ax: StepArg,
+    ay: StepArg,
 ) -> Result<profile::Target<T>, (SlotId, EvalError)> {
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
         ProgramTarget::StartArriving => profile::Target::StartArriving,
         ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
-            res(&p[0], env, loop_, step, StepArg::TargetX)?,
-            res(&p[1], env, loop_, step, StepArg::TargetY)?,
+            res(&p[0], env, loop_, step, ax)?,
+            res(&p[1], env, loop_, step, ay)?,
         )),
     })
 }
@@ -867,13 +1017,17 @@ fn res_step<T: Decide>(
         ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
-        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
-        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i)?),
-        ProgramStep::ArcTo { spec, splits } => Step::ArcTo {
-            spec: res_spec(spec, env, loop_, i, false)?,
-            splits: *splits as usize,
-        },
-        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
+        ProgramStep::LineTo(t) => {
+            Step::LineTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
+        ProgramStep::ContinueTo(t) => {
+            Step::ContinueTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
+        ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
+        ProgramStep::TangentArcTo(t) => {
+            Step::TangentArcTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
+        ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
         },
@@ -926,15 +1080,14 @@ fn res_spec<T: Decide>(
         ))
     };
     let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
-        Ok(match t {
-            ProgramTarget::Start => profile::Target::Start,
-            ProgramTarget::StartArriving => profile::Target::StartArriving,
-            ProgramTarget::Point(p) => profile::Target::Point(pt2(
-                p,
-                pick(A::TargetX, A::Target2X),
-                pick(A::TargetY, A::Target2Y),
-            )?),
-        })
+        res_target(
+            t,
+            env,
+            loop_,
+            i,
+            pick(A::TargetX, A::Target2X),
+            pick(A::TargetY, A::Target2Y),
+        )
     };
     Ok(match spec {
         ProgramArcData::Radius { r, side } => profile::ArcData::Radius {
@@ -1265,16 +1418,8 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
         (P::LineTo(x), P::LineTo(y))
         | (P::ContinueTo(x), P::ContinueTo(y))
         | (P::TangentArcTo(x), P::TangentArcTo(y)) => target_bit_eq(x, y),
-        (
-            P::ArcTo {
-                spec: xs,
-                splits: xn,
-            },
-            P::ArcTo {
-                spec: ys,
-                splits: yn,
-            },
-        ) => xn == yn && spec_bit_eq(xs, ys),
+        (P::ArcContinue(x), P::ArcContinue(y)) => pair_bit_eq(x, y),
+        (P::ArcTo(x), P::ArcTo(y)) => spec_bit_eq(x, y),
         (
             P::FilletArc {
                 radius: ra,
@@ -1317,8 +1462,9 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
             | P::Line(_)
             | P::LineTo(_)
             | P::ContinueTo(_)
-            | P::ArcTo { .. }
+            | P::ArcTo(_)
             | P::TangentArcTo(_)
+            | P::ArcContinue(_)
             | P::Fillet(_)
             | P::FilletArc { .. }
             | P::ArcFillet { .. }
@@ -1412,18 +1558,16 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 /// this file at compile rather than reaching a typed refusal.
 ///
 /// Two of the three arms are unreachable through the authoring
-/// algebra and exist because the door takes a `&[Step<f64>]`, which a
-/// caller can also hand-build; the third is reachable from such a
-/// hand-built step alone.
+/// algebra — they exist because the door takes a `&[Step<f64>]`, which
+/// a caller can also hand-build.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RecordedProgramError {
     /// A literal argument the expression layer refused.
     Literal(DimensionError),
-    /// A split count too large for the program's `u32` field —
-    /// `circle_split`'s `n` or an arc leg's `splits`. Unreachable from
-    /// `circle_split` and from `.split(n)`, whose vertices would exhaust
-    /// memory first; reachable from a hand-built `Step::ArcTo`.
-    SplitCount(usize),
+    /// A subdivision count too large for the program's `u32` field.
+    /// Unreachable from `circle_split`, whose vertices would exhaust
+    /// memory first.
+    SubdivisionCount(usize),
     /// A complete-loop carrier step recorded inside a chain.
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
@@ -1440,8 +1584,8 @@ impl core::fmt::Display for RecordedProgramError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Literal(err) => write!(f, "a recorded literal was refused: {err}"),
-            Self::SplitCount(n) => {
-                write!(f, "the split count {n} does not fit a u32")
+            Self::SubdivisionCount(n) => {
+                write!(f, "the subdivision count {n} does not fit a u32")
             }
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
@@ -1571,7 +1715,7 @@ impl LoopProgram {
             return Ok(Self::CircleSplit {
                 centre: pt_lit(centre)?,
                 radius: len_lit(*radius)?,
-                n: u32::try_from(*n).map_err(|_| RecordedProgramError::SplitCount(*n))?,
+                n: u32::try_from(*n).map_err(|_| RecordedProgramError::SubdivisionCount(*n))?,
                 phase: ang_lit(*phase)?,
             });
         }
@@ -1591,12 +1735,9 @@ impl LoopProgram {
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
                 Step::ContinueTo(t) => ProgramStep::ContinueTo(target_lit(t)?),
-                Step::ArcTo { spec, splits } => ProgramStep::ArcTo {
-                    spec: spec_lit(spec)?,
-                    splits: u32::try_from(*splits)
-                        .map_err(|_| RecordedProgramError::SplitCount(*splits))?,
-                },
+                Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
+                Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),
                 Step::Fillet { radius } => ProgramStep::Fillet(len_lit(*radius)?),
                 Step::FilletArc { radius, spec } => ProgramStep::FilletArc {
                     radius: len_lit(*radius)?,
@@ -1627,6 +1768,48 @@ impl LoopProgram {
 
     /// A literal circle loop.
     ///
+    /// # The struct literal is the parametric door
+    ///
+    /// There is no `circle_expr` twin of
+    /// [`LoopProgram::polygon_expr`], and that is the design rather
+    /// than an omission. `polygon` EXPANDS — one authoring call
+    /// becomes a chain of steps — so the expansion needs exactly one
+    /// home, and the literal door reaches it by delegating to the
+    /// expression door. `Circle` expands into nothing: it is a struct
+    /// variant whose two fields are the whole program, so an author
+    /// holding [`Expr`] arguments writes
+    /// `LoopProgram::Circle { centre, radius }` (and
+    /// `LoopProgram::CircleSplit { .. }`) directly. That literal IS
+    /// the parametric door. A constructor over it would be a third
+    /// spelling of the variant with nothing behind it to keep in
+    /// step.
+    ///
+    /// # The literal author keeps both of this door's guarantees
+    ///
+    /// This door is not the check its `Result` makes it look like, so
+    /// writing the variant out gives nothing up:
+    ///
+    /// - FINITENESS belongs to [`Expr::literal`], which is the only
+    ///   way to mint a literal expression at all and refuses a
+    ///   non-finite value there. That refusal is the sole error this
+    ///   constructor can return.
+    /// - DIMENSION belongs to the document. This door only PICKS
+    ///   `Length` for the centre and radius (and `Angle` for
+    ///   [`LoopProgram::circle_split`]'s phase), so the picks agree
+    ///   with the roles by construction. An author supplying
+    ///   expressions picks instead, and `apply` checks the pick: every
+    ///   slot of an entering node is walked, the role's required
+    ///   dimension ([`StepArg::dimension`], reached through
+    ///   [`SlotId::dimension`]) against the expression's, and a
+    ///   disagreement refuses as `EditError::SlotDimensionMismatch`
+    ///   before the program joins the document. The same walk runs on
+    ///   every slot write and on a parameter redeclaration, so there
+    ///   is no later window in which a document's role can hold the
+    ///   wrong dimension. It is the DOCUMENT's door, though: a program
+    ///   built and replayed without entering one — a viewer preview —
+    ///   never reaches it, and such a builder assigns the dimensions
+    ///   itself exactly as this constructor does.
+    ///
     /// # Errors
     ///
     /// A non-finite argument.
@@ -1638,6 +1821,10 @@ impl LoopProgram {
     }
 
     /// A literal declared-subdivision circle loop.
+    ///
+    /// Parametric authors write the `CircleSplit` variant out; see
+    /// [`LoopProgram::circle`] for why there is no expression door
+    /// here and where an expression's dimension is checked instead.
     ///
     /// # Errors
     ///

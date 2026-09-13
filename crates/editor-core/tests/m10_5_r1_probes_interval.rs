@@ -358,7 +358,7 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 0.0))),
         ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 0.5))),
         ProgramStep::LineTo(ProgramTarget::Point(p2(1.5, 0.5))),
-        ProgramStep::arc_to(ProgramArcData::Bulge {
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(p2(0.5, 0.5)),
             b: scl(1.0),
         }),

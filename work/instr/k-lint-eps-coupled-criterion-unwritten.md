@@ -4,7 +4,7 @@ kind: issue
 title: What makes a predicate eps-coupled is nowhere written, so k-lint's roster cannot be pinned against the kernel in the ADDED direction
 status: open
 opened: 2026-09-07
-refs: [k-lint-predicate-roster-unpinned]
+refs: [2115]
 ---
 
 
@@ -156,3 +156,7 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Refs at METER's sweep (2026-09-09)
+
+METER closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 10); `k-lint-predicate-roster-unpinned` is now cited by its closing PR 2115.

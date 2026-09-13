@@ -12,27 +12,163 @@
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
+use super::expr::Expr;
 use super::quantity::{Angle, Length};
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
-/// Raise `FrameError` carrying the refusal's stable tag.
+/// Raise `FrameError` carrying the refusal's stable tag and the arm's
+/// payload.
+///
+/// The machine payload is `variant` plus the fields, each present on
+/// every arm and `None` where that arm does not carry it. The tuple
+/// is positional and the match is exhaustive, so an arm added
+/// kernel-side arrives here as a compile error rather than as a
+/// silently unprojected payload.
+///
+/// **The degenerate arm's `input` does not get an attribute of its
+/// own**: it IS the `variant`, which `crate::tags::frame_error_tag`
+/// mints per input (`degenerate_aim`, `degenerate_tangent`, ...), so
+/// a second spelling of the same word would publish one fact twice.
+///
+/// What the degenerate arm does carry is the CLASSIFIER's payload,
+/// present when the margin landed in the ambiguity band and absent
+/// when it was a definite zero: `margin` (the in-band value),
+/// `margin_low` / `margin_high` (the enclosure's bounds, where the
+/// classifier saw an enclosure rather than a value), `zero` and
+/// `escalate` (the band it was classified against), and `predicate`
+/// (the decision's name, where the kernel attached one). A poisoned
+/// margin carries the band and no number.
+///
+/// `zero` and `escalate` are one concept across two arms and cross on
+/// one pair of names: the band a margin was classified against, and
+/// the thresholds a `BandError::Empty` could not form a band from.
+/// `value` is likewise the rejected number of either `InvalidValue`
+/// or `InvalidLeverArm`.
+///
+/// The classifier half is [`crate::escalation::escalation`] rather
+/// than a fork written here: the mate door publishes the SAME
+/// escalation under these same words, and one projection is what
+/// keeps the two from drifting.
 pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> PyErr {
+    use pncad::geom_core::{BandError, FrameError as E};
+
+    let none = || py.None();
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    // `f64`'s conversion is INFALLIBLE (its error type is
+    // `Infallible`), so this one degrades nowhere: the match is total.
+    let real = |x: f64| -> Py<PyAny> {
+        match x.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let maybe = |x: Option<f64>| match x {
+        Some(x) => real(x),
+        None => none(),
+    };
+    let word = |t: Option<&'static str>| match t {
+        Some(t) => text(t),
+        None => none(),
+    };
+
+    let (inner, margin, margin_low, margin_high, zero, escalate, predicate, field, value) =
+        match err {
+            E::Degenerate {
+                indeterminate: None,
+                ..
+            } => (
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+            ),
+            E::Degenerate {
+                indeterminate: Some(i),
+                ..
+            } => {
+                // The margin's fork is `crate::escalation`'s, shared
+                // with the mate door that publishes the same
+                // escalation under these same words.
+                let e = crate::escalation::escalation(i);
+                (
+                    none(),
+                    maybe(e.margin),
+                    maybe(e.margin_low),
+                    maybe(e.margin_high),
+                    real(e.zero),
+                    real(e.escalate),
+                    word(e.predicate),
+                    none(),
+                    none(),
+                )
+            }
+            // Nothing was classified: the door refused before any
+            // margin reached the funnel, so the whole payload is
+            // absent exactly as it is for a definite zero. Both format
+            // arms are that case — overflowed and underflowed alike.
+            E::NonFiniteLength { .. } | E::UnderflowedLength { .. } => (
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+            ),
+            E::Band(inner) => {
+                let (which, v, z, e) = match inner {
+                    BandError::InvalidValue { field, value } => (
+                        text(crate::tags::band_field_tag(field)),
+                        real(*value),
+                        none(),
+                        none(),
+                    ),
+                    BandError::InvalidLeverArm { value } => (none(), real(*value), none(), none()),
+                    BandError::Empty { zero, escalate } => {
+                        (none(), none(), real(*zero), real(*escalate))
+                    }
+                };
+                (
+                    text(crate::tags::band_error_tag(inner)),
+                    none(),
+                    none(),
+                    none(),
+                    z,
+                    e,
+                    none(),
+                    which,
+                    v,
+                )
+            }
+        };
     typed_err(
         py,
         ErrorClass::Frame,
         // `FrameError` implements `Display`, so the human message is
         // the kernel's own prose (including its coincidence recourse);
-        // the machine payload is the `variant` tag.
+        // the machine payload is the `variant` tag and the fields.
         err.to_string(),
-        &[(
-            "variant",
-            PyString::new(py, crate::tags::frame_error_tag(err))
-                .unbind()
-                .into_any(),
-        )],
+        &[
+            ("variant", text(crate::tags::frame_error_tag(err))),
+            ("inner_variant", inner),
+            ("margin", margin),
+            ("margin_low", margin_low),
+            ("margin_high", margin_high),
+            ("zero", zero),
+            ("escalate", escalate),
+            ("predicate", predicate),
+            ("field", field),
+            ("value", value),
+        ],
     )
 }
 
@@ -233,22 +369,6 @@ impl Frame {
         self.0.bit_eq(&other.0)
     }
 
-    /// Consistent with [`Self::__eq__`] BY CONSTRUCTION: it hashes the
-    /// same twelve bit patterns the comparison reads.
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = std::hash::DefaultHasher::new();
-        for column in self.0.columns {
-            for c in column {
-                c.to_bits().hash(&mut h);
-            }
-        }
-        for c in self.0.translation {
-            c.to_bits().hash(&mut h);
-        }
-        h.finish()
-    }
-
     fn __repr__(&self) -> String {
         let [c0, c1, c2] = self.0.columns;
         let t = self.0.translation;
@@ -276,28 +396,23 @@ pub(crate) struct PatternKind(pub(crate) d::PatternKind);
 impl PatternKind {
     /// Instances stepped along `direction`, `spacing` apart.
     ///
-    /// The direction is a dimensionless triple (`SlotId::Direction` is
-    /// `Scalar`); the spacing is a `Length`.
+    /// The direction's three slots are dimensionless
+    /// (`SlotId::Direction` is `Scalar`); the spacing's is a `Length`.
     #[staticmethod]
-    fn linear(py: Python<'_>, direction: (f64, f64, f64), spacing: &Length) -> PyResult<Self> {
-        let scalar = |v: f64| super::doc::literal(py, v, d::Dimension::Scalar);
+    fn linear(py: Python<'_>, direction: (Expr, Expr, Expr), spacing: &Expr) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Linear {
-            direction: [
-                scalar(direction.0)?,
-                scalar(direction.1)?,
-                scalar(direction.2)?,
-            ],
-            spacing: super::doc::literal(py, spacing.0.meters(), d::Dimension::Length)?,
+            direction: super::doc::direction_expr(py, d::VectorSlot::Direction, &direction)?,
+            spacing: super::doc::slot_expr(py, d::SlotId::Spacing, spacing)?,
         }))
     }
 
     /// Instances stepped `step` apart around `axis`, an upstream
     /// `datum_axis` node.
     #[staticmethod]
-    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Angle) -> PyResult<Self> {
+    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Expr) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
             axis: axis.0,
-            step: super::doc::literal(py, step.0.radians(), d::Dimension::Angle)?,
+            step: super::doc::slot_expr(py, d::SlotId::Step, step)?,
         }))
     }
 

@@ -12,7 +12,8 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, NameTable, Node, ProfileDoc,
-    ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, evaluate,
+    ProfileEdgeRef, RecipeNodeId, RoleSeg, StableName, band, band_pi, band_rim, evaluate,
+    meridian_vertex,
 };
 use fixture::{ang, axis_in_plane, insert, on_frame_keeping};
 use geom_core::Tol;
@@ -45,13 +46,6 @@ fn pe(l: u32, s: u32) -> ProfileEdgeRef {
     ProfileEdgeRef {
         loop_index: l,
         segment: s,
-    }
-}
-
-fn pv(l: u32, v: u32) -> ProfileVertexRef {
-    ProfileVertexRef {
-        loop_index: l,
-        vertex: v,
     }
 }
 
@@ -92,14 +86,8 @@ fn full_wire_holed_revolve_names_totally() {
     // The hole's entities land under loop index 1, seam-meridian
     // taxonomy (holes are lamina even under a wire outer).
     for s in 0..4 {
-        assert!(
-            t.lookup(&name1(EntityKind::Face, rev, RoleSeg::Band(pe(1, s))))
-                .is_some()
-        );
-        assert!(
-            t.lookup(&name1(EntityKind::Edge, rev, RoleSeg::BandRim(pv(1, s))))
-                .is_some()
-        );
+        assert!(t.lookup(&band(rev, 1, s)).is_some());
+        assert!(t.lookup(&band_rim(rev, 1, s)).is_some());
         assert!(
             t.lookup(&name1(
                 EntityKind::Edge,
@@ -109,17 +97,10 @@ fn full_wire_holed_revolve_names_totally() {
             .is_some()
         );
         assert!(
-            t.lookup(&name1(
-                EntityKind::Vertex,
-                rev,
-                RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(1, s))
-            ))
-            .is_some()
+            t.lookup(&meridian_vertex(MeridianEnd::Seam, rev, 1, s))
+                .is_some()
         );
     }
     // And the wire outer keeps its π-band names (loop 0).
-    assert!((0..4).any(|s| {
-        t.lookup(&name1(EntityKind::Face, rev, RoleSeg::BandPi(pe(0, s))))
-            .is_some()
-    }));
+    assert!((0..4).any(|s| t.lookup(&band_pi(rev, 0, s)).is_some()));
 }

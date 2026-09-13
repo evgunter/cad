@@ -24,7 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::fillet_edges;
@@ -34,11 +34,8 @@ use topo::query;
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
 
 use crate::common;
+use crate::common::approx::band;
 use common::quad;
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)

@@ -2,11 +2,12 @@
 id: nightly-demotions-have-never-run
 kind: issue
 title: A row demoted to the nightly is not verified at the demotion - the three from 2026-09-03 first ran two nights later, unwatched
-status: review
+status: closed
 opened: 2026-09-04
 refs: [1650, 1654, 1655]
 branch: ciw/demotion-verified
 pr: 2124
+closed: 2026-09-08
 ---
 
 
@@ -142,3 +143,20 @@ step: on 09-06 `do the measured arms have to run tonight` said no and steps
 7-15 skipped (job: 23 s), on 09-07 it said yes and the two measured arms ran
 10:26:27 → 10:51:51. All three demoted rows executed and passed at STEP level
 on 09-06 as well.
+
+## Closed 2026-09-08
+
+PR 2124. The reading is taken (all three demoted rows executed and passed
+on nightly runs 15, 16 and 17, read at STEP level), and the convention is
+in `docs/prompts/implementer-discipline.md` §2: a demotion is verified AT
+the demotion, with the run id named in the PR body.
+
+The mechanical half the item hoped for is **deliberately not built**, and
+the reason is on the record rather than left as an omission: "has this
+scheduled job ever fired" is a question about run HISTORY, and
+`check-ci-mirror-parity.py` is a static reader of tracked files. A check
+that needs the Actions API fails on a fork, offline, and in the local
+half. What IS a tree question got a check — claim 4's second arm, below.
+
+The convention therefore rests on prose that nothing enforces, which is
+stated at the §2 paragraph itself rather than implied.

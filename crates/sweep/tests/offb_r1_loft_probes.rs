@@ -6,16 +6,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::curves::NurbsCurve3;
 use geom_brep::offset_fit::fit_offset_at;
 use geom_brep::offset_fit::offset_point;
+use geom_core::Point3;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Tol};
 use sweep::skin::skin;
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// A cubic section: a planar wave at height `z`, amplitude `a`,
 /// phase `phi` — no analytic kind, honest loft input.

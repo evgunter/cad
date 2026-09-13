@@ -90,7 +90,6 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     let up_f = |k: FaceKey| up(EntityKey::Face(k));
     let up_e = |k: EdgeKey| up(EntityKey::Edge(k));
     let up_v = |k: VertexKey| up(EntityKey::Vertex(k));
-    let b = Box::new;
 
     // ---- The mints, by role. ----
     let mut minted: BTreeMap<EntityKey, (RoleSeg, bool)> = BTreeMap::new();
@@ -119,14 +118,14 @@ pub(crate) fn name_shell<T: geom_core::Real>(
         let f = up_f(*first)?;
         put(
             EntityKey::Face(rim.rim),
-            RoleSeg::Rim(b(f.name.clone())),
+            RoleSeg::Rim(f.name.clone()),
             f.tied,
         )?;
         for (j, hole) in rim.holes.iter().enumerate() {
             put(
                 EntityKey::Face(hole.face),
                 RoleSeg::HoleRim {
-                    of: b(f.name.clone()),
+                    of: f.name.clone(),
                     hole: j as u32,
                 },
                 f.tied,
@@ -138,15 +137,15 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     // read and never consulted.
     for (twin, src) in &rec.inner {
         let s = up_f(*src)?;
-        put(EntityKey::Face(*twin), RoleSeg::Inner(b(s.name)), s.tied)?;
+        put(EntityKey::Face(*twin), RoleSeg::Inner(s.name), s.tied)?;
     }
     for (twin, src) in &rec.inner_edges {
         let s = up_e(*src)?;
-        put(EntityKey::Edge(*twin), RoleSeg::Inner(b(s.name)), s.tied)?;
+        put(EntityKey::Edge(*twin), RoleSeg::Inner(s.name), s.tied)?;
     }
     for (twin, src) in &rec.inner_vertices {
         let s = up_v(*src)?;
-        put(EntityKey::Vertex(*twin), RoleSeg::Inner(b(s.name)), s.tied)?;
+        put(EntityKey::Vertex(*twin), RoleSeg::Inner(s.name), s.tied)?;
     }
 
     // ---- The table: the body row, then every output entity. ----
@@ -200,7 +199,7 @@ pub(crate) fn name_shell<T: geom_core::Real>(
                     });
                 }
                 let u = up(key)?;
-                (RoleSeg::FromTarget(b(u.name)), u.tied)
+                (RoleSeg::FromTarget(u.name), u.tied)
             }
         };
         put_row(

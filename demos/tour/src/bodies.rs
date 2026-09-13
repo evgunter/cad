@@ -10,7 +10,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::Vec2;
 use pncad::prelude::{Open, Start, Via, query};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::chamfer::chamfer_edges;
@@ -18,13 +17,13 @@ use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{p2, polygon, validated};
+use pncad::authoring::{p2, polygon, v2, validated};
 use pncad::geom_core::Tol;
 
 fn axis_y<S: Scalar>() -> RevolveAxis<S> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(S::from_f64(0.0), S::from_f64(1.0)),
+        dir: v2(0.0, 1.0),
     }
 }
 

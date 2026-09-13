@@ -30,8 +30,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::{Curve3, Surface};
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 use sweep::blend::Convexity;
 use sweep::blend::arms::plane_sphere_blend;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -42,10 +43,6 @@ use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::linear(tol()).unwrap()
 }
 
 const WAIST_R: f64 = 0.05;

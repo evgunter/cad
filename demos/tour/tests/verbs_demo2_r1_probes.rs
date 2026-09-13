@@ -73,7 +73,7 @@ fn p1_mesh_pin_reds_on_a_one_sided_sizing_change() {
     };
     // The scene's own equality, reproduced.
     assert_eq!(counts(&hollow.body, 1e-2), counts(&solid.body, 1e-2));
-    assert_eq!(counts(&hollow.body, 1e-2), vec![17152, 17152]);
+    assert_eq!(counts(&hollow.body, 1e-2), vec![798, 798]);
     // The fork: one door under a 25%-coarser budget. MUST differ, or
     // the pinned equality could never red on a sizing fork.
     assert_ne!(

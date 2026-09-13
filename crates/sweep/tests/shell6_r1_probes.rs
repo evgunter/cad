@@ -21,9 +21,10 @@
 
 use core::f64::consts::PI;
 
+use crate::common::approx::band;
 use geom::Surface;
 use geom_brep::Nappe;
-use geom_core::{Band, Point2, Point3, Tol, Vec2};
+use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{
     ArcSweep, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, bulge_from_center,
 };
@@ -32,10 +33,6 @@ use topo::{Body, FaceKey, ReplaceFaceError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 const T: f64 = 1.0 / 128.0;

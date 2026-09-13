@@ -5,7 +5,7 @@ title: The STEP writer still hardcodes two Part 21 header fields the standard as
 status: closed
 opened: 2026-08-20
 github: 742
-refs: [732, C14]
+refs: [732]
 closed: 2026-09-03
 ---
 
@@ -55,3 +55,11 @@ recorded, not overlooked. When a consumer appears, the shape is the
 issue body above: decide which of the two, validation beyond
 `quoted`'s Part 21 alphabet, and string-vs-list, at that point.
 `C14` (Track U) closes against this ruling.
+
+## Refs at code-quality's sweep (2026-09-11)
+
+`work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
+and its closed rows went with it. `C14` closed on the ruling recorded in
+this row's own §Closed, with no implementation and so no closing PR. The
+reference is dropped rather than re-aimed: this file is what `C14`
+pointed at.

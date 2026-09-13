@@ -46,7 +46,8 @@ probe = [
 # enforces it).
 geom-core = { path = "../geom-core" }
 # GUI-1: the hit-test service (`resolve::pick`) traverses `Bvh::ray`
-# over per-triangle boxes and reads the mesh back-references
+# over a tree per face patch under a tree over the patches' boxes, and
+# reads the mesh back-references
 # (`FacePatch::face`) it inverts through `resolve::hit`. Both sit
 # below editor-core (bvh under geom-core only; mesh is the kernel's
 # tessellation crate) — the G1 direction is untouched.

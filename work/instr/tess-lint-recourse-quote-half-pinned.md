@@ -4,7 +4,7 @@ kind: issue
 title: the recourse quote is pinned from the binary's side only, and docs/TESS-BUDGET.md is the unpinned half
 status: open
 opened: 2026-09-08
-refs: [tess-lint-twinned-csv-fixture, 2179]
+refs: [2179]
 ---
 
 
@@ -72,3 +72,7 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Refs at METER's sweep (2026-09-09)
+
+METER closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 10); `tess-lint-twinned-csv-fixture` is now cited by its closing PR 2179 — which this row's `refs:` already carried, so the dying id was dropped rather than substituted into a duplicate.

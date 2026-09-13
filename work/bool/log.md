@@ -414,3 +414,65 @@ sign-off of the declared-split arc form and the PATHS text; it merges
 main again after this landing (its granted `lift.rs` regions sit
 below BOOL-9's edits, adjacent at one line). Then BOOL-4/5/6/7, BOOL-Q,
 and the findings this window filed.
+
+## Announced from LIB (2026-09-09): a derive word on `ArcSide`, `ArcSweep` and `CarrierRelation`, and `SketchPlane<f64>`'s `==`
+
+LIB-MIRROR (PR #2271) adds `Hash` to `profile::ArcSide` (`path/verbs.rs:148`), `profile::ArcSweep` (`sugar.rs:38`) and `topo::CarrierRelation` (`boolean/carrier_eq.rs:64`), and spells `SketchPlane<f64>`'s existing `bit_eq` as `impl PartialEq` (`profile/src/lib.rs:701`) with a row in `profile/tests/sketch_plane.rs`, so the Python mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; no behaviour and no comparison answer changes.
+
+**Seam announced by BLEND (2026-09-13, at units 10 and 11's dispatch):**
+two BLEND units edit the profile fillet door inside S-BOOL's glob
+`crates/profile/*`, by announced seam per `work/blend/program.md`:
+unit 10 (`docs/BLEND-10-SPEC.md`, item
+`path-fillet-door-validator-tangency-disagree`) — the PATHS `.fillet(r)`
+door asks `seg::joint_tangency` of its own stored form before emitting
+and refuses typed where `Profile::validate` would refuse; edits confined
+to `crates/profile/src/{path.rs, sugar.rs, seg.rs, validate.rs}` and
+`crates/profile/tests/**`; no new predicate name, the stored form
+unchanged. Unit 11 (`docs/BLEND-11-SPEC.md`, item
+`overrun-attribution-picks-the-first-candidate`) — `sugar::arc_fillet_trims`'s
+overrun arm reports the least-deficit corner-side candidate by a stated
+rule; edits confined to `crates/profile/src/sugar.rs` (and `path.rs`
+for a payload word if needed) and `crates/profile/tests/**`; payload
+shape and sample sequence unchanged. Branches
+`blend/10-fillet-stored-tangency`, `blend/11-overrun-nearest-fit`.
+
+**Seam amended by BLEND (2026-09-13, unit 11 re-scoped at its stop
+clause):** the least-deficit pick cannot be spelled in `sugar.rs`
+(`arc_fillet_trims<T: Decide>` reads no bracket — the Bounds scope rule,
+`bounds-allowlist.sh`); the shipped home for an f64 read that chooses
+between classified constructions is `crates/profile/src/path/arc_fillet.rs::map_refusal<T: Bounds>`
+(rostered in `bounds_census`). Unit 11's fence widens to that file: the
+arm collects every corner-side overrun at the scalar in enumeration
+order, the door picks the least deficit by an enclosure read. Still
+inside `crates/profile/*`, still by this seam.
+
+**Seam announced by BLEND (2026-09-13, at unit 12's dispatch):** BLEND
+unit 12 (`docs/BLEND-12-SPEC.md`, item
+`fillet-escalation-site-has-no-producer`) edits the profile fillet
+door's refusal rendering inside S-BOOL's glob `crates/profile/*`, by
+announced seam: `PathError::Escalated`'s Display gains a fillet arm
+keyed on the nine `fillet_*` predicate names through ONE map in
+`validate.rs` (`fillet_recourse_for`), and the producerless
+`ProfileError::Escalated { site: EscalationSite::Fillet }` arm (and the
+variant, if Phase 1 confirms no producer) is retired; edits confined to
+`crates/profile/src/{validate.rs, path.rs, lib.rs}` and
+`crates/profile/tests/**` (the FFI tag census only if a `PathError`
+shape moves). Branch `blend/12-fillet-recourse-arm`. Unit 15
+(`docs/BLEND-15-SPEC.md`) follows it on the same files and will be
+announced at its own dispatch.
+
+**Seam announced by BLEND (2026-09-13, at unit 15's dispatch):** BLEND
+unit 15 (`docs/BLEND-15-SPEC.md`, item
+`escalation-recourse-dispatch-has-three-homes`) follows unit 12 on the
+same files inside S-BOOL's glob `crates/profile/*`, by announced seam:
+`PathError::Escalated`'s Display answers an unknown predicate name with
+the one gap sentence (the "path junction classification" category
+assertion goes), the dispatch order of its three families is stated at
+the site and pinned by an order row, and a roster row
+(`crates/profile/tests/recourse_roster.rs`) enumerates every
+`decide("…")` name `crates/profile/src` decides and asserts each is
+routed or explicitly unrouted with a reason; every routed sentence
+renders as before. Edits confined to
+`crates/profile/src/{path.rs, validate.rs, lib.rs}` and
+`crates/profile/tests/**` (the FFI tag census only if a `PathError`
+shape moves — it should not). Branch `blend/15-recourse-roster`.

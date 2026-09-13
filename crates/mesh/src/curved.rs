@@ -119,8 +119,10 @@
 //! certificate stays tight; a single-column patch takes no rows —
 //! the decision is at [`grid_counts`]'s cone arm, issue 685);
 //! sphere — hu = hv = φ(δ_s, r); torus —
-//! hu = hv = √(δ_s/(3(R+2r))) (matching the boundary chord
-//! tightening in [`crate::chords`]).
+//! `(hu, hv)` = [`crate::sizing::torus_grid_steps`], one step per chart
+//! direction from the doubly-curved chord bound that function derives
+//! (matching the boundary chord tightening in [`crate::chords`], which
+//! sizes a rim edge against `hu` and a meridian against `hv`).
 
 use std::collections::HashMap;
 
@@ -131,20 +133,25 @@ use topo::props::LoopEdgesError;
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
 use crate::cert;
-use crate::sizing::{Eps, SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_step};
+use crate::sizing::{Eps, SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_steps};
+use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
 
-/// Tessellates one curved face into outward-wound triangles,
-/// appending interior grid points to `positions`.
+/// Tessellates one curved face into a [`Patch`]: the interior grid
+/// points the face mints for itself, and its outward-wound triangles.
+///
+/// `shared` is the mesh arena as it stood before ANY face ran — the
+/// topology vertices and the chord points, which is everything a
+/// curved face reads from outside itself.
 pub(crate) fn tessellate_curved(
     body: &Body<f64>,
     fk: FaceKey,
     surface: &Surface<f64>,
     chords: &HashMap<EdgeKey, Vec<u32>>,
-    positions: &mut Vec<Point3<f64>>,
+    shared: &[Point3<f64>],
     tol: &SizingTols,
-) -> Result<Vec<[u32; 3]>, TessellateError> {
+) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
@@ -167,7 +174,7 @@ pub(crate) fn tessellate_curved(
     let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
         what: "curved chart",
     })?;
-    let polygon = loop_polygon(body, &chart, chords, positions, fk, face.outer, tol.eps)?;
+    let polygon = loop_polygon(body, &chart, chords, shared, fk, face.outer, tol.eps)?;
     if polygon.len() < 3 {
         return Err(TessellateError::MissingEntity {
             what: "degenerate curved boundary",
@@ -194,7 +201,7 @@ pub(crate) fn tessellate_curved(
     // cone and a sphere, which is why it reads the entry's own point.
     let levers: Vec<(f64, f64)> = polygon
         .iter()
-        .map(|e| (chart.radial(positions[e.id as usize]), chart.v_lever()))
+        .map(|e| (chart.radial(shared[e.id as usize]), chart.v_lever()))
         .collect();
     require_swept_rectangle(fk, &polygon, &levers, (u0, u1, v0, v1), tol.eps)?;
 
@@ -243,12 +250,12 @@ pub(crate) fn tessellate_curved(
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
         ConstrainedDelaunayTriangulation::new();
     // Per-CDT-vertex metadata, indexed by handle index (insertion order).
-    let mut meta: Vec<(f64, f64, u32, bool)> = Vec::new();
+    let mut meta: Vec<(f64, f64, PatchVertex, bool)> = Vec::new();
     let insert = |cdt: &mut ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
-                  meta: &mut Vec<(f64, f64, u32, bool)>,
+                  meta: &mut Vec<(f64, f64, PatchVertex, bool)>,
                   u: f64,
                   v: f64,
-                  id: u32,
+                  id: PatchVertex,
                   pole: bool|
      -> Result<spade::handles::FixedVertexHandle, TessellateError> {
         let h = cdt
@@ -261,7 +268,14 @@ pub(crate) fn tessellate_curved(
     };
     let mut handles = Vec::with_capacity(polygon.len());
     for e in &polygon {
-        handles.push(insert(&mut cdt, &mut meta, e.u, e.v, e.id, e.pole)?);
+        handles.push(insert(
+            &mut cdt,
+            &mut meta,
+            e.u,
+            e.v,
+            PatchVertex::Shared(e.id),
+            e.pole,
+        )?);
     }
     for i in 0..handles.len() {
         let (a, b) = (handles[i], handles[(i + 1) % handles.len()]);
@@ -290,6 +304,11 @@ pub(crate) fn tessellate_curved(
     // does not build; the tests below pin what spade actually does on
     // a split, which is what that warning turns on.)
     let (uspan, vspan) = (u1 - u0, v1 - v0);
+    // The face's OWN points, numbered from zero: a grid point takes the
+    // next local index, and takes it only if the CDT did not dedupe it
+    // onto a vertex already inserted. One index per point KEPT, so the
+    // indices are exactly `0..interior.len()`.
+    let mut interior: Vec<Point3<f64>> = Vec::new();
     for j in 1..nv {
         #[allow(clippy::cast_precision_loss)]
         let v = v0 + vspan * (j as f64 / nv as f64);
@@ -298,10 +317,10 @@ pub(crate) fn tessellate_curved(
             let u = u0 + uspan * (i as f64 / nu as f64);
             let p = surface.eval(u, v);
             #[allow(clippy::cast_possible_truncation)]
-            let id = positions.len() as u32;
+            let id = PatchVertex::Local(interior.len() as u32);
             let h = insert(&mut cdt, &mut meta, u, v, id, false)?;
             if h.index() == meta.len() - 1 && meta[meta.len() - 1].2 == id {
-                positions.push(p);
+                interior.push(p);
             }
         }
     }
@@ -311,15 +330,16 @@ pub(crate) fn tessellate_curved(
     let mut worst: f64 = 0.0;
     for f in cdt.inner_faces() {
         let vs = f.vertices();
-        let m: Vec<(f64, f64, u32, bool)> = vs.iter().map(|v| meta[v.fix().index()]).collect();
+        let m: Vec<(f64, f64, PatchVertex, bool)> =
+            vs.iter().map(|v| meta[v.fix().index()]).collect();
         let ids = [m[0].2, m[1].2, m[2].2];
         if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
             continue; // pole-collapsed sliver
         }
         let tri = [
-            positions[ids[0] as usize],
-            positions[ids[1] as usize],
-            positions[ids[2] as usize],
+            ids[0].position(shared, &interior),
+            ids[1].position(shared, &interior),
+            ids[2].position(shared, &interior),
         ];
         let uv = [[m[0].0, m[0].1], [m[1].0, m[1].1], [m[2].0, m[2].1]];
         let pole = [m[0].3, m[1].3, m[2].3];
@@ -352,25 +372,37 @@ pub(crate) fn tessellate_curved(
     // used once with the neighbouring face supplying the other use.
     // Four uses is the #678 signature.
     //
-    // IDENTIFIED, not pole-incident, and that is a DECIDED widening
-    // (issue 897) rather than the definition it always had.
-    // [`identified_ids`] carries why a seam double-traversal and a
-    // pole corner are one set; the full-2π seam was the half held off
-    // by [`pole_columns`]' arithmetic instead of by a check, in the
-    // lane that actually has seams. What decided it was the price,
-    // measured on the tour corpus rather than estimated: the widening
-    // is free on a face the walk identifies nothing on (the census
-    // does not run), and costs +5% to +12% of `tessellate` on the
-    // donut, whose two torus patches carry a 212-id seam over 178k
-    // triangles each at the finest δ. (That range is the review's
-    // independent in-binary reproduction, which is the tighter of the
-    // two measurements; this lane's own rounds put the same three rows
-    // at +8% to +13%. Both are inside the box's noise for anything
-    // smaller, which is why only the donut rows are quoted.) That is at or under the price already paid for
-    // the pole half, and it buys the case a mechanical check.
+    // IDENTIFIED, not pole-incident (issue 897). [`identified_ids`]
+    // carries why a seam double-traversal and a pole corner are one
+    // set; [`pole_columns`]' arithmetic holds the full-2π seam off in
+    // the lane that actually has seams, and this census is the check
+    // that arithmetic stands in for.
+    //
+    // THE PRICE, and where it is paid. A face whose walk identifies
+    // nothing pays one hash-set build over its boundary polygon and
+    // then one branch: the set is empty, so no patch is materialised
+    // in mesh ids and no edge is counted. Debug assertions are ON in
+    // this crate's release profile (workspace `Cargo.toml`), so that
+    // is the shipped path and not a test-only one — which is why the
+    // empty case must not allocate.
+    //
+    // A face that identifies something pays a copy of its own patch
+    // and then a scan of the copy, O(triangles) in both. The SCAN is
+    // what is measured: on the donut — two torus patches, each
+    // carrying a seam of `nv + 1` identified ids, 648 to 16 080
+    // triangles over δ = 0.1 to 0.004 — it is 2.2 % to 2.7 % of
+    // `tessellate` (dev profile with this crate at opt-level 2; median
+    // of four warm rounds, whose spread is under 2 %). The copy sits
+    // on top of that and is not separately measured. Under the price
+    // already paid for the pole half, and it buys the case a
+    // mechanical check.
+    let patch = Patch {
+        interior,
+        triangles,
+    };
     #[cfg(debug_assertions)]
     {
-        let over = overused_identified_edge(&polygon, &triangles);
+        let over = overused_identified_edge(&polygon, || patch.census_ids(shared));
         debug_assert!(
             over.is_none(),
             "face {fk:?}: identified-vertex fan edge {:?} used {} times in one \
@@ -388,7 +420,7 @@ pub(crate) fn tessellate_curved(
             requested: tol.delta,
         });
     }
-    Ok(triangles)
+    Ok(patch)
 }
 
 /// **The SHAPE door and the BRANCH door**: this face's outer loop,
@@ -795,8 +827,8 @@ fn require_swept_rectangle(
 /// Only pole faces with `nu == 2` re-size, and a full revolve is never
 /// one: [`sagitta_step`] hard-caps at
 /// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches and
-/// [`torus_grid_step`] is capped against the same value here, so a
-/// `2*pi` span gives `nu >= 8`.
+/// [`torus_grid_steps`]' azimuth step is capped against the same value
+/// here, so a `2*pi` span gives `nu >= 8`.
 ///
 /// **That arithmetic is VERIFIED and it is NOT the seam case's whole
 /// argument** (issue 897, and the distinction is the finding). Verified:
@@ -814,10 +846,10 @@ fn require_swept_rectangle(
 ///
 /// * **Torus** — the seam arm where the bound is fully protective. The
 ///   donut's two patches carry a seam on both meridians and size
-///   `nu x nv` = 85x43 up to 422x211, i.e. 3 528 up to **88 410**
-///   interior grid vertices per patch. Eight columns is a floor on a
-///   set with tens of thousands of members, and the two seam entries
-///   are separated by every one of them.
+///   `nu x nv` = 27x6 up to 134x30 over the corpus's deltas, i.e. 130
+///   up to **3 857** interior grid vertices per patch. Eight columns
+///   is a floor on a set with hundreds to thousands of members, and
+///   the two seam entries are separated by every one of them.
 /// * **Cone and sphere, seam-carrying and pole-free** — protective
 ///   exactly when `nv >= 2`. The `band_0.1` body's cone walls run
 ///   `nv` = 1 to 7 at the same deltas, so this arm is on both sides of
@@ -882,16 +914,22 @@ fn identified_ids(polygon: &[UvPoint]) -> std::collections::HashSet<u32> {
 /// is the non-manifold state, and four is #678's own signature.
 ///
 /// Returns the edge and its use count so the caller can name both.
-/// Empty [`identified_ids`] means there is nothing to re-derive and
-/// the scan does not run — a wedge wall or an untrimmed patch pays
-/// nothing.
+///
+/// `triangles` is a THUNK, and that is the whole reason this wrapper
+/// exists: empty [`identified_ids`] means there is nothing to
+/// re-derive, and on that branch the patch is never materialised in
+/// mesh ids at all. A wedge wall or an untrimmed patch pays one hash
+/// set over its boundary and nothing else.
 #[cfg(debug_assertions)]
 fn overused_identified_edge(
     polygon: &[UvPoint],
-    triangles: &[[u32; 3]],
+    triangles: impl FnOnce() -> Vec<[u32; 3]>,
 ) -> Option<((u32, u32), usize)> {
     let identified = identified_ids(polygon);
-    crate::walk::overused_identified_edge_in(&identified, triangles)
+    if identified.is_empty() {
+        return None;
+    }
+    crate::walk::overused_identified_edge_in(&identified, &triangles())
 }
 
 /// The sphere arm's extra sizing margin: it sizes at δ_s divided by
@@ -1027,8 +1065,11 @@ fn grid_counts(
         }
         ChartKind::Torus { major, minor } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a torus");
-            let h = cap_angular(torus_grid_step(delta_s, major, minor));
-            Ok((ceil_count(uspan, h)?, ceil_count(vspan, h)?))
+            let (hu, hv) = torus_grid_steps(delta_s, major, minor);
+            Ok((
+                ceil_count(uspan, cap_angular(hu))?,
+                ceil_count(vspan, cap_angular(hv))?,
+            ))
         }
     }
 }
@@ -2291,15 +2332,23 @@ mod tests {
             identified_ids(&one_pole).into_iter().collect::<Vec<_>>(),
             vec![1]
         );
-        // And a walk that identifies nothing costs the census nothing:
-        // the emit pass returns before scanning a triangle.
+        // And a walk that identifies nothing costs the census nothing.
+        // The thunk PANICS if it is called: the empty case must not
+        // materialise the patch in mesh ids, and this is the row that
+        // fails if that regresses (debug assertions are on in the
+        // release profile, so the allocation would ship).
         let plain = vec![
             entry(0.0, 0.0, 1, false),
             entry(1.0, 0.0, 2, false),
             entry(1.0, 1.0, 3, false),
         ];
         assert!(identified_ids(&plain).is_empty());
-        assert_eq!(overused_identified_edge(&plain, &[[1, 2, 3]]), None);
+        assert_eq!(
+            overused_identified_edge(&plain, || {
+                panic!("the patch must not be materialised when nothing is identified")
+            }),
+            None
+        );
     }
 
     #[cfg(debug_assertions)]
@@ -2329,11 +2378,14 @@ mod tests {
             entry(core::f64::consts::TAU, 0.0, 7, false),
         ];
         let fanned = [[8, 9, 7], [9, 8, 10], [8, 9, 11], [9, 8, 12]];
-        assert_eq!(overused_identified_edge(&seam, &fanned), Some(((8, 9), 4)));
+        assert_eq!(
+            overused_identified_edge(&seam, || fanned.to_vec()),
+            Some(((8, 9), 4))
+        );
         // The fan the argument PREDICTS — every identified edge at two
         // uses — is quiet.
         let clean = [[7, 8, 9], [8, 7, 10], [9, 8, 10], [7, 9, 10]];
-        assert_eq!(overused_identified_edge(&seam, &clean), None);
+        assert_eq!(overused_identified_edge(&seam, || clean.to_vec()), None);
     }
 
     /// The census threshold is at THREE uses, not four.
@@ -2356,7 +2408,7 @@ mod tests {
         ];
         let thrice = [[8, 9, 7], [9, 8, 10], [8, 9, 11]];
         assert_eq!(
-            overused_identified_edge(&seam, &thrice),
+            overused_identified_edge(&seam, || thrice.to_vec()),
             Some(((8, 9), 3)),
             "a third use is the defect; a threshold of four would pass this patch"
         );

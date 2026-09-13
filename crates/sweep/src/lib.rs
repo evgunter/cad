@@ -73,8 +73,8 @@
 //!   (mint-time `Intersection` is impossible — the surfaces don't exist
 //!   yet). The choice is `geom_brep::classify_dihedral` at the strut
 //!   midpoint with the strut chord as extent: Transverse ⇒ upgrade;
-//!   Smooth ⇒ one order down, through the must-carry rule
-//!   ([`geom_brep::tangent_second_order`], M5 PR 9) — jet-determinate
+//!   Smooth ⇒ one order down, through the must-carry rule over the
+//!   edge ([`geom_brep::must_carry_over_edge`]) — jet-determinate
 //!   ⇒ `TangentIntersection`, under-determined ⇒ an image at rest in
 //!   the previous wall's chart (the ratified no-face-merging split,
 //!   D2, which is a CONVENTIONAL description and no longer the

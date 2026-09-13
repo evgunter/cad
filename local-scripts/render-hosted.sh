@@ -9,16 +9,18 @@
 #   local-scripts/render-hosted.sh --run 12345678       # pull a specific run
 #
 # FIRST, THE SHORT ANSWER: YOU PROBABLY WANT `git pull`, NOT THIS
-# SCRIPT (2026-08-17). CI now RE-BASELINES all four lanes itself. A PR
+# SCRIPT (2026-08-17). CI now RE-BASELINES every lane itself. A PR
 # run whose render differs REPORTS it with a neutral check ("!", not
 # "x") naming the cells; main's own run then COMMITS them. So the frames
 # arrive by merging and pulling, not by installing. So the ordinary flow is: push, wait for CI, `git pull`,
 # look at the frames. Nothing to download, nothing to install.
 #
-# ALL FOUR LANES RE-BASELINE, uv included — there is no lane left that
-# needs a manual install after an ordinary CI run. What this script is
-# still genuinely good for on a PR: LOOKING at the new cells before you
-# merge, since the PR run reports them rather than committing them.
+# EVERY LANE RE-BASELINES — the roster is the lane table below, and
+# nothing here counts it, for the reason that table states. There is no
+# lane left that needs a manual install after an ordinary CI run. What
+# this script is still genuinely good for on a PR: LOOKING at the new
+# cells before you merge, since the PR run reports them rather than
+# committing them.
 #
 # WHAT THIS SCRIPT IS STILL FOR:
 #   * A DISPATCH AIMED AT A BARE SHA, which has no branch to commit to;
@@ -28,8 +30,8 @@
 #   * `--verify`, the byte-exactness round trip (see below).
 #
 # TAKING IS THE DEFAULT; RENDERING IS THE FLAG. Every CI run on a pushed
-# branch renders all four lanes (ci.yml's `renders` job calls
-# render.yml), so once your branch has a CI run the frames already
+# branch renders every lane in the table below (ci.yml's `renders` job
+# calls render.yml), so once your branch has a CI run the frames already
 # exist — a dispatch would render the same tree a second time, for ~5
 # more runner-minutes and no new information.
 #
@@ -63,11 +65,123 @@
 # on, and a pipeline that re-encoded or re-stamped anything would launder
 # them. actions/upload-artifact zips and `gh run download` unzips, both
 # lossless — and `--verify` proves it end to end rather than asserting
-# it, by round-tripping the wild lane (matplotlib Agg, pinned, no GL
-# anywhere, so byte-identity is a real expectation) and diffing what
-# came back against what is committed.
+# it, by round-tripping the lanes `VERIFY_LANES` names (matplotlib Agg or
+# stdlib text, pinned, no GL anywhere, so byte-identity is a real
+# expectation) and diffing what came back against what is committed.
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+
+die() { echo "render-hosted: $*" >&2; exit 1; }
+say() { echo "==> $*"; }
+
+# THE LANE TABLE: one row per lane `.github/workflows/render.yml`
+# declares — the lane's name, the artifact it uploads, and the committed
+# directory that artifact installs into. Everything below reads it: the
+# `--lane` choices, what `all` means, the download, the verify, the
+# install, the closing `git status` and the usage text. A lane is one
+# row, and there is no second list for a new lane to fall behind.
+#
+# A ROSTER, NOT A COUNT, and the roster itself is checked. A count goes
+# stale the next time a lane is added and nothing reds when it does; so
+# does a roster. `scripts/check-render-lane-parity.py` reads this table
+# out of this file (`--print-lane-table`), reads the lanes, artifact
+# names and committed directories out of render.yml, and reds when the
+# two disagree. It runs in ci.yml's `mirror` job, the one hosted job that
+# does not delete `local-scripts/`.
+LANE_TABLE="
+kernel  renders-kernel  demos/renders
+freecad renders-freecad demos/renders-freecad
+uv      renders-uv      demos/renders-uv
+mc      renders-mc      demos/renders-mc
+wild    renders-wild    demos/renders-wild
+gui     renders-gui     demos/renders-gui
+"
+
+# THE LANES `--verify` CAN ROUND-TRIP, and this one IS a hand-written
+# list: it is not the roster but a PROPERTY of a lane — byte-reproducible
+# off-box, so a pulled file may be compared to the committed one at all.
+# render.yml states that property in prose, per lane, and declares it
+# nowhere a reader can key on, so check-render-lane-parity.py cannot hold
+# this list to anything and does not pretend to
+# (`work/ciw/verify-lane-set-is-a-property-nothing-declares`). What it
+# costs if it goes stale is bounded and visible: a lane missing here is a
+# lane `--verify` silently does not prove, and `--verify` says how many
+# files it checked. A lane wrongly added reds on the first GL-stack
+# difference, loudly and in the right direction.
+VERIFY_LANES="uv mc wild"
+
+lane_names() {
+    local l _a _d
+    while read -r l _a _d; do [ -z "$l" ] || echo "$l"; done <<<"$LANE_TABLE"
+}
+# Lane -> (artifact name, committed directory), read by the download, the
+# install and the verify. An unknown lane is a caller bug rather than a
+# lane with empty fields, so it dies instead of echoing nothing.
+lane_field() {
+    local want="$1" which="$2" l a d
+    while read -r l a d; do
+        [ "$l" = "$want" ] || continue
+        case "$which" in artifact) echo "$a" ;; dir) echo "$d" ;; esac
+        return 0
+    done <<<"$LANE_TABLE"
+    die "no lane '$want' in the lane table"
+}
+artifact_for() { lane_field "$1" artifact; }
+dir_for() { lane_field "$1" dir; }
+lanes_of() {
+    if [ "$1" = all ]; then lane_names | tr '\n' ' '; else echo "$1"; fi
+}
+lane_dirs() { local l; for l in $(lane_names); do dir_for "$l"; done; }
+# THE ONE PREDICATE `--lane` IS VALIDATED AGAINST. Everything a lane
+# argument may be: a row of the table, or `all`.
+lane_accepted() {
+    local l
+    for l in $(lane_names) all; do [ "$l" != "$1" ] || return 0; done
+    return 1
+}
+lane_choices() {  # "kernel|…|all", the spelling the usage and the refusal share
+    local sep="$1" out="" l
+    for l in $(lane_names) all; do out="${out:+$out$sep}$l"; done
+    echo "$out"
+}
+lane_install_roster() {
+    local l _a d
+    while read -r l _a d; do
+        [ -z "$l" ] || printf '  %-7s -> %s/\n' "$l" "$d"
+    done <<<"$LANE_TABLE"
+}
+print_lane_table() {
+    local l c
+    for l in $(lane_names); do
+        printf 'lane %s %s %s\n' "$l" "$(artifact_for "$l")" "$(dir_for "$l")"
+    done
+    printf 'jobs-re %s\n' "$RENDER_JOBS_RE"
+    # THE TWO DERIVED LISTS THE ROWS ABOVE DO NOT REACH, and they are the
+    # two that decide behaviour: what `all` expands to (the download's
+    # population — four of six lanes, silently, is what this file shipped)
+    # and what `--lane` accepts (the refusal's). Printed by RUNNING them:
+    # `lanes-all` is `lanes_of all` itself, and each `accepts` row is
+    # `lane_accepted`'s own answer for one candidate, the impossible
+    # candidate included. So the guard holds what the run does, not a
+    # second spelling of it.
+    printf 'lanes-all %s\n' "$(lanes_of all)"
+    for c in $(lane_names) all __no_such_lane__; do
+        if lane_accepted "$c"; then
+            printf 'accepts %s yes\n' "$c"
+        else
+            printf 'accepts %s no\n' "$c"
+        fi
+    done
+}
+
+# `--print-lane-table` is the one mode that answers without a checkout,
+# and it is answered here, before the `cd` below needs a repository:
+# check-render-lane-parity.py's mutants run this file against scratch
+# trees of their own, so the guard's selftest can hold a mutated table
+# against a mutated workflow without either being a git tree.
+PRINT_TABLE_ONLY=0
+for _arg in "$@"; do
+    [ "$_arg" != --print-lane-table ] || PRINT_TABLE_ONLY=1
+done
 
 WORKFLOW=render.yml
 CI_WORKFLOW=ci.yml
@@ -85,15 +199,21 @@ ON_DEMAND=0
 # so they only tell a reader why waiting on the whole run is the wrong
 # wait, and that stays true at any pair of numbers with this ordering.
 #
-# TWO JOBS, FIVE LANES (2026-08-22). render.yml merged its five lane jobs
-# into two — the three renderer-free ones into `scene inputs + uv sheet +
-# wild montage`, the two FreeCAD ones into `freecad montages (kernel +
-# freecad)` — to stop paying five runner setups, two 821 MB FreeCAD cache
-# restores and two apt installs for work that shares all of it. Every lane
-# still uploads its own artifact under its own name, which is what the
-# download path below actually keys on; this regex only decides which jobs
-# the PROGRESS DISPLAY waits for and reports.
-RENDER_JOBS_RE='(scene inputs \+ uv sheet \+ wild montage|freecad montages \(kernel \+ freecad\))$'
+# A LANE IS NOT A JOB, so this is its own roster: render.yml groups the
+# renderer-free lanes into `scene inputs + uv sheet + wild montage` and
+# the two FreeCAD ones into `freecad montages (kernel + freecad)` — one
+# runner setup, one 821 MB FreeCAD cache restore and one apt install for
+# work that shares all of it — while the viewer's window is photographed
+# on a runner of its own. Every lane still uploads its own artifact under
+# its own name, which is what the download path below keys on; this
+# regex only decides which jobs the PROGRESS DISPLAY waits for.
+#
+# Getting it wrong is not cosmetic: an unlisted lane job is one the poll
+# neither waits for nor reports, so a run can be declared settled while
+# that lane is still drawing and its artifact is not there yet.
+# check-render-lane-parity.py reds if a job that uploads a lane artifact
+# is not matched here, and if this matches a job that uploads none.
+RENDER_JOBS_RE='(scene inputs \+ uv sheet \+ wild montage|freecad montages \(kernel \+ freecad\)|viewer gui montage)$'
 REF=""
 SCENE_TIMEOUT=""
 INSTALL=1
@@ -110,6 +230,9 @@ VERIFY=0
 POLL_BUDGET_MIN=200
 POLL_INTERVAL=20
 
+if [ "$PRINT_TABLE_ONLY" = 1 ]; then print_lane_table; exit 0; fi
+cd "$(git rev-parse --show-toplevel)"
+
 usage() {
     cat <<EOF
 usage: local-scripts/render-hosted.sh [options]
@@ -117,27 +240,29 @@ usage: local-scripts/render-hosted.sh [options]
   (default)                             install the render your branch's
                                         newest CI run already made
   --on-demand                           render fresh instead of taking CI's
-  --lane <kernel|freecad|uv|wild|all>   which lane(s) (default: all)
+  --lane <$(lane_choices '|')>
+                                        which lane(s) (default: all)
   --ref <branch|tag|sha>                which branch (default: current)
   --run <id>                            take a specific run; no new render
   --scene-timeout <seconds>             FreeCAD per-scene budget (unset: the
                                         render.yml input's own default)
   --no-install                          download to a temp dir, do not touch the tree
   --verify                              round-trip proof: assert the pulled bytes
-                                        equal the committed ones (wild/uv lanes)
+                                        equal the committed ones (the lanes
+                                        VERIFY_LANES names: $VERIFY_LANES)
   --budget-min <n>                      give up polling after n minutes
                                         (default: $POLL_BUDGET_MIN, printed from
                                         the variable so it cannot drift)
+  --print-lane-table                    the lane roster this file works from,
+                                        one line per lane; what
+                                        scripts/check-render-lane-parity.py
+                                        holds against render.yml
   -h, --help
 
 Artifacts land at their committed paths:
-  kernel  -> demos/renders/        freecad -> demos/renders-freecad/
-  uv      -> demos/renders-uv/     wild    -> demos/renders-wild/
+$(lane_install_roster)
 EOF
 }
-
-die() { echo "render-hosted: $*" >&2; exit 1; }
-say() { echo "==> $*"; }
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -149,45 +274,22 @@ while [ $# -gt 0 ]; do
         --budget-min) POLL_BUDGET_MIN="${2:?--budget-min needs a value}"; shift 2 ;;
         --no-install) INSTALL=0; shift ;;
         --verify) VERIFY=1; shift ;;
+        --print-lane-table) shift ;;  # answered above, before the checkout
         -h|--help) usage; exit 0 ;;
         *) usage >&2; die "unknown argument: $1" ;;
     esac
 done
 
-case "$LANE" in
-    kernel|freecad|uv|wild|all) ;;
-    *) die "--lane must be one of kernel, freecad, uv, wild, all (got '$LANE')" ;;
-esac
+lane_accepted "$LANE" \
+    || die "--lane must be one of $(lane_choices ', ') (got '$LANE')"
 command -v gh >/dev/null || die "gh is not installed (https://cli.github.com)"
 gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
-
-# Lane -> (artifact name, committed directory). One table, used by the
-# download, the install and the verify, so a new lane is one line.
-artifact_for() {
-    case "$1" in
-        kernel) echo "renders-kernel" ;;
-        freecad) echo "renders-freecad" ;;
-        uv) echo "renders-uv" ;;
-        wild) echo "renders-wild" ;;
-    esac
-}
-dir_for() {
-    case "$1" in
-        kernel) echo "demos/renders" ;;
-        freecad) echo "demos/renders-freecad" ;;
-        uv) echo "demos/renders-uv" ;;
-        wild) echo "demos/renders-wild" ;;
-    esac
-}
-lanes_of() {
-    if [ "$1" = all ]; then echo "kernel freecad uv wild"; else echo "$1"; fi
-}
 
 # ------------------------------------------------------- take CI's render
 
 # THE DEFAULT IS TO TAKE, NOT TO RENDER. ci.yml's `renders` job calls
 # render.yml on every push that builds anything, so a pushed branch's
-# newest CI run already holds all four lanes' artifacts — the same
+# newest CI run already holds every lane's artifact — the same
 # bytes a dispatch would produce, from the same pipeline, at no extra
 # runner cost. Rendering again would render the same tree twice, so
 # that is the flag (`--on-demand`) and this is the default.
@@ -377,15 +479,15 @@ done
 
 # THE ROUND-TRIP PROOF. Not a claim that hosted pixels match local ones
 # — the FreeCAD lanes' do not, and render.yml says so — but that the
-# ARTIFACT PATH is lossless: a byte-reproducible lane (wild: matplotlib
-# Agg, pinned deps, no GL; uv: stdlib text) that came back through
+# ARTIFACT PATH is lossless: a lane in `VERIFY_LANES` above (matplotlib
+# Agg with pinned deps and no GL, or stdlib text) that came back through
 # upload/zip/download/unzip must be byte-identical to what is committed,
 # stamp chunks and all. If that ever stops holding, the provenance guard
 # is being fed laundered files and every other lane's pull is suspect.
 if [ "$VERIFY" = 1 ]; then
     checked=0
     for lane in $have; do
-        case "$lane" in uv|wild) ;; *) continue ;; esac
+        case " $VERIFY_LANES " in *" $lane "*) ;; *) continue ;; esac
         dir="$(dir_for "$lane")"
         say "verify: $lane — pulled bytes vs committed $dir/"
         while IFS= read -r rel; do
@@ -402,7 +504,8 @@ or this lane's render is not reproducible. Do not trust a pulled tree until this
             fi
         done < <(cd "$staging/$lane" && find . -type f -printf '%P\n' | sort)
     done
-    [ "$checked" -gt 0 ] || die "--verify had nothing to check (needs the uv or wild lane)"
+    [ "$checked" -gt 0 ] \
+        || die "--verify had nothing to check (needs one of: $VERIFY_LANES)"
     say "verify: $checked file(s) byte-identical through upload -> zip -> download"
 fi
 
@@ -443,5 +546,5 @@ fi
 
 echo
 say "what moved (review, then commit normally):"
-git -c color.status=always status --short -- demos/renders demos/renders-freecad \
-    demos/renders-uv demos/renders-wild
+# shellcheck disable=SC2046  # the lane dirs are the table's, one word each
+git -c color.status=always status --short -- $(lane_dirs)

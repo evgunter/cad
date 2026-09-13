@@ -17,7 +17,10 @@
 //! downstream; the explicit check makes that a typed
 //! [`TransformError::NotRigid`] refusal. On top of that, every edge
 //! carrier is **re-certified** against the mapped geometry through
-//! [`EdgeCurve::certify`], so a map that breaks carrier consistency
+//! [`EdgeCurve::certify_via`] — with whichever plane × NURBS lane the
+//! caller's door injected ([`transform_rigid`] injects none,
+//! [`transform_rigid_via`] injects the caller's) — so a map that
+//! breaks carrier consistency
 //! surfaces as a typed [`TransformError::Certify`] refusal, never as
 //! silently corrupt geometry. (A rigid map preserves every
 //! distance-valued residual up to rounding, so re-certification of a
@@ -106,13 +109,14 @@ pub enum TransformError {
     /// reach this arm, and the third is not about the caller's
     /// geometry at all: the map is not an isometry at tolerance; or
     /// the input body's geometry was already out of certification; or
-    /// the certification DOOR this pass uses admits a narrower class
-    /// than the at-rest validator does, and declined a body that is
-    /// perfectly sound. That last one is a `CertifyError::Unimplemented`
-    /// from an `Intersection` naming a described `Nurbs` operand: this
-    /// pass certifies through the plain [`EdgeCurve::certify`] while
-    /// tier 3 uses the lane-wired door. Read the nested `source`, not
-    /// this list, for which one it was.
+    /// the CALLER took a door that injected no plane × NURBS lane, and
+    /// so declined a body that is perfectly sound. That last one is a
+    /// [`CertifyError::Unimplemented`] from an `Intersection` naming a
+    /// described `Nurbs` operand — the M7-8 class, which certifies
+    /// only through the lane. [`transform_rigid`] is that door;
+    /// [`transform_rigid_via`] with the lane supplied moves the same
+    /// body. Read the nested `source`, not this list, for which one it
+    /// was.
     Certify {
         /// The edge whose carrier failed.
         edge: EdgeKey,
@@ -509,6 +513,14 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// mapped surfaces — see the module docs for the contract and the
 /// refusal doors.
 ///
+/// This is [`transform_rigid_via`] with no lane injected, so a body
+/// carrying an edge of the M7-8 class (an `Intersection` between a
+/// plane and a DESCRIBED NURBS wall) refuses here with
+/// [`TransformError::Certify`] naming [`CertifyError::Unimplemented`].
+/// That refusal is a fact about this door's rights and not about the
+/// body: a caller that can name the certified lane moves the same body
+/// through [`transform_rigid_via`].
+///
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
@@ -516,6 +528,43 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
+) -> Result<Body<T>, TransformError> {
+    transform_rigid_via(body, map, tol, None)
+}
+
+/// [`transform_rigid`] with the plane × NURBS lane
+/// ([`geom_brep::NurbsLane`]) taken as an ARGUMENT rather than read off
+/// the scalar — the door for a pass whose own bound says nothing about
+/// certification rights.
+///
+/// Re-certification of a mapped carrier is the only thing the lane
+/// reaches, and it reaches it exactly as the at-rest validator's
+/// check 2 does: `None` certifies through
+/// [`EdgeCurve::certify`] and `Some` through
+/// [`EdgeCurve::certify_nurbs_lane`], the same two doors
+/// `topo::validate`'s lane-keeping and certified arms take. **This
+/// grants no certification capability the at-rest validator does not
+/// already have** — the lane is `geom_brep::plane_nurbs_limbs`, the
+/// one function both sides inject, and the checks and their order are
+/// unchanged.
+///
+/// **Why the lane is an argument and not a bound.** Raising
+/// `transform_rigid`'s own bound to `Decide + CertifiedBounds` would
+/// propagate through this op's generic callers — `boolean`'s sphere
+/// re-cut reaches it under `boolean_op_with`, which `verbs::Verb`'s
+/// `Decide + Bounds + PcurveFittedLane` block runs and the dual corpus
+/// instantiates at a `Dual`, which implements no
+/// `CertifiedEnclosure`. Injecting at the door is the same resolution
+/// [`geom_brep::NurbsLane`] states for certification itself.
+///
+/// # Errors
+///
+/// [`TransformError`] — closed and typed.
+pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane>(
+    body: &Body<T>,
+    map: &Affine3<T>,
+    tol: Tol,
+    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
 ) -> Result<Body<T>, TransformError> {
     let band = Band::linear(tol).map_err(TransformError::Band)?;
     check_rigid(map, band)?;
@@ -621,7 +670,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
             param_end,
         };
         let surfaces = |k| out.surfaces.get(k).cloned();
-        let mapped = EdgeCurve::certify(spec, start, end, surfaces, band)
+        let mapped = EdgeCurve::certify_via(spec, start, end, surfaces, band, nurbs_lane)
             .map_err(|source| TransformError::Certify { edge: ek, source })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key);

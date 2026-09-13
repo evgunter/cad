@@ -1230,7 +1230,12 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     let anchored = plan_reanchors(body, &boundary, &moved, band, tol)?;
 
     // ---- Mutation, on a clone (infallible decisions are done). ----
-    let mut work = body.clone();
+    //
+    // The clone is under a surgery scope for the whole of it: the
+    // setters below are this door's operator sequence, and the door's
+    // whole-body check is the tier-2 gate the clone is adopted on.
+    let mut staged = body.clone();
+    let mut work = staged.begin_surgery();
     // `FaceSurface::New` mints a fresh arena key, so every planned
     // description that names the replaced surface is re-pointed at it
     // before it is attached — the same re-description step the stale-key
@@ -1272,9 +1277,10 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
             })?;
     }
     mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
-    validate_closed(&work).map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
+    work.sweep_and_close();
+    validate_closed(&staged).map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
 
-    *body = work;
+    body.adopt(staged);
     Ok(())
 }
 

@@ -624,7 +624,9 @@ executed by VERBS-TESSFOLD WITH the audit this section demands: each
 scene's values verified against an expectation the fold does not
 itself define (the chamfer scenes row-for-row against their
 filleted/pipped twins, `hollowring` exactly against the torus grid
-step (`mesh::sizing::torus_grid_step`), the bench scenes against
+step (then `mesh::sizing::torus_grid_step`, one step for both chart
+directions; the per-direction `torus_grid_steps` that replaced it is
+what the current rows were re-cut against), the bench scenes against
 their introducing PR's claim and the box-face arithmetic) before
 landing as reference. The class —
 a comparison gate whose coverage decays silently as the corpus

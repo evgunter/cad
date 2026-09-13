@@ -27,13 +27,18 @@ surface, and nothing is pre-checked: a zero, negative or non-finite
 budget is the kernel's own refusal, raised where you wrote the call.
 
 ```python
-from pncad import Doc, Node, TessellateError, evaluate, m, mm
+from pncad import Doc, Expr, Node, TessellateError, evaluate, m, mm
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.length_in(0, m), Expr.length_in(0, m)),
+        (Expr.length_in(2, m), Expr.length_in(0, m)),
+        (Expr.length_in(2, m), Expr.length_in(1, m)),
+        (Expr.length_in(0, m), Expr.length_in(1, m)),
+    ], plane=doc.sketch_frame())
 )
-slab = doc.insert(Node.extrude(sketch, 1 * m))
+slab = doc.insert(Node.extrude(sketch, Expr.length_in(1, m)))
 body = evaluate(doc).value(slab).body()
 
 mesh = body.tessellate(0.5 * mm)
@@ -71,14 +76,21 @@ comparison and no tolerance anywhere in it.
 export order — the walk both STL writers make, so the array and an
 exported file agree facet for facet.
 
-What does **not** cross is the picking chain. A patch's face, a
-boundary polyline's edge and their vertex back-references are arena
-keys, and keeping those unnameable is what the whole curated surface
-is for. So a patch is addressed by INDEX here, and the per-edge
-boundary polylines — whose only content beside indices is those keys
-— are not bound at all. A door from a patch to a `StableName` would
-be the honest shape and does not exist on either side of the
-boundary; see the north-star audit's G11 row.
+**Per-edge boundary polylines.** `mesh.boundaries` answers one
+polyline per model edge, in the same index alphabet — the surface is
+drawn from the triangles, the model's *edges* from these, which is
+what a wireframe or a hidden-line view is made of. A polyline runs in
+its edge's intrinsic direction; an edge that closes on itself repeats
+its vertex index at both ends, so `line[0] == line[-1]` is the
+closure, decided on indices like everything else here.
+
+What does **not** cross are the arena keys. A patch's face, a boundary
+polyline's edge and their vertex back-references are keys, and keeping
+those unnameable is what the whole curated surface is for. So a patch
+and a polyline are addressed by INDEX here. The door from an index to
+a `StableName` is the honest shape and it exists: `NodePick`'s
+`patch_names` and `boundary_names` answer one name per patch and per
+polyline, in the same order, with the key never leaving the kernel.
 
 ## Step 5, written by the caller
 
@@ -92,7 +104,7 @@ The mesh's arrays are the somewhere else.
 ```python
 import math
 
-from pncad import Doc, Node, deg, evaluate, m, mm
+from pncad import Doc, Expr, Node, deg, evaluate, m, mm
 
 
 def signed_volume(mesh):
@@ -138,14 +150,25 @@ doc = Doc()
 frame = doc.sketch_frame()
 outline = doc.insert(
     Node.polygon(
-        [(0.5 * m, 0 * m), (1.5 * m, 0 * m), (1.5 * m, 2 * m), (0.5 * m, 2 * m)],
+        [
+            (Expr.length_in(0.5, m), Expr.length_in(0, m)),
+            (Expr.length_in(1.5, m), Expr.length_in(0, m)),
+            (Expr.length_in(1.5, m), Expr.length_in(2, m)),
+            (Expr.length_in(0.5, m), Expr.length_in(2, m)),
+        ],
         plane=frame,
     )
 )
 # The axis in the sketch's own coordinates: the frame's v is world
 # +y, so the world y axis IS its own +y through (0, 0).
-axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
-washer = doc.insert(Node.revolve(outline, axis, 360 * deg))
+axis = doc.insert(Node.datum_axis_in_plane(frame, (
+    Expr.length_in(0, m),
+    Expr.length_in(0, m),
+), (
+    Expr.literal(0.0),
+    Expr.literal(1.0),
+)))
+washer = doc.insert(Node.revolve(outline, axis, Expr.angle_in(360, deg)))
 
 body = evaluate(doc).value(washer).body()
 body.validate()
@@ -186,13 +209,18 @@ refused **at the call**, not when someone later fails to open the
 file.
 
 ```python
-from pncad import Doc, Node, StlError, evaluate, m, mm
+from pncad import Doc, Expr, Node, StlError, evaluate, m, mm
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
+    Node.polygon([
+        (Expr.length_in(0, m), Expr.length_in(0, m)),
+        (Expr.length_in(1, m), Expr.length_in(0, m)),
+        (Expr.length_in(1, m), Expr.length_in(1, m)),
+        (Expr.length_in(0, m), Expr.length_in(1, m)),
+    ], plane=doc.sketch_frame())
 )
-cube = doc.insert(Node.extrude(sketch, 1 * m))
+cube = doc.insert(Node.extrude(sketch, Expr.length_in(1, m)))
 mesh = evaluate(doc).value(cube).body().tessellate(1 * mm)
 
 text = mesh.to_stl_ascii(solid_name="cube")

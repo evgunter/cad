@@ -28,15 +28,15 @@ import pncad
 from pncad import (
     ArcSide,
     ArcSweep,
+    BooleanOp,
     Bulge,
     Center,
-    BooleanOp,
     Doc,
+    Expr,
     Node,
     Open,
-    Start,
     Radius,
-    Sweep,
+    Start,
     Via,
     circle,
     circle_split,
@@ -154,13 +154,13 @@ class TestTheLatticeWalks(unittest.TestCase):
             with self.subTest(mode=name):
                 self.assertEqual(loop.vertex_count, 2)
 
-    def test_a_split_arc_leg_declares_its_stations(self):
-        # The half-disc's equator as ONE leg that declares its split:
-        # the semicircle about the origin in two arcs, the pole station
-        # a declared tangent joint on the one carrier.
+    def test_arc_continue_mints_a_structural_subdivision_vertex(self):
+        # The same carrier, subdivided at the +y pole: a same-carrier
+        # identity, not a junction claim.
         loop = (
             Open.at((1 * m, 0 * m))
-            .arc_to(Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=2)
+            .arc_to(Center(ORIGIN, ArcSweep.Ccw, (0 * m, 1 * m)))
+            .arc_continue((-1 * m, 0 * m))
             .line_to(Start)
         )
         self.assertEqual(loop.vertex_count, 3)
@@ -370,6 +370,12 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
         self.refuses("nonpositive_circle_radius", lambda: circle(ORIGIN, 0 * m))
         self.refuses("circle_split_count", lambda: circle_split(ORIGIN, 1 * m, 1, 0 * rad))
         self.refuses("zero_direction", lambda: Open.toward(0.0, 0.0))
+        # A director past the ~1e154 overflow band is NOT a zero
+        # direction and does not get that word: the norm overflows to
+        # infinity, which reads maximally definite to the sign gate,
+        # and the door used to return a stored ray of (0, 0) through
+        # this very call.
+        self.refuses("non_finite_direction", lambda: Open.toward(1e200, 0.0))
         self.refuses(
             "nonpositive_fillet_radius",
             lambda: Open.at(ORIGIN)
@@ -378,33 +384,12 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
             .fillet(0 * m),
         )
 
-    def test_a_declared_split_below_two_arcs_refuses(self):
-        # `splits=None` is the plain leg; a count GIVEN is declared, and
-        # one below 2 refuses typed through the kernel's own `.split(n)`.
+    def test_arc_continue_needs_an_arc_carrier(self):
         self.refuses(
-            "arc_split_count",
-            lambda: Open.at((1 * m, 0 * m)).arc_to(
-                Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=0
-            ),
-        )
-
-    def test_an_explicit_split_of_one_refuses_like_rust(self):
-        # One rule on every authoring surface: an EXPLICIT `splits=1` is
-        # a declaration of one piece, which distinguishes nothing from
-        # the plain leg and refuses exactly as Rust's `.split(1)` does.
-        # The plain leg is spelled by leaving the keyword out.
-        self.refuses(
-            "arc_split_count",
-            lambda: Open.at((1 * m, 0 * m)).arc_to(
-                Center(ORIGIN, ArcSweep.Ccw, (-1 * m, 0 * m)), splits=1
-            ),
-        )
-        # The same rule on the tangent-departing surface.
-        self.refuses(
-            "arc_split_count",
+            "arc_continue_needs_arc_carrier",
             lambda: Open.at(ORIGIN)
-            .angle(0 * deg)
-            .arc_to(Sweep(1 * m, ArcSide.Left, 1 * rad), splits=1),
+            .line_to((1 * m, 0 * m))
+            .arc_continue((2 * m, 0 * m)),
         )
 
     def test_coordinates_are_typed_quantities(self):
@@ -432,7 +417,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_an_arc_bearing_profile_evaluates(self):
         doc = Doc()
-        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), 1 * m))
+        solid = doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Expr.length_in(1, m)))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
         body = ev.value(solid).body()
@@ -444,7 +429,7 @@ class TestTheProfileNode(unittest.TestCase):
     def test_the_carrier_form_lands_as_its_own_program_arm(self):
         doc = Doc()
         solid = doc.insert(
-            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m), plane=doc.sketch_frame())), 2 * m)
+            Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 0.5 * m), plane=doc.sketch_frame())), Expr.length_in(2, m))
         )
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
@@ -466,14 +451,14 @@ class TestTheProfileNode(unittest.TestCase):
 
         doc = Doc()
         plate = doc.insert(
-            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2), plane=doc.sketch_frame())), 1 * m)
+            Node.extrude(doc.insert(Node.profile(rect(0, 2, 0, 2), plane=doc.sketch_frame())), Expr.length_in(1, m))
         )
         boss = doc.insert(
             Node.extrude(
                 doc.insert(
-                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), plane=doc.sketch_frame(elevation=0.5 * m))
+                    Node.profile(rect(0.5, 1.5, 0.5, 1.5), plane=doc.sketch_frame(elevation=Expr.length_in(0.5, m)))
                 ),
-                1 * m,
+                Expr.length_in(1, m),
             )
         )
         fused = doc.insert(Node.boolean(BooleanOp.Union, plate, boss))
@@ -484,7 +469,7 @@ class TestTheProfileNode(unittest.TestCase):
 
     def test_the_program_survives_persistence_bit_for_bit(self):
         doc = Doc()
-        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), 1 * m))
+        doc.insert(Node.extrude(doc.insert(Node.profile(self.rounded(), plane=doc.sketch_frame())), Expr.length_in(1, m)))
         replayed = load(doc.save()).doc
         self.assertTrue(doc.bit_eq(replayed), "replay is bit-identical, not merely close")
 

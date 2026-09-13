@@ -1,9 +1,12 @@
 ---
 id: overrun-attribution-picks-the-first-candidate
-kind: issue
+kind: unit
 title: The anchor-fit refusal reports the FIRST corner-side candidate, not the one it is metered against
-status: open
+status: closed
 opened: 2026-09-05
+branch: blend/11-overrun-nearest-fit
+pr: 2495
+closed: 2026-09-13
 ---
 
 
@@ -70,3 +73,39 @@ own (issue 1281, ruled on PR 1734).
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). `crates/profile/src/sugar.rs`'s candidate machinery is S-BOOL's glob for the PATHS lattice and the fillet door's by announced seam; the corner-level rule it extends is FILLET's ruling on PR 1734.
+
+## Landed (PR 2495)
+
+The refusal reports **the nearest fit in the setback metric**: the
+candidate `fillet_select::nearest_candidate` ranks first over the
+candidates' setback pairs — the crate's one home of "the nearest candidate
+at one corner", whose dominance argument makes a candidate tie unreachable —
+on that candidate's worse leg, the one whose setback outruns its extent by
+more (ties name the incoming leg). `sugar::arc_fillet_trims` carries every
+corner-side overrun out at the scalar with both legs' numbers and compares
+nothing; `path::arc_fillet::map_refusal` picks by enclosure reads off the
+diagnostic channel. The rule's design home is `crates/profile/README.md`,
+"The refusal envelope", one level down.
+
+**The reason corrected at merge.** The spec's reason for the pick — "the
+least radius reduction that would make it fit" — is false and was struck
+everywhere: `setback − available` is the leg's overrun in the setback
+metric, not a radius amount, and the recourse "reduce the radius or move the
+anchor" is un-metered and true. Measured over grid A's 3 185 anchor-fit
+entries by both reviewers: followed as a radius reduction it is not a
+request at 469, leaves the same corner refusing at 2 111 and builds at 605,
+tight at 0. The metered form is the residue
+`anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`.
+
+## Closed (2026-09-13, PR 2495)
+
+The anchor-fit refusal reports the candidate the author is nearest to
+fitting in the setback metric — the least overrun on its worse leg —
+through `fillet_select::nearest_candidate` at the door, with the arm
+collecting every corner-side overrun at the scalar. The reported
+numbers are the overrun's; the recourse stays un-metered, because both
+reviewers measured that the deficit is not a radius amount (the
+orchestrator's spec sentence claiming it was is retracted; residue
+`anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`).
+Every fillet that built builds bit-identically; only
+`AnchorOutsideTrimmedExtent` payloads moved.

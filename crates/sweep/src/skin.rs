@@ -750,6 +750,14 @@ pub struct LoftGeometry {
     /// the cap and rim geometry is exactly section 0's and section
     /// `k − 1`'s — no re-derivation, no drift.
     pub sections: Vec<Vec<Vec<NurbsCurve3<f64>>>>,
+    /// **Each input section's canonical form**, in input order — the
+    /// `ValidatedProfile` [`validate_sections`] decided at the door and
+    /// the walls were skinned from. Kept for the same reason
+    /// [`Self::sections`] is: the body assembly's end caps ARE section
+    /// 0's and section `k − 1`'s profiles, so handing the decided form
+    /// over is what makes the caps the walls' own sections rather than
+    /// a second validation of the same data agreeing by determinism.
+    pub canonical: Vec<ValidatedProfile<f64>>,
 }
 
 /// One section of a loft or sweep: its loops in the profile
@@ -905,6 +913,7 @@ pub fn loft_geometry(
         walls,
         section_params: params,
         sections: kept,
+        canonical: validated,
     })
 }
 

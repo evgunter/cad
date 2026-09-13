@@ -40,7 +40,7 @@ use crate::node::{Node, RecipeNodeId};
 use crate::placement::Frame;
 
 /// What a mate did in the solve (A11 rule 4).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MateRole {
     /// A tree mate: it placed its child. Its pair's fold was DETERMINED.
     Determining,

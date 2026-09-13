@@ -57,19 +57,7 @@
 //!   it buys the door above is that [`datum_distance`] is arithmetic
 //!   all the way down.
 //!
-//!   **[`is_finite_length`] is a second thing here that is not a
-//!   selection question**, and unlike the one above it is public. It
-//!   takes a bare scalar, reads no [`Body`] and reaches no funnel: it
-//!   is the value-channel question that comes BEFORE a direction's
-//!   length is classified. Whether the predicate belongs here at all —
-//!   `geom-core` holds `Real`, `is_poison` and `Vec3::normalize`'s own
-//!   overflow note — is an open question for this seat's owner, filed
-//!   as `is-finite-length-homed-in-the-query-seat`; a live consequence
-//!   of the answer is that `profile`, which depends on `geom-core`
-//!   alone, cannot ask this question at all today
-//!   (`work/seat/two-d-director-doors-skip-the-finiteness-question`).
-//!
-//!   **[`decide_unit_direction`] is a THIRD, and it is a funnel site**
+//!   **[`decide_unit_direction`] is a SECOND, and it is a funnel site**
 //!   — the only public decide site in this module whose predicate NAME
 //!   comes from the caller rather than from here. It is the
 //!   workspace's one `Margin::norm3` decide-then-normalize body: this
@@ -106,6 +94,7 @@ use geom_brep::{SurfaceKey, SurfaceKind};
 use geom_core::k_stats::decide;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3,
+    is_finite_length, is_underflowed_length,
 };
 
 use crate::body::Body;
@@ -208,8 +197,11 @@ impl CurveKindSet {
 /// The [`SurfaceKind`] bit position in a [`SurfaceKindSet`].
 ///
 /// EXHAUSTIVE with no wildcard arm: a new `SurfaceKind` variant fails
-/// to compile here (and `ALL_SURFACE_KINDS` below is pinned against
-/// this function by a unit test, so the pair cannot drift apart).
+/// to compile here, so the numbering cannot silently omit a kind. It
+/// does not pin `ALL_SURFACE_KINDS` below against the enum, and does
+/// not see a numbering that REPEATS a bit — the `census!` invocation
+/// and `kind_bits_are_distinct` in this file's test module are what
+/// hold those two.
 const fn surface_bit(kind: SurfaceKind) -> u8 {
     match kind {
         SurfaceKind::Plane => 0,
@@ -224,6 +216,10 @@ const fn surface_bit(kind: SurfaceKind) -> u8 {
 
 /// Every [`SurfaceKind`], in declaration order — the iteration order of
 /// a [`SurfaceKindSet`].
+///
+/// Held against the enum, seat by seat, by the `census!` invocation in
+/// this file's test module: adding a variant reds there until this
+/// list carries it.
 pub const ALL_SURFACE_KINDS: [SurfaceKind; 7] = [
     SurfaceKind::Plane,
     SurfaceKind::Cylinder,
@@ -396,6 +392,13 @@ pub fn edge_adjacent_matches<T: Real>(
 /// number BEFORE asking which side of zero it lies on
 /// ([`UnitVec3Error::NonFiniteLength`]); without that order the type's
 /// guarantee would be false exactly where it is least visible.
+///
+/// The same comparison cannot see the other end either. A vector
+/// whose components underflow the norm (`|v| ≲ 1e-162` at `f64`) has
+/// a length of exactly zero for a direction that is perfectly good,
+/// so the constructor would refuse it as degenerate — the right
+/// outcome under a false cause. That case is separated before the
+/// sign question too ([`UnitVec3Error::UnderflowedLength`]).
 #[derive(Debug, Clone, Copy)]
 pub struct UnitVec3<T: Real>(Vec3<T>);
 
@@ -416,8 +419,12 @@ pub const DATUM_UNIT_NORM: &str = "datum_unit_norm";
 /// about the input, never a lane to swallow.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnitVec3Error {
-    /// The vector's length decided to zero: it names no direction, and
-    /// picking one for it would be invention (spec D3).
+    /// The vector's length decided to zero and the vector really is
+    /// that small: it names no direction, and picking one for it
+    /// would be invention (spec D3). The one way a length decides to
+    /// zero WITHOUT this being true — a squared norm that underflowed
+    /// out of the format — is [`UnitVec3Error::UnderflowedLength`],
+    /// which is refused before this arm is reached.
     Degenerate,
     /// The vector's length is not a finite number — the components
     /// overflow the norm (`|v| ≳ 1e154` at `f64`), or one of them is
@@ -426,6 +433,14 @@ pub enum UnitVec3Error {
     /// [`Decide`] and would be normalized into a zero direction; a
     /// poisoned one has no direction either.
     NonFiniteLength,
+    /// The vector's length UNDERFLOWED to zero: its components are
+    /// nonzero but small enough (`|v| ≲ 1e-162` at `f64`) that the
+    /// squared norm is exactly zero, so the length reads as zero for
+    /// a vector that has a perfectly good direction. A separate fact
+    /// from [`UnitVec3Error::Degenerate`] and a separate recourse:
+    /// no tolerance makes this length nonzero, and normalizing it
+    /// would blow the direction up to `±∞`.
+    UnderflowedLength,
     /// The length decision landed in the ambiguity band — at the
     /// interval scalar, an enclosure that straddles "has a direction"
     /// and "does not". Escalated unaltered.
@@ -444,6 +459,12 @@ impl core::fmt::Display for UnitVec3Error {
                  components overflow the norm, or one of them is not a \
                  number; scale the geometry into the session's range",
             ),
+            Self::UnderflowedLength => f.write_str(
+                "a direction vector's length underflowed to zero — its \
+                 components are too small for their squares to be \
+                 represented, so it has a direction but no measurable \
+                 length; scale the geometry into the session's range",
+            ),
             Self::Escalated(source) => {
                 write!(f, "a direction vector's length is indeterminate: {source}")
             }
@@ -453,67 +474,12 @@ impl core::fmt::Display for UnitVec3Error {
 
 impl std::error::Error for UnitVec3Error {}
 
-/// **Is `x` a finite number at this scalar?** — asked through the
-/// value channel every [`Real`] has, with no bracket read and no
-/// threshold invented.
-///
-/// A finite value less itself is exactly zero; `∞ − ∞` and `NaN − NaN`
-/// are the scalar's poison. So the self-difference IS the question,
-/// which is why the equal-operands lint is allowed here and nowhere
-/// near it. An enclosure answers YES however wide it is (a finite
-/// interval's self-difference is a finite interval around zero, and an
-/// enclosure whose upper end overflowed still contains its truth) —
-/// the honest scope: this catches the point scalars, which is where an
-/// infinite length turns into a definite wrong answer.
-///
-/// One rule, one spelling, one CALLER — **and the claim is exactly
-/// that literal one**: [`decide_unit_direction`] is the workspace's
-/// only `Margin::norm3` decide-then-normalize spelling, and it is
-/// where this question is asked before that decision. It is NOT a
-/// claim that every length a direction is normalized by is asked
-/// about, and the difference is where the live holes are.
-///
-/// **Direction doors that decide a length and never ask whether it is
-/// finite**, each admitting a `1e200` component out of a DECIDED path
-/// (measured, and each one its own crate's to fix — the class is
-/// `work/seat/two-d-director-doors-skip-the-finiteness-question`):
-///
-/// - `geom-core`'s `linalg::frame::definitely_positive`
-///   ([`Margin::of`] on a norm, then `normalize` at four sites):
-///   `mirror_across_plane(p, (1e200, 0, 0), tol)` returns the
-///   IDENTITY — a mirror that mirrors nothing — and the door is
-///   public through `pncad-py`'s `Frame.mirror_across_plane`.
-/// - `sweep`'s `revolve::axis::AxisFrame::build` ([`Margin::norm2`],
-///   then `normalize`): a `RevolveAxis` of `(1e200, 0)` builds with a
-///   `(0, 0)` direction. `sweep` depends on this crate, so the
-///   predicate is reachable there — that hole is one line and a
-///   refusal arm.
-/// - this crate's own `sector_shape` (`Margin::of` on the shorter
-///   arm, then `normalize` on both): the same arithmetic collapses
-///   both arms to zero.
-/// - `profile`'s two 2-D director doors (`unit_from_components`,
-///   `arc_fillet::carrier_tangent`), which cannot reach this
-///   predicate at all: `profile` depends on `geom-core` alone and
-///   this crate sits above it.
-///
-/// One further site normalizes without deciding at all, which is a
-/// different shape and the declined half of the direction family:
-/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
-/// normalized OUTPUT). Its `Frame::rotate_then_translate` used to be
-/// the other; it decides here now, under its own role word, and
-/// refuses on the AXIS rather than downstream on the frame it built.
-pub fn is_finite_length<T: Real>(x: T) -> bool {
-    #[allow(clippy::eq_op)]
-    let residual = x - x;
-    !residual.is_poison()
-}
-
 /// **The direction-length decision, once**: is the length a finite
-/// number, which side of zero is it on, and — only then — the
-/// normalized ray or a typed refusal. The one
+/// number, did it underflow, which side of zero is it on, and — only
+/// then — the normalized ray or a typed refusal. The one
 /// `Margin::norm3` decide-then-normalize spelling in the workspace.
 ///
-/// Two questions in this order, and the order is the point.
+/// Three questions in this order, and the order is the point.
 ///
 /// 1. **Is the length a finite number?** Asked through the value
 ///    channel every scalar has ([`is_finite_length`]): a finite value
@@ -524,7 +490,19 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///    whose norm overflowed still ENCLOSES the truth, so it stays
 ///    sound and simply refuses later, where a `f64` would answer a
 ///    definite wrong sign).
-/// 2. **Which side of zero is it on?** Through the scalar's own
+/// 2. **Did that length UNDERFLOW to zero?** Asked through the same
+///    value channel ([`is_underflowed_length`]), against the largest
+///    absolute component as the nonzero witness. Components below
+///    ~1e-162 square to zero, so the norm is exactly zero for a
+///    vector that has a perfectly good direction — and the decision
+///    below then answers `Zero` DEFINITELY, at every ε, with a
+///    refusal that names the one thing about the input that is
+///    false. The fact is the overflow arm's twin, not the zero arm's:
+///    the model is outside the range its own arithmetic can measure,
+///    and the recourse is scale, not a different direction. Asked
+///    second because a poisoned or overflowed length makes its two
+///    ratios non-finite for a different reason.
+/// 3. **Which side of zero is it on?** Through the scalar's own
 ///    decision machinery ([`Margin::norm3`] on the caller's band) —
 ///    [`Real`] deliberately has no comparison surface, and a
 ///    hand-rolled `> 0` would be wrong at the interval scalar. Only a
@@ -544,6 +522,14 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 /// keeps the arithmetic and the refusals from drifting, which is what
 /// they did while the six lines lived twice.
 ///
+/// **K consequence.** Both gates refuse BEFORE [`decide`], so neither
+/// an overflowed nor an underflowed length contributes a sample to
+/// the funnel under any site name. That is the intent for the second
+/// exactly as for the first: the sample it used to contribute was an
+/// exactly-zero margin recorded as a definite `Zero`, which is
+/// telemetry about a length the format failed to hold rather than
+/// about a direction the model does not have.
+///
 /// Nothing here dispatches on `site` and nothing stores it — it is
 /// passed to the funnel and dropped. **A name reaching the K roster
 /// this way is registered by hand or not at all**: this function will
@@ -555,8 +541,9 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 /// # Errors
 ///
 /// [`UnitVec3Error::NonFiniteLength`] on an overflowed or poisoned
-/// length, [`UnitVec3Error::Degenerate`] on a decided-zero one,
-/// [`UnitVec3Error::Escalated`] on an in-band one.
+/// length, [`UnitVec3Error::UnderflowedLength`] on one that
+/// underflowed out of the format, [`UnitVec3Error::Degenerate`] on a
+/// decided-zero one, [`UnitVec3Error::Escalated`] on an in-band one.
 pub fn decide_unit_direction<T: Decide>(
     v: Vec3<T>,
     site: &'static str,
@@ -565,8 +552,15 @@ pub fn decide_unit_direction<T: Decide>(
     // `norm3` below recomputes this same value (`Vec3::norm` is
     // deterministic), so the gate and the margin are the one length;
     // it is spelled twice rather than reached into.
-    if !is_finite_length(v.norm()) {
+    let len = v.norm();
+    if !is_finite_length(len) {
         return Err(UnitVec3Error::NonFiniteLength);
+    }
+    // `norm_witness` is the largest |component|, which is the nonzero
+    // WITNESS the underflow question is asked against; the derivation
+    // and why the norm brackets it live on that door.
+    if is_underflowed_length(len, v.norm_witness()) {
+        return Err(UnitVec3Error::UnderflowedLength);
     }
     match decide(site, Margin::norm3(v), band) {
         Ok(Sign::Positive) => Ok(v.normalize()),
@@ -599,8 +593,10 @@ impl<T: Decide> UnitVec3<T> {
     /// # Errors
     ///
     /// [`UnitVec3Error::NonFiniteLength`] on an overflowed or poisoned
-    /// length, [`UnitVec3Error::Degenerate`] on a decided-zero one,
-    /// [`UnitVec3Error::Escalated`] on an in-band one.
+    /// length, [`UnitVec3Error::UnderflowedLength`] on one that
+    /// underflowed out of the format, [`UnitVec3Error::Degenerate`] on
+    /// a decided-zero one, [`UnitVec3Error::Escalated`] on an in-band
+    /// one.
     pub fn new(v: Vec3<T>, band: Band) -> Result<Self, UnitVec3Error> {
         decide_unit_direction(v, DATUM_UNIT_NORM, band).map(Self)
     }
@@ -1249,6 +1245,104 @@ mod tests {
         p
     }
 
+    /// **The four answers the direction door gives, and the two that
+    /// a length comparison alone cannot tell apart.**
+    ///
+    /// A direction whose components are below ~1e-162 squares to
+    /// exactly zero, so the norm is exactly zero and the decision
+    /// below answers `Zero` DEFINITELY — at every ε, because no
+    /// tolerance makes an unrepresentable square nonzero. Refusing it
+    /// as `Degenerate` is the right outcome under a false cause: the
+    /// vector has a direction, and the recourse is the overflow arm's
+    /// (scale the geometry), not "give me a nonzero direction".
+    ///
+    /// The rows that would stay green under a gate that swallowed the
+    /// zero arm are the last two: a vector that really is zero, and
+    /// one that is merely SMALLER than the band. Both must keep
+    /// `Degenerate`.
+    #[test]
+    fn the_direction_door_tells_an_underflowed_length_from_a_zero_one() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let ask = |v: Vec3<f64>| decide_unit_direction(v, "test_direction", band).err();
+
+        for v in [
+            Vec3::new(1e-180, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, -1e-200),
+            Vec3::new(1e-320, 1e-320, 0.0),
+        ] {
+            assert_eq!(
+                ask(v),
+                Some(UnitVec3Error::UnderflowedLength),
+                "{v:?} has a direction its norm cannot measure"
+            );
+        }
+
+        // The zero vector: no direction to name, and the arm that
+        // says so keeps saying it.
+        assert_eq!(
+            ask(Vec3::new(0.0, 0.0, 0.0)),
+            Some(UnitVec3Error::Degenerate)
+        );
+        // A length the format holds perfectly well and the BAND calls
+        // zero. Nothing underflowed; the refusal is the tolerance's.
+        assert_eq!(
+            ask(Vec3::new(1e-30, 0.0, 0.0)),
+            Some(UnitVec3Error::Degenerate)
+        );
+        // The other end, unmoved, and asked FIRST: an overflowed norm
+        // is not a number to ask the underflow question about.
+        assert_eq!(
+            ask(Vec3::new(1e200, 0.0, 0.0)),
+            Some(UnitVec3Error::NonFiniteLength)
+        );
+        assert_eq!(
+            ask(Vec3::new(f64::NAN, 0.0, 0.0)),
+            Some(UnitVec3Error::NonFiniteLength)
+        );
+        // And a direction that HAS a length still normalizes, bit for
+        // bit as the bare expression does.
+        let good = Vec3::new(3.0, 4.0, 0.0);
+        let u =
+            decide_unit_direction(good, "test_direction", band).expect("a direction with a length");
+        let bare = good.normalize();
+        assert!(
+            u.x.to_bits() == bare.x.to_bits()
+                && u.y.to_bits() == bare.y.to_bits()
+                && u.z.to_bits() == bare.z.to_bits(),
+            "the gates are questions, not arithmetic: {u:?} vs {bare:?}"
+        );
+    }
+
+    /// The datum door is the same body, so it answers the same way —
+    /// executed rather than argued, because "shares the predicate"
+    /// has been wrong before.
+    ///
+    /// The sentence is pinned too: this is the text a user reads, and
+    /// the defect being fixed was that it named zero length for a
+    /// direction that is not zero.
+    #[test]
+    fn the_datum_constructor_refuses_an_underflowed_direction_by_its_own_name() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let refused = UnitVec3::new(Vec3::new(1e-180, 0.0, 0.0), band)
+            .expect_err("a direction with no measurable length is refused");
+        assert_eq!(refused, UnitVec3Error::UnderflowedLength);
+        let said = refused.to_string();
+        assert!(
+            said.starts_with("a direction vector's length underflowed to zero"),
+            "the refusal says what happened to the LENGTH: {said}"
+        );
+        assert!(
+            said.contains("scale the geometry into the session's range"),
+            "and it names the recourse that works: {said}"
+        );
+        // The recourse it must NOT name, because it does not work:
+        // the direction is fine, and no smaller ε recovers it.
+        assert!(
+            !said.contains("names no direction"),
+            "an underflowed direction is not the no-direction refusal: {said}"
+        );
+    }
+
     #[test]
     fn materializers_are_the_arena_fold_and_deterministic() {
         let body = mixed();
@@ -1542,6 +1636,101 @@ mod tests {
             }
         }
     }
+
+    // -----------------------------------------------------------
+    // The two mirrors' censuses, beside the lists they pin.
+    // -----------------------------------------------------------
+
+    /// **A hand-written list IS the enum, checked by the compiler.**
+    ///
+    /// Takes the enum, its list, and a roster of variants, and expands
+    /// to two halves that between them force the LIST to grow — not
+    /// merely a visit to this file:
+    ///
+    /// - `roster_covers_the_enum` is a match over the enum with one arm
+    ///   per ROSTER entry and no wildcard. A variant added to the enum
+    ///   has no arm, so `E0004` reds here and names it. The only way to
+    ///   silence it is to add that variant to the roster.
+    ///
+    /// - one `assert!` per roster entry, in a `const` block, saying the
+    ///   list holds that variant at that seat. Adding the roster entry
+    ///   the first half demanded therefore asserts `list[n]` for a seat
+    ///   the old list does not have — a const-eval error, out of bounds,
+    ///   until the list itself grows.
+    ///
+    /// So the two halves close on each other: the edit the compiler
+    /// forces is the same edit that reds against a list of the old
+    /// length. This is deliberately NOT the shared-total census idiom
+    /// used elsewhere in the tree (`all_is_the_whole_vocabulary` and
+    /// its two siblings), which reds when an entry is REMOVED but not
+    /// when a variant is ADDED: there, every arm names the same total,
+    /// only the scrutinee's arm is ever produced, and an author who
+    /// writes the honest new total in the one arm the compiler pointed
+    /// at leaves the other arms — and the assertion — reading the old
+    /// one. Measured, and filed on
+    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`
+    /// with this macro offered as the instrument that closes it.
+    ///
+    /// The remaining ways to defeat this are edits that state something
+    /// false rather than copy something stale: deleting an arm's
+    /// assertion, or reordering the roster and the list together.
+    macro_rules! census {
+        ($ty:ident, $list:expr, [$($variant:ident),+ $(,)?]) => {
+            const _: () = {
+                #[allow(dead_code)]
+                fn roster_covers_the_enum(kind: $ty) {
+                    match kind {
+                        $($ty::$variant => (),)+
+                    }
+                }
+                let mut seat = 0;
+                $(
+                    assert!(
+                        matches!($list[seat], $ty::$variant),
+                        "the list has drifted from the enum: this seat \
+                         does not hold the kind the roster puts here"
+                    );
+                    seat += 1;
+                )+
+                assert!(
+                    seat == $list.len(),
+                    "the list is longer than the enum's roster"
+                );
+            };
+        };
+    }
+
+    census!(
+        SurfaceKind,
+        ALL_SURFACE_KINDS,
+        [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx]
+    );
+
+    census!(CurveKind, CurveKind::ALL, [Line, Circle, Ellipse, Nurbs]);
+
+    /// **No two kinds share a bit position**, on either mirror: a
+    /// duplicated `surface_bit` / `CurveKind::bit` arm would make two
+    /// kinds indistinguishable inside a set, and the exhaustive match
+    /// that forces the arm to exist cannot see that its value collides.
+    /// A singleton set that iterates back to a DIFFERENT kind is what
+    /// that collision looks like from outside.
+    #[test]
+    fn kind_bits_are_distinct() {
+        for kind in ALL_SURFACE_KINDS {
+            assert_eq!(
+                SurfaceKindSet::just(kind).iter().next(),
+                Some(kind),
+                "{kind:?} shares a bit with an earlier surface kind"
+            );
+        }
+        for kind in CurveKind::ALL {
+            assert_eq!(
+                CurveKindSet::just(kind).iter().next(),
+                Some(kind),
+                "{kind:?} shares a bit with an earlier curve kind"
+            );
+        }
+    }
 }
 
 // The interval-safety half of the constructor's contract, at the
@@ -1663,6 +1852,46 @@ mod interval_tests {
                 Err(UnitVec3Error::Escalated(_))
             ),
             "an enclosure that cannot tell escalates"
+        );
+    }
+
+    /// **The underflow gate is a POINT-scalar gate**, exactly as the
+    /// finiteness gate is, and this row is what says so.
+    ///
+    /// A `1e-180` component squares to zero at `f64`, so the norm is
+    /// exactly zero and the direction is unrecoverable. At the
+    /// enclosure scalar the same component squares to `[0, 1e-323]`
+    /// and the norm comes back `[0, 3.1e-162]` — an enclosure that
+    /// still CONTAINS the true length. Nothing underflowed out of the
+    /// format; the enclosure is simply wide, and refusing it here
+    /// would refuse a sound enclosure for being wide.
+    ///
+    /// So this scalar goes on deciding against the band, and for this
+    /// input the band answers `Degenerate` — the whole enclosure sits
+    /// inside it. That is the pinned claim, and it is the one that
+    /// distinguishes a no-op gate from a gate that fires: an
+    /// `UnderflowedLength` here would mean the value channel had been
+    /// swapped for a bracket read.
+    #[test]
+    fn an_underflowed_component_does_not_fire_the_gate_at_the_enclosure_scalar() {
+        let tiny = Interval::from_f64(1e-180);
+        let zero = Interval::from_f64(0.0);
+        assert_eq!(
+            UnitVec3::new(Vec3::new(tiny, zero, zero), band()).err(),
+            Some(UnitVec3Error::Degenerate),
+            "the enclosure lane decides against the band, as it did before"
+        );
+        // And the reason, measured: the enclosed norm is not the
+        // point scalar's exact zero.
+        let n = Vec3::new(tiny, zero, zero).norm();
+        assert!(
+            geom_core::Bounds::hi(n) > 0.0,
+            "the enclosure retains the length the f64 lane loses"
+        );
+        // The zero vector is still the zero vector here too.
+        assert_eq!(
+            UnitVec3::new(Vec3::new(zero, zero, zero), band()).err(),
+            Some(UnitVec3Error::Degenerate)
         );
     }
 }

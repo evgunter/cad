@@ -264,6 +264,7 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
     // x ∈ [0.06, 0.08], y ∈ [0, 0.02] maps to x' ∈ [0.10, 0.12],
     // y' ∈ [0.06, 0.08]; z is unchanged.
     let outcome = session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::rotate_then_translate(
             [0.0, 0.0, 1.0],
             std::f64::consts::FRAC_PI_2,
@@ -273,7 +274,9 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
         .expect("a literal axis has a definite direction"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
 
     let index = asm::index_of(&session);
     let (_, eval) = session.landed_pair().expect("landed");
@@ -432,6 +435,7 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.02, 0.0, 0.0]),
     });
     let outcome = session.perform(proposal.op());
@@ -439,6 +443,7 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     // The in-flight gesture is dead: a further preview has nothing to
     // preview into.
     let outcome = session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
     assert!(
@@ -476,9 +481,12 @@ fn hide_survives_the_mate_that_discards_the_probe() {
         instance: bench.post_b,
     });
     session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
         frame: Frame::translation([0.02, 0.0, 0.0]),
     });
-    session.perform(SessionOp::CommitFreeMove);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
     session.perform(SessionOp::SetInstanceHidden {
         instance: bench.post_b,
         hidden: true,
@@ -506,10 +514,10 @@ fn hide_survives_the_mate_that_discards_the_probe() {
 
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(

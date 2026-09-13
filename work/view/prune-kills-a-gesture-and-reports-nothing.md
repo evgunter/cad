@@ -2,9 +2,10 @@
 id: prune-kills-a-gesture-and-reports-nothing
 kind: issue
 title: prune's third clause kills an in-flight free-move gesture and reports nothing — the class's last member, in the function that fixed the other two
-status: open
+status: closed
 opened: 2026-09-05
 refs: [prune-discards-the-fault-that-explains-the-supersession, prune-drops-a-hidden-instance-silently, 1886]
+closed: 2026-09-11
 ---
 
 
@@ -73,3 +74,31 @@ one. Whether it is news or a standing fact is
 
 VIEW's: `crates/viewer/src/display.rs`, `crates/viewer/src/frame.rs`,
 `crates/viewer/src/session/op.rs`.
+
+## Closed
+
+Closed by `view/silent-withdrawals`. `PruneReport` grew the third
+field the item asked for — `killed_gesture: Option<Withdrawn>`
+(`crates/viewer/src/display.rs:563-573`) — and `prune` carries the
+fault instead of testing it
+(`crates/viewer/src/display.rs:849-862`); the `is_err()` discard is
+gone. It is an `Option` and not a `Vec` because a `DisplayState`
+holds one free-move gesture, so the kind has no plural.
+
+`OpOutcome::killed_gesture` (`crates/viewer/src/session/op.rs:755-771`)
+carries it to the chrome, and `frame::WithdrawalKind::KilledGesture`
+words it as a THIRD SENTENCE rather than a third arm of an existing
+one, which is what #1886 answered twice: *"free move: the drag in
+flight was ended — <fault>"*
+(`crates/viewer/src/frame.rs:706-722`, `:736-748`). `app.rs` ranks it
+beside the other two (`crates/viewer/src/app.rs:955-964`).
+
+`OpOutcome::from_prune` (`crates/viewer/src/session/op.rs:782-803`)
+destructures the report, so a FOURTH kind of withdrawal is E0027 at
+the copy rather than silently dropped by the `..default()` spread the
+two call sites used.
+
+The recorded-not-endorsed assertion is now the positive one
+(`crates/viewer/tests/review_gui4_r1.rs:848-864`): the kill is
+reported, with the landing mate as its cause, and it is still not a
+supersession.

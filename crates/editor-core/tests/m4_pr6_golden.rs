@@ -109,7 +109,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     d.loops = vec![LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
-        ProgramStep::arc_to(ProgramArcData::Bulge {
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(lpt(2.0, 1.0)),
             b: Expr::literal(0.25, Dimension::Scalar).expect("finite"),
         }),

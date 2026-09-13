@@ -125,36 +125,33 @@ id: 7ddec231df0049f879136a2f7624647d
                 },
                 {
                   "ArcTo": {
-                    "spec": {
-                      "Bulge": {
-                        "target": {
-                          "Point": [
-                            {
-                              "Literal": {
-                                "value": 2.0,
-                                "dim": "Length",
-                                "unit": "m"
-                              }
-                            },
-                            {
-                              "Literal": {
-                                "value": 1.0,
-                                "dim": "Length",
-                                "unit": "m"
-                              }
+                    "Bulge": {
+                      "target": {
+                        "Point": [
+                          {
+                            "Literal": {
+                              "value": 2.0,
+                              "dim": "Length",
+                              "unit": "m"
                             }
-                          ]
-                        },
-                        "b": {
-                          "Literal": {
-                            "value": 0.25,
-                            "dim": "Scalar",
-                            "unit": ""
+                          },
+                          {
+                            "Literal": {
+                              "value": 1.0,
+                              "dim": "Length",
+                              "unit": "m"
+                            }
                           }
+                        ]
+                      },
+                      "b": {
+                        "Literal": {
+                          "value": 0.25,
+                          "dim": "Scalar",
+                          "unit": ""
                         }
                       }
-                    },
-                    "splits": 1
+                    }
                   }
                 },
                 {

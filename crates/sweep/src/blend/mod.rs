@@ -338,6 +338,27 @@ pub enum BlendSite {
     Chain,
 }
 
+/// The site names itself in prose.
+///
+/// Two of the three variants carry a field, so a `Debug` rendering of
+/// this type carries the field-brace fingerprint `" { "` that
+/// `pncad-py`'s prose gate rejects — and that gate is a live
+/// `debug_assert` on every Python raise, in every profile. A refusal
+/// that reaches a user through the bindings must therefore render the
+/// site through this impl, never through `Debug`.
+///
+/// Each arm is the noun phrase that follows "at", so a composing
+/// sentence supplies the preposition and nothing else.
+impl fmt::Display for BlendSite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Link { edge } => write!(f, "the link on edge {edge:?}"),
+            Self::Joint { vertex } => write!(f, "the joint at vertex {vertex:?}"),
+            Self::Chain => f.write_str("the chain as a whole"),
+        }
+    }
+}
+
 /// The **run-out policy vocabulary** (OQ6, decided by Ev at #85; the
 /// transverse cut-off ratified on PR 1736's thread). Two variants are
 /// refusal-payload names ONLY, with no constructor surface anywhere in
@@ -704,18 +725,15 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// on one plane face, and it carves through the annulus band's HOSTLESS
 /// crossing (README A3-2; the surgery's `HostFoot`).
 ///
-/// **The condition on that second half is load-bearing and was measured
-/// missing**: the host must carry NO RING of its own and the rim must be
-/// its WHOLE outer cycle, which is what the hostless host gate asks. A
-/// merged flat top that is an ANNULUS satisfies "one face carries every
-/// arc, in its outer cycle" and still refuses, on the ring arm — the
-/// boss fixture of
-/// `review_fillet_h5_r1_probes::r1_a_hostless_rim_on_a_ringed_host_refuses_under_a_recourse_that_promises_it`,
-/// which is the row that caught an unconditional wording promising the
-/// carve it had just refused. That frontier is
-/// `work/fillet/hostless-rim-on-a-ringed-host-refuses.md`; the sentence
-/// says the condition rather than over-promise at that body, exactly as
-/// its previous wording did for the previous frontier.
+/// **The condition on that second half is load-bearing**: the rim must
+/// be that face's WHOLE outer cycle, which is what the hostless host
+/// gate asks. A RING of the host does not disqualify it — the band's
+/// host trim becomes the face's new outer boundary and each ring is
+/// carried through when the trim CONTAINS it, which the surgery meters
+/// in closed form under `fillet3_ring_clearance` — so the clause
+/// promises the carve subject to that clearance and to nothing else.
+/// A merged flat top that is an ANNULUS carves through this clause:
+/// `ring_clearance_forms::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
 /// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single links ending either at \
      fully-requested trivalent corners, over plane\u{2013}plane supports, or, for a straight \
@@ -725,8 +743,11 @@ pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open cha
      material side. For a fillet, closed chains that are circular rims between two \
      coaxial surfaces of revolution (a pip's plane\u{2013}sphere rim, a solid of revolution's \
      latitude rim) also carve, on either material side, either with each support face \
-     carrying one arc of the rim, or with one ring-free face carrying every arc as its \
-     whole outer cycle (a chamfer has no closed-chain band); junction carry-through and \
+     carrying one arc of the rim, or with one face carrying every arc as its whole \
+     outer cycle and its rings clear of the band's setback (a ring that is not gets \
+     its own refusal, which says what to move); \
+     (a chamfer has no closed-chain band); \
+     junction carry-through and \
      run-outs are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
@@ -759,8 +780,7 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 /// surgery objects to is not always a shape the caller REQUESTED — a
 /// support face's own ring has to be carried through the blend too —
 /// so a sentence that only described the request endorsed exactly what
-/// the caller had already done (issue 1278's dead-recourse class,
-/// `work/fillet/geometry-recourse-dead-at-line-ring.md`).
+/// the caller had already done (issue 1278's dead-recourse class).
 pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside the surgery's exact forms, which read planes and, \
      for a fillet, spheres, cylinders and cones as well, carried by lines and circles; \
      approximating any \
@@ -785,7 +805,7 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside th
 /// On a lattice-aligned fixture the screen does answer first, and
 /// `blend_recourse_followability::the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`
 /// keeps that measured — as a property of that fixture, not of the
-/// door. See `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`.
+/// door (PR 1753).
 pub const FILLET3_RING_RECOURSE: &str =
     "reduce the blend size, or move the feature whose ring sits inside the blend's setback";
 /// The recourse for a support pair outside the analytic-arm table —
@@ -1382,13 +1402,13 @@ impl fmt::Display for BlendError {
                     other => {
                         return write!(
                             f,
-                            "escalated at {site:?}: {source} — no recourse is recorded for \
+                            "escalated at {site}: {source} — no recourse is recorded for \
                              predicate {other:?}; this is a gap in the error table, not \
                              advice to act on"
                         );
                     }
                 };
-                write!(f, "escalated at {site:?}: {source} — {recourse}")
+                write!(f, "escalated at {site}: {source} — {recourse}")
             }
             Self::RepeatedEdge { edge } => write!(
                 f,
@@ -1598,6 +1618,13 @@ mod recourse_tests {
     /// leave the other route unrendered and unchecked.
     /// `FaceClearanceUncertified` appears twice for the same reason —
     /// its recourse is chosen by `cross_chain`.
+    ///
+    /// `Escalated` appears at all three sites because what decides its
+    /// RENDERING is the variant of its payload, one level below the
+    /// variant this list enumerates: two of `BlendSite`'s three arms
+    /// carry a field and one does not, so a roster exhaustive over
+    /// `BlendError` alone samples the brace-free arm and reports green
+    /// over the two that are not.
     fn seeds() -> Vec<BlendError> {
         let band = Band::new(1e-9, 1e-6).expect("a band");
         let decided = |predicate, m: f64, sign| ClassifiedMargin {
@@ -1673,6 +1700,26 @@ mod recourse_tests {
                     margin: MarginDiag::Value(0.0),
                     band,
                     predicate: Some("fillet3_ring_clearance"),
+                },
+            },
+            BlendError::Escalated {
+                site: BlendSite::Link {
+                    edge: EdgeKey::default(),
+                },
+                source: Indeterminate {
+                    margin: MarginDiag::Value(0.0),
+                    band,
+                    predicate: Some("fillet3_radius_headroom"),
+                },
+            },
+            BlendError::Escalated {
+                site: BlendSite::Joint {
+                    vertex: VertexKey::default(),
+                },
+                source: Indeterminate {
+                    margin: MarginDiag::Value(0.0),
+                    band,
+                    predicate: Some("fillet3_chain_g1"),
                 },
             },
             BlendError::RepeatedEdge {
@@ -1802,6 +1849,33 @@ mod recourse_tests {
                 rendered.contains(&sentence),
                 "no seeded variant appends {sentence:?} — either the constant is dead or \
                  the variant that appends it is unseeded"
+            );
+        }
+    }
+
+    /// **No refusal this enum can render carries a `Debug` field
+    /// dump.**
+    ///
+    /// A `BlendError` reaches Python as the text of its `Display`, and
+    /// `pncad-py`'s prose gate asserts on every raise that the text
+    /// carries no `" { "` — the fingerprint `Debug` puts on a
+    /// named-field struct or struct variant. That assertion is live in
+    /// every profile, so a payload rendered through `Debug` here does
+    /// not degrade the message: it panics the binding at the arm that
+    /// means to refuse.
+    ///
+    /// The check is over [`seeds`] rather than over the payload types,
+    /// so it holds for whatever a new arm renders; what it cannot see
+    /// is a variant, or a payload variant, that [`seeds`] does not
+    /// carry.
+    #[test]
+    fn no_refusal_renders_a_field_brace_dump() {
+        for seed in seeds() {
+            let text = seed.to_string();
+            assert!(
+                !text.contains(" { "),
+                "{seed:?} renders a payload through `Debug`, which panics the \
+                 binding's prose gate instead of raising: {text}"
             );
         }
     }

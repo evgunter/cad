@@ -1,0 +1,139 @@
+{
+ "arms": {
+  "opt-0": {
+   "E": 836,
+   "a": 138,
+   "opt_level": 0,
+   "source": "measured",
+   "tests": "6792"
+  },
+  "opt-1": {
+   "E": 95.0,
+   "a": 215.0,
+   "n": 5,
+   "opt_level": 1,
+   "samples": [
+    {
+     "E": 97.0,
+     "a": 185.0,
+     "created_at": "2026-09-10T07:31:16Z",
+     "head_sha": "db63e3167de649aa773ed4654a04cc1c83fe9050",
+     "labels": [
+      "ubuntu-latest"
+     ],
+     "run_id": 34450367791,
+     "shards": 6
+    },
+    {
+     "E": 83.0,
+     "a": 215.0,
+     "created_at": "2026-09-10T06:11:37Z",
+     "head_sha": "eb5f15a5e6e95b0d967180a634f8354b54a85079",
+     "labels": [
+      "ubuntu-latest"
+     ],
+     "run_id": 34444135742,
+     "shards": 6
+    },
+    {
+     "E": 95.0,
+     "a": 164.0,
+     "created_at": "2026-09-10T05:47:54Z",
+     "head_sha": "6d4a35113622770f735a64f94742042ec5e34a1c",
+     "labels": [
+      "ubuntu-latest"
+     ],
+     "run_id": 34442509200,
+     "shards": 6
+    },
+    {
+     "E": 401.0,
+     "a": 314.0,
+     "created_at": "2026-09-10T05:25:01Z",
+     "head_sha": "68acfaf9a632fb7651df432c93c70f00fe360d8e",
+     "labels": [
+      "ubuntu-latest"
+     ],
+     "run_id": 34440975997,
+     "shards": 6
+    },
+    {
+     "E": 91.0,
+     "a": 216.0,
+     "created_at": "2026-09-10T05:22:48Z",
+     "head_sha": "07386cc0d916b4d1ce4a73b95ab6bb4476e8dde8",
+     "labels": [
+      "ubuntu-latest"
+     ],
+     "run_id": 34440827591,
+     "shards": 6
+    }
+   ],
+   "source": "gate-runs"
+  },
+  "opt-2": {
+   "E": 111,
+   "a": 654,
+   "opt_level": 2,
+   "source": "measured",
+   "tests": "6792"
+  }
+ },
+ "commit": "ceb6f6c413e9d1a106daa0fbd9ca126632bd52fa",
+ "derived": {
+  "L_over_T_opt0": 0.14168377823408623,
+  "L_over_T_opt1": 0.6935483870967742,
+  "L_over_T_opt2": 0.8549019607843137,
+  "archive_delta_opt1_s": 77.0,
+  "archive_delta_s": 516.0,
+  "build_penalty_kept_vs_opt2": 0.14922480620155038,
+  "execution_kept_vs_opt2": 1.168421052631579,
+  "margin_ratio": 2.467741935483871,
+  "margin_s": 455.0,
+  "pair_opt0_over_opt2_ratio": 1.2732026143790849,
+  "r_execution_ratio": 7.531531531531532,
+  "r_execution_ratio_opt1": 8.8,
+  "r_quoted_by_ci_yml_default_lane": 6.46,
+  "runner_up": "opt-2",
+  "total_opt0_s": 974.0,
+  "total_opt1_s": 310.0,
+  "total_opt2_s": 765.0,
+  "totals_s": {
+   "opt-0": 974.0,
+   "opt-1": 310.0,
+   "opt-2": 765.0
+  },
+  "verdict": "opt-1"
+ },
+ "environment": {
+  "arch": "x86_64",
+  "cargo_profile": {
+   "CARGO_PROFILE_DEV_DEBUG": "line-tables-only",
+   "CARGO_PROFILE_DEV_OPT_LEVEL": "0",
+   "CARGO_PROFILE_TEST_DEBUG": "line-tables-only",
+   "CARGO_PROFILE_TEST_OPT_LEVEL": "0",
+   "CARGO_PROFILE_TEST_STRIP": "debuginfo"
+  },
+  "cpu_flags": [
+   "avx2"
+  ],
+  "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+  "debug_assertions": "default(on)",
+  "mem_total_kb": 16373448,
+  "nextest": "cargo-nextest 0.9.140 (a9fef2964 2026-07-05)\nrelease: 0.9.140\ncommit-hash: a9fef2964e34f64ed4fceeee7c0c3559ce560920\ncommit-date: 2026-07-05\nhost: x86_64-unknown-linux-gnu",
+  "nightly_suite_cfg": false,
+  "nproc": 4,
+  "opt_level_varied_per_arm": true,
+  "os": "linux",
+  "runner": "Linux/x86_64 ubuntu-latest",
+  "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+  "rustc_wrapper": "",
+  "rustflags": "",
+  "tolerance_eps": ""
+ },
+ "measured_at_epoch_s": 1789035511,
+ "measured_at_utc": "2026-09-10T10:18:31+00:00",
+ "method": "the arm at the TREE's own opt level is READ from the step durations of recent code-tier gate runs via the jobs API \u2014 real gate data, never re-run; the other levels are MEASURED here, each on its own clean target directory, in the GATE test population (NO --cfg nightly_suite). Verdict is the direct argmin of a+E over the arms present; REPORTING ONLY, never a gate.",
+ "schema": 3,
+ "tree_opt_level": 1
+}

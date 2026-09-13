@@ -57,7 +57,7 @@
 //!    For `k` voids the result holds `k + 1` solids and `2(k + 1)`
 //!    shells, and every operand shell survives under its key. A
 //!    single-shell operand takes this step vacuously;
-//! 4. one validation.
+//! 4. one closing pcurve mint, then one validation (below).
 //!
 //! **Which way a void moves is not a special case.** `inward` reads a
 //! face's `sense` to move it into the material, and a void's faces are
@@ -141,6 +141,33 @@
 //! that catches a bad wall, and saying otherwise misattributes the
 //! net that is doing the work.
 //!
+//! # The closing mint
+//!
+//! The void door's posture is `Transfers`
+//! (`crate::pcurves::staleness_posture::DECLARED`, the `insert_voids`
+//! row): the reverted cavity's rows go stale in content and the graft
+//! copies them verbatim, and that row's contract is that the producer's
+//! final mint re-derives every row of the merged body. This verb is a
+//! producer and runs [`crate::pcurves::mint_pcurves`] once, on the
+//! assembled body, before `validate_geometric` — the verb's own
+//! whole-body pass, and it stays whole-body: it is what discharges
+//! `insert_voids`'s `Transfers` row over the WHOLE merged body, which
+//! no per-solid pass covers. One pass suffices: nothing between the
+//! door and the validate reads a stored row, the simultaneous lift
+//! doors mint the rows of their own scope (the solid they were handed)
+//! and touch no other, and every other step is `Neither` for rows.
+//! Two consequences are stated because nothing
+//! enforces them: the pass CLEARS the map first, so **a stale or
+//! missing row on the OPERAND is invisible to this verb** — an operand
+//! that fails tier 3 on its own rows shells to a valid body whose rows
+//! are the sound operand's (`shell9_r2_probes`, the laundering rows;
+//! `work/shell/shell-launders-a-stale-operand-row.md`, a posture-table
+//! question for every producer that spells this mint) — and a face
+//! whose carrier class the pass cannot derive stops carrying rows
+//! rather than refusing (`UnsupportedCarrier`; not known to be
+//! reachable through this verb). The refusal is
+//! [`ShellError::Pcurve`], a kernel finding by construction.
+//!
 //! # The record
 //!
 //! Both doors return [`Shelled`]: the thin solid and the
@@ -189,7 +216,9 @@
 //! 1. the sealed shell, exactly as above — so the evidence handed to
 //!    the void door is the strict one, before anything is opened;
 //! 2. per designated CHART, its CAVITY counterpart offset back OUTWARD
-//!    by `t` ([`crate::replace_face_offset`] again), which lands it on
+//!    by `t` (the same door ladder as the cavity's —
+//!    [`crate::offset_charts_together`] for a solid of revolution,
+//!    [`crate::replace_faces_offset`] otherwise), which lands it on
 //!    the designated face's own surface and — because the door
 //!    re-describes a moved face's boundary against its untouched
 //!    neighbours — extends the cavity's side walls up to meet it;
@@ -279,6 +308,7 @@ use crate::entity::{
     VertexKey,
 };
 use crate::euler::EulerOpError;
+use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::{PropsQuadLane, ShellRole};
 use crate::replace_face::ReplaceFaceError;
 use crate::validate::{ValidationError, validate_geometric};
@@ -497,6 +527,17 @@ pub enum ShellError<T: Real> {
         /// The key that stopped resolving.
         key: EntityId,
     },
+    /// The closing pcurve mint refused on the assembled body (module
+    /// docs, "The closing mint"). Every gate before it accepted the
+    /// body — the offsets certified, the void door grafted, the rim
+    /// surgery closed — so a row that cannot be re-derived here is a
+    /// kernel finding about the pcurve pass or the carriers it reads,
+    /// surfaced typed rather than as the validator's report of a stale
+    /// row.
+    Pcurve {
+        /// The mint's typed refusal, verbatim.
+        source: PcurveMintError,
+    },
     /// The assembled result does not validate, so it is discarded.
     NotValid {
         /// The validator's report.
@@ -614,6 +655,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             Self::Corrupt { key } => write!(
                 f,
                 "shell: {key:?} stopped resolving mid-construction (kernel bug)"
+            ),
+            Self::Pcurve { source } => write!(
+                f,
+                "shell: the closing pcurve mint refused on the assembled thin solid, which \
+                 every earlier gate accepted (kernel finding): {source}"
             ),
             Self::NotValid { errors } => write!(
                 f,
@@ -874,7 +920,8 @@ pub struct ShellRetired {
 /// [`ShellError`] — [`ShellError::Band`] when the committed tolerance
 /// admits no ambiguity band, the thickness gate, the per-face offset
 /// refusals (which are the containment evidence's own decides), the
-/// void door's refusals, and a result that does not validate.
+/// void door's refusals, the closing pcurve mint's refusal, and a
+/// result that does not validate.
 /// **The scalar must be able to certify**, because this verb validates
 /// what it built: its last act is [`validate_geometric`], whose +V
 /// invariant is a certified claim. A scalar without certification
@@ -1041,7 +1088,14 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     // (the face-replacement door's own group form says why). Grouping
     // is by surface key, in face-arena order, so the walk is
     // deterministic.
-    let mut cavity = body.clone();
+    // The cavity is built under one surgery scope (`crate::surgery`):
+    // the offset doors it runs each preserve tier 1, and what certifies
+    // the cavity is the transplant's own postcondition in
+    // `insert_voids` plus this door's closing tier-3 validation. The
+    // guard owns the borrow, so a refusal on the way closes the scope
+    // by dropping it.
+    let mut cavity_body = body.clone();
+    let mut cavity = cavity_body.begin_surgery();
     // **All-planar and AXIAL bodies move SIMULTANEOUSLY; everything
     // else still moves chart by chart.** Composing the per-chart door over a body
     // cannot offset an OBLIQUE junction: a corner is visited once per
@@ -1068,9 +1122,19 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     // The operand's partition serves every solid: `cavity` is a clone,
     // so it carries the same keys, and re-aiming the scope at one solid
     // is a `Vec` swap rather than another walk over the whole body.
+    //
+    // **What that sharing buys is one walk here, not one walk per
+    // call.** Each simultaneous door the loop reaches builds its own
+    // one-solid scope from its move set (`scope_of_moves`), so the
+    // solids ARE walked again, once each: eight solid-walks on the
+    // hollow-hollow-open body, nine on box-beside-vessel opened. What
+    // is saved is this verb's own reading, which is a whole-body walk
+    // and would otherwise be one per solid.
     let mut scope = partition.clone();
     for &solid in &solids {
-        scope.re_scope(&[solid]);
+        scope.re_scope(body, &[solid]).ok_or(ShellError::Corrupt {
+            key: EntityId::Solid(solid),
+        })?;
         let mine: Vec<&Vec<FaceKey>> = charts.iter().filter(|g| scope.holds_face(g[0])).collect();
         let fallback =
             mine.first()
@@ -1154,7 +1218,13 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     let cavity_faces: Vec<FaceKey> = cavity.faces().map(|(k, _)| k).collect();
     let cavity_edges: Vec<EdgeKey> = cavity.edges().map(|(k, _)| k).collect();
     let cavity_vertices: Vec<VertexKey> = cavity.vertices().map(|(k, _)| k).collect();
-    let mut out = body.clone();
+    cavity.sweep_and_close();
+    let cavity = cavity_body;
+    // The result is built under one surgery scope too — see the
+    // cavity's, and the closing tier-3 validation is this door's own
+    // whole-body check.
+    let mut out_body = body.clone();
+    let mut out = out_body.begin_surgery();
     // The cavity is a CLONE of the operand, so a designated face's
     // counterpart carries the same key in the cavity's key space —
     // which is the space `VoidInserted` maps from.
@@ -1354,7 +1424,11 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // solid's, over that solid's charts, exactly as the cavity's
         // door was its solid's.
         let mut lift_scope = result_partition.clone();
-        lift_scope.re_scope(&[lift_solid]);
+        lift_scope
+            .re_scope(&out, &[lift_solid])
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Solid(lift_solid),
+            })?;
         let lift_door = offset_door(&out, &lift_scope, band).map_err(|error| ShellError::Lift {
             face: designated,
             error: Box::new(error),
@@ -1631,9 +1705,24 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         });
     }
 
+    // ---- The closing mint (module docs, "The closing mint"). ----
+    //
+    // Placed where the boolean places its own, after the last write.
+    // The position is NOT pinned by any row: moved to just before the
+    // partition the whole suite stays green (every step after the door
+    // is `Neither` for rows and the lift doors mint their clone
+    // whole-body). What would pin it is a designated CURVED chart,
+    // whose rim surgery would write rows after the door; that
+    // designation refuses `OpenFaceRingUnsupported` today.
+    mint_pcurves(&mut out, tol).map_err(|source| ShellError::Pcurve { source })?;
+
     // ---- One validation. ----
-    validate_geometric(&out, tol).map_err(|errors| ShellError::NotValid { errors })?;
-    Ok(Shelled { body: out, naming })
+    out.sweep_and_close();
+    validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
+    Ok(Shelled {
+        body: out_body,
+        naming,
+    })
 }
 
 /// A rim ring's two row lists: its edge rows and its vertex rows.

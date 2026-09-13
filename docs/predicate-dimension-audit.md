@@ -244,16 +244,26 @@ measurement, absent from the alternation while being named in this
 file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
-**Nine names carry the K vocabulary and never reach the funnel**, so
+**Eight names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 246 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate` —
 seven through `predicate: Some("…")` (`carrier_kind`,
 `contact_tangent_independent`, `contact_rest_senses_opposed`,
 `contact_rest_ladder_invariant`, `transversality`,
-`plane_nurbs_transversality_reported`, `validate_probe`) and two
-through an `invalid(band, "…")` helper (`bool_contfp_boundary`,
-`pm_census_containment`). None decides anything, none appears in the M7
-baseline, and none has a comparand to dimension.
+`plane_nurbs_transversality_reported`, `validate_probe`) and one
+through an `invalid(band, "…")` helper (`bool_contfp_boundary`).
+None decides anything, none appears in the M7 baseline, and none has a
+comparand to dimension.
+
+**It was nine, and the ninth is why this paragraph is worth keeping.**
+`pm_census_containment` was an `invalid(band, …)` tag the tier-3′
+census minted when the point-in-face door refused for a reason that
+metred nothing — an arc-bearing loop no walk expresses, an exhausted
+parity schedule, unwalkable topology. A name that decides nothing is
+outside the audit by this paragraph's own rule, but it still reached a
+user, inside an `Indeterminate` claiming a predicate by that name had
+been posed and come back poisoned. The census now carries the door's
+own typed refusal instead, and the tag is gone from the tree.
 
 **Why no gate on 121 / 223 / 246 / 302 — the third answer to Q6.**
 Not "it is guarded" and not "dating it is enough": a gate would have to

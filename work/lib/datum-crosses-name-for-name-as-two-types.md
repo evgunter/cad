@@ -2,8 +2,9 @@
 id: datum-crosses-name-for-name-as-two-types
 kind: issue
 title: the census accounts `Datum` name-for-name across two different types, so a whole authoring arm hid behind it
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-09
 ---
 
 
@@ -69,3 +70,104 @@ rule 1 for a curated name a hand-maintained list marks as
 a declaration a reader can check. That is a change to the guard's
 alphabet and belongs to whoever owns the census next, not to a family
 unit.
+
+## Question for Ev (2026-09-08, LIB orchestrator; `[ev]` PR)
+
+The binding census's rule 1 accounts a curated Rust name by SPELLING:
+`pncad.pyi` declares a top-level `Datum` and the census took the
+authoring enum `Datum` as bound, so `Datum::FaceFrame` — a whole
+authoring arm — was invisible for the life of its family. The guard's
+own docstring disclaims semantics; this is that disclaimer with a
+bill. What should the guard's alphabet do?
+
+- **(A) A hand-maintained `SAME_SPELLING_DIFFERENT_TYPE` list that
+  REFUSES rule 1 for the names on it**, so each such Rust name needs an
+  explicit `BOUND_AS` (per arm, where the arms cross under other
+  spellings — `Datum::Frame` → `Node.datum_frame`, …) or `NOT_BOUND`
+  row. `Datum` is the first entry. The coincidence becomes a
+  declaration a reader can check; a new same-spelled pair is caught
+  the day it is written only if someone adds it — the list is the
+  known blind spot, stated. Recommended.
+- **(B) Rename the Python read-side class** (`DatumValue`) so the
+  spelling no longer collides. Removes the instance and not the shape,
+  and renames shipped surface for a guard's convenience.
+- **(C) Leave it** — the docstring already says semantics are not
+  checked.
+
+Recommendation: **(A)**; small, mechanical afterwards, and the census
+is the one guard the binding surface has.
+
+### (D), added 2026-09-09 after Ev asked for a structural check that keeps the name match
+
+**Keep rule 1's name match, but a match accounts MEMBERS, not the
+type.** When a curated Rust name resolves to an enum (or a struct),
+the same-spelled Python namesake accounts only the arms (or pub
+fields) it actually spells — an arm as a class attribute
+(`SurfaceKind.Plane`) or as a snake-cased constructor/property
+(`Node::Extrude` → `Node.extrude`). Every arm the namesake does not
+spell needs its own `BOUND_AS` (`Datum::FaceFrame` →
+`Node.datum_face_frame`) or `NOT_BOUND` row. The resolver that turns a
+curated name into its declaration is the one `LIB-SWEEP` commits as a
+script (`payload-rung-sweep-is-prose-and-a-third-run-disagrees`), so
+the machinery is shared rather than new.
+
+Why it is structural: the read-side `Datum` spells none of the
+authoring enum's five arms, so the name match would have demanded five
+rows on the day it was written, and `FaceFrame` would have been the
+one with nothing to write in it. It would also have caught the other
+instance of the same hole: `Node::Union` and `DocEdit::SetMembers`
+were arms behind bound names with no door until LIB-DOORS-3, invisible
+to the census and visible only to a hand-kept roster in
+`test_north_star.py`. Two known instances, no list.
+
+Costs and blind spots: a one-time backfill of per-arm rows for every
+curated enum whose arms cross under other spellings (`Node`, `DocEdit`,
+`Datum` the big three; the unit's first step is the count); an arm
+whose snake-cased name coincidentally matches an unrelated attribute
+still slips; generic or aliased members are outside the source
+reader's reach, as they are for the payload sweep.
+
+Recommendation revised: **(D)** over (A); under (D) the list (A)
+proposes is unnecessary.
+
+## Ruled (2026-09-09, Ev, `[ev]` PR 2230)
+
+**(D).** Ev: "D sounds good!" Rule 1's name match stays, but a match
+accounts MEMBERS, not the type: when a curated Rust name resolves to
+an enum (or a struct), the same-spelled Python namesake accounts only
+the arms (or pub fields) it actually spells — an arm as a class
+attribute or as a snake-cased constructor/property — and every other
+arm needs its own `BOUND_AS` or `NOT_BOUND` row. The resolver is the
+one `scripts/payload-rung-sweep.py` (LIB-SWEEP) commits. Mechanical
+afterwards: the census rule, the declaration reader, and the one-time
+backfill of per-arm rows (`Node`, `DocEdit`, `Datum` the big three;
+the unit's first step is the count). (A)'s list is unnecessary.
+
+## Closed (2026-09-09, LIB-MEMBERS)
+
+(D) is implemented. `crates/pncad-py/tests/test_binding_census.py`'s
+rule 1 now accounts MEMBERS: a curated name that resolves — through
+`scripts/payload-rung-sweep.py`'s resolver, shared rather than
+re-implemented — to a `pub enum` or `pub struct` accounts only the
+members its Python namesake spells, and every other member owes a row
+in `MEMBERS_BOUND_AS` or `MEMBERS_NOT_BOUND`.
+
+The first run: 104 matched declarations, 616 members, 420 of them
+over 60 types needing rows. `Node`, `DocEdit` and `Datum` were 18 of
+the 420 rather than the expected bulk; the refusal enums whose arms
+cross as tag words are what dominates it.
+
+`Datum::FaceFrame` is a row (`Node.datum_face_frame`), and dropping
+that one row fails the census naming it. Two arms of the same enum,
+`Point` and `Frame`, turned out to have no Python constructor at all
+and are filed as
+`work/lib/two-datum-arms-have-no-node-constructor.md`; the rule also
+found five undoored `DocEdit` arms
+(`work/lib/five-doc-edit-arms-have-no-python-door.md`), an unread
+`Mesh::boundaries`
+(`work/lib/mesh-boundary-polylines-have-no-python-door.md`), and a
+SECOND same-spelled-different-type pair, `DimensionError`, which is
+the exact shape this item was opened about.
+
+(A)'s `SAME_SPELLING_DIFFERENT_TYPE` list was not written, as the
+ruling says it need not be.

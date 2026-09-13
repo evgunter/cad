@@ -44,6 +44,9 @@ test_utils::gated_to![
     "crates/sweep/src/extrude.rs",
     "crates/sweep/src/test_support.rs",
     "crates/geom-core/src/predicate.rs",
+    // The fixtures this suite builds its bodies from: a change there is a
+    // change to what every row here asserts on.
+    "crates/sweep/tests/common/",
 ];
 
 use crate::common::approx::band;

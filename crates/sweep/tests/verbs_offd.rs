@@ -20,20 +20,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, CurveGeom, FaceKey, ReplaceFaceError};
 
 use crate::common;
+use crate::common::approx::band;
 use common::approx::{FIT_DEGREE, prism};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 /// The target these fixtures hand the fit ENGINE, and no longer a door's
