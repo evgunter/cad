@@ -152,7 +152,7 @@ reverted after each. Verbatim results:
 | `Vec3::map` (same file) | B | `E0624` ×15, **all** `crates/geom/src/scalar_lift.rs`. Its only consumers sit inside the dead `Curve3`/`Surface` ladder. |
 | `Point2::map` (`geom-core/src/linalg/point.rs`) | B | `warning: never used` in `geom-core` + `E0624` from `geom/src/curves/nurbs.rs:619` and `profile/src/lib.rs:206`, `profile/src/validate.rs:843,844`. Live. |
 | `Point3::map` (same file) | B | `warning: never used` in `geom-core` + `E0624` ×10, all inside `geom` (`scalar_lift.rs` ×8, `curves/nurbs.rs:619`, `surfaces/nurbs.rs:646`). Live only through the lift ladder. |
-| `Mat3::map` (`geom-core/src/linalg/mat.rs`) | B | **one** `error[E0624]: crates/editor-core/src/placement.rs:231` — `Frame::linear`. Its only consumer workspace-wide is the dead door this row is about. |
+| `Mat3::map` (`geom-core/src/linalg/mat.rs`) | B | **one** `error[E0624]` — `crates/editor-core/src/placement.rs`, in `Frame::linear`'s body. Its only consumer workspace-wide is the dead door this row is about. (The line number this table first carried was `:231`, read at the branch's first commit; the file has grown twice since, which is why the citation names the function. `implementer-discipline.md` §7.) |
 | `Affine3::map` (`geom-core/src/linalg/affine.rs`) | B | `warning: never used` in `geom-core` + `error[E0624]: crates/profile/src/lib.rs:638` (`SketchPlane::map`). `Frame::affine` is a second consumer the run could not show — `profile` failed first, so `editor-core` was never checked. |
 | `ProfileLoop::map_scalar` (`profile/src/lib.rs:453`) | B | `E0624` ×7, **all** in `profile/tests/` (`bool9_probes`, `bool9r1_probes`, `r2_bool9_review_probes`, `scalar_lift_door`). Test-only outside its crate. |
 | `Profile::map_scalar` (`profile/src/lib.rs:767`) | B | `warning: method 'map_scalar' is never used` + `E0624` ×2, both `profile/tests/scalar_lift_door.rs`. Test-only outside its crate. |
@@ -172,8 +172,15 @@ not read wider than it is:
   question is about. Checked by **grep** only (`.map_scalar`,
   `.linear::<`): no hit for either in those four roots. A grep is not the
   instrument; that line is weaker than the rest of the table.
+  **Narrowed by the review (2026-09-12):** `.linear::<` cannot match a
+  turbofish-free call, so the four roots were re-swept for the bare token
+  `\.linear\b` — still zero hits.
 - Cargo stops a crate's dependents once that crate fails, so every
-  `E0624` list here is a **lower bound** on the consumer set. It does not
+  `E0624` list here is a **lower bound** on the consumer set — except
+  where no crate failed at all, which the review checked: the
+  `Frame::linear` run, the `Vec2::map` run and a second level-A run
+  short-circuited nothing, so those three are **exact zeros**, not lower
+  bounds. It does not
   weaken a `warning`-only or clean row, which is where every negative
   verdict above comes from.
 - `dead_code` runs per target, so a method used only from its own crate's
@@ -244,3 +251,14 @@ to `fn`** beside `linear_f64`/`affine_f64`: it costs nothing, it makes
 the workspace lint tell the truth about reachability, and it leaves the
 question open. What should **not** happen is answer 2 without its
 argument written at the site, which is the state the door is in today.
+
+
+## Re-taken independently (2026-09-12, PR 2475's review)
+
+Every row of the table above was reproduced exactly. The review also
+sharpened two of this section's own hedges — both folded in above — and
+took the disposition: **delete**, as its own unit, so the public-API
+removal's blast radius is reviewed on its own terms, including the
+finding it exports to PROPS that `Mat3::map` is then consumerless. This
+row stays `open` until that unit lands; PR 2475 measured and recommended
+and removed nothing.

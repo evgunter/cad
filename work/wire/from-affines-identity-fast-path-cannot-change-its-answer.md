@@ -48,6 +48,28 @@ whichever arm runs, and a pose that is merely *close* to identity is not
 snapped by this branch either, because the test is bitwise. So the branch
 is not the mechanism for the thing it was documented as protecting.
 
+## Settled by a row, not by reasoning (2026-09-12, PR 2475's fix pass)
+
+The argument above is now an instrument.
+`crates/editor-core/src/placement.rs`'s
+`from_affines_identity_branch_agrees_with_the_branch_free_copy` — written
+by PR 2475's reviewer and adopted verbatim, authorship recorded here
+because a comment is not the place for it — asserts that `from_affine`
+and a branch-free copy of its body agree BY BITS at the exact identity
+(where the branch fires), at values a bitwise test deliberately does not
+snap (`-0.0`, a subnormal), and on the module's three fixtures. It then
+asserts the branch is not vacuous in the other direction: the copy really
+does test identity on `IDENTITY` and really does not one bit away from it.
+
+Verified red-first: mutating the identity arm to return a different
+frame fails the row at the `identity` case, with the other four rows in
+the module still green.
+
+So the branch's inertness is now a claim the suite keeps rather than a
+paragraph anyone has to re-derive, and the one scenario this row left
+open — *a `Frame` field that `bit_eq` does not compare* — is exactly what
+the row goes red on.
+
 ## Disposition
 
 Left in place by the lane that found it: WIRE's placement-prose unit was

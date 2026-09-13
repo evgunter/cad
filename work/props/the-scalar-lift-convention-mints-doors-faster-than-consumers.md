@@ -75,7 +75,29 @@ the same altitude and with the same instrument:
 no export corpus, and no document-layer path names it, and that
 measurement is what decides the re-export. Re-export it the day a
 consumer needs it."* Two doors, two opposite rules, neither aware of the
-other. That is the thing to resolve; it is a `DESIGN.md`-shaped question
-and probably Ev's.
+other. That is the thing to resolve.
 
 Citations accurate at `e25946743`.
+
+## Neither rule is ratified — so nothing here waits on Ev
+
+Checked over full history (`git rev-parse --is-shallow-repository` is
+`false`), from PR 2475's review and re-run on this branch:
+
+- The convention was written by an **agent in a fix pass**: `b61d25ddc`
+  (2026-09-02, *"CERT-N1 fix pass: … one home for the poison argument"*,
+  PR 1536), as a module doc-comment on `crates/geom/src/scalar_lift.rs`.
+  It was never proposed as a decision.
+- `docs/DESIGN.md` does not mention `map_scalar` or scalar lifts **at
+  all** — zero occurrences.
+- The opposite rule came in with the façade skeleton, `b43bb3e29`
+  (2026-08-06, *"pncad: façade crate skeleton — module re-exports,
+  prelude, f64-first authoring seam"*), likewise as a comment.
+
+So this is not a ratified decision being re-litigated, and CLAUDE.md's
+merge rule does not bite: what waits for Ev is *"text that binds future
+work"* — a ratified clause in `DESIGN.md`, or in a README its companion
+table lists. Neither site is one. **Two unratified conventions point
+opposite ways at the same altitude with neither aware of the other**, and
+whoever takes this row decides it as ordinary engineering, ratifying the
+answer afterwards if it turns out to be worth binding.

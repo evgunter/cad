@@ -62,20 +62,17 @@ recomputed (so a read-back at any scalar is exact and the identity at
 `f64`); where a door does arithmetic the claim is D9-deterministic and
 explicitly *not* exact; a bit-exact identity is a fast path and only a
 bit-exact one may be; a placement and a modeled transform agree bit for
-bit. Eight method docs that used to state one of those now carry a
-one-clause cross-reference and their own semantics only. Two of the nine
+bit. Method docs that used to state one of those now carry a one-clause
+cross-reference and their own semantics only — see the honest census in
+the fix pass below; it is six, not eight. Two of the nine
 were folded rather than moved: `rotate_then_translate`'s
 normalize-here argument and the "decided direction normalizes by the
 same expression" paragraph are one hazard — *removing this normalization
 costs the bit agreement* — and are now one paragraph at the site, where
 something would go wrong without it.
 
-The section also names **where each claim is guarded**, which no site
-did before: this module's three test rows, and — because the bit
-agreement needs a whole document —
-`r1_the_placement_frame_matches_the_transform_node_bit_for_bit` in this
-crate's `asm2a_instantiate` suite. That last one already existed and
-nothing in `placement.rs` pointed at it.
+The section also says **where each claim is guarded**, which no site did
+before — see the fix pass below for the shape that took.
 
 **S8 — the project has NOT ruled on `#[must_use]`.** Nothing in `docs/`,
 no `crates/*/README.md`, nothing in the tracker states a convention;
@@ -98,8 +95,7 @@ would leave the same inconsistency one level down. The one exception is
 `clippy::double_must_use`.
 
 **S9 — the ratio did NOT improve, and this row should not be read as
-closing it.** `placement.rs` went 430 -> 458 lines: doc lines 157 -> 174,
-code lines 242 -> 253 (the eleven `#[must_use]` attributes). The one home
+closing it.** (Counts superseded by the fix pass below.) The one home
 states in one place what nine sites stated in fragments, and adds the
 three guard citations, so it is longer than the sum of what it replaced.
 Nothing else in the file passes the deletion test in
@@ -119,3 +115,92 @@ attributes compile, not that the rule is stated once.
 `work/wire/from-affines-identity-fast-path-cannot-change-its-answer.md`
 — re-homing the paragraph over `Frame::from_affine`'s identity branch
 showed the branch cannot change the function's answer.
+
+## Fix pass (2026-09-12, PR 2475's review — MERGEABLE, no MAJOR)
+
+The review found that the fix had **minted two fresh instances of the
+defect it was closing**, plus one false sentence. All three repaired.
+
+**The false sentence.** *"Every claim above is guarded"* named four rows
+and none of them guarded `Mat3::determinant`'s fixed-evaluation-order
+claim: `editor-core` had no determinant test at all, and the only one
+anywhere is `geom-core`'s `determinant_of_identity_is_one`, which
+asserts `1.0` and cannot tell one evaluation order from another. The
+guard turned out to be cheap, so it is **written** rather than excused:
+`determinant_is_mat3s_association_and_not_just_its_value` pins
+`c0 · (c1 × c2)` with the dot summed left to right, on a frame whose
+three summands are `1.0`, `1e16`, `-1e16` — where the two groupings of
+one addition chain give `0.0` and `1.0`. The row asserts the groupings
+DISAGREE before asserting which one `Frame::determinant` answers, so it
+cannot pass vacuously, and it reddens on a reassociation inside
+`Vec3::dot`/`Vec3::cross` as well as on a `Frame::determinant` that
+stops delegating (verified: mutating the body to the other grouping
+fails it, leaving the other four rows green). No PROPS row is owed —
+`Mat3::determinant`'s order now has a guard, one crate away.
+
+**Instance 1 — a hand-written census of four test-function names.** The
+section listed its guards in backticks, which are not intra-doc links
+(a test fn is not a link target), so the rustdoc gate could not see a
+rename and the PR's claim that the gate proves the links resolve was
+true of the `[`Frame::…`]` links and false of those four. The list is
+**deleted**: the home now says each claim is guarded by a row in this
+module's `tests` and that each row names the claim it keeps, and each
+of the four rows carries that one-line doc. Nothing names a test from
+outside, so nothing rots. The one citation that cannot be removed —
+`r1_the_placement_frame_matches_the_transform_node_bit_for_bit`, in
+another file because the claim needs a whole document — now carries the
+*"unguardable, and here is why"* sentence at the site per
+`reviewer-style-lane.md` Q6, and the class is filed on `meta`'s slate.
+
+**Instance 2 — the `#[must_use]` rule lived only in this row.** Written
+in the tracker, enforced by nothing (`clippy::must_use_candidate` is off
+workspace-wide and no test can read an attribute), so the twelfth method
+would have arrived without it. The rule is now a comment on `impl Frame`
+stating the obligation a new method upholds, and naming its own single
+exception. That comment IS the mechanism, and it says so.
+
+The `rotate_then_translate` exclusion is restated as what it is: a
+**choice, not a constraint**. The review reproduced
+`clippy::double_must_use` and found clippy's own help offers *"either add
+some descriptive message or remove the attribute"*, so
+`#[must_use = "…"]` would be accepted. Declined — a message on a `Result`
+that is already `#[must_use]` by type buys a reader nothing and costs a
+second place to keep in step.
+
+**The sibling instance is NOT fixed here, deliberately.**
+`work/wire/the-third-tag-vocabulary-macro-owes-a-unification-trigger.md`
+records the same inconsistency one file over (`Target::kind()` has the
+attribute, `ArcData::mode()` does not). It is already a scheduled row
+with its own subject — a macro unification trigger — and reaching into
+it from a prose unit would be a second surface decision nobody asked
+for. That row now carries a pointer to the rule this PR wrote, so its
+taker has the precedent rather than re-deriving it.
+
+**The honest census (NOTE-3).** "One home" is one home plus survivors,
+and the earlier "eight method docs" was wrong. After this pass **six**
+sites cite the home (`rotate_then_translate`'s first paragraph,
+`linear`, `affine`, `compose`, `is_identity_bits`, and the test module
+header) and **three** still state part of the rule, each for a reason:
+
+- `rotate_then_translate`'s *"normalizing the axis here is not
+  redundant"* paragraph — a HAZARD, not a restatement. It is the one
+  place a future editor could delete the normalization, and the home
+  cannot stop them from three screens away.
+- `from_affine`'s *"a bit-exact identity map returns `Frame::IDENTITY`"*
+  — that is the function's OUTPUT, not the exactness rule. It reads like
+  the rule, which is exactly why the cross-reference was removed rather
+  than added: the branch that makes it look like a fast path is inert,
+  and this module now has a row proving it
+  (`from-affines-identity-fast-path-cannot-change-its-answer`).
+- `sample()`'s *"the `-0.0` is LOAD-BEARING"* — a fixture's obligation
+  to whoever edits it next, which no type can carry.
+
+Nine → one home + three, not nine → one.
+
+**Counts, split so the growth is readable.** Against `main`, whole file
+430 -> 569 lines. Outside `mod tests`: 293 -> 336 (comment 130 -> 162,
+code 140 -> 151 — the eleven `#[must_use]` attributes). Of that +32
+comment lines, 9 are the `#[must_use]` rule block and 23 are prose.
+Inside `mod tests`: 137 -> 233, all of it the two new rows and their
+docs. **The S9 ratio finding is still not closed**, and the qualifier
+above stands: the remaining answer is fewer doors, not less prose.
