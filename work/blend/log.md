@@ -519,3 +519,34 @@ FABLE, R2 = OPUS; briefs stored with digests on `blend/b1-block`
 before either ran; the four deviations stated in both briefs as
 hypotheses. The unit's log entry waits for the dual. Unit 7's target
 reclaimed for the reviewers' base-tree builds (its fix pass re-seeds).
+
+**Unit 7's dual concluded (2026-09-13, ~02:40 UTC):** R1 (FABLE)
+MERGEABLE 0/5/3, rubric 4/4/3; R2 (OPUS) MERGEABLE-AFTER-FIXES 0/4/4
+plus eight style findings, rubric 4/4/3. Both concurrent on the frozen
+head with private targets, neither interrupted, zero cross-lane reads
+disclosed. No MAJOR either side ⇒ no unilateral MAJOR, NO tally
+candidate. The kernel change is right by both instruments: each
+reviewer re-read the pairing off the body's half-edges with the
+converse asserted, ran its own mutant over the whole sweep suite (red
+= exactly the N ≥ 3 carve rows plus the flipped characterization row),
+re-derived the Pappus form, and confirmed all four deviations. The
+converged findings are record-level: the premise table omits a hit of
+its own pattern (`is_seam_vertex`'s slice pattern, silently filtered)
+and three revolve-suite sites; the `rim_of` residue cites three names
+that do not exist; the invariant row and the open-chain row stay green
+under a read-side mutant (they pin the record, the carve rows pin the
+read) while the row docs claim more; `debug_assert!` is a tripwire not
+a pin. Unique R1: the centroid sentence names the wrong corner (the
+code was right); three "revolve-minted half-caps" sites the ladder's
+re-worded doc left behind; the sort maintained for a sentence; a
+self-closed-link double junction (unsure). Unique R2: `corner_torus`
+is a second `wedge_fill` against `waist_fill`'s own ruling; the fix
+minted a thirteenth `prism` copy, a `cube` ladder copy and a fifth
+seed-scan instance of a filed class while leaving the private
+`cylinder()` twins beside the builder it homed; the same eleven-word
+justification at eight sites; `pub` junction indices into private
+links; `battery.rs` now carrying the chain data model. R2's open chain
+seeded from its middle link is the one row that reaches the walk's
+backward arm. Fix pass dispatched on the union
+(`/home/user/blend-briefs/fix-7-brief.md`), both probe branches to be
+adopted; delta by R1 on the fixed head; then state-sync and the A/B row.
