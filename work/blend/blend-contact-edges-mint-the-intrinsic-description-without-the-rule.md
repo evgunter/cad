@@ -1,9 +1,10 @@
 ---
 id: blend-contact-edges-mint-the-intrinsic-description-without-the-rule
-kind: issue
+kind: unit
 title: sweep: a blend's contact edge mints TangentIntersection without the must-carry rule
-status: open
+status: dispatched
 opened: 2026-09-13
+branch: blend/14-contact-edge-must-carry
 ---
 
 
