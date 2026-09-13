@@ -106,15 +106,41 @@ so a flattened verb reds.
 | `expected`/`found` — `stackup.rs` | **not this class at all.** `PairingViolation::ResultArm`'s two words are RESULT ARMS (`Ok`/`Failed`/`Poisoned`) of two evaluations being paired, not entity kinds, and both are already produced by one `arm()` function. Same field names, different subject. PROPS's ground; read, not edited |
 | the recipe road — `mate/member.rs` | filed separately as `work/docm/the-third-datum-axis-phrase-lives-in-mate-member.md`; not read for this unit beyond confirming the row exists |
 
-### A seventh spelling the census missed
+### Three more sites the row's census did not list
 
-`crates/editor-core/src/assembly.rs`'s mate mint refuses
-`RefusedRef::NotAFace { kind: other.kind() }` off the same five lines.
-It already computes its own word and renders through
-`EntityKind::article`/`noun`, so there is no correctness defect — what
-is left is a THIRD field name for one answer. DOCM's ground, filed as
-`work/docm/assembly-mint-spells-the-entity-kind-refusal-a-seventh-way.md`.
+Found by triaging the sweep to its end (the review of PR 2517). The
+pattern was right — `rg 'EntityKey::' crates/editor-core/src/` returns
+all three — and the first pass stopped early.
 
-**The residue this row leaves**: three words for one answer (`found`,
-`wanted`, `kind`) across three error types. The new census cannot see
-past `NodeErrorKind`, and says so in its own doc.
+- **`eval/mod.rs`'s `DeclareUnsupportedPair`**, built in
+  `route_declarations` in `eval/wire.rs` itself, from `(n1.kind,
+  n2.kind)` — the AUTHORED name's kind, thirty lines after both names
+  resolved to keys. Safe today only by `NameTable::insert_ref`'s
+  invariant. **Not converted**: it tests a PAIR, and `entity`'s
+  single-key shape does not fit it. Filed as
+  `work/wire/the-declared-pair-refusal-reads-the-authored-kind.md`.
+- **`clearance.rs`'s `SelectionRefusal::NotAFace { name }`** — same
+  road as the converted `Selected::faces`, names no found kind, and
+  conflates a wrong kind with a wrong body. SHELL's ground; filed as
+  `work/shell/named-face-scope-refuses-not-a-face-without-naming-what-it-found.md`.
+- **`assembly.rs`'s `RefusedRef::NotAFace { kind: other.kind() }`** —
+  already computes its own word and renders through
+  `EntityKind::article`/`noun`, so no correctness defect; the residue is
+  a third field name for one answer. DOCM's ground; filed as
+  `work/docm/assembly-mint-spells-the-entity-kind-refusal-a-seventh-way.md`.
+
+### This row closes on a PARTIAL fix, and says so
+
+**Four sites of at least nine.** The four are the `NodeErrorKind`
+carriers; the other five sit on four other error types
+(`InterrogateError`, `MintRefusal`, `SelectionRefusal`, and the pair
+refusal's own variant), each now on a slate rather than only in a PR
+body.
+
+**The residue**: three words for one answer (`found`, `wanted`, `kind`)
+across those error types, and one site that answers off the authored
+name rather than the resolved key. The census cannot see past
+`NodeErrorKind` — and the general form of that limit is the sharpest
+thing this unit learned: **a census that finds its sites by the
+spelling it is normalising can only ever find the ones that already
+comply.** It is in the suite's own doc, with the known members named.
