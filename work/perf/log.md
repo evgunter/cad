@@ -1153,3 +1153,26 @@ gap; rename residue across `pickindex.rs`, the FNV item and
 key/boundary walk order held by two functions rather than one
 iterator. The index-seam announcement is this log's (the block's cut
 entry), not the implementer's deviation.
+
+## 2026-09-13 — PERF-12 under dual review; the whole block is in review or fix pass
+
+PERF-12 (PR 2490, `cd526c5fa`, ordinal 3411, R1 opus / R2 fable): the
+at-rest census's five all-pairs sweeps AND the cross-solid backstop
+behind one `Bvh` per entity class over the boolean's own `face_box`/
+`edge_box` (vertex points widened by the boolean's `sweep_pad`),
+candidates ascending so every sweep's order is the exact order
+restricted. The measure-first clause did not fire — every pair reaches
+a predicate (41.5 M verdicts → 180 k at 160 fins). The heat sink's
+gate at 160 fins 1.3 s → 9 ms, at 640 fins 24 s → 35 ms (n^2.14 →
+n^0.97); `assemble` at 640 solids 20.8 s → 196 ms, with the gather now
+the cost (filed `assemble-gather-is-the-cost-after-the-census-filter`).
+Goldens over the corpus, the fin bodies and the STEP fixtures are
+byte-identical at three ε. Two things the reviewers are asked to
+decide: a pruned pair can carry, in the exact sweep, an escalation or
+refusal decided on the INFINITE carriers (a vertex in band of an
+edge's line but metres past its end) that the filtered census answers
+by separation — the removal of a spurious indeterminate or a verdict
+change owing a ruling; and the ledger extension (`validate_
+pseudomanifold*` gain `T: Bounds`; `census.rs` joins the allowlist,
+argued from the 2026-07-29 driver amendment) — the same seam or a
+widening. PERF-10 and PERF-11 are in their fix passes.
