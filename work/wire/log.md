@@ -3324,3 +3324,78 @@ bijection's second direction, and whether the fence's condition held —
 that what landed in DOCM's file really is a derived constant and doc
 prose, with no derive, variant or payload changed under the macro.
 "Nothing further" is stated as a complete answer.
+
+## 2026-09-13 — the delta on the macro: no MAJOR, and a live instance of the class the disclosure only described
+
+**0 MAJOR, 2 MINOR, 7 style.** The round earned itself on two findings
+and confirmed the mechanism outright on the claim that mattered most.
+
+### Claim 1 holds, and the way it was settled is the point
+
+The attribute class is closed **by construction**, verified two ways:
+the macro extracted verbatim and compiled against **eleven** awkward
+spellings — `cfg`, `cfg_attr`, doc-comment-plus-attribute, deprecated,
+raw identifier, tuple and named payloads — with every name present and
+correctly spelled, **including `#[doc(hidden)] Chord`, the exact variant
+the text walk dropped**; and again in-tree on two real `ProgramStep`
+variants, where the green was shown to be **two-sided rather than
+vacuous** (had `ALL_NAMES` dropped either name, the other direction of
+the bijection would have fired). That is the standard this program has
+converged on: not "the test passes" but "the test would have failed."
+
+The fence held too, measured rather than asserted: with doc lines
+stripped, the only things that landed in DOCM's file are the
+`macro_rules!` and the invocation wrapper — no variant, payload, derive,
+visibility or behaviour changed.
+
+### MINOR 5: a disclosed class with an unswept live instance, four lines away
+
+`LoopProgram` is declared with a plain `pub enum` **four lines below the
+invocation's closing brace**, and `LoopProgram::resolve` is a **fourth
+construct hop of exactly the shape the disclosure describes** — it
+matches the document vocabulary and constructs `Step::Circle` /
+`Step::CircleSplit`. A fourth variant of it laundering into an existing
+kernel form leaves every clause, the roster and the census green, and
+`corpus_vocabulary` explicitly declines to witness it.
+
+The disclosure and the DOCM row state the class **faithfully and
+entirely hypothetically** — *"or whatever a fourth one's would be"* —
+while the instance sits in the same file. That is the class-not-instance
+rule in its exact form, and it is the shape this program keeps meeting:
+**the hypothetical is easier to write than the sweep, and reads as
+completeness.**
+
+### MINOR 2: the compile error is per MODULE, and that is the claim that carries everything
+
+*"A second invocation does not compile"* is what makes *declared through
+the macro* a complete list rather than a convention. `E0428` is scoped to
+one module's value namespace — rustc's own note says so — and a second
+invocation in a child module compiles clean, producing a second
+`DOCUMENT_VOCABULARIES` the census never reads. Verified in-tree.
+Reachability is low today; the claim still has to be exact, in all three
+places it is written.
+
+### S1: the macro traded a silent failure for an unformatted one
+
+rustfmt does not format macro-invocation bodies, so **~185 lines of the
+crate's central payload type are now outside the formatter**, with no
+gate that would ever notice drift — already visible in the enums sitting
+at column 0.
+
+Adjudicated: **the trade still favours the macro.** It closes a *silent*
+class by construction, and formatting drift is *visible* to any reader,
+which is the whole difference this program has been paying for all day.
+But the cost is real, was not flagged by the lane, and is plausibly a
+class — any `macro_rules!`-wrapped declaration block in this tree has the
+same property and nobody has swept for them. Disclosure at the site and a
+filed row, not silence.
+
+### And the trap, one more time, in the fix for the trap
+
+**S6**: two hand-rolled bidirectional set differences, fifteen lines
+apart, with near-parallel messages. The reviewer's sentence is the one to
+keep — *a PR whose subject is removing a hand-kept second list added a
+second hand-rolled copy of its own comparison.*
+
+This is the last fix pass on the unit; the findings are repairs rather
+than a new mechanism, so no further round follows it.
