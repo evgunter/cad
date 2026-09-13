@@ -235,12 +235,12 @@ pub(super) fn mono_mul(a: &Mono, b: &Mono) -> Option<Mono> {
 /// The form is zero **iff its NUMERATOR is the zero polynomial**. As a
 /// rational function that is exactly zero; as a real number at the box's
 /// actual parameter point it is `p(x)/q(x) = 0` PROVIDED `q(x) ≠ 0`, and
-/// clause 1 of [`Decide::sign_within`]'s test already guarantees that: a
-/// division by an enclosure containing zero is undefined there, so the
-/// interval decoration drops to `Trv`, `Trv` propagates, and
+/// clause 1 of [`crate::predicate::Decide::sign_within`]'s test already
+/// guarantees that: a division by an enclosure containing zero is undefined
+/// there, so the interval decoration drops to `Trv`, `Trv` propagates, and
 /// `certified_bracket()` refuses the margin before the identity test is
-/// ever asked. The clause was there for `sqrt(-1)`; it covers `1/0` by
-/// the same sentence.
+/// ever asked. The clause was there for `sqrt(-1)`; it covers `1/0` by the
+/// same sentence.
 ///
 /// # What is deliberately absent
 ///
@@ -280,8 +280,8 @@ pub(super) struct Form {
     /// The two halves catch different things and both are needed.
     pub(super) poisoned: bool,
     /// **This form was built through a clause-3 fold** (rule C,
-    /// [`signed`]): it is equal to the expression at every point of the
-    /// leaf's box rather than identically in the parameters, so a zero
+    /// [`super::signed`]): it is equal to the expression at every point of
+    /// the leaf's box rather than identically in the parameters, so a zero
     /// reached through it is `sign_gated`, not `symbolic_zero`. Sticky
     /// through every combinator, like the poison flag.
     pub(super) gated: bool,

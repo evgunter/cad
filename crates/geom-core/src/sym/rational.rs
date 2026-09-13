@@ -1,5 +1,5 @@
 //! **The coefficients are arbitrary-precision dyadic-scaled rationals**
-//! ([`Rat`], over `num-bigint`), bounded at [`COEFF_BITS`] bits. A
+//! ([`Rat`], over `num-bigint`), bounded at [`rational::COEFF_BITS`] bits. A
 //! whole-box replay reports `frozen: 0` on the bracket because the
 //! `Decide` impl skips the form of a margin the numeric channel has
 //! already proved non-zero. M10-8 measured the case the whole-box
@@ -288,7 +288,7 @@ pub(super) struct Rat {
 /// the measured trade, recorded on M10's closed
 /// `plate-rim-residual-needs-the-wide-coefficient-ring`
 /// (`docs/DOC-LEDGER.md` sweep 13).
-const COEFF_BITS: u64 = 256;
+pub(super) const COEFF_BITS: u64 = 256;
 
 impl Rat {
     pub(super) fn zero() -> Self {
