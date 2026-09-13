@@ -5624,3 +5624,4 @@ concurrently as lanes and disk allow; slot 2 after slot 0 merges.
 
 Block BLEND-B3 slot record (branch-side, appended as each slot concludes):
 slot 0 = BLEND-12 implementer dispatch (2026-09-13, ~10:55Z): arm OPUS per the draw above (byte 124); `docs/BLEND-12-SPEC.md` (S / STRUCTURAL, pre-draw); brief `/home/user/blend-briefs/unit-12-brief.md` (lane-local; the spec is the binding text); S-BOOL seam announced in `work/bool/log.md` before dispatch. Review ordinal claimed on main at the dual's dispatch.
+slot 1 = BLEND-14 implementer dispatch (2026-09-13, ~11:00Z, its spec on main via PR #2507): arm FABLE per the draw above (byte 124); `docs/BLEND-14-SPEC.md` (M / NUMERIC, pre-draw); brief `/home/user/blend-briefs/unit-14-brief.md` (lane-local; the spec is the binding text; `dihedral.rs` untouched). Review ordinal claimed on main at the dual's dispatch.
