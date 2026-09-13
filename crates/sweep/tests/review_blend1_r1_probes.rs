@@ -12,6 +12,7 @@ use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
 use sweep::blend::{BlendError, BlendSite};
+use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceSurface};
 
@@ -27,39 +28,16 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// The same three-arc cylinder `m5_pr12_refusals` builds.
+/// The three-arc cylinder `m5_pr12_refusals` builds too: the homed
+/// `disc_of_arcs` at three arcs, radius 0.5, height 1.
 fn cylinder() -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    disc_of_arcs(3, 0.5, 1.0, tol())
 }
 
 /// A cylinder whose rim is TWO semicircles — the shape every closed-rim
-/// suite in the tree builds.
+/// suite in the tree builds — the same builder at two arcs.
 fn two_arc_cylinder() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.5, 0.0), 1.0),
-        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), tol())
-        .unwrap()
-        .body
+    disc_of_arcs(2, 0.5, 1.0, tol())
 }
 
 /// The unit's fixture, restated here so the probes read the same
@@ -258,24 +236,21 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
     );
 }
 
-/// **A CHARACTERIZATION row: it pins a defect, and goes red when the
-/// defect is fixed.** The whole raised rim of a THREE-arc cylinder is
-/// refused `ChainNotG1` at a junction with a 120° reading (margin
-/// 0.75 at arm 0.866), while the same rim built from TWO semicircles
-/// carves. Nothing about the body differs: `walk_chains` lists a
-/// closed chain's junctions as `[closing vertex, j01, j12]` against
-/// links `[0, 1, 2]`, so the junction check pairs each vertex with
-/// one link that does not touch it and reads that link's FAR-end
-/// tangent. A two-arc rim is immune because both links touch both
-/// vertices — which is why every closed-rim suite in the tree happens
-/// to build one and the defect has gone unseen.
-///
-/// The item is `work/blend/closed-chain-junctions-pair-with-a-rotated-link`.
-/// When it lands this row's `ChainNotG1` assertions fail, and that is
-/// the intended signal: delete the row, or turn it into the row that
-/// pins the fix.
+/// **A THREE-arc rim carves where a two-arc rim does.** The whole
+/// raised rim of a cylinder authored as three 120° arcs passes the
+/// battery and carves through the public door, exactly as the same
+/// rim built from two semicircles does: `walk_chains` records each
+/// junction WITH the two links it found incident there
+/// (`battery::Junction`), so the G1 check reads the two tangents that
+/// actually meet at the vertex. A pairing by list position — the
+/// closing vertex listed first against links `[0, 1, 2]` — reads one
+/// FAR-end tangent per junction and refuses `ChainNotG1` at 120°
+/// (margin 0.75 at arm 0.866); a two-arc rim cannot tell the two
+/// pairings apart because both links touch both vertices, which is
+/// why every other closed-rim suite's fixture is blind to it. The
+/// N-arc rims carve at their closed forms in `closed_chain_junctions`.
 #[test]
-fn r1_a_three_arc_rim_refuses_chain_g1_at_a_junction_where_a_two_arc_rim_builds() {
+fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
     // `topo::query::rim_of` refuses the re-keyed body (`NotOneRim`:
     // the arcs' descriptions name the old cap key), so the arcs are
     // gathered by their carriers.
@@ -305,47 +280,30 @@ fn r1_a_three_arc_rim_refuses_chain_g1_at_a_junction_where_a_two_arc_rim_builds(
     // passes the battery and carves through the public door.
     let two = two_arc_cylinder();
     let arcs2 = raised_arcs(&two);
-    assert_eq!(arcs2.len(), 2);
+    assert_eq!(arcs2.len(), 2, "the raised rim is two arcs by authoring");
     whole(&two, arcs2.clone()).expect("the two-arc rim resolves");
     assert!(
         sweep::blend::fillet_edges(&two, &arcs2, 0.05, tol()).is_ok(),
         "the two-arc rim carves"
     );
-    // The defect: the PRISTINE three-arc extrusion, whole rim.
+    // The PRISTINE three-arc extrusion, whole rim: three junctions at
+    // 120° of arc each, every one of them tangent-continuous between
+    // the two arcs that meet there.
     let pristine = cylinder();
     let arcs3 = raised_arcs(&pristine);
-    assert_eq!(arcs3.len(), 3);
-    let chain_g1_at_a_junction = |r: &Result<(), BlendError>| match r {
-        Err(BlendError::ChainNotG1 { margin, arm, .. }) => {
-            // 120° between the two carriers' tangents, folded against
-            // the smaller link's extent: sin(120°) · 0.866 = 0.75.
-            assert!(
-                margin.value().is_some_and(|v| (v - 0.75).abs() < 1e-12),
-                "{margin:?}"
-            );
-            let geom_core::MarginDiag::Value(a) = arm else {
-                panic!("an f64 arm")
-            };
-            assert!((a - 3f64.sqrt() / 2.0).abs() < 1e-12, "{arm:?}");
-        }
-        other => panic!("the three-arc rim refuses at a junction, got {other:?}"),
-    };
-    chain_g1_at_a_junction(&whole(&pristine, arcs3.clone()));
+    assert_eq!(arcs3.len(), 3, "the raised rim is three arcs by authoring");
+    whole(&pristine, arcs3.clone())
+        .unwrap_or_else(|e| panic!("the three-arc rim resolves at every junction, got {e:?}"));
     assert!(
-        matches!(
-            sweep::blend::fillet_edges(&pristine, &arcs3, 0.05, tol()),
-            Err(sweep::blend::BlendRefusal {
-                error: BlendError::ChainNotG1 { .. },
-                ..
-            })
-        ),
-        "the public door carries the same refusal"
+        sweep::blend::fillet_edges(&pristine, &arcs3, 0.05, tol()).is_ok(),
+        "the three-arc rim carves through the public door"
     );
-    // The unit's re-keyed body reads the same at departure 0 — the
-    // junction check runs after the coaxiality legs, so the tilt does
-    // not reach this.
+    // The unit's re-keyed body resolves the same way at departure 0:
+    // the coaxiality legs read Zero, and the junction check that runs
+    // after them judges the pair that meets at each vertex.
     let (body, _, _, _, _) = tilted_cap(0.0);
-    chain_g1_at_a_junction(&whole(&body, raised_arcs(&body)));
+    whole(&body, raised_arcs(&body))
+        .unwrap_or_else(|e| panic!("the re-keyed three-arc rim resolves, got {e:?}"));
 }
 
 /// **The in-band convexity-sign escalation renders the TANGENTIAL
@@ -486,7 +444,7 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
     let whole = |departure: f64| -> Result<(), BlendError> {
         let (body, _, _, _, _) = tilt_raised_cap(two_arc_cylinder(), departure);
         let arcs = arcs_of(&body);
-        assert_eq!(arcs.len(), 2);
+        assert_eq!(arcs.len(), 2, "the raised rim is two arcs by authoring");
         run_battery(
             &BlendRequest {
                 body: &body,

@@ -2486,11 +2486,39 @@ first instance is deleted and the two `profile` `map_scalar` rungs are
 the half still live, with a `## Half disposed` section giving the reason
 their dispositions differ.
 
+## 2026-09-12 — `Frame::linear<T>` deleted; half the class disposed
+
+`crates/editor-core/src/placement.rs`'s `pub fn linear<T: Real>` is
+gone, with its one caller — the `linear::<f64>()` cross-check inside
+`affine_at_f64_carries_the_stored_bits`. The test stays: its subject is
+`Frame::affine`, and only the limb reading the deleted door was cut. The
+`# Exactness` section named both doors as the read-back pair and now
+names `affine` alone.
+
+**The row does not close.** It is a class with two instances; this
+disposes of one. `profile`'s two `map_scalar` rungs are the other, they
+sit outside WIRE's fence, and their argument is the `scalar_lift.rs`
+convention's rather than this one's.
+
+**The delete exports a finding**, exactly as the row's own
+counterargument predicted: `Mat3::map` had one consumer workspace-wide,
+this door's body, and now has none. Filed as evidence on
+`work/props/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`
+— PROPS's ground, PROPS's call, and `Mat3::map` was left in place.
+
+No assertion was added. A deletion's guard is the compiler plus the two
+façade censuses; a test asserting an absent function is absent is
+documentation, and §2 of the implementer discipline says to delete it
+rather than write it.
+
 ## 2026-09-13 — CORRECTION: `Mat3::map` was never consumerless, and this log said it three times
 
 PR 2487's review returned **1 MAJOR** and it is against a claim **this
-orchestrator relayed upstream and wrote into this log at three places**
-(`:2030`, `:2063`, `:2147`). Those sentences are **wrong** and are
+orchestrator relayed upstream and wrote into this log three times** —
+in the 2475 review round, in the 2480 delta dispatch entry, and in the
+lane's own `Frame::linear` entry immediately above, each saying
+`Mat3::map`'s only consumer was the deleted door. Those sentences are
+**wrong** and are
 corrected here rather than edited in place, because this log is
 append-only and the record of having been wrong is the useful part.
 
