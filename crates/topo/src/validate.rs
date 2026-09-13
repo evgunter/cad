@@ -1171,6 +1171,43 @@ pub enum ValidationError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
+    /// **Tier 3, check 9 — the NESTING statement.** A face's ring
+    /// does not lie inside that face's own outer loop: a named vertex
+    /// of the ring is definitely OUTSIDE the region the outer loop
+    /// bounds. The contact arms above decide whether the two loops
+    /// MEET; they say nothing about which one is inside the other, so
+    /// a ring drawn around its own face's boundary is disjoint from it
+    /// and passes them. The rest of the battery is blind to it too:
+    /// the loops stay simple and consistently wound (a ring wound
+    /// about the outward normal is wound the same way whichever of two
+    /// oppositely-sensed coplanar faces hosts it, so check 6 agrees),
+    /// the Euler count is whatever the surgery made it, and check 7
+    /// integrates the same windings to the same volume.
+    RingOutsideOuter {
+        /// The face whose ring is not inside its outer loop.
+        face: FaceKey,
+        /// The ring.
+        ring: LoopKey,
+        /// The ring vertex the containment walk placed outside — the
+        /// witness, so the report names a position and not just a
+        /// verdict.
+        ring_vertex: VertexKey,
+    },
+    /// **Tier 3, check 9 — nesting undecided.** Whether a ring lies
+    /// inside its face's outer loop could not be certified: every
+    /// containment query the arm could make came back escalated, ray
+    /// exhausted, or over topology the walk could not read. Reported
+    /// rather than rounded to "nested", the same direction
+    /// [`Self::RingContactEscalated`] is reported in and for the same
+    /// reason (D4 paragraph 3).
+    RingNestingUndecided {
+        /// The face whose ring could not be placed.
+        face: FaceKey,
+        /// The ring.
+        ring: LoopKey,
+        /// What the containment walk stopped on.
+        source: ContainError,
+    },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
     /// contact record backs (directly, or via the D3 segment
@@ -2236,6 +2273,22 @@ impl fmt::Display for ValidationError {
                 "tier 3: whether ring {ring:?} of {face:?} meets that face's own outer loop \
                  could not be certified ({source}) — an undecidable separation is reported, \
                  never read as disjoint"
+            ),
+            Self::RingOutsideOuter {
+                face,
+                ring,
+                ring_vertex,
+            } => write!(
+                f,
+                "tier 3: vertex {ring_vertex:?} of ring {ring:?} of {face:?} lies outside that \
+                 face's own outer loop — a ring is a hole strictly inside the region its face \
+                 trims, and a ring with a point outside that region trims no region at all"
+            ),
+            Self::RingNestingUndecided { face, ring, source } => write!(
+                f,
+                "tier 3: whether ring {ring:?} of {face:?} lies inside that face's own outer \
+                 loop could not be certified ({source}) — an undecidable nesting is reported, \
+                 never read as nested"
             ),
         }
     }
@@ -4483,11 +4536,17 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     }
 
     // ------------------------------------------------------------------
-    // Tier 3, check 9: ring-vs-outer disjointness. A ring is the
-    // statement "this face's region has a hole strictly inside it", so
-    // a ring that stands on the outer loop — sharing a vertex position
-    // with it, or running along one of its edges — is not a trim of
-    // any region. Nothing else in this battery sees it: every loop
+    // Tier 3, check 9: ring-vs-outer disjointness, and then NESTING.
+    // A ring is the statement "this face's region has a hole strictly
+    // inside it", and that statement has two halves. A ring that
+    // stands on the outer loop — sharing a vertex position with it, or
+    // running along one of its edges — is not a trim of any region;
+    // that is the DISJOINTNESS half, the three arms of
+    // `ring_outer_contact`. A ring that is cleanly disjoint from the
+    // outer loop but lies OUTSIDE it is not a hole either; that is the
+    // NESTING half, `ring_nesting`, and it runs on the pairs the
+    // contact arms cleared. Nothing else in this battery sees either:
+    // every loop
     // stays a simple, consistently wound cycle, the Euler count is
     // whatever the surgery made it, and the volume flux is computed
     // from the same windings. It is the CDT downstream that discovers
@@ -4528,11 +4587,90 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // check exists for — a surgery re-labelling a copied boundary as a
     // ring — are all in the matched set, and the shell verb's own
     // door refuses ahead of them.
+    //
+    // **The nesting half**, its instrument and ITS residue, in the
+    // same honesty. The instrument is the crate's one trilean
+    // containment walk, [`crate::splitting::point_in_loop`]: for each
+    // vertex of the ring, is that point inside the region the outer
+    // loop bounds? A definitely-outside vertex is the witness the
+    // report names. The walk's own K rows are `point_in_loop_*` and
+    // this arm is a fourth consumer of them, pooled deliberately the
+    // way `boolean::contfp` and the solid-containment sweep already
+    // pool — no new predicate row is minted here.
+    //
+    // Matched: a face described by a `Plane`, whose OUTER loop is a
+    // cycle of three or more vertices carried entirely by `Line`s —
+    // exactly `point_in_loop`'s stated domain, where the polygon
+    // through the loop's vertices IS the region it bounds. The ring's
+    // own carriers are unconstrained: the query reads its VERTEX
+    // POSITIONS, which are exact whatever curve joins them.
+    //
+    // NOT matched, enumerated rather than gestured at:
+    //
+    // - **a face on any non-planar surface**, and a planar face whose
+    //   outer loop bears an arc or has fewer than three vertices. The
+    //   polygon through such a loop's vertices is not its region — a
+    //   disc-class loop's polygon has zero area — and answering from
+    //   it would refuse valid bodies, which is the one direction this
+    //   arm must never fail in. `boolean::contain`'s `loop_shape`
+    //   classifies exactly those loops and its disc arm decides them
+    //   exactly; reaching it from here is a widening this unit does
+    //   not take (`work/topo/check-9-nesting-is-line-bounded-only.md`).
+    // - **a ring that CROSSES its outer loop**, part inside and part
+    //   out: a vertex definitely inside settles the ring, so a
+    //   crossing whose first decided vertex is the inside one passes.
+    //   The crossing itself is already in the disjointness half's
+    //   residue above.
+    // - **a ring vertex within the band of the outer loop**
+    //   (`OnBoundary`): that is the disjointness half's question, not
+    //   this one, so the vertex settles nothing here and the walk
+    //   moves to the next. A ring all of whose vertices read
+    //   `OnBoundary` while the contact arms read `Disjoint` is
+    //   therefore silent in both halves.
+    //
+    // Order, and why it is that order: the nesting arm runs only on a
+    // pair the contact arms cleared. A ring that MEETS its outer loop
+    // is already reported by name and by shape, and asking a
+    // containment question about a point on the boundary would add a
+    // second, vaguer report of the same defect.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
+        // Per FACE, because the gate is the outer loop's and the
+        // surface's: the plane whose region the ring must sit in.
+        // `point_in_loop` reads the normal only to recover the PLANE
+        // and is invariant under its sign (its own docs derive that),
+        // so the chart normal is handed over unmultiplied by
+        // `Face::sense_sign`.
+        let nesting_normal = match body.surfaces.get(face.surface) {
+            Some(&Surface::Plane { normal, .. }) if outer_loop_is_a_polygon(body, face.outer) => {
+                Some(normal)
+            }
+            _ => None,
+        };
         for &ring in &face.rings {
             match ring_outer_contact(body, face.outer, ring, band) {
-                RingOuterVerdict::Disjoint => {}
+                RingOuterVerdict::Disjoint => {
+                    let Some(normal) = nesting_normal else {
+                        continue; // the nesting residue, enumerated above
+                    };
+                    match ring_nesting(body, face.outer, ring, normal, band) {
+                        RingNestingVerdict::Inside => {}
+                        RingNestingVerdict::Outside { ring_vertex } => {
+                            errors.push(ValidationError::RingOutsideOuter {
+                                face: face_key,
+                                ring,
+                                ring_vertex,
+                            });
+                        }
+                        RingNestingVerdict::Undecided(source) => {
+                            errors.push(ValidationError::RingNestingUndecided {
+                                face: face_key,
+                                ring,
+                                source,
+                            });
+                        }
+                    }
+                }
                 RingOuterVerdict::Contact(contact) => {
                     errors.push(ValidationError::RingMeetsOuter {
                         face: face_key,
@@ -4768,6 +4906,97 @@ pub(crate) fn ring_outer_contact<T: Decide>(
         }
     }
     RingOuterVerdict::Disjoint
+}
+
+/// Whether `outer` is a loop [`crate::splitting::point_in_loop`]'s
+/// polygon EXPRESSES: a walkable cycle of at least three half-edges,
+/// every one of them carried by a certified `Line`.
+///
+/// The three-vertex floor and the line-only gate are one statement,
+/// not two conveniences: the walk's contract is the planar polygon
+/// through a loop's vertices, so a loop with an arc in it, or with a
+/// polygon of zero area, is a region the walk answers a DIFFERENT
+/// question about — and the answer it gives for interior points of
+/// those regions is `Out`. Check 9's nesting arm reports a ring on an
+/// `Out`, so a loop outside this gate would refuse valid bodies.
+fn outer_loop_is_a_polygon<T: Real>(body: &Body<T>, outer: LoopKey) -> bool {
+    let Some(cycle) = loop_cycle_of(body, outer) else {
+        return false;
+    };
+    cycle.len() >= 3
+        && cycle.iter().all(|&he| {
+            body.half_edges
+                .get(he)
+                .and_then(|h| certified_carrier(body, h.edge))
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
+        })
+}
+
+/// Where check 9's nesting half placed a ring relative to the outer
+/// loop of its own face.
+pub(crate) enum RingNestingVerdict {
+    /// The ring has a vertex definitely inside the outer loop's
+    /// region — it is a hole of that region, as a ring claims to be.
+    /// Also the answer when no vertex was decided either way, which
+    /// the banner's residue list states.
+    Inside,
+    /// A named ring vertex is definitely OUTSIDE that region, so the
+    /// ring is not a hole in it.
+    Outside {
+        /// The witness.
+        ring_vertex: VertexKey,
+    },
+    /// No vertex of the ring could be placed. **Never read as
+    /// "inside"**: the same escalate-never-guess posture the contact
+    /// half takes, one question over.
+    Undecided(ContainError),
+}
+
+/// Does `ring` lie inside the region `outer` bounds, both loops of one
+/// planar face whose chart normal is `normal`?
+///
+/// The ring's VERTICES are the queries: a vertex position is exact
+/// whatever carrier joins it to its neighbours, so an arc-bearing ring
+/// is decided as readily as a polygonal one. The walk takes the first
+/// definite verdict it reaches — `Out` reports, `In` accepts — which
+/// is what keeps an escalation at one vertex from refusing a ring
+/// another vertex has already placed inside. Only a ring where NO
+/// vertex was decided and at least one query escalated is reported
+/// undecided.
+///
+/// Run only on a `(outer, ring)` pair [`ring_outer_contact`] has
+/// cleared, and only behind [`outer_loop_is_a_polygon`]; the banner at
+/// check 9 states both and enumerates what they leave out.
+fn ring_nesting<T: Decide>(
+    body: &Body<T>,
+    outer: LoopKey,
+    ring: LoopKey,
+    normal: geom_core::Vec3<T>,
+    band: Band,
+) -> RingNestingVerdict {
+    let Some(cycle) = loop_cycle_of(body, ring) else {
+        // An empty ring bounds nothing and sits nowhere.
+        return RingNestingVerdict::Inside;
+    };
+    let mut undecided: Option<ContainError> = None;
+    for &rhe in &cycle {
+        let Some(rv) = body.half_edges.get(rhe).map(|h| h.start) else {
+            continue;
+        };
+        let Some(rp) = vertex_point(body, rv) else {
+            continue;
+        };
+        match crate::splitting::point_in_loop(body, outer, normal, rp, band) {
+            Ok(crate::splitting::LoopContainment::In) => return RingNestingVerdict::Inside,
+            Ok(crate::splitting::LoopContainment::Out) => {
+                return RingNestingVerdict::Outside { ring_vertex: rv };
+            }
+            // The contact half's question, not this one.
+            Ok(crate::splitting::LoopContainment::OnBoundary) => {}
+            Err(source) => undecided = undecided.or(Some(source.into())),
+        }
+    }
+    undecided.map_or(RingNestingVerdict::Inside, RingNestingVerdict::Undecided)
 }
 
 /// An edge's certified carrier, or `None` on a null or unresolvable
@@ -7330,6 +7559,162 @@ mod tests {
         assert!(
             ours.is_empty(),
             "check 9 must be silent on the fixture as it stands; got {ours:?}"
+        );
+    }
+
+    /// **Check 9 states ring-INSIDE-outer, not merely
+    /// ring-disjoint-from-outer.**
+    ///
+    /// The mutant is the shape a `kfmrh` glue mints when its two roles
+    /// are inverted: one face keeps a ring that ENCLOSES its own outer
+    /// loop. It is built here by re-labelling one face's two loops and
+    /// flipping that face's `sense`, because that pair of edits is
+    /// exactly what the inverted glue produces and nothing else —
+    /// every point, every edge, every cycle and every winding is the
+    /// honest body's.
+    ///
+    /// The flip is not decoration: the two coplanar faces an inverted
+    /// glue chooses between face OPPOSITE ways, so the loop that
+    /// becomes a ring is wound correctly for its new role either way.
+    /// The row asserts that directly — check 6 stays silent on the
+    /// mutant — because that silence is the reason this check has to
+    /// exist. Check 7 is silent for its own reason, which check 6's
+    /// own banner states: the volume is integrated from the same
+    /// windings, and re-labelling which loop is the ring moves none of
+    /// them.
+    #[test]
+    fn check_9_refuses_a_ring_that_lies_outside_its_outer_loop() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let mut honest = ops_holed_box(tol).body;
+        plane_every_face(&mut honest);
+
+        // The one face carrying a ring: the box's bottom, whose ring
+        // is the through-hole's rim (the fixture's closing `kfmrh`).
+        let holed: Vec<FaceKey> = honest
+            .faces
+            .iter()
+            .filter(|(_, f)| !f.rings.is_empty())
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(
+            holed.len(),
+            2,
+            "the fixture's through-hole leaves a ring on the top face \
+             (the rim) and one on the bottom (the plug)"
+        );
+        let face = holed[0];
+        let (outer, ring) = {
+            let f = honest.get_face(face).unwrap();
+            (f.outer, f.rings[0])
+        };
+
+        let check_9 = |body: &Body<f64>| -> Vec<ValidationError> {
+            let (errors, _) = tier3_local_checks(body, &[], band, tol, None);
+            errors
+                .into_iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        ValidationError::RingMeetsOuter { .. }
+                            | ValidationError::RingContactEscalated { .. }
+                            | ValidationError::RingOutsideOuter { .. }
+                            | ValidationError::RingNestingUndecided { .. }
+                    )
+                })
+                .collect()
+        };
+        let inverted_roles = |body: &Body<f64>| -> Vec<LoopKey> {
+            let (errors, _) = tier3_local_checks(body, &[], band, tol, None);
+            errors
+                .into_iter()
+                .filter_map(|e| match e {
+                    ValidationError::LoopRoleInverted { face: f, r#loop } if f == face => {
+                        Some(r#loop)
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
+
+        assert!(
+            check_9(&honest).is_empty(),
+            "the honest fixture's ring IS inside its outer loop; got {:?}",
+            check_9(&honest)
+        );
+        assert!(
+            inverted_roles(&honest).is_empty(),
+            "check 6 is silent on the honest fixture"
+        );
+
+        let mut mutant = honest.clone();
+        {
+            let f = mutant.faces.get_mut(face).unwrap();
+            f.outer = ring;
+            f.rings[0] = outer;
+            f.sense = !f.sense;
+        }
+        assert!(
+            inverted_roles(&mutant).is_empty(),
+            "check 6 must be BLIND to the inversion — both loops keep a \
+             role-correct winding about the flipped outward normal; got {:?}",
+            inverted_roles(&mutant)
+        );
+        assert_eq!(
+            check_9(&mutant),
+            vec![ValidationError::RingOutsideOuter {
+                face,
+                ring: outer,
+                ring_vertex: mutant
+                    .get_half_edge(match mutant.get_loop(outer).unwrap().boundary {
+                        LoopBoundary::Cycle { first } => first,
+                        LoopBoundary::Empty { .. } => panic!("the outer loop is a cycle"),
+                    })
+                    .unwrap()
+                    .start,
+            }],
+            "the ring now ENCLOSES the face's outer loop and nothing else \
+             in the battery says so"
+        );
+    }
+
+    /// **The nesting arm refuses no honest body.** The direction that
+    /// costs a user a valid model is a false refusal, so every closed
+    /// fixture the battery already blesses is walked for one, planes
+    /// grafted on so the arm's gate is open rather than vacuous.
+    #[test]
+    fn the_nesting_arm_is_silent_on_every_closed_fixture() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let mut ringed = 0;
+        // The operator-built family: `plane_every_face` fits a Newell
+        // plane per face, which needs three vertices on a loop, and
+        // the raw pillow/prism fixtures carry two-vertex loops. They
+        // carry no rings either, so the arm would be vacuous on them.
+        for mut body in [ops_cube(tol).body, ops_holed_box(tol).body, ops_genus2(tol)] {
+            plane_every_face(&mut body);
+            for (_, face) in body.faces.iter() {
+                if !face.rings.is_empty() && outer_loop_is_a_polygon(&body, face.outer) {
+                    ringed += 1;
+                }
+            }
+            let (errors, _) = tier3_local_checks(&body, &[], band, tol, None);
+            let ours: Vec<&ValidationError> = errors
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        ValidationError::RingOutsideOuter { .. }
+                            | ValidationError::RingNestingUndecided { .. }
+                    )
+                })
+                .collect();
+            assert!(ours.is_empty(), "the nesting arm refused a fixture: {ours:?}");
+        }
+        assert!(
+            ringed > 0,
+            "at least one fixture must reach the arm's gate, or the row \
+             asserts nothing"
         );
     }
 
