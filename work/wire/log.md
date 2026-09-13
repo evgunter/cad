@@ -2240,3 +2240,99 @@ And the lane filed a row against another program for a header claiming
 "every rung" while pinning five — then shipped a new instance of exactly
 that in the file it was editing (`every_variant_names_its_subject` is now
 five of seven). Recorded on the PR, not smoothed over.
+
+## 2026-09-13 — PR 2480's FULL review: the byte-identity claim was measured, not argued
+
+**0 MAJOR, 4 MINOR, 4 NOTE, 11 style.** Verdict mergeable. This is the
+unit `plan.md` raised to a full review at dispatch against three **E**
+class estimates, and the raise earned itself on the central claim alone.
+
+### The instrument the claim needed, and the review built it
+
+The unit claimed **exactly one refusal's text moves** and every other
+message is byte-identical under a new compile-time composition. The brief
+forbade settling that by reading the macro. The reviewer wrote
+`zz_probe_operand_messages.rs` — one document, **19 miswirings**,
+rendering `(expected, found, input)` for every document-reachable
+`WrongOperand` — compiled it **unchanged on both trees**, and diffed the
+two rendered sets.
+
+**Exactly three lines differ, all `section_of`**; thirteen other rows are
+byte-identical, covering 13 of the 15 converted sites. The claim holds,
+and now it holds because it was measured.
+
+The probe is kept and handed to the fix pass. It is **the shape-level
+census the suite does not have**, which is the reviewer's phrase and the
+right one: the unit's own suite pins six chosen miswirings, the probe
+enumerates the road.
+
+Also settled by counting both trees rather than by assertion: **17
+`WrongOperand` constructions on the base, 2 on the head.**
+
+### The finding that matters most: two stated rules with nothing behind them
+
+*"Constructed at exactly two sites"* and *"no `expected:` is a literal at
+a call site"* are **source-text predicates that nothing reds.** A third
+construction ships green; a fresh literal ships green.
+
+**The history is the argument, and it is this program's own.**
+`wire-expected-phrases-spell-family-words-as-literals` was closed on
+PR 2376; the literals came back as
+`composed-expected-phrases-are-hand-copied-across-sites`, which is one of
+the rows this unit closes. Closing it a second time with nothing guarding
+it is an invitation to a third. A source census is idiomatic here —
+`every_suite_file_is_aggregated` and a dozen suites already walk source
+through `test_utils::source` — so "unguardable" is not available.
+
+**The same shape one level up, and the trap's eleventh instance**:
+`macro_rules! family_word` closes a hand-written list by minting a second
+hand-written list. A const with no arm is a compile error, which is the
+good half; **an arm with no const is silently dead**, because macro arms
+are not dead-code-linted.
+
+### What the sweep's stated blind spot was hiding
+
+The unit's grep keyed on `NodeErrorKind::WrongOperand`, and said so. The
+review went after the shape instead and found **four more same-shape
+sites in the same file** — `resolve_open_faces` and `resolve_selection`
+are *the same five lines*, and `wire_datum` carries a third copy inline —
+against a PR sentence disposing of the area as *"one enum, two arms, no
+duplication yet."*
+
+The class as it actually stands has **six spellings in this crate**:
+`expected/found`, `name/found` (three error kinds), `verb/found`,
+`wanted/found`, `expected/found` again in `stackup.rs`, and the node road
+already filed on DOCM. One row is owed for the entity-kind door, and the
+"no duplication yet" sentence is owed a retraction.
+
+### Two half-fixes of rows this very unit closes
+
+- **The module header is better and still short.** It names wiring and
+  declaration routing, not the ~150 lines of placement-rule arithmetic
+  that is `pub(crate)` with a consumer *outside* the module. Since the
+  unit closes `wire-rs-module-header-describes-five-sixths-of-the-file`,
+  a header that still omits a job is a half-fix of the row it closes.
+- **The stated goal is already false inside its own file.** Four sites
+  spell a `phrase::` const plus a suffix by hand — `"datum frame x
+  axis"`, `"datum frame y axis"`, `"datum plane normal"`,
+  `DATUM_AXIS_ROLE` — none composed.
+
+### A correction against the orchestrator, recorded
+
+My brief gave `wire.rs` as 4861 lines on the head. That is the **merge
+base**; the head is 4921, and the PR's own sentence had it right. Third
+time on this program that a lane's or a reviewer's number beat the
+orchestrator's — the earlier two were the shallow-clone datings. The
+lesson is the same one: **the orchestrator's numbers are the ones nobody
+re-takes**, so state where they came from.
+
+### One design wrinkle worth keeping
+
+`node_operand`'s two halves disagree about which node they answer for:
+`found` comes from `node_value_kind`, which walks `Node::Transform`
+chains, while the caller's `read` matches the unwalked node — so a
+transform over a profile would refuse **`expected: "profile", found:
+"profile"`**. Unreachable today because `wire_transform` poisons the loft
+first, which is why it is MINOR rather than MAJOR; but a door whose two
+halves disagree about their subject is the thing that becomes reachable
+later, quietly.
