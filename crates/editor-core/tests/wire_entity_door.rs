@@ -437,6 +437,32 @@ mod source_rules {
         out
     }
 
+    /// **The parameter list of the closure whose body is the
+    /// construction at `at`**, or `None` if the construction is not a
+    /// closure's whole body.
+    ///
+    /// This is what tells a refusal that was HANDED its word from one
+    /// that merely spells a binding of that name. `found` being the
+    /// bare identifier `found` is not enough on its own: a road can
+    /// write `let found = /* its own answer */;` above the call and
+    /// pass a closure that ignores the parameter, and the refusal then
+    /// reads identically while answering something else. Requiring
+    /// `found` to be one of the CLOSURE's parameters is the rule the
+    /// door actually rests on.
+    ///
+    /// The walk is backwards over whitespace to a closing `|`, then
+    /// back to its opener. It deliberately does not try to pair `|`s
+    /// across a whole argument list: the construction must be the
+    /// closure's entire body, which is both the shape every road here
+    /// uses and the shape that leaves no room for a statement between
+    /// the binding and the refusal.
+    fn refuse_params(code: &str, at: usize) -> Option<&str> {
+        let head = code[..at].trim_end();
+        let close = head.strip_suffix('|')?.len();
+        let open = code[..close].rfind('|')?;
+        Some(&code[open + 1..close])
+    }
+
     /// **`EntityKey::kind` is called in exactly one place in
     /// `eval/wire.rs`, and that place is inside the entity door.**
     ///
@@ -504,11 +530,14 @@ mod source_rules {
     /// - a variant with no `found: …EntityKind` handed to a door as a
     ///   refusal — present in `built`, absent from `declared`.
     ///
-    /// The `found` field must be the bare binding `found` — the door's
-    /// closure parameter. A construction that computed its own word
-    /// (`found: EntityKind::Face`, or a `match` over the key bound to
-    /// another name) fails the form test, and that is the rule as
-    /// stated rather than a proxy for it.
+    /// **The `found` field must be the binding the door HANDED it**,
+    /// and that is two checks rather than one, because the weaker of
+    /// them is a proxy. A construction that computes its own word
+    /// (`found: EntityKind::Face`) fails the first. A road that writes
+    /// `let found = …;` above the call and passes a closure ignoring
+    /// the parameter passes the first and reads identically — so the
+    /// second requires the construction to be the whole body of a
+    /// closure whose PARAMETERS include `found` ([`refuse_params`]).
     #[test]
     fn every_entity_kind_refusal_takes_found_from_the_door() {
         let mod_code = source::blanked(source::code_only, "eval/mod.rs", MOD);
@@ -540,6 +569,18 @@ mod source_rules {
                      answers what was found and a road takes the word it is handed",
                     line(WIRE, b.at),
                     b.variant
+                );
+                // …and the binding it spells must be the one the door
+                // HANDED it, not a local of the same name.
+                let params = refuse_params(&code, b.at);
+                assert!(
+                    params.is_some_and(|p| p.split(',').any(|t| t.trim() == "found")),
+                    "eval/wire.rs line {}: `{}` is not the body of a closure that binds \
+                     `found` (its head is `{}`) — a road that spells `found` without being \
+                     handed it has answered the door's question itself",
+                    line(WIRE, b.at),
+                    b.variant,
+                    params.unwrap_or("<not a closure body>").trim()
                 );
                 built.push(b.variant);
             }
