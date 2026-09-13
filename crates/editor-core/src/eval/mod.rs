@@ -811,6 +811,92 @@ impl core::fmt::Display for NodeRefusal {
     }
 }
 
+/// **The entity-kind door**: one home for *read a thing, test what kind
+/// of entity it is, refuse* — and, unlike a door built out of a
+/// convention, one a road cannot go around.
+///
+/// Four refusals in `eval::wire` ask that question — a shell's open
+/// designation, a blend's selection, a derived frame's face, a
+/// measure's scope. They differ in the entity they admit, in the word
+/// they use for the road, and in what else the refusal carries (a
+/// name, a verb). They do NOT differ in how the answer to *"what was
+/// it instead"* is obtained, and that half is this module's.
+///
+/// # Why a token rather than a rule
+///
+/// The obvious shape hands the road an [`crate::names::EntityKind`]
+/// and asks it not to make one up. That is a rule, and a rule over a
+/// spelling is enforceable only by a reader or a census — both of
+/// which can be walked past by a road that computes its own answer and
+/// passes it where the door's belongs. [`Found`] removes the question:
+/// it carries the kind, its field is private to this module, and
+/// [`entity`] is the only thing that can mint one. A road picks WHICH
+/// refusal to build and what else it carries; the kind inside it is
+/// not something the road is able to choose.
+///
+/// The refusals therefore keep their own identities — four variants,
+/// four sentences — while the one fact they share has one source.
+pub mod entity_door {
+    use crate::names::{EntityKey, EntityKind};
+
+    use super::NodeErrorKind;
+
+    /// **What an entity turned out to be**, as a value only
+    /// [`entity`] can make.
+    ///
+    /// Readable by anyone (a refusal renders it; a test asserts on
+    /// it), constructible by nobody outside this module — the private
+    /// field is the whole mechanism, and it is why no census guards
+    /// the rule this type states.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Found(EntityKind);
+
+    impl Found {
+        /// The kind, for a reader.
+        #[must_use]
+        pub fn kind(self) -> EntityKind {
+            self.0
+        }
+
+        /// The indefinite article agreeing with [`Found::noun`] — the
+        /// value decides it ("an edge", "a face"), so a sentence that
+        /// hard-codes one is wrong for some kind it can reach.
+        pub(crate) fn article(self) -> &'static str {
+            self.0.article()
+        }
+
+        /// The kind as a prose noun, for a refusal's own sentence.
+        pub(crate) fn noun(self) -> &'static str {
+            self.0.noun()
+        }
+    }
+
+    /// **What kind of entity is this, and refuse if it is not** — the
+    /// one home for that question, over a resolved
+    /// [`crate::names::EntityKey`].
+    ///
+    /// `read` is the only thing a caller decides about the ADMITTED
+    /// set: the projection that either finds on the key what this
+    /// door's consumer needs ([`EntityKey::face`], [`EntityKey::edge`],
+    /// or a wider one where a road admits two kinds), or says it is
+    /// not there. `refuse` is that road's OWN refusal — a shell
+    /// designation names a face, a blend's names an edge under its
+    /// verb, a measure's reference names a scope — and it is handed
+    /// the one thing it could not otherwise have.
+    ///
+    /// # Errors
+    ///
+    /// `refuse`'s own refusal, when `read` finds the key is not the
+    /// entity asked for.
+    pub(crate) fn entity<R>(
+        key: EntityKey,
+        read: impl FnOnce(EntityKey) -> Option<R>,
+        refuse: impl FnOnce(Found) -> NodeErrorKind,
+    ) -> Result<R, NodeErrorKind> {
+        read(key).ok_or_else(|| refuse(Found(key.kind())))
+    }
+}
+
 /// The closed set of node-evaluation failures. Kernel errors are
 /// carried UNALTERED (spec D2: no stringification).
 #[derive(Debug)]
@@ -1252,8 +1338,9 @@ pub enum NodeErrorKind {
         verb: sweep::blend::BlendKind,
         /// The offending name.
         name: Box<crate::names::StableName>,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// A blend node's selection is EMPTY. A blend of nothing is not
     /// the identity — it is an unfinished recipe, refused rather than
@@ -1295,8 +1382,9 @@ pub enum NodeErrorKind {
     ShellOpenKind {
         /// The offending name.
         name: Box<crate::names::StableName>,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// **This evaluation scalar cannot form the shell door's call.**
     /// The door validates what it built with a certified claim, so it
@@ -1325,8 +1413,9 @@ pub enum NodeErrorKind {
     FaceFrameKind {
         /// The offending name.
         name: Box<crate::names::StableName>,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// A derived frame's face is not planar (DM1b): a sketch frame
     /// needs a plane, and the carrier found is named so a headless
@@ -1480,8 +1569,9 @@ pub enum NodeErrorKind {
     MeasureSelectionKind {
         /// Which primitive.
         verb: &'static str,
-        /// What it actually denotes.
-        found: crate::names::EntityKind,
+        /// What it actually denotes — the entity door's own answer,
+        /// which no road can have written ([`entity_door::Found`]).
+        found: entity_door::Found,
     },
     /// The clearance engine refused a `min_clearance` measurement,
     /// typed and by its own class name (E7's refusal vocabulary,

@@ -20,9 +20,10 @@
 //! kernel op either: the kernel takes entity keys, and everything that
 //! turns an authored name into one, or into an N5 refusal, is this
 //! module's. What a resolved name DENOTES is the question after it,
-//! and it has one door too ([`entity`], [`named_entity`]): a road
-//! supplies the projection and its own refusal, never the word for the
-//! kind it found.
+//! and it has one door too: [`named_entity`] over
+//! [`super::entity_door`]. A road supplies the projection and its own
+//! refusal and CANNOT supply the word for the kind it found — that
+//! word arrives as a token only the door can mint.
 //!
 //! **The declaration routing.** A union's declared face pairs are
 //! authored against its MEMBERS and consumed by a fold of pairwise
@@ -2549,58 +2550,25 @@ mod ladder {
     }
 }
 
-// ENTITY-DOOR BEGIN — the region the `wire_entity_door` suite's
-// `source_rules` census reads. Those rows equate two independently
-// derived sets: the `NodeErrorKind` variants `eval/mod.rs` declares
-// with a `found: …EntityKind` field, and the refusals written inside
-// the ARGUMENT LIST of a call to a door declared between these
-// sentinels. A carrier built anywhere else in this file is named by
-// line. They also require `kind()` — the call that answers `found:` —
-// to be made inside these sentinels and nowhere else here. A door
-// added here is measured the moment it is typed, and the call sites
-// the rows read are derived from what is declared here, so a rename
-// carries them.
-
-/// **What kind of entity is this, and refuse if it is not** — the one
-/// home for that question, over a resolved [`names::EntityKey`].
+/// **The entity-kind question asked of an authored NAME** — the
+/// designation road, for every door that reads a name out of the
+/// recipe: resolve it through the [`ladder`] first, then hand the key
+/// to [`super::entity_door::entity`].
 ///
-/// `read` is the only thing a caller decides about the ADMITTED set:
-/// the projection that either finds on the key what this door's
-/// consumer needs ([`names::EntityKey::face`], [`names::EntityKey::edge`],
-/// or a wider one where a road takes two kinds), or says it is not
-/// there. `refuse` is that road's OWN refusal, and it stays its own:
-/// a shell designation names a face, a blend's names an edge under its
-/// verb, a measure's reference names a scope — three sentences a user
-/// reads, three variants, one question behind them.
-///
-/// **`found:` is not a caller's to write**, for the reason
-/// [`operand`] gives at length over values — the one statement of that
-/// rule in this file, and this door obeys it rather than restating it.
-/// What is this door's own is the SOURCE of the word: the kind the
-/// entity actually has, read off the key HERE, where a value door
-/// reads a payload.
-fn entity<R>(
-    key: names::EntityKey,
-    read: impl FnOnce(names::EntityKey) -> Option<R>,
-    refuse: impl FnOnce(names::EntityKind) -> NodeErrorKind,
-) -> Result<R, NodeErrorKind> {
-    read(key).ok_or_else(|| refuse(key.kind()))
-}
-
-/// **The same question asked of an authored NAME** — the designation
-/// road, for every door that reads a name out of the recipe: resolve
-/// it through the [`ladder`] first, then test what it landed on.
-///
-/// It is a second door rather than a second copy of [`entity`] because
-/// the name is a second thing the refusal CARRIES, not a second way of
-/// asking: all three of these refusals name the offending designation
-/// so the author knows which of a list failed, and the boxed clone
-/// that puts it there is made here, once, rather than at each road.
+/// It is a door of its own rather than a second copy because the name
+/// is a second thing the refusal CARRIES, not a second way of asking:
+/// all three of these refusals name the offending designation so the
+/// author knows which of a list failed, and the boxed clone that puts
+/// it there is made here, once, rather than at each road.
 ///
 /// `unresolved` is the road's N5 vocabulary and `refuse` its kind
-/// refusal; the two are separate because they are separate answers —
-/// a name that stopped resolving is not a name of the wrong kind, and
+/// refusal; the two are separate because they are separate answers — a
+/// name that stopped resolving is not a name of the wrong kind, and
 /// rung 1 outranks this door entirely ([`ladder::Live`]).
+///
+/// The one thing neither this door nor its callers can supply is the
+/// KIND: [`super::entity_door::Found`] is mintable only inside that
+/// module, so `refuse` receives it and passes it on.
 ///
 /// # Errors
 ///
@@ -2612,13 +2580,11 @@ fn named_entity<R>(
     table: &NameTable,
     unresolved: impl Fn(Box<crate::resolve::ResolveError>) -> NodeErrorKind,
     read: impl FnOnce(names::EntityKey) -> Option<R>,
-    refuse: impl FnOnce(Box<names::StableName>, names::EntityKind) -> NodeErrorKind,
+    refuse: impl FnOnce(Box<names::StableName>, super::entity_door::Found) -> NodeErrorKind,
 ) -> Result<R, NodeErrorKind> {
     let ent = ladder::resolve_in(name, doc, table, unresolved)?;
-    entity(ent.key, read, |found| refuse(Box::new(name.clone()), found))
+    super::entity_door::entity(ent.key, read, |found| refuse(Box::new(name.clone()), found))
 }
-
-// ENTITY-DOOR END
 
 /// Resolves a fillet's edge selection against the target's name table
 /// (M6-5). Single-operand, so simpler than
@@ -2685,7 +2651,7 @@ impl<T: Decide> Selected<'_, T> {
     /// [`NodeErrorKind::MeasureSelectionKind`], naming what was
     /// selected instead.
     fn faces(&self) -> Result<Vec<topo::entity::FaceKey>, NodeErrorKind> {
-        entity(
+        super::entity_door::entity(
             self.key,
             |key| match key {
                 names::EntityKey::Body => Some(self.body.faces().map(|(k, _)| k).collect()),
