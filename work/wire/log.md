@@ -4040,3 +4040,82 @@ My PR comment came back through the away channel as an event, because I
 did not **lead it with the `(WIRE orchestrator)` tag** — which is both
 the thread subscription and the self-suppression key. The etiquette is in
 `memories/orchestration-model.md` and I simply did not follow it.
+
+## 2026-09-13 — the entity door took the structural route, and the defeats stopped compiling
+
+The lane was asked whether `refuse` could take something a road cannot
+manufacture. **It can, and it does.**
+
+```rust
+pub mod entity_door {
+    pub struct Found(EntityKind);        // field private to this module
+    pub(crate) fn entity<R>(key, read, refuse: impl FnOnce(Found) -> NodeErrorKind)
+        -> Result<R, NodeErrorKind> { read(key).ok_or_else(|| refuse(Found(key.kind()))) }
+}
+```
+
+The roads are **unchanged** — `|name, found| NodeErrorKind::ShellOpenKind
+{ name, found }` — and cannot mint the token, because they are not
+descendants of that module. The road still chooses the constructor; it
+cannot choose the kind.
+
+**All three of R2's defeats, plus the plainest fourth, now fail
+`cargo build`** with `error[E0308]: expected Found, found EntityKind`,
+and rustc's own note on every one is *"try wrapping the expression in
+`eval::entity_door::Found` (its field is private…)"*. Not "the census
+reds" — the program does not compile.
+
+**And the whole textual guard is deleted**: `refuse_params`, the form
+check, the `.kind()`-read-once row, the sentinels, `doors`,
+`door_calls`. The guard is now the equality plus a form the compiler
+enforces.
+
+### This is the third time the same move has paid, and now it has a name
+
+The census anchor that went green on an attribute, until a macro
+projected `ALL_NAMES` from the declaring tokens. The roster typed on the
+test side, until it was projected from the invocation. And now a closure
+shape policed by a parser, until a private field made the wrong call
+unspellable. **Stop policing the spelling; make the wrong thing
+unspellable** — and each time, the guard that replaced the policing was
+*smaller* than the policing it replaced.
+
+### The lane made a mistake inside the round and reported it
+
+Its first census rewrite asserted *"a `found` field but no `Found`"* and
+**redded on `WrongOperand`** — the *value* door's answer, which is
+correct and not its business. The claim is now that every refusal
+answering *what was it instead* is built in `eval/wire.rs` exactly once
+**and by one of the two doors**, with the doors told apart by declared
+field **type** or by sitting inside the operand sentinels, **never by
+name**. A third `found:` vocabulary reds, and so does a token type
+re-spelled out of recognition.
+
+### The adversarial answer was deletion
+
+R2 found that the commit extracting `line`/`boundary_before` had minted
+two byte-identical fragments **between the same two censuses**, one
+carrying a branch that could not fire. Both went out with the census that
+held them, and the lane's own sentence is the one to keep: **hoisting two
+helpers does not make a file free of the defect it hoisted them for.**
+
+`S4` swept into two more files, with one non-instance correctly
+identified (`pncad/tests/all.rs` counts a whole text, not a prefix) and
+one remaining instance **labelled rather than swept** —
+`shell_tolerance_chain.rs` hand-rolls `sentinel_region`, a different
+shared function and not this PR's.
+
+### A public-surface change, priced
+
+Four `NodeErrorKind` variants change a field's type. `NodeErrorKind`
+derives only `Debug` — no serde, no `PartialEq` — so nothing persisted or
+compared moved and no rendered string changed. One hand-minted refusal in
+`pncad-py`'s tests **was deleted because it can no longer be minted**,
+and the real path already reaches the same tag; that module's doc already
+made this argument for a sibling and now makes it for both.
+
+### The round runs because the lane said it should
+
+*"The door's shape changed, so this is a mechanism no review has seen"* —
+the lane's own words, against its own work, matching the condition I set.
+Third time today a lane has asked for the scrutiny that costs it.
