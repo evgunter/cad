@@ -28,7 +28,7 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{bowl, lantern, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{assert_full_revolve_rim, bowl, lantern, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, MevSite, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -198,7 +198,7 @@ fn curved_supports(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<FaceKey> {
 fn a_hostless_host_with_an_unrequested_outer_cycle_edge_refuses_at_the_host_gate() {
     let mut body = repaired(lantern(tol()));
     let arcs = rim_arcs_at(&body, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2);
+    assert_full_revolve_rim(&arcs, "the repaired lantern base");
     let (fa, fb) = faces_of(&body, arcs[0]);
     let host = if is_plane(&body, fa) { fa } else { fb };
     let ed = body.get_edge(arcs[0]).unwrap();
@@ -248,7 +248,7 @@ fn a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both
     // (a) Unrepaired plane side: `Seams` route.
     let mut body = hemisphere_on_flat_base();
     let arcs = rim_arcs_at(&body, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2);
+    assert_full_revolve_rim(&arcs, "the hemisphere base");
     merge_curved_wall(&mut body, &arcs);
     assert_eq!(
         curved_supports(&body, &arcs).len(),
@@ -350,7 +350,7 @@ fn two_hostless_rims_on_a_shared_mate_wall_compose_in_one_call() {
     let source = repaired(pole_cylinder());
     for (r, y) in [(1.0, 0.0), (1.0, 1.0)] {
         let arcs = rim_arcs_at(&source, r, y);
-        assert_eq!(arcs.len(), 2);
+        assert_full_revolve_rim(&arcs, "the pole cylinder rim");
         assert_eq!(
             planar_supports(&source, &arcs).len(),
             1,

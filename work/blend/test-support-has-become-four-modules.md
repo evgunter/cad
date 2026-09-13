@@ -61,3 +61,14 @@ should.
 Splitting the module is a diff across every suite that names it, and
 this unit's fence is the seed finders. Raised by the style review of PR
 2129 (Q8).
+
+## Growth (BLEND unit 7)
+
+Unit 7 added the extruded N-arc family — `disc_of_arcs`,
+`cylinder_of_arcs_at`, `bored_block_of_arcs`, `boss_of_arcs`,
+`pocket_of_arcs` (fixtures), `circle_arcs_at_z` (a selector),
+`assert_full_revolve_rim` (an assertion), `realized` (the one
+realized-boolean helper), `prism_at`, and `walked_chains` (a
+crate-private seam, the `ring_clearance` precedent) — taking the file
+from 1191 to about 1400 lines. The header now names the seams; the
+split above is where the N-arc family and the seam would land.
