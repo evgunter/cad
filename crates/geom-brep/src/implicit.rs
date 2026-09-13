@@ -337,6 +337,74 @@ pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T
     (half_tr.abs() + disc.sqrt()) / g.norm()
 }
 
+/// The subdivision count [`circle_arc_residual_range`] uses, and with
+/// it the **resolution law** of every circle-versus-surface clearance
+/// the boolean lane decides: over an arc of angular span `Δθ` whose
+/// composed residual has second-derivative bound `f2`, the enclosure
+/// is the sample hull widened by the chord-dip charge
+/// `f2·(Δθ/K)²/8`, so the arc clears iff its true clearance exceeds
+/// that charge plus the run's band. The charge falls as `K⁻²`; the
+/// cost is `K + 1` residual evaluations per examined pair.
+///
+/// `K = 256` is the ratified value (`docs/CURVED-TORUS-SPEC.md`
+/// §PR-2, ruling 3). It is set by the tightest measured consumer: the
+/// lily stem's 22° outer-equator seam against the arch's torus
+/// carrier clears by 8.6 mm with an arc-scoped `f2` of ~1.4e3 m/rad²,
+/// a charge of 0.39 mm — and still resolves against the much looser
+/// full-carrier `f2` of 7.9e3, whose charge is 2.2 mm. An adaptive
+/// count is not offered until a consumer needs a finer arc than this
+/// law admits.
+pub const ARC_RESIDUAL_SAMPLES: usize = 256;
+
+/// A conservative enclosure of [`implicit_residual`] over an **arc**
+/// `θ ∈ [t₀, t₁]` of the circle carrier
+/// `C(θ) = center + radius·(û·cosθ + v̂·sinθ)`, `v̂ = axis × û`, by
+/// certified subdivision.
+///
+/// The residual is sampled at [`ARC_RESIDUAL_SAMPLES`] + 1 parameters
+/// spanning the arc and the sample hull is widened by the chord-dip
+/// charge `f2·h²/8` of one sub-arc of width `h`: a C² function leaves
+/// the chord of a sub-interval of width `h` by at most `max|F″|·h²/8`,
+/// and `f2` encloses `|F″|` over this arc. It is `arc_extent`'s
+/// doctrine in residual space, and the consumer's two-endpoint chord
+/// dip is its `K = 1` instance.
+///
+/// Returns `(lo, hi)` in METERS (the residual's own linearized units),
+/// or `None` for the kinds with no curvature bound at all (cone,
+/// NURBS, `Approx`) — the caller keeps its frontier door there.
+///
+/// Total arithmetic: poison in, poison out. An arc whose `f2` is
+/// infinite — a circle that may reach a torus's axis, where the
+/// residual has a kink and no finite `|F″|` exists — returns the
+/// infinite enclosure by the arithmetic, with no branch to get wrong.
+#[must_use]
+pub fn circle_arc_residual_range<T: Real>(
+    s: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    t0: T,
+    t1: T,
+) -> Option<(T, T)> {
+    let f2 = arc_curvature_bound(s, center, axis, radius, u_ref, t0, t1)?;
+    let v = axis.cross(u_ref);
+    let step = (t1 - t0) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
+    let at = |k: usize| {
+        let (sin, cos) = (t0 + step * T::from_f64(k as f64)).sin_cos();
+        implicit_residual(s, center + u_ref * (radius * cos) + v * (radius * sin))
+    };
+    let mut lo = at(0);
+    let mut hi = lo;
+    for k in 1..=ARC_RESIDUAL_SAMPLES {
+        let r = at(k);
+        lo = lo.min(r);
+        hi = hi.max(r);
+    }
+    let charge = f2 * step.powi(2) * T::from_f64(0.125);
+    Some((lo - charge, hi + charge))
+}
+
 /// A conservative enclosure of [`implicit_residual`] over an ENTIRE
 /// circle carrier `C(θ) = center + radius·(û·cosθ + v̂·sinθ)`,
 /// `v̂ = axis × û` — the M6 door-A rider's algebra, shared with
@@ -348,10 +416,16 @@ pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T
 /// slack only ever widens the returned range, which sends more pairs
 /// to the typed frontier, never fewer).
 ///
+/// A **torus** has no harmonic form — the composed residual carries a
+/// `√` of a trigonometric polynomial — so the whole turn is enclosed
+/// by [`circle_arc_residual_range`] over `[0, τ]` instead. That
+/// enclosure is a sampled one and is looser than a closed form would
+/// be, in the direction that refuses rather than clears.
+///
 /// Returns `(lo, hi)` in METERS (the residual's own linearized
-/// units), or `None` for kinds without the closed harmonic form
-/// (cone, torus, NURBS) — the caller keeps its frontier door there.
-/// Total arithmetic: poison in, poison out.
+/// units), or `None` for kinds with neither form (cone, NURBS,
+/// `Approx`) — the caller keeps its frontier door there. Total
+/// arithmetic: poison in, poison out.
 #[must_use]
 pub fn circle_residual_extremes<T: Real>(
     s: &Surface<T>,
@@ -360,24 +434,29 @@ pub fn circle_residual_extremes<T: Real>(
     radius: T,
     u_ref: Vec3<T>,
 ) -> Option<(T, T)> {
-    let (c0, a1, a2) = circle_residual_harmonics(s, center, axis, radius, u_ref)?;
-    Some((c0 - a1 - a2, c0 + a1 + a2))
+    if let Some((c0, a1, a2)) = circle_residual_harmonics(s, center, axis, radius, u_ref) {
+        return Some((c0 - a1 - a2, c0 + a1 + a2));
+    }
+    circle_arc_residual_range(s, center, axis, radius, u_ref, T::zero(), T::tau())
 }
 
 /// A bound on `|d²F/dθ²|` for [`implicit_residual`] composed with the
-/// same circle carrier — the curvature term an ARC-SCOPED clearance
-/// needs.
+/// same circle carrier over the WHOLE turn — the curvature term an
+/// ARC-SCOPED clearance needs. [`circle_arc_residual_range`] uses the
+/// arc-scoped form of the same bound.
 ///
-/// The composed residual is `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)` (the
-/// second harmonic present only against a cylinder), so differentiating
-/// twice multiplies the harmonics by `1` and `4`: `|F″| ≤ A₁ + 4A₂`.
-/// With it, a smooth function's dip below its ENDPOINT CHORD is at most
-/// `|F″|max·Δθ²/8` — the same total-arithmetic bound the line row uses
-/// along a segment, and the reason an arc can clear where the whole
-/// circle it rides cannot.
+/// Against a plane/sphere/cylinder the composed residual is
+/// `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)` (the second harmonic present
+/// only against a cylinder), so differentiating twice multiplies the
+/// harmonics by `1` and `4`: `|F″| ≤ A₁ + 4A₂`. Against a torus the
+/// bound is the certified one of `docs/CURVED-TORUS-SPEC.md` §PR-2
+/// (see `arc_curvature_bound`). With it, a smooth function's dip
+/// below its ENDPOINT CHORD is at most `|F″|max·Δθ²/8` — the same
+/// total-arithmetic bound the line row uses along a segment, and the
+/// reason an arc can clear where the whole circle it rides cannot.
 ///
-/// `None` for the kinds without the closed harmonic form. Total
-/// arithmetic: poison in, poison out.
+/// `None` for the kinds with no bound at all (cone, NURBS, `Approx`).
+/// Total arithmetic: poison in, poison out.
 #[must_use]
 pub fn circle_residual_curvature_bound<T: Real>(
     s: &Surface<T>,
@@ -386,14 +465,110 @@ pub fn circle_residual_curvature_bound<T: Real>(
     radius: T,
     u_ref: Vec3<T>,
 ) -> Option<T> {
-    let (_, a1, a2) = circle_residual_harmonics(s, center, axis, radius, u_ref)?;
-    Some(a1 + T::from_f64(4.0) * a2)
+    arc_curvature_bound(s, center, axis, radius, u_ref, T::zero(), T::tau())
+}
+
+/// [`circle_residual_curvature_bound`]'s arc-scoped form: an
+/// enclosure of `|F″|` over `θ ∈ [t₀, t₁]` only.
+///
+/// The harmonic kinds ignore the arc — their bound is a property of
+/// the carrier, and restricting it would need the harmonic phases.
+/// The **torus** arm is where the arc earns its keep, and its bound
+/// is built from the composed squared distance to the spine circle.
+/// With `q = C(θ) − c`, `h = q·n`, `w = q − h·n`, `ρ = |w|` and
+/// `d² = (ρ − R)² + h²`, the residual is `(d² − r²)/2r`, so
+/// `(d²)″ = 2[(ρ′)² + (ρ−R)ρ″] + 2[(h′)² + h·h″]` and
+///
+/// ```text
+/// |(d²)″| ≤ 2ρ_c² + 2·D_max·(ρ_c + 2ρ_c²/ρ_min) + 2a_h² + 2·H_max·a_h
+/// ```
+///
+/// Every term is certified: `|w′|, |w″| ≤ ρ_c` because a
+/// perpendicular projection is a contraction of `C′`, whose length is
+/// the circle's radius `ρ_c`; `ρ′ = w·w′/ρ` gives `|ρ′| ≤ ρ_c` and
+/// `ρ″ = (|w′|² + w·w″)/ρ − (w·w′)²/ρ³` gives
+/// `|ρ″| ≤ ρ_c + 2ρ_c²/ρ_min`; `h` is an EXACT first harmonic of
+/// amplitude `a_h`, so `|h′|, |h″| ≤ a_h` on any arc at all.
+///
+/// `ρ_min`, `ρ_max` and `H_max` are the arc's own ranges — sampled at
+/// the same parameters the enclosure uses and widened by the
+/// Lipschitz charge `ρ_c·h/2`, since every parameter of the arc is
+/// within half a step of a sample and both `ρ` and `h` are
+/// `ρ_c`-Lipschitz. Scoping them to the arc is what makes the bound
+/// usable: on the lily's stem seam the full-carrier `D_max` is 7.86 m
+/// against the arc's 0.95 m, an eight-fold difference in the
+/// dominant term.
+///
+/// `ρ_min = 0` — an arc that may reach the axis — divides by zero and
+/// yields an infinite (interval lane: poisoned) bound. That is the
+/// honest answer: the residual has a kink on the axis. No branch
+/// tests for it.
+fn arc_curvature_bound<T: Real>(
+    s: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    t0: T,
+    t1: T,
+) -> Option<T> {
+    let Surface::Torus {
+        center: tc,
+        axis: tn,
+        major_radius,
+        minor_radius,
+        ..
+    } = *s
+    else {
+        let (_, a1, a2) = circle_residual_harmonics(s, center, axis, radius, u_ref)?;
+        return Some(a1 + T::from_f64(4.0) * a2);
+    };
+    let two = T::from_f64(2.0);
+    let v = axis.cross(u_ref);
+    let a_h = radius * (u_ref.dot(tn).powi(2) + v.dot(tn).powi(2)).sqrt();
+    let step = (t1 - t0) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
+    let lipschitz = radius * step.abs() / two;
+    let at = |k: usize| {
+        let (sin, cos) = (t0 + step * T::from_f64(k as f64)).sin_cos();
+        let p = center + u_ref * (radius * cos) + v * (radius * sin);
+        let (h, w) = axial_radial(p, tc, tn);
+        (w.norm(), h.abs())
+    };
+    let (rho0, h0) = at(0);
+    let (mut rho_lo, mut rho_hi, mut h_hi) = (rho0, rho0, h0);
+    for k in 1..=ARC_RESIDUAL_SAMPLES {
+        let (rho, h) = at(k);
+        rho_lo = rho_lo.min(rho);
+        rho_hi = rho_hi.max(rho);
+        h_hi = h_hi.max(h);
+    }
+    // A radius is never negative, so the clamp is the honest floor
+    // rather than a guard — and clamping to zero is what hands the
+    // through-axis case its infinity.
+    let rho_min = (rho_lo - lipschitz).max(T::zero());
+    let rho_max = rho_hi + lipschitz;
+    let h_max = h_hi + lipschitz;
+    let d_max = (rho_min - major_radius)
+        .abs()
+        .max((rho_max - major_radius).abs());
+    let rho_second = radius + two * radius.powi(2) / rho_min;
+    let d2_second =
+        two * radius.powi(2) + two * d_max * rho_second + two * a_h.powi(2) + two * h_max * a_h;
+    Some(d2_second / (two * minor_radius))
 }
 
 /// The composed residual's harmonic decomposition in RESIDUAL units:
-/// `(c₀, A₁, A₂)` of `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)`. Both readers
-/// above are views of this one algebra, so the range and the curvature
-/// bound cannot drift apart.
+/// `(c₀, A₁, A₂)` of `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)`. The whole-turn
+/// range and the curvature bound are both views of this one algebra
+/// where it exists, so they cannot drift apart.
+///
+/// It exists for the plane, the sphere and the cylinder and for no
+/// other kind. The **torus** answers `None` here and is served by
+/// `arc_curvature_bound`'s own arm instead: the composed residual
+/// carries `√` of a trigonometric polynomial (the distance to the
+/// spine circle), which is not a trigonometric polynomial and has no
+/// harmonic triple to report. Answering one would be a lie, not a
+/// widening.
 fn circle_residual_harmonics<T: Real>(
     s: &Surface<T>,
     center: Point3<T>,
@@ -718,8 +893,10 @@ mod tests {
                 assert!((seen_lo - lo).abs() < 1e-5 && (seen_hi - hi).abs() < 1e-5);
             }
         }
-        // No closed form for cone/torus/NURBS: the caller keeps its
-        // frontier door.
+        // **The torus answers now, and it answers by SUBDIVISION.**
+        // There is still no harmonic form — the pin is that the arc
+        // door stands in for one over the whole turn, and that what
+        // it returns encloses.
         let torus = Surface::Torus {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -727,7 +904,34 @@ mod tests {
             minor_radius: 0.5,
             u_ref: Vec3::unit_x(),
         };
-        assert!(circle_residual_extremes(&torus, center, axis, radius, u_ref).is_none());
+        let (lo, hi) =
+            circle_residual_extremes(&torus, center, axis, radius, u_ref).expect("the torus arm");
+        let mut seen_lo = f64::INFINITY;
+        let mut seen_hi = f64::NEG_INFINITY;
+        for i in 0..4096 {
+            let r = implicit_residual(&torus, eval(core::f64::consts::TAU * f64::from(i) / 4096.0));
+            assert!(
+                lo <= r && r <= hi,
+                "torus sample {r} escapes [{lo}, {hi}] — the subdivision is unsound"
+            );
+            seen_lo = seen_lo.min(r);
+            seen_hi = seen_hi.max(r);
+        }
+        // And it is not the whole world: the charge is small against
+        // the range it widens.
+        assert!(
+            seen_lo - lo < 0.1 * (seen_hi - seen_lo) && hi - seen_hi < 0.1 * (seen_hi - seen_lo),
+            "the charge dominates the range it widens: [{lo}, {hi}] around              [{seen_lo}, {seen_hi}]"
+        );
+        // The cone keeps the frontier door: no harmonic form and no
+        // curvature bound either.
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::unit_x(),
+        };
+        assert!(circle_residual_extremes(&cone, center, axis, radius, u_ref).is_none());
     }
 }
 
@@ -843,6 +1047,58 @@ mod arc_clearance_tests {
                 1.0,
                 x,
             ),
+            // The torus arm's three shapes. It has no harmonic
+            // triple, so its bound comes from the certified
+            // `|(d²)″|` of `docs/CURVED-TORUS-SPEC.md` §PR-2 — and
+            // the three terms that bound differ in which of these
+            // reaches them: the coplanar case has `a_h = 0` and
+            // exercises the radial channel alone, the tilted case
+            // turns on the axial channel (`a_h ≠ 0`, the
+            // n-projection terms), and the near-axis case drives
+            // `2ρ_c²/ρ_min` — the term the through-axis row below
+            // takes to infinity.
+            case(
+                "torus, coplanar offset circle",
+                Surface::Torus {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    axis: z,
+                    major_radius: 1.0,
+                    minor_radius: 0.25,
+                    u_ref: x,
+                },
+                Point3::new(1.7, 0.0, 0.0),
+                z,
+                0.8,
+                x,
+            ),
+            case(
+                "torus, tilted circle (a_h large)",
+                Surface::Torus {
+                    center: Point3::new(0.1, -0.2, 0.0),
+                    axis: z,
+                    major_radius: 1.2,
+                    minor_radius: 0.3,
+                    u_ref: x,
+                },
+                Point3::new(0.3, 0.4, 0.2),
+                tilt,
+                1.1,
+                tilt_u,
+            ),
+            case(
+                "torus, near-axis circle",
+                Surface::Torus {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    axis: z,
+                    major_radius: 0.9,
+                    minor_radius: 0.2,
+                    u_ref: x,
+                },
+                Point3::new(0.66, 0.0, 0.35),
+                steep,
+                0.6,
+                tilt_u,
+            ),
         ]
     }
 
@@ -870,6 +1126,11 @@ mod arc_clearance_tests {
     /// both tilted-cylinder cases (their `A₂` is the dominant term);
     /// the coaxial, sphere and plane cases have `A₂ = 0` and cannot
     /// see that constant at all, which is why the tilted rows are here.
+    /// The torus arm's terms are covered the same way and by the same
+    /// argument — each of §PR-2's four terms dominates in one of the
+    /// three torus cases, so dropping the `D_max·ρ″` product reds the
+    /// near-axis case and flipping the sign of either n-projection
+    /// term reds the tilted one.
     #[test]
     fn the_curvature_bound_encloses_the_sampled_second_derivative() {
         const N: usize = 4096;
@@ -989,5 +1250,80 @@ mod arc_clearance_tests {
             let t = t0 + (t1 - t0) * f64::from(k) / 512.0;
             assert!(residual_at(&s, c, axis, r, u, t) > 0.0);
         }
+    }
+
+    /// **A circle that may reach the torus's axis has NO finite
+    /// curvature bound, and the arithmetic says so.** `ρ_min = 0`
+    /// puts a zero in the denominator of `2ρ_c²/ρ_min`; the residual
+    /// really does have a kink on the axis (the chart's `|w|` is not
+    /// differentiable there), so an infinite enclosure is the honest
+    /// answer and not a limitation. No branch tests for it — this row
+    /// exists because a branch is exactly what a later reader would
+    /// be tempted to add.
+    ///
+    /// The consumer's reading of the infinity is the point: the
+    /// margin `lo.max(-hi)` is `−∞`, which is a definite NEGATIVE and
+    /// takes the typed frontier door, never a clearance.
+    #[test]
+    fn a_through_axis_circle_encloses_infinitely_rather_than_branching() {
+        let s = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 1.0,
+            minor_radius: 0.25,
+            u_ref: Vec3::unit_x(),
+        };
+        // A circle in the ring plane whose centre stands exactly its
+        // own radius from the axis: it MEETS the axis, at `t = π`.
+        let center = Point3::new(0.5, 0.0, 0.0);
+        let (lo, hi) =
+            circle_arc_residual_range(&s, center, Vec3::unit_z(), 0.5, Vec3::unit_x(), 0.0, TAU)
+                .expect("the torus arm answers, infinitely");
+        assert!(
+            lo == f64::NEG_INFINITY && hi == f64::INFINITY,
+            "the through-axis enclosure must be the whole line: [{lo}, {hi}]"
+        );
+        assert!(
+            lo.max(-hi) == f64::NEG_INFINITY,
+            "and the consumer's margin must be a definite negative"
+        );
+        let bound =
+            circle_residual_curvature_bound(&s, center, Vec3::unit_z(), 0.5, Vec3::unit_x())
+                .expect("the torus arm answers");
+        assert!(bound.is_infinite(), "the bound itself is infinite: {bound}");
+    }
+
+    /// The same circle at the **interval** scalar: the division by an
+    /// enclosure that contains zero poisons rather than overflowing,
+    /// and a poisoned margin is what the boolean lane escalates on.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn a_through_axis_circle_poisons_the_interval_lane() {
+        use geom_core::{Bounds, Interval};
+        let i = Interval::from_f64;
+        let s = Surface::Torus {
+            center: Point3::new(i(0.0), i(0.0), i(0.0)),
+            axis: Vec3::new(i(0.0), i(0.0), i(1.0)),
+            major_radius: i(1.0),
+            minor_radius: i(0.25),
+            u_ref: Vec3::new(i(1.0), i(0.0), i(0.0)),
+        };
+        let center = Point3::new(i(0.5), i(0.0), i(0.0));
+        let (lo, hi) = circle_arc_residual_range(
+            &s,
+            center,
+            Vec3::new(i(0.0), i(0.0), i(1.0)),
+            i(0.5),
+            Vec3::new(i(1.0), i(0.0), i(0.0)),
+            i(0.0),
+            Interval::tau(),
+        )
+        .expect("the torus arm answers");
+        let margin = lo.max(-hi);
+        assert!(
+            margin.is_poison() || margin.hi() <= 0.0,
+            "the interval lane must refuse on the axis, never certify a \
+             clearance: [{lo:?}, {hi:?}]"
+        );
     }
 }
