@@ -49,7 +49,7 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeDescription, MustCarryVerdict, SurfaceKind, must_carry_over_edge};
 use geom_core::{Band, MarginDiag, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{ExtrudeError, Extrusion, RevolveAxis, Revolution, extrude, revolve};
+use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
 /// The run's resolved linear band — the same one both verbs classify
@@ -146,7 +146,10 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
     let r = MERIDIAN_R;
     let h = 0.3;
     // The arc runs from 45° to 180° about the tube centre `(r_bore + r, 0)`.
-    let shoulder = Point2::new(r_bore + r + r * core::f64::consts::FRAC_1_SQRT_2, r * core::f64::consts::FRAC_1_SQRT_2);
+    let shoulder = Point2::new(
+        r_bore + r + r * core::f64::consts::FRAC_1_SQRT_2,
+        r * core::f64::consts::FRAC_1_SQRT_2,
+    );
     let outer = shoulder.x;
     let bulge = (3.0 * core::f64::consts::FRAC_PI_4 / 4.0).tan();
     let lp = ProfileLoop::new(vec![
@@ -291,8 +294,8 @@ fn a_revolve_latitude_join_with_a_definite_positive_margin_stores_the_intrinsic_
 /// The revolve twin of the zero row.
 #[test]
 fn a_revolve_latitude_join_with_a_definite_zero_margin_stores_the_conventional_description() {
-    let body =
-        bored_ring(free_length_for(definite_zero_margin())).expect("an under-determined join builds");
+    let body = bored_ring(free_length_for(definite_zero_margin()))
+        .expect("an under-determined join builds");
     assert_eq!(
         tangent_intersections(&body),
         0,
@@ -689,7 +692,10 @@ fn dump_every_other_sweep_revolve_and_extrude_fixture_description() {
         ("cube", fx::cube(1.0, tol)),
         ("bowl", fx::bowl(tol)),
         ("domed cavity", fx::domed_cavity(tol)),
-        ("hemisphere on a flat base", fx::hemisphere_on_flat_base(1.0, tol)),
+        (
+            "hemisphere on a flat base",
+            fx::hemisphere_on_flat_base(1.0, tol),
+        ),
         ("rod with a flat", fx::rod_with_flat(tol)),
         ("spool (full)", fx::spool(Revolution::Full, tol)),
         (
@@ -700,7 +706,10 @@ fn dump_every_other_sweep_revolve_and_extrude_fixture_description() {
             "sphere zone, bored wide",
             fx::sphere_zone(1.0, Revolution::Full, tol),
         ),
-        ("ball poled on z", fx::ball_poled_z(0.75, Vec3::new(0.0, 0.0, 0.0), tol)),
+        (
+            "ball poled on z",
+            fx::ball_poled_z(0.75, Vec3::new(0.0, 0.0, 0.0), tol),
+        ),
     ];
     for (name, body) in &rows {
         println!("== {name} ==");
