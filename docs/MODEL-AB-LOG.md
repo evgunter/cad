@@ -5601,3 +5601,25 @@ e4e9603ad58c9c865d4e07f120a73b4d30084498a89aebb1f4c18e433a4869e8  blend-9-review
 5a9cec81b5fdbccec8851e7675d6b4c5be121a0a609e481994ede42b8807104c  blend-9-review-brief-r2.md
 slot 2 = BLEND-9 dual concluded (2026-09-13, ~05:30Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (FABLE) MERGEABLE-AFTER-FIXES 0/3/2, rubric 4/3/4; R2 (OPUS) MERGEABLE-AFTER-FIXES 1/5/6 + 8 style, rubric 4/4/4. ONE unilateral MAJOR (R2: the sweep receipt's unstated blind spot on the intrinsic-mint axis with a live in-fence hit at `blend/surgery.rs` `attach_contact`; R1 silent on it) — adjudicated against item 3: (a) yes, (b) claim/receipt class with the in-class question rated `likely`, (c) single, (d) NO — found by grep, not by execution, (e) yes ⇒ RECORDED, EXCLUDED from the tally under 3(d). Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number; the block's CONCLUDED record folds into main with it.
 slot 2 = BLEND-9 MERGED (2026-09-13, PR #2491 at 5cf67b504; sample #181 — PERF-12 took #180 on main first): delta by R1 on the fixed head confirmed all seven items; the row is on main in that merge. Slot 2 concluded. **Block BLEND-B1 CONCLUDED**: three slots (OPUS / FABLE / OPUS), three duals, zero counted tally candidates (one recorded and excluded under 3(d) at slot 2); v6 tally unchanged.
+
+Block BLEND-B3 pre-draw fields (2026-09-13, logged before the draw):
+slot 0 = BLEND-12 (`docs/BLEND-12-SPEC.md`,
+`fillet-escalation-site-has-no-producer`) — difficulty **S**,
+task-class **STRUCTURAL** (at its spec, on main via PR #2506); slot 1 =
+BLEND-14 (`docs/BLEND-14-SPEC.md`,
+`blend-contact-edges-mint-the-intrinsic-description-without-the-rule`)
+— **M / NUMERIC**; slot 2 = BLEND-15 (`docs/BLEND-15-SPEC.md`,
+`escalation-recourse-dispatch-has-three-homes`) — **S / STRUCTURAL**.
+Slots 1 and 2 at their specs, written 2026-09-13 (orchestrator PR
+#2507) before this draw. Slots 0 and 2 edit `crates/profile/*` by
+announced seam (S-BOOL's glob); slot 2 follows slot 0's merge.
+
+Block BLEND-B3 draw (2026-09-13, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**124**, 124 mod 3 = 1 = fable's position ⇒ **fable at slot 1**.
+So: slot 0 BLEND-12 = OPUS, slot 1 BLEND-14 = FABLE, slot 2 BLEND-15 = OPUS.
+Recorded branch-side on `blend/b3-block`; this record reaches main when
+the block's last slot's reviews conclude. Dispatch order: slots 0 and 1
+concurrently as lanes and disk allow; slot 2 after slot 0 merges.
+
+Block BLEND-B3 slot record (branch-side, appended as each slot concludes):
