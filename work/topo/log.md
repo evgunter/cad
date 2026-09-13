@@ -709,3 +709,23 @@ postcondition's cost half is already PERF-4's (its panic half is D1's
 question and rides with the chart ruling). Block TOPO-B2 draws after
 this entry is committed; the record goes branch-side on
 `topo/b2-block`.
+
+## Block TOPO-B2 drawn; slots 0 and 1 dispatched (2026-09-13)
+
+The byte was drawn after the pre-draw entry above was committed
+(`41edc9d2a`): 215 ⇒ 215 mod 3 = 2 ⇒ fable at slot 2. Record
+branch-side on `topo/b2-block`. Slot 0
+(`tier3-accepts-a-ring-outside-its-outer-loop`, branch
+`topo/tier3-ring-nesting`) and slot 1
+(`split-edge-children-lack-pcurve-rows-on-curved-charts`, branch
+`topo/split-edge-pcurve-rows`) dispatched together on the box's two
+lanes with brief sections in their item files; slot 2 (`revert`)
+dispatches when one frees. Seams announced: SHELL (one comment in
+`shell.rs`; the glue's second precondition is SHELL's call), TRIM
+(`pcurves.rs` read, at most one helper by seam), S-BOOL (the
+shell-roles check waits on the hollow-operand row). The briefs mark
+their instruments as hypotheses — `ray_parity.rs` for the nesting
+decide, the parameter split of a cached pcurve for the mint — for
+phase 1 to verify; the usage-limit cut of 2026-09-12 23:00 to
+2026-09-13 21:45 sat between the draw and the dispatch, with nothing
+running.
