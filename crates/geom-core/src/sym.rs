@@ -392,6 +392,46 @@
 //! coefficient past it is refused exactly as an overflow was, so a
 //! blow-up is a counted freeze and never an allocation to the ceiling.
 //!
+//! # Cost: where the tier's time goes, by count
+//!
+//! Measured with two instruments — `valgrind --tool=callgrind` over
+//! one leaf replay, and the structural profile behind the test-only
+//! `sym-profile-testing` feature (`profile`: forms per op with their
+//! sizes, every freeze with the cause noted at the refusal site, the
+//! ring's promotions, each walk's clock) — on the M10-3 slab and the
+//! two-hole plate at their nominals; the rows are
+//! `editor-core/tests/m10_sym_profile_interval`, the tables and the
+//! re-run method `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
+//!
+//! **The tier's instructions are TERM STORAGE, not arithmetic and not
+//! degree.** In release, 57 % of a replay's instructions on both
+//! documents are the allocator, the `BTreeMap` of terms and the heap
+//! `Vec` each monomial is, against 10 % in the coefficient ring on the
+//! slab (27 % on the plate, `num-bigint` 1.3 % and 12.7 % of those) and
+//! 0.3–1 % in the atom algebra's own code. The slab's forms are tiny —
+//! 1.5 terms on average, 10 at most, total degree up to 68, and NOT
+//! ONE freezes at any leaf of the chamber drive (19.1 M plain forms,
+//! `frozen = 0`) — so what the slab pays is volume times a fixed cost
+//! per form: 10,604 plain forms per leaf for 1,490 decisions, at
+//! ~7.6 k instructions each, over a DAG of 12,208 nodes interned afresh
+//! per leaf (`intern` is 12.6 % of a release replay). The plain walk is
+//! 56 % of a slab replay inclusive, the early walk 14 %, the per-node
+//! rule A/B reduction 4 %; the answer is the same at the nominal and
+//! over a leaf-sized box, because over 2 ε an identity's enclosure is
+//! still not definite and every identity's form is built either way.
+//!
+//! On the plate the same storage share sits inside `reduce_steps` —
+//! rules A/B per node, 53 % of the replay — and the freeze population
+//! is what the budget note in `editor-core`'s `SymbolicDials` says it
+//! is: 1,312 freezes over the three walks (1,044 in the plain walk),
+//! **1,032 on DEGREE** with the kids already at total degree 40–117 in
+//! one to seven terms, 280 on the coefficient bound (widest refused
+//! 401 bits against [`COEFF_BITS`]), and none on the term budget —
+//! no form on either document comes within 40× of it. Rule D's fold is
+//! 0.4 % of the plate's replay; the ring's heap path is 9 % of its
+//! operations and 12.7 % of its instructions, 1.5 % and 1.3 % on the
+//! slab, so the `i128` inline path holds on both.
+//!
 //! # The census: which identity-shaped predicates this tier reaches
 //!
 //! Two greps over `crates/` and `demos/` — one for the names handed to a
