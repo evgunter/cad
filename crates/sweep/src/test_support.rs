@@ -1241,6 +1241,10 @@ pub const ROD_FILLET: f64 = 0.1;
 /// compound this file is not ratified to spell (the bracket-bound
 /// allowlist is per file). The interval twin takes the same body through
 /// the extrude door instead — [`rod_d_profile_at`].
+///
+/// Bit-identical to the pre-delegation body only because `ROD_L = 1.0`
+/// makes the general form's `2·len` coincide with the old `len + 1.0`;
+/// the bit-dump differential is the guard, not the arithmetic.
 pub fn rod_with_flat(tol: Tol) -> Body<f64> {
     rod_with_flat_at(ROD_R, ROD_FLAT, ROD_L, 1.0, tol).unwrap_or_else(|e| panic!("{e}"))
 }

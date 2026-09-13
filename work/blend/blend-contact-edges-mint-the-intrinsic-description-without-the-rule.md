@@ -2,7 +2,8 @@
 id: blend-contact-edges-mint-the-intrinsic-description-without-the-rule
 kind: unit
 title: sweep: a blend's contact edge mints TangentIntersection without the must-carry rule
-status: review
+status: closed
+closed: 2026-09-13
 opened: 2026-09-13
 branch: blend/14-contact-edge-must-carry
 pr: 2509
@@ -99,3 +100,18 @@ description moved. Residues filed:
 `ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle`,
 `contact-edge-arm-is-picked-from-the-carrier-kind-not-the-dihedral`
 (this slate), `work/issues/dome-clearance-screen-escalates-an-invalid-margin`.
+
+## Closed (2026-09-13, PR 2509)
+
+The blend's contact edges are described through `must_carry_over_edge`
+like the extrude and revolve arms: intrinsic when the jet is determinate,
+a typed escalation with its own recourse when the second-order test is
+in band, a conventional chart when the jet is under-determined — the
+last two both reached and pinned through the public door. The recourse
+was corrected by measurement to be true at every site it fires (the
+radius lever's direction depends on which side of the separation peak
+the site sits and on whether the arm is curvature or extent). Residues
+on the slate from this unit: the D-hole crease (a rim in the cap's ring
+cannot be flanked); `attach_contact` deciding the dihedral class
+structurally; in `work/issues/`, a non-value margin reaching a
+user-facing refusal on the dome.
