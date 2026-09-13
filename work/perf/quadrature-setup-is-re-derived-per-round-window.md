@@ -61,6 +61,35 @@ eps = 1e-9):
 So the consumer-visible saving is a property of the body's schedule,
 and closing this item is what would make it unconditional.
 
+**How many faces pay it, measured** (PERF-11, release, 4 vCPU under
+the slot, medians of 3, the setup term read at ONE thread as
+`gate + continue − one measurement`, where the two doors are not
+competing for workers):
+
+| body | faces | open | continuation @1t | setup term | share |
+|---|---:|---:|---:|---:|---:|
+| arc loft @ 1e11·eps | 6 | 0 | 0.0 ms | — | — |
+| `loft_prism` | 6 | 0 | 0.0 ms | — | — |
+| arc loft @ 1e9·eps | 6 | 1 | 2169 ms | 493 ms | 23% |
+| arc loft @ 1e7·eps | 6 | 1 | 685 ms | 680 ms | 99% |
+| `quintic_prism` | 6 | 4 | 8005 ms | 639 ms | 8% |
+
+And over the tour's 61 tier-3 stops, the census of what a continuation
+actually resumes: **58 leave no face open at all**, two leave two
+(`tiltedcut_above`/`below`, 2.4 ms each) and one leaves eight of ten
+(`teapotspout`, 15.3 s — the whole of the tour's continuation cost).
+
+So the regime split this item already states holds, and the share of
+the continuation this item would remove runs from 8% to 99% depending
+on how much schedule the open faces have left. PERF-11 divided the term
+by the pool width instead of removing it (the continuation resumes its
+open faces as an indexed parallel map): on `teapotspout`, through the
+tour, 16.2 s → 4.1 s at four threads, while at ONE thread the same
+body is 14.2 s → 14.7 s — the width is the whole of the saving, and
+this item's term is untouched by it. A body with ONE open face gets nothing
+from that width and is exactly this item's subject — the arc loft at
+1e7·eps, 99% setup, unchanged at any width.
+
 ## What a fix is
 
 A per-face prepared object the lane builds once and rounds read from —
