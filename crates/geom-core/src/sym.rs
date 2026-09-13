@@ -63,31 +63,8 @@
 //! `floor` stays opaque. Overriding them would be strictly less
 //! cancellation for no gain.
 //!
-//! **The documented limits.** The normal form is a QUOTIENT of
-//! polynomials over the parameter symbols — a field of fractions, not a
-//! polynomial ring — so a reciprocal is a first-class part of it and
-//! `(x/y)·y − x` DOES decide symbolically: `x/y` is the form `x` over
-//! `y`, multiplying by `y` gives `xy/y`, and the difference's numerator
-//! is the zero polynomial. (The tier's headline row needs exactly that:
-//! an extruded strut's carrier is `origin + (w/‖w‖)·t`, so its endpoint
-//! residual is literally `w·(‖w‖·‖w‖⁻¹ − 1)`.) That is the whole of the
-//! reciprocal's reach, and it is a NORMAL FORM rather than a rewrite
-//! rule: nothing is factored, and no simplification is attempted.
-//!
-//! What remains outside the PLAIN form: no factoring, and no functional
-//! identity of any opaque atom — each atom is an indeterminate keyed by
-//! its argument's form, so two occurrences of ONE atom cancel and
-//! nothing else about it is known there. The SHIPPED tier layers the
-//! atom algebra on top (the M10-8, M10-9 and M10-10 sections below):
-//! `sqrt(x)·sqrt(x) − x` and `sin² + cos² − 1` DO decide as theorems
-//! under [`SymRules::shipped`] (rules A and B, over the top residual
-//! and per node), and `sin`/`cos` of `q · atan X` fold to closed forms
-//! (rule D). What still stands with the shipped set is what needs a
-//! SIGN: `|x| − x` on a nonnegative `x` is rule C's, and rule C is
-//! dial-off. These are limits of the tier and not bugs in it —
-//! over-refusal is the safe direction, and every such margin falls to
-//! the numeric channel exactly as before. (Through M10-9 this
-//! paragraph listed all three as undecided; R1 of M10-10 ran them.)
+//! **What the plain form is, and what it does not reach**, is [`form`]'s
+//! own docs, beside the quotient they are about.
 //!
 //! # The arc family, and what reaches it (M10-8)
 //!
@@ -372,25 +349,9 @@
 //! frozen nodes still share an id and therefore still cancel. Every
 //! freeze is counted ([`SymCounts::frozen`]).
 //!
-//! **The coefficients are arbitrary-precision dyadic-scaled rationals**
-//! ([`Rat`], over `num-bigint`), bounded at [`rational::COEFF_BITS`] bits. They
-//! were an in-tree `i128` through M10-7, on the argument that
-//! `geom-core`'s runtime dependencies were `libm` alone and that
-//! nothing measured was losing a cancellation to the overflow — the
-//! whole-box replays reported `frozen: 0` on the bracket because the
-//! `Decide` impl skips the form of a margin the numeric channel has
-//! already proved non-zero. M10-8 measured the case the whole-box
-//! replays cannot see: at a document's NOMINAL, where every identity
-//! margin is near zero and every form is built, the plate froze 1,056
-//! forms, R2's bracket 1,978 and R1's annulus 1,034 — and the plate's
-//! own ceiling residual (`carrier_endpoint_start`, the rim's
-//! `‖q − c‖ = r`) is a polynomial of degree 12 in a radius whose nominal
-//! is an `f64` literal with a 53-bit mantissa. Three such factors
-//! overflow an `i128`; the residual has twelve. The overflow was the
-//! freeze, the freeze was the ceiling, and no rule can reach an atom
-//! inside a frozen form. The bound keeps the freeze discipline: a
-//! coefficient past it is refused exactly as an overflow was, so a
-//! blow-up is a counted freeze and never an allocation to the ceiling.
+//! **The coefficients** — the exact rational, the bound it is refused
+//! past and the freeze discipline that bound keeps — are
+//! [`rational`]'s own docs.
 //!
 //! # The census: which identity-shaped predicates this tier reaches
 //!

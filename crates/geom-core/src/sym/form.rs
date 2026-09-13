@@ -1,3 +1,30 @@
+//! **The documented limits.** The normal form is a QUOTIENT of
+//! polynomials over the parameter symbols — a field of fractions, not a
+//! polynomial ring — so a reciprocal is a first-class part of it and
+//! `(x/y)·y − x` DOES decide symbolically: `x/y` is the form `x` over
+//! `y`, multiplying by `y` gives `xy/y`, and the difference's numerator
+//! is the zero polynomial. (The tier's headline row needs exactly that:
+//! an extruded strut's carrier is `origin + (w/‖w‖)·t`, so its endpoint
+//! residual is literally `w·(‖w‖·‖w‖⁻¹ − 1)`.) That is the whole of the
+//! reciprocal's reach, and it is a NORMAL FORM rather than a rewrite
+//! rule: nothing is factored, and no simplification is attempted.
+//!
+//! What remains outside the PLAIN form: no factoring, and no functional
+//! identity of any opaque atom — each atom is an indeterminate keyed by
+//! its argument's form, so two occurrences of ONE atom cancel and
+//! nothing else about it is known there. The SHIPPED tier layers the
+//! atom algebra on top (the M10-8, M10-9 and M10-10 sections of the
+//! tier's own docs):
+//! `sqrt(x)·sqrt(x) − x` and `sin² + cos² − 1` DO decide as theorems
+//! under [`super::SymRules::shipped`] (rules A and B, over the top residual
+//! and per node), and `sin`/`cos` of `q · atan X` fold to closed forms
+//! (rule D). What still stands with the shipped set is what needs a
+//! SIGN: `|x| − x` on a nonnegative `x` is rule C's, and rule C is
+//! dial-off. These are limits of the tier and not bugs in it —
+//! over-refusal is the safe direction, and every such margin falls to
+//! the numeric channel exactly as before. (Through M10-9 this
+//! paragraph listed all three as undecided; R1 of M10-10 ran them.)
+
 use std::collections::BTreeMap;
 
 use super::rational::Rat;
