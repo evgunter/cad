@@ -245,7 +245,7 @@ entry's confidence interval is not the resolution of a comparison.
   bits ⇒ same mesh patch" into a theorem. An edit that moves one boss
   re-tessellates only changed faces. The biggest preview-lane win
   available, and it is keyed work, not speculative.
-- **One BVH crate, four duties — three wired.** `crates/bvh` is a
+- **One BVH crate, five duties — four wired.** `crates/bvh` is a
   deterministic AABB-BVH built in arena order with fixed splits and
   total tie-breaks (no hash order, no parallel-build nondeterminism).
   Live consumers: the boolean edge×face sweep
@@ -257,12 +257,24 @@ entry's confidence interval is not the resolution of a comparison.
   enumerates cells by recursive bisection with a linear scan over
   tubes and says so ("Brute force, deliberately, for now"), which is
   this doc's trigger discipline working, not a missed delivery.
-  `crates/bvh/src/lib.rs`'s header now says four of its duties are
-  wired (a PERF-9 reviewer's correction of this paragraph, 2026-09-12).
+  The fourth wired duty is the coincidence census's pre-filter
+  (`topo/src/census.rs`, `Trees`/`Candidates`, PERF-12, 2026-09-13);
+  `crates/bvh/src/lib.rs`'s header counts five duties (a PERF-12
+  reviewer's correction of this paragraph's roster, which had lagged
+  the header twice).
 
   The **conservative-superset contract** is the D9 obligation: a BVH
-  may only prune pairs the exact predicate would reject, so the result
-  stays a function of exact tests only. `face_box` is sound for every
+  may only prune pairs the exact predicate would not *accept*, so the
+  accepted result stays a function of exact tests only. The carve-out,
+  practised by the boolean since M5 PR 8 (`boolean/reduce.rs:20-31`)
+  and by the census since PERF-12 (`census.rs`, `Trees` doc): a
+  pruned pair's *carrier-stage* escalation or refusal — a question
+  about the carriers with no positional content between the entities
+  (a marginal angle, a ray walk, a vertex past an edge's end) — is not
+  raised, because the filter has answered the entity question
+  definitely (pad ≥ escalate + 2·zero, poison examined). Whether
+  DESIGN.md's census bullet ("never a silent skip") wants that
+  sentence is Ev's call, put to Ev with the PERF-B4 status. `face_box` is sound for every
   surface kind as of `2a24aa69` (`boolean/boxes.rs:723-788` — NURBS
   takes the control-net hull, which the convex-hull property makes a
   superset), and `edge_box` poisons its null-carrier arm

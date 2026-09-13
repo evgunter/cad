@@ -1176,3 +1176,45 @@ change owing a ruling; and the ledger extension (`validate_
 pseudomanifold*` gain `T: Bounds`; `census.rs` joins the allowlist,
 argued from the 2026-07-29 driver amendment) — the same seam or a
 widening. PERF-10 and PERF-11 are in their fix passes.
+
+## PERF-12 adjudicated; fix pass dispatched
+
+Both PERF-12 reviews are in on the frozen head `cd526c5fa`: R1
+(2 MAJOR, 3 MINOR, 1 NOTE, 8 style; did not re-take timings) and R2
+(0 MAJOR, 4 MINOR, 2 NOTE, 6 style; re-took the timings — 160 fins
+1431.6 → 11.05 ms, 640 fins 26.0 s → 43.6 ms, exponent 2.09 → 0.99),
+both approve-with-fixes. Both walked every predicate site and hold the
+superset contract, order identity and poison-never-pruned; neither
+found a lost finding. The MAJORs are R1's and both cheap: the one
+behavioural difference (a pruned pair's carrier-stage escalation or
+refusal no longer raised) is recorded only in `Trees`'s doc, not at
+the public doors; and neither differential has a planted-degradation
+row, so the safety comparator cannot be shown able to fail.
+
+Rulings. The behavioural difference lands as the removal of a
+spurious indeterminate — the precedent is `boolean/reduce.rs:20-31`
+(the PR cited `m5_pr8_bvh_diff`, which pins the value channel
+bit-equal and does not accept a result-level difference) — with the
+record written at `validate_pseudomanifold`, the README census row,
+`CensusEscalated` and this log's TOPO announcement. DESIGN.md's census
+bullet ("indeterminates surface as typed `CensusEscalated`, never a
+silent skip") entered through PR 514, which Ev merged on 2026-08-15,
+so it is not edited here; the reading that it still holds (no
+indeterminate is swallowed; the filter answers definitely) goes in
+the PR body under a "For Ev" heading and the one-line carve-out goes
+to Ev with the block status. Plan §2.1's own "would reject" wording
+was mine and is corrected above to "would not accept" with the
+carve-out spelled out. The ledger paragraph stays: R1 ran the
+check-before-you-wait test (`git log -S`) and the 2026-07-29 driver
+amendment and the `separation` sentence were never ratified, so its
+extension to `Trees`/`Candidates` does not wait; the ride of
+`T: Bounds` onto the three `validate*` doors is stated as
+reachability, not driver-hood, and flagged to Ev in the PR body as
+the amendment's first ride onto a non-driver public door. The trace
+plumbing (`CensusStrategy`/`CensusTrace` ungated `pub`) is a silent
+deviation from the spec's "test-only oracle" that follows the
+boolean's `SweepTrace` precedent — it stays, disclosed. Four findings
+outside the fence are filed rather than fixed (the loop-walk class
+across `topo/src`, `SweepTrace`/`SweepPairs`, `planar_face`'s linear
+find per crossing, the backstop's 520 lines). The fix pass is with
+the implementer; both reviewer lanes reclaimed (20 GB free).
