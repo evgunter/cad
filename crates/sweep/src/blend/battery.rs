@@ -287,6 +287,46 @@ pub enum ChainClosure {
     },
 }
 
+/// A junction of a chain: the vertex at which two consecutive links
+/// meet, with the two links that meet there.
+///
+/// The links are carried BY POSITION in [`Chain::links`]' order, read
+/// off the walk that found them incident to the vertex — so the check
+/// that judges the junction is handed the two carriers that actually
+/// arrive there, and no reader reconstructs the pair from where the
+/// junction sits in a list. On a closed chain the wrap-around junction
+/// pairs the last link with the first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Junction {
+    /// The vertex the two links meet at.
+    pub vertex: VertexKey,
+    /// The link arriving at the vertex, as a position in walk order.
+    /// Crate-private with [`Junction::arriving`] as its reader: the
+    /// positions index [`Chain`]'s private links, so a consumer can
+    /// read a junction's pair but not spell one the chain does not have.
+    pub(crate) arriving: usize,
+    /// The link leaving it: the position after `arriving` in walk
+    /// order, or `0` for a closed chain's wrap-around. Read through
+    /// [`Junction::leaving`], for the reason `arriving` is private.
+    pub(crate) leaving: usize,
+}
+
+impl Junction {
+    /// The link arriving at the vertex, as a position in
+    /// [`Chain::links`]' order.
+    #[must_use]
+    pub fn arriving(&self) -> usize {
+        self.arriving
+    }
+
+    /// The link leaving the vertex, as a position in
+    /// [`Chain::links`]' order.
+    #[must_use]
+    pub fn leaving(&self) -> usize {
+        self.leaving
+    }
+}
+
 /// One resolved chain.
 ///
 /// **A chain has a first link.** [`walk_chains`] mints one from a seed
@@ -302,9 +342,16 @@ pub struct Chain<T: Real> {
     /// The links after [`Chain::first`], in walk order.
     rest: Vec<Link<T>>,
     /// The vertices at which consecutive links meet — the junctions
-    /// predicate 4 judges. One per adjacent pair, plus the
-    /// wrap-around vertex on a closed chain.
-    pub junctions: Vec<VertexKey>,
+    /// predicate 4 judges — each with the two links that meet there.
+    /// One per adjacent pair, plus the wrap-around on a closed chain,
+    /// in walk order: `junctions[i]` sits between links `i` and
+    /// `i + 1`. The check reads each junction's OWN pair and not this
+    /// order; the order is kept so the record is the same chain from
+    /// any seed, which is what a row that names "the first junction"
+    /// of an open chain reads (`junctions[0]`) whichever link seeded
+    /// the walk. The closed-chain pairing rows compare sets and read
+    /// no order.
+    pub junctions: Vec<Junction>,
     /// How it terminates.
     pub closure: ChainClosure,
 }
@@ -318,7 +365,7 @@ impl<T: Real> Chain<T> {
     pub(crate) fn new(
         first: Link<T>,
         rest: Vec<Link<T>>,
-        junctions: Vec<VertexKey>,
+        junctions: Vec<Junction>,
         closure: ChainClosure,
     ) -> Self {
         Self {
@@ -789,8 +836,12 @@ pub fn corner_config<T: Decide + Bounds>(
 /// inward normals — the box, and every prism's opposite cap edges) and
 /// CONSERVATIVE when they meet at an angle, because each blend then
 /// eats along its own inward normal rather than along the gap. The
-/// reviewer's witness is a unit hexagonal prism: this refuses from
-/// `r = 0.5` although the cap survives to the apothem `0.866`.
+/// reviewer's witness is a unit hexagonal prism: this builds up to
+/// `r = 0.499` and refuses from `r = 0.51` against a gap of exactly
+/// `1.0`, the hexagon's SIDE
+/// (`m5_pr12_fix_pass::f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon`).
+/// That the cap survives to the apothem `0.866` is the witness's
+/// premise, derived from the hexagon and asserted by no row.
 ///
 /// The screen is kept in that shape deliberately. Its error is worded
 /// as "cannot certify" rather than "consumes", so no false fact is
@@ -839,7 +890,7 @@ pub fn face_clearance<T: Decide + Bounds>(
 /// Resolve one link: supports, arm, blend, convexity. Refuses typed
 /// on any support pair the analytic arms do not cover — naming the
 /// canal-surface unit as the missing front door.
-fn resolve_link<T: Decide + Bounds>(
+pub(crate) fn resolve_link<T: Decide + Bounds>(
     body: &Body<T>,
     edge: EdgeKey,
     radius: T,
@@ -1123,7 +1174,8 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// `Ruling` row folds it too, on both sides: the convex side carves the
 /// rod with a flat milled along it, the CONCAVE side carves a rod's
 /// section standing on a block's top edge (the sunk rod, built through
-/// the extrude door — `crates/sweep/tests/review_fillet_h7_r1_probes.rs`
+/// the extrude door —
+/// `review_fillet_h7_r1_probes::a_sunk_rod_has_concave_ruled_creases_that_add_material`
 /// pins its material-adding band at `ΔV = +2·A·L`). The boolean
 /// cannot build either concave fixture (two parallel cylinders unioned
 /// refuse at the curved-pierce door; a block ∪ cylinder at the join
@@ -1193,7 +1245,7 @@ fn curved_arm<T: Decide + Bounds>(
 /// (three links meet at every box vertex), while filleting a pip rim
 /// yields one CLOSED chain (two links meet at every rim vertex) —
 /// with no geometric decision taken anywhere in the walk.
-fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
+pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
     let mut inc: Vec<(VertexKey, Vec<usize>)> = Vec::new();
     let bump = |v: VertexKey, i: usize, inc: &mut Vec<(VertexKey, Vec<usize>)>| match inc
         .iter_mut()
@@ -1230,8 +1282,14 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
         // not spell.
         let mut before: Vec<usize> = Vec::new();
         let mut after: Vec<usize> = Vec::new();
-        let mut joints_back: Vec<VertexKey> = Vec::new();
-        let mut joints_fwd: Vec<VertexKey> = Vec::new();
+        // The run's two end links, by input index: the link whose far
+        // end is `head` and the one whose far end is `tail`.
+        let (mut head_link, mut tail_link) = (seed, seed);
+        // Every junction met, as `(vertex, arriving, leaving)` in INPUT
+        // indices — the two links the walk found incident there, the
+        // arriving one earlier in walk order. Remapped to chain
+        // positions once the run's order is fixed, below.
+        let mut joints: Vec<(VertexKey, usize, usize)> = Vec::new();
         let mut closed = head == tail;
         // Forward, then backward, through junction vertices only.
         for forward in [true, false] {
@@ -1240,17 +1298,34 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
                 let Some(pair) = junction(at, &inc) else {
                     break;
                 };
+                let own = if forward { tail_link } else { head_link };
                 let Some(&next) = pair.iter().find(|&&j| !used[j]) else {
                     // Both links at this junction are already in the
-                    // run: the chain has closed on itself.
+                    // run: the chain has closed on itself, and the
+                    // junction is between the run's own end link and
+                    // the other link at this vertex.
                     let grew = !before.is_empty() || !after.is_empty();
                     if pair.iter().all(|&j| used[j]) && grew {
                         closed = true;
-                        if forward {
-                            joints_fwd.push(at);
+                        // The junction holds exactly two links and one
+                        // of them is the run's own end link; a pair
+                        // that does not contain `own` is a walk that
+                        // arrived here along a link the vertex does
+                        // not carry, and that is loud rather than a
+                        // pairing taken on the wrong link.
+                        let other = match pair[..] {
+                            [a, b] if a == own => b,
+                            [a, b] if b == own => a,
+                            _ => unreachable!(
+                                "chain walk: the run arrived at this junction along its own \
+                                 end link, so that link is one of the two incident here"
+                            ),
+                        };
+                        joints.push(if forward {
+                            (at, own, other)
                         } else {
-                            joints_back.push(at);
-                        }
+                            (at, other, own)
+                        });
                     }
                     break;
                 };
@@ -1258,13 +1333,15 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
                 let (a, b) = ends(next);
                 let other = if a == at { b } else { a };
                 if forward {
-                    joints_fwd.push(at);
+                    joints.push((at, own, next));
                     after.push(next);
                     tail = other;
+                    tail_link = next;
                 } else {
-                    joints_back.push(at);
+                    joints.push((at, next, own));
                     before.push(next);
                     head = other;
+                    head_link = next;
                 }
                 if head == tail {
                     closed = true;
@@ -1272,9 +1349,6 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
                 }
             }
         }
-        joints_back.reverse();
-        let mut junctions = joints_back;
-        junctions.extend(joints_fwd);
         let closure = if closed {
             ChainClosure::Closed
         } else {
@@ -1293,6 +1367,35 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
             }
             None => (seed, after),
         };
+        // A junction's links as POSITIONS in the chain's walk order,
+        // which is what the check indexes. Every link a junction names
+        // was pushed into this run by the step that recorded it.
+        let position = |i: usize| -> usize {
+            if i == first {
+                return 0;
+            }
+            match rest.iter().position(|&j| j == i) {
+                Some(p) => p + 1,
+                None => unreachable!(
+                    "chain walk: a junction names a link the run it was recorded in \
+                     does not carry"
+                ),
+            }
+        };
+        let mut junctions: Vec<Junction> = joints
+            .into_iter()
+            .map(|(vertex, arriving, leaving)| Junction {
+                vertex,
+                arriving: position(arriving),
+                leaving: position(leaving),
+            })
+            .collect();
+        // Walk order along the chain, so `junctions[i]` sits between
+        // links `i` and `i + 1` — the wrap-around, recorded last by the
+        // backward pass, sorts to the end by its arriving link. Nothing
+        // in the battery reads the order (`Chain::junctions`' doc says
+        // who does).
+        junctions.sort_by_key(|j| j.arriving);
         chains.push(Chain::new(
             links[first].clone(),
             rest.into_iter().map(|i| links[i].clone()).collect(),
@@ -1405,9 +1508,19 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // requested links meet; every other chain end goes to predicate 6.
     for chain in &chains {
         let ring: Vec<&Link<T>> = chain.links().collect();
-        for (i, v) in chain.junctions.iter().enumerate() {
-            let a = ring[i % ring.len()];
-            let b = ring[(i + 1) % ring.len()];
+        for j in &chain.junctions {
+            let v = &j.vertex;
+            // The junction's two links are the ones the walk found
+            // incident to it; a record that names any other link is a
+            // walk defect, and this tripwire makes it loud in every
+            // build that keeps debug assertions rather than a verdict
+            // taken on a far-end tangent. The pin is the suites' rows,
+            // which read the record and the carve, not this line.
+            let (a, b) = (ring[j.arriving], ring[j.leaving]);
+            debug_assert!(
+                [a, b].iter().all(|l| l.start == *v || l.end == *v),
+                "a junction's two links both touch it: {j:?}"
+            );
             let (Some((ca, ta0, ta1)), Some((cb, tb0, tb1))) =
                 (carrier_of(body, a.edge), carrier_of(body, b.edge))
             else {

@@ -20,20 +20,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, CurveGeom, FaceKey, ReplaceFaceError};
 
 use crate::common;
+use crate::common::approx::band;
 use common::approx::{FIT_DEGREE, prism};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 /// The target these fixtures hand the fit ENGINE, and no longer a door's
@@ -407,13 +404,18 @@ fn the_routed_cone_reaches_past_c5_and_refuses_at_the_rims() {
 /// **The apex window.** The cone's `v`-window, shifted by the offset's
 /// `d·cot α`, reaches the apex: the mint would put the face's own
 /// window on the mirror nappe, so the door refuses BEFORE the boundary
-/// is even planned (the C5 refusal above is on the same face at a
-/// smaller `d`, so the order is what this row also pins).
+/// is even planned (the row above is the same face at a smaller `|d|`,
+/// which reaches the rims instead).
+///
+/// This wall sits BELOW its apex, and `d` is along the chart normal at
+/// the face, so the offset that reaches the apex is the negative one —
+/// the door turns it for the mint (`topo::face_nappe`) and the window
+/// is read on the face's own nappe.
 #[test]
 fn an_apex_window_crossing_refuses_typed() {
     let mut body = coned_tube();
     let face = cone_face(&body);
-    let e = topo::replace_face_offset(&mut body, face, 1.5, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, -1.5, band(), Tol::witness())
         .expect_err("a window shifted across the apex must not be called this face's offset");
     assert!(
         matches!(e, ReplaceFaceError::ApexWindow { face: f, .. } if f == face),

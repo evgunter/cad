@@ -17,10 +17,10 @@ tension it exposes is the filable thing.
 report carrying each withdrawal's cause. Nine assertion sites moved,
 and each one-line `assert_eq!(outcome.superseded, vec![x])` became a
 ~15-line block. The blocks are near-verbatim across
-`assembly_display.rs:610`, `assembly_walk.rs:212`,
-`frame_policy.rs:963`, `instance_authoring.rs:178`,
-`review_gui4_r1.rs:446`, `review_gui4_r2.rs:507` and
-`story_assembly.rs:491,644,717` — the message string *"and the outcome
+`assembly_display.rs:618`, `assembly_walk.rs:215`,
+`frame_policy.rs:963`, `instance_authoring.rs:179`,
+`review_gui4_r1.rs:454`, `review_gui4_r2.rs:515` and
+`story_assembly.rs:493,644,717` — the message string *"and the outcome
 carries WHY it went, not only which went: {}"* appears **eight
 times**.
 
@@ -55,3 +55,19 @@ merged PR body.
 
 VIEW's, with the announce owed to S-TCOST and Track W:
 `crates/viewer/tests/common/`.
+
+## Note (`view/gesture-doors`, 2026-09-11): the field is nested now
+
+`OpOutcome` holds the `PruneReport` rather than re-declaring its
+fields, so every one of the nine blocks reads
+`outcome.withdrawn.superseded` where this row quotes
+`outcome.superseded`. The blocks themselves are untouched and the
+count is unchanged; the duplication this row is about is exactly where
+it was.
+
+The line numbers are unchanged too — those edits were in place, one
+line for one line — with one exception and it is a pre-existing error:
+`assembly_display.rs:618` does not name a `[superseded]` block at
+either revision. It is inside a `PreviewFreeMove` rotation assertion.
+Disclosed rather than repointed, because the number was never about
+its subject.

@@ -1,9 +1,12 @@
 ---
 id: sweep-doc-comments-cite-tests-unenforced
-kind: issue
+kind: unit
 title: Sixteen doc comments in sweep name a test file as their evidence, and nothing enforces any of them
-status: open
+status: closed
 opened: 2026-09-04
+branch: blend/5-doc-citations
+pr: 2155
+closed: 2026-09-08
 ---
 
 
@@ -49,3 +52,53 @@ its `naming.rs:32` finding.
 ## Claimed by BLEND (2026-09-06)
 
 Moved from `work/code-quality/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, `track:` letter and body unchanged. Track T residue on `crates/sweep/src/*`; the `emit_blend.rs` site is EVAL's and announced.
+
+
+## Landed (BLEND unit 5)
+
+Every doc- or code-comment citation of a `sweep` test row in
+`crates/sweep/src/**` now carries ONE spelling — the one
+`cargo test -p sweep --test all -- <filter>` actually resolves, because
+`tests/all.rs` mounts each suite as a module of one binary:
+
+```
+<module>::<row_name>
+```
+
+Measured, on this tree: the path spelling
+`crates/sweep/tests/m7_skin_integral.rs::the_uniform_loft_is_bitwise_unchanged`
+selects **0** tests; `m7_skin_integral::the_uniform_loft_is_bitwise_unchanged`
+selects **1**. A path-shaped citation is grep-resolvable and
+cargo-inert, so it is not the spelling.
+
+**The instrument is a row, not a gate.**
+`crates/sweep/tests/review_blend5_r5_probes.rs::every_test_citation_in_the_sweep_docs_resolves_to_a_test_row`
+reads every `<module>::<row>` in the prose of `crates/sweep/src/**`
+(through `test_utils::source::comments_only`), and requires that
+`crates/sweep/tests/<module>.rs` declare `<row>` as a `#[test]`. A
+rename or a deletion of a cited row turns it red; a helper name in a
+citation turns it red too (it caught one when it landed,
+`review_blend6_r1_probes::seeds`). Its floor asserts the corpus is
+non-empty: 45 citations at the landing SHA. Nothing is filed for GATES.
+
+What it does NOT buy, stated: a row that still exists and asserts LESS
+than the sentence says resolves green. That half needs a reader, and
+this unit found four instances of it by reading. The corpus is
+`crates/sweep/src/**` citing `crates/sweep/tests/**` only; a citation to
+another crate's suite (`admit.rs` naming a `test-utils` row) is outside
+it and the row says so. `work/code-quality/doc-line-citations-rot-silently.md`
+is the sibling class for `file:line` citations.
+
+## Closed (2026-09-08, PR 2155)
+
+One spelling for a test citation in `crates/sweep/src` — `<module>::<row>`,
+the one `cargo test -p sweep --test all -- <module>::<row>` filters on
+(the review corrected the first cut's path spelling, which cargo does
+not resolve) — at every site, and the instrument decided: a resolver
+row in the sweep suite (`review_blend5_r5_probes::every_test_citation_in_the_sweep_docs_resolves_to_a_test_row`),
+red on a rename or deletion, which caught a helper cited as a row on
+its first run. Two citations that promised more than their rows
+corrected; sentences that had grown into restatements of their rows
+cut to claim plus pointer. Residues filed: the eight deleted suite
+files still cited from `crates/sweep/tests/**` (S-TCOST's slate) and
+`docs/KERNEL-VERBS.md`'s cap-pair ulp claim (this slate).

@@ -2,8 +2,9 @@
 id: python-check-and-assembly-doors-gather-twice
 kind: issue
 title: pncad-py's run_checks and assemble each gather the product, so a Python caller asking both pays twice
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-08
 ---
 
 
@@ -120,3 +121,66 @@ for a product that is not OF the evaluation given (the
 `EvaluationOfAnotherDocument` shape), a test pinning the gather count
 through `product::gathers_on_this_thread`, `pncad.pyi`, census re-cut of
 the six `behind-a-door` entries, stub test. Dispatchable as a LIB unit.
+
+## Ruled, REVISED (Ev, in chat, 2026-09-06): **(5) — memoize the gathered product on the Python `Evaluation`**
+
+Ev asked whether an option with the good qualities of both (1) and (4)
+exists; this is it, and it supersedes the (4) ruling above. A Python
+`Evaluation` is the immutable (document, evaluation) pair captured at
+`evaluate`; the product is a pure function of that pair and the
+tolerance. So `run_checks(doc, ev)` and `assemble(doc, ev)` keep their
+signatures, the first call gathers and stores the product on the
+evaluation object keyed by tolerance, and the second reuses it. No new
+Python surface (better than (1)), nothing can go stale (the memo lives
+on an object that cannot change), every present and future consumer
+benefits (as (4)). `assemble_gathered` consumes its product, so the memo
+hands it a clone when the clone is cheap (the unit measures at the heat
+sink's 160-fin point against the ~250 ms gather) and otherwise hands the
+memo over, so a later call re-gathers — never worse than today. Given
+up: a caller cannot hold or inspect a `Product` by name, which nothing
+asked for. The census's six `behind-a-door` entries get the true
+reason: the explicit product doors are what the memo calls. If the
+clone is expensive, the kernel-side alternative — `assemble_gathered`
+borrowing rather than consuming — is DOCM's door and a hand-off, not
+this unit's change. The gather-count pin through
+`product::gathers_on_this_thread` is the acceptance row.
+
+
+## Closed (LIB-PRODUCT, 2026-09-08)
+
+Ruling (5) shipped as ruled, with the clone: **the gathered product is
+memoized on the Python `Evaluation`**, and the four doors that want one
+— `run_checks`, `assemble`, `product`, `product_named` — share it. No
+signature changed and no name was added.
+
+**The measurement that decided the shape.** At the heat sink's 160-fin
+point (161 solids / 991 faces, the `registry split` fixture), dev
+profile, median of five in one process: gather 372.2 ms (369.5-409.0),
+whole-`Product` clone 7.50 ms (7.38-8.72), `Body`-alone clone 2.23 ms.
+The clone is 2.0% of the gather — an order of magnitude inside the
+"under a tenth" the ruling set — so the memo KEEPS the product and
+hands `assemble_gathered` a copy. Both orders therefore cost one
+gather; the take, which would have made `assemble` -> `run_checks`
+cost two, was not needed and was not shipped.
+
+**Where it lives.** `crates/pncad-py/src/product_memo.rs`, a
+Python-independent module over the `pncad` façade, held on
+`py::value::Evaluation` in a `OnceLock` (the interior mutability
+`py::pick::NodePick`'s mesh handle already uses) keyed by the
+tolerance the product was gathered at. The memo gathers from the
+document the evaluation CAPTURED, so it is a pure function of an
+immutable object and cannot go stale; the `doc` argument is read for
+the DI3 pairing, which is asked before the memo is consulted because a
+memo reaches no gather to be refused by.
+
+**What it does NOT cover.** A `Product` still has no Python spelling,
+by design — nothing asked for one, and the memo removes the question.
+A gather that REFUSES is not memoized, so a refusing document
+re-gathers per ask (never worse than before). The gather COUNT is not
+a Python observable and no door was bound for it: the counts are
+pinned in Rust on the default build path
+(`crate::tests::product_memo_rows`), against the very functions the
+four doors call. The census's six `behind-a-door` entries keep their
+dispositions and got the true reason.
+
+Filed by LIB-PRODUCT; the unit file is `work/lib/LIB-PRODUCT.md`.

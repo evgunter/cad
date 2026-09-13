@@ -97,7 +97,7 @@ pub mod svd;
 mod vec;
 
 pub use affine::Affine3;
-pub use frame::{FrameError, FrameInput};
+pub use frame::{FrameError, FrameInput, FrameVector};
 pub use mat::Mat3;
 pub use point::{Point2, Point3};
 pub use svd::{Svd, Svd2x3, Svd3x4};

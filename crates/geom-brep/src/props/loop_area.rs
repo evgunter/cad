@@ -162,8 +162,9 @@ fn nurbs_vector_area<T: SpanLocate>(
         let mid = (lo + hi) * half;
         for (x, w) in nodes.iter().zip(weights) {
             let t = mid + half_len * T::from_f64(*x);
-            let p = span.eval_in_span(t);
-            let d = span.deriv_in_span(t);
+            // `P × P′` at one parameter: one order-1 basis pass
+            // answers both halves of the integrand.
+            let (p, d) = span.ders1_in_span(t);
             acc = acc + (p - ref_point).cross(d) * (half_len * T::from_f64(*w));
         }
     }

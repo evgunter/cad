@@ -26,6 +26,18 @@ const ROW_EPS: f64 = 1.0e-9;
 
 /// Built from `ROW_EPS` above, not from the run's ε, and therefore
 /// deliberately not `shared::tol::band` — see that constant's note.
+///
+/// **Both edges are pinned, the upper one included.** The ×10 is this
+/// suite's own ratio and NOT the run's K: the rows assert that a cone
+/// seam drifting `0.98 ε` perpendicular escalates, because the
+/// collapsed meter reads the radial chord `d·sec α` = 1.1316 ε, and
+/// "escalates" is the claim that that magnitude is below the upper
+/// edge. A band scaled by `CAD_AMBIGUITY_K` would make the row's
+/// verdict a function of K — at any K below 1.1316 the same fixture is
+/// DEFINITE and the row reads as a meter change that never happened.
+/// The two edges therefore coincide with the run's band only when the
+/// run is at both defaults, and a reader must not take one for the
+/// other.
 fn band() -> Band {
     Band::new(ROW_EPS, 10.0 * ROW_EPS).expect("the rows' own band")
 }

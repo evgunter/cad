@@ -2,9 +2,10 @@
 id: lb13-guards-are-line-local
 kind: issue
 title: Both LB13 guards are line-local, and the façade's dominant idiom is the multi-line pub use list
-status: open
+status: closed
 opened: 2026-09-04
 refs: [696, 1841]
+closed: 2026-09-06
 ---
 
 
@@ -133,3 +134,83 @@ belongs to — every future scanner in this file that reads a statement
 instead of a line — for the price of an afternoon in one file, with no
 second toolchain, no second compiler pin and nothing added to any gate.
 It buys more real coverage than the rejected nightly would have.
+
+## Closed
+
+Taken by LIB-MECH2 (branch `lib/mech2`).
+
+**Both guards read statements.** `pub_use_statements` accumulates a
+`pub use` to its terminating `;` over the comment-stripped source,
+collapses the statement's whitespace to single spaces, and reports the
+line the statement OPENS on; both guards match their needles against
+that statement rather than against a line. The whole-crate re-export
+check moved onto the same statements — `pub use editor_core;` and
+`pub use profile;` are `pub use` statements, so nothing is given up.
+
+**The RawLoop guard's minting half went with it.** Its four patterns
+(`ProfileLoop::new(`, `ProfileLoop::polygon(`, `ProfileLoop{`,
+`ProfileVertex{`) were matched against ONE line with its whitespace
+removed, so a call whose `::new(` wrapped was invisible for the same
+reason a brace list was. They are now matched against the whole file
+with its whitespace removed (`squashed_with_offsets`), which keeps a
+true line number by mapping the match back to its byte offset.
+
+**Both readers are self-tested** on the shape they exist for
+(`the_boundary_readers_read_across_line_breaks`): a `pub use` whose
+names are on continuation lines, and a call broken across them.
+
+**The numbers, re-derived at merge base `dab02de91`** rather than
+inherited: 75 `pub use` statements across the eleven `FACADE_SOURCES`
+(the issue's 74 at `7db483d4`; main grew one), 33 of them multi-line,
+17 of those 33 naming an `editor_core::` path. The shape's dominance
+is unchanged.
+
+**The sentence also moved to the function it describes.** The three
+paragraphs about root-declared names — the one carrying the count
+included — were glued to the TOP of `code_without_cfg_gated`'s doc
+block, two functions above `root_declared_pub_names`, which carried no
+doc at all. Editing a claim in place would have left it attached to
+the wrong reader, so it was moved.
+
+**The second instance is closed by deletion, not by a new count.**
+`root_declared_pub_names`'s doc no longer says how many interior
+modules `editor-core`'s root declares; it says the declarations ARE
+the interior modules, which is the invariant and cannot go stale. (For
+the record at this merge base: 33 `pub mod` at column 0, four of them
+`#[cfg(feature = "interval")]`-gated, so 29 survive
+`code_without_cfg_gated` — neither the twenty-six the sentence claimed
+nor the 32/28 the issue derived at `7db483d4`, which is the argument
+for carrying no number at all.)
+
+## What it does NOT cover
+
+- **The two limits the guards already declare are untouched**: an
+  `as`-aliased re-export, and a key reachable as a public field,
+  associated type or return type of an allowed type. Statement-based
+  scanning does not reach either; Ev's #696 ruling is what disposes of
+  them.
+- **`pub_use_names`'s `layer` restriction is untouched.** The issue's
+  second bullet — a multi-line `pub use` through a path that is NOT
+  `editor_core::` names a key on a continuation line and is seen by
+  neither the LB13 guard nor the carried-set staleness check — is now
+  seen by the LB13 guard, whatever the path, because the guard matches
+  the key name in the statement and never reads the path root. The
+  `pub_use_names` restriction itself is unchanged and still correct:
+  its question is "which of that layer's names does this file carry".
+- **Three line-local readers remain in the same file**, all negative
+  claims, filed as
+  `work/lib/facade-guard-file-keeps-two-line-local-readers.md`: the U1
+  guard's check 1, `root_declared_pub_names`, and
+  `code_without_cfg_gated`'s attribute detection (the last DECLARED at
+  its own site). The fourth instance the sweep found — the
+  authoring-seam roster's chain check, which matched `).validate(` and
+  so could not see a chain rustfmt wrapped — was fixed here, since
+  relaxing the needle to `.validate(` costs one line and keeps the
+  enclosing-`pub fn` attribution the line walk provides.
+- **`crates/test-utils/tests/reader_census.rs` still carries this file
+  as** `Unconverted("Track E, issue #763 — code_without_comments,
+  line-based")`, unchanged. The disposition's claim — a hand-rolled
+  Rust reader that owes Track E a conversion — is exactly as true
+  after this change as before it, and the file does still hold
+  line-based readers (`code_without_cfg_gated`,
+  `root_declared_pub_names`), so the parenthetical is not stale.

@@ -130,7 +130,7 @@ fn both_doors_mint_one_refusal_for_one_nonpositive_size() {
 ///
 /// This row pins that behaviour AS IT IS so the class is measured
 /// rather than remembered. It is the witness that flips when
-/// `work/fillet/blend-size-gate-unmetered-under-epsilon.md` is taken:
+/// `work/props/blend-size-gate-unmetered-under-epsilon.md` is taken:
 /// whichever way that unit decides (meter the size against the band,
 /// or keep `> 0` and narrow the promise), this row goes red and is
 /// rewritten to the decided behaviour.

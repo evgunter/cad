@@ -2,8 +2,10 @@
 id: bench-corpus-staleness-hole
 kind: issue
 title: Close the bench-corpus staleness hole - pin the tour's assembly structure, not just its constants
-status: open
+status: closed
 opened: 2026-08-29
+closed: 2026-09-08
+parent: LIB-CORPUS
 github: 1186
 refs: [1176]
 ---
@@ -94,3 +96,53 @@ node") goes with them; the constant-reading guard stays, pointed at the
 shared Python constants, so a tour drift still reds; `demo-tour
 asm-corpus` is retired or kept as a demo-only door, the unit decides and
 says which. Dispatchable as a LIB unit.
+
+## Closed (LIB-CORPUS, 2026-09-08)
+
+**The committed bytes are gone.** `crates/pncad-py/tests/corpus/bench/`
+— four `.pncad` documents and a `MANIFEST` — is deleted, and with it
+the whole staleness surface this issue was about: there is nothing left
+to rot, so item (1) of "the hole" does not need a mechanism.
+
+**What landed.** `crates/pncad-py/tests/bench_scene.py` is the one
+Python definition of the tour's bench: the six constants, the three
+derived seats, the two part shapes, the flat-pack layout and the mated
+stand. `test_assembly_author.py` authors from it as before;
+`test_assembly_eval.py` writes all four documents into a temp
+`Workspace` and RESOLVES each one back out through a `DocRef`, so the
+load path is exercised on every call. Every oracle the eval test
+carried is still asserted; two moved because `placed_union` denotes one
+body where the tour's `Node::Pattern` denotes a plural payload, and the
+placement row was re-cut as a family outline plus one cap frame per
+placement, which pins the rotation, the gap, the count and the spacing
+between them. Three rows that moved the shelf's pin by editing a
+document parameter now re-author the part instead: Python cannot put an
+expression into an authoring step, so the parts it writes hold no
+parameters, and re-authoring under the same label is the door a user
+actually has.
+
+**What the guard reaches now** (`TestTheSceneIsTheToursOwn`), each arm
+mutation-proven red against `demos/tour/src/assembly.rs`:
+
+* the six base constants, by value;
+* `SEAT_A`, `SEAT_B` and `POST_SEAT` by FORMULA — the expression is
+  parsed out of the tour and computed, closing item (2);
+* the flat-pack's placement literals — the post's rotation axis, its
+  angle, its offset, the pattern's count and spacing, the shelf's
+  offset — closing item (3);
+* the stand's gauge offset and the seat each of its two mates is
+  authored against, in document order.
+
+**What it still cannot see**, stated in the test's header rather than
+banked: STRUCTURE (a third mate, a fourth instance, a different node
+order is invisible to a guard that reads named constants and named call
+sites); the two deliberate differences between the Python scene and the
+tour's (parametric prisms vs literal ones, `Node::Pattern` vs
+`Node.placed_union`); anything in `assembly.rs` outside its constant
+block, `layout_doc` and `stand_doc`; and a rename or a reformat in the
+tour, which reds the guard as a false alarm rather than as a drift.
+
+**`demo-tour asm-corpus` is retired** — the door and `assembly::corpus`
+are deleted. Its documented purpose was regenerating the corpus this
+issue deletes; nothing else called it, and `demo-tour gallery` is the
+door that saves documents for a consumer to open.

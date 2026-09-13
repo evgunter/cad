@@ -65,6 +65,10 @@ mod fillet_refusal_envelope;
 mod review_fillet_attr_r1_probes;
 #[path = "review_fillet_attr_r2_probes.rs"]
 mod review_fillet_attr_r2_probes;
+#[path = "review_fillet_overrun_nearest_fit_r1_probes.rs"]
+mod review_fillet_overrun_nearest_fit_r1_probes;
+#[path = "review_fillet_overrun_nearest_fit_r2_probes.rs"]
+mod review_fillet_overrun_nearest_fit_r2_probes;
 
 #[path = "bool12_probes.rs"]
 mod bool12_probes;
@@ -76,6 +80,10 @@ mod bool12_r1_probes;
 mod bool12r2_probes;
 #[path = "bool8_r1_probes.rs"]
 mod bool8_r1_probes;
+#[path = "bool9_probes.rs"]
+mod bool9_probes;
+#[path = "bool9r1_probes.rs"]
+mod bool9r1_probes;
 #[path = "canonical_invariance.rs"]
 mod canonical_invariance;
 #[path = "cert4r1_e2e.rs"]
@@ -86,8 +94,12 @@ mod cert4r2_e2e;
 mod declared_tangency;
 #[path = "enclose_refusal_r2_probes.rs"]
 mod enclose_refusal_r2_probes;
+#[path = "fillet_overrun_nearest_fit.rs"]
+mod fillet_overrun_nearest_fit;
 #[path = "fillet_recourse_followability.rs"]
 mod fillet_recourse_followability;
+#[path = "fillet_stored_tangency.rs"]
+mod fillet_stored_tangency;
 #[path = "generic_replay.rs"]
 mod generic_replay;
 #[path = "guided_replay.rs"]
@@ -108,8 +120,22 @@ mod path_property;
 mod r1_bool11_review_probes;
 #[path = "r2_bool11_review_probes.rs"]
 mod r2_bool11_review_probes;
+#[path = "r2_bool9_review_probes.rs"]
+mod r2_bool9_review_probes;
+#[path = "raw_door_census.rs"]
+mod raw_door_census;
+#[path = "review_fillet_recourse_arm_r2_probes.rs"]
+mod review_fillet_recourse_arm_r2_probes;
+
+#[path = "review_r2_differential.rs"]
+mod review_r2_differential;
+
 #[path = "rejections.rs"]
 mod rejections;
+#[path = "review_fillet_recourse_arm_r1_probes.rs"]
+mod review_fillet_recourse_arm_r1_probes;
+#[path = "review_fillet_stored_tangency_r1_probes.rs"]
+mod review_fillet_stored_tangency_r1_probes;
 #[path = "review_m2_pr2.rs"]
 mod review_m2_pr2;
 #[path = "review_m2_pr2_consumers.rs"]
@@ -128,6 +154,8 @@ mod review_s8_probe;
 mod scalar_channels;
 #[path = "scalar_channels_probe.rs"]
 mod scalar_channels_probe;
+#[path = "scalar_lift_door.rs"]
+mod scalar_lift_door;
 #[path = "seal.rs"]
 mod seal;
 #[path = "sketch_plane.rs"]
@@ -136,6 +164,8 @@ mod sketch_plane;
 mod validate_ok;
 #[path = "validate_ok_probe.rs"]
 mod validate_ok_probe;
+#[path = "validated_map.rs"]
+mod validated_map;
 
 /// The aggregation and ONE HOME checks, whose one home — the walk, the
 /// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
@@ -147,3 +177,5 @@ fn every_suite_file_is_aggregated() {
 }
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
+#[path = "review_fillet_stored_tangency_r2_probes.rs"]
+mod review_fillet_stored_tangency_r2_probes;

@@ -2,8 +2,11 @@
 id: r1-probe-seeds-are-not-on-the-fuzz-dial
 kind: issue
 title: the R1 probe rows seed from the clock under a private R1_SEED that CAD_FUZZ_SEED does not pin
-status: open
+status: closed
+pr: 2433
+branch: tcost/r1-seeds-on-the-harness
 opened: 2026-09-03
+closed: 2026-09-12
 ---
 
 
@@ -64,3 +67,22 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Closed (2026-09-12, PR #2433)
+
+All three sites route through `test_utils::fuzz`: `fuzz::start(label)`
+for the seed, `fuzz::scaled(n)` for every count, `fuzz::replay()` in the
+assertion messages. The private doors are gone from the tree —
+`R1_SEED`, `GUI0_R1_SEED`, `EFFORT`, `R1_EFFORT` and `GUI0_R1_EFFORT`
+have no remaining reader — so `CAD_FUZZ_SEED` and `CAD_FUZZ_EFFORT` now
+reach all seven rows. No fixed seed was introduced and no count was cut:
+every row is shape 1, and `scaled()` only multiplies.
+
+The viewer site this file called "a third site" was fixed with the other
+two. `crates/editor-core/tests/r1_dual_probes.rs` was also the one
+unmarked file of the three and now carries a `gated_to!` derived from
+what the suite ASSERTS ON — the evaluation and key modules, the product
+and edit doors it drives, the topo validator it calls, and the stored
+geometry its deep digest samples — rather than from the suite's subject
+alone. `crates/viewer/tests/review_gui0_r1.rs`'s pre-existing marker was
+widened for the same reason in the same PR.

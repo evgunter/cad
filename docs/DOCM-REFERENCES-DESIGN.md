@@ -226,10 +226,14 @@ So the chain goes, not the link:
   carry no fold tree; and a member-space name resolves at its step
   through whatever merges the fold has performed (the union rewrites
   it to the flat `Merged` row containing it before the shared
-  resolver), so the same declaration set fuses in every member order.
+  resolver), so a declaration set whose faces are consumed by MERGES
+  fuses in every member order. The bound (measured at DOCM-8's
+  review): a face consumed by a split, by containment, or by a merge a
+  later step fragmented is not looked through and stays order-shaped
+  — `work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`.
   DOCM-7 shipped the measured limit this replaces;
   `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`
-  is its record.
+  (closed at DOCM-8) is its record.
 
 ## DM5 — A node's inputs are pairwise distinct
 

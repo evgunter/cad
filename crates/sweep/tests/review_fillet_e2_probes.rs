@@ -236,16 +236,24 @@ fn carrier_params(body: &Body<f64>, k: EdgeKey) -> (f64, f64) {
 }
 
 /// **The chain gate behind `CORNER_SUPPORT_NOT_PLANAR`, and the rim the
-/// assembly recourse does not name.**
+/// assembly recourse has to name.**
 ///
 /// A half-revolved dome's equator is an open plane–sphere arc ending at
 /// corners whose third face is the sphere — the request that would
 /// reach the "corner support is not a plane" geometry site. It never
 /// does: the chain gate admits plane–plane and ruled arms on an open
 /// link and nothing else, so a coaxial torus arm on an open arc answers
-/// with the assembly recourse. That recourse names
-/// "circular plane–sphere rims" as the closed chains that carve; a
-/// cylinder's plane–cylinder top rim carves too.
+/// with the assembly recourse.
+///
+/// **And a cylinder's plane–cylinder top rim carves**, which is a
+/// SECOND claim about that same sentence: the rim is a solid of
+/// revolution's latitude rim between two coaxial surfaces of
+/// revolution, so the sentence's CLOSED clause has to name that family
+/// or it refuses by implication a request the surgery answers. The
+/// assert below was a negative — it pinned that the sentence did not
+/// name it — and it is positive now that the under-described-door
+/// class was swept
+/// (`work/blend/blend-recourses-under-describe-their-doors.md`).
 #[test]
 fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() {
     let half = revolved_about_y(
@@ -317,9 +325,19 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
     let top = rim_arcs_at(&cyl, 1.0, 1.0);
     assert!(!top.is_empty(), "the cylinder's top rim");
     builds(&cyl, &top, 0.1, "a closed plane–cylinder rim");
-    assert!(
-        !FILLET3_ASSEMBLY_RECOURSE.contains("cylinder"),
-        "the assembly recourse does not name the plane–cylinder rim that carves: \
-         {FILLET3_ASSEMBLY_RECOURSE}"
-    );
+    // The closed clause — everything after the verb condition — must
+    // name the family this rim belongs to. It is read as its own
+    // segment so the OPEN clause's ruled cylinder link, which is a
+    // different door, cannot satisfy it by accident.
+    let closed_clause = FILLET3_ASSEMBLY_RECOURSE
+        .split_once("For a fillet, ")
+        .expect("the assembly sentence's closed clause opens with its verb condition")
+        .1;
+    for want in ["coaxial surfaces of revolution", "latitude rim"] {
+        assert!(
+            closed_clause.contains(want),
+            "the assembly recourse's closed clause must name the plane–cylinder rim \
+             that carves ({want:?} missing): {closed_clause}"
+        );
+    }
 }

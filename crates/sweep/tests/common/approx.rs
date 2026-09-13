@@ -515,6 +515,13 @@ pub fn approx_walls(body: &mut Body<f64>, d: f64, target: f64) -> Vec<FaceKey> {
 /// A replica that drifted from `geom_brep::certify`'s iso arm would
 /// pin a stale constant in silence; running the real classifier either
 /// side of the measured threshold makes that loud.
+///
+/// **ε is the caller's, K is the run's.** The caller varies `eps` —
+/// that is the whole point of the door — so this is not [`band`], the
+/// run's linear band. The escalate edge is read all the same: a
+/// residual between the two edges escalates rather than certifying, so
+/// the band's width is part of the answer this function reports, and a
+/// run configured at a K other than the default must see its own.
 pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool {
     let Some(e) = body.get_edge(edge) else {
         return false;
@@ -543,7 +550,7 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
         param_start,
         param_end,
     };
-    let Ok(band) = geom_core::Band::new(eps, eps * 10.0) else {
+    let Ok(band) = geom_core::Band::new(eps, Tol::witness().get().k * eps) else {
         return false;
     };
     geom_brep::EdgeCurve::certify(spec, start, end, |k| body.get_surface(k).cloned(), band).is_ok()

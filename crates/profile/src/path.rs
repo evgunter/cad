@@ -362,14 +362,22 @@ use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::tolerance::DEFAULT_EPS;
+use geom_core::{
+    Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2, is_finite_length,
+};
 
 use crate::path::program::{ClosedLoop, Step, Target};
+use crate::seg;
 use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
     line_line_fillet_trims,
 };
-use crate::validate::{FilletLeg, FilletLegCarrier, NoCornerReason};
+use crate::validate::{
+    FILLET_FLATTENED_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason,
+    fillet_recourse_for,
+};
 use crate::{ProfileLoop, ProfileVertex};
 
 /// The arc-carrier fillet boundary — the algebra's derived-corner
@@ -600,8 +608,21 @@ pub enum CornerReason<T: Real> {
     /// `TangentJointOutOfRange` fit-gating generalized (PATHS-DESIGN
     /// §3). This is also where a too-large radius lands: the setback
     /// exceeds the extent the anchor pins.
+    ///
+    /// **Whose numbers.** At an arc-carrier corner the offset carriers
+    /// can admit two candidate circles that both round the corner and
+    /// both overrun a leg; the payload is then the candidate nearest to
+    /// fitting IN THE SETBACK METRIC (`fillet_select::nearest_candidate`
+    /// over the candidates' setback pairs), on that candidate's worse
+    /// leg — the leg whose setback outruns its extent by more, ties to
+    /// the incoming leg. `setback − available` is that leg's overrun, a
+    /// setback-currency number: it is NOT the radius reduction that
+    /// would make the corner fit (a setback does not scale 1:1 with
+    /// the radius on either leg kind), and the sentence's recourse is
+    /// deliberately un-metered.
     AnchorOutsideTrimmedExtent {
-        /// Which side's anchor the trim would eat.
+        /// Which side's anchor the trim would eat: the reported
+        /// candidate's worse leg.
         side: FilletLeg,
         /// **G2 §3c**: that side's CARRIER KIND, carrying the angular
         /// margin `(extent − setback)/R` for a circular side. A bare
@@ -609,8 +630,9 @@ pub enum CornerReason<T: Real> {
         /// metered in the carrier's own currency (M5 S2's
         /// does-not-fit diagnostic shape, at the algebra door).
         carrier: FilletLegCarrier,
-        /// The tangent setback from the corner, meters (diagnostic; an
-        /// arc length `R·Δθ` on a circular side).
+        /// The reported candidate's tangent setback from the corner on
+        /// that side, meters (diagnostic; an arc length `R·Δθ` on a
+        /// circular side).
         setback: T,
         /// The anchored extent available to the trim, meters (same
         /// currency as `setback`).
@@ -1024,6 +1046,74 @@ pub enum PathError<T: Real> {
     // radius DOWN, past a bound the geometry fixes. One variant carrying
     // both would have to render one sentence for two situations, which is
     // exactly what D4 ¶1's addendum forbids.
+    /// **The fillet arc is too shallow to be STORED as an arc.** A
+    /// profile holds an arc as its chord and a bulge, and the loop's
+    /// reader classifies that pair back through the same predicates
+    /// validation runs: a fillet whose sagitta `r(1 − cos(θ/2))` sits
+    /// at or below the run's ε is read as a *line*, and the carrier the
+    /// door computed is then absent from what the profile holds — the
+    /// tangency the fillet declares has nothing left to be about.
+    ///
+    /// So the door asks the reader's own question of the loop it is
+    /// about to emit — `seg::build_seg` on the fillet arc and
+    /// `seg::joint_tangency` on each joint the fillet declares — and
+    /// refuses here rather than minting a declaration validation would
+    /// contradict. `predicate` and `margin` are that classification's,
+    /// not a second expression for it.
+    ///
+    /// **Its sibling is
+    /// [`FilletCarrierBelowSceneResolution`](Self::FilletCarrierBelowSceneResolution),
+    /// and the two are deliberately NOT one variant.** They are the two
+    /// ways a stored fillet loses its carrier, they are told apart by a
+    /// fact the door has in hand (whether the stored segment reads as an
+    /// arc), and their levers run in OPPOSITE directions: a larger
+    /// radius fixes this one and makes that one worse. D4 ¶1's addendum
+    /// asks one message and one recourse per user situation, and
+    /// `PathErrorKind` is the branchable discriminant a caller gets —
+    /// merging them would put the only distinction into prose a caller
+    /// would have to parse.
+    FilletArcFlattenedInStorage {
+        /// The fillet arc's sweep read back from the stored bulge,
+        /// 4·atan(b) radians (diagnostic).
+        turn: T,
+        /// The requested fillet radius, meters (diagnostic).
+        radius: T,
+        /// The arc's length, `radius · |turn|` meters (diagnostic).
+        arc_length: T,
+        /// The predicate whose classification refused the stored form.
+        predicate: &'static str,
+        /// The margin it classified, meters.
+        margin: T,
+    },
+    /// **The fillet's stored arc IS an arc, and the scene cannot
+    /// resolve its carrier.** The sagitta is metres; what fails is the
+    /// classification. A carrier clearance is a DIFFERENCE of lengths at
+    /// the scene's own magnitude — `r − |h|`, `d − |r₁ − r₂|` — and such
+    /// a difference cancels first-order, resolving only to about
+    /// `scale · 2^-52`. Past the radius (or the distance from the
+    /// origin) where that floor is coarser than ε, the joint cannot be
+    /// classified whatever the turn is, and the levers run the other way
+    /// from its sibling's: see
+    /// [`FilletArcFlattenedInStorage`](Self::FilletArcFlattenedInStorage)
+    /// for why the two are separate variants.
+    FilletCarrierBelowSceneResolution {
+        /// The fillet arc's sweep read back from the stored bulge,
+        /// 4·atan(b) radians (diagnostic).
+        turn: T,
+        /// The requested fillet radius, meters (diagnostic).
+        radius: T,
+        /// The magnitude the refusing clearance was a difference at,
+        /// meters — the carrier radii, the centre separation, the
+        /// offset from a carrier line.
+        scale: T,
+        /// About the finest that difference could have been read:
+        /// `scale · 2^-52`, meters.
+        resolution: T,
+        /// The predicate whose classification refused the stored form.
+        predicate: &'static str,
+        /// The margin it classified, meters.
+        margin: T,
+    },
     /// A sharp arc LEG was reached while a fillet is still open (its
     /// arrival direction unbound). §2c binds an arc arrival by its own
     /// CARRIER, inside the fused verb — `fillet_arc(r, spec)` /
@@ -1087,6 +1177,21 @@ pub enum PathError<T: Real> {
         /// The refused subdivision count.
         n: usize,
     },
+    /// A polygon authored from fewer than three vertices: a closed
+    /// chain of straight legs needs three corners before it bounds
+    /// anything, and two or fewer name a segment, a point or nothing
+    /// at all. The recourse is to author the missing vertices. A
+    /// structural check, not a classified one: `given` is a count,
+    /// never a measured value.
+    ///
+    /// The count precondition belongs to a whole-table polygon door
+    /// (`pncad::authoring::polygon`), which spells the table through
+    /// this lattice; the lattice's own verbs take one vertex at a
+    /// time and have no count to gate.
+    PolygonTooFewVertices {
+        /// The number of vertices given.
+        given: usize,
+    },
     /// An [`arc_continue`](PartialPath::arc_continue) reached with no
     /// incoming ARC carrier: the declared-subdivision step splits the
     /// carrier the chain is already running on, so a straight incoming
@@ -1111,6 +1216,64 @@ pub enum PathError<T: Real> {
     /// ([`PartialPath::toward`]). Only the components' ratio is read,
     /// so the recourse is free — scale them up.
     ZeroDirection {
+        /// The refused x component.
+        dx: T,
+        /// The refused y component.
+        dy: T,
+    },
+    /// A vector a direction is derived from has **no finite length**:
+    /// its components overflow the norm (past ~1e154), or one of them
+    /// is not a number. Two doors raise it — the components director
+    /// ([`PartialPath::toward`]) and the arc carrier's tangent, whose
+    /// vector is the anchor's displacement from the centre.
+    ///
+    /// Distinct from [`PathError::ZeroDirection`] on purpose: the
+    /// direction is **not** zero, and that arm's recourse — scale the
+    /// components UP — is exactly backwards here.
+    ///
+    /// **The recourse is the ratio, not the geometry, wherever the
+    /// caller holds the numbers.** Both doors read only the ratio of
+    /// the components, so dividing the pair through by a common
+    /// factor is free and always sufficient. At
+    /// [`PartialPath::toward`] the caller spells the components and
+    /// can do exactly that; at the arc carrier's tangent they are a
+    /// displacement the caller does not hold directly, and moving the
+    /// authored geometry into range is the way to reach the same
+    /// division. Naming only the second would send a `toward` caller
+    /// to move geometry that does not need moving — the
+    /// wrong-recourse twin of the wrong-cause defect in
+    /// `memories/refusal-text-is-not-cause.md`.
+    NonFiniteDirection {
+        /// The refused x component.
+        dx: T,
+        /// The refused y component.
+        dy: T,
+    },
+    /// A vector a direction is derived from has a length that
+    /// **underflowed out of the format**: its components are small
+    /// enough (below ~1e-162 at `f64`) that their squares are not
+    /// representable, so `norm_squared` flushes to zero and the norm
+    /// measures exactly zero for a vector that names a direction
+    /// perfectly well.
+    ///
+    /// The underflow end of [`PathError::NonFiniteDirection`]'s
+    /// question, and distinct from [`PathError::ZeroDirection`] for the
+    /// reason its overflow sibling is: this vector is not zero, so a
+    /// refusal that says its norm is "within tolerance of zero" names
+    /// the wrong cause, and no tolerance lever reaches it — the squared
+    /// norm is zero at every ε.
+    ///
+    /// **One door raises it today**: the arc carrier's tangent, whose
+    /// vector is the anchor's displacement from the centre.
+    /// [`PartialPath::toward`]'s components director deliberately does
+    /// NOT — a pair spelled `(1e-200, 0)` is refused
+    /// [`PathError::ZeroDirection`], whose sentence ("within tolerance
+    /// of zero") is true of it and whose recourse ("scaling them up
+    /// costs nothing") is already the one that works, because the
+    /// caller holds the numbers. So the recourse named below leads with
+    /// the free one and names the geometry only where the components
+    /// are derived rather than spelled.
+    UnderflowedDirection {
         /// The refused x component.
         dx: T,
         /// The refused y component.
@@ -1244,6 +1407,10 @@ pub enum PathErrorKind {
     NoCornerOfPair,
     /// [`PathError::FilletOffsetLeverTooShort`].
     FilletOffsetLeverTooShort,
+    /// [`PathError::FilletArcFlattenedInStorage`].
+    FilletArcFlattenedInStorage,
+    /// [`PathError::FilletCarrierBelowSceneResolution`].
+    FilletCarrierBelowSceneResolution,
     /// [`PathError::ArcLegOnOpenFillet`].
     ArcLegOnOpenFillet,
     /// [`PathError::SeamRetrimsArcFirstSide`].
@@ -1258,12 +1425,18 @@ pub enum PathErrorKind {
     DegenerateArcSpec,
     /// [`PathError::CircleSplitCount`].
     CircleSplitCount,
+    /// [`PathError::PolygonTooFewVertices`].
+    PolygonTooFewVertices,
     /// [`PathError::ArcContinueNeedsArcCarrier`].
     ArcContinueNeedsArcCarrier,
     /// [`PathError::ArcContinueOffCarrier`].
     ArcContinueOffCarrier,
     /// [`PathError::ZeroDirection`].
     ZeroDirection,
+    /// [`PathError::NonFiniteDirection`].
+    NonFiniteDirection,
+    /// [`PathError::UnderflowedDirection`].
+    UnderflowedDirection,
     /// [`PathError::ArcViaCollinear`].
     ArcViaCollinear,
     /// [`PathError::DegenerateArcChord`].
@@ -1302,6 +1475,10 @@ impl<T: Real> PathError<T> {
             Self::NoCornerForFillet { .. } => PathErrorKind::NoCornerForFillet,
             Self::NoCornerOfPair { .. } => PathErrorKind::NoCornerOfPair,
             Self::FilletOffsetLeverTooShort { .. } => PathErrorKind::FilletOffsetLeverTooShort,
+            Self::FilletArcFlattenedInStorage { .. } => PathErrorKind::FilletArcFlattenedInStorage,
+            Self::FilletCarrierBelowSceneResolution { .. } => {
+                PathErrorKind::FilletCarrierBelowSceneResolution
+            }
             Self::ArcLegOnOpenFillet { .. } => PathErrorKind::ArcLegOnOpenFillet,
             Self::SeamRetrimsArcFirstSide => PathErrorKind::SeamRetrimsArcFirstSide,
             Self::NonpositiveLeg { .. } => PathErrorKind::NonpositiveLeg,
@@ -1309,9 +1486,12 @@ impl<T: Real> PathError<T> {
             Self::NonpositiveCircleRadius { .. } => PathErrorKind::NonpositiveCircleRadius,
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
+            Self::PolygonTooFewVertices { .. } => PathErrorKind::PolygonTooFewVertices,
             Self::ArcContinueNeedsArcCarrier => PathErrorKind::ArcContinueNeedsArcCarrier,
             Self::ArcContinueOffCarrier { .. } => PathErrorKind::ArcContinueOffCarrier,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
+            Self::NonFiniteDirection { .. } => PathErrorKind::NonFiniteDirection,
+            Self::UnderflowedDirection { .. } => PathErrorKind::UnderflowedDirection,
             Self::ArcViaCollinear { .. } => PathErrorKind::ArcViaCollinear,
             Self::DegenerateArcChord { .. } => PathErrorKind::DegenerateArcChord,
             Self::ArcCenterNotEquidistant { .. } => PathErrorKind::ArcCenterNotEquidistant,
@@ -1332,11 +1512,49 @@ impl<T: Real> PathError<T> {
 /// reach its scalars through `{:?}` — the shortest round-tripping form
 /// of an `f64`, which puts an 8 mm radius that arithmetic produced into
 /// a human sentence as `0.008000000000000002 m`. Where the `Debug` form
-/// parses back as an `f64` this renders the shortest decimal that still
-/// names the same number to a relative 1e-9; anything else (an interval,
-/// a dual) passes through untouched. A DISPLAY choice only — the payload
-/// keeps the exact scalar, and every claim a caller branches on reads
-/// the field, never this string.
+/// parses back as an `f64` this renders the shortest spelling that still
+/// names the same number **to the finer of a relative 1e-9 and an
+/// absolute ε/10**; anything else (an interval, a dual) passes through
+/// untouched. A DISPLAY choice only — the payload keeps the exact
+/// scalar, and every claim a caller branches on reads the field, never
+/// this string.
+///
+/// **The two arms are load-bearing at opposite ends of the range, and
+/// the tolerance is their `min` because each is the coarser one
+/// somewhere.** ε is a LENGTH ([`DEFAULT_EPS`], D4 ¶1), so a purely
+/// relative 1e-9 crosses it at one metre and is coarser above: at a
+/// kilometre it is a micron, and two lengths the kernel certifies as
+/// different then render as one number — a refusal reading *"margin
+/// 1234.5 m exceeds the 1234.5 m the anchor pins"*. The absolute arm
+/// caps the grid one decade below ε, so a difference the kernel can
+/// decide is always a difference the sentence spells. Below a decimetre
+/// the relative arm is the finer of the two and governs alone, and the
+/// shortening is there the same proposition at every magnitude: a
+/// picometre margin is rounded to nine significant figures of a
+/// picometre, never to the nearest nanometre and never to `0`. A FLOOR
+/// under the tolerance is the mirror defect and is precisely what a
+/// `min` cannot become — it would round every margin below the floor to
+/// the floor's own zero, erasing the sub-nanometre values these messages
+/// exist to report.
+///
+/// The cap is the compile-time [`DEFAULT_EPS`] and never the run's live
+/// `Tolerance::eps()`. A live ε would make every rendered refusal a
+/// function of process configuration, spelling one payload three ways
+/// across the ε rows CI gates; the grid is a display choice stated once
+/// against the ratified default.
+///
+/// `0.0` has no significant figures to round to and only its exact
+/// spelling round-trips, which is `0`; `-0.0`'s is `-0`, a sign this
+/// helper reports because the payload carries it, not because a
+/// magnitude was erased.
+///
+/// Notation follows the `Debug` form's own choice — fixed where `{:?}`
+/// is fixed, exponential where `{:?}` is exponential — so this helper
+/// only ever shortens the mantissa of the spelling Rust already picked,
+/// and never turns one into the other. A metre-scale number keeps its
+/// decimal point and a far-from-unity one keeps its exponent, which is
+/// what makes both of them readable: `1e-12` rather than eleven zeros,
+/// `1e300` rather than 301 digits.
 ///
 /// Every arm below renders its scalars through here. Non-scalar payloads
 /// — a side, a carrier, an index, a `&'static str` site — are not this
@@ -1346,13 +1564,25 @@ fn num<T: core::fmt::Debug>(v: &T) -> String {
     let Ok(x) = raw.parse::<f64>() else {
         return raw;
     };
-    let tol = 1e-9 * x.abs().max(1.0);
+    let tol = (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9);
+    let exponential = raw.contains('e');
     for prec in 0..=17 {
-        let short = format!("{x:.prec$}");
+        let short = if exponential {
+            format!("{x:.prec$e}")
+        } else {
+            format!("{x:.prec$}")
+        };
         if short
             .parse::<f64>()
             .is_ok_and(|back| (back - x).abs() <= tol)
         {
+            if exponential {
+                // The first precision that round-trips cannot carry a
+                // trailing zero in its mantissa: dropping one would
+                // name the same `f64`, so the shorter precision would
+                // have been accepted first.
+                return short;
+            }
             let trimmed = if short.contains('.') {
                 short.trim_end_matches('0').trim_end_matches('.')
             } else {
@@ -1361,6 +1591,8 @@ fn num<T: core::fmt::Debug>(v: &T) -> String {
             return trimmed.to_string();
         }
     }
+    // No 18-significant-figure spelling in the chosen notation names
+    // the value: a non-finite payload, whose comparisons are all false.
     raw
 }
 
@@ -1508,6 +1740,45 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 least_lever = num(least_lever),
                 margin = num(margin)
             ),
+            Self::FilletArcFlattenedInStorage {
+                turn,
+                radius,
+                arc_length,
+                predicate,
+                margin,
+            } => write!(
+                f,
+                "a radius-{radius} m fillet through a turn of {turn} rad is a {arc_length} m \
+                 arc, and a profile stores an arc as a chord and a bulge: read back, it is \
+                 too shallow to be an arc at all — '{predicate}' classifies it at \
+                 {margin} m — so the carrier this fillet computed is not in the stored loop \
+                 and validation would contradict the declaration. {FILLET_FLATTENED_RECOURSE}",
+                radius = num(radius),
+                turn = num(turn),
+                arc_length = num(arc_length),
+                margin = num(margin)
+            ),
+            Self::FilletCarrierBelowSceneResolution {
+                turn,
+                radius,
+                scale,
+                resolution,
+                predicate,
+                margin,
+            } => write!(
+                f,
+                "a radius-{radius} m fillet through a turn of {turn} rad stores as a real \
+                 arc, but its joint's clearance is a difference of lengths of about \
+                 {scale} m, which resolves only to about {resolution} m: '{predicate}' \
+                 classifies it at {margin} m, so the stored loop does not carry the tangency \
+                 this fillet computed and validation would contradict the declaration. \
+                 {FILLET_SCENE_RESOLUTION_RECOURSE}",
+                radius = num(radius),
+                turn = num(turn),
+                scale = num(scale),
+                resolution = num(resolution),
+                margin = num(margin)
+            ),
             Self::ArcLegOnOpenFillet { site } => write!(f, "{site}"),
             Self::DegenerateArcSpec { value } => write!(
                 f,
@@ -1549,6 +1820,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  carry a full turn (bulge diverges), so the smallest subdivision of a \
                  closed carrier is two arcs"
             ),
+            Self::PolygonTooFewVertices { given } => write!(
+                f,
+                "a polygon needs at least 3 vertices (got {given}): a closed chain of \
+                 straight legs bounds nothing with fewer corners — author the missing \
+                 vertices"
+            ),
             Self::ArcContinueNeedsArcCarrier => write!(
                 f,
                 "arc_continue subdivides the incoming ARC carrier; the incoming leg here is \
@@ -1567,6 +1844,28 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "a director spelled as components must name a direction (got \
                  ({dx}, {dy}), whose norm is within tolerance of zero): only the ratio \
                  of the components is read, so scaling them up costs nothing",
+                dx = num(dx),
+                dy = num(dy)
+            ),
+            Self::NonFiniteDirection { dx, dy } => write!(
+                f,
+                "a direction derived from ({dx}, {dy}) has no finite length \u{2014} its \
+                 components overflow the norm, or one of them is not a number; only the \
+                 ratio of the components is read, so divide them through by a common \
+                 factor \u{2014} or, where they are derived from authored geometry rather \
+                 than spelled, scale that geometry into the session's range",
+                dx = num(dx),
+                dy = num(dy)
+            ),
+            Self::UnderflowedDirection { dx, dy } => write!(
+                f,
+                "a direction derived from ({dx}, {dy}) has a length that underflowed out \
+                 of the format \u{2014} its components are too small for their squares to \
+                 be represented, so the length measures exactly zero while the direction \
+                 itself is perfectly good; no tolerance reaches this, and only the ratio \
+                 of the components is read, so multiply them through by a common factor \
+                 \u{2014} or, where they are derived from authored geometry rather than \
+                 spelled, scale that geometry into the session's range",
                 dx = num(dx),
                 dy = num(dy)
             ),
@@ -1626,40 +1925,105 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             // at these sites — for the continuation the declaration IS the
             // verb, and for a leg length there is no coincidence to
             // declare, only a number to change.
-            Self::Escalated { source } => match source.predicate {
-                Some("path_continuation_target_offset") => write!(
-                    f,
-                    "the declared straight continuation's target is neither on the \
+            //
+            // DISPATCH ORDER. The fillet gates are asked first, through
+            // `fillet_recourse_for` — the crate's one name-to-sentence
+            // map. Their names are disjoint from every key below (the
+            // `fillet_*` family against the `path_*` verbs, the
+            // stored-form read's segment and joint classifications, and
+            // the junction keys), so the order is not resolving a
+            // conflict; it states which layer owns a name, and a
+            // `fillet_*` name added to a later arm would now be dead
+            // rather than silently outranking its own sentence.
+            Self::Escalated { source } => {
+                if let Some(predicate) = source.predicate
+                    && let Some(recourse) = fillet_recourse_for(predicate)
+                {
+                    // The fillet constructor's own gates. The caller
+                    // asked for a fillet and the door could not
+                    // classify one of the construction's decisions, so
+                    // the site is the corner being resolved and the
+                    // recourse is the gate's own — never the shared
+                    // coincidence one, which advises declaring a
+                    // coincidence at a joint this caller never
+                    // authored.
+                    return write!(
+                        f,
+                        "resolving the fillet at this corner, '{predicate}' could not be \
+                         classified: {payload}. {recourse}",
+                        payload = source.payload()
+                    );
+                }
+                match source.predicate {
+                    Some("path_continuation_target_offset") => write!(
+                        f,
+                        "the declared straight continuation's target is neither on the \
                      departing ray nor definitely off it: {payload}. The verb DECLARES the \
                      leg, so there is no coincidence to declare here — the declaration is \
                      the verb. Move the target onto the ray, or widen the input tolerance \
                      (K·ε) so this miss is admissible",
-                    payload = source.payload()
-                ),
-                Some("path_seam_arrival_turn" | "path_seam_arrival_side") => write!(
-                    f,
-                    "the declared seam arrival is neither continuing the entry\'s outgoing \
+                        payload = source.payload()
+                    ),
+                    Some("path_seam_arrival_turn" | "path_seam_arrival_side") => write!(
+                        f,
+                        "the declared seam arrival is neither continuing the entry\'s outgoing \
                      direction nor definitely off it: {payload}. The TARGET declares the \
                      arrival, so there is no coincidence left to declare here — the \
                      declaration is the target. Move the geometry so the two directions agree, \
                      or widen the input tolerance (K·ε) so a miss this size is admissible. \
                      LOWERING the tolerance is the wrong direction at this site: closeness is \
                      what is being ASSERTED here, not what is refusing",
-                    payload = source.payload()
-                ),
-                Some("path_leg_length") => write!(
-                    f,
-                    "an authored leg extent could not be told from zero: {payload}. \
+                        payload = source.payload()
+                    ),
+                    Some("path_leg_length") => write!(
+                        f,
+                        "an authored leg extent could not be told from zero: {payload}. \
                      Author a longer leg, or widen the input tolerance (K·ε)",
-                    payload = source.payload()
-                ),
-                // The junction keys (`path_junction_turn`,
-                // `path_junction_side`) keep the full `Indeterminate`
-                // Display, shared recourse and all: at a junction
-                // "declare the coincidence" is exactly the right advice,
-                // and `.tangent()` is what declaring it means.
-                _ => write!(f, "path junction classification: {source}"),
-            },
+                        payload = source.payload()
+                    ),
+                    // The STORED-FORM read's own classifications
+                    // (`Core::fillets_carry_their_tangency` re-runs
+                    // validation's segment and joint predicates on the loop
+                    // the door is about to emit). This is not a junction:
+                    // the door minted the joint itself, so "declare the
+                    // coincidence" is advice about a declaration the caller
+                    // never wrote, and the levers are the two the stored
+                    // form actually has. The class this arm leaves is
+                    // `work/blend/every-escalation-carries-the-coincidence-recourse-first.md`
+                    // — an escalation that renders the shared recourse
+                    // before its own site's — and this is one instance
+                    // repaired at the site.
+                    //
+                    // A `fillet_*` name added to THIS list is dead: the
+                    // fillet arm above is asked first and answers every
+                    // name `validate::fillet_recourse_for` knows, so the
+                    // name never reaches here. Verified by mutation, not
+                    // asserted from the shape of the code.
+                    Some(
+                        "vertex_separation"
+                        | "segment_straightness"
+                        | "arc_diameter_clearance"
+                        | "chord_side"
+                        | "carrier_line_circle"
+                        | "carrier_circles_identity"
+                        | "carrier_circles_external"
+                        | "carrier_circles_internal",
+                    ) => write!(
+                        f,
+                        "reading back the fillet arc this door is about to store, \
+                     '{predicate}' could not be classified: {payload}. \
+                     {FILLET_STORED_FORM_INBAND_RECOURSE}",
+                        predicate = source.predicate.unwrap_or("<unnamed>"),
+                        payload = source.payload()
+                    ),
+                    // The junction keys (`path_junction_turn`,
+                    // `path_junction_side`) keep the full `Indeterminate`
+                    // Display, shared recourse and all: at a junction
+                    // "declare the coincidence" is exactly the right advice,
+                    // and `.tangent()` is what declaring it means.
+                    _ => write!(f, "path junction classification: {source}"),
+                }
+            }
             Self::Band(e) => write!(f, "path tolerance band: {e}"),
             Self::Structure(r) => write!(f, "guided elaboration: {r}"),
             Self::UnderdeterminedLeg { site } => write!(
@@ -1894,6 +2258,11 @@ pub struct Core<T: Real> {
     pending_meta: Option<PendingMeta<T>>,
     /// The carrier of the last emitted segment when it is an arc.
     last_arc: Option<ArcData<T>>,
+    /// Every fillet arc emitted into the chain, as the index of the
+    /// vertex it LEAVES paired with the radius that was asked for —
+    /// what [`Core::fillets_carry_their_tangency`] re-reads at the
+    /// close, and the radius its sentence names.
+    fillet_arcs: Vec<(usize, T)>,
     /// **Profiles-as-programs (v2)**: the authoring verbs, recorded as
     /// they lower. Each binder pushes exactly its own step, so one
     /// chain yields both the lowered loop and its program.
@@ -1917,6 +2286,7 @@ impl<T: Real> Core<T> {
             pending: None,
             pending_meta: None,
             last_arc: None,
+            fillet_arcs: Vec::new(),
             program: Vec::new(),
             guide: crate::structure::Guide::recording(),
         }
@@ -2019,6 +2389,30 @@ impl<T: Real> Core<T> {
         }
     }
 
+    /// Records the fillet arc of `radius` about to be emitted, for the
+    /// close to re-read, and hands back the vertex index it recorded so
+    /// the caller emits onto the segment it just claimed. Called
+    /// immediately BEFORE the emission, where the chain's last vertex is
+    /// the incoming tangent point the arc leaves — the one spelling for
+    /// both emissions, the interior arc that pushes its end vertex and
+    /// the seam arc that retrims the entry vertex instead.
+    ///
+    /// A fillet arc leaves a vertex, so a chain with no vertices cannot
+    /// be about to emit one; the door says so rather than recording
+    /// nothing and letting the close read a shorter list than the loop
+    /// has arcs.
+    fn record_fillet_arc(&mut self, radius: T) -> Result<usize, PathError<T>> {
+        let leaving = self
+            .verts
+            .len()
+            .checked_sub(1)
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "a fillet arc emitted onto an empty chain",
+            })?;
+        self.fillet_arcs.push((leaving, radius));
+        Ok(leaving)
+    }
+
     /// Declares the SEAM joint — joint 0, the entry vertex — tangent,
     /// which is the flag the verify layer re-checks. EVERY declared
     /// arrival lands here: every zero-turn joint is a declared tangent
@@ -2035,7 +2429,7 @@ impl<T: Real> Core<T> {
 
     /// Finishes the loop, returning it PAIRED with the program that
     /// produced it (see [`ClosedLoop`]).
-    fn build(mut self) -> ClosedLoop<T> {
+    fn finish(mut self) -> ClosedLoop<T> {
         let structure = self.take_structure();
         ClosedLoop {
             loop_: ProfileLoop {
@@ -2068,6 +2462,15 @@ impl<T: Real> Core<T> {
 fn linear_band<T: Real>(tol: Tol) -> Result<Band, PathError<T>> {
     Band::linear(tol).map_err(PathError::Band)
 }
+
+/// What [`Core::record_fillet_arc`]'s answer means, checked beside
+/// every emission that takes it: the recorded index is the vertex the
+/// arc leaves, which an interior emission leaves two from the end (it
+/// pushed the arc's end vertex) and a seam emission leaves last (it
+/// retrimmed the entry vertex instead). The pairing is what lets the
+/// close find the arc again, and a debug assertion is where it is held
+/// rather than in a comment.
+const PAIRED: &str = "a recorded fillet arc must be the vertex its emission leaves";
 
 /// Unit direction of an angle.
 fn unit<T: Real>(ang: T) -> Vec2<T> {
@@ -2386,6 +2789,162 @@ fn fillet_arc_carrier<T: Real>(trims: &LineFilletTrims<T>, u2: Vec2<T>, radius: 
 }
 
 impl<T: Decide> Core<T> {
+    /// **The door never mints a joint the validator refuses.**
+    ///
+    /// A fillet's declared tangency is a claim about the CARRIERS the
+    /// loop stores, and a profile stores an arc as a chord and a bulge.
+    /// The door computes the fillet's carrier exactly, but what a
+    /// reader gets back is whatever that pair classifies into: a fillet
+    /// whose sagitta `r(1 − cos(θ/2))` sits at or below ε is read as a
+    /// straight segment, and a declaration against a carrier that is
+    /// not there is contradicted.
+    ///
+    /// So before the loop leaves the door, every fillet arc in it is
+    /// re-read the way validation reads it — [`seg::build_seg`] on the
+    /// stored triple, [`seg::joint_tangency`] on each joint the fillet
+    /// DECLARED — and the door refuses what that reading refuses. One
+    /// spelling: no margin and no predicate name is written here that
+    /// the classifier does not hand back.
+    ///
+    /// The reading happens at the close rather than at the emission
+    /// because a joint is a fact about two stored segments, and the
+    /// segment leaving a fillet arc is authored after it — a continuing
+    /// arrival's extent, a seam's retrimmed entry vertex, a following
+    /// verb that extends the leg it lands on. At the close every one of
+    /// them is settled.
+    ///
+    /// **Two losses, two sentences.** Which refusal a failed reading
+    /// gets is decided by a fact the reading itself hands back: whether
+    /// the stored fillet segment came back an ARC. If it did not, the
+    /// carrier is absent and the loss is flattening
+    /// ([`PathError::FilletArcFlattenedInStorage`]); if it did, the
+    /// carrier is there and the clearance is what could not be read, so
+    /// the loss is the scene's resolution
+    /// ([`PathError::FilletCarrierBelowSceneResolution`]). Their levers
+    /// run in opposite directions, which is why they are two variants.
+    ///
+    /// A NEIGHBOUR the segment pass itself refuses (a degenerate leg, a
+    /// near-full arc leg) is left to that pass: its stored form is
+    /// refused on its own terms, which is not a tangency disagreement,
+    /// and the joint it sits on is skipped here.
+    ///
+    /// **Only DECLARED joints are read**, and that is the whole reach.
+    /// A fillet's own joint is declared by construction at every door
+    /// but two: an exact outgoing fit onto a far-end anchor, and an
+    /// arc-carrier arrival whose run the fillet consumes — there the
+    /// direction leaving the arc is free, so the door declares nothing
+    /// and there is no claim for the stored form to fail. What an
+    /// undeclared joint CAN do is come back `Tangent` and draw
+    /// `UndeclaredTangency` from validation; that is a claim about the
+    /// declaration set rather than about the stored form, it is the
+    /// same at every scalar and tolerance, and `rejections.rs` is where
+    /// it is refused. The skip below is that boundary, not an oversight.
+    fn fillets_carry_their_tangency(&self, tol: Tol) -> Result<(), PathError<T>> {
+        let band = linear_band(tol)?;
+        let n = self.verts.len();
+        for &(leaving, radius) in &self.fillet_arcs {
+            let stored = |i: usize| {
+                let v = self.verts[i];
+                seg::build_seg(v.pos(), self.verts[(i + 1) % n].pos(), v.bulge(), band)
+            };
+            // A recorded index always names a vertex of the chain it was
+            // recorded on: `record_fillet_arc` reads `verts.len() - 1`
+            // with the chain's last vertex the arc's own start, and
+            // nothing removes a vertex afterwards. A chain that has
+            // neither is not a loop, and saying so is cheaper than a
+            // silent skip.
+            let arc_seg = leaving
+                .checked_add(1)
+                .filter(|_| n >= 2 && leaving < n)
+                .ok_or(PathError::UnderdeterminedLeg {
+                    site: "a recorded fillet arc outside the chain it was recorded on",
+                })?;
+            let bulge = self.verts[leaving].bulge();
+            let turn = T::from_f64(4.0) * bulge.atan();
+            let flattened =
+                |predicate: &'static str, margin: T| PathError::FilletArcFlattenedInStorage {
+                    turn,
+                    radius,
+                    arc_length: radius * turn.abs(),
+                    predicate,
+                    margin,
+                };
+            let arc = match stored(leaving) {
+                Ok(arc) => arc,
+                Err(seg::SegIssue::Escalated(source)) => {
+                    return Err(PathError::Escalated { source });
+                }
+                Err(
+                    issue @ (seg::SegIssue::Degenerate { margin }
+                    | seg::SegIssue::NearFull { margin }),
+                ) => {
+                    return Err(flattened(issue.predicate(), margin));
+                }
+            };
+            // The stored segment came back an arc, or it did not: that
+            // is the discriminator between the two losses, read off the
+            // classification rather than guessed from the geometry.
+            let stores_an_arc = matches!(arc.kind, seg::SegKind::Arc(_));
+            // Joint v is the junction between segment v − 1 and segment
+            // v, so the arc's incoming joint is its own index and its
+            // outgoing joint the next one — each checked only where the
+            // door declared it (see the reach, above).
+            for (joint, before) in [(leaving, true), (arc_seg % n, false)] {
+                if !self.tangent.contains(&joint) {
+                    continue;
+                }
+                let other = if before {
+                    (leaving + n - 1) % n
+                } else {
+                    arc_seg % n
+                };
+                let Ok(other) = stored(other) else { continue };
+                let (prev, next) = if before {
+                    (&other, &arc)
+                } else {
+                    (&arc, &other)
+                };
+                let reading = seg::joint_tangency(prev, next, band)
+                    .map_err(|source| PathError::Escalated { source })?;
+                match reading.class {
+                    // A declared joint whose carriers are tangent is
+                    // the construction verified; one whose carriers are
+                    // the SAME is a declared tangent joint too (the
+                    // directions agree), and validation accepts it.
+                    seg::JointClass::Tangent | seg::JointClass::SameCarrier => {}
+                    seg::JointClass::Transversal if stores_an_arc => {
+                        return Err(PathError::FilletCarrierBelowSceneResolution {
+                            turn,
+                            radius,
+                            scale: reading.scale,
+                            // `f64::EPSILON` by design, not by omission: every scalar this
+                            // kernel ships carries an f64 VALUE channel (a dual's value, an
+                            // interval's midpoint), so this is the resolution floor at any
+                            // `T`; an interval's own enclosure width is `margin`, printed
+                            // beside it, not folded into this number.
+                            resolution: reading.scale * T::from_f64(f64::EPSILON),
+                            predicate: reading.predicate,
+                            margin: reading.margin,
+                        });
+                    }
+                    seg::JointClass::Transversal => {
+                        return Err(flattened(reading.predicate, reading.margin));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Finishes the loop, after re-reading every fillet arc in it the
+    /// way validation will ([`Core::fillets_carry_their_tangency`]):
+    /// the door's output is a loop whose fillet declarations the stored
+    /// form carries, or it is a refusal.
+    fn build(self, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>> {
+        self.fillets_carry_their_tangency(tol)?;
+        Ok(self.finish())
+    }
+
     /// Takes the opened fillet and its chain-side bookkeeping together.
     fn take_pending(
         &mut self,
@@ -2442,7 +3001,9 @@ impl<T: Decide> Core<T> {
                 // The fillet arc IS the closing segment; the entry
                 // vertex retrims to its end and joint 0 is the
                 // constructed seam tangency (the straight seam's rule).
+                let leaving = self.record_fillet_arc(arc.radius)?;
                 self.set_leaving(trims.bulge, FirstSeg::Arc)?;
+                debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
                 match self.verts.first_mut() {
                     Some(v0) => v0.pos = trims.t2,
                     None => {
@@ -2590,6 +3151,7 @@ impl<T: Decide> Core<T> {
         // must declare manually). Seam: the arc IS the closing
         // segment; the entry vertex retrims to its end and joint 0 is
         // the constructed seam tangency.
+        let leaving = self.record_fillet_arc(pending.radius)?;
         if kind == ArrivalKind::Seam {
             self.set_leaving(trims.bulge, FirstSeg::Arc)?;
             match self.verts.first_mut() {
@@ -2601,8 +3163,10 @@ impl<T: Decide> Core<T> {
                 }
             }
             self.tangent.push(0);
+            debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
         } else {
             self.push_arc(trims.t2, trims.bulge, arc)?;
+            debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
             // The outgoing joint is declared only when something
             // tangent actually follows it (see [`ArrivalKind`]): a
             // continuing arrival always rides the arrival ray, and a
@@ -2720,7 +3284,9 @@ impl<T: Decide> Core<T> {
         t: &arc_fillet::ArcFilletTrims<T>,
         declare: bool,
     ) -> Result<(), PathError<T>> {
+        let leaving = self.record_fillet_arc(t.arc.radius)?;
         self.push_arc(t.t2, t.bulge, t.arc)?;
+        debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
         if declare {
             self.declare_last();
         }
@@ -2816,6 +3382,18 @@ impl Open {
 /// a norm within ε_input of zero cannot be normalized without
 /// amplifying its own noise into the ray. Only the RATIO of the
 /// components carries meaning, so the recourse is free — scale them up.
+///
+/// **Finiteness before sign.** Components past [`Vec2::normalize`]'s
+/// ~1e154 overflow band make the norm ∞, which is maximally DEFINITE
+/// to the classifier: deciding the sign first answers `Positive` and
+/// the two divisions below hand back `(0, 0)`. `(1e200, 0)` returned
+/// `Ok(Dir { unit: (0, 0), ang: 0 })` before this question went first
+/// — a stored director naming no direction, out of a decided path.
+///
+/// **K consequence.** The refusal precedes the funnel, so a
+/// non-finite pair contributes no `path_director_norm` sample; the
+/// one it used to contribute was a `+∞` margin recorded as a definite
+/// `Positive`.
 fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, PathError<T>> {
     let band = linear_band(tol)?;
     // `powi(2)`, never `dx * dx`: a director's components straddle zero
@@ -2825,6 +3403,9 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
     // poisons this `sqrt`. Gated by ci.yml's "interval-square powi(2)
     // allowlist".
     let norm = (dx.powi(2) + dy.powi(2)).sqrt();
+    if !is_finite_length(norm) {
+        return Err(PathError::NonFiniteDirection { dx, dy });
+    }
     match decide("path_director_norm", Margin::of(norm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::ZeroDirection { dx, dy }),
@@ -3282,7 +3863,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // `.tangent()` is, and the verify layer re-checks the flag.
         self.core.declare_last();
         self.core.set_leaving(T::zero(), FirstSeg::Line)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 
     /// The kernel behind the table's declared-subdivision row (recording
@@ -3509,7 +4090,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             )?;
         }
         self.core.set_leaving(g.bulge, FirstSeg::Arc)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 }
 
@@ -3592,7 +4173,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             )?;
         }
         self.core.set_leaving(T::zero(), FirstSeg::Line)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 
     /// The chord length, gated definitely positive: every arc leg spans
@@ -3764,7 +4345,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             )?;
         }
         self.core.set_leaving(bulge, FirstSeg::Arc)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 }
 
@@ -3824,7 +4405,7 @@ impl<T: Decide> PartialPath<T, NoPos, NoAng> {
         })?;
         self.core
             .resolve_fillet(start_pos, start_ang, ArrivalKind::Seam, tol)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 }
 
@@ -4090,5 +4671,841 @@ mod tests {
             arc_fillet::carrier_tangent::<f64>(Point2::new(4.0, 2.0), centre, ArcSweep::Ccw, band)
                 .expect("a real tangent");
         assert_eq!((t.unit.x, t.unit.y), (0.0, 1.0), "the stored ray is unit");
+    }
+
+    /// **The overflow end of both 2-D director doors.** Components
+    /// past `Vec2::normalize`'s ~1e154 band make the norm ∞, which is
+    /// maximally DEFINITE to the classifier, and the division that
+    /// follows collapses the ray to zero. Measured at the merge base,
+    /// both doors reported SUCCESS:
+    ///
+    /// - `unit_from_components(1e200, 0.0, witness)` →
+    ///   `Ok(Dir { unit: (0, 0), ang: 0 })`;
+    /// - `carrier_tangent((1e200, 0), origin, Ccw, band)` →
+    ///   `Ok(Dir { unit: (-0, 0), ang: π })` — an angle asserted over
+    ///   a ray of nothing. This door had never been executed at the
+    ///   overflow end before this row.
+    ///
+    /// Both now refuse [`PathError::NonFiniteDirection`], whose
+    /// sentence is NOT [`PathError::ZeroDirection`]'s: the direction
+    /// is not zero, and "scale the components up" is the wrong way
+    /// round.
+    #[test]
+    fn both_director_doors_refuse_a_length_that_is_not_a_number() {
+        let tol = Tol::witness();
+        let band = linear_band::<f64>(tol).expect("the linear band");
+        for (dx, dy) in [(1e200, 0.0), (0.0, 1e200), (1e200, 1e200), (f64::NAN, 1.0)] {
+            assert!(
+                matches!(
+                    unit_from_components::<f64>(dx, dy, tol),
+                    Err(PathError::NonFiniteDirection { .. })
+                ),
+                "components ({dx}, {dy})"
+            );
+            let got = arc_fillet::carrier_tangent(
+                Point2::new(dx, dy),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            );
+            assert!(
+                matches!(got, Err(PathError::NonFiniteDirection { .. })),
+                "carrier anchor ({dx}, {dy}): {got:?}"
+            );
+        }
+        // A finite pair still climbs: the rows above cannot be passing
+        // because the doors refuse everything.
+        assert!(unit_from_components::<f64>(3.0, 4.0, tol).is_ok());
+        assert!(
+            arc_fillet::carrier_tangent(
+                Point2::new(3.0, 4.0),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            )
+            .is_ok()
+        );
+        // The sentence names the cause and a recourse that can work
+        // AT BOTH DOORS, and is not the zero-direction sentence.
+        let s = PathError::NonFiniteDirection {
+            dx: 1e200_f64,
+            dy: 0.0,
+        }
+        .to_string();
+        assert!(s.contains("no finite length"), "{s}");
+        // The arm is shared by a door whose components are SPELLED
+        // (`toward`) and one whose vector is DERIVED (the arc
+        // carrier's tangent). Only the ratio is read at either, so the
+        // free recourse — divide the pair through — must be named
+        // first; sending a `toward` caller to move geometry instead
+        // would be a refusal naming the wrong recourse.
+        assert!(
+            s.contains("only the ratio of the components is read"),
+            "{s}"
+        );
+        assert!(s.contains("divide them through by a common factor"), "{s}");
+        assert!(
+            s.contains("scale that geometry into the session's range"),
+            "{s}"
+        );
+        assert!(!s.contains("scaling them up costs nothing"), "{s}");
+        assert_eq!(
+            PathError::NonFiniteDirection {
+                dx: 1e200_f64,
+                dy: 0.0
+            }
+            .kind(),
+            PathErrorKind::NonFiniteDirection
+        );
+    }
+
+    /// **The underflow end of the same two doors, which they answer
+    /// DIFFERENTLY — deliberately.** Components below ~1e-162 square to
+    /// zero, so the norm is exactly zero and the classifier answers
+    /// `Zero` definitely at both.
+    ///
+    /// The arc carrier's tangent refuses
+    /// [`PathError::UnderflowedDirection`]: its vector is DERIVED (the
+    /// anchor's displacement from the centre), the caller does not hold
+    /// those components, and its old refusal —
+    /// `DegenerateArcCenter { radius: 0 }`, "the authored centre is
+    /// within tolerance of an endpoint" — named a coincidence that is
+    /// not there and a tolerance lever that cannot reach it.
+    ///
+    /// The components director does NOT, and this row is the pin on
+    /// that decision rather than an omission. Its pair is SPELLED by the
+    /// caller, so `ZeroDirection`'s sentence ("whose norm is within
+    /// tolerance of zero") is true of it and its recourse ("scaling them
+    /// up costs nothing") is already the only one that works. A second
+    /// arm here would split two inputs that want the same answer. A lane
+    /// adding one for symmetry breaks this row, which is the point.
+    #[test]
+    fn the_two_director_doors_split_at_the_underflow_end() {
+        let tol = Tol::witness();
+        let band = linear_band::<f64>(tol).expect("the linear band");
+        for (dx, dy) in [(1e-200, 0.0), (0.0, 1e-200), (1e-200, 1e-200)] {
+            // The premise: the norm flushed to zero, and the direction
+            // survives in the witness the question is asked against.
+            let v = Vec2::new(dx, dy);
+            assert_eq!(v.norm_squared().sqrt(), 0.0, "({dx}, {dy})");
+            assert_ne!(v.norm_witness(), 0.0, "({dx}, {dy})");
+
+            let got = arc_fillet::carrier_tangent(
+                Point2::new(dx, dy),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            );
+            assert!(
+                matches!(got, Err(PathError::UnderflowedDirection { .. })),
+                "carrier anchor ({dx}, {dy}): {got:?}"
+            );
+            assert!(
+                matches!(
+                    unit_from_components::<f64>(dx, dy, tol),
+                    Err(PathError::ZeroDirection { .. })
+                ),
+                "components ({dx}, {dy}) keep the zero-direction arm"
+            );
+        }
+        // A finite pair still climbs at both doors: the rows above
+        // cannot be passing because everything refuses.
+        assert!(unit_from_components::<f64>(3.0, 4.0, tol).is_ok());
+        assert!(
+            arc_fillet::carrier_tangent(
+                Point2::new(3.0, 4.0),
+                Point2::origin(),
+                crate::ArcSweep::Ccw,
+                band,
+            )
+            .is_ok()
+        );
+        // The sentence names the end of the format it is, and a
+        // recourse that can work — not a coincidence at this tolerance.
+        let s = PathError::UnderflowedDirection {
+            dx: 0.0_f64,
+            dy: 1e-200,
+        }
+        .to_string();
+        assert!(s.contains("underflowed out of the format"), "{s}");
+        assert!(
+            s.contains("multiply them through by a common factor"),
+            "{s}"
+        );
+        assert!(
+            s.contains("scale that geometry into the session's range"),
+            "{s}"
+        );
+        assert!(!s.contains("within tolerance of zero"), "{s}");
+        assert!(!s.contains("no finite length"), "{s}");
+        // The component the format lost is RENDERED, never the zero it
+        // measured to.
+        assert!(s.contains("1e-200"), "{s}");
+        assert_eq!(
+            PathError::UnderflowedDirection {
+                dx: 0.0_f64,
+                dy: 1e-200
+            }
+            .kind(),
+            PathErrorKind::UnderflowedDirection
+        );
+    }
+
+    /// **A refusal never renders a number it did not measure.**
+    ///
+    /// [`num`] shortens a scalar payload to the shortest spelling that
+    /// still names it to a relative 1e-9. The tolerance being RELATIVE
+    /// is the whole of that promise: with an absolute floor under it,
+    /// every payload below the floor rounds to the floor's own zero —
+    /// and the kernel's unit is the metre, so the picometre and
+    /// nanometre margins a junction refusal exists to report are
+    /// exactly the values erased.
+    ///
+    /// Each row names a magnitude a refusal can carry. A floor at `f`
+    /// makes every row with `|x| < f` read `0` (and every negative one
+    /// `-0`, which reports the sign of a magnitude it just erased), so
+    /// a 1e-9 floor breaks rows 3 onward and a 1e-30 floor still
+    /// breaks the last four.
+    #[test]
+    fn num_renders_a_sub_nanometre_payload_at_its_own_magnitude() {
+        let rows: [(f64, &str); 11] = [
+            (1e-8, "1e-8"),
+            (2e-9, "2e-9"),
+            (1e-9, "1e-9"),
+            (1e-10, "1e-10"),
+            (1e-12, "1e-12"),
+            (3.7e-12, "3.7e-12"),
+            (1e-30, "1e-30"),
+            (-1e-30, "-1e-30"),
+            (1e-180, "1e-180"),
+            (5e-324, "5e-324"),
+            (-5e-324, "-5e-324"),
+        ];
+        for (x, want) in rows {
+            let got = num(&x);
+            assert_eq!(got, want, "num({x:?})");
+            // The two spellings this row exists to forbid, stated
+            // apart from the equality above so that re-baselining a
+            // spelling cannot quietly re-admit them.
+            assert_ne!(got, "0", "num({x:?}) erased the magnitude");
+            assert_ne!(got, "-0", "num({x:?}) kept the sign of an erased magnitude");
+        }
+    }
+
+    /// **A difference the kernel can certify is a difference the
+    /// sentence spells.** ε is a LENGTH, so a purely relative 1e-9
+    /// crosses it at one metre and is coarser above — at a kilometre it
+    /// is a micron, a thousand ε. Two lengths the kernel decided were
+    /// different then reach the reader as one number, which is how a
+    /// refusal comes to read *"margin 1234.5 m exceeds the 1234.5 m the
+    /// anchor pins"*.
+    ///
+    /// Each row is a pair at a magnitude at or above the crossover,
+    /// separated by the multiple of ε named beside it, and the guard
+    /// above each comparison is what makes the row mean anything: a
+    /// pair closer than ε is one the kernel could not certify apart
+    /// either, so `num` would owe nothing. The first row is the
+    /// control — one metre is where a relative 1e-9 still equals ε, and
+    /// it is distinct under either grid. The three above it collide
+    /// under a purely relative tolerance.
+    #[test]
+    fn num_separates_two_lengths_the_kernel_can_certify_apart() {
+        let rows: [(f64, f64, &str); 4] = [
+            (1.0, 1.000_000_01, "1 m, 10 ε"),
+            (100.0, 100.000_000_01, "100 m, 10 ε"),
+            (1_234.5, 1_234.500_000_1, "1234.5 m, 100 ε"),
+            (10_000.0, 10_000.000_001, "10 km, 1000 ε"),
+        ];
+        for (base, other, label) in rows {
+            assert!(
+                (other - base).abs() >= DEFAULT_EPS,
+                "{label}: the pair is closer than ε, so the row proves nothing"
+            );
+            assert_ne!(num(&base), num(&other), "{label}: num rendered both alike");
+        }
+        assert_eq!(num(&100.000_000_01_f64), "100.00000001");
+    }
+
+    /// **The floor's absence is visible at the door, not only in the
+    /// helper.** [`PathError::JunctionTangent`]'s sentence is *"turn
+    /// margin {margin} m on a {arm} m arm"*, and a picometre margin
+    /// rendered `0 m` reads as a claim that the margin IS zero — the
+    /// one thing it is not, since a decided-zero margin takes a
+    /// different arm entirely.
+    ///
+    /// Breaks if `num` regains any absolute floor above 3.7e-12, or if
+    /// an arm stops routing its scalars through it.
+    #[test]
+    fn a_picometre_turn_margin_reaches_the_sentence_as_a_picometre() {
+        let s = PathError::JunctionTangent {
+            margin: 3.7e-12_f64,
+            arm: 2.5e-6_f64,
+        }
+        .to_string();
+        assert!(s.contains("turn margin 3.7e-12 m on a 2.5e-6 m arm"), "{s}");
+        assert!(!s.contains("margin 0 m"), "{s}");
+        let cusp = PathError::JunctionCusp {
+            margin: -4e-11_f64,
+            arm: 1.0_f64,
+        }
+        .to_string();
+        assert!(cusp.contains("turn margin -4e-11 m on a 1 m arm"), "{cusp}");
+        assert!(!cusp.contains("margin -0 m"), "{cusp}");
+    }
+
+    /// **The cap is visible at the door too.**
+    /// [`PathError::ArcCenterNotEquidistant`] fires precisely BECAUSE
+    /// the kernel decided two radii differ, and its sentence prints
+    /// both of them. Under a purely relative 1e-9 a 100 m arc whose
+    /// radii differ by 10 ε renders *"|tip - centre| = 100 m, |end -
+    /// centre| = 100 m"* — a refusal that contradicts itself in its own
+    /// sentence, telling the reader the centre is not equidistant while
+    /// printing one number twice.
+    #[test]
+    fn a_hundred_metre_refusal_does_not_print_its_two_radii_alike() {
+        let s = PathError::ArcCenterNotEquidistant {
+            tip_radius: 100.0_f64,
+            end_radius: 100.000_000_01_f64,
+        }
+        .to_string();
+        assert!(
+            s.contains("|tip - centre| = 100 m, |end - centre| = 100.00000001 m"),
+            "{s}"
+        );
+    }
+
+    /// **Zero renders as zero.** A relative tolerance at `0.0` is
+    /// `0.0`, so only a spelling that parses back to the payload is
+    /// accepted — which `0` is, at the first precision tried. The row
+    /// exists because the obvious failure of a relative tolerance is
+    /// the one value it cannot scale: were the loop to reject every
+    /// precision here it would fall through to the `{:?}` form and a
+    /// refusal would read `margin 0.0 m`.
+    ///
+    /// `-0.0` keeps its sign, and that is not the defect above: no
+    /// magnitude was erased, the payload IS negative zero, and `-0` is
+    /// the only spelling that names it.
+    #[test]
+    fn num_renders_zero_as_zero_and_negative_zero_as_negative_zero() {
+        assert_eq!(num(&0.0_f64), "0");
+        assert_eq!(num(&-0.0_f64), "-0");
+    }
+
+    /// **The `{:?}` fallback is reached by the non-finite payloads and
+    /// by nothing finite.** The loop tries 18 significant figures in
+    /// the notation `{:?}` itself chose, which names every finite
+    /// `f64` exactly; only `NaN` and the infinities fail every
+    /// comparison — each is false against a `NaN` or infinite
+    /// tolerance — and fall through.
+    ///
+    /// The finite rows below are asserted SHORTENED, which the fallback
+    /// cannot produce: a fall-through returns the full
+    /// 17-significant-figure `Debug` spelling.
+    ///
+    /// **The largest magnitude is not one of them, and cannot be.** The
+    /// display grid is absolute above a decimetre, and `f64`'s own
+    /// spacing near [`f64::MAX`] is some 10³⁰⁰ metres — coarser than the
+    /// grid by every order there is. The shortest spelling inside the
+    /// grid is therefore the exact one, which is what `{:?}` already
+    /// prints, so `num` and `{:?}` necessarily agree and no shortening
+    /// is available to observe. That equality is itself the assertion: a
+    /// tolerance that went relative again shortens the extreme to
+    /// `1.79769313486e308` and reds the row.
+    #[test]
+    fn num_falls_through_to_debug_for_the_non_finite_payloads_only() {
+        assert_eq!(num(&f64::NAN), "NaN");
+        assert_eq!(num(&f64::INFINITY), "inf");
+        assert_eq!(num(&f64::NEG_INFINITY), "-inf");
+        for x in [f64::MAX, -f64::MAX] {
+            assert_eq!(num(&x), format!("{x:?}"), "num({x:?}) dropped a digit");
+        }
+        for x in [
+            f64::MIN_POSITIVE,
+            -f64::MIN_POSITIVE,
+            1_234.567_890_123_456_7,
+            -1_234.567_890_123_456_7,
+        ] {
+            let got = num(&x);
+            assert_ne!(got, format!("{x:?}"), "num({x:?}) fell through");
+            assert!(
+                (got.parse::<f64>().unwrap() - x).abs() <= 1e-9 * x.abs(),
+                "num({x:?}) = {got} does not name the payload"
+            );
+        }
+        // A payload that is not a scalar at all — an enclosure, a dual
+        // — has no `f64` spelling to shorten and passes through whole.
+        assert_eq!(num(&(1.0_f64, 2.0_f64)), "(1.0, 2.0)");
+    }
+
+    /// **The reason [`num`] exists survives the fix.** `{:?}` on an
+    /// `f64` is the shortest round-tripping spelling, which at
+    /// ordinary scales is the arithmetic's own noise: an 8 mm setback
+    /// that a subtraction produced is `0.008000000000000002`. Every
+    /// row here is a value whose `Debug` form carries that noise, and
+    /// each regresses to it if the shortening search is dropped.
+    ///
+    /// The last two rows straddle the decimetre where the grid stops
+    /// being relative and becomes an absolute ε/10: `1/3` keeps ten
+    /// decimal places because a tenth of a nanometre is what the grid
+    /// is worth there, while `0.0035` keeps two significant figures
+    /// because below the crossover the relative arm is the finer one.
+    #[test]
+    fn num_still_shortens_arithmetic_noise_at_metre_scale() {
+        let rows: [(f64, &str); 6] = [
+            (0.1 + 0.2, "0.3"),
+            (0.008_000_000_000_000_002, "0.008"),
+            (0.003_499_999_999_999_999_6, "0.0035"),
+            (-0.008_000_000_000_000_002, "-0.008"),
+            (1.0 / 3.0, "0.3333333333"),
+            (2.5, "2.5"),
+        ];
+        for (x, want) in rows {
+            assert_eq!(num(&x), want, "num({x:?})");
+        }
+    }
+
+    /// **Notation is the `Debug` form's, never re-chosen.** A
+    /// metre-scale number keeps its decimal point and a far-from-unity
+    /// one keeps its exponent, so the shortening never turns a
+    /// readable `0.0035` into `3.5e-3`, nor a `1e300` into the 301
+    /// digits its fixed-point spelling needs.
+    ///
+    /// The length assertion is the one a re-chosen notation breaks:
+    /// with fixed-point forced, `num(&1e300)` is 301 characters of
+    /// refusal sentence.
+    #[test]
+    fn num_keeps_the_notation_the_debug_form_chose() {
+        assert_eq!(num(&1e300_f64), "1e300");
+        assert_eq!(num(&1e17_f64), "1e17");
+        for x in [0.0035_f64, 0.001, 0.0001, 123_456.789, 1.0, -1.0, 8e-3] {
+            let got = num(&x);
+            assert!(!got.contains('e'), "num({x:?}) = {got} left metre scale");
+        }
+    }
+
+    /// **The spelling names the payload to the finer of a relative 1e-9
+    /// and an absolute ε/10, at every magnitude.** This is the property
+    /// the per-value rows above sample; here it is asserted as the
+    /// invariant, over a ladder that spans the exponent range in both
+    /// signs.
+    ///
+    /// Each arm catches a different mistake. A returning absolute FLOOR
+    /// breaks the relative arm at the bottom of the ladder — the
+    /// rendered `0` has relative error 1, not 1e-9. A tolerance that
+    /// drops the CAP and goes purely relative breaks the absolute arm
+    /// at every rung above a decimetre, where a relative 1e-9 exceeds
+    /// ε and the search stops a digit early on a difference the kernel
+    /// can certify.
+    #[test]
+    fn num_names_its_payload_to_the_finer_of_a_relative_1e_9_and_an_absolute_grid() {
+        let mut x = 1.234_567_890_123_456_7e-300_f64;
+        let mut rungs = 0;
+        while x.is_finite() && x != 0.0 {
+            for signed in [x, -x] {
+                let got = num(&signed);
+                let back: f64 = got
+                    .parse()
+                    .unwrap_or_else(|e| panic!("num({signed:?}) = {got} does not parse: {e}"));
+                assert!(
+                    (back - signed).abs() <= 1e-9 * signed.abs(),
+                    "num({signed:?}) = {got} is not within a relative 1e-9"
+                );
+                assert!(
+                    (back - signed).abs() <= DEFAULT_EPS * 0.1,
+                    "num({signed:?}) = {got} is coarser than a tenth of ε"
+                );
+                assert!(
+                    got != "0" && got != "-0",
+                    "num({signed:?}) = {got} renders a non-zero payload as zero"
+                );
+            }
+            rungs += 1;
+            x *= 1e17;
+        }
+        // The ladder ran: a `while` whose first test failed would pass
+        // every assertion above vacuously.
+        assert!(rungs >= 30, "the magnitude ladder covered {rungs} rungs");
+    }
+}
+
+/// **What a stored fillet arc can carry of the tangency the door
+/// computed** — the measurement behind the door's own stored-form
+/// check, over four decades of corner turn at whatever ε the run
+/// commits.
+///
+/// A fillet arc is emitted as a chord plus a bulge. Its sagitta,
+/// `L·b/2 = r(1 − cos(θ/2))`, is the margin `segment_straightness`
+/// classifies, so a fillet whose turn is small enough that
+/// `r·θ²/8 ≤ ε` is stored as a segment the validator reads as a
+/// **line**: the carrier the door computed is not in the stored form at
+/// all. The door's own carrier, by contrast, is tangent to both legs to
+/// within a few ulps at every turn — which is what
+/// [`the_door_computes_its_tangency_to_the_ulp`] asserts and what
+/// decides that the door, not the classifier, is the side that has to
+/// ask before it emits.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)]
+mod fillet_stored_form {
+    use super::*;
+    use crate::path::verbs::Center;
+    use crate::seg::{self, JointClass, Seg, SegIssue, SegKind};
+    use crate::sugar::ArcSweep;
+    use crate::{Profile, ProfileLoop, SketchPlane};
+
+    /// The fillet radius every corner below is rounded with.
+    const R: f64 = 0.2;
+
+    fn p2(x: f64, y: f64) -> Point2<f64> {
+        Point2::new(x, y)
+    }
+
+    /// The arrival leg's carrier. The door's fillet arc is tangent to it
+    /// at `t2`, so the carrier's unit tangent there plus the turn sense
+    /// reconstructs the centre the door computed — `fillet_arc_carrier`'s
+    /// `t2 + n̂·σr`, read from the stored end point.
+    #[derive(Clone, Copy)]
+    enum Arrival {
+        Ray(Vec2<f64>),
+        Circle { c: Point2<f64>, ccw: bool },
+    }
+
+    impl Arrival {
+        /// The direction of travel along the carrier at `p`.
+        fn tangent_at(self, p: Point2<f64>) -> Vec2<f64> {
+            match self {
+                Arrival::Ray(u) => u,
+                Arrival::Circle { c, ccw } => {
+                    let radial = p - c;
+                    let t = Vec2::new(-radial.y, radial.x) / radial.norm_squared().sqrt();
+                    if ccw { t } else { -t }
+                }
+            }
+        }
+    }
+
+    /// One corner of the sweep: the door that rounds it, the arrival
+    /// carrier its fillet arc ends tangent to, and a name for the table.
+    struct Corner {
+        name: &'static str,
+        build: fn(f64) -> Result<ProfileLoop<f64>, PathError<f64>>,
+        arrival: fn(f64) -> Arrival,
+    }
+
+    /// The same segment, re-carried onto the circle (`centre`,
+    /// `radius`) — the carrier the DOOR computed, in place of the one
+    /// the stored bulge reconstructs. Everything else about the segment
+    /// is kept, so [`seg::joint_tangency`] classifies the door's carrier
+    /// through exactly the arms it classifies the stored one through:
+    /// the measurement is a substitution, not a second expression.
+    fn on_the_doors_carrier(arc: &Seg<f64>, centre: Point2<f64>, radius: f64) -> Seg<f64> {
+        let toward_apex = (arc.a.lerp(arc.b, 0.5) - centre).normalize();
+        let apex = centre + toward_apex * radius;
+        Seg {
+            kind: SegKind::Arc(seg::ArcGeom {
+                center: centre,
+                radius,
+                apex,
+                span_chord: arc.a.distance(apex),
+                turn: if arc.bulge >= 0.0 {
+                    Sign::Positive
+                } else {
+                    Sign::Negative
+                },
+            }),
+            ..*arc
+        }
+    }
+
+    /// A joint's reading as one printable cell: the class, the predicate
+    /// the funnel stopped at and the margin it classified — all three
+    /// from [`seg::joint_tangency`], none of them re-derived here.
+    fn reading(prev: &Seg<f64>, next: &Seg<f64>, band: Band) -> (String, f64) {
+        match seg::joint_tangency(prev, next, band) {
+            Ok(j) => (
+                format!(
+                    "{} ({} {:e})",
+                    match j.class {
+                        JointClass::Tangent => "tangent",
+                        JointClass::Transversal => "TRANSVERSAL",
+                        JointClass::SameCarrier => "same-carrier",
+                    },
+                    j.predicate,
+                    j.margin
+                ),
+                j.margin,
+            ),
+            Err(i) => (
+                format!("escalated ({})", i.predicate.unwrap_or("?")),
+                f64::NAN,
+            ),
+        }
+    }
+
+    fn short(s: &str) -> String {
+        s.chars().take(72).collect()
+    }
+
+    /// The stored fillet arc of a door-built loop: the segment whose two
+    /// joints the door both declared tangent.
+    fn fillet_index(lp: &ProfileLoop<f64>) -> Option<usize> {
+        let vs = lp.vertices();
+        let n = vs.len();
+        let declared = lp.tangent_joints();
+        (0..n).find(|&i| {
+            declared.contains(&i) && declared.contains(&((i + 1) % n)) && vs[i].bulge() != 0.0
+        })
+    }
+
+    /// What the door emitted for one turn and what the validator reads
+    /// back out of it: one table row, and the door's own tangency
+    /// margins at both joints for the assertion above the table.
+    fn row(lp: &ProfileLoop<f64>, arrival: Arrival, theta: f64, tol: Tol) -> (String, [f64; 2]) {
+        let band = match Band::linear(tol) {
+            Ok(b) => b,
+            Err(e) => return (format!("| {theta:e} | band: {e} |"), [0.0; 2]),
+        };
+        let vs = lp.vertices();
+        let n = vs.len();
+        let Some(s) = fillet_index(lp) else {
+            return (
+                format!(
+                    "| {theta:e} | no joint-declared arc: n = {n}, declared = {:?}, bulges = {:?} |",
+                    lp.tangent_joints(),
+                    vs.iter().map(|v| v.bulge()).collect::<Vec<_>>()
+                ),
+                [0.0; 2],
+            );
+        };
+        let built: Vec<Result<Seg<f64>, SegIssue<f64>>> = (0..n)
+            .map(|i| seg::build_seg(vs[i].pos(), vs[(i + 1) % n].pos(), vs[i].bulge(), band))
+            .collect();
+        let validates = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
+            Ok(_) => "ok".to_string(),
+            Err(e) => format!("REFUSED: {}", short(&e.to_string())),
+        };
+        let bulge = vs[s].bulge();
+        let chord = vs[s].pos().distance(vs[(s + 1) % n].pos());
+        let head = format!(
+            "| {theta:e} | {:e} | {chord:e} | {bulge:e} | {:e} |",
+            R * theta,
+            (chord * bulge * 0.5).abs()
+        );
+        let (prev, next) = ((s + n - 1) % n, (s + 1) % n);
+        let (Ok(arc), Ok(p), Ok(nx)) = (&built[s], &built[prev], &built[next]) else {
+            let tag = |r: &Result<Seg<f64>, SegIssue<f64>>| match r {
+                Ok(Seg {
+                    kind: SegKind::Line,
+                    ..
+                }) => "line".to_string(),
+                Ok(_) => "arc".to_string(),
+                Err(e) => format!("refused: {}", e.predicate()),
+            };
+            return (
+                format!(
+                    "{head} prev {}, fillet {}, next {} | - | - | - | - | - | - | - | - | built | \
+                     {validates} |",
+                    tag(&built[prev]),
+                    tag(&built[s]),
+                    tag(&built[next])
+                ),
+                [0.0; 2],
+            );
+        };
+        let t2 = arc.b;
+        let u2 = arrival.tangent_at(t2);
+        let sigma = if bulge >= 0.0 { R } else { -R };
+        let door_centre = t2 + Vec2::new(-u2.y, u2.x) * sigma;
+        let carried = on_the_doors_carrier(arc, door_centre, R);
+        let (door_in, m_door_in) = reading(p, &carried, band);
+        let (door_out, m_door_out) = reading(&carried, nx, band);
+        let (joint_in, _) = reading(p, arc, band);
+        let (joint_out, _) = reading(arc, nx, band);
+        let (d_centre, d_radius, kind) = match &arc.kind {
+            SegKind::Arc(g) => (
+                format!("{:e}", g.center.distance(door_centre)),
+                format!("{:e}", (g.radius - R).abs()),
+                "arc",
+            ),
+            SegKind::Line => ("stored as a line".to_string(), "-".to_string(), "line"),
+        };
+        (
+            format!(
+                "{head} {kind} | {d_centre} | {d_radius} | {joint_in} | {joint_out} | \
+                 {door_in} | {door_out} | built | {validates} |"
+            ),
+            [m_door_in, m_door_out],
+        )
+    }
+
+    /// The item's line × line bend: the incoming ray runs east from the
+    /// origin, the corner sits at (4, 0), the arrival leaves it at
+    /// `theta`, anchored three units along.
+    fn line_line(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+        let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+        Open.at(p2(0.0, 0.0))
+            .angle(0.0, Tol::witness())?
+            .fillet(R, Tol::witness())?
+            .at(anchor, Tol::witness())?
+            .angle(theta, Tol::witness())?
+            .line(1.0, Tol::witness())?
+            .line_to(Start, Tol::witness())
+            .map(|c| c.loop_)
+    }
+
+    /// The line × arc corner's arrival circle: radius 2, counterclockwise
+    /// tangent (cos θ, sin θ) at the corner (4, 0).
+    fn line_arc_centre(theta: f64) -> Point2<f64> {
+        p2(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
+    }
+
+    /// A line × arc corner turning by `theta`: the east ray from the
+    /// origin meets that circle at (4, 0) and the fillet closes along it.
+    fn line_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+        let c = line_arc_centre(theta);
+        let start = c + Vec2::new(2.0 * theta.cos(), 2.0 * theta.sin());
+        Open.at(start)
+            .line_to(p2(0.0, 0.0), Tol::witness())?
+            .toward(1.0, 0.0, Tol::witness())?
+            .fillet_arc(
+                R,
+                Center {
+                    c,
+                    winding: ArcSweep::Ccw,
+                    p: Start,
+                },
+                Tol::witness(),
+            )
+            .map(|c| c.loop_)
+    }
+
+    /// An arc × arc corner turning by `theta`: two radius-2 circles about
+    /// (−θ, 0) and (θ, 0) cross at (0, √(4 − θ²)), where their tangents
+    /// are an angle θ apart — the vesica of the arc × arc fixtures, with
+    /// its corner opened out to a shallow turn.
+    fn arc_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+        Open.arc_fillet_arc(
+            Center {
+                c: p2(-theta, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0 - theta, 0.0),
+            },
+            R,
+            Center {
+                c: p2(theta, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(theta - 2.0, 0.0),
+            },
+            Tol::witness(),
+        )?
+        .line_to(Start, Tol::witness())
+        .map(|c| c.loop_)
+    }
+
+    fn corners() -> [Corner; 3] {
+        [
+            Corner {
+                name: "line x line",
+                build: line_line,
+                arrival: |t| Arrival::Ray(Vec2::new(t.cos(), t.sin())),
+            },
+            Corner {
+                name: "line x arc",
+                build: line_arc,
+                arrival: |t| Arrival::Circle {
+                    c: line_arc_centre(t),
+                    ccw: true,
+                },
+            },
+            Corner {
+                name: "arc x arc",
+                build: arc_arc,
+                arrival: |t| Arrival::Circle {
+                    c: Point2::new(t, 0.0),
+                    ccw: true,
+                },
+            },
+        ]
+    }
+
+    /// The swept turns: `c·10^k`, `c ∈ {1, 2, 5}`, `k ∈ {−9 … −2}`.
+    fn turns() -> impl Iterator<Item = f64> {
+        (-9i32..=-2).flat_map(|k| [1.0, 2.0, 5.0].map(|c| c * 10f64.powi(k)))
+    }
+
+    /// **The door computes the tangency exactly; the stored form is what
+    /// loses it.** At every turn the door builds, the carrier the door
+    /// computed — radius `r`, centred `r` off the arrival carrier at the
+    /// arc's end — is tangent to both legs to within a few ulps of `r`,
+    /// whatever the stored chord-and-bulge form reads back as. The table
+    /// this prints (`--nocapture`) is the per-decade measurement: the
+    /// stored kind, the two carrier errors, the margins both sides
+    /// decide on, and both verdicts.
+    #[test]
+    fn the_door_computes_its_tangency_to_the_ulp() {
+        let tol = Tol::witness();
+        // What the sweep MEASURES, with stated headroom rather than a
+        // round number well above it: the largest door-carrier margin
+        // anywhere in these three tables at any of the three epsilon
+        // rows is 6.7e-16, and this pins 3.6e-15 — eight ulps of the
+        // corners' own metre-scale coordinates, five times the measured
+        // worst case. A pin an order of magnitude looser would pass a
+        // door whose carrier had stopped being exact.
+        let ulps = 16.0 * f64::EPSILON;
+        for corner in corners() {
+            println!(
+                "\n### {}   eps = {:e}  K = {}  band = ({:e}, {:e})  r = {R}",
+                corner.name,
+                tol.eps(),
+                tol.k(),
+                tol.eps(),
+                tol.eps() * tol.k()
+            );
+            println!(
+                "| turn | r*turn | chord | bulge | sagitta | stored kind | |dcentre| | |dradius| \
+                 | joint in | joint out | door in | door out | door | validate |"
+            );
+            println!("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+            for theta in turns() {
+                match (corner.build)(theta) {
+                    Err(e) => println!(
+                        "| {theta:e} | {:e} | - | - | - | - | - | - | - | - | - | - | \
+                         REFUSED: {} | - |",
+                        R * theta,
+                        short(&e.to_string())
+                    ),
+                    Ok(lp) => {
+                        let (line, door) = row(&lp, (corner.arrival)(theta), theta, tol);
+                        println!("{line}");
+                        for (joint, margin) in door.iter().enumerate() {
+                            assert!(
+                                margin.abs() <= ulps,
+                                "{}, turn {theta:e}: the door's own carrier misses tangency at \
+                                 joint {joint} by {margin:e}",
+                                corner.name
+                            );
+                        }
+                        // The door's promise: nothing it builds carries
+                        // a declared tangency validation refuses.
+                        if let Err(e) = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol) {
+                            assert!(
+                                !matches!(
+                                    e,
+                                    crate::ProfileError::TangencyContradicted { .. }
+                                        | crate::ProfileError::UndeclaredTangency { .. }
+                                ),
+                                "{}, turn {theta:e}: the door built a loop validation refuses \
+                                 for its declared tangency: {e}",
+                                corner.name
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }

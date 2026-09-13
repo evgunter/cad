@@ -50,6 +50,7 @@ use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::{KemrResult, KfmrhResult};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
+use crate::readback::euler_counts;
 use crate::test_support_impl::ArenaCounts;
 use geom_core::Tol;
 
@@ -974,12 +975,12 @@ pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
     .unwrap();
     body.kfmrh(f_back, membrane.face).unwrap();
     // Genus-2 checkpoint.
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, fd)| fd.rings.len() as i64).sum();
-    assert_eq!((v, e, f, r), (22, 33, 13, 4));
-    assert_eq!(v - e + f - r, -2, "genus 2");
+    let counts = euler_counts(&body);
+    assert_eq!(
+        (counts.v, counts.e, counts.f, counts.r, counts.s),
+        (22, 33, 13, 4, 1)
+    );
+    assert_eq!(counts.genus(), Ok(2), "genus 2");
     assert_eq!(crate::validate::validate(&body), Ok(()));
     body
 }

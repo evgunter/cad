@@ -26,22 +26,30 @@ compiler — the same defect one directory over". It is already there.
 - `crates/viewer/tests/chrome_labels.rs:64` —
   `for pane in [Pane::Viewport, Pane::Features, Pane::Properties,
   Pane::View]`, asserting each has a tile. `Pane`
-  (`crates/viewer/src/app.rs:259`) has exactly those four variants. A
+  (`crates/viewer/src/app.rs:276`) has exactly those four variants. A
   fifth pane added with no tile leaves this row green.
 - `crates/viewer/tests/review_gui0_r2.rs:303` — `buttons = [Primary,
   Secondary, Middle]`, the whole of `PointerButton`
   (`crates/viewer/src/input.rs:63`), driving the `map_stream`
   consistency fuzz. A fourth button is silently never fuzzed.
-- `crates/viewer/tests/frame_policy.rs:775` — all three
-  `ChooserBackend`s (`crates/viewer/src/frame.rs:1440`) under "a chosen
-  path is never this policy's business", which is a claim about the
-  whole vocabulary.
-- `crates/viewer/tests/frame_policy.rs:484-489` — one
+- `crates/viewer/tests/frame_policy.rs:506-508` — one
   `frame::cursor_status` call per `IdStep`
-  (`crates/viewer/src/frame.rs:1652`), all three, written out. The
-  weakest of the four: it is a list of calls rather than a list of
+  (`crates/viewer/src/frame.rs:1913`), all three, written out. The
+  weakest of the three: it is a list of calls rather than a list of
   variants, but the row's claim is still about the whole vocabulary and
   a fourth step would not be asked.
+
+**A fourth instance was here and is not fixed — it is gone.** It was
+`frame_policy.rs`'s three-`ChooserBackend` loop under *"a chosen path
+is never this policy's business"*, and it went with
+`an_empty_dialog_is_loud_only_under_a_confidently_absent_backend` when
+Ev's ruling on
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser` deleted
+`frame::dialog_status`. `ChooserBackend` still has three variants and
+still has no `ALL`; nothing in this class was repaired, the row that
+depended on the hand-written list simply stopped existing. **The count
+above is three because the population is three, not because one was
+answered.**
 
 None of these enums carries an `ALL`, so `vocabulary!` does not reach
 them as they stand: taking this means deciding, per enum, whether the
@@ -50,7 +58,7 @@ should be re-expressed so completeness is not what it rests on.
 
 ## Not the same as, and adjacent to
 
-`work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`
+`work/door/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`
 is about a viewer table mirroring ANOTHER crate's enum. This is the
 viewer's own enums, listed by hand in the viewer's own suites.
 

@@ -28,7 +28,16 @@
 //! Neither setter is an Euler operator (no topology changes — the D1
 //! "exclusively Euler" rule governs *topology*); both preserve tier 1
 //! (geometry arenas stay reference-coherent through the orphan-hygiene
-//! paths) and re-run the tier-1 debug postcondition.
+//! paths) and carry the tier-1 debug postcondition on the same terms
+//! as the operators: **it is re-derived once per public door**, so a
+//! setter a consumer calls directly re-certifies the whole body and
+//! one called inside a composing door's surgery scope
+//! ([`crate::surgery`]) leaves the sweep to that door's close (Ev's
+//! ruling on `work/perf/d1-per-op-tier1-sweep-price`, PR 2305). A
+//! surface swap can orphan a key and a door that replaces a whole
+//! chart makes one such swap per face, which is the case the rule is
+//! about: the check is the same check, taken once over the finished
+//! state instead of once per write.
 //!
 //! Replacement is by **fresh insertion** (new key, old removed iff
 //! orphaned): overwriting in place could silently retarget another
@@ -90,11 +99,7 @@ impl<T: Decide> Body<T> {
         }
 
         #[cfg(debug_assertions)]
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "set_face_surface postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        self.assert_tier1_postcondition("set_face_surface");
         Ok(new)
     }
 
@@ -329,11 +334,7 @@ impl<T: Decide> Body<T> {
         self.remove_curve_if_orphaned(old);
 
         #[cfg(debug_assertions)]
-        debug_assert_eq!(
-            crate::validate::validate(self),
-            Ok(()),
-            "set_edge_curve postcondition: result is not tier-1 valid (kernel bug)",
-        );
+        self.assert_tier1_postcondition("set_edge_curve");
         Ok(new)
     }
 }

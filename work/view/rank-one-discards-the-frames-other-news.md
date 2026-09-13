@@ -36,7 +36,7 @@ batch. When that happens today:
 - the mate lands, `DisplayState::prune` discards the free-move
   placement the user positioned by hand
   (`crates/viewer/src/display.rs`, `prune`),
-- `frame::supersession_notice` renders it,
+- `frame::Withdrawal::superseded` renders it,
 - and `frame_status` drops that notice for the gesture's refusal.
 
 The refusal is about an op that did nothing. The notice is about a

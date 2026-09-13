@@ -89,11 +89,17 @@ gate_exact_skip --statements \
 # those bounds naming `Real`. `IDENT:` introduces a predicate; `IDENT::`
 # is a path and does not. Reads `lib.sh`'s statement view on stdin.
 compound_without_plus() {
-  awk '
+  GATE_RECORD_LINE_RE="$GATE_RECORD_LINE_RE" awk "$GATE_RECORD_AWK"'
     {
-      p1 = index($0, ":"); r = substr($0, p1 + 1); p2 = index(r, ":")
-      if (p1 == 0 || p2 == 0) next
-      stmt = substr(r, p2 + 1)
+      # WHERE THE STATEMENT STARTS is where the FILE column ends, and
+      # that is gate_record_split (lib.sh, section THE RECORD S
+      # COLUMNS). Read to the first colon, a record from a path carrying
+      # one of its own kept a tail of the PATH in the statement text —
+      # and a path segment ending in a colon is exactly what the walk
+      # below reads as a bound predicate, so the gate could fire on a
+      # parameter no source declares.
+      if (!gate_record_split($0)) next
+      stmt = GR_TEXT
       if (stmt !~ /(^|[^A-Za-z0-9_])Real([^A-Za-z0-9_]|$)/) next
       split("", seen); split("", dup); split("", carries)
       rest = stmt
@@ -260,6 +266,22 @@ plant_prose_and_sole_bounds() {
   } > "$1/crates/planted/src/lib.rs"
 }
 
+# THE PATH READ AS CODE, which is the cry-wolf half of the file column.
+# A `:` is legal in a path here and in git, and this walk reads
+# `NAME:` as a bound predicate — so a statement text that begins inside
+# the PATH hands it predicates the source never wrote. Read to the first
+# colon, the text of this record began at `T:x.rs:…`, the walk counted a
+# second predicate on `T` and the file's ONE sole `Real` bound was
+# reported as a parameter bounded twice. The path needs three colons to
+# reach it (the first two are consumed as the file and line columns),
+# which is why this is the near-miss case and not a hit: it fires on a
+# file whose only bound is sole.
+plant_colon_path_read_as_code() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T>(_t: T) where T: Real {}\n' \
+    > "$1/crates/planted/src/a:b:T:x.rs"
+}
+
 # The ratified skip is NARROW, and these two fixtures hold it narrow.
 # The first is the real declaration beside an ordinary violation in the
 # same file: the gate must still fire, so the skip costs one line rather
@@ -308,8 +330,10 @@ gate_selftest() {
   gate_selftest_case "$want" plant_sealed_home_violation
   gate_selftest_case "no longer in crates/geom-core/src/spline/locate.rs verbatim" plant_sealed_decl_changed
   gate_selftest_passes "prose, string literals and sole Real bounds" plant_prose_and_sole_bounds
+  gate_selftest_passes "a sole Real bound in a file whose PATH carries colons, which the statement text must not begin inside" \
+    plant_colon_path_read_as_code
   gate_exact_skip_selftest "$want"
-  printf '%s selftest OK: passes a clean fixture and prose/strings/sole bounds; fires on both operand orders, on a path-qualified Real after the plus, on rustfmt-wrapped plus in the where clause AND in the generic list, on the one-line and wrapped two-predicate spellings, across a blank line inside a where clause, on a predicate split between the generic list and the where clause, on a bound hidden behind a block comment, on a violation beside the skipped declaration, and on that declaration being given a bound with a surface; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, prose/strings/sole bounds and a sole bound in a file whose PATH carries colons, which the statement text must not begin inside; fires on both operand orders, on a path-qualified Real after the plus, on rustfmt-wrapped plus in the where clause AND in the generic list, on the one-line and wrapped two-predicate spellings, across a blank line inside a where clause, on a predicate split between the generic list and the where clause, on a bound hidden behind a block comment, on a violation beside the skipped declaration, and on that declaration being given a bound with a surface; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

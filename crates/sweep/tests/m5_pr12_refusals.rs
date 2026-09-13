@@ -19,8 +19,9 @@ use sweep::blend::battery::{
     spine_regularity,
 };
 use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, FaceKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, FaceSurface, VertexKey};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -53,22 +54,7 @@ fn boxy() -> Body<f64> {
 
 /// A cylinder: a three-arc circle extruded.
 fn cylinder() -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    disc_of_arcs(3, 0.5, 1.0, tol())
 }
 
 /// Any face / vertex / edge key of a real body — the trio rows below
@@ -375,6 +361,102 @@ fn trio_spine_regularity() {
     );
 }
 
+/// **The two-tolerance trio for the CONTAINMENT relation the hostless
+/// annulus rim is metered under, at `fillet3_ring_clearance` itself.**
+///
+/// The fixture is `test_support::bored_cylinder`: an off-axis bore in a
+/// unit cylinder's cap, extruded (no boolean), with the outer rim's
+/// vertices at `11.25` degrees so its sample lattice misses the bore's
+/// nearest point at azimuth 0. Predicate 2's sampled gap is then
+/// STRICTLY larger than the true one and the screen passes, which is
+/// what lets the exact closed form take the decision. Blending the top
+/// rim at `r = 0.1` puts the band's host trim at `0.9`; the bore reaches
+/// `d + a`, so the containment margin is `0.9 - (d + a)` and `d` is the
+/// dial: definitely negative, exactly zero, and inside the band.
+#[test]
+fn trio_hostless_annulus_ring_containment() {
+    let phi = 11.25f64.to_radians();
+    let refuse = |d: f64| -> BlendError {
+        let body = sweep::test_support::bored_cylinder(0.16, d, phi, tol());
+        let arcs = sweep::test_support::z_rim(&body, 1.0, 1.0, false);
+        sweep::blend::build::fillet_edges(&body, &arcs, 0.1, tol())
+            .expect_err("a ring the trim circle does not contain refuses")
+            .error
+    };
+    // Definitely negative: the bore reaches 0.91, `0.01` past the trim.
+    let definite = refuse(0.75);
+    assert!(
+        matches!(&definite, BlendError::RingClearance { margin, .. }
+            if margin.predicate == "fillet3_ring_clearance"
+                && margin.sign == Sign::Negative
+                && margin.value().is_some_and(|m| (m - -0.01).abs() < 1e-12)),
+        "the definite arm classifies at the exact containment margin: {definite}"
+    );
+    // Exactly on: the bore reaches the trim circle - a refusal, not a
+    // pass, which is the polarity a clearance predicate has.
+    let exact = refuse(0.9 - 0.16);
+    assert!(
+        matches!(&exact, BlendError::RingClearance { margin, .. }
+            if margin.predicate == "fillet3_ring_clearance" && margin.sign == Sign::Zero),
+        "a ring exactly on the trim circle refuses: {exact}"
+    );
+    // In band: `5 eps` past it.
+    let escalated = refuse(0.9 - 0.16 + in_band());
+    assert!(
+        matches!(&escalated, BlendError::Escalated { source, .. }
+            if source.predicate == Some("fillet3_ring_clearance")),
+        "the in-band arm escalates under the ring predicate: {escalated}"
+    );
+    assert_same_recourse(&definite, &escalated, "reduce the blend size");
+}
+
+/// **The same relation as predicate 2's SCREEN sees it, on a coaxial
+/// body** - a different row pinning a different predicate.
+///
+/// The body is the boss with its dome grown to radius `a`
+/// ([`sweep::test_support::domed_boss`]), so the ring and the trim
+/// circle are concentric. There the sampled gap is the TRUE gap (nine
+/// samples on each of two arcs of a circle put a sample pair at a shared
+/// azimuth), so `gap - setback` computes the containment margin's own
+/// real and predicate 2 answers before the exact form ever runs. This
+/// row therefore pins `fillet3_face_clearance`'s three outcomes, not
+/// this unit's form: **it passes unchanged at the merge base**, and it
+/// is here because the two doors' agreement on a coaxial pair is the
+/// fact the exact backstop's soundness argument leans on.
+#[test]
+fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
+    let refuse = |a: f64| -> BlendError {
+        let mut body = sweep::test_support::domed_boss(a, tol());
+        body.merge_coplanar_faces(tol())
+            .expect("the pole-split caps repair");
+        let arcs = sweep::test_support::rim_arcs_at(&body, 1.0, 1.0);
+        sweep::blend::build::fillet_edges(&body, &arcs, 0.1, tol())
+            .expect_err("a ring the trim circle does not contain refuses")
+            .error
+    };
+    let definite = refuse(0.92);
+    assert!(
+        matches!(&definite, BlendError::FaceClearanceUncertified { margin, .. }
+            if margin.sign == Sign::Negative
+                && margin
+                    .value()
+                    .is_some_and(|m| m.to_bits() == ((1.0 - 0.1) - 0.92f64).to_bits())),
+        "the screen answers first, at the derived containment double: {definite}"
+    );
+    let exact = refuse(0.9);
+    assert!(
+        matches!(&exact, BlendError::FaceClearanceUncertified { margin, .. }
+            if margin.sign == Sign::Zero),
+        "a ring exactly on the trim circle refuses: {exact}"
+    );
+    let escalated = refuse(0.9 + in_band());
+    assert_same_recourse(
+        &definite,
+        &escalated,
+        "enlarge the support face whose clearance is uncertified",
+    );
+}
+
 #[test]
 fn trio_face_clearance() {
     let body = boxy();
@@ -404,13 +486,20 @@ fn trio_chain_g1() {
     let escalated = chain_g1(x, Vec3::new(1.0, tiny, 0.0), 1.0, v, b).unwrap_err();
     assert_same_recourse(&definite, &escalated, "tangent-continuous chain");
     // The collapsed-arm gate: an arm at zero is not a question.
-    match chain_g1(x, y, 0.0, v, b) {
-        Err(BlendError::Escalated {
+    let collapsed = chain_g1(x, y, 0.0, v, b).unwrap_err();
+    match &collapsed {
+        BlendError::Escalated {
             site: BlendSite::Joint { .. },
             source,
-        }) => assert_eq!(source.predicate, Some("fillet3_chain_arm")),
+        } => assert_eq!(source.predicate, Some("fillet3_chain_arm")),
         other => panic!("a collapsed arm must escalate Invalid, got {other:?}"),
     }
+    // `fillet3_chain_arm` never refuses definitely — it is the gate on
+    // the junction question, so it only ever escalates — and it
+    // carries the sentence its gated predicate's definite refusal
+    // carries: a caller whose junction arm collapsed and a caller
+    // whose junction kinked both need a chain the door can take.
+    assert_same_recourse(&definite, &collapsed, "tangent-continuous chain");
 }
 
 #[test]
@@ -462,7 +551,9 @@ fn trio_convexity_sign() {
     // convexity DISAGREEMENT with a chain verdict that was never taken.
     assert!(matches!(flat, BlendError::TangentialEdge { .. }));
     assert!(format!("{flat}").contains("no definite wedge side"));
-    // In band.
+    // In band: the same site, one wedge too small to call. It carries
+    // the decided-Zero arm's sentence — a chain flip is a different
+    // refusal at a different site and nothing here decided one.
     let escalated = convexity_at(
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(1.0, in_band(), 0.0).normalize(),
@@ -472,7 +563,7 @@ fn trio_convexity_sign() {
         b,
     )
     .unwrap_err();
-    assert!(matches!(escalated, BlendError::Escalated { .. }));
+    assert_same_recourse(&flat, &escalated, "meet at a definite angle");
 }
 
 #[test]
@@ -522,12 +613,149 @@ fn trio_corner_independence() {
         1.0,
         b,
     );
-    match escalated {
-        Err(BlendError::Escalated { source, .. }) => {
+    let escalated = escalated.unwrap_err();
+    match &escalated {
+        BlendError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("fillet3_corner_independence"));
         }
         other => panic!("an in-band determinant must escalate, got {other:?}"),
     }
+    assert_same_recourse(&exact, &escalated, "FULLY REQUESTED trivalent vertices");
+}
+
+/// A cylinder whose top cap sits on a plane tilted off the rim
+/// circle's axis, so the cap–wall pair's two stored axes part by
+/// `departure` meters at the rim's own lever arm — the quantity
+/// `fillet3_support_coaxiality` meters. Returns the body and its
+/// whole raised rim.
+///
+/// **The rim is TWO semicircular arcs by authoring**, so the whole rim
+/// is a closed two-link chain and the trio's exact leg is a BUILD on
+/// the same body the other two legs refuse on. Two is the profile's
+/// choice, not the battery's limit: a rim authored as N ≥ 3 arcs is
+/// the same closed chain with N junctions, each judged between the two
+/// arcs that meet there
+/// (`review_blend1_r1_probes::r1_a_three_arc_rim_carves_where_a_two_arc_rim_does`;
+/// at the closed forms, `closed_chain_junctions`).
+///
+/// The tilt is written through `topo`'s public face-surface door
+/// because no BUILDER mints a parted curved pair: extrude derives the
+/// wall's axis and the cap's normal from one sketch normal, so every
+/// pair it builds is coaxial exactly and the predicate reads Zero.
+/// `FaceSurface::New` mints a FRESH surface key, so the rim arcs'
+/// stored intersection descriptions name the old one and tier 3
+/// reports `DescriptionNotAdjacent` per arc at every departure — the
+/// zero leg included, which is therefore a re-keyed body and not the
+/// untouched extrusion. The body stays tier-2 closed, and the battery
+/// reads each edge's own certified curve rather than the face's
+/// surface key, so the departure is what the legs below meter; both
+/// facts are measured in
+/// `review_blend1_r1_probes::r1_tilted_cap_is_tier2_valid_and_tier3_names_the_tilt`
+/// and `::r1_tilted_cap_departure_is_the_meridian_reading`.
+fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(0.5, 0.0), 1.0),
+        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    let mut body = extrude(&profile, Extrusion::Distance(1.0), tol())
+        .unwrap()
+        .body;
+    // The raised rim: every arc whose stored carrier circle is the
+    // raised one. Its lever arm is that circle's own radius.
+    let raised: Vec<(EdgeKey, f64)> = body
+        .edges()
+        .filter_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            match c.carrier() {
+                geom::Curve3::Circle { center, radius, .. } if center.z > 0.5 => Some((k, *radius)),
+                _ => None,
+            }
+        })
+        .collect();
+    assert_eq!(raised.len(), 2, "the raised rim of a two-arc extrusion");
+    let (rim, lever) = raised[0];
+    let arcs: Vec<EdgeKey> = raised.iter().map(|(k, _)| *k).collect();
+    let sides = {
+        let e = body.get_edge(rim).expect("the rim resolves");
+        [e.he_plus, e.he_minus]
+    };
+    let cap = sides
+        .into_iter()
+        .find_map(|he| {
+            let h = body.get_half_edge(he)?;
+            let f = body.get_loop(h.parent_loop)?.face;
+            matches!(
+                body.get_surface(body.get_face(f)?.surface)?,
+                geom::Surface::Plane { .. }
+            )
+            .then_some(f)
+        })
+        .expect("the cap side of the rim");
+    let geom::Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    } = *body
+        .get_surface(body.get_face(cap).expect("the cap resolves").surface)
+        .expect("the cap's plane")
+    else {
+        panic!("the cap side is a plane")
+    };
+    // A turn about the plane's own `u_ref` keeps the frame orthonormal
+    // and right-handed, and parts the normal from the rim's axis by
+    // exactly `departure` at the lever arm.
+    let theta = (departure / lever).asin();
+    let tilted = geom::Surface::Plane {
+        origin,
+        normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
+        u_ref,
+    };
+    body.set_face_surface(cap, FaceSurface::New(tilted))
+        .expect("a plane for a planar cap");
+    (body, arcs)
+}
+
+/// The battery's verdict on the whole raised rim of [`tilted_rim`]'s
+/// body at one departure.
+fn tilted_rim_verdict(departure: f64) -> Result<(), BlendError> {
+    let (body, arcs) = tilted_rim(departure);
+    run_battery(
+        &BlendRequest {
+            body: &body,
+            edges: arcs,
+            size: 0.05,
+        },
+        band(),
+    )
+    .map(|_| ())
+}
+
+#[test]
+fn trio_support_coaxiality() {
+    // Exactly on: the cap's normal IS the rim circle's axis, the
+    // hypothesis holds, and the whole rim BUILDS — the pair is not a
+    // coaxiality question at all (the polarity a coincidence
+    // predicate inverts, as `trio_chain_g1` records).
+    tilted_rim_verdict(0.0).expect("an exactly coaxial rim resolves");
+    // Definitely parted: a millimetre off the axis at the rim's lever.
+    let definite = tilted_rim_verdict(1e-3).unwrap_err();
+    assert!(
+        matches!(definite, BlendError::SpineUnsupported { .. }),
+        "a definitely non-coaxial pair is refused, not escalated: {definite:?}"
+    );
+    // In band: a departure strictly inside (ε, K·ε).
+    let escalated = tilted_rim_verdict(in_band()).unwrap_err();
+    match &escalated {
+        BlendError::Escalated {
+            site: BlendSite::Chain,
+            source,
+        } => assert_eq!(source.predicate, Some("fillet3_support_coaxiality")),
+        other => panic!("an in-band departure must escalate at the chain, got {other:?}"),
+    }
+    assert_same_recourse(&definite, &escalated, "canal-surface approximating blend");
 }
 
 /// **Every recourse sentence composes into a message.** A recourse is
@@ -545,31 +773,16 @@ fn trio_corner_independence() {
 /// renders one value of every `BlendError` variant and requires each
 /// sentence to appear in some rendering.
 ///
-/// The list below is hand-kept — Rust cannot enumerate a module's
-/// constants — and so is the private `ALL` it mirrors, so a constant
-/// added to neither is checked by nothing in either crate.
+/// The list it reads is `sweep::blend::ALL_RECOURSES`, the one home
+/// for the roster: a constant added there is checked here, and a
+/// reader of this row does not have to ask whether a copy has drifted.
 #[test]
 fn every_recourse_sentence_composes_into_a_message() {
-    for s in [
-        sweep::blend::CHAMFER_ARM_RECOURSE,
-        sweep::blend::FILLET3_RADIUS_RECOURSE,
-        sweep::blend::FILLET3_CLEARANCE_RECOURSE,
-        sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
-        sweep::blend::FILLET3_SPINE_RECOURSE,
-        sweep::blend::FILLET3_CHAIN_RECOURSE,
-        sweep::blend::FILLET3_CONVEXITY_RECOURSE,
-        sweep::blend::FILLET3_CORNER_RECOURSE,
-        sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE,
-        sweep::blend::FILLET3_SPINE_KIND_RECOURSE,
-        sweep::blend::FILLET3_ASSEMBLY_RECOURSE,
-        sweep::blend::FILLET3_RING_RECOURSE,
-        sweep::blend::FILLET3_BODY_RECOURSE,
-        sweep::blend::FILLET3_GEOMETRY_RECOURSE,
-    ] {
-        assert!(!s.is_empty(), "a recourse sentence is never empty");
+    for (name, s) in sweep::blend::ALL_RECOURSES {
+        assert!(!s.is_empty(), "the {name} recourse sentence is never empty");
         assert!(
             !s.ends_with('.'),
-            "recourse sentences compose into a message and never end it: {s}"
+            "recourse sentences compose into a message and never end it: {name}: {s}"
         );
     }
 }

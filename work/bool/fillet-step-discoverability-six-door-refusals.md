@@ -4,7 +4,7 @@ kind: issue
 title: the Fillet chain step is hard to discover: six door refusals before a reviewer's rounded pad built
 status: open
 opened: 2026-09-05
-refs: [M10-8]
+refs: [1828]
 ---
 
 **Found by M10-8's R2 review, by authoring.** To build a document of

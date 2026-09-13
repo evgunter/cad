@@ -24,6 +24,7 @@ version = "0.1.0"
 dependencies = [
  "geom-core",
  "profile",
+ "test-utils",
 ]
 
 [[package]]
@@ -66,3 +67,7 @@ version = "0.0.0"
 dependencies = [
  "geom-core",
 ]
+
+[[package]]
+name = "test-utils"
+version = "0.0.0"

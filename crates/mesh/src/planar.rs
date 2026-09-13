@@ -231,18 +231,23 @@ use spade::{
 };
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
+use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 use crate::walk::loop_edges;
 
 /// Tessellates one planar face into outward-wound triangles. The
 /// chart frame comes from [`chart_frame`], not from the face's stored
 /// `Surface::Plane` axes (module docs, issue #284).
+///
+/// This lane mints NO interior points: a planar face's triangles are a
+/// CDT of its own boundary, so every corner is a chord point or a
+/// topology vertex and the patch's `interior` is empty.
 pub(crate) fn tessellate_planar(
     body: &Body<f64>,
     fk: FaceKey,
     chords: &HashMap<EdgeKey, Vec<u32>>,
-    positions: &[Point3<f64>],
-) -> Result<Vec<[u32; 3]>, TessellateError> {
+    shared: &[Point3<f64>],
+) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
@@ -256,14 +261,17 @@ pub(crate) fn tessellate_planar(
     // The frame from the outer boundary alone (rings lie inside the
     // outer loop, so its extent governs the conditioning), then the
     // pure per-point projection of every loop.
-    let frame = chart_frame(&loops[0], positions);
-    let project = |id: &u32| -> [f64; 2] { frame.project(positions[*id as usize]) };
+    let frame = chart_frame(&loops[0], shared);
+    let project = |id: &u32| -> [f64; 2] { frame.project(shared[*id as usize]) };
     let polygons: Vec<Vec<[f64; 2]>> = loops
         .iter()
         .map(|ids| ids.iter().map(project).collect())
         .collect();
 
-    triangulate_chart(fk, &loops, &polygons)
+    Ok(Patch {
+        interior: Vec::new(),
+        triangles: triangulate_chart(fk, &loops, &polygons)?,
+    })
 }
 
 /// Bit-equality of coordinates, which is NOT the same relation as "the
@@ -389,14 +397,17 @@ fn triangulate_chart(
     fk: FaceKey,
     loops: &[Vec<u32>],
     polygons: &[Vec<[f64; 2]>],
-) -> Result<Vec<[u32; 3]>, TessellateError> {
+) -> Result<Vec<[PatchVertex; 3]>, TessellateError> {
     // CDT: every loop's points first, then the boundary constraints.
     // The two passes must not interleave: inserting a vertex that lands
     // exactly on an existing constraint edge splits it, which would
     // invalidate the crossing bookkeeping built below.
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
         ConstrainedDelaunayTriangulation::new();
-    let mut meta: Vec<u32> = Vec::new(); // handle index -> mesh id
+    // handle index -> the patch corner. Every entry is `Shared`: this
+    // lane inserts only boundary points, and the assert below is what
+    // keeps that true.
+    let mut meta: Vec<PatchVertex> = Vec::new();
     let mut handles: Vec<Vec<FixedVertexHandle>> = Vec::new();
     for (ids, poly) in loops.iter().zip(polygons) {
         let mut hs = Vec::with_capacity(ids.len());
@@ -411,7 +422,7 @@ fn triangulate_chart(
                 .insert(mitigate_underflow(SpadePoint::new(u, v)))
                 .map_err(|_| TessellateError::Triangulation { face: fk })?;
             if h.index() == meta.len() {
-                meta.push(id);
+                meta.push(PatchVertex::Shared(id));
             }
             hs.push(h);
         }
@@ -650,7 +661,7 @@ pub(crate) fn shoelace2(poly: &[[f64; 2]]) -> f64 {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{shoelace2, triangulate_chart};
+    use super::{PatchVertex, shoelace2, triangulate_chart};
     use topo::FaceKey;
 
     /// Face `19v3` of the issue-#111 A×Z intersect (A's left inner-leg
@@ -684,6 +695,24 @@ mod tests {
     fn chart(bits: &[(u64, u64)]) -> Vec<[f64; 2]> {
         bits.iter()
             .map(|&(u, v)| [f64::from_bits(u), f64::from_bits(v)])
+            .collect()
+    }
+
+    /// The mesh ids of a patch this lane emitted.
+    ///
+    /// Total by the lane's own contract — a planar patch mints no
+    /// interior points — and the `unreachable!` is where that contract
+    /// is checked rather than assumed.
+    fn shared_ids(tris: Vec<[PatchVertex; 3]>) -> Vec<[u32; 3]> {
+        tris.into_iter()
+            .map(|t| {
+                t.map(|v| match v {
+                    PatchVertex::Shared(id) => id,
+                    PatchVertex::Local(i) => {
+                        unreachable!("the planar lane minted interior point {i}")
+                    }
+                })
+            })
             .collect()
     }
 
@@ -733,8 +762,10 @@ mod tests {
     fn issue111_needle_on_the_az_leg_carrier_is_not_emitted() {
         let poly = chart(&FACE_19V3);
         let loops = vec![FACE_19V3_IDS.to_vec()];
-        let tris = triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
-            .expect("face 19v3 triangulates");
+        let tris = shared_ids(
+            triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
+                .expect("face 19v3 triangulates"),
+        );
 
         // The exterior needle the old centroid test kept.
         assert!(
@@ -944,8 +975,10 @@ mod tests {
         ];
         let ids = vec![0_u32, 1, 2, 3, 4, 5, 4];
         let loops = vec![ids];
-        let tris = triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
-            .expect("slit square triangulates");
+        let tris = shared_ids(
+            triangulate_chart(FaceKey::default(), &loops, std::slice::from_ref(&poly))
+                .expect("slit square triangulates"),
+        );
         let total: f64 = tris
             .iter()
             .map(|&t| {

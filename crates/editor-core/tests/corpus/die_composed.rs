@@ -47,8 +47,8 @@
 //! its derived closed form at a stated relative tolerance.
 
 use editor_core::{
-    Axis3, BooleanOp, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, Node,
-    ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    Axis3, BooleanOp, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef,
+    Node, ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
     RoleSeg, SegPat, SegTag, Selector, SlotId, StableName,
 };
 
@@ -129,12 +129,12 @@ pub fn selection(cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -
     };
     let mut out: Vec<StableName> = prism_edges(cube, 4)
         .into_iter()
-        .map(|e| at(RoleSeg::FromA(Box::new(e))))
+        .map(|e| at(RoleSeg::FromA(e.into())))
         .collect();
     for band in [RoleSeg::Band(lower), RoleSeg::BandPi(lower)] {
         out.push(at(RoleSeg::Seam {
-            a: Box::new(cap_top.clone()),
-            b: Box::new(ball_face(band)),
+            a: cap_top.clone().into(),
+            b: ball_face(band).into(),
         }));
     }
     out
@@ -189,7 +189,7 @@ pub fn excluded_meridians(ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<Stabl
         .map(|end| StableName {
             kind: EntityKind::Edge,
             node: pipped,
-            path: vec![RoleSeg::FromB(Box::new(StableName {
+            path: vec![RoleSeg::FromB(NameRef::new(StableName {
                 kind: EntityKind::Edge,
                 node: ball,
                 path: vec![RoleSeg::Meridian(

@@ -2,10 +2,11 @@
 id: nurbs-net-point-map-helper
 kind: issue
 title: map_points on NurbsSurface/NurbsCurve landed from fix/ — the control-point map behind transform_rigid
-status: review
+status: closed
 opened: 2026-09-04
 branch: fix/transform-rigid-nurbs
 pr: 1742
+closed: 2026-09-04
 ---
 
 
@@ -62,3 +63,11 @@ The `NurbsCurve3` and `NurbsSurface` halves are exercised by
 `crates/sweep/tests/transform_nurbs_walls.rs` — including on genuinely
 rational nets (`|w − 1|` up to 7.6e-2), which is the only case that can
 distinguish this crate's Euclidean storage from a homogeneous one.
+
+## Closed
+
+PR 1742, merged 2026-09-04 — the record's subject landed with it. The
+row sat at `review` after the merge and is closed here by the
+orchestrator. The untested `NurbsCurve2::map_points` door named above
+is still owed a row by its first consumer; that obligation is written
+at the door, not carried by this file.

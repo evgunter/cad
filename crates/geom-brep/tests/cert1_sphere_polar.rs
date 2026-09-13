@@ -149,25 +149,37 @@ fn a_split_vertex_a_hair_off_the_pole_still_certifies() {
     }
 }
 
-/// **A span of 2π or more covers every direction, both poles
-/// included.** The membership dot test compares against
-/// `cos(dt/2)`, which swings back positive past `dt = 2π` and
-/// starts EXCLUDING directions a multi-wrap span covers: the
-/// `3π + π` pair below read the north pole `Negative` though the
-/// first arc covers it twice, and the face was ACCEPTED at half its
-/// area — this unit's own thesis (an unstated extent premise)
-/// re-minted at the parse. The import door normalizes spans into
-/// `(0, τ]`, so the shape is native-API-reachable only; the fold
-/// answers it anyway, because a span premise a caller can break is
-/// a premise, not a fact.
+/// **A span past the winding bound is refused, not folded** (issue
+/// 1601). A `3π + π` pair: the first arc covers the north pole twice,
+/// and the pole fold's membership test — `⟨P, M⟩ − cos(dt/2)`, whose
+/// zero set is the two span endpoints only while `dt ≤ 2π` — has no
+/// honest answer for it. A span past τ is not a datum the certified
+/// world produces (certification bounds `0 < Δt ≤ τ` per edge; the
+/// import door normalises into `(0, τ]`), and answering it exactly
+/// would be a closed form over an uncertified premise. The parse
+/// therefore re-decides certification's bound per meridian arc
+/// (`props_meridian_span_winding`, the same margin at the same band
+/// and lever) and refuses under that name — the disposition the torus
+/// fold already takes for a span it reconstructs across pieces. The
+/// other three rows of this issue's block still ride the fold: their
+/// arcs contain a pole and stay within one period.
 #[test]
-fn a_multi_wrap_span_covers_both_poles() {
+fn a_multi_wrap_span_is_refused_at_the_parse() {
     let pi = core::f64::consts::PI;
+    let band = band();
     let pair = vec![
         great(0.0, 0.0, 3.0 * pi, 0, 1),
         great(0.0, 3.0 * pi, 4.0 * pi, 1, 0),
     ];
-    accepts_exactly("rimless pair, spans 3π + π", &pair, 2.0 * pi * RS * RS);
+    assert!(
+        matches!(
+            curved_face(&sphere(), &pair, 1.0, band),
+            Err(PropsError::NotIsoRectangle {
+                what: "props_meridian_span_winding"
+            })
+        ),
+        "a 3π meridian span is past the per-edge winding bound and refuses by its name"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -177,8 +189,13 @@ fn a_multi_wrap_span_covers_both_poles() {
 /// The near-polar staircase: `u ∈ [−1, 1]` over `[v0, v1]` plus
 /// `u ∈ [0, 1]` over `[v1, v2]`, with `v1 < v2` both near the north
 /// pole — `w(v)` changes at `v1`, so the domain is NOT an
-/// iso-rectangle. `dv` (the rim separation, radians) is the knob the
-/// two rows below turn against the run's own band.
+/// iso-rectangle. `dv = v2 − v1` (the rim separation, radians) is the
+/// knob the rows below turn against the run's own band. The step is
+/// a meridian edge of span `dv`, which is how the certified world
+/// states a step ABOVE the band; inside the band that edge is one
+/// certification refuses as not forward (`interval_span_forward`,
+/// re-decided at the parse as `props_meridian_span_forward`), and the
+/// step is stated as [`near_polar_two_level_row`] instead.
 fn near_polar_staircase(v0: f64, v1: f64, v2: f64) -> Vec<LoopEdge<f64>> {
     vec![
         rim(v0, -1.0, 1.0, 0, 1),
@@ -187,6 +204,25 @@ fn near_polar_staircase(v0: f64, v1: f64, v2: f64) -> Vec<LoopEdge<f64>> {
         great(0.0, v2, v1, 3, 4),
         rim(v1, 0.0, -1.0, 4, 5),
         great(-1.0, v1, v0, 5, 0),
+    ]
+}
+
+/// The near-polar TWO-LEVEL rim row: `u ∈ [−1, 1]` over `[v0, v2]`
+/// whose top side is stated as two rims, at `v2` over `u ∈ [0, 1]` and
+/// at `v1` over `u ∈ [−1, 0]`, meeting at a junction with no meridian
+/// between them. This is how the certified world states a step of
+/// sub-band height: two on-sphere rims a band apart with their
+/// junction inside the endpoint band construct through the Euler
+/// doors (`topo/tests/mesh12_rim_row_reach.rs`), and the parse then
+/// asks `props_rim_level` whether the two rims are one level — the
+/// same decide, at the same lever, the staircase asks above the band.
+fn near_polar_two_level_row(v0: f64, v1: f64, v2: f64) -> Vec<LoopEdge<f64>> {
+    vec![
+        rim(v0, -1.0, 1.0, 0, 1),
+        great(1.0, v0, v2, 1, 2),
+        rim(v2, 1.0, 0.0, 2, 3),
+        rim(v1, 0.0, -1.0, 3, 4),
+        great(-1.0, v1, v0, 4, 0),
     ]
 }
 
@@ -228,14 +264,17 @@ fn two_distinct_near_polar_rims_are_not_one_level() {
 /// iso-rectangle refusal or a typed escalation, never acceptance. A
 /// degraded lever (the axial `(sin v, 0)` collapse) would read this
 /// separation as `~3·zero·δ0 ≪ zero`, decide `Zero`, and accept —
-/// which is what this row exists to redden.
+/// which is what this row exists to redden. The step is stated as the
+/// two-level row: a `3·zero` meridian is inside certification's own
+/// ambiguity band for a span, and a staircase would escalate on that
+/// premise before the rim levels were ever compared.
 #[test]
 fn the_near_polar_refusal_floor_is_the_coincidence_threshold() {
     let band = band();
     let d0 = 0.002;
     let dv = 3.0 * band.zero() / RS;
     let v2 = core::f64::consts::FRAC_PI_2 - d0;
-    let edges = near_polar_staircase(0.2, v2 - dv, v2);
+    let edges = near_polar_two_level_row(0.2, v2 - dv, v2);
     match curved_face(&sphere(), &edges, 1.0, band) {
         Err(PropsError::NotIsoRectangle { .. }) | Err(PropsError::Escalated { .. }) => {}
         other => panic!(
@@ -246,7 +285,7 @@ fn the_near_polar_refusal_floor_is_the_coincidence_threshold() {
 }
 
 /// **The floor's other side: a step WITHIN the band is one level.**
-/// The same staircase with the rim separation shrunk until the true
+/// The two-level row with the rim separation shrunk until the true
 /// point separation (the direction chord at R) is `0.5·zero` — the
 /// two rims are the same level by the run's own tolerance, so the
 /// face is a genuine iso-rectangle at this ε and must stay ACCEPTED.
@@ -261,7 +300,7 @@ fn a_near_polar_step_within_the_band_is_still_one_level() {
     let dv = 0.5 * band.zero() / RS;
     let v0 = 0.2;
     let v2 = core::f64::consts::FRAC_PI_2 - d0;
-    let edges = near_polar_staircase(v0, v2 - dv, v2);
+    let edges = near_polar_two_level_row(v0, v2 - dv, v2);
     let got = curved_face(&sphere(), &edges, 1.0, band)
         .expect("a rim step half an epsilon of point separation is one level");
     let closed = 2.0 * RS * RS * (v2.sin() - v0.sin());

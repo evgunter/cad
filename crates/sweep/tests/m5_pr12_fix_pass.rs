@@ -16,7 +16,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query;
-use topo::{Body, BooleanDeclarations};
+use topo::{Body, BooleanDeclarations, MassPropsError, ValidationError};
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
@@ -162,6 +162,16 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 /// `VolumeUncomputable` because the closed-form mass-properties
 /// inventory has no spherical-triangle form. The gap is in `props`,
 /// not in the body, and this row is what says so out loud.
+///
+/// **It is also the pin on tier 3's curved check-6 EXEMPTION.** Five
+/// of this body's faces are exactly the input on which
+/// `boundary_material_sign` refuses, and check 6 must stay silent on
+/// them: the refusal is not a sense disagreement, and check 7 — gated
+/// on `errors.is_empty()` — is the check that owns it and names its
+/// cause. So the two halves are asserted together and structurally: no
+/// `CurvedSenseInverted`, and a `VolumeUncomputable` carrying
+/// `NotIsoRectangle`. Turn that exemption into a raise and the second
+/// half vanishes with the first.
 #[test]
 fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
@@ -202,9 +212,22 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
     let errs = topo::validate_geometric(&f.body, Tol::witness())
         .expect_err("tier 3 cannot meter a spherical triangle at M5");
-    let text = format!("{errs:?}");
     assert!(
-        text.contains("VolumeUncomputable") && text.contains("NotIsoRectangle"),
-        "the refusal must name the props inventory's gap: {text}"
+        !errs
+            .iter()
+            .any(|e| matches!(e, ValidationError::CurvedSenseInverted { .. })),
+        "check 6 must EXEMPT a face whose material-side derivation refuses: {errs:?}"
+    );
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            ValidationError::VolumeUncomputable {
+                source: MassPropsError::Face {
+                    source: geom_brep::PropsError::NotIsoRectangle { .. },
+                    ..
+                }
+            }
+        )),
+        "the refusal must name the props inventory's gap: {errs:?}"
     );
 }

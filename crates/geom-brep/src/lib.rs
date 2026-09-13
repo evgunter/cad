@@ -82,8 +82,9 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DihedralClass, MaterialPairing, MaterialWedge, SecondOrder, classify_dihedral,
-    classify_material_pairing, folded_lever_arm, material_kappa_rel, tangent_second_order,
+    DihedralClass, MaterialPairing, MaterialWedge, MustCarryVerdict, SecondOrder,
+    classify_dihedral, classify_material_pairing, folded_lever_arm, material_kappa_rel,
+    must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
@@ -106,7 +107,7 @@ pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
     IsoRowError, boundary_iso_u, boundary_iso_v, interior_iso_u, iso_boundary_row,
 };
-pub use offset::{ConeOffset, OffsetError, offset_surface};
+pub use offset::{ConeOffset, Nappe, OffsetError, offset_surface};
 pub use offset_fit::{
     OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, approx_offset_surface_at,
     certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,

@@ -2,10 +2,10 @@
 id: merge-order-semantic-break-reaches-main
 kind: issue
 title: Two green PRs merged 22 minutes apart left main non-compiling: no run ever gates the union
-status: parked
+status: closed
 opened: 2026-09-04
 refs: [f3-recosting-on-a-public-repo, main-latently-red-at-tier-all, 1725, 1769, 1792]
-blocked_on: [f3-recosting-on-a-public-repo]
+closed: 2026-09-07
 ---
 
 
@@ -97,3 +97,21 @@ Nothing here is dispatchable until that is answered, and nothing about this
 item is un-measured — the numbers are in `f3-recosting-on-a-public-repo`'s
 options table. Parked on it rather than left open, so the board does not
 offer it as available work.
+
+## Closed 2026-09-07 — ruled on, not fixed
+
+Ev's ruling of 2026-09-07 (`f3-recosting-on-a-public-repo`): the push job
+set is not restored. The composition-defect class this item records is
+therefore **accepted, on the record, with its cost measured** — 42 red
+runs on 20 branches and 34 m 25 s of non-compiling `main` across the two
+observed instances — rather than left open as work nobody is doing.
+
+The merge queue that would have prevented it is unavailable to a
+user-owned repository (`merge-queue-trial`), and the push gate that would
+have detected it is declined because nothing would read it. Both are
+rulings, both are recorded, and neither is this row's to reopen.
+
+The residue that IS actionable is the one the instances actually cost:
+attribution, filed as `inherited-red-is-not-attributed-to-its-merge`.
+This item stays as the measured record of the class — if it recurs, the
+numbers to argue with are here.

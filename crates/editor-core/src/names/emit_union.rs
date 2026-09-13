@@ -44,7 +44,7 @@
 use std::sync::Arc;
 
 use crate::names::emit::{NamingError, check_total};
-use crate::names::role::{Qualifier, RoleSeg, StableName, never_in_a_boolean_table};
+use crate::names::role::{NameRef, Qualifier, RoleSeg, StableName, never_in_a_boolean_table};
 use crate::names::table::{Entry, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -60,14 +60,20 @@ pub(crate) fn member_view(
     member: RecipeNodeId,
     table: &NameTable,
 ) -> Result<NameTable, NamingError> {
+    // The member's table is an operand read whole, so it is sealed
+    // here for the same reason `upstream_name` seals a table read one
+    // entity at a time — and each row below EMBEDS the member's own
+    // handle rather than a copy, so a member name keeps its order
+    // cache through the wrapper.
+    table.seal_order();
     let mut view = NameTable::new();
-    for (name, entry) in table.iter() {
+    for (name, entry) in table.iter_refs() {
         let keyed = StableName {
             kind: name.kind,
             node: union,
             path: vec![RoleSeg::FromMember {
                 member,
-                of: Box::new(name.clone()),
+                of: name.clone(),
             }],
         };
         match entry {
@@ -143,6 +149,8 @@ pub(crate) fn collapse_name(
 /// segment the pair emitter does not mint.
 const FOREIGN: &str = "a union fold's table carries a segment the boolean emitter does not mint";
 
+use super::merged::NESTED_MERGED;
+
 /// One fold-table name, keyed by member.
 ///
 /// Returns a name in the UNION's own space (`node` is the union's, as
@@ -183,8 +191,8 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             let (x, y) = (collapse(node, a)?, collapse(node, b)?);
             let (a, b) = if x <= y { (x, y) } else { (y, x) };
             vec![RoleSeg::Seam {
-                a: Box::new(a),
-                b: Box::new(b),
+                a: NameRef::new(a),
+                b: NameRef::new(b),
             }]
         }
         // An F7 merged face: its constituents are result-face names in
@@ -197,6 +205,14 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // bucket holds a coincident pair produces these rows and a
         // union's published table carries them.
         //
+        // The constituent set is FLAT (N3): a constituent is never
+        // itself a bare merged face. The mint (`emit_topo`'s
+        // merge-group loop) holds that at the first door; this is the
+        // same rule read at the union's second door — a constituent
+        // that collapses to a bare merged face is refused as the
+        // emission bug it is, never flattened. A fragment of a merged
+        // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
+        //
         // The sort-and-dedup makes the constituent SET the name, the
         // same choice the pair emitter's twin makes (`emit_topo.rs`,
         // review R8): two merge groups collapsing to ONE constituent
@@ -204,10 +220,14 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // `NamingError`), never silently aliasing two faces onto one
         // name.
         RoleSeg::Merged(constituents) => {
-            let mut set = constituents
-                .iter()
-                .map(|c| collapse(node, c))
-                .collect::<Result<Vec<_>, _>>()?;
+            let mut set = Vec::with_capacity(constituents.len());
+            for c in constituents {
+                let c = collapse(node, c)?;
+                if matches!(c.path.as_slice(), [RoleSeg::Merged(_)]) {
+                    return Err(bug(NESTED_MERGED));
+                }
+                set.push(c);
+            }
             set.sort();
             set.dedup();
             vec![RoleSeg::Merged(set)]
@@ -256,4 +276,90 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         node,
         path,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    //! The rewrite's own rows: a merged face collapses to its flat
+    //! member-space set, and a NESTED merged face — a shape the pair
+    //! emitter's flat mint never produces — refuses as an emission bug
+    //! instead of being flattened here.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use crate::names::role::{CapEnd, EntityKind};
+
+    fn face(node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node,
+            path,
+        }
+    }
+
+    /// Member `m`'s start cap, as `member_view` keys it under `union`.
+    fn member_cap(union: RecipeNodeId, m: u64) -> StableName {
+        face(
+            union,
+            vec![RoleSeg::FromMember {
+                member: RecipeNodeId(m),
+                of: face(RecipeNodeId(m), vec![RoleSeg::Cap(CapEnd::Start)]).into(),
+            }],
+        )
+    }
+
+    fn from_a(union: RecipeNodeId, inner: StableName) -> StableName {
+        face(union, vec![RoleSeg::FromA(inner.into())])
+    }
+
+    fn from_b(union: RecipeNodeId, inner: StableName) -> StableName {
+        face(union, vec![RoleSeg::FromB(inner.into())])
+    }
+
+    #[test]
+    fn a_flat_merged_face_collapses_to_its_member_space_set() {
+        let union = RecipeNodeId(9);
+        // Step 2's merge of step 1's merge with a third member, as the
+        // flat mint spells it: every constituent descends to a member.
+        let folded = face(
+            union,
+            vec![RoleSeg::Merged(vec![
+                from_a(union, from_a(union, member_cap(union, 1))),
+                from_a(union, from_b(union, member_cap(union, 2))),
+                from_b(union, member_cap(union, 3)),
+            ])],
+        );
+        let out = collapse(union, &folded).unwrap();
+        let mut want = vec![
+            member_cap(union, 1),
+            member_cap(union, 2),
+            member_cap(union, 3),
+        ];
+        want.sort();
+        assert_eq!(out.path, vec![RoleSeg::Merged(want)]);
+    }
+
+    #[test]
+    fn a_nested_merged_face_refuses_as_an_emission_bug() {
+        let union = RecipeNodeId(9);
+        let inner = face(
+            union,
+            vec![RoleSeg::Merged(vec![
+                from_a(union, member_cap(union, 1)),
+                from_b(union, member_cap(union, 2)),
+            ])],
+        );
+        let nested = face(
+            union,
+            vec![RoleSeg::Merged(vec![
+                from_a(union, inner),
+                from_b(union, member_cap(union, 3)),
+            ])],
+        );
+        let err = collapse(union, &nested).unwrap_err();
+        assert!(
+            matches!(err, NamingError::Emission { what } if what == NESTED_MERGED),
+            "{err:?}"
+        );
+    }
 }

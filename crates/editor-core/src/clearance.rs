@@ -37,7 +37,7 @@
 //! lattice attains the true closest approach, on a curved one it
 //! returns a near pair. For the strictly-positive question the witness
 //! reports a COINCIDENCE and never a signed penetration depth; that
-//! gap is scoped in `work/m10/signed-penetration-depth.md`.
+//! gap is scoped in `work/curved/signed-penetration-depth.md`.
 //!
 //! [`ClearanceVerdict::Refused`] is typed, and there are ELEVEN arms
 //! rather than the spec's two: a terminal sliver (the driver's rule
@@ -88,7 +88,7 @@
 //! trimmed region needs the face's boundary in CHART coordinates, which
 //! is the pcurve layer's description work and not this module's; the
 //! size of the looseness is measured, and the fix scoped, in
-//! `work/m10/clearance-window-tightening-needs-chart-boundary.md`.
+//! `work/trim/clearance-window-tightening-needs-chart-boundary.md`.
 //! Two shapes are worth naming here because a consumer will meet them:
 //! a NON-CONVEX planar face (an L-shaped cap's window covers the
 //! notch, so a body parked in the notch is reported at 0 m from a face

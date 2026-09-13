@@ -154,6 +154,8 @@ mod blend_tworims;
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
 mod cert8_r1_probes;
+#[path = "closed_chain_junctions.rs"]
+mod closed_chain_junctions;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -162,6 +164,8 @@ mod extrude_interval;
 mod issue93_az_intersect;
 #[path = "k_report.rs"]
 mod k_report;
+#[path = "ladder_split_key.rs"]
+mod ladder_split_key;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
 #[path = "m3_pr5_extrude_booleans.rs"]
@@ -246,6 +250,8 @@ mod m9_d1_r2_probes;
 mod mass_props;
 #[path = "mass_props_interval.rs"]
 mod mass_props_interval;
+#[path = "must_carry_rule.rs"]
+mod must_carry_rule;
 #[path = "r1_probes_issue1362_donut.rs"]
 mod r1_probes_issue1362_donut;
 #[path = "readback_doors.rs"]
@@ -268,6 +274,8 @@ mod review_blend6_r1_probes;
 mod review_blend6_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
+#[path = "review_closed_chain_junctions_r2_probes.rs"]
+mod review_closed_chain_junctions_r2_probes;
 #[path = "review_d2_adv_probes.rs"]
 mod review_d2_adv_probes;
 #[path = "review_d2_recourse_at_the_site.rs"]
@@ -278,6 +286,10 @@ mod review_d8_consumer_differential;
 mod review_fillet_e1_probes;
 #[path = "review_fillet_e3_probes.rs"]
 mod review_fillet_e3_probes;
+#[path = "review_ladder_split_key_r1_probes.rs"]
+mod review_ladder_split_key_r1_probes;
+#[path = "review_ladder_split_key_r2_probes.rs"]
+mod review_ladder_split_key_r2_probes;
 #[path = "review_m2_pr4.rs"]
 mod review_m2_pr4;
 #[path = "review_m2_pr4_interval.rs"]
@@ -308,6 +320,10 @@ mod review_m6_3_loft_probes;
 mod review_m6_5_pr2_sweep_probes;
 #[path = "review_m6_surgery_probes.rs"]
 mod review_m6_surgery_probes;
+#[path = "review_must_carry_rule_r1_probes.rs"]
+mod review_must_carry_rule_r1_probes;
+#[path = "review_must_carry_rule_r2_probes.rs"]
+mod review_must_carry_rule_r2_probes;
 #[path = "review_pr12_probes.rs"]
 mod review_pr12_probes;
 #[path = "review_s11_adv.rs"]
@@ -415,6 +431,21 @@ fn every_suite_file_is_aggregated() {
 #[path = "m8_3_rational_volume.rs"]
 mod m8_3_rational_volume;
 
+#[path = "reporting_door_bit_digest.rs"]
+mod reporting_door_bit_digest;
+
+#[path = "mass_props_are_thread_count_invariant.rs"]
+mod mass_props_are_thread_count_invariant;
+
+#[path = "sign_certified_plus_v.rs"]
+mod sign_certified_plus_v;
+
+#[path = "shell_census_is_thread_count_invariant.rs"]
+mod shell_census_is_thread_count_invariant;
+
+#[path = "continuation_is_thread_count_invariant.rs"]
+mod continuation_is_thread_count_invariant;
+
 #[path = "m8_4_intersection_iso.rs"]
 mod m8_4_intersection_iso;
 
@@ -444,6 +475,12 @@ mod mate7a_torus_rest;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+#[path = "review_ring_clearance_r1_probes.rs"]
+mod review_ring_clearance_r1_probes;
+#[path = "review_ring_clearance_r2_probes.rs"]
+mod review_ring_clearance_r2_probes;
+#[path = "ring_clearance_forms.rs"]
+mod ring_clearance_forms;
 
 #[path = "r1_probes_m9_3.rs"]
 mod r1_probes_m9_3;
@@ -490,6 +527,8 @@ mod review_fillet_h5_r1_probes;
 
 #[path = "blend_recourse_followability.rs"]
 mod blend_recourse_followability;
+#[path = "review_blend3_r3_probes.rs"]
+mod review_blend3_r3_probes;
 
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
@@ -526,17 +565,26 @@ mod r2_rim_corpus_probes;
 #[path = "fillet_h6_cap_rim.rs"]
 mod fillet_h6_cap_rim;
 
+#[path = "review_blend_e2_r1_probes.rs"]
+mod review_blend_e2_r1_probes;
 #[path = "review_fillet_h6_r1_probes.rs"]
 mod review_fillet_h6_r1_probes;
 
 #[path = "review_fillet_h6_r2_probes.rs"]
 mod review_fillet_h6_r2_probes;
 
+#[path = "review_blend_k_rk_probes.rs"]
+mod review_blend_k_rk_probes;
+
 #[path = "fillet_h7_transverse_cap.rs"]
 mod fillet_h7_transverse_cap;
 #[path = "fillet_h7_transverse_cap_interval.rs"]
 mod fillet_h7_transverse_cap_interval;
 
+#[path = "review_blend1_r1_probes.rs"]
+mod review_blend1_r1_probes;
+#[path = "review_closed_chain_junctions_r1_probes.rs"]
+mod review_closed_chain_junctions_r1_probes;
 #[path = "review_fillet_h7_r1_probes.rs"]
 mod review_fillet_h7_r1_probes;
 #[path = "review_fillet_split_r2_probes.rs"]
@@ -549,3 +597,82 @@ mod review_fillet_h7_r2_probes;
 
 #[path = "review_fillet_t_r2_probes.rs"]
 mod review_fillet_t_r2_probes;
+
+#[path = "review_blend5_r5_probes.rs"]
+mod review_blend5_r5_probes;
+
+#[path = "review_blend4_r4_probes.rs"]
+mod review_blend4_r4_probes;
+#[path = "shell5_r1_dump.rs"]
+mod shell5_r1_dump;
+#[path = "shell5_r1_probes.rs"]
+mod shell5_r1_probes;
+#[path = "shell5_r2_probes.rs"]
+mod shell5_r2_probes;
+#[path = "shell6_nappe_home.rs"]
+mod shell6_nappe_home;
+#[path = "shell6_r1_probes.rs"]
+mod shell6_r1_probes;
+#[path = "shell6_r2_probes.rs"]
+mod shell6_r2_probes;
+
+#[path = "shell7_common.rs"]
+mod shell7_common;
+
+#[path = "shell7_dump.rs"]
+mod shell7_dump;
+#[path = "shell8_common.rs"]
+mod shell8_common;
+#[path = "shell8_dump.rs"]
+mod shell8_dump;
+#[path = "shell8_multi_solid.rs"]
+mod shell8_multi_solid;
+#[path = "shell8_r1_probes.rs"]
+mod shell8_r1_probes;
+#[path = "shell8_r2_probes.rs"]
+mod shell8_r2_probes;
+
+#[path = "shell7_seam_corner.rs"]
+mod shell7_seam_corner;
+
+#[path = "shell7_r1_diff.rs"]
+mod shell7_r1_diff;
+
+#[path = "shell7_r2_probes.rs"]
+mod shell7_r2_probes;
+
+#[path = "shell9_probe.rs"]
+mod shell9_probe;
+
+#[path = "shell9_rows.rs"]
+mod shell9_rows;
+
+#[path = "shell9_r1_probes.rs"]
+mod shell9_r1_probes;
+
+#[path = "shell9_r2_probes.rs"]
+mod shell9_r2_probes;
+
+#[path = "shell9_r2_dump.rs"]
+mod shell9_r2_dump;
+
+#[path = "shell10_scoped_walks.rs"]
+mod shell10_scoped_walks;
+
+#[path = "shell10_r1_probes.rs"]
+mod shell10_r1_probes;
+
+#[path = "shell10_r2_probes.rs"]
+mod shell10_r2_probes;
+
+#[path = "shell10_r2_cost.rs"]
+mod shell10_r2_cost;
+
+#[path = "shell10_r2_dump.rs"]
+mod shell10_r2_dump;
+
+#[path = "census_containment_cause.rs"]
+mod census_containment_cause;
+
+#[path = "wire_loft_end_profile_lift.rs"]
+mod wire_loft_end_profile_lift;

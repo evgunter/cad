@@ -171,7 +171,10 @@ missing_docs = "warn"
 # 1. A facade whose door opens under a `cfg` the current build does not
 #    have: `pub` is right for the widest arm and unreachable under the
 #    narrowest, so the `allow` names the arm the `pub` is for.
-#    `crates/topo/src/test_support_impl.rs` is the whole population.
+#    `crates/topo/src/test_support_impl.rs` and `profile::RawLoop`'s
+#    private `raw_loop` module are the population: each is `pub` for the
+#    arm its gate opens in, and each names the arm in the `cfg_attr` that
+#    carries the allow.
 # 2. A `tests/` helper module — and here the allow is not a judgement
 #    call, because THE DEFECT ABOVE CANNOT OCCUR IN A TEST BINARY. A test
 #    binary has no external API, so `dead_code` is not blinded by `pub`

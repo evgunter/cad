@@ -58,12 +58,10 @@ and a transform moves one. The alternatives weighed and rejected are in
    in the evaluation that blames it; CHROME's viewer-side guard
    retires with it). Spec `docs/MSOLVE-4-SPEC.md`; parked on 1 only
    for the shared key arm, dispatches at 1's merge.
-5. **`mate-lever-needs-the-parts-extent`** — the mated parts' extent
-   reaching `Alignment::lever_arm`; a schema question (authored beside
-   the datum, or resolved through the part store) before it is a unit.
-   Asked on `[ev]` PR 2086 (2026-09-06), resolved-from-the-part
-   recommended; `needs_ev: true` on the item; the unit, if one, is
-   MSOLVE-6.
+5. **`mate-lever-needs-the-parts-extent`** — asked on `[ev]` PR 2086
+   (2026-09-06), ruled B by Ev (2026-09-07): the extent resolved from
+   the mated part's own evaluated body. Lands as **`MSOLVE-6`**, spec
+   `docs/MSOLVE-6-SPEC.md`; the item is parked on it.
 6. **`aq8-skip-half-is-cited-as-ratified-and-is-not`** — closed
    (PR 1914): the SKIP half was ratified on PR 592's addendum and now
    sits in `ASSEMBLY.md`'s AQ8 clause; no `[ev]` was needed.

@@ -103,7 +103,7 @@
 use geom::Surface;
 use geom_core::Real;
 use sweep::blend::naming::BlendNaming;
-use topo::{Body, FaceKey, ParamAttachError, ParamSource, SurfaceField};
+use topo::{Body, FaceKey, ParamAttachError, ParamSource, ShellNaming, SurfaceField};
 use verbs::{FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
 
 use crate::eval::KeyHasher;
@@ -453,6 +453,80 @@ pub(crate) fn attach_blend<T: Real>(
             // invariant `set_surface_field_source` refuses a stale key
             // for: the record was minted off THIS body a moment ago,
             // so a lookup that misses is a broken record, not a case.
+            let surface_key = body
+                .get_face(face)
+                .map(|f| f.surface)
+                .ok_or(ParamAttachError::StaleKey)?;
+            let carrier = body
+                .get_surface(surface_key)
+                .ok_or(ParamAttachError::StaleKey)?;
+            if let Some(field) = field_of(role, carrier) {
+                stamps.push((surface_key, field));
+            }
+        }
+    }
+    for (surface_key, field) in stamps {
+        body.set_surface_field_source(surface_key, field, token.clone())?;
+    }
+    Ok(())
+}
+
+/// The faces a role family's rows name in a shell birth record —
+/// **a placeholder, and it says so**: the shell's flow declares NO
+/// field today (its thickness becomes `r − t`, the identity of neither
+/// `r` nor `t` — `verbs::flow`'s `SHELL_FLOW` says why), so no family
+/// is asked of this record, every arm answers the empty list, and the
+/// record is not read. Not a wildcard: each family is written out so
+/// that the day the flow names a field on a cavity carrier, the family
+/// it names is visited here and this function has to be FILLED from
+/// the record's own rows (the cavity twins in `inner`, the rims, the
+/// hole rims) rather than left answering nothing.
+fn shell_family_faces(family: RoleFamily, _rec: &ShellNaming) -> Vec<FaceKey> {
+    match family {
+        // The blend families are the blend surgery's own rows; a shell
+        // record carries none of them, and a flow row naming one here
+        // attaches nothing.
+        RoleFamily::Blends | RoleFamily::Corners | RoleFamily::Bands => Vec::new(),
+        // The sweeps' walls likewise live in the sweeps' records.
+        RoleFamily::SweptWalls => Vec::new(),
+    }
+}
+
+/// **Attach-at-mint for the shell verb**: stamp `token` on every stored
+/// field the verb's declared flow says `param` reached — the
+/// [`attach_blend`] door over the shell's own record.
+///
+/// The flow is the kernel-side declaration and this door is its
+/// consumer for shell results: the document layer knows the
+/// expression, the verb knows where its parameter lands, and the two
+/// meet here. **Today the door is a placeholder**: the shell's row is
+/// present and EMPTY, so the lowering does not reach this function at
+/// all (`flow_bearing` answers `false` and no token is lowered), and
+/// [`shell_family_faces`] answers the empty list for every family. A
+/// non-empty row is what would make both halves real, and both say so
+/// rather than attaching nothing silently.
+///
+/// # Errors
+///
+/// As [`attach_blend`]'s: a stale key or a field the carrier does not
+/// store cannot happen here, and a refusal is a broken invariant
+/// surfaced typed rather than discarded.
+pub(crate) fn attach_shell<T: Real>(
+    body: &mut Body<T>,
+    flow: &[ParamFlow],
+    param: ScalarParam,
+    token: &ParamSource,
+    rec: &ShellNaming,
+) -> Result<(), ParamAttachError> {
+    let Some(row) = flow
+        .iter()
+        .find(|row| row.source == FlowSource::Param(param))
+    else {
+        return Ok(());
+    };
+    let mut stamps: Vec<(topo::SurfaceKey, SurfaceField)> = Vec::new();
+    for &role in row.fields {
+        for face in shell_family_faces(role.family(), rec) {
             let surface_key = body
                 .get_face(face)
                 .map(|f| f.surface)

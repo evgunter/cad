@@ -85,6 +85,7 @@ name = "demo-tour"
 version = "0.1.0"
 dependencies = [
  "pncad",
+ "serde_json",
  "tess-meter",
 ]
 
@@ -236,6 +237,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "rayon",
  "spade",
  "topo",
 ]
@@ -494,6 +496,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "rayon",
  "slotmap",
 ]
 

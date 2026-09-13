@@ -37,23 +37,16 @@
 //! it. A would-be survivor whose key the records list as RETIRED
 //! refuses [`NamingError::Emission`].
 //!
-//! **That guard is unreachable BY CONSTRUCTION, and it is worth
-//! saying which construction.** The surgery mutates a clone of the
-//! target's own body, and `topo::Body`'s arenas are `slotmap::SlotMap`
-//! over `new_key_type!` keys, which bump a slot's VERSION on removal:
-//! a retired key is never reissued, so a retired key cannot reappear
-//! in the output arena at all. There is no input this code can be
-//! handed that reaches the refusal.
-//!
-//! It is kept because the property it rests on lives in another
-//! crate's choice of container. If a future body ever numbered its
-//! entities itself, or reused slots, an unrecorded mint would be named
-//! `FromTarget` of an unrelated entity — and whether that misnaming
-//! got caught would depend on whether the real owner of the name
-//! happened to collide at insertion. That is luck, not a guarantee.
-//! Same posture as `wire_blend`'s refusal of `naming: None` (the one
-//! generic blend lowering, which `wire_fillet` and `wire_chamfer`
-//! collapsed onto).
+//! That guard is unreachable while `topo::Body`'s arenas reissue no
+//! retired key. The kernel owns that statement: [`sweep::blend::naming`]'s
+//! module doc says what [`Retired`](sweep::blend::naming::Retired) is
+//! for in this consumer — a guard that cannot fire, holding the
+//! invariant against the arenas' numbering changing. It is kept here
+//! because the property it rests on lives in another crate's choice of
+//! container: were a retired key ever reissued, an unrecorded mint
+//! would be named `FromTarget` of an unrelated entity, caught only if
+//! the name's real owner happened to collide at insertion. Same
+//! posture as `wire_blend`'s refusal of `naming: None`.
 //!
 //! # An upstream tie PROPAGATES (B1)
 //!
@@ -105,7 +98,6 @@ pub(super) fn name_blend<T: geom_core::Real>(
     let up_f = |k: FaceKey| up(EntityKey::Face(k));
     let up_e = |k: EdgeKey| up(EntityKey::Edge(k));
     let up_v = |k: VertexKey| up(EntityKey::Vertex(k));
-    let b = Box::new;
 
     // ---- The mints, by role. ----
     //
@@ -126,11 +118,11 @@ pub(super) fn name_blend<T: geom_core::Real>(
 
     for (f, e) in &rec.blends {
         let e = up_e(*e)?;
-        put(EntityKey::Face(*f), RoleSeg::BlendFace(b(e.name)), e.tied)?;
+        put(EntityKey::Face(*f), RoleSeg::BlendFace(e.name), e.tied)?;
     }
     for (f, v) in &rec.corners {
         let v = up_v(*v)?;
-        put(EntityKey::Face(*f), RoleSeg::CornerFace(b(v.name)), v.tied)?;
+        put(EntityKey::Face(*f), RoleSeg::CornerFace(v.name), v.tied)?;
     }
     for (t, e, f) in &rec.trims {
         let (e, f2) = (up_e(*e)?, up_f(*f)?);
@@ -138,8 +130,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
         put(
             EntityKey::Edge(*t),
             RoleSeg::TrimEdge {
-                edge: b(e.name),
-                support: b(f2.name),
+                edge: e.name,
+                support: f2.name,
             },
             tied,
         )?;
@@ -150,8 +142,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
         put(
             EntityKey::Vertex(*foot),
             RoleSeg::FootVertex {
-                vertex: b(v.name),
-                support: b(f.name),
+                vertex: v.name,
+                support: f.name,
             },
             tied,
         )?;
@@ -162,8 +154,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
         put(
             EntityKey::Edge(*a),
             RoleSeg::CornerArc {
-                vertex: b(v.name),
-                edge: b(e.name),
+                vertex: v.name,
+                edge: e.name,
             },
             tied,
         )?;
@@ -177,7 +169,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
         for e in edges {
             let e = up_e(*e)?;
             tied |= e.tied;
-            names.push(e.name);
+            names.push((*e.name).clone());
         }
         names.sort();
         names.dedup();
@@ -189,7 +181,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
         put(
             EntityKey::Edge(*t),
             RoleSeg::BandTrim {
-                edge: b(e.name),
+                edge: e.name,
                 support: match side {
                     RimSide::Host => RimSupport::Host,
                     RimSide::Mate => RimSupport::Mate,
@@ -200,23 +192,19 @@ pub(super) fn name_blend<T: geom_core::Real>(
     }
     for (foot, v) in &rec.rim_feet {
         let v = up_v(*v)?;
-        put(
-            EntityKey::Vertex(*foot),
-            RoleSeg::BandFoot(b(v.name)),
-            v.tied,
-        )?;
+        put(EntityKey::Vertex(*foot), RoleSeg::BandFoot(v.name), v.tied)?;
     }
     for (v, m) in &rec.meridian_splits {
         let m = up_e(*m)?;
-        put(EntityKey::Vertex(*v), RoleSeg::BandCross(b(m.name)), m.tied)?;
+        put(EntityKey::Vertex(*v), RoleSeg::BandCross(m.name), m.tied)?;
     }
     for (e, m) in &rec.meridian_remnants {
         let m = up_e(*m)?;
-        put(EntityKey::Edge(*e), RoleSeg::BandCut(b(m.name)), m.tied)?;
+        put(EntityKey::Edge(*e), RoleSeg::BandCut(m.name), m.tied)?;
     }
     for (e, m) in &rec.slits {
         let m = up_e(*m)?;
-        put(EntityKey::Edge(*e), RoleSeg::BandSlit(b(m.name)), m.tied)?;
+        put(EntityKey::Edge(*e), RoleSeg::BandSlit(m.name), m.tied)?;
     }
 
     // ---- The table: the body row, then every output entity. ----
@@ -250,21 +238,15 @@ pub(super) fn name_blend<T: geom_core::Real>(
             // arena key — UNLESS the records say that key was retired,
             // in which case the match is not provenance.
             //
-            // Unreachable by construction: the arenas are slotmaps
-            // whose keys carry a slot version, so a retired key is
-            // never reissued and cannot come back here. The guard
-            // holds the invariant against that container choice
-            // changing, not against a state reachable today (module
-            // docs).
+            // Unreachable while the arenas reissue no retired key (the
+            // module doc, citing `sweep::blend::naming`).
             None => {
                 let dead = match key {
                     EntityKey::Edge(k) => retired_e.contains(&k),
                     EntityKey::Vertex(k) => retired_v.contains(&k),
-                    // `Retired` carries no face channel (the surgery's
-                    // one `kef` door refuses a source face, and states
-                    // why), so a face key here is a real survivor.
-                    // Asserted in both directions by
-                    // `sweep/tests/m6_5_fillet_naming.rs`.
+                    // `Retired` carries no face channel — its doc
+                    // (`sweep::blend::naming::Retired`) states why —
+                    // so a face key here is a real survivor.
                     EntityKey::Face(_) | EntityKey::Body => false,
                 };
                 if dead {
@@ -274,7 +256,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
                     });
                 }
                 let u = up(key)?;
-                (RoleSeg::FromTarget(b(u.name)), u.tied)
+                (RoleSeg::FromTarget(u.name), u.tied)
             }
         };
         put_row(

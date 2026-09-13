@@ -13,7 +13,11 @@
 //! surviving candidates, so the choice is over (corner, candidate)
 //! PAIRS. Ranking pairs is [`crate::fillet_select::nearest_joint`],
 //! which
-//! reads the f64 diagnostic channel — a `Bounds` read.
+//! reads the f64 diagnostic channel — a `Bounds` read. The module's
+//! second selection is on the refusal side: an anchor-fit refusal whose
+//! corner admitted two overrunning candidates is reported for the one
+//! [`crate::fillet_select::nearest_candidate`] ranks first
+//! (`map_refusal`), the same ladder on the same channel.
 //!
 //! This module therefore takes a compound `Decide + Bounds`: it
 //! DECIDES (the carrier-meet and angular advance/reach gates) and reads
@@ -67,13 +71,13 @@ use super::{
     ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, PathError, PathNoCornerReason,
     linear_band,
 };
-use crate::fillet_select::nearest_joint;
+use crate::fillet_select::{nearest_candidate, nearest_joint};
 use crate::structure::{
     CornerGate, Decision, DecisionValue, FilletDecision, Guide, StructureRefusal,
 };
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
-    arc_fillet_trims, signed_swept,
+    OverrunCandidate, arc_fillet_trims, signed_swept,
 };
 use crate::validate::FilletLegCarrier;
 
@@ -413,14 +417,24 @@ enum CornerOutcome<T: Real> {
 /// diagnostics are `f64` enclosure lower bounds, for messages and never
 /// for re-deciding.
 ///
-/// Three reads on three lines, none of them a re-decision: `arm.lo()`
-/// is a value-channel BRANCH between two message sites, `r.lo()` is an
-/// `f64` payload field, and `(margin / r).lo()` brackets a quotient
-/// computed at `T` into a second one. Nothing read here re-enters the
-/// computation, so the sole `T: Bounds` is the whole obligation: this
-/// door decides nothing, which is why it does not carry the module's
-/// `Decide` half. At a dual scalar the three are the value channel's
-/// bit for bit (D9), and a degraded tangent cannot reach them.
+/// Every read here is off the diagnostic channel and none is a
+/// re-decision: `arm.lo()` is a BRANCH between two message sites,
+/// `r.lo()` is an `f64` payload field, `(margin / r).lo()` brackets a
+/// quotient computed at `T` into a second one — and the anchor-fit
+/// arm's `setback.lo()` / `margin.lo()` reads SELECT which overrunning
+/// candidate, and which of its legs, the payload is about. That
+/// selection is the class `nearest_joint` sits in one module over: the
+/// alternatives are already-classified constructions of the value
+/// channel, the ranking is the ladder `fillet_select` argues (its
+/// dominance and tie arguments, and its standing as a selection rule
+/// rather than a predicate), and what is selected is a payload the
+/// caller reads — it never re-enters the computation, so nothing
+/// downstream branches on it. The sole `T: Bounds` is the whole
+/// obligation: this door decides nothing, which is why it does not
+/// carry the module's `Decide` half. At a dual scalar the reads are
+/// the value channel's bit for bit (D9), and a degraded tangent cannot
+/// reach them; at an `Interval` scalar they are enclosure lower bounds
+/// and the pick is that lane's own (see the arm).
 fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcome<T> {
     match refusal {
         ArcTrimRefusal::Band(source) => CornerOutcome::Whole(PathError::Band(source)),
@@ -490,24 +504,71 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcom
         // an arc side gets its angular story (`FilletLegCarrier::Arc`'s
         // `angular_margin`) instead of a bare linear setback that means
         // nothing on a circle.
-        ArcTrimRefusal::DoesNotFit {
-            leg,
-            carrier_radius,
-            margin,
-            setback,
-            leg_length,
-        } => CornerOutcome::Reason(CornerReason::AnchorOutsideTrimmedExtent {
-            side: leg,
-            carrier: match carrier_radius {
-                None => FilletLegCarrier::Line,
-                Some(r) => FilletLegCarrier::Arc {
-                    radius: r.lo(),
-                    angular_margin: (margin / r).lo(),
+        //
+        // THE NEAREST FIT. The construction carries every corner-side
+        // candidate whose trim overran, in enumeration order, and this
+        // arm reports the one the author is nearest to fitting IN THE
+        // SETBACK METRIC: `nearest_candidate`'s ladder over the
+        // candidates' `[incoming, outgoing]` setbacks — the one home of
+        // "the nearest candidate at one corner", with its tie rules —
+        // and on that candidate's WORSE leg, the one whose setback
+        // outruns its extent by more, ties to the incoming leg as
+        // `fillet` gates it. The sentence then carries that leg's
+        // overrun, and the recourse it ends in ("reduce the radius or
+        // move the anchor") stays un-metered: a setback does not scale
+        // 1:1 with the radius on either leg kind, so `setback −
+        // available` is not a radius amount (the grid-A recourse census
+        // in `tests/review_fillet_overrun_nearest_fit_r1_probes.rs`
+        // says which way reading it as one errs).
+        //
+        // A candidate tie cannot arise by geometry: at a two-candidate
+        // corner one candidate is shallower on BOTH legs — the
+        // componentwise dominance `nearest_candidate` documents, under
+        // which its rung 1 always decides and its max/sum spellings
+        // agree — so no row pins a candidate tie. The leg tie is a real
+        // one (equal margins to the bit on a symmetric corner) and
+        // names the incoming leg.
+        //
+        // Both reads are `f64` enclosure lower bounds off the
+        // diagnostic channel, exactly `nearest_joint`'s: a selection
+        // among already-classified constructions, never a re-decision
+        // of geometry. At an `Interval` scalar the lane reports the
+        // candidate whose `lo()` setbacks the ladder ranks first — its
+        // own deterministic pick, which can differ from the f64 lane's
+        // only when the candidates' gap sits inside the enclosure
+        // width, as `nearest_candidate` states for survivors.
+        ArcTrimRefusal::DoesNotFit { first, second } => {
+            let candidates: Vec<OverrunCandidate<T>> =
+                core::iter::once(first).chain(second).collect();
+            let setbacks: Vec<[f64; 2]> = candidates
+                .iter()
+                .map(|c| [c.legs[0].setback.lo(), c.legs[1].setback.lo()])
+                .collect();
+            // `nearest_candidate` argues componentwise dominance for the
+            // SURVIVORS of the corner-side extent gates; here it is asked of
+            // the non-survivors. The class is the same (the enclosing arm
+            // refuses before any candidate is derived), and dominance was
+            // measured at every two-overrun corner of grid A (232/232), so
+            // the citation is widened knowingly, not silently.
+            let nearest = candidates[nearest_candidate(&setbacks)];
+            let leg = if nearest.legs[1].margin.lo() < nearest.legs[0].margin.lo() {
+                nearest.legs[1]
+            } else {
+                nearest.legs[0]
+            };
+            CornerOutcome::Reason(CornerReason::AnchorOutsideTrimmedExtent {
+                side: leg.side,
+                carrier: match leg.carrier_radius {
+                    None => FilletLegCarrier::Line,
+                    Some(r) => FilletLegCarrier::Arc {
+                        radius: r.lo(),
+                        angular_margin: (leg.margin / r).lo(),
+                    },
                 },
-            },
-            setback,
-            available: leg_length,
-        }),
+                setback: leg.setback,
+                available: leg.leg_length,
+            })
+        }
     }
 }
 
@@ -891,6 +952,44 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 ///
 /// The radius is gated definitely positive on the same funnel predicate
 /// the `Center` leg mode uses: an anchor at the centre names no tangent.
+///
+/// **Finiteness before sign.** `|P − O|` past `Vec2::normalize`'s
+/// ~1e154 overflow band is ∞, which is maximally DEFINITE to the
+/// classifier: deciding the sign first answers `Positive` and the
+/// `turn / radius` scale below is `±0`, so the stored ray is the zero
+/// vector. An anchor at `(1e200, 0)` about the origin returned
+/// `Ok(Dir { unit: (-0, 0), ang: π })` before this question went
+/// first — an angle asserted over a ray of nothing.
+///
+/// **Underflow before sign, too**, and it is the silent end. `|P − O|`
+/// below `Vec2::normalize`'s ~1e-162 underflow band squares to zero, so
+/// the radius is EXACTLY zero and the classifier answers `Zero`
+/// definitely — at which point the refusal is
+/// [`PathError::DegenerateArcCenter`] carrying `radius: 0`, whose
+/// sentence says the authored centre is within tolerance of an
+/// endpoint. It is not: an anchor `1e-200` from the centre is a
+/// perfectly good displacement naming a perfectly good tangent, and no
+/// tolerance recovers a norm the format lost, because the squared norm
+/// is zero at every ε. That is a different fact about the input and
+/// gets [`PathError::UnderflowedDirection`].
+/// [`geom_core::is_underflowed_length`] is asked against the largest
+/// `|component|` of `v` ([`Vec2::norm_witness`]), which is the pairing
+/// that predicate's contract requires, and it is asked SECOND because
+/// an overflowed or poisoned radius makes its two ratios non-finite for
+/// an unrelated reason.
+///
+/// **Point-scalar gates.** Both ask through the value channel, and at
+/// `T = Interval` neither bites: an overflowed enclosure answers finite,
+/// and a norm whose lower end underflowed still ENCLOSES the true
+/// length, so the underflow ratio is an unbounded enclosure rather than
+/// poison and the question answers `false`. Both gates bite at `f64` and
+/// `Probe` and wave an enclosure through to the sign decision below.
+///
+/// **K consequence.** Both refusals precede the funnel, so such an
+/// anchor contributes no `path_arc_center_radius` sample; the one the
+/// overflowed anchor used to contribute was a `+∞` margin recorded as a
+/// definite `Positive`, and the one the underflowed anchor used to
+/// contribute was an exact `0` recorded as a definite `Zero`.
 pub(crate) fn carrier_tangent<T: Decide>(
     p: Point2<T>,
     centre: Point2<T>,
@@ -899,6 +998,12 @@ pub(crate) fn carrier_tangent<T: Decide>(
 ) -> Result<Dir<T>, PathError<T>> {
     let v = p - centre;
     let radius = v.norm_squared().sqrt();
+    if !geom_core::is_finite_length(radius) {
+        return Err(PathError::NonFiniteDirection { dx: v.x, dy: v.y });
+    }
+    if geom_core::is_underflowed_length(radius, v.norm_witness()) {
+        return Err(PathError::UnderflowedDirection { dx: v.x, dy: v.y });
+    }
     match decide("path_arc_center_radius", Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),

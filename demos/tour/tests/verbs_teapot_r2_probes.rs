@@ -31,6 +31,9 @@ use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
 };
+#[path = "common/census.rs"]
+mod census;
+use census::{genus, rings};
 use pncad::topo::{Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
 
 /// A closed polygon through `$first` and the rest, on the `path`
@@ -81,23 +84,6 @@ fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     )
     .expect("footprint extrudes")
     .body
-}
-
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
-}
-
-fn genus(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    body.shells().count() as i64 - (v - e + f - rings(body) as i64) / 2
 }
 
 /// Every planar face whose plane origin sits at station `y`.

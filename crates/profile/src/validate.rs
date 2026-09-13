@@ -25,12 +25,15 @@
 //!    [`crate::ProfileLoop::tangent_joints`]: definite tangency between
 //!    distinct carriers undeclared ⇒
 //!    [`ProfileError::UndeclaredTangency`]; a declaration that is
-//!    definitely not a tangency (transversal, or same-carrier
-//!    continuation — collinear/cocircular joints are carrier identity,
-//!    not tangency) ⇒ [`ProfileError::TangencyContradicted`] (declared
-//!    tangency is verified, never trusted). In-band near-tangency
-//!    escalates from the simplicity pass as it always did; the refusal
-//!    text carries the declare-or-move repair menu.
+//!    definitely not a tangency (a TRANSVERSAL joint) ⇒
+//!    [`ProfileError::TangencyContradicted`] (declared tangency is
+//!    verified, never trusted). A declaration on a joint whose two
+//!    segments continue on ONE carrier is honoured — identity is a fact
+//!    about carriers, tangency a fact about directions, and this check
+//!    reads the directions (Ev, in-chat, 2026-09-02; the
+//!    `same_carrier` arm that used to refuse it is retired). In-band
+//!    near-tangency escalates from the simplicity pass as it always
+//!    did; the refusal text carries the declare-or-move repair menu.
 //! 5. **Containment forest** — trilean point-in-loop by ray parity
 //!    (rays through arc segments included); a grazing ray is refused and
 //!    the next candidate ray tried deterministically (Mäntylä ch. 13's
@@ -38,6 +41,33 @@
 //!    = the outer boundary, depth 1 = holes; deeper nesting or multiple
 //!    outers are typed errors at M2 (one face region per profile).
 //! 6. **Canonicalization** — see [`ValidatedProfile`] for the rules.
+//!
+//! # What this gate is asking, and what it is not
+//!
+//! `validate` is the data checker for MATERIALIZED loops. A
+//! [`crate::ProfileLoop`] is a cache — the form an intensional recipe
+//! evaluates into — and every field of it, `tangent_joints` included,
+//! arrives here as data whose author this gate does not know and does
+//! not ask about.
+//!
+//! The [`crate::path`] lattice asks a different question. It checks
+//! AUTHORING: a declaration against the data being authored, at the
+//! moment the verb is written, before any table exists. Issue 433
+//! recorded the two as a disagreement — the lattice refusing a junction
+//! `validate` accepted — and the disagreement was never about geometry.
+//! They were answering different questions, and the authoring door was
+//! missing a spelling. It has it now (the continuation verbs), so a
+//! lattice-authored subdivided run reaches this gate with its zero-turn
+//! joints declared while a raw-authored one reaches it undeclared, and
+//! **both are accepted**. That is what "the two doors agree" means: not
+//! one rule with two answers, but two questions, each answered where it
+//! is asked.
+//!
+//! What that costs, stated: nothing here can tell a hand-written table
+//! from an emitted one, so nothing here enforces the lattice's rules.
+//! It is not meant to. The enforcement is upstream, at the doors, and
+//! [`crate::ProfileLoop`]'s own docs are the one home for what those
+//! are — this gate re-checks whatever comes through them anyway.
 //!
 //! # Predicate inventory (margins in meters; lever arms named)
 //!
@@ -168,13 +198,6 @@ pub enum EscalationSite {
         /// Index of the loop in [`Profile::loops`].
         loop_index: usize,
     },
-    /// While constructing a fillet corner (the `sugar` trim helpers
-    /// behind the PATHS `.fillet(r)` door — the only decisions
-    /// construction sugar takes: the leg-fit and corner-side extent
-    /// gates against the exact-order band, and, on the arc-leg path, the
-    /// lever-arm, corner-turn and offset-carrier gates against the run's
-    /// linear band). The escalation's `source` names which.
-    Fillet,
 }
 
 impl fmt::Display for EscalationSite {
@@ -183,7 +206,6 @@ impl fmt::Display for EscalationSite {
             Self::Segment(s) => write!(f, "at {s}"),
             Self::SegmentPair(a, b) => write!(f, "between {a} and {b}"),
             Self::Loop { loop_index } => write!(f, "on loop {loop_index}"),
-            Self::Fillet => f.write_str("in the fillet constructor's gates"),
         }
     }
 }
@@ -287,30 +309,34 @@ impl fmt::Display for NoCornerReason {
     }
 }
 
-/// The recourse for an in-band corner **turn**, where the constructor
-/// has admitted it cannot classify the margin and therefore cannot say
-/// which of the two degenerate corner classes it is looking at
-/// (smooth-tangent, whose recourse is declaring the tangency, or
-/// reverse-tangent — a cusp, which the kernel refuses; #131 is the
-/// tabled front door).
+/// The recourse for an in-band corner **turn**.
 ///
-/// Deliberately names both doors. The two-tolerance discipline asks for
-/// one sentence per user situation, and the situation here is precisely
-/// "this corner is degenerate and which kind is below the tolerance" —
-/// rendering either single-class sentence would assert the very thing
-/// the escalation declined to decide.
+/// **The margin is LEVERED, and that is what the sentence has to be
+/// true of.** `fillet_corner_turn` classifies `sin φ · arm` — the sine
+/// of the angle between the legs times the shorter leg's own extent
+/// (`Margin::levered`, `sugar::arc_fillet_corner`'s gate (2)) — so the
+/// band admits two different user situations, and a sentence that
+/// named only the first would be false at the second:
 ///
-/// **No caller reads this sentence.** It is written by one Display arm
-/// — [`ProfileError::Escalated`] at [`EscalationSite::Fillet`] — that
-/// nothing constructs, and the gate's own in-band verdict leaves
-/// through `PathError::Escalated`, which has no fillet arm. The same is
-/// true of all six `FILLET_*_RECOURSE` sentences here;
-/// `profile/tests/fillet_recourse_followability.rs` measures each one
-/// at its own door, follows the request it endorses, and pins the
-/// render rule against the day a producer lands. This one's row is
-/// `the_turn_in_band_recourse_is_followed_by_moving_the_geometry`,
-/// which also records that the near-degenerate turn escalates under
-/// `path_corner_turn`, not the `fillet_corner_turn` this arm keys on.
+/// - **the angle is degenerate**: the legs run smoothly into each other
+///   (recourse: declare the tangency) or reverse into a cusp (which the
+///   kernel refuses; #131 is the tabled front door), and which of the
+///   two is itself below the tolerance;
+/// - **the angle is real and the LEG is short**: a leg whose extent is a
+///   few ε carries a 64° turn into the band while the angle is nothing
+///   like degenerate. The lever there is the leg's extent, and the same
+///   corner with a leg long enough to take the setback builds.
+///
+/// Both are reachable through the public door and both are pinned
+/// (`profile/tests/fillet_recourse_followability.rs`'s
+/// `the_turn_in_band_recourse_names_both_of_its_situations`, and the two
+/// reviewer rows it cites), so the sentence names both levers and the
+/// tolerance, which is true at either.
+///
+/// Reaches the caller through [`crate::PathError::Escalated`]'s fillet
+/// arm, which selects it with [`fillet_recourse_for`]; that is where all
+/// six `FILLET_*_RECOURSE` sentences are rendered.
+/// Gates: `fillet_corner_turn`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -319,11 +345,14 @@ impl fmt::Display for NoCornerReason {
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
-     the tolerance: if the legs run smoothly into each other, keep them and declare the \
-     tangency (the joint's index in the loop's tangent_joints); if they double back, that is a cusp and the \
-     kernel refuses it; otherwise move the geometry so a real corner exists (or lower \
-     the tolerance)";
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner's turn is metered through its lever arm — the sine of the angle between the \
+     legs times the shorter leg's extent — so either the angle is degenerate at any precision \
+     you could care about, and which kind is below the tolerance, or the angle is real and the \
+     leg is too short to state it: if the legs run smoothly into each other, keep them and \
+     declare the tangency (the joint's index in the loop's tangent_joints); if they double back, \
+     that is a cusp and the kernel refuses it; if the angle is real, give the shorter leg a \
+     longer extent, which is the lever a leg of a few tolerances does not have; otherwise move \
+     the geometry so a real corner exists (or lower the tolerance)";
 
 /// The recourse for a corner that admits no tangent circle of the
 /// requested radius — one sentence for the definite refusal and for the
@@ -333,9 +362,11 @@ pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any 
 /// whether a corner of this radius exists on the corner side at all
 /// (review MINOR-1).
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
-/// followed to a build by the row named
-/// `the_no_corner_recourse_reduces_to_a_radius_that_builds`.
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm. Followed to a build by
+/// the rows named `the_no_corner_recourse_reduces_to_a_radius_that_builds`
+/// and `the_offset_clearance_recourse_reaches_the_caller_and_reduces`.
+/// Gates: `fillet_offset_line_circle`, `fillet_offset_circles_external`, `fillet_offset_circles_internal`, `fillet_leg_reach`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -353,15 +384,30 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
 /// escalation of `fillet_offset_lever` alike (D4 ¶1's clause (iv): a new
 /// definite arm inherits its in-band sibling's one story).
 ///
-/// It names the lever the user can actually move. ρ = R − σ·τ·r collapses
-/// when the fillet radius approaches the leg's own carrier radius on the
-/// side the corner turns toward, and everything else in the threshold is
-/// the corner's scale, which the author usually cannot trade.
+/// It names the lever the user can actually move, **and the direction
+/// and bound of it**. ρ = R − σ·τ·r collapses when the fillet radius
+/// approaches the leg's own carrier radius on the side the corner turns
+/// toward, so moving the radius away from that carrier radius is the
+/// direction. The threshold is `C·u·R₂·scale²/(d·ε)`
+/// (`sugar::ArcCarrier::offset_circles`) and its `scale²` carries ρ², so
+/// where the offset radius itself dominates the corner's magnitude the
+/// threshold grows faster than the lever does and the window closes:
+/// past it a larger move refuses again, definitely. The sentence says
+/// so rather than promising a direction without a bound.
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]),
-/// and the gate itself has no default-tolerance witness; both are
-/// recorded by the row named
-/// `the_offset_lever_recourse_has_no_default_tolerance_witness`.
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm. **The gate IS reachable
+/// in band through the public door, at every tolerance the run can be
+/// given** — two independent fixtures reach it, a mixed-winding lens
+/// whose centres sit `d = R + r` apart and a two-lobe scene whose
+/// carrier radius is solved from ε — and the rows are
+/// `the_offset_lever_recourse_reaches_the_caller_at_its_own_site` here
+/// plus the two reviewer rows it cites. At the lens site the sentence's
+/// request builds and validates; at the ε-solved scene the lens is so
+/// shallow that what the door emits has an `arc_span` of its own in the
+/// band, so there the request builds and does not validate — recorded at
+/// the row rather than smoothed over.
+/// Gates: `fillet_offset_lever`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -373,8 +419,11 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
 pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by projecting the fillet's centre back onto that leg's \
      carrier, and the projection divides by the offset radius rho = R - sigma*tau*r, so a \
      fillet radius this close to the leg's carrier radius cannot place the tangent point \
-     within tolerance: move the fillet radius away from that leg's carrier radius, or bring \
-     the corner's carriers closer together (or lower the tolerance)";
+     within tolerance: move the fillet radius away from that leg's carrier radius — that is \
+     the direction, and the window is bounded, because the threshold this lever is measured \
+     against grows as the corner's squared scale and that scale carries rho itself, so on a \
+     scene rho already dominates a larger move refuses again. Where it does, what is left is \
+     to bring the corner's carriers closer together, or lower the tolerance";
 
 /// The recourse for a fillet radius sitting within the band of a leg's
 /// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
@@ -390,9 +439,11 @@ pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered b
 /// two situations are the same degenerate one: a fillet radius equal to
 /// the leg's carrier radius.
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
-/// the bound it endorses is followed to a build by the row named
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm; the bound it endorses is
+/// followed to a build by the row named
 /// `the_enclosing_recourse_endorses_a_bound_that_builds`.
+/// Gates: `fillet_enclosing_carrier`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -411,9 +462,11 @@ pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward
 /// The recourse for a radius whose tangent points fall outside their
 /// legs — shared by the definite refusal and the in-band escalation.
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
-/// both its clauses are followed by the row named
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm; both its clauses are
+/// followed by the row named
 /// `the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs`.
+/// Gates: `fillet_leg_fit`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -425,11 +478,101 @@ pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward
 pub const FILLET_FIT_RECOURSE: &str =
     "the arc would never approach the requested corner; use a smaller radius or longer legs";
 
+/// **The recourse for a fillet arc too shallow to be STORED as an arc.**
+///
+/// A profile holds an arc as a chord and a bulge, and a reader
+/// classifies that pair back through `segment_straightness`, whose
+/// margin is the sagitta `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε
+/// the stored segment is read as a line and the carrier the door
+/// computed is simply not in the loop, so the tangency the fillet
+/// declares has nothing to be about.
+///
+/// Both levers move the sagitta, and the sentence says which way each
+/// runs — a larger turn, or a larger radius. The radius lever has a
+/// ceiling the other recourse names ([`FILLET_SCENE_RESOLUTION_RECOURSE`]),
+/// and at a tight ε and a tiny turn the two bounds cross and NO radius
+/// works: the sentence therefore offers the radius conditionally and
+/// always offers the third lever, which is unconditional.
+///
+/// Followed at its own door by
+/// `profile/tests/fillet_recourse_followability.rs`'s row named
+/// `the_flattened_recourse_is_followed_by_a_larger_turn_and_a_larger_radius`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_FLATTENED_RECOURSE: &str = "the stored sagitta goes as r(1 - cos(theta/2)), so turn the corner further, or round \
+     it with a LARGER radius while the scene still resolves one; a corner too shallow for \
+     both is one no arc of any radius can be stored at, and the lever that always works \
+     is to drop the fillet and leave the corner sharp";
+
+/// **The recourse for a fillet whose carrier the scene cannot resolve.**
+///
+/// The stored form here IS an arc — the sagitta is metres — but the
+/// clearance a carrier predicate classifies is a DIFFERENCE of lengths
+/// at the scene's own magnitude (`r − |h|`, `d − |r₁ − r₂|`), and such a
+/// difference cancels first-order: at magnitude `M` it resolves only to
+/// about `M·2^-52`. When that floor is coarser than ε the joint cannot
+/// be classified at all, whatever the turn is.
+///
+/// So this situation's levers run the OTHER way from
+/// [`FILLET_FLATTENED_RECOURSE`]'s: a larger radius makes it worse. What
+/// helps is shrinking the magnitude the difference is taken at — a
+/// smaller radius, or the geometry nearer the origin — or dropping the
+/// fillet.
+///
+/// Followed at its own door by the row named
+/// `the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_scene`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "a carrier clearance is a difference of lengths at the scene's own magnitude, and such \
+     a difference resolves only to about that magnitude times 2^-52 — so a LARGER radius \
+     makes this worse, not better: use a smaller radius, or place the geometry nearer the \
+     origin, or drop the fillet and leave the corner sharp";
+
+/// **The recourse when the stored form's own classification is in
+/// band** — the undecided twin of the two above.
+///
+/// One situation, not two: the run has declined to say which way the
+/// stored form reads, so the sentence names the two things that can be
+/// true of it and the one lever that works for either. D4 ¶1's addendum
+/// asks for one message and one recourse per user situation, and
+/// "undecided" is a situation of its own — the alternative would be to
+/// render one mechanism's levers over a reading that may be the other's.
+///
+/// Followed by the row named
+/// `the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "this run cannot say whether the loop would hold the tangency: either the arc is too \
+     shallow to store as an arc (turn the corner further, or use a larger radius) or the \
+     carrier clearance is finer than the scene resolves (use a smaller radius, or place \
+     the geometry nearer the origin) — dropping the fillet settles it either way, and so \
+     does lowering the tolerance";
+
 /// The recourse for a fillet leg with no extent to round against.
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
-/// followed to a build by the row named
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm; followed to a build by
+/// the row named
 /// `the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent`.
+/// Gates: `fillet_corner_arm`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -440,6 +583,46 @@ pub const FILLET_FIT_RECOURSE: &str =
 )]
 pub const FILLET_LEG_EXTENT_RECOURSE: &str = "give the leg a real extent (a non-degenerate chord, or an arc carrier with a positive \
      radius and a non-zero sweep) — a leg with no extent has no direction to be tangent to";
+
+/// **The one map from a fillet gate's name to the sentence it owes its
+/// caller.** `Some` exactly on the nine `fillet_*` predicate names the
+/// construction sugar decides; `None` on every other name, including
+/// the stored-form read's own classifications and the junction keys,
+/// which have their own recourses.
+///
+/// Several names share a sentence, and the sharing is the D4 ¶1
+/// addendum at work — one message and one recourse per user SITUATION,
+/// not per predicate. The three offset-carrier clearances and the
+/// corner-side reach gate are all one situation ("no corner of this
+/// radius exists here"), and the two fit gates are the other ("the
+/// radius does not fit the legs it was asked to round").
+///
+/// This function is the only place the mapping is spelled. The door's
+/// `Display` ([`crate::PathError::Escalated`]) reads it; nothing copies
+/// it.
+#[must_use]
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub fn fillet_recourse_for(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        "fillet_corner_turn" => FILLET_TURN_INBAND_RECOURSE,
+        "fillet_corner_arm" => FILLET_LEG_EXTENT_RECOURSE,
+        "fillet_offset_line_circle"
+        | "fillet_offset_circles_external"
+        | "fillet_offset_circles_internal"
+        | "fillet_leg_reach" => FILLET_NO_CORNER_RECOURSE,
+        "fillet_leg_fit" => FILLET_FIT_RECOURSE,
+        "fillet_offset_lever" => FILLET_OFFSET_LEVER_RECOURSE,
+        "fillet_enclosing_carrier" => FILLET_ENCLOSING_RECOURSE,
+        _ => return None,
+    })
+}
 
 /// Typed validation failure — the closed error enum of
 /// [`Profile::validate`] (D4 ¶3: every failure is typed and actionable;
@@ -680,51 +863,6 @@ impl fmt::Display for ProfileError {
                          declares an exact tangency (declared tangency is verified)",
                     )?;
                 }
-                // The fillet constructor's riders (M5 S2): each in-band
-                // fillet predicate renders the SAME recourse sentence as
-                // its definite refusal — one message and one recourse per
-                // user situation below eps_input, the margin riding the
-                // payload (D4 ¶1 addendum; M5 S6's shape, composed
-                // from these shared carriers).
-                if matches!(site, EscalationSite::Fillet) {
-                    match source.predicate {
-                        Some("fillet_corner_turn") => {
-                            write!(f, " — {FILLET_TURN_INBAND_RECOURSE}")?;
-                        }
-                        Some("fillet_corner_arm") => {
-                            write!(f, " — {FILLET_LEG_EXTENT_RECOURSE}")?;
-                        }
-                        // `fillet_leg_reach` belongs with the offset
-                        // clearances, not with the fit gate (review
-                        // MINOR-1): its situation is whether a corner of
-                        // this radius exists on the corner side, and its
-                        // definite refusal is the path door's
-                        // `CornerReason::NoTangentCircle`, so the trio
-                        // renders one sentence end to end.
-                        Some(
-                            "fillet_offset_line_circle"
-                            | "fillet_offset_circles_external"
-                            | "fillet_offset_circles_internal"
-                            | "fillet_leg_reach",
-                        ) => {
-                            write!(f, " — {FILLET_NO_CORNER_RECOURSE}")?;
-                        }
-                        Some("fillet_leg_fit") => {
-                            write!(f, " — {FILLET_FIT_RECOURSE}")?;
-                        }
-                        // The conditioning gate's in-band arm (M8): the
-                        // same one story as its definite sibling
-                        // `PathError::FilletOffsetLeverTooShort`, per
-                        // D4 ¶1 (iv).
-                        Some("fillet_offset_lever") => {
-                            write!(f, " — {FILLET_OFFSET_LEVER_RECOURSE}")?;
-                        }
-                        Some("fillet_enclosing_carrier") => {
-                            write!(f, " — {FILLET_ENCLOSING_RECOURSE}")?;
-                        }
-                        _ => {}
-                    }
-                }
                 Ok(())
             }
             Self::Structure(r) => write!(f, "guided validation: {r}"),
@@ -797,6 +935,41 @@ pub struct ValidatedSegment<T: Real> {
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
     pub kind: SegmentKind<T>,
+}
+
+impl ValidatedSegment<f64> {
+    /// The `f64` segment embedded at `U`: the endpoints and the bulge
+    /// through `from_f64`, the classification and turn carried, and an
+    /// arc's carrier REBUILT at `U` from the embedded endpoints and
+    /// bulge through validation's own arithmetic
+    /// ([`seg::arc_carrier`] on the segment's [`seg::ChordFrame`]) —
+    /// the carrier is derived data, not a stored value, and at a
+    /// certified scalar the derivation is what mints its enclosure.
+    /// See [`ValidatedProfile::lift_onto`].
+    fn lift<U: Real>(self) -> ValidatedSegment<U> {
+        let (start, end, bulge) = (
+            self.start.map(U::from_f64),
+            self.end.map(U::from_f64),
+            U::from_f64(self.bulge),
+        );
+        let kind = match self.kind {
+            SegmentKind::Line => SegmentKind::Line,
+            SegmentKind::Arc { turn, .. } => {
+                let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
+                SegmentKind::Arc {
+                    center: carrier.center,
+                    radius: carrier.radius,
+                    turn,
+                }
+            }
+        };
+        ValidatedSegment {
+            start,
+            end,
+            bulge,
+            kind,
+        }
+    }
 }
 
 /// A canonicalized loop: role, chain, and classified segments —
@@ -920,6 +1093,24 @@ impl<T: Real> ValidatedLoop<T> {
     }
 }
 
+impl ValidatedLoop<f64> {
+    /// The `f64` loop embedded at `U`: each vertex through
+    /// [`ProfileVertex::map`], the segments in place, the role and the
+    /// joint set carried. See [`ValidatedProfile::lift_onto`].
+    fn lift<U: Real>(self) -> ValidatedLoop<U> {
+        ValidatedLoop {
+            vertices: self
+                .vertices
+                .into_iter()
+                .map(|v| v.map(U::from_f64))
+                .collect(),
+            segments: self.segments.into_iter().map(|s| s.lift()).collect(),
+            tangent_joints: self.tangent_joints,
+            role: self.role,
+        }
+    }
+}
+
 /// One blend arc of a validated loop: which canonical segment it is,
 /// and the arc data the classifier gave it.
 #[derive(Clone, Copy, Debug)]
@@ -973,6 +1164,56 @@ impl<T: Real> ValidatedProfile<T> {
     /// order).
     pub fn loops(&self) -> &[ValidatedLoop<T>] {
         &self.loops
+    }
+}
+
+impl ValidatedProfile<f64> {
+    /// The `f64` canonical form embedded at `U`, on `plane`: every
+    /// stored scalar — each vertex's position and bulge, each segment's
+    /// endpoints and bulge — through [`Real::from_f64`]; each arc's
+    /// carrier, which is DERIVED data, rebuilt at `U` from the embedded
+    /// endpoints and bulge through validation's own arithmetic; the
+    /// plane taken as given (validation is 2-D and reads nothing of it
+    /// — [`ValidatedProfile::plane`]); everything else carried. No
+    /// predicate runs and no verdict is logged. A `ValidatedProfile` is
+    /// minted by [`Profile::validate`], [`Profile::validate_recording`]
+    /// and [`Profile::validate_guided`] from a raw profile, and by this
+    /// from an `f64` one; nothing else mints one.
+    ///
+    /// # What is carried, and on whose authority
+    ///
+    /// The canonical form is two kinds of fact. The COMBINATORIAL ones
+    /// — loop order (outer first, holes in input order), the loop
+    /// count, each loop's vertex count, segment `k` running from vertex
+    /// `k` to `k + 1 mod n`, the tangent-joint set as sorted canonical
+    /// vertex indices — are index structure; the lift maps no index,
+    /// so they hold at `U` by construction. The DECIDED ones — each
+    /// loop's role, its traversal sense (outer counterclockwise, holes
+    /// clockwise), its start at the lex-min vertex, each segment's
+    /// `Line`/`Arc` classification and turn, each joint's verified
+    /// tangency, the absence of contact — are the verdicts `validate`
+    /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
+    /// is the design of this door rather than a claim that a validation
+    /// at `U` would agree: under the evaluator's pinned lift, structure
+    /// is selected once, at `f64`, identically for every lane, and the
+    /// guided lift is the lane that re-verifies every decision at its
+    /// own scalar and refuses what that scalar cannot confirm
+    /// (`ProfileLift`'s doc in `editor-core`). What a validation at `U`
+    /// would say, for the record: at `Dual64` the value channel is bit
+    /// for bit the `f64` computation, so every predicate would decide
+    /// the same; at `Interval` every margin is an enclosure of the
+    /// `f64` margin, so a predicate would decide the same or escalate
+    /// as indeterminate — and that escalation is deliberately the
+    /// guided lift's job, not re-consulted here. The one bit the two
+    /// forms can differ in is a `Dual64` derivative channel: constants
+    /// embed with `+0.0` where a negated constant's derivative at `U`
+    /// would be `-0.0` — equal as numbers, read by no predicate.
+    #[must_use]
+    pub fn lift_onto<U: Real>(self, plane: crate::SketchPlane<U>) -> ValidatedProfile<U> {
+        ValidatedProfile {
+            plane,
+            loops: self.loops.into_iter().map(|lp| lp.lift()).collect(),
+        }
     }
 }
 
@@ -1331,8 +1572,8 @@ fn build_loop_segs<T: Decide>(
                 segment_index: k,
             };
             match issue {
-                SegIssue::Degenerate => ProfileError::DegenerateSegment(at),
-                SegIssue::NearFull => ProfileError::NearFullArc(at),
+                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
+                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
                 SegIssue::Escalated(source) => ProfileError::Escalated {
                     site: EscalationSite::Segment(at),
                     source,
@@ -1434,9 +1675,13 @@ fn judge_pair<T: Decide>(
 /// predicates) and reconciled with the loop's declarations:
 ///
 /// - `Tangent` undeclared ⇒ [`ProfileError::UndeclaredTangency`];
-/// - `Transversal` or `SameCarrier` declared ⇒
-///   [`ProfileError::TangencyContradicted`] (a declaration is verified,
-///   never trusted — and same-carrier continuation is not a tangency);
+/// - `Transversal` declared ⇒ [`ProfileError::TangencyContradicted`] (a
+///   declaration is verified, never trusted);
+/// - `SameCarrier` declared ⇒ **accepted**. Every zero-turn joint is a
+///   declared tangent joint (Ev, in-chat, 2026-09-02): identity is a
+///   fact about the carriers, tangency a fact about the directions, and
+///   the directions agree here. The arm that used to refuse it is
+///   retired — see the match below, which is the normative statement;
 /// - in-band / poisoned ⇒ [`ProfileError::Escalated`] at the pair site.
 fn judge_joints<T: Decide>(
     lp: &ProfileLoop<T>,
@@ -1456,12 +1701,12 @@ fn judge_joints<T: Decide>(
             segment_index: joint,
         };
         let declared = lp.tangent_joints.contains(&joint);
-        let class = seg::joint_tangency(&segs[prev], &segs[joint], band).map_err(|source| {
-            ProfileError::Escalated {
+        let class = seg::joint_tangency(&segs[prev], &segs[joint], band)
+            .map_err(|source| ProfileError::Escalated {
                 site: EscalationSite::SegmentPair(first, second),
                 source,
-            }
-        })?;
+            })?
+            .class;
         match (class, declared) {
             (seg::JointClass::Tangent, false) => {
                 return Err(ProfileError::UndeclaredTangency {
@@ -1640,8 +1885,8 @@ fn canonicalize_loop<T: Decide>(
                 segment_index: k,
             };
             match issue {
-                SegIssue::Degenerate => ProfileError::DegenerateSegment(at),
-                SegIssue::NearFull => ProfileError::NearFullArc(at),
+                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
+                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
                 // The recorded shape is a consumed decision, so a
                 // guided pass names the segment whose classification
                 // went unconfirmed instead of the bare segment site.
