@@ -1214,7 +1214,12 @@ pub enum ValidationError {
     /// Tier 3′: a census predicate escalated (sliver band or poison) —
     /// indeterminate coincidence geometry at rest is a defect (the
     /// standard trilean discipline: typed escalation, never a silent
-    /// skip).
+    /// skip). The census examines only pairs whose padded boxes
+    /// overlap (`census::Trees`), so a predicate about the CARRIERS
+    /// of two entities the boxes prove apart — a marginal angle
+    /// between far edges, a vertex in band of a line past the edge's
+    /// end — is not asked and does not escalate: that pair is decided
+    /// apart by the box answer, definitely, not skipped.
     CensusEscalated {
         /// The classifier's diagnostic.
         cause: Indeterminate,
@@ -4837,8 +4842,16 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 ///    vertex-on-face (interior), vertex-on-edge (interior), proper
 ///    edge-face / edge-edge crossings, and the segment-granularity
 ///    overlaps (edge-edge collinear, edge-on-face) reconstructed per
-///    the D3 rule (see [`crate::census`] module docs). Quadratic
-///    sweeps, documented — the boolean edge×face convention.
+///    the D3 rule (see [`crate::census`] module docs). The sweeps
+///    examine only the pairs whose padded boxes overlap — one C10
+///    tree per entity class, the boolean edge×face sweep's own boxes
+///    and pad (`escalate + 2·zero`) — and a pair the filter clears is
+///    DECIDED by that definite box-disjointness answer, not skipped;
+///    the exact sweep's escalations and refusals about the CARRIERS
+///    of such a pair (a marginal angle between far edges, a ray walk
+///    on a far coplanar vertex, a vertex in band of a line past the
+///    edge's end) are therefore not raised. `census::Trees` carries
+///    the derivation.
 /// 4. The certification diff, both directions: every census finding
 ///    must be backed by a declaration
 ///    ([`ValidationError::UndeclaredContact`] otherwise — the
@@ -4879,7 +4892,7 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// aggregate gate take it. This door keeps its lane so a
 /// [`Dual`](geom_core::Dual) body can still go through the tier-3′
 /// pass, which is the capability H-R3 protects.
-pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
+pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane + geom_core::Bounds>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -4919,7 +4932,7 @@ pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
 /// # Errors
 ///
 /// As [`validate_pseudomanifold`].
-pub fn validate_pseudomanifold_certificate<T: crate::props::PropsQuadLane>(
+pub fn validate_pseudomanifold_certificate<T: crate::props::PropsQuadLane + geom_core::Bounds>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -4983,7 +4996,7 @@ pub fn validate_pseudomanifold_certified<
 
 /// The tier-3′ pass with check 2's lane as an argument — the shared
 /// body of the lane-keeping door and its certified twin.
-fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane>(
+fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane + geom_core::Bounds>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
