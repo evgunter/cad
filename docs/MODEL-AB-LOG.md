@@ -5651,3 +5651,46 @@ e4e9603ad58c9c865d4e07f120a73b4d30084498a89aebb1f4c18e433a4869e8  blend-9-review
 5a9cec81b5fdbccec8851e7675d6b4c5be121a0a609e481994ede42b8807104c  blend-9-review-brief-r2.md
 slot 2 = BLEND-9 dual concluded (2026-09-13, ~05:30Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (FABLE) MERGEABLE-AFTER-FIXES 0/3/2, rubric 4/3/4; R2 (OPUS) MERGEABLE-AFTER-FIXES 1/5/6 + 8 style, rubric 4/4/4. ONE unilateral MAJOR (R2: the sweep receipt's unstated blind spot on the intrinsic-mint axis with a live in-fence hit at `blend/surgery.rs` `attach_contact`; R1 silent on it) — adjudicated against item 3: (a) yes, (b) claim/receipt class with the in-class question rated `likely`, (c) single, (d) NO — found by grep, not by execution, (e) yes ⇒ RECORDED, EXCLUDED from the tally under 3(d). Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number; the block's CONCLUDED record folds into main with it.
 slot 2 = BLEND-9 MERGED (2026-09-13, PR #2491 at 5cf67b504; sample #181 — PERF-12 took #180 on main first): delta by R1 on the fixed head confirmed all seven items; the row is on main in that merge. Slot 2 concluded. **Block BLEND-B1 CONCLUDED**: three slots (OPUS / FABLE / OPUS), three duals, zero counted tally candidates (one recorded and excluded under 3(d) at slot 2); v6 tally unchanged.
+
+## Block BLEND-B2 — CONCLUDED record (merged from `blend/b2-block` at the block close, per the branch-side shape; 2026-09-13)
+
+Block BLEND-B2 pre-draw fields (2026-09-13, logged before the draw):
+slot 0 = BLEND-8 (`docs/BLEND-8-SPEC.md`,
+`ladder-rim-phase-may-retire-a-new-split-key`) — difficulty **S**,
+task-class **STRUCTURAL** (at its spec, written 2026-09-07); slot 1 =
+BLEND-10 (`docs/BLEND-10-SPEC.md`,
+`path-fillet-door-validator-tangency-disagree`) — **M / NUMERIC**;
+slot 2 = BLEND-11 (`docs/BLEND-11-SPEC.md`,
+`overrun-attribution-picks-the-first-candidate`) — **S / STRUCTURAL**.
+Slots 1 and 2 at their specs, written 2026-09-13 (orchestrator PR
+#2494) before this draw. Slots 1 and 2 edit `crates/profile/*` by
+announced seam (S-BOOL's glob; `work/bool/log.md` at dispatch).
+
+Block BLEND-B2 draw (2026-09-13, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**44**, 44 mod 3 = 2 = fable's position ⇒ **fable at slot 2**.
+So: slot 0 BLEND-8 = OPUS, slot 1 BLEND-10 = OPUS, slot 2 BLEND-11 = FABLE.
+Recorded branch-side on `blend/b2-block`; this record reaches main when
+the block's last slot's reviews conclude. Dispatch order: slot 0 opens
+when block BLEND-B1's last slot (BLEND-9) merges; slots 1 and 2 may run
+concurrently with it as lanes and disk allow.
+
+Block BLEND-B2 slot record (branch-side, appended as each slot concludes):
+slot 1 = BLEND-10 implementer dispatch (2026-09-13, ~05:30Z): arm OPUS per the draw above (byte 44); `docs/BLEND-10-SPEC.md` (M / NUMERIC, pre-draw); brief `/home/user/blend-briefs/unit-10-brief.md` (lane-local; the spec is the binding text); S-BOOL seam announced in `work/bool/log.md` before dispatch. Review ordinal claimed on main at the dual's dispatch.
+slot 2 = BLEND-11 implementer dispatch (2026-09-13, ~05:30Z): arm FABLE per the draw above (byte 44); `docs/BLEND-11-SPEC.md` (S / STRUCTURAL, pre-draw); brief `/home/user/blend-briefs/unit-11-brief.md`; same seam announcement. Slot 0 (BLEND-8, OPUS) dispatches when block B1's last slot merges.
+slot 2 = BLEND-11 review dispatch (2026-09-13): ordinal 2903 claimed on main; R1/R2 byte 214 ⇒ parity 0 ⇒ R1 = OPUS, R2 = FABLE; briefs stored here before dispatch —
+fd0b8d4fa60f6bfec9fc2bd78dbf6c45b57f6dcd067a944ed690ed1c95b8e750  blend-11-review-brief-r1.md
+bad047a3562e834e974a5eff8756840329f0255cc987c3e2c0a0ab2de678b3b2  blend-11-review-brief-r2.md
+slot 2 = BLEND-11 dual concluded (2026-09-13, ~06:50Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (OPUS) MERGEABLE-AFTER-FIXES 2/6/3, rubric 3/3/2; R2 (FABLE) MERGEABLE-AFTER-FIXES 1/3/5, rubric 4/3/3. Headline BILATERAL by execution at MAJOR on both (the spec's reason for the pick false; the pick survives). R1's second MAJOR (the `.lo()` read a DL5(b) selection, roster stale) ↔ R2's NOTE-3 (the roster disposition stale): same underlying finding at differing severity ⇒ NO tally candidate. Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number.
+slot 0 = BLEND-8 implementer dispatch (2026-09-13, ~07:20Z, after block BLEND-B1's last slot merged): arm OPUS per the draw above (byte 44); `docs/BLEND-8-SPEC.md` (S / STRUCTURAL, pre-draw); brief `/home/user/blend-briefs/unit-8-brief.md` (lane-local; the spec is the binding text plus the subject-naming ruling: suite `ladder_split_key.rs`). Review ordinal claimed on main at the dual's dispatch.
+slot 1 = BLEND-10 review dispatch (2026-09-13): ordinal 2904 claimed on main; R1/R2 byte 66 ⇒ parity 0 ⇒ R1 = OPUS, R2 = FABLE; briefs stored here before dispatch —
+6dc05ac55cad67e9c9a8951d3089b1054a87ef66c7ccf5579ad6086682e9f06d  blend-10-review-brief-r1.md
+e6d5e59672d81a37b2158d4efd8cb443b7ecf656f50dfb00058a518a4d66fd34  blend-10-review-brief-r2.md
+slot 1 = BLEND-10 dual concluded (2026-09-13, ~08:45Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (OPUS) MERGEABLE-AFTER-FIXES 1/7/5 + 6 style, rubric 4/3/3; R2 (FABLE) MERGEABLE 0/2/3, rubric 4/4/4. Headline BILATERAL at differing severity (a second carrier-reconstruction loss found by both by execution; R1's MAJOR on the one-sentence-for-two-situations refusal ↔ R2's MINOR-1 on the same) ⇒ NO tally candidate. Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number.
+slot 2 = BLEND-11 MERGED (2026-09-13, PR #2495 at 1b2df1318; sample #182): delta by R1 on the fixed head confirmed all seven items (the candidate-tie mutant now red in the lib suite — re-homing the pick closed R1's MINOR-2 as a side effect); the row is on main in that merge. Slot 2 concluded.
+slot 0 = BLEND-8 review dispatch (2026-09-13): ordinal 2905 claimed on main; R1/R2 byte 84 ⇒ parity 0 ⇒ R1 = OPUS, R2 = FABLE; briefs stored here before dispatch —
+607948d8ead49c88697313c517264a8836a196255fdc2e19c8bb644849871bfe  blend-8-review-brief-r1.md
+f2a086f0661fb15fdd9b83caca3470f373572a00da734b48e743028534ceec1a  blend-8-review-brief-r2.md
+slot 1 = BLEND-10 MERGED (2026-09-13, PR #2497 at c428ff517; sample #183): delta by R1 on the fixed head confirmed all seven items (and showed the one shape it had left unconstructed is not reachable through the public door); the row is on main in that merge. Slot 1 concluded. Slot 0 (BLEND-8) is the block's last open slot, in its dual.
+slot 0 = BLEND-8 dual concluded (2026-09-13, ~11:50Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (OPUS) MERGEABLE-AFTER-FIXES 2/6/6, rubric 4/4/3; R2 (FABLE) MERGEABLE-AFTER-FIXES 0/5/5, rubric 4/4/3. R1's two MAJORs (the stale mutant table; the annulus's second spelling of the split half) are R2's MINOR-1 and MINOR-3 — bilateral at differing severity, both by execution ⇒ NO tally candidate. Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number; the block's CONCLUDED record folds into main with it.
+slot 0 = BLEND-8 MERGED (2026-09-13, PR #2505 at 24ba7f59c; sample #185 — BLEND-12 took #184 on main first): delta by R1 on the fixed head confirmed all seven items by execution (both mutants exact; the annulus reading re-taken at the refresh call site, 38 moved keys against the lane's 37, the reading holding; the record delta exact, the lane's base-side totals unreconciled) and caught one new MINOR the fix introduced (the boss's orientation stated backwards against the row it cites), corrected in the state-sync; the row is on main in that merge. Slot 0 concluded. **Block BLEND-B2 CONCLUDED**: three slots (OPUS / OPUS / FABLE), three duals, zero counted tally candidates (every headline bilateral by execution — at MAJOR on unit 11, at differing severity on units 10 and 8); v6 tally unchanged.
