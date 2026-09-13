@@ -126,7 +126,11 @@ pub(crate) fn corpus<T: PropsQuadLane>() -> Vec<(String, Body<T>)> {
     out
 }
 
-fn dump<T: PropsQuadLane + core::fmt::Debug>(scalar: &str, name: &str, body: &Body<T>) {
+fn dump<T: PropsQuadLane + geom_core::Bounds + core::fmt::Debug>(
+    scalar: &str,
+    name: &str,
+    body: &Body<T>,
+) {
     let tol = Tol::witness();
     let _ = Band::linear(tol).unwrap();
     println!(
