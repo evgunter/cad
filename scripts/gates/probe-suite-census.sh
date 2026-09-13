@@ -208,6 +208,7 @@ RUN_FLOOR=(
   plain:profile:validate_ok_probe:1
   plain:sweep:k_report:0
   plain:sweep:mass_props_are_thread_count_invariant:4
+  plain:sweep:must_carry_rule:10
   plain:sweep:review_chamfer_r1_probes:7
   plain:sweep:review_fillet_e1_probes:4
   plain:topo:probe_census:1

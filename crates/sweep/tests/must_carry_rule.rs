@@ -42,6 +42,10 @@
 //! `margin = 0.125` (definitely positive at every ε the matrix runs),
 //! `margin = √(ε·Kε)` (the band's geometric mean — in-band at every ε),
 //! `margin = ε/100` (definitely zero at every ε).
+//!
+//! The stored-description differential these rows are read beside lives
+//! in `bitdump.rs`, which is the one home for a dump taken at two SHAs
+//! and diffed; nothing here writes one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -669,62 +673,5 @@ fn probe_carrier(c: &Curve3<f64>) -> Curve3<geom_core::k_stats::Probe> {
             dir: Vec3::new(Probe(dir.x), Probe(dir.y), Probe(dir.z)),
         },
         _ => panic!("only the out-of-lane triple's carrier is lifted here"),
-    }
-}
-
-// ---------------------------------------------------------------
-// The description differential.
-// ---------------------------------------------------------------
-
-/// **The stored-description differential over `sweep`'s revolve and
-/// extrude fixtures**, for the fixtures `bitdump`'s
-/// `bitdump_extrude_revolve_corpus` does not carry. Ignored by
-/// default: it prints, it asserts nothing, and it exists to be run at
-/// a merge base and at a head with the two outputs diffed. Run it as
-/// `cargo test -p sweep --test all -- must_carry_rule::dump --ignored
-/// --nocapture`.
-#[test]
-#[ignore = "a differential dumper: run it at two SHAs and diff the output"]
-fn dump_every_other_sweep_revolve_and_extrude_fixture_description() {
-    use sweep::test_support as fx;
-    let tol = Tol::witness();
-    let rows: Vec<(&str, Body<f64>)> = vec![
-        ("cube", fx::cube(1.0, tol)),
-        ("bowl", fx::bowl(tol)),
-        ("domed cavity", fx::domed_cavity(tol)),
-        (
-            "hemisphere on a flat base",
-            fx::hemisphere_on_flat_base(1.0, tol),
-        ),
-        ("rod with a flat", fx::rod_with_flat(tol)),
-        ("spool (full)", fx::spool(Revolution::Full, tol)),
-        (
-            "spool (partial)",
-            fx::spool(Revolution::Partial(core::f64::consts::FRAC_PI_2), tol),
-        ),
-        (
-            "sphere zone, bored wide",
-            fx::sphere_zone(1.0, Revolution::Full, tol),
-        ),
-        (
-            "ball poled on z",
-            fx::ball_poled_z(0.75, Vec3::new(0.0, 0.0, 0.0), tol),
-        ),
-    ];
-    for (name, body) in &rows {
-        println!("== {name} ==");
-        for (k, e) in body.edges() {
-            let desc = body
-                .get_curve_geom(e.curve)
-                .and_then(|g| g.certified())
-                .map(|c| match c.description() {
-                    EdgeDescription::Intersection { .. } => "Intersection",
-                    EdgeDescription::TangentIntersection { .. } => "TangentIntersection",
-                    EdgeDescription::Chart(_) => "Chart",
-                    EdgeDescription::Scaffold(_) => "Scaffold",
-                })
-                .unwrap_or("UNCERTIFIED");
-            println!("E {k:?} {desc}");
-        }
     }
 }
