@@ -828,11 +828,11 @@ impl core::fmt::Display for NodeRefusal {
 /// and asks it not to make one up. That is a rule, and a rule over a
 /// spelling is enforceable only by a reader or a census — both of
 /// which can be walked past by a road that computes its own answer and
-/// passes it where the door's belongs. [`Found`] removes the question:
-/// it carries the kind, its field is private to this module, and
-/// [`entity`] is the only thing that can mint one. A road picks WHICH
-/// refusal to build and what else it carries; the kind inside it is
-/// not something the road is able to choose.
+/// passes it where the door's belongs. [`entity_door::Found`] removes
+/// the question: it carries the kind, its field is private to this
+/// module, and [`entity_door::entity`] is the only thing that can mint
+/// one. A road picks WHICH refusal to build and what else it carries;
+/// the kind inside it is not something the road is able to choose.
 ///
 /// The refusals therefore keep their own identities — four variants,
 /// four sentences — while the one fact they share has one source.
