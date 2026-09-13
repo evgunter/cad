@@ -3681,3 +3681,74 @@ empty, a scan that went to zero, and now **one member silently leaving
 both sides at once**. The rule needs its third clause: *derive the two
 sides independently, or the equality is only a statement about one of
 them.*
+
+## 2026-09-13 — the refusal-subject unit returned, and its best result is a measurement against itself
+
+PR 2518, full matrix green (12 `test (…)`, 5 `k-lint`, 0 in flight, 0
+non-success — verified here). To a **full review**: it turns a silently
+wrong answer into a refusal on a naming path and adds public Python
+surface to do it.
+
+### M6: the lane measured that its own fix is unguarded, and said so
+
+It reverted `chase` to the old silent fallthrough and ran everything:
+**115 lib + 1231 integration, 0 failed — GREEN.** That is the evidence
+behind its *"unguardable, and here is why"* note, and it is an honest
+negative rather than a convenient one: the easy move was to assert the
+fix mattered and never check.
+
+**The note is at both claim sites**, not only in the PR body, with the
+argument for why the refusal is unreachable *and* a pointer to the
+cycling route that is real — a graft copying records with source keys,
+which has fired the sibling's cycle arm on real assembly products — plus
+why that route aliases **edge** records rather than face-fragment rows.
+The review is told to try to falsify it, because *unreachable* and
+*unreached* are different claims and only one of them is a property of
+the code.
+
+### The public-surface decisions are the interesting half
+
+**Deliverable 2 adds no new Python word.** The new variant's tag arm
+**delegates**, so the tag stays `degenerate_direction` /
+`non_finite_direction` / `underflowed_direction` / `escalated` and a
+caller matching the old word keeps matching. Additive at the kernel,
+invisible at the binding — and the reason the lane could take that route
+is that it carried the whole `DirectionRefusal` rather than flattening it
+into loose fields, which is the shape PR 2435's delta round forced after
+a flattened carry could not call its own door.
+
+**And it declined to generalise `SplitLineageCycle`** for a reason worth
+keeping: generalising would **retire `split_lineage_cycle`, a word
+already on the wire**, and *adding is additive where renaming breaks
+callers.* It also rejected the row's own other option — an id field on
+all four direction variants — on a concrete ground rather than taste:
+the fourth, `Escalated`, is the general escalation variant reached from
+every `unit()` caller, so a frame id would sit on refusals that have no
+frame.
+
+Both are surface decisions argued from what the surface costs, which is
+the standard this program reached the hard way on `Frame::linear`.
+
+### The sweep found a sibling in another program's ground, and priced it
+
+`KeyView::live_vertex`/`live_face` in `topo/boolean` answer `None` on a
+spent budget — which is **also** their answer for a chain that simply
+ends — so a cycle reads as *"genuinely consumed"* and a **declared
+contact is dropped**. Milder than this unit's subject, same family,
+filed on BOOL because the cost lands in `BooleanError`'s vocabulary and
+that makes it their decision.
+
+**Five blind spots stated**, with two named as the ones that could hide a
+fifth instance: a budget spelled from something other than the map's
+`len()`, and a chase written as recursion rather than a loop. And a
+disclosed scope gap — `sweep/`, `geom-brep/` and `verbs/` were not
+swept, because the brief said two crates. A gap the brief caused is the
+orchestrator's to own, not the lane's.
+
+### Two counts corrected against the row, again
+
+The row said `descend_face` had two call sites; it has four arms, and the
+mechanical total is **seven**, not four. That is the fourth row this
+session whose own numbers were wrong and were corrected by the lane that
+read them — the standing lesson holds: **a figure in a row is one nobody
+re-takes until someone has to use it.**
