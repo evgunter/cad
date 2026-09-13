@@ -162,12 +162,16 @@ fn p3_the_seam_decide_at_small_major_radii() {
 }
 
 // ---------------------------------------------------------------------
-// P4 — claim 7: `Body::split_edge` leaves its children without pcurve
-// rows, so a hand-split operand is tier-3 invalid until `mint_pcurves`.
+// P4 — claim 7, RE-BASELINED: `Body::split_edge` now carries the
+// parent half-edges' pcurve rows across the split (restricted to each
+// child's sub-interval and re-certified before any mutation), so a
+// hand-split operand stays tier-3 valid with no `mint_pcurves` step.
+// The probe's fixtures and readings are the unit's; what moved is the
+// verdict on (b), which the claim recorded as a refusal.
 // ---------------------------------------------------------------------
 
 #[test]
-fn p4_split_edge_leaves_its_children_without_pcurves() {
+fn p4_split_edge_carries_its_childrens_pcurves() {
     // (a) The wedge's AXIS edge — the operand of the PR's row 5, which
     // does NOT call `mint_pcurves`.
     let mut w = wedge(1.0, 2.0, PI / 2.0);
@@ -223,11 +227,23 @@ fn p4_split_edge_leaves_its_children_without_pcurves() {
     split_mid(&mut d, seam);
     let after_seam = topo::validate_geometric(&d, tol());
     eprintln!("[p4b] drum cylinder seam, tier 3 after split_edge: {after_seam:?}");
-    assert!(
-        after_seam.is_err(),
-        "the PR's TOPO finding: a split CURVED chart leaves no pcurve rows"
+    assert_eq!(
+        after_seam,
+        Ok(()),
+        "a split on a CURVED chart carries the parent's rows to both children"
     );
+    // And the whole-body pass is idempotent over what the op left: the
+    // rows it re-derives are the rows already there.
+    let carried: Vec<_> = d
+        .pcurves()
+        .map(|(he, c)| (he, c.params()))
+        .collect::<Vec<_>>();
     topo::mint_pcurves(&mut d, tol()).expect("pcurves mint");
+    assert_eq!(
+        d.pcurves().map(|(he, c)| (he, c.params())).collect::<Vec<_>>(),
+        carried,
+        "the op's rows are the mint pass's rows"
+    );
     assert_eq!(topo::validate_geometric(&d, tol()), Ok(()));
 }
 

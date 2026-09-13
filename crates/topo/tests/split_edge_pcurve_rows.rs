@@ -1,4 +1,12 @@
-//! PHASE-1 SCRATCH (to be rewritten as the unit's rows).
+//! **`split_edge` carries its parent half-edges' pcurve rows across the
+//! split.** The forcing fixture is a minted cylinder-wall sheet: a
+//! curved chart, so the face stores rows, and both a CIRCLE rim and a
+//! LINE meridian to split.
+//!
+//! The claim under every row is one sentence: after the op, every
+//! half-edge of every face it touched carries the row it should, those
+//! rows are the ones `mint_pcurves` derives, and a body that stored no
+//! rows still stores none.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -158,10 +166,12 @@ fn wall(u0: f64, u1: f64, v0: f64, v1: f64) -> (Body<f64>, FaceKey) {
     (body, face)
 }
 
+/// Every half-edge of `face`'s outer loop, with the parameter interval
+/// of its stored row (`None` where no row is stored).
 fn rows_of(body: &Body<f64>, face: FaceKey) -> Vec<(topo::HalfEdgeKey, Option<(f64, f64)>)> {
     let f = body.get_face(face).unwrap();
     let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
-        panic!("no cycle")
+        panic!("the wall face lost its cycle")
     };
     body.loop_cycle(first)
         .unwrap()
@@ -170,50 +180,135 @@ fn rows_of(body: &Body<f64>, face: FaceKey) -> Vec<(topo::HalfEdgeKey, Option<(f
         .collect()
 }
 
-#[test]
-fn scratch_measure() {
-    let (body, face) = wall(0.2, 1.4, 0.0, 1.0);
-    eprintln!("[m] minted rows on the wall: {:?}", rows_of(&body, face));
-    assert!(topo::pcurves::validate_pcurves(&body, band()).is_empty());
-    // Split the bottom rim (a curved-chart carrier).
-    for pick in ["rim", "meridian"] {
-        let mut b = body.clone();
-        let target: EdgeKey = b
-            .edges()
-            .find(|(_, d)| {
-                let c = b
-                    .get_curve_geom(d.curve)
-                    .and_then(topo::CurveGeom::certified)
-                    .unwrap();
-                matches!(
-                    (pick, c.carrier()),
-                    ("rim", Curve3::Circle { .. }) | ("meridian", Curve3::Line { .. })
-                )
-            })
-            .map(|(e, _)| e)
-            .unwrap();
-        let (t0, t1) = b
-            .get_curve_geom(b.get_edge(target).unwrap().curve)
-            .and_then(topo::CurveGeom::certified)
-            .unwrap()
-            .params();
-        let created = b.split_edge(target, (t0 + t1) * 0.5, tol()).unwrap();
-        eprintln!("[m] {pick}: parent params were {:?}", (t0, t1));
-        eprintln!("[m] {pick}: rows after split {:?}", rows_of(&b, face));
-        eprintln!(
-            "[m] {pick}: parent edge curve params now {:?}",
-            b.get_curve_geom(b.get_edge(target).unwrap().curve)
+/// The edge of `body` whose carrier is a circle (`rim`) or a line
+/// (`meridian`), with its certified parameter interval.
+fn pick(body: &Body<f64>, which: &str) -> (EdgeKey, (f64, f64)) {
+    let edge = body
+        .edges()
+        .find(|(_, d)| {
+            let c = body
+                .get_curve_geom(d.curve)
                 .and_then(topo::CurveGeom::certified)
-                .unwrap()
-                .params()
+                .unwrap();
+            matches!(
+                (which, c.carrier()),
+                ("rim", Curve3::Circle { .. }) | ("meridian", Curve3::Line { .. })
+            )
+        })
+        .map(|(e, _)| e)
+        .unwrap();
+    let params = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .params();
+    (edge, params)
+}
+
+/// Every stored row, as (half-edge, interval, both chart endpoints) — a
+/// reading that a shifted branch, a widened interval or a re-derived
+/// (rather than restricted) image would move.
+fn sample(body: &Body<f64>) -> Vec<(String, (f64, f64), [f64; 4])> {
+    let mut rows: Vec<_> = body
+        .pcurves()
+        .map(|(he, c)| {
+            let (a, b) = c.params();
+            let (pa, pb) = (c.pcurve().eval(a), c.pcurve().eval(b));
+            (format!("{he:?}"), (a, b), [pa.x, pa.y, pb.x, pb.y])
+        })
+        .collect();
+    rows.sort_by(|a, b| a.0.cmp(&b.0));
+    rows
+}
+
+/// **The unit's row.** Splitting a rim (circle carrier) or a meridian
+/// (line carrier) of a minted cylinder wall leaves the tier-3 pcurve
+/// pass with nothing to say: the parent halves carry the first child's
+/// interval, the new halves the second child's, and no half-edge is
+/// left without a row.
+///
+/// At this unit's merge base both new halves were rowless — the pass
+/// read two `MissingCache` findings — and each parent half's row still
+/// claimed the whole parent interval while its edge had been narrowed
+/// to the first child's.
+#[test]
+fn a_split_on_a_curved_chart_leaves_every_half_edge_a_row() {
+    for which in ["rim", "meridian"] {
+        let (mut body, face) = wall(0.2, 1.4, 0.0, 1.0);
+        let (edge, (t0, t1)) = pick(&body, which);
+        let t = (t0 + t1) * 0.5;
+        let created = body.split_edge(edge, t, tol()).unwrap();
+
+        assert_eq!(
+            topo::pcurves::validate_pcurves(&body, band()),
+            vec![],
+            "{which}: tier 3's pcurve pass after the split"
         );
-        eprintln!(
-            "[m] {pick}: new halves {:?} {:?}",
-            created.he_plus, created.he_minus
-        );
-        eprintln!(
-            "[m] {pick}: validate_pcurves {:?}",
-            topo::pcurves::validate_pcurves(&b, band())
+
+        let parent = body.get_edge(edge).unwrap();
+        for he in [parent.he_plus, parent.he_minus] {
+            assert_eq!(
+                body.pcurve(he).map(topo::PcurveCache::params),
+                Some((t0, t)),
+                "{which}: parent half {he:?} carries the first child's interval"
+            );
+        }
+        for he in [created.he_plus, created.he_minus] {
+            assert_eq!(
+                body.pcurve(he).map(topo::PcurveCache::params),
+                Some((t, t1)),
+                "{which}: new half {he:?} carries the second child's interval"
+            );
+        }
+        assert!(
+            rows_of(&body, face).iter().all(|(_, p)| p.is_some()),
+            "{which}: a half-edge of the wall face is left rowless: {:?}",
+            rows_of(&body, face)
         );
     }
+}
+
+/// The rows the op carries are the rows the minting pass derives: run
+/// `mint_pcurves` over the split body and nothing moves, image or
+/// interval. That is what makes the carry a RESTRICTION of the parent's
+/// certified image rather than a second answer beside it.
+#[test]
+fn the_carried_rows_are_the_mint_passs_rows() {
+    let (mut body, _) = wall(0.2, 1.4, 0.0, 1.0);
+    let (edge, (t0, t1)) = pick(&body, "rim");
+    body.split_edge(edge, (t0 + t1) * 0.5, tol()).unwrap();
+    let carried = sample(&body);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(sample(&body), carried);
+}
+
+/// **Absence is never a claim.** A body that never ran the minting pass
+/// stores no rows, and the op mints none: it carries what is there, it
+/// does not start caching a body whose producer chose not to.
+#[test]
+fn a_body_with_no_rows_still_has_none_after_a_split() {
+    let (body, _) = wall(0.2, 1.4, 0.0, 1.0);
+    let mut bare = body.clone();
+    let keys: Vec<_> = bare.pcurves().map(|(he, _)| he).collect();
+    for he in keys {
+        bare.detach_pcurve(he);
+    }
+    assert_eq!(bare.pcurves().count(), 0);
+    let (edge, (t0, t1)) = pick(&bare, "rim");
+    bare.split_edge(edge, (t0 + t1) * 0.5, tol()).unwrap();
+    assert_eq!(bare.pcurves().count(), 0);
+    assert_eq!(topo::pcurves::validate_pcurves(&bare, band()), vec![]);
+}
+
+/// The split stays byte-identical on replay with rows in play (D9):
+/// the carry introduces no order-dependent derivation.
+#[test]
+fn the_carry_is_deterministic() {
+    let build = || {
+        let (mut body, _) = wall(0.2, 1.4, 0.0, 1.0);
+        let (edge, (t0, t1)) = pick(&body, "rim");
+        body.split_edge(edge, t0 + (t1 - t0) * 0.37, tol()).unwrap();
+        sample(&body)
+    };
+    assert_eq!(build(), build());
 }
