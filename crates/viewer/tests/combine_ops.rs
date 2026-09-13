@@ -25,15 +25,17 @@ use crate::common;
 use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, NodeError,
-    NodeErrorKind, NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Expr, LoopProgram, Node,
+    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+    SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
+use pncad::select::SplitHalf;
 use viewer::combine::{
     BooleanTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
 };
-use viewer::pick::PickKinds;
+use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
     DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, Selection,
@@ -276,17 +278,41 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
             );
         }
     }
-    // One body in both seats: the DAG would take it, the door does
-    // not.
+    // One body in both seats: the EDIT DOOR refuses it, as it refuses
+    // any node reached twice through one node's edges. Layer 3 does
+    // not pre-check it — the rule is `Node::input_fault`'s and is the
+    // same rule for a split or a list.
     let refused = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Subtract,
         a,
         b: a,
     });
+    let Some(Refusal::Edit(ref error)) = refused.refusal else {
+        panic!(
+            "expected the edit door's refusal, got {:?}",
+            refused.refusal
+        )
+    };
     assert!(
-        matches!(refused.refusal, Some(Refusal::SelfBoolean { node }) if node == a),
-        "{:?}",
-        refused.refusal
+        matches!(**error, EditError::DuplicateInput { input, .. } if input == a),
+        "{error:?}"
+    );
+    // **The WHOLE sentence, deliberately.** This is what a person reads
+    // when they pick one body into both seats, and it is the sentence
+    // that replaced a layer-3 arm — so the row pins it exactly rather
+    // than sampling substrings out of it. Two things substring
+    // assertions let through and this does not: an id the reader cannot
+    // act on (`DuplicateInput` also carries the id `InsertNode` WOULD
+    // have minted, which does not exist and never will if the edit is
+    // refused), and a rule with no action beside it.
+    assert_eq!(
+        refused.refusal.as_ref().expect("refused").to_string(),
+        format!(
+            "the edit was refused: the node this edit writes would be invalid: \
+             node {} is taken as an input twice — a node's inputs are pairwise \
+             distinct. Replace one of the two with a different node.",
+            a.0
+        )
     );
     // And the kind gate speaks FIRST: two profiles in both seats is
     // reported as "that is not a body", the fact a user can act on.
@@ -1057,7 +1083,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         assert!(
             matches!(
                 refused.refusal,
-                Some(Refusal::WrongNodeKind { .. } | Refusal::SelfBoolean { .. })
+                Some(Refusal::WrongNodeKind { .. } | Refusal::Edit(_))
             ),
             "{:?}",
             refused.refusal
@@ -1247,24 +1273,29 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 /// Which tools are actually holding state, read through the per-tool
 /// accessors rather than through `open_kind`.
 ///
-/// `open_kind` is a PRIORITY SCAN: it answers with the first tool it
-/// finds open, so it cannot see a second one left behind it, and in
-/// half of the ordered pairs that is exactly where a leftover would
-/// be. The exclusivity row asserts on this instead.
+/// `open_kind` answers with the ONE open tool's kind, so it cannot
+/// tell a leftover from the tool that displaced it: it reads the
+/// single `Option<OpenTool>`, and a second tool left behind has no
+/// spelling in that value at all. The per-tool accessors are the door
+/// the chrome uses and each answers about its own state, so a leftover
+/// shows up here as a second `true`. The exclusivity row asserts on
+/// this instead.
 ///
-/// The array is `ToolKind::ALL`-wide and indexed by `ordinal`, so a
-/// tool added to the set widens it here and the exclusivity row keeps
-/// covering every pair without a count written out twice.
+/// The array is `ToolKind::ALL`-wide and its position per kind is the
+/// kind's position in `ALL`, stated by an exhaustive match rather than
+/// left to the reader's eye — so a tool added to the set widens the
+/// array, has to be answered for here, and the exclusivity row keeps
+/// covering every pair with no count and no order written out twice.
 fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
-    [
-        tools.mate().is_some(),
-        tools.revolve().is_some(),
-        tools.boolean().is_some(),
-        tools.split().is_some(),
-        tools.transform().is_some(),
-        tools.pattern().is_some(),
-        tools.blend().is_some(),
-    ]
+    ToolKind::ALL.map(|kind| match kind {
+        ToolKind::Mate => tools.mate().is_some(),
+        ToolKind::Revolve => tools.revolve().is_some(),
+        ToolKind::Boolean => tools.boolean().is_some(),
+        ToolKind::Split => tools.split().is_some(),
+        ToolKind::Transform => tools.transform().is_some(),
+        ToolKind::Pattern => tools.pattern().is_some(),
+        ToolKind::Blend => tools.blend().is_some(),
+    })
 }
 
 /// **One modal tool at a time**, and the rule is the tool set's rather
@@ -1287,8 +1318,7 @@ fn only_one_modal_tool_is_open_at_a_time() {
                 Some(opened),
                 "opening {opened:?} over {previous:?}"
             );
-            let mut want = [false; ToolKind::ALL.len()];
-            want[opened.ordinal()] = true;
+            let want = ToolKind::ALL.map(|kind| kind == opened);
             assert_eq!(
                 open_flags(&tools),
                 want,
@@ -1304,23 +1334,6 @@ fn only_one_modal_tool_is_open_at_a_time() {
     );
 }
 
-/// `ToolKind::ALL` is a hand-written list, and `ordinal` is the
-/// exhaustive match beside it: this row reads the two against each
-/// other, so a variant added to the enum and forgotten in the list
-/// fails here rather than quietly narrowing every sweep that iterates
-/// it (this suite's exclusivity row included).
-#[test]
-fn every_tool_kind_is_listed_in_all() {
-    let mut seen = vec![false; ToolKind::ALL.len()];
-    for kind in ToolKind::ALL {
-        let at = kind.ordinal();
-        assert!(at < seen.len(), "{kind:?} ordinal {at} is off the end");
-        assert!(!seen[at], "{kind:?} shares an ordinal with another kind");
-        seen[at] = true;
-    }
-    assert!(seen.into_iter().all(|hit| hit), "every ordinal is listed");
-}
-
 /// **Every seat's wanted kind is the one its own door refuses by.**
 ///
 /// The routing in `viewer::seats` and the gate in `viewer::session`
@@ -1334,7 +1347,9 @@ fn every_tool_kind_is_listed_in_all() {
 /// with its door would either pick a "wrong" node the door happily
 /// accepts (no refusal, and the row fails) or draw a refusal naming a
 /// different kind (and the row fails). `Seat::ALL` is what makes it a
-/// sweep rather than a list somebody remembers to extend.
+/// sweep rather than a list somebody remembers to extend — and it is
+/// projected from `Seat`'s own declaration, so a seat this loop misses
+/// is a seat the enum does not have.
 #[test]
 fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let tol = Tol::witness();
@@ -1404,11 +1419,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         NodeKindWanted::SketchAxis => axis,
     };
 
-    let mut seen = vec![false; Seat::ALL.len()];
     for seat in Seat::ALL {
-        let at = seat.ordinal();
-        assert!(!seen[at], "{seat:?} shares an ordinal");
-        seen[at] = true;
         // Every OTHER seat of the same op is filled correctly, so the
         // refusal can only be about the seat under test.
         let filled = |other: Seat| {
@@ -1469,7 +1480,6 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             ),
         }
     }
-    assert!(seen.into_iter().all(|hit| hit), "every seat is listed");
 }
 
 /// **A pick only one seat can hold goes to that seat.**
@@ -1796,15 +1806,17 @@ fn a_tool_closes_on_its_own_committed_edit() {
 /// refused. That is asserted here in the same shape, so the day the
 /// frontier moves this row notices.
 ///
-/// **What it does not reach**, stated rather than implied: four of the
-/// eighteen node kinds are absent. `Mate`, `Measure` and `Assertion`
+/// **What it does not reach**, stated rather than implied: six of the
+/// twenty-two node kinds are absent. `Mate`, `Measure` and `Assertion`
 /// need substrate this row does not build (a solved assembly, a
 /// measured expression) and are all answered `false` by the seat;
 /// `InstantiatePart` is answered `true` and needs a resolver with a
 /// sibling document on disk, so its evaluates-to-a-body path is
-/// exercised by the assembly suites instead. The fourteen that ARE
-/// here include every kind whose classification is load-bearing for
-/// this unit.
+/// exercised by the assembly suites instead; the two tube kinds are
+/// answered `true` and evaluate through their own doors, exercised by
+/// `lib_tube_node`. The sixteen that ARE here — `Part` counted once
+/// for its two selectors — include every kind whose classification is
+/// load-bearing for this unit.
 #[test]
 fn the_body_seat_tracks_the_evaluators_operand_door() {
     let tol = Tol::witness();
@@ -1917,6 +1929,31 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         tol,
     );
     doc = next;
+    // A split and a pattern for the two Part candidates to read: each
+    // is SEVERAL bodies (refused at the seat below, as candidates in
+    // their own right), and a Part of either is one.
+    let (next, split_of_body) = common::inserted(
+        &doc,
+        Node::Split {
+            target: body,
+            tool: plane,
+        },
+        tol,
+    );
+    doc = next;
+    let (next, pattern_of_body) = common::inserted(
+        &doc,
+        Node::Pattern {
+            input: body,
+            count: Expr::count(2),
+            kind: PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.05),
+            },
+        },
+        tol,
+    );
+    doc = next;
 
     // A real edge of the box, for the two blends: an empty blend
     // selection is an AUTHORING refusal, so a minimal fillet has to
@@ -1982,6 +2019,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "union",
             Node::Union {
                 members: vec![body, body_b],
+                declare: None,
             },
         ),
         (
@@ -2009,6 +2047,22 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                     direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                     spacing: common::len(0.05),
                 },
+            },
+        ),
+        // ONE body out of a split or a pattern: the projection is
+        // what makes one of several bodies a body at a seat.
+        (
+            "part of a split",
+            Node::Part {
+                of: split_of_body,
+                select: PartSelect::SplitHalf(SplitHalf::Above),
+            },
+        ),
+        (
+            "part of a pattern",
+            Node::Part {
+                of: pattern_of_body,
+                select: PartSelect::Instance(Expr::count(1)),
             },
         ),
         (
@@ -2084,6 +2138,23 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             assert!(
                 !refused_as_operand,
                 "and the transform is poisoned, not told the sweep is not a body"
+            );
+            continue;
+        }
+        if name == "pattern" {
+            // The probe's own door is wider than the seat's question:
+            // a transform is shape-preserving over its input's value
+            // (`Body → Body`, `Instances → Instances`), so it ADMITS
+            // a pattern and yields instances — several bodies, which
+            // the seat is right to refuse. The seat's answer here is
+            // not the transform door's to confirm — a consumer that
+            // takes one body would be, and this row's probe is not
+            // one.
+            assert!(!admitted, "the seat refuses a pattern");
+            assert!(
+                !refused_as_operand,
+                "the transform takes the pattern's instances whole: {:?}",
+                eval.result(probe).and_then(NodeResult::error)
             );
             continue;
         }

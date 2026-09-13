@@ -96,6 +96,8 @@ use pncad::geom_core::{Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
+use pncad::topo::EulerCounts;
+use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, FaceKey, ShellError};
 
 use crate::{SceneBody, Stop, View};
@@ -144,11 +146,6 @@ const R_WAISTED: f64 = 12.0 / 64.0;
 /// every junction below is transversal by a wide margin rather than by
 /// a hair, and the clearance gate is nowhere near it.
 const WALL: f64 = 1.0 / 128.0;
-
-/// The NURBS fit tolerance `shell` would hand its approximating lane.
-/// Unread here: every wall of this vessel is analytic, so the offsets
-/// are closed forms and nothing is fitted.
-const FIT_TOL: f64 = 1e-6;
 
 /// The chord budget: an absolute sagitta, half the hollow ring's on a
 /// body of about the ring's size. The vessel is `3/8` m tall and its
@@ -362,19 +359,9 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
         .collect()
 }
 
-fn census(body: &Body<f64>) -> (usize, usize, usize) {
-    (
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count(),
-    )
-}
-
-fn genus(body: &Body<f64>) -> i64 {
-    let (v, e, f) = census(body);
-    let r: usize = body.faces().map(|(_, x)| x.rings.len()).sum();
-    let s = body.shells().count();
-    s as i64 - (v as i64 - e as i64 + f as i64 - r as i64) / 2
+fn census(body: &Body<f64>) -> (i64, i64, i64) {
+    let EulerCounts { v, e, f, .. } = euler_counts(body);
+    (v, e, f)
 }
 
 /// **The sense assertion, run on a built body**: the cavity's torus
@@ -400,7 +387,7 @@ fn assert_offset_sense(hollow: &Body<f64>, centre_rho: f64, what: &str) {
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let body = bellied(tol);
     assert_eq!(census(&body), (14, 26, 14), "the vessel's operand census");
-    assert_eq!(genus(&body), 0, "a vessel is a ball");
+    assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
     assert_eq!(
         pncad::topo::validate_geometric(&body, tol),
         Ok(()),
@@ -426,7 +413,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // no torus arm, so this body fell to the per-chart loop and the C5
     // table refused its plane x torus pair. It is ATTEMPTED live on
     // every pass, exactly as the wall it replaced was.
-    let sealed = pncad::topo::shell(&body, WALL, FIT_TOL, tol)
+    let sealed = pncad::topo::shell(&body, WALL, tol)
         .expect("a torus-walled vessel hollows through the axial door's torus arm")
         .body;
     assert_eq!(
@@ -441,7 +428,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the operand's 14/26/14 twice — the cavity is that same boundary offset inward \
          and inserted whole through the shared void door"
     );
-    assert_eq!(genus(&sealed), 0, "a sealed hollow is genus 0");
+    assert_eq!(
+        euler_counts(&sealed).genus(),
+        Ok(0),
+        "a sealed hollow is genus 0"
+    );
     assert_offset_sense(&sealed, R_BELLIED, "the bellied vessel");
 
     // The corner solves, against the closed forms derived above. Both
@@ -514,7 +505,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // ---- THE SENSE TWIN: the same stations, the other centre ----
     let twin = waisted(tol);
     assert_eq!(census(&twin), (14, 26, 14), "the twin's operand census");
-    let twin_hollow = pncad::topo::shell(&twin, WALL, FIT_TOL, tol)
+    let twin_hollow = pncad::topo::shell(&twin, WALL, tol)
         .expect("the waisted twin hollows through the same arm")
         .body;
     assert_eq!(
@@ -556,9 +547,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // operand's own clearance gate on the two SHOULDER annuli, which
     // face each other across the belly at Y_SHOULDER - Y_FOOT.
     let below = Y_SHOULDER - Y_FOOT - WALL;
-    pncad::topo::shell(&body, below / 2.0, FIT_TOL, tol)
+    pncad::topo::shell(&body, below / 2.0, tol)
         .expect("a wall just under half the shoulders' clearance hollows");
-    let at = pncad::topo::shell(&body, (Y_SHOULDER - Y_FOOT) / 2.0, FIT_TOL, tol)
+    let at = pncad::topo::shell(&body, (Y_SHOULDER - Y_FOOT) / 2.0, tol)
         .expect_err("two walls that consume the shoulders' whole clearance leave no cavity");
     let ShellError::WallClearance {
         gap,
@@ -586,7 +577,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the mouth is ONE plane worn by two half-discs — a full revolve's seam cut — \
          and the rim lift moves a chart as one"
     );
-    let mut cup = pncad::topo::shell_open(&body, WALL, &mouth, FIT_TOL, tol)
+    let mut cup = pncad::topo::shell_open(&body, WALL, &mouth, tol)
         .expect("the vessel opens at its mouth")
         .body;
     assert_eq!(
@@ -594,10 +585,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Ok(()),
         "the cup: tier 3"
     );
-    let rings: usize = cup.faces().map(|(_, f)| f.rings.len()).sum();
+    let counts = euler_counts(&cup);
     assert_eq!(
-        (rings, genus(&cup), cup.shells().count()),
-        (1, 0, 1),
+        (counts.r, counts.genus(), counts.s),
+        (1, Ok(0), 1),
         "ONE rim annulus carrying ONE ring, genus 0 as `topo::shell`'s docs promise a \
          cup is, and the cavity fused into the boundary"
     );
@@ -665,13 +656,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Ok(()),
         "the merged cup: tier 3"
     );
+    let counts = euler_counts(&cup);
     assert_eq!(
-        (
-            cup.faces().map(|(_, f)| f.rings.len()).sum::<usize>(),
-            genus(&cup),
-            cup.shells().count()
-        ),
-        (5, 0, 1),
+        (counts.r, counts.genus(), counts.s),
+        (5, Ok(0), 1),
         "the merge mints four annulus rings beside the rim's and moves no locus, so the \
          genus is where it was"
     );
@@ -698,7 +686,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Ok(()),
         "the sectioned vessel is a valid body — it is the HOLLOW that has no carrier"
     );
-    let sectioned = pncad::topo::shell(&quarter, WALL, FIT_TOL, tol);
+    let sectioned = pncad::topo::shell(&quarter, WALL, tol);
     crate::walls::wall(
         "torus-walled vessel",
         1,

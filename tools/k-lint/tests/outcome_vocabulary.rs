@@ -104,3 +104,53 @@ fn a_symbolic_zero_row_is_linted_rather_than_refused() {
         scan.flags
     );
 }
+
+/// **A `registered` row parses, counts in ITS OWN column — neither the
+/// `symbolic_zero` one nor the `sign_gated` one — and answers to no
+/// rule.** The registered-identity door's token (M10-9, ERROR-DESIGN
+/// E12's provenance reserve), pinned across the same boundary the first
+/// one drifted over.
+#[test]
+fn a_registered_row_is_linted_in_its_own_column() {
+    let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+               driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,registered\n\
+               driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,sign_gated\n\
+               driver/plate,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
+               driver/plate,volume_backstop,1e-3,1e-9,1e-8,positive\n";
+    let scan = k_lint::lint_csv(csv).expect("a `registered` row is a row this lint understands");
+    assert_eq!(scan.scanned, 4, "all four rows counted");
+    assert_eq!(scan.registered, 1, "the registered row in its own column");
+    assert_eq!(scan.sign_gated, 1, "and not in the clause-3 one");
+    assert_eq!(
+        scan.symbolic, 1,
+        "and not in the unconditional one — an axiom is not a theorem"
+    );
+    assert!(
+        scan.flags.is_empty(),
+        "a registered zero was never classified against the band either: {:?}",
+        scan.flags
+    );
+}
+
+/// **A `sign_gated` row parses, counts in ITS OWN column — not the
+/// `symbolic_zero` one — and answers to no rule.** The clause-3 fold's
+/// token, pinned across the same boundary the first one drifted over.
+#[test]
+fn a_sign_gated_row_is_linted_in_its_own_column() {
+    let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+               driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,sign_gated\n\
+               driver/plate,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
+               driver/plate,volume_backstop,1e-3,1e-9,1e-8,positive\n";
+    let scan = k_lint::lint_csv(csv).expect("a `sign_gated` row is a row this lint understands");
+    assert_eq!(scan.scanned, 3, "all three rows counted");
+    assert_eq!(scan.sign_gated, 1, "the gated row in its own column");
+    assert_eq!(
+        scan.symbolic, 1,
+        "and not in the unconditional one — the two claims differ in kind"
+    );
+    assert!(
+        scan.flags.is_empty(),
+        "a sign-gated zero was never classified against the band either: {:?}",
+        scan.flags
+    );
+}

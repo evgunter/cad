@@ -121,9 +121,9 @@ fn r2_recount_the_routing_price_from_the_verdict_log() {
     let a = full_torus(RING);
     let b = full_torus(RING + 2.0 * TUBE);
     let d = decls(&a, &b, ContactClass::Tangent);
-    geom_core::k_stats::start_verdict_log();
+    let bracket = geom_core::k_stats::Bracket::open();
     let err = topo::union_with(&a, &b, &d, Tol::witness()).expect_err("refuses");
-    let log = geom_core::k_stats::take_verdict_log();
+    let log = bracket.finish().verdicts;
     let mut by: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
     for v in &log {
         *by.entry(v.predicate).or_default() += 1;

@@ -6,7 +6,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, Tol, Vec2};
+use crate::common::approx::band;
+use crate::common::census::{genus_of, rings_of};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
@@ -14,30 +16,6 @@ use topo::{Body, FaceKey, ShellError};
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-const FIT_TOL: f64 = 1e-6;
-
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings_of(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
-}
-
-fn genus_of(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    let chi = v - e + f - rings_of(body) as i64;
-    assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
-    body.shells().count() as i64 - chi / 2
-}
-
 /// Faces whose plane origin sits at height `y` (the revolve fixtures
 /// sketch on xy and revolve about +y, so caps are planes at origin.y).
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
@@ -177,7 +155,7 @@ fn r2_partial_revolve_axis_touching_cap() {
         };
         let chart = plane_chart_at_y(&body, h);
         println!("theta={theta}: cap chart has {} face(s)", chart.len());
-        let opened = topo::shell_open(&body, t, &chart, FIT_TOL, tol).map(|shelled| shelled.body);
+        let opened = topo::shell_open(&body, t, &chart, tol).map(|shelled| shelled.body);
         report(&format!("partial axis-touching theta={theta}"), &opened);
         if let Ok(cup) = &opened {
             assert_eq!(
@@ -231,7 +209,7 @@ fn r2_partial_revolve_annular_cap() {
     );
     let chart = plane_chart_at_y(&body, h);
     println!("partial annular: cap chart has {} face(s)", chart.len());
-    let opened = topo::shell_open(&body, t, &chart, FIT_TOL, tol).map(|shelled| shelled.body);
+    let opened = topo::shell_open(&body, t, &chart, tol).map(|shelled| shelled.body);
     report("partial annular cap", &opened);
     if let Ok(cup) = &opened {
         assert_eq!(topo::validate_geometric(cup, tol), Ok(()));
@@ -262,7 +240,7 @@ fn r2_axis_at_one_end_only() {
         if chart.is_empty() {
             continue;
         }
-        let opened = topo::shell_open(&body, t, &chart, FIT_TOL, tol).map(|shelled| shelled.body);
+        let opened = topo::shell_open(&body, t, &chart, tol).map(|shelled| shelled.body);
         report(name, &opened);
         if let Ok(cup) = &opened {
             assert_eq!(topo::validate_geometric(cup, tol), Ok(()), "{name}");
@@ -295,15 +273,14 @@ fn r2_stepped_meridian_vase_mints_one_annular_rim() {
     );
     let chart = plane_chart_at_y(&body, h);
     println!("vase: mouth chart has {} face(s)", chart.len());
-    let opened = topo::shell_open(&body, t, &chart, FIT_TOL, tol).map(|shelled| shelled.body);
+    let opened = topo::shell_open(&body, t, &chart, tol).map(|shelled| shelled.body);
     report("stepped vase", &opened);
     // This meridian is OBLIQUE at two of its steps, which revolve into
     // CONES, so the SEALED offset used to meet #1081's re-anchor door
     // and this row recorded that refusal and stopped. **The sealed
     // offset now succeeds** — the axial door solves those corners — and
     // that half is asserted here rather than skipped.
-    topo::shell(&body, t, FIT_TOL, tol)
-        .expect("the stepped vase's SEALED hollow is inside the axial door");
+    topo::shell(&body, t, tol).expect("the stepped vase's SEALED hollow is inside the axial door");
 
     // **And the OPENED arm succeeds too**, which this row asserts
     // rather than tolerating. An earlier cut of this change carried an
@@ -347,7 +324,7 @@ fn r2_my_own_annulus_splits_into_two_rims() {
     );
     let chart = plane_chart_at_y(&body, h);
     assert_eq!(chart.len(), 1, "a closed off-axis meridian closes its seam");
-    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, tol)
+    let cup = topo::shell_open(&body, t, &chart, tol)
         .expect("my tube opens")
         .body;
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
@@ -392,7 +369,7 @@ fn r2_two_holed_designation_refuses_typed() {
     .expect("a twice-holed rectangle extrudes");
     let top = plane_chart_at_z(&body, 0.6);
     println!("two-holed: top chart {} face(s)", top.len());
-    let opened = topo::shell_open(&body, 0.05, &top, FIT_TOL, tol).map(|shelled| shelled.body);
+    let opened = topo::shell_open(&body, 0.05, &top, tol).map(|shelled| shelled.body);
     report("two-holed designation", &opened);
     match opened {
         Err(ShellError::OpenFaceRimNotExpressible { what, .. }) => {
@@ -426,7 +403,7 @@ fn r2_one_holed_extrusion_opens() {
     let body =
         extruded(vec![outer, circle_loop(0.5, 0.5, 0.2)], 0.6).expect("a holed rectangle extrudes");
     let top = plane_chart_at_z(&body, 0.6);
-    let opened = topo::shell_open(&body, 0.05, &top, FIT_TOL, tol).map(|shelled| shelled.body);
+    let opened = topo::shell_open(&body, 0.05, &top, tol).map(|shelled| shelled.body);
     report("one-holed extrusion", &opened);
     if let Ok(cup) = &opened {
         assert_eq!(topo::validate_geometric(cup, tol), Ok(()));
@@ -624,7 +601,7 @@ fn r2_box_control_fingerprint() {
         v
     };
     for (name, body, chart) in cases {
-        let cup = topo::shell_open(&body, 0.05, &chart, FIT_TOL, tol);
+        let cup = topo::shell_open(&body, 0.05, &chart, tol);
         match cup {
             Ok(topo::Shelled { body: cup, .. }) => {
                 let props = topo::mass_properties(&cup, tol).expect("props");

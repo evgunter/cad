@@ -31,7 +31,7 @@ use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
-use viewer::pick::{IdMap, PickIndex};
+use viewer::pickindex::{IdMap, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Hovered, Selection, SessionOp};

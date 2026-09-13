@@ -11,8 +11,9 @@
 //!
 //! * `mass_properties` → `mass_properties_with` → **`T::quad_cut_face`**
 //!   (the scalar's own lane, dispatched through `PropsQuadLane`);
-//! * `mass_properties_certified` → **`quad_lane::cut_face`** (named
-//!   directly, no dispatch).
+//! * `sign_certified` (tier 3's certified half) → `certified_hook` →
+//!   **`quad_lane::cut_face_rounds`** (named directly, no dispatch),
+//!   whose whole-schedule window is what `quad_lane::cut_face` is.
 //!
 //! They agree because every `PropsQuadLane` impl that can form the
 //! certified call defines `quad_cut_face` as `quad_lane::cut_face(..)

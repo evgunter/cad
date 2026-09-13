@@ -2,11 +2,12 @@
 //! service on the mesh back-references and the [`super::hit`]
 //! inversion).
 //!
-//! The chain: [`bvh::Bvh::ray`] over per-triangle boxes → exact
-//! ray/triangle tests in plain `f64` → nearest hit by `t` with a
-//! total, documented tie-break → the winning triangle's
-//! [`mesh::FacePatch::face`] back-reference → [`super::hit::entity_name`]
-//! → [`StableName`]. **No arena key crosses the layer-2/3 boundary as
+//! The chain: [`bvh::Bvh::ray`] over the patches' boxes, then over
+//! the candidate patches' per-triangle boxes, merged into one
+//! candidate sequence ([`MeshPick`]) → exact ray/triangle tests in
+//! plain `f64` → nearest hit by `t` with a total, documented tie-break
+//! → the winning patch's [`mesh::FacePatch::face`] back-reference →
+//! [`super::hit::entity_name`] → [`StableName`]. **No arena key crosses the layer-2/3 boundary as
 //! a selection value**: the service's public answer is a name (plus
 //! node id, `t`, and hit point) or a typed error; the
 //! [`topo::FaceKey`]s live inside the private [`MeshPick`] state and
@@ -25,8 +26,11 @@
 //! # Where the acceleration state lives, and when it dies
 //!
 //! [`MeshPick`] is per-mesh state the CONSUMER holds: built once per
-//! tessellated mesh by [`MeshPick::build`], self-contained (it copies
-//! the triangle geometry out of the mesh), and valid exactly as long
+//! tessellated mesh — by [`MeshPick::build`], or by the memoised door
+//! [`MeshPick::build_with`], which serves each patch's table whole
+//! from [`PickMemo`] where the tessellation reused that patch and
+//! builds it where it did not — self-contained (it copies the
+//! triangle geometry out of the mesh), and valid exactly as long
 //! as the mesh it was built from is the one being displayed. A static
 //! scene therefore never rebuilds per query. The obvious invalidator
 //! is the evaluation epoch: a new [`Evaluation`] means new meshes,
@@ -52,20 +56,25 @@
 //! assembly remains for consumers that already hold a mesh, and
 //! carries the loud contract.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use bvh::{Aabb, Bvh, Ray};
 use geom_core::{Decide, Point3, Tol, Vec3};
-use mesh::{Mesh, TessellateError};
+use mesh::{Mesh, PatchKeys, PatchMemo, StoredPatchId, TessellateError, tessellate_with};
 use topo::FaceKey;
 
 use super::hit::{HitTestError, entity_name};
-use crate::eval::{Evaluation, NodeResult, NodeValue};
+use crate::eval::{ContentKey, Evaluation, NamingKey, NodeResult, NodeValue};
+use crate::ident::DocumentId;
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
 use crate::product::sources_of;
 
-/// One triangle of the pick index: its corner geometry (copied out of
-/// the mesh's position buffer, so the index cannot drift out of sync
-/// with a mesh it merely borrowed) and its face back-reference.
+/// One triangle of the pick index: its corner geometry, copied out of
+/// the mesh's position buffer so the index cannot drift out of sync
+/// with a mesh it merely borrowed. Its face is its patch's
+/// ([`PickPatch::face`]).
 #[derive(Clone, Copy, Debug)]
 struct PickTri {
     /// First corner.
@@ -74,9 +83,99 @@ struct PickTri {
     b: Point3<f64>,
     /// Third corner.
     c: Point3<f64>,
+}
+
+/// One patch's pick table: its triangles' corners copied out of the
+/// mesh's position buffer, the tree over their boxes, and the hull of
+/// those boxes.
+///
+/// **Everything here is a function of the patch's placed corners and
+/// nothing else** — the boxes are each triangle's exact corner hull,
+/// the tree is `bvh`'s arena-order build over them, the hull is the
+/// fold over them left to right. That is what lets [`PickMemo`] serve
+/// the whole table across pictures under
+/// [`mesh::StoredPatchId`], which says the placed
+/// corners are bit-identical: same corners, same table, with nothing
+/// per triangle to recompute or compare. The `Arc` is the memo's
+/// handle and this index's, one build.
+#[derive(Debug)]
+struct PickTable {
+    /// The patch's triangles, in emitted order.
+    tris: Vec<PickTri>,
+    /// Tree over the triangles' exact vertex-hull boxes (tree item `i`
+    /// ↔ `tris[i]`).
+    tree: Bvh,
+    /// The hull of those boxes, folded left to right (fixed
+    /// association order) — the patch's box in the top-level tree. A
+    /// patch with no triangles is poison: never pruned, and its empty
+    /// tree answers nothing.
+    hull: Aabb,
+}
+
+/// One patch of the pick index: its table, and the two things the
+/// table cannot carry because neither is a function of the patch's own
+/// geometry — the face it belongs to (an arena key, lineage-scoped)
+/// and where its triangles start in the mesh's patch-major order.
+#[derive(Clone, Debug)]
+struct PickPatch {
+    /// The corners, the tree and the hull ([`PickTable`]).
+    table: Arc<PickTable>,
     /// The owning face ([`mesh::FacePatch::face`]) — private: this key
     /// never leaves the service.
     face: FaceKey,
+    /// The flat position of `table.tris[0]` in the mesh's patch-major
+    /// triangle order: the tie-break's coordinate.
+    base: usize,
+}
+
+impl PickTable {
+    /// The table of the patch at position `pi`: one box per triangle
+    /// (the exact hull of its three corners — a triangle is inside its
+    /// corners' hull, so no padding is needed; the ray query's own
+    /// conservative slab test supplies the rounding margin), the tree
+    /// over those boxes, and their hull.
+    ///
+    /// A NaN position poisons its triangle's box, which the tree then
+    /// never prunes (fail-safe); the exact ray test refuses NaN
+    /// triangles, so poisoned geometry is un-hittable but never
+    /// silently un-pruned.
+    ///
+    /// # Errors
+    ///
+    /// [`MeshPickError::PositionOutOfRange`] when a triangle indexes
+    /// outside [`Mesh::positions`] — corrupt input, never skipped.
+    fn build(mesh: &Mesh, pi: usize, patch: &mesh::FacePatch) -> Result<Self, MeshPickError> {
+        let mut tris = Vec::with_capacity(patch.triangles.len());
+        let mut boxes = Vec::with_capacity(patch.triangles.len());
+        for (ti, tri) in patch.triangles.iter().enumerate() {
+            let mut corners = [Point3::new(0.0, 0.0, 0.0); 3];
+            for (slot, &index) in corners.iter_mut().zip(tri) {
+                *slot = *mesh.positions.get(index as usize).ok_or(
+                    MeshPickError::PositionOutOfRange {
+                        patch: pi,
+                        triangle: ti,
+                        index,
+                    },
+                )?;
+            }
+            let [a, b, c] = corners;
+            // `from_points` is `None` only for an empty iterator;
+            // three points always yield a box. The unreachable arm
+            // degrades to poison — never pruned — rather than a
+            // panic (fail-safe direction).
+            boxes.push(Aabb::from_points([a, b, c]).unwrap_or_else(Aabb::poison));
+            tris.push(PickTri { a, b, c });
+        }
+        let hull = boxes
+            .iter()
+            .fold(None::<Aabb>, |acc, b| Some(acc.map_or(*b, |a| a.hull(b))))
+            .unwrap_or_else(Aabb::poison);
+        Ok(Self {
+            tree: Bvh::build(&boxes),
+            tris,
+            hull,
+        })
+    }
 }
 
 /// Typed failure of [`MeshPick::build`] (closed; no silent lanes).
@@ -123,69 +222,198 @@ impl core::fmt::Display for MeshPickError {
 
 impl core::error::Error for MeshPickError {}
 
-/// The per-mesh picking acceleration state: a triangle [`Bvh`] plus
-/// the flat triangle table it indexes (module docs: consumer-held,
-/// epoch-invalidated).
+/// The per-mesh picking acceleration state (module docs: consumer-
+/// held, epoch-invalidated): **two levels of tree**. One [`Bvh`] per
+/// patch over that patch's triangles, and one top-level [`Bvh`] over
+/// the patches' boxes, in [`Mesh::patches`] order (face arena order).
 ///
-/// Triangles are stored patch-major in [`Mesh::patches`] order (face
-/// arena order), triangles within a patch in their emitted order —
-/// the **flat order** the pick tie-break below is stated in.
+/// Triangles are addressed patch-major in patch order, triangles
+/// within a patch in their emitted order — the **flat order** the
+/// pick tie-break below is stated in ([`PickPatch::base`] plus the
+/// position within the patch).
+///
+/// # Why the two-level query answers exactly as one tree over every
+/// triangle would
+///
+/// A pick is a function of the candidate SEQUENCE the tree hands the
+/// exact test — not only of the set: the loop early-outs on the
+/// conservative entry parameter, and the exact test can answer a `t`
+/// outside a grazed triangle's own box (a ray in the triangle's
+/// plane), so which such answers the loop reaches is decided by the
+/// order. [`MeshPick::candidates`] therefore reproduces the single-
+/// tree sequence verbatim:
+///
+/// - **Same set.** `bvh`'s contract: a query's candidates are a
+///   function of the item boxes alone, independent of tree shape, and
+///   an item is a candidate iff its own box passes [`Ray::slab_enter`].
+///   That test is monotone in the box — every per-axis endpoint is a
+///   correctly rounded subtraction then division, so a box's slab
+///   interval contains that of any box it contains — hence a
+///   triangle whose box passes has a patch box that passes: the top
+///   level never prunes a patch holding a single-tree candidate, and
+///   within a candidate patch the per-triangle test is the same test
+///   on the same box. (The one seam is `slab_t`'s exact recompute of
+///   an OVERFLOWED subtraction, which can disagree with the direct
+///   formula by ~2 ULP; it is reached only when a bound and the ray
+///   origin differ by more than `f64::MAX`, which no mesh does.)
+/// - **Same values.** Each candidate's `t_enter` is the same function
+///   of the same triangle box.
+/// - **Same order.** The merged list is sorted by
+///   `(t_enter under total_cmp, flat position)`, the single tree's
+///   documented order.
+///
+/// So the loop in [`pick_face`] sees the sequence one tree over all
+/// the triangles would give it, and answers bit-identically — the
+/// invariant `viewer`'s `index_memo` differential pins against a
+/// single-level reference, tie-break row included.
+///
+/// # The two doors, and why they answer the same index
+///
+/// [`MeshPick::build`] builds every patch's [`PickTable`];
+/// [`MeshPick::build_with`] serves the tables [`PickMemo`] holds for
+/// the patches this tessellation reused and builds the rest. The
+/// second answers table for table and tree for tree what the first
+/// would — a table is a function of its patch's placed corners alone,
+/// and the memo's key says those corners are bit-identical — which is
+/// the row the same differential asserts after every landing.
 #[derive(Debug, Clone)]
 pub struct MeshPick {
-    /// Tree over the triangles' exact vertex-hull boxes.
-    tree: Bvh,
-    /// The flat triangle table (tree item `i` ↔ `tris[i]`).
-    tris: Vec<PickTri>,
+    /// Tree over the patches' boxes (item `i` ↔ `patches[i]`); a patch
+    /// with no triangles carries the poison box, so it is never pruned
+    /// and its empty tree answers nothing.
+    top: Bvh,
+    /// The patches, in [`Mesh::patches`] order.
+    patches: Vec<PickPatch>,
+}
+
+/// One merged candidate of [`MeshPick::candidates`].
+#[derive(Clone, Copy, Debug)]
+struct Candidate {
+    /// The triangle box's conservative entry parameter
+    /// ([`bvh::RayCandidate::t_enter`]).
+    t_enter: f64,
+    /// Flat position (patch-major) — the tie-break's coordinate.
+    flat: usize,
+    /// Position in [`MeshPick::patches`].
+    patch: usize,
+    /// Position in that patch's `tris`.
+    tri: usize,
 }
 
 impl MeshPick {
-    /// Builds the index from a tessellated mesh: one box per triangle
-    /// (the exact hull of its three corners — a triangle is inside its
-    /// corners' hull, so no padding is needed; the ray query's own
-    /// conservative slab test supplies the rounding margin).
-    ///
-    /// A NaN position poisons its triangle's box, which the tree then
-    /// never prunes (fail-safe); the exact ray test refuses NaN
-    /// triangles, so poisoned geometry is un-hittable but never
-    /// silently un-pruned.
+    /// Builds the index from a tessellated mesh: a [`PickTable`] per
+    /// patch — corners, per-triangle boxes, tree, hull — and the
+    /// top-level tree over the patches' hulls. Every table is built
+    /// here; the memoised form is [`MeshPick::build_with`].
     ///
     /// # Errors
     ///
     /// [`MeshPickError::PositionOutOfRange`] when a triangle indexes
     /// outside [`Mesh::positions`] — corrupt input, never skipped.
     pub fn build(mesh: &Mesh) -> Result<Self, MeshPickError> {
-        let mut tris = Vec::new();
-        let mut boxes = Vec::new();
+        Self::assemble(mesh, |pi, patch| {
+            Ok(Arc::new(PickTable::build(mesh, pi, patch)?))
+        })
+    }
+
+    /// [`MeshPick::build`] over `memo`'s per-patch tables: the patch at
+    /// position `i` is served the table the memo holds under the memo
+    /// entry `keys` reports for it, and builds (and stores) one
+    /// otherwise. Nothing per triangle runs on a served patch — no
+    /// corner copy, no box, no tree — because the entry identity says
+    /// the placed corners are the stored ones' bit for bit
+    /// ([`mesh::StoredPatchId`]). The top-level
+    /// tree is built every time. The index is the same, table for
+    /// table and tree for tree, as [`MeshPick::build`]'s
+    /// ([`PickMemo`]'s table level).
+    ///
+    /// `keys` is the tessellation's, one row per patch in the same
+    /// order. Both come from one `tessellate_with`, which emits one
+    /// patch and one row per face, so a count mismatch is a state only
+    /// a kernel bug reaches: it panics (D9 — a bug announces itself),
+    /// in every build.
+    ///
+    /// # Errors
+    ///
+    /// As [`MeshPick::build`].
+    pub(crate) fn build_with(
+        mesh: &Mesh,
+        keys: &PatchKeys,
+        memo: &mut PickMemo,
+    ) -> Result<Self, MeshPickError> {
+        if keys.len() != mesh.patches.len() {
+            unreachable!(
+                "pick index: {} keys for {} patches — a tessellation carries one key per face",
+                keys.len(),
+                mesh.patches.len()
+            );
+        }
+        memo.open();
+        Self::assemble(mesh, |pi, patch| {
+            memo.table(keys.stored(pi), patch.triangles.len(), || {
+                PickTable::build(mesh, pi, patch)
+            })
+        })
+    }
+
+    /// The walk both doors share: per patch, `table_for(patch
+    /// position, patch)`, then the top-level tree over the tables'
+    /// hulls.
+    ///
+    /// The walk itself is O(#patches): a patch's triangles are touched
+    /// only inside [`PickTable::build`], which the memoised door calls
+    /// only on a miss.
+    fn assemble(
+        mesh: &Mesh,
+        mut table_for: impl FnMut(usize, &mesh::FacePatch) -> Result<Arc<PickTable>, MeshPickError>,
+    ) -> Result<Self, MeshPickError> {
+        let mut patches = Vec::with_capacity(mesh.patches.len());
+        let mut hulls = Vec::with_capacity(mesh.patches.len());
+        let mut base = 0;
         for (pi, patch) in mesh.patches.iter().enumerate() {
-            for (ti, tri) in patch.triangles.iter().enumerate() {
-                let mut corners = [Point3::new(0.0, 0.0, 0.0); 3];
-                for (slot, &index) in corners.iter_mut().zip(tri) {
-                    *slot = *mesh.positions.get(index as usize).ok_or(
-                        MeshPickError::PositionOutOfRange {
-                            patch: pi,
-                            triangle: ti,
-                            index,
-                        },
-                    )?;
-                }
-                let [a, b, c] = corners;
-                // `from_points` is `None` only for an empty iterator;
-                // three points always yield a box. The unreachable arm
-                // degrades to poison — never pruned — rather than a
-                // panic (fail-safe direction).
-                boxes.push(Aabb::from_points([a, b, c]).unwrap_or_else(Aabb::poison));
-                tris.push(PickTri {
-                    a,
-                    b,
-                    c,
-                    face: patch.face,
-                });
-            }
+            let table = table_for(pi, patch)?;
+            hulls.push(table.hull);
+            patches.push(PickPatch {
+                table,
+                face: patch.face,
+                base,
+            });
+            base += patch.triangles.len();
         }
         Ok(Self {
-            tree: Bvh::build(&boxes),
-            tris,
+            top: Bvh::build(&hulls),
+            patches,
         })
+    }
+
+    /// The ray's candidates, in the single-tree order (type docs): the
+    /// top level's candidate patches, each patch's candidate
+    /// triangles, merged and sorted by `(t_enter, flat position)`.
+    fn candidates(&self, ray: &Ray) -> Vec<Candidate> {
+        let mut out = Vec::new();
+        for pc in self.top.ray(ray) {
+            let Some(patch) = self.patches.get(pc.item) else {
+                // Unreachable: the top level was built over exactly
+                // `patches`.
+                continue;
+            };
+            out.extend(patch.table.tree.ray(ray).into_iter().map(|c| Candidate {
+                t_enter: c.t_enter,
+                flat: patch.base + c.item,
+                patch: pc.item,
+                tri: c.item,
+            }));
+        }
+        // Flat positions are distinct, so the key is a strict total
+        // order and the sort is a permutation with no ties to break.
+        out.sort_unstable_by(|a, b| a.t_enter.total_cmp(&b.t_enter).then(a.flat.cmp(&b.flat)));
+        out
+    }
+
+    /// The triangle at a candidate, with its patch's face.
+    fn triangle(&self, cand: &Candidate) -> Option<(&PickTri, FaceKey)> {
+        let patch = self.patches.get(cand.patch)?;
+        Some((patch.table.tris.get(cand.tri)?, patch.face))
     }
 }
 
@@ -312,14 +540,276 @@ fn standing_value<T: Decide>(
 ///
 /// The tessellated mesh rides along ([`NodePick::mesh`]) so a viewer
 /// can display exactly what it picks against — one tessellation, one
-/// source of truth. Cache a `NodePick` per displayed (node, body) and
-/// drop it when [`Evaluation::epoch`] moves.
+/// source of truth. The mesh and the index are shared, so a clone is
+/// a handle: [`PickMemo`] keeps one per displayed (node, body) across
+/// pictures, and the index the viewer holds is another.
 #[derive(Debug, Clone)]
 pub struct NodePick {
     node: RecipeNodeId,
     body: u32,
-    mesh: Mesh,
-    pick: MeshPick,
+    mesh: Arc<Mesh>,
+    pick: Arc<MeshPick>,
+}
+
+/// One memoised (node, body): what it was built for, and the pick.
+struct PickEntry {
+    document: DocumentId,
+    content_key: ContentKey,
+    naming_key: NamingKey,
+    /// δ and the ambient ε and k, by bit pattern.
+    tolerances: [u64; 3],
+    pick: NodePick,
+    keys: PatchKeys,
+    picture: u64,
+}
+
+/// What the pick index reuses across pictures: the previous picture's
+/// [`NodePick`]s, by (node, body), the per-face patch memo under them,
+/// and beside it the per-patch pick tables under the entry
+/// identities that memo reports.
+///
+/// **Node level.** The key is the evaluation memo's own reuse
+/// condition, exactly — [`NodeValue::content_key`] AND
+/// [`NodeValue::naming_key`] (`eval_node`'s memo hit, whose doc carries
+/// the argument: the content key proves the body's bits, the naming
+/// key its names and so the face keys the id map is built on) — plus
+/// the document's identity (node ids are minted per document) and
+/// `(δ, ε, k)`. Under that key the previous picture's `NodePick` IS this
+/// picture's, BVH included, because a `NodePick` is a pure function of
+/// what the key names.
+///
+/// **Face level.** A node that was recomputed is tessellated through
+/// [`mesh::tessellate_with`] over the patch memo, which answers every
+/// face whose inputs did not change; a node reused at node level keeps
+/// its faces alive in that memo ([`PatchMemo::keep`]) without looking
+/// them up.
+///
+/// **Table level.** A patch's whole pick table — its triangles'
+/// corners, the boxes, the tree over them, their hull ([`PickTable`])
+/// — is a function of the patch's PLACED CORNERS alone, and lives
+/// here rather than in `mesh`, which stays free of `bvh`. The entry is
+/// found by the identity the tessellation reports for the patch
+/// ([`mesh::StoredPatchId`]), and that identity
+/// is the proof: the patch memo mints one per stored entry and reports
+/// it only where it answered a face from that entry — after comparing
+/// the entry's FULL key bytes — so two patches under one id have the
+/// same key bytes, and the key covers every input their corners are a
+/// function of. What the key covers, and why byte-equal keys mean
+/// bit-identical placed corners, is stated where the key lives:
+/// `mesh::memo`'s module docs, `FaceInputs`, and `StoredPatchId`'s own
+/// type docs. Nothing is compared here, per triangle or at all —
+/// which is the point: a hit is O(1) per patch, so the only per-build
+/// work left is the top-level tree over `#patches` hulls and the
+/// patches that missed. A node reused at node level keeps its tables
+/// alive without looking them up, as it keeps its patches.
+///
+/// The two levels are STAMPED in different places, though — a patch
+/// entry in `PatchMemo::record`, a table here — so they do not evict
+/// in lockstep in one case: a tessellation that refuses partway has
+/// counted and stamped its patch hits and never reaches this level for
+/// them, so the picture it is closed in keeps those entries with no
+/// tables beside them and the next picture rebuilds those tables. A
+/// wasted rebuild after a refused picture, never a wrong table.
+///
+/// **Memory.** The table map holds `Arc`s to the same tables the
+/// node-level entries' [`NodePick`]s hold, so its marginal cost is one
+/// map slot per patch (an id, a stamp and a pointer — about 3 KB on
+/// the tour die's 89 faces), not the tables; the corners, boxes and
+/// trees are the index's own, retained by the node level for a picture
+/// either way. Moving the corners behind that `Arc` added no copy of
+/// them: the index held exactly one before and holds exactly one now.
+///
+/// **Lifetime.** Whoever builds pictures owns the memo and calls
+/// [`PickMemo::end_picture`] after each: entries not used in the
+/// picture just built are dropped, at all three levels, so the memo
+/// holds exactly one picture's worth.
+///
+/// The picture/open/close counter machinery here re-spells
+/// [`PatchMemo`]'s, twice over (the node level and the table level);
+/// the consolidation is
+/// `work/perf/fnv-digest-and-memo-machinery-copies.md`.
+#[derive(Default)]
+pub struct PickMemo {
+    nodes: HashMap<(RecipeNodeId, u32), PickEntry>,
+    patches: PatchMemo,
+    /// The per-patch pick tables, by the memo entry their patch was
+    /// placed from (the table level above). Stamped with this memo's
+    /// picture, evicted with its nodes.
+    tables: HashMap<StoredPatchId, TableEntry>,
+    picture: u64,
+    /// As [`PatchMemo`]'s: the counts describe the closed picture until
+    /// the next build starts.
+    closed: bool,
+    node_hits: usize,
+    node_misses: usize,
+    table_hits: usize,
+    table_misses: usize,
+}
+
+/// One memoised per-patch table and the picture it was last used in.
+struct TableEntry {
+    table: Arc<PickTable>,
+    picture: u64,
+}
+
+impl core::fmt::Debug for PickMemo {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("PickMemo")
+            .field("nodes", &self.nodes.len())
+            .field("patches", &self.patches)
+            .field("tables", &self.tables.len())
+            .field("picture", &self.picture)
+            .field("node_hits", &self.node_hits)
+            .field("node_misses", &self.node_misses)
+            .field("table_hits", &self.table_hits)
+            .field("table_misses", &self.table_misses)
+            .finish()
+    }
+}
+
+impl PickMemo {
+    /// An empty memo.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// How many (node, body) picks the memo holds.
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Whether the memo holds nothing.
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    /// The face-level memo under the node-level one.
+    pub fn patches(&self) -> &PatchMemo {
+        &self.patches
+    }
+
+    /// (node, body)s answered whole from the memo in the current
+    /// picture — or, once [`PickMemo::end_picture`] has closed it and
+    /// no build has started the next, in that closed picture.
+    pub fn node_hits(&self) -> usize {
+        self.node_hits
+    }
+
+    /// (node, body)s tessellated (through the patch memo), counted as
+    /// [`PickMemo::node_hits`].
+    pub fn node_misses(&self) -> usize {
+        self.node_misses
+    }
+
+    /// How many per-patch pick tables the memo holds (the table
+    /// level's [`PickMemo::len`]).
+    pub fn table_len(&self) -> usize {
+        self.tables.len()
+    }
+
+    /// Patches whose whole pick table was served from the memo, over
+    /// the same picture [`PickMemo::node_hits`] counts.
+    pub fn table_hits(&self) -> usize {
+        self.table_hits
+    }
+
+    /// Patches whose pick table was built, over the same picture.
+    pub fn table_misses(&self) -> usize {
+        self.table_misses
+    }
+
+    /// The first build after a close starts the next picture's counts.
+    fn open(&mut self) {
+        if self.closed {
+            self.closed = false;
+            self.node_hits = 0;
+            self.node_misses = 0;
+            self.table_hits = 0;
+            self.table_misses = 0;
+        }
+    }
+
+    /// The table level's half of one patch: the stored table under
+    /// `stored`, else `build()`, remembered under that identity.
+    ///
+    /// `stored` is `None` for a patch the patch memo holds no entry
+    /// for (the tessellation ran without a memo, or the face's key
+    /// could not name one): nothing to serve and nothing to store, so
+    /// the table is built and dropped with the index.
+    ///
+    /// `triangles` is what the mesh says this patch has. A served
+    /// table with a different count would mean the identity named
+    /// another patch's geometry — a broken threading rather than a
+    /// state, so it panics (D9) instead of desynchronising the flat
+    /// positions the tie-break is taken on.
+    fn table(
+        &mut self,
+        stored: Option<StoredPatchId>,
+        triangles: usize,
+        build: impl FnOnce() -> Result<PickTable, MeshPickError>,
+    ) -> Result<Arc<PickTable>, MeshPickError> {
+        let picture = self.picture;
+        if let Some(id) = stored
+            && let Some(entry) = self.tables.get_mut(&id)
+        {
+            if entry.table.tris.len() != triangles {
+                unreachable!(
+                    "pick index: the memo's table for {id:?} has {} triangles and the mesh's \
+                     patch has {triangles}",
+                    entry.table.tris.len()
+                );
+            }
+            entry.picture = picture;
+            self.table_hits += 1;
+            return Ok(Arc::clone(&entry.table));
+        }
+        self.table_misses += 1;
+        let table = Arc::new(build()?);
+        if let Some(id) = stored {
+            self.tables.insert(
+                id,
+                TableEntry {
+                    table: Arc::clone(&table),
+                    picture,
+                },
+            );
+        }
+        Ok(table)
+    }
+
+    /// Mark `keys`' tables as part of the picture being built (the
+    /// table level's [`PatchMemo::keep`]): the caller reused a whole
+    /// index and its tables were never looked up.
+    fn keep_tables(&mut self, keys: &PatchKeys) {
+        let picture = self.picture;
+        for id in keys.stored_ids() {
+            if let Some(entry) = self.tables.get_mut(&id) {
+                entry.picture = picture;
+            }
+        }
+    }
+
+    /// Close the picture at all three levels: drop every entry not
+    /// used in it. The counts then describe the picture just closed
+    /// until the next build starts.
+    ///
+    /// The caller's obligation to call this after every picture is
+    /// what bounds the memo — the node map, the patch memo AND the
+    /// table map: a picture never closed keeps every table it looked
+    /// up or built, alive beside the index that holds it.
+    pub fn end_picture(&mut self) {
+        let picture = self.picture;
+        self.nodes.retain(|_, entry| entry.picture == picture);
+        self.tables.retain(|_, entry| entry.picture == picture);
+        self.picture += 1;
+        self.closed = true;
+        self.patches.end_picture();
+    }
+}
+
+fn tolerance_bits(delta: f64, tol: Tol) -> [u64; 3] {
+    let ambient = tol.get();
+    [delta.to_bits(), ambient.eps.to_bits(), ambient.k.to_bits()]
 }
 
 impl NodePick {
@@ -347,7 +837,8 @@ impl NodePick {
         let Some(sources) = sources_of(value) else {
             return Err(NodePickError::NotABody { node });
         };
-        let Some((_, body_arc, _)) = sources.into_iter().find(|(ix, _, _)| *ix == body) else {
+        let Some((_, body_arc, _, _)) = sources.into_iter().find(|(ix, _, _, _)| *ix == body)
+        else {
             return Err(NodePickError::NoSuchBody { node, body });
         };
         let mesh = mesh::tessellate(&body_arc, delta, tol).map_err(NodePickError::Tessellate)?;
@@ -355,9 +846,77 @@ impl NodePick {
         Ok(Self {
             node,
             body,
-            mesh,
-            pick,
+            mesh: Arc::new(mesh),
+            pick: Arc::new(pick),
         })
+    }
+
+    /// [`NodePick::build`] over `memo`: the previous picture's pick for
+    /// this (node, body) when the node's content and naming keys, the
+    /// document and `(delta, tol)` all match, else a build whose
+    /// tessellation goes through the patch memo. The answer is byte-identical to
+    /// [`NodePick::build`]'s either way ([`PickMemo`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`NodePick::build`].
+    pub fn build_with(
+        eval: &Evaluation<f64>,
+        node: RecipeNodeId,
+        body: u32,
+        delta: f64,
+        tol: Tol,
+        memo: &mut PickMemo,
+    ) -> Result<Self, NodePickError> {
+        let value = standing_value(eval, node)?;
+        let Some(sources) = sources_of(value) else {
+            return Err(NodePickError::NotABody { node });
+        };
+        let Some((_, body_arc, _, _)) = sources.into_iter().find(|(ix, _, _, _)| *ix == body)
+        else {
+            return Err(NodePickError::NoSuchBody { node, body });
+        };
+        memo.open();
+        let tolerances = tolerance_bits(delta, tol);
+        let picture = memo.picture;
+        if let Some(entry) = memo.nodes.get_mut(&(node, body))
+            && entry.document == eval.document
+            && entry.content_key == value.content_key
+            && entry.naming_key == value.naming_key
+            && entry.tolerances == tolerances
+        {
+            entry.picture = picture;
+            memo.patches.keep(&entry.keys);
+            let keys = entry.keys.clone();
+            let pick = entry.pick.clone();
+            memo.keep_tables(&keys);
+            memo.node_hits += 1;
+            return Ok(pick);
+        }
+        memo.node_misses += 1;
+        let tessellation = tessellate_with(&body_arc, delta, tol, &mut memo.patches)
+            .map_err(NodePickError::Tessellate)?;
+        let pick = MeshPick::build_with(&tessellation.mesh, &tessellation.keys, memo)
+            .map_err(NodePickError::Index)?;
+        let pick = Self {
+            node,
+            body,
+            mesh: Arc::new(tessellation.mesh),
+            pick: Arc::new(pick),
+        };
+        memo.nodes.insert(
+            (node, body),
+            PickEntry {
+                document: eval.document,
+                content_key: value.content_key,
+                naming_key: value.naming_key,
+                tolerances,
+                pick: pick.clone(),
+                keys: tessellation.keys,
+                picture,
+            },
+        );
+        Ok(pick)
     }
 
     /// The pick target this index answers for — pre-paired, ready for
@@ -412,10 +971,36 @@ impl NodePick {
         };
         sources
             .into_iter()
-            .map(|(ix, _, _)| ix)
+            .map(|(ix, _, _, _)| ix)
             .collect::<Vec<_>>()
             .into_iter()
             .map(|body| Self::build(eval, node, body, delta, tol))
+            .collect()
+    }
+
+    /// [`NodePick::build_all`] over `memo` — each body through
+    /// [`NodePick::build_with`].
+    ///
+    /// # Errors
+    ///
+    /// As [`NodePick::build_all`].
+    pub fn build_all_with(
+        eval: &Evaluation<f64>,
+        node: RecipeNodeId,
+        delta: f64,
+        tol: Tol,
+        memo: &mut PickMemo,
+    ) -> Result<Vec<Self>, NodePickError> {
+        let value = standing_value(eval, node)?;
+        let Some(sources) = sources_of(value) else {
+            return Err(NodePickError::NotABody { node });
+        };
+        sources
+            .into_iter()
+            .map(|(ix, _, _, _)| ix)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|body| Self::build_with(eval, node, body, delta, tol, memo))
             .collect()
     }
 
@@ -550,9 +1135,10 @@ pub struct PickHit {
 ///
 /// The traversal early-outs on [`bvh::RayCandidate::t_enter`] (a
 /// conservative lower bound on any hit in that box): candidates are
-/// visited in ascending `t_enter`, and once the confirmed best `t` is
-/// strictly below a candidate's `t_enter` the rest of that target's
-/// list cannot improve on it. A poisoned/NaN ray is legal input: the
+/// visited in ascending `t_enter` ([`MeshPick::candidates`], the
+/// single-tree sequence), and once the confirmed best `t` is strictly
+/// below a candidate's `t_enter` the rest of that target's list cannot
+/// improve on it. A poisoned/NaN ray is legal input: the
 /// tree returns everything, every exact test misses, and the answer
 /// is the typed miss.
 ///
@@ -598,7 +1184,7 @@ pub fn pick_face<T: Decide>(
     }
     let mut best: Option<Best> = None;
     for (target_pos, target) in targets.iter().enumerate() {
-        for cand in target.pick.tree.ray(ray) {
+        for cand in target.pick.candidates(ray) {
             if let Some(b) = &best
                 && b.t < cand.t_enter
             {
@@ -606,8 +1192,9 @@ pub fn pick_face<T: Decide>(
                 // hit in their box: nothing further can improve.
                 break;
             }
-            let Some(tri) = target.pick.tris.get(cand.item) else {
-                // Unreachable: the tree was built over exactly `tris`.
+            let Some((tri, face)) = target.pick.triangle(&cand) else {
+                // Unreachable: the trees were built over exactly the
+                // patches' triangles.
                 continue;
             };
             if let Some(t) = ray_triangle(ray, tri) {
@@ -616,17 +1203,17 @@ pub fn pick_face<T: Decide>(
                     // Plain f64 compare is total here: `t` is never
                     // NaN (the exact test refuses non-finite hits).
                     Some(b) => {
-                        t < b.t || (t == b.t && (target_pos, cand.item) < (b.target_pos, b.tri_pos))
+                        t < b.t || (t == b.t && (target_pos, cand.flat) < (b.target_pos, b.tri_pos))
                     }
                 };
                 if better {
                     best = Some(Best {
                         t,
                         target_pos,
-                        tri_pos: cand.item,
+                        tri_pos: cand.flat,
                         node: target.node,
                         body: target.body,
-                        face: tri.face,
+                        face,
                     });
                 }
             }
@@ -694,4 +1281,106 @@ fn ray_triangle(ray: &Ray, tri: &PickTri) -> Option<f64> {
     let t = e2.dot(q) * inv;
     let forward_and_finite = t >= 0.0 && t.is_finite();
     forward_and_finite.then_some(t)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    //! The table level's two arms that no picture reaches: a patch the
+    //! patch memo holds no entry for, and the count guard. Everything
+    //! else about [`PickMemo`] is pinned by `viewer`'s `index_memo`
+    //! differential, which only ever drives the arms a successful
+    //! build takes.
+
+    use geom_core::{Point2, Tol};
+    use mesh::tessellate_with;
+    use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+    use sweep::{Extrusion, extrude};
+    use topo::Body;
+
+    use super::{MeshPickError, PickMemo, PickTable};
+
+    fn unit_prism() -> Body<f64> {
+        let square = ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
+        ]);
+        let profile = Profile::new(SketchPlane::xy(), vec![square])
+            .validate(Tol::witness())
+            .expect("a square validates");
+        extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+            .expect("a square extrudes")
+            .body
+    }
+
+    /// A patch the memo holds no entry for is built every time and
+    /// stored nowhere: there is no identity to serve it under, so a
+    /// second ask builds a second table rather than finding the first.
+    #[test]
+    fn a_patch_with_no_entry_identity_is_built_and_never_stored() {
+        let mut memo = PickMemo::new();
+        let build = || {
+            Ok::<_, MeshPickError>(PickTable {
+                tris: Vec::new(),
+                tree: bvh::Bvh::build(&[]),
+                hull: bvh::Aabb::poison(),
+            })
+        };
+        let first = memo.table(None, 0, build).expect("the build succeeds");
+        let second = memo.table(None, 0, build).expect("the build succeeds");
+        assert!(
+            !std::sync::Arc::ptr_eq(&first, &second),
+            "with no identity there is nothing to serve: two builds, two tables"
+        );
+        assert_eq!(memo.table_len(), 0, "and nothing was stored");
+        assert_eq!((memo.table_hits(), memo.table_misses()), (0, 2));
+    }
+
+    /// The stored table IS served — the build closure is never called
+    /// on a hit — and it is served under the identity the tessellation
+    /// reported, not under the digest.
+    #[test]
+    fn a_stored_table_is_served_without_building() {
+        let body = unit_prism();
+        let mut memo = PickMemo::new();
+        let tess = tessellate_with(&body, 0.5, Tol::witness(), &mut memo.patches)
+            .expect("the prism meshes");
+        let id = tess.keys.stored(0).expect("the first face was stored");
+        let patch = &tess.mesh.patches[0];
+        let count = patch.triangles.len();
+        let built = memo
+            .table(Some(id), count, || PickTable::build(&tess.mesh, 0, patch))
+            .expect("the build succeeds");
+        let served = memo
+            .table(Some(id), count, || {
+                panic!("a hit must not build");
+            })
+            .expect("the memo answers");
+        assert!(std::sync::Arc::ptr_eq(&built, &served));
+        assert_eq!((memo.table_hits(), memo.table_misses()), (1, 1));
+    }
+
+    /// A served table whose triangle count is not the mesh patch's
+    /// would mean the identity named another patch's geometry — a
+    /// broken threading, not a state, so it announces itself (D9)
+    /// instead of desynchronising the flat positions the tie-break is
+    /// taken on.
+    #[test]
+    #[should_panic(expected = "triangles and the mesh's patch has")]
+    fn a_served_table_that_is_not_this_patchs_panics() {
+        let body = unit_prism();
+        let mut memo = PickMemo::new();
+        let tess = tessellate_with(&body, 0.5, Tol::witness(), &mut memo.patches)
+            .expect("the prism meshes");
+        let id = tess.keys.stored(0).expect("the first face was stored");
+        let patch = &tess.mesh.patches[0];
+        let count = patch.triangles.len();
+        memo.table(Some(id), count, || PickTable::build(&tess.mesh, 0, patch))
+            .expect("the build succeeds");
+        let _ = memo.table(Some(id), count + 1, || {
+            panic!("the guard fires before the build")
+        });
+    }
 }

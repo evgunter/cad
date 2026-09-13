@@ -352,7 +352,7 @@ mod tests {
     /// as a sentence, because a sentence was what drifted. Every
     /// **occurrence** of [`Face::sense_sign`](crate::entity::Face::sense_sign)
     /// in the CODE of `topo/src` (comments and literal bodies removed
-    /// by [`crate::fixtures::code_only`]) is counted per file and
+    /// by `test_utils::source::code_only`) is counted per file and
     /// pinned below with its disposition, so a new hand-multiply
     /// cannot land without either going through the door or being
     /// argued for in the table:
@@ -457,7 +457,7 @@ mod tests {
         let mut found: Vec<(String, usize)> = Vec::new();
         for path in crate::source_walk::crate_sources() {
             let text = std::fs::read_to_string(&path).expect("a readable source file");
-            let reads = crate::fixtures::code_only(&text).matches(needle).count();
+            let reads = test_utils::source::code_only(&text).matches(needle).count();
             let rel = path
                 .strip_prefix(&root)
                 .expect("a walked file lies under topo/src")

@@ -19,7 +19,14 @@ Ev's standing instructions for implementation work:
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;
-  Ev reviews the backlog retroactively. **Fundamental design forks
+  Ev reviews the backlog retroactively. **Sequencing decisions with a
+  recommendation do not wait on Ev** (Ev, 2026-09-06, on the choice
+  between a further unit and re-cutting an exit walk: "no need to wait
+  on me for sequencing decisions like that, if there's one you
+  recommend"): which unit runs next, whether a block opens, whether a
+  walk is re-cut now or after one more unit — take the recommended
+  option, log the alternative and the reason, and tell Ev what was
+  chosen. **Fundamental design forks
   wait for sign-off**: changes to ratified DESIGN.md decisions, and open
   questions with several viable answers where Ev's preference matters.
   When unsure which kind a decision is, treat it as a fork.
@@ -77,6 +84,10 @@ Ev's standing instructions for implementation work:
   you explicitly requested sign-off on. Arrange to be woken by comments
   on every `[ev]` PR you open (the away-channel monitor locally, a PR
   subscription on a remote box) — the answer arrives as a comment.
+  A file move or other reshuffle with NO design implication is not an
+  `[ev]` question — Ev (PR 1916, 2026-09-05): "you don't need to ask me
+  about moving things around, unless it has design implications"; just
+  do it and log it.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
   unit's branch. Two conditions: **LAST, after both reviews are

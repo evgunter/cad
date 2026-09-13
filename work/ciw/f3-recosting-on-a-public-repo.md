@@ -2,10 +2,11 @@
 id: f3-recosting-on-a-public-repo
 kind: unit
 title: F3 and the nightly demotions rest on an Actions allowance this repo no longer has: re-cost them on a public repo
-status: review
+status: closed
 opened: 2026-09-04
 pr: 1796
 branch: ciw/f3-recosting
+closed: 2026-09-07
 ---
 
 
@@ -1007,6 +1008,13 @@ cost-shape deferral with no known cost: it has a measured instance of the
 remaining sampled dimension hiding a real failure. That raises its
 priority and the item says so.
 
+**Overtaken the same day (2026-09-04, PR 1850).** The k-lint draw is
+gone: five matrix legs, no draw, `KLINT_ROW=all` on every run. So "which
+is still one-in-five" above is a record of what was true when written,
+and this unit's Q2 answer — "zero of five recorded main-reds are
+attributable to the draw" — no longer has a surviving draw to be scoped
+against. `klint-row-still-sampled` is closed by that PR.
+
 **A correction of the shape this program kept making.** PR 1805's author
 first filed the two-green-PRs class as a *finding*, then withdrew it on
 discovering `ci.yml` already documents it in the F3 note — *"a semantic
@@ -1077,3 +1085,88 @@ the change filter's basis under `merge_group` ("unverified here") is
 right with no edit, because a merge group's first parent is the group
 before it, so `git rev-parse HEAD^1` yields exactly the one pull request
 that group adds.
+
+## 2026-09-05: THE OPTION THIS DOCUMENT RECOMMENDED DOES NOT EXIST HERE
+
+**Read this before acting on anything above.** *THE OPTIONS, RE-PRICED*,
+*THE RECOMMENDATION, REVISED* and *Ev's ruling (2026-09-04)* all turn on
+a merge queue, and **a merge queue is not available to this
+repository.** `github/docs@main`,
+`data/reusables/gated-features/merge-queue.md`: *"Pull request merge
+queues are available in any public repository owned by an organization,
+or in private repositories owned by organizations using GitHub
+Enterprise Cloud."* `evgunter/cad` is public and its owner reports
+`"type": "User"`, so it is outside both arms; Ev has ruled
+(2026-09-05) that the repository is not moving to an organization.
+`work/ciw/merge-queue-trial` is closed on that, and carries the whole
+finding and the process failure behind it.
+
+Three consequences for this document specifically:
+
+1. **The `merge queue` row of the options table, and the recommendation
+   built on it, are unavailable options.** They are left standing as the
+   record of what was argued, not as a live recommendation.
+2. **Both of that row's numbers were wrong anyway, and in mechanism.**
+   `44 job-min/h` at "batch ≤5" came from a simulation in which batching
+   reduces the number of CI runs; GitHub builds one merge group **per
+   queued pull request**, so a queue costs one full gate per PR at any
+   batch size. Re-derived post-un-sampling that is ~99 job-min/h, and
+   the latency figures (median 442 s, p90 676 s, max 857 s) were
+   re-simulated to 528 s flat at build concurrency ≥ 4. **Do not quote
+   the 44 or the 442 forward.**
+3. **The fallback named here is now the only surviving option for the
+   composition-defect class**: the FULL push job set plus the per-SHA
+   concurrency design pass, 48 job-min/h — never the tests-only variant,
+   which catches 0 of the 2 recorded instances. It is not reopened by
+   this note; taking it is a new ruling for Ev, because Ev's 2026-09-04
+   ruling explicitly declined to restore the push gate *in favour of the
+   queue*, and the queue is gone.
+
+**F3 itself still needs no revision**, which this document argued under
+either answer.
+
+## THE RULING (Ev, 2026-09-07): no post-merge run
+
+**F3 stands, and the push job set is not restored.** Ev, in chat:
+*"i'd be somewhat inclined to skip the post-merge run, just because i
+don't think anyone would actually check it"*, confirmed when put back as
+a ruling.
+
+This closes the question the 2026-09-04 ruling left open. That ruling
+declined the push gate **in favour of** the merge queue, and the queue
+turned out to be unavailable to a user-owned repository
+(`merge-queue-trial`, closed 2026-09-05), so the decline had to be
+re-taken on its own terms. It has been.
+
+**The reason is a reader, not a cost.** Minutes are free; the objection
+is that a detector nobody reads is not a control. This program produced
+the evidence for that argument while the question was open:
+`nightly-demotions-have-never-run` exists because three rows demoted to
+the nightly ran unattended for two nights and nobody looked — their
+first reading was taken by this orchestrator on 2026-09-06, going
+deliberately to the jobs API. A red push run would land in the same
+place.
+
+**What this document argued for and what the ruling declines are not
+quite the same thing, and the difference is recorded here** so the next
+reader does not re-open the question on the strength of it. The options
+table prices *detection*. The two 2026-09-04 instances were both
+detected, quickly, by lanes tripping over a red `main`; what they cost
+was **attribution** — 42 red runs on 20 branches, four innocent
+branches, and two agents diagnosing the same one-line break in the same
+hour. A push run's real value was never that someone would watch it, it
+was that the red would be attached to the merge that caused it.
+
+That is a different mechanism and it is now its own row:
+`work/ciw/inherited-red-is-not-attributed-to-its-merge`. It is not a
+gate, it costs nothing on a green run, and it does not reopen F3.
+
+**Also unchanged, and worth saying once more**: F3 itself needed no
+revision under either answer, and the push run keeps its three write
+side-effects exactly as F3 left them.
+
+**Do not quote the merge-queue row forward.** Its `44 job-min/h` and
+`442 s` figures are wrong in mechanism — GitHub builds one merge group
+per queued pull request, not per batch — and the re-derivation is
+~99 job-min/h and 528 s flat. The row is kept as the record of what was
+argued, not as a live option.

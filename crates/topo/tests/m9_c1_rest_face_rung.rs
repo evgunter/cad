@@ -132,7 +132,16 @@ fn pair_declined(errors: &[ValidationError], face_a: FaceKey, face_b: FaceKey) {
     assert_eq!(
         errors,
         [ValidationError::CensusUnsupported {
-            subject: topo::CensusSubject::FacePair(face_a, face_b)
+            subject: topo::CensusSubject::FacePair(face_a, face_b),
+            // The CAUSE is pinned, not `..`-ed past. "Declined" is
+            // the same word for a dozen unrelated refusals, and the
+            // one this seat earns is the geometric one the docstring
+            // above claims: the trims touch, so the area is not
+            // decidable at this ε. A schedule exhaustion here would
+            // mean the row had stopped testing what it says it tests.
+            cause: topo::CensusUnsupportedCause::ChartRegion(
+                topo::ChartRegionError::TouchingBoundary
+            ),
         }],
         "the declared pair's own confirmation is the whole residue: \
          every event the seat induces is backed, and the pair itself \

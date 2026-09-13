@@ -252,7 +252,7 @@ fn n2r2_class11_class4_mint_pcurves() {
 #[test]
 fn n2r2_class10_replace_face_offset() {
     let (mut body, wall, _) = masqueraded(poison_x);
-    let r = topo::replace_face_offset(&mut body, wall, 0.1, 1e-6, band(), tol());
+    let r = topo::replace_face_offset(&mut body, wall, 0.1, band(), tol());
     eprintln!("[class 10 x-poison] replace_face_offset -> {r:?}");
 }
 

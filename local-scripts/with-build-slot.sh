@@ -280,7 +280,14 @@ holders() {  # best-effort names of current holders, for wait messages
   done
   echo "${out:-none on record}"
 }
-note_holder() {  # slot-name (slot-1 | slot-2 | express)
+# The record is pid, time and MODE — never the command line, never a
+# path. A waiting caller prints this banner, so whatever is written here
+# is read by whoever is waiting, and during a blinded dual review that is
+# the other reviewer: in LIB-TEAPOT v6 the banner carried one lane's
+# scratch path and test filter into the other lane's build log three
+# times. flock is the truth and this file is best-effort reporting, so
+# the mode word is all a reader needs to know why they are waiting.
+note_holder() {  # slot-name (slot-1 | slot-2 | express), mode word
   local slot="$1"; shift
   echo "pid $$ since $(date +%H:%M:%S) (@$(date +%s)): $*" > "$LOCK_DIR/$slot.holder" 2>/dev/null || true
 }
@@ -311,7 +318,7 @@ if [ "$MODE" = express ]; then
   # Express jobs contend ONLY for the express slot; they never touch
   # the main mutex, so a battery and an express job run concurrently.
   while :; do try_slot 7 && break; wait_tick; done
-  note_holder express "express(${EXPRESS_SECS}s): $*"
+  note_holder express "express(${EXPRESS_SECS}s)"
 elif [ "$MODE" = shared ]; then
   # Poll the slot(s) within WIDTH instead of blocking on one: at
   # width 2, blocking on slot 1 while slot 2 frees first would
@@ -321,13 +328,13 @@ elif [ "$MODE" = shared ]; then
     if shared_polls_slot2 && try_slot 9; then HELD=2; break; fi
     wait_tick
   done
-  note_holder "slot-$HELD" "shared: $*"
+  note_holder "slot-$HELD" "shared"
 else
   while :; do try_slot 8 && break; wait_tick; done
-  note_holder slot-1 "exclusive(1/2): $*"
+  note_holder slot-1 "exclusive(1/2)"
   PHASE=2
   while :; do try_slot 9 && break; wait_tick; done
-  note_holder slot-1 "exclusive: $*"; note_holder slot-2 "exclusive: $*"
+  note_holder slot-1 "exclusive"; note_holder slot-2 "exclusive"
 fi
 
 # Belt-and-suspenders OOM guard: if available memory is unusually low

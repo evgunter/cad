@@ -170,10 +170,21 @@ fn vocabulary_coverage_is_total() {
     // exemption retired itself exactly as the paragraph below says it
     // would — `die_fillet` is registered and `Fillet` is covered.
     //
+    // `Shell` is listed and uncovered for a reason of the fillet's
+    // SHAPE rather than the sweep's: its two documents (`corpus/cup.rs`,
+    // `corpus/vessel.rs`) exist and run every row the registry would
+    // run on them in `lib_g17_shell_node.rs`, but membership here also
+    // runs every document at `Dual64` and requires it green, and a
+    // dual has no shell door (the kernel verb validates what it built
+    // with a certified claim, which a dual cannot make). The typed
+    // refusal at that scalar is pinned by name there; the exemption
+    // retires when the registry's dual row learns to name a document
+    // whose lowering has no dual lane, or the door gains one.
+    //
     // The exemption is EXACT and retires itself: the moment a corpus
     // document exercises one, `missing` shrinks and this assertion
     // fires, telling you to delete the entry.
-    const FRONTIER_UNCOVERED: [&str; 1] = ["node Sweep"];
+    const FRONTIER_UNCOVERED: [&str; 2] = ["node Sweep", "node Shell"];
     let still_missing: Vec<&String> = missing
         .iter()
         .filter(|m| !FRONTIER_UNCOVERED.contains(&m.as_str()))

@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use geom_core::Indeterminate;
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+use geom_core::{BandError, Indeterminate};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SplitLineageCycle, VertexKey};
 
 use super::role::{EntityKind, StableName};
 use super::table::{DuplicateName, EntityKey, EntityRef, NameTable};
@@ -55,6 +55,60 @@ pub enum NamingError {
         /// What was inconsistent.
         what: &'static str,
     },
+    /// An edge's split lineage cycles, caught where an emitter chased
+    /// it to its root — the same category of kernel bug as
+    /// [`Self::Emission`], carrying the one thing the repair needs
+    /// that a sentence cannot supply: WHICH edge.
+    ///
+    /// **Raised from two chases, one guarded and one not, and the
+    /// dividing line is WRITER ACCESS.** `emit_topo`'s `chase_b` is
+    /// guarded (`a_cycling_graft_map_refuses_in_the_b_lane`): it hops
+    /// through a graft map the CALLER supplies between provenance
+    /// reads, so a loop closes from outside `topo`.
+    /// `chase_edge_to_table` is not, because it advances only on
+    /// `Body::edge_provenance`, which is `pub(crate)` to `topo` and is
+    /// written by one door — `Body::split_edge`, recording the parent
+    /// on a child it has just minted, so a chain is strictly
+    /// decreasing in age and no caller can close it. That a cycling
+    /// lineage exists at all is real: `topo::props`' carrier-identity
+    /// fold documents it as what a graft aliases, and
+    /// `work/bool/graft-copies-provenance-keys-verbatim.md` records
+    /// `Body::split_root`'s cycle arm firing on real assembly
+    /// products — `topo`-internally, where this crate has no door.
+    SplitLineage(SplitLineageCycle),
+    /// A face's FRAGMENT lineage cycles, caught where an emitter
+    /// chased it to its root through a split's or a boolean's
+    /// `face_fragments` rows — the same category of kernel bug as
+    /// [`Self::Emission`] and the same category as
+    /// [`Self::SplitLineage`], carrying the one thing the repair needs
+    /// that a sentence cannot supply: WHICH face.
+    ///
+    /// A sibling word rather than one generalised over
+    /// [`super::table::EntityKey`]: the two cycles are corrupt records
+    /// of DIFFERENT families — a mint-time `face_fragments` row here,
+    /// a `SplitEdge` birth record for [`Self::SplitLineage`] — so one
+    /// word for the class would name the key's kind while hiding which
+    /// map to go and read.
+    ///
+    /// Guarded by `emit_topo`'s `a_cycling_fragment_map_refuses`.
+    FragmentLineage {
+        /// The face whose fragment chain cycles — the key the chase
+        /// was ASKED about, which is the one a repair starts from.
+        face: FaceKey,
+    },
+    /// The N2 classification band could not be built from the ambient
+    /// tolerance, so no discriminator below it can be decided.
+    ///
+    /// The cause is NOT unique — a validated
+    /// [`Tolerance`](geom_core::tolerance::Tolerance) reaches
+    /// [`BandError::InvalidValue`] when K·ε overflows to infinity, and
+    /// [`BandError::Empty`] when K·ε rounds back down onto ε, which for
+    /// ε = n·2⁻¹⁰⁷⁴ happens exactly when K·n rounds back to n (every K
+    /// below 1.5 at the smallest ε; no admitted K above ε = 2⁻¹⁰²³).
+    /// So the constructor's own diagnostic rides along rather than being
+    /// relabelled as an emission inconsistency, which this is not:
+    /// nothing about the result body is wrong here.
+    Band(BandError),
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
     Escalated {
@@ -64,6 +118,13 @@ pub enum NamingError {
         source: Indeterminate,
     },
 }
+
+/// **The one sentence every emission-inconsistency refusal opens
+/// with**, written once. Two variants speak it — [`NamingError::Emission`]
+/// with a fact, [`NamingError::SplitLineage`] with the record it caught
+/// — and a reworded copy would let two refusals of one category read as
+/// two categories.
+const EMISSION_FRAMING: &str = "a mint-time emission fact was inconsistent with the result body";
 
 // #380: the refusal must NAME its subject. Every variant above is
 // diagnosed precisely at the emitter — which name collided, which
@@ -100,15 +161,47 @@ impl core::fmt::Display for NamingError {
                 "the name table of upstream node {} lacks an entity the emission needed",
                 node.0
             ),
-            Self::Emission { what } => write!(
+            Self::Emission { what } => write!(f, "{EMISSION_FRAMING}: {what}"),
+            // The category IS an emission inconsistency, so the framing
+            // is the same one; what the caught record adds is the locator.
+            Self::SplitLineage(cycle) => write!(f, "{EMISSION_FRAMING}: {cycle}"),
+            // The record family is in the sentence, not only the key:
+            // `fragment lineage` and `split lineage` are two different
+            // things to go and read, and a reader who gets the wrong
+            // one searches the wrong map.
+            Self::FragmentLineage { face } => write!(
                 f,
-                "a mint-time emission fact was inconsistent with the result body: {what}"
+                "{EMISSION_FRAMING}: fragment lineage of face {face:?} cycles: its \
+                 face-fragment rows never reach a root"
+            ),
+            Self::Band(error) => write!(
+                f,
+                "the N2 classification band could not be built from the ambient tolerance, so \
+                 no discriminator below it can be decided: {error}"
             ),
             Self::Escalated { predicate, source } => write!(
                 f,
                 "the discriminator {predicate} escalated (in-band indeterminacy): {source}"
             ),
         }
+    }
+}
+
+// `Band::linear(tol)?` rather than a closure at the band door: one
+// total conversion, so there is no site at which the caught
+// `BandError` could be dropped again.
+impl From<BandError> for NamingError {
+    fn from(e: BandError) -> Self {
+        Self::Band(e)
+    }
+}
+
+// `body.split_root(..)?` rather than a closure at the chase site: a
+// `map_err` closure is one keystroke from `map_err(|_| ..)`, and the
+// `EdgeKey` this carries is the only locator a cycling lineage has.
+impl From<SplitLineageCycle> for NamingError {
+    fn from(e: SplitLineageCycle) -> Self {
+        Self::SplitLineage(e)
     }
 }
 
@@ -138,66 +231,103 @@ pub(crate) fn empty() -> Arc<NameTable> {
     Arc::new(NameTable::new())
 }
 
-/// Wraps a pattern master's table per structural instance index
-/// (A8/N1 `Instance(i)`): instance `i` holds the master's keys
-/// verbatim (`transform_rigid` key-stability), body index `i`.
+/// **An output-body index, as the table carries it.** [`EntityRef::body`]
+/// is a `u32`, so a body count past that has no row to land in — the
+/// one bound every multi-body value shares, which is why an index past
+/// it is this layer's refusal wherever it is met (the evaluator's
+/// placers and `Node::Part`, the emitters, the mate walk's `Part`
+/// agreement) and not a number silently narrowed.
+pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
+    u32::try_from(index).map_err(|_| NamingError::Emission {
+        what: "an output-body index exceeds the table's u32 row width",
+    })
+}
+
+/// **The placement-major layout**, the one home of its arithmetic:
+/// placement `placement` of a master's body `body`, the master holding
+/// `per` bodies, is output body `placement·per + body`. `wire_pattern`
+/// builds that body there, [`name_pattern`] keys its rows by it, and
+/// the mate walk reads a `Part`'s index through it. A `body` at or past
+/// `per` is a row the master does not have; a product past `u32` is
+/// [`output_body`]'s refusal.
+pub(crate) fn flat_body_index(placement: u32, per: u32, body: u32) -> Result<u32, NamingError> {
+    if body >= per {
+        return Err(NamingError::Emission {
+            what: "a pattern master's table names a body the master does not have",
+        });
+    }
+    placement
+        .checked_mul(per)
+        .and_then(|b| b.checked_add(body))
+        .ok_or(NamingError::Emission {
+            what: "an output-body index exceeds the table's u32 row width",
+        })
+}
+
+/// Wraps a pattern master's table per structural placement index
+/// (A8/N1 `Instance(j)`): placement `j` holds the master's keys
+/// verbatim (`transform_rigid` key-stability).
 ///
-/// **The wrapping is uniform** (ASM-2K D-2): `Instance(i)` wraps EVERY
+/// **The wrapping is uniform** (ASM-2K D-2): `Instance(j)` wraps EVERY
 /// name of the master, whatever the master's body holds. A master with
 /// several SOLIDS is one such master and is admitted — its names are
 /// already distinct within it (derivation paths tell its solids apart),
-/// and one qualifier per instance carries that distinctness across the
-/// instances; no per-solid sub-index exists, because which solid a name
-/// denotes is read off the name's own derivation, never off the
+/// and one qualifier per placement carries that distinctness across the
+/// placements; no per-solid sub-index exists, because which solid a
+/// name denotes is read off the name's own derivation, never off the
 /// instance qualifier.
 ///
-/// What stays refused is narrower than that (review R7): a master with
-/// MULTIPLE output BODIES. Body index here IS the instance index, so
-/// admitting one would need a ratified instance×body layout — and
-/// nothing can produce one, `body_operand` refusing multi-body inputs
-/// upstream. Totality is checked against every instance body.
+/// **The instance×body layout.** The master has `per` output bodies —
+/// one for a body-valued input, `M` for an `Instances` value placed
+/// whole (a nested pattern) — and the wrapped table is placement-major
+/// over them: the master's row at body `i` lands, under placement
+/// `j`, at output body `j·per + i`, the index `wire_pattern` builds
+/// that body at and `Node::Part` selects it by. For a one-body master
+/// the body index IS the placement index. A nested pattern's name is
+/// therefore `Instance(j)` over the inner `Instance(i)` over the
+/// master's name — the chain the mate walk consumes outermost first —
+/// and no row of the master is re-keyed past `per`: one at a body the
+/// master does not have is the input's emission bug, refused typed
+/// ([`flat_body_index`]). Totality is checked against every output body.
 pub(crate) fn name_pattern<T: geom_core::Real>(
     node: RecipeNodeId,
     master: &NameTable,
     n: i64,
+    per: usize,
     instances: &[Arc<Body<T>>],
 ) -> Result<Arc<NameTable>, NamingError> {
+    let per = output_body(per)?;
+    // An operand table read WHOLE seals here, exactly as one read an
+    // entity at a time seals in `upstream_name`, and every row below
+    // embeds the master's own handle rather than a copy of it.
+    master.seal_order();
     let mut t = NameTable::new();
-    for i in 0..n {
-        let iu = u32::try_from(i).map_err(|_| NamingError::Emission {
-            what: "pattern instance index exceeds u32",
-        })?;
-        for (name, entry) in master.iter() {
+    for j in 0..n {
+        let ju = output_body(usize::try_from(j).unwrap_or(usize::MAX))?;
+        // Output body of the master's body `i` under placement `j`.
+        let at = |e: &EntityRef| -> Result<EntityRef, NamingError> {
+            Ok(ent(flat_body_index(ju, per, e.body)?, e.key))
+        };
+        for (name, entry) in master.iter_refs() {
             let wrapped = StableName {
                 kind: name.kind,
                 node,
                 path: vec![super::role::RoleSeg::Instance {
-                    i: iu,
-                    of: Box::new(name.clone()),
+                    i: ju,
+                    of: name.clone(),
                 }],
             };
             match entry {
-                super::table::Entry::Unique(e) => {
-                    if e.body != 0 {
-                        return Err(NamingError::Emission {
-                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed); multi-SOLID masters are admitted",
-                        });
-                    }
-                    t.insert(wrapped, ent(iu, e.key))?;
-                }
+                super::table::Entry::Unique(e) => t.insert(wrapped, at(e)?)?,
                 super::table::Entry::Tied(es) => {
-                    if es.iter().any(|e| e.body != 0) {
-                        return Err(NamingError::Emission {
-                            what: "pattern of a multi-OUTPUT-BODY master — deferred (typed); multi-SOLID masters are admitted",
-                        });
-                    }
-                    t.insert_tied(wrapped, es.iter().map(|e| ent(iu, e.key)).collect())?;
+                    let rows = es.iter().map(at).collect::<Result<Vec<_>, _>>()?;
+                    t.insert_tied(wrapped, rows)?;
                 }
             }
         }
     }
     for (i, body) in instances.iter().enumerate() {
-        check_total(&t, body, u32::try_from(i).unwrap_or(u32::MAX))?;
+        check_total(&t, body, output_body(i)?)?;
     }
     Ok(Arc::new(t))
 }
@@ -225,15 +355,16 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
     bridges: &[topo::GraftKeys],
     fused: &Body<T>,
 ) -> Result<Arc<NameTable>, NamingError> {
+    // The prototype's table is read whole; sealing it here is what
+    // `upstream_name` does for a table read an entity at a time.
+    master.seal_order();
     let mut t = NameTable::new();
     t.insert(
         name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
     )?;
     for (i, keys) in bridges.iter().enumerate() {
-        let iu = u32::try_from(i).map_err(|_| NamingError::Emission {
-            what: "placed-union instance index exceeds u32",
-        })?;
+        let iu = output_body(i)?;
         let mapped = |key: EntityKey| -> Option<EntityKey> {
             match key {
                 EntityKey::Body => None,
@@ -242,25 +373,27 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                 EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
             }
         };
-        for (name, entry) in master.iter() {
+        for (name, entry) in master.iter_refs() {
             let wrapped = StableName {
                 kind: name.kind,
                 node,
                 path: vec![super::role::RoleSeg::Instance {
                     i: iu,
-                    of: Box::new(name.clone()),
+                    of: name.clone(),
                 }],
             };
-            // The prototype's table is a single-output-body table
-            // (`body_operand` refuses multi-body inputs upstream), so a
-            // row at any other index is a bug — surfaced, not dropped.
+            // The prototype is ONE body — a placed union fuses what
+            // `body_operand` admits, and a value of several bodies is
+            // `Pattern`'s to place, never this node's to fuse — so its
+            // table is a single-output-body table, and a row at any
+            // other index is a bug: surfaced, not dropped.
             let rows: Vec<EntityRef> = match entry {
                 super::table::Entry::Unique(e) => vec![*e],
                 super::table::Entry::Tied(es) => es.clone(),
             };
             if rows.iter().any(|e| e.body != 0) {
                 return Err(NamingError::Emission {
-                    what: "placed union of a multi-OUTPUT-BODY prototype — deferred (typed); multi-SOLID prototypes are admitted",
+                    what: "a placed union's prototype table names a body the prototype does not have",
                 });
             }
             let moved: Vec<EntityRef> = rows
@@ -301,18 +434,19 @@ pub(crate) fn name_in_part<T: geom_core::Real>(
     part: &NameTable,
     placed: &Body<T>,
 ) -> Result<Arc<NameTable>, NamingError> {
+    // The part's table is read whole; sealing it here is what
+    // `upstream_name` does for a table read an entity at a time.
+    part.seal_order();
     let mut t = NameTable::new();
     t.insert(
         name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
     )?;
-    for (name, entry) in part.iter() {
+    for (name, entry) in part.iter_refs() {
         let wrapped = StableName {
             kind: name.kind,
             node,
-            path: vec![super::role::RoleSeg::InPart {
-                of: Box::new(name.clone()),
-            }],
+            path: vec![super::role::RoleSeg::InPart { of: name.clone() }],
         };
         // The part's table is the PRODUCT's: one body, index 0. A row
         // anywhere else is a gather bug, surfaced rather than dropped.
@@ -633,7 +767,8 @@ mod pattern_tests {
         let n = 3_i64;
         let bodies = instances(&master_body, n, 5.0);
         let node = RecipeNodeId(9);
-        let t = name_pattern(node, &master, n, &bodies).expect("a multi-solid master is admitted");
+        let t =
+            name_pattern(node, &master, n, 1, &bodies).expect("a multi-solid master is admitted");
 
         let times = usize::try_from(n).unwrap();
         assert_eq!(t.len(), master.len() * times, "census: N × the master's");
@@ -674,7 +809,7 @@ mod pattern_tests {
         let (n, step) = (3_i64, 5.0);
         let bodies = instances(&master_body, n, step);
         let node = RecipeNodeId(9);
-        let t = name_pattern(node, &master, n, &bodies).expect("admitted");
+        let t = name_pattern(node, &master, n, 1, &bodies).expect("admitted");
 
         let mut checked = 0;
         for i in 0..n {
@@ -686,7 +821,7 @@ mod pattern_tests {
                     node,
                     path: vec![RoleSeg::Instance {
                         i: iu,
-                        of: Box::new(name.clone()),
+                        of: name.clone().into(),
                     }],
                 };
                 assert_eq!(t.lookup(&wrapped), Some(&Entry::Unique(ent(iu, e.key))));
@@ -707,24 +842,90 @@ mod pattern_tests {
         assert_eq!(checked, 16 * 3, "both solids' 8 vertices, every instance");
     }
 
-    /// The refusal that STAYS (and is not the multi-solid one): a
-    /// master with several output BODIES has no ratified instance×body
-    /// layout, so it refuses typed rather than conflating halves.
+    /// A master's table re-keyed onto body `body`, names verbatim.
+    fn at_body(table: &NameTable, body: u32) -> NameTable {
+        let mut t = NameTable::new();
+        for (name, entry) in table.iter() {
+            let Entry::Unique(e) = entry else {
+                panic!("the fixture's extrude ties nothing");
+            };
+            t.insert(name.clone(), ent(body, e.key)).unwrap();
+        }
+        t
+    }
+
+    /// A master row at a body the master does not have refuses typed:
+    /// the layout re-keys body `i < per` to `j·per + i`, and a row past
+    /// `per` is the input's own emission bug, never re-keyed into
+    /// another placement's range.
     #[test]
-    fn a_multi_output_body_master_still_refuses_typed() {
+    fn a_master_row_past_the_masters_body_count_refuses_typed() {
         let (body, a) = cube(RecipeNodeId(1), 0.0);
-        let mut master = NameTable::new();
-        for (name, entry) in a.iter() {
-            if let Entry::Unique(e) = entry {
-                master.insert(name.clone(), ent(1, e.key)).unwrap();
+        let master = at_body(&a, 1);
+        let err = name_pattern(RecipeNodeId(9), &master, 2, 1, &[Arc::new(body)])
+            .expect_err("a row past the master's body count must refuse");
+        assert!(
+            format!("{err:?}").contains("does not have"),
+            "typed, and about the body: {err:?}"
+        );
+    }
+
+    /// **The instance×body layout**, at the emitter: a two-body master
+    /// (`per = 2`) under `n = 3` placements names `3 × 2` bodies,
+    /// body `i`'s row under placement `j` at output body `j·2 + i`,
+    /// wrapped `Instance(j)` over the master's own name; totality
+    /// holds over all six.
+    #[test]
+    fn a_multi_output_body_master_lays_out_placement_major() {
+        let (b0, a) = cube(RecipeNodeId(1), 0.0);
+        let (b1, b) = cube(RecipeNodeId(2), 10.0);
+        let mut master = at_body(&a, 0);
+        for (name, entry) in at_body(&b, 1).iter() {
+            let Entry::Unique(e) = entry else {
+                panic!("the fixture's extrude ties nothing");
+            };
+            master.insert(name.clone(), *e).unwrap();
+        }
+        let (n, per, step) = (3_i64, 2_usize, 5.0);
+        let mut bodies: Vec<Arc<Body<f64>>> = Vec::new();
+        for j in 0..n {
+            for body in [&b0, &b1] {
+                bodies.push(Arc::new(if j == 0 {
+                    body.clone()
+                } else {
+                    topo::transform_rigid(
+                        body,
+                        &Affine3::translation(Vec3::new(0.0, 0.0, step * j as f64)),
+                        Tol::witness(),
+                    )
+                    .unwrap()
+                }));
             }
         }
-        let err = name_pattern(RecipeNodeId(9), &master, 2, &[Arc::new(body)])
-            .expect_err("a multi-output-body master must refuse");
-        assert!(
-            format!("{err:?}").contains("multi-OUTPUT-BODY"),
-            "typed, and about bodies: {err:?}"
-        );
+        let node = RecipeNodeId(9);
+        let t = name_pattern(node, &master, n, per, &bodies).expect("admitted");
+        assert_eq!(t.len(), master.len() * 3, "census: N × the master's");
+        for j in 0..n {
+            let ju = u32::try_from(j).unwrap();
+            for (name, entry) in master.iter() {
+                let Entry::Unique(e) = entry else { continue };
+                let wrapped = StableName {
+                    kind: name.kind,
+                    node,
+                    path: vec![RoleSeg::Instance {
+                        i: ju,
+                        of: name.clone().into(),
+                    }],
+                };
+                let flat = ju * u32::try_from(per).unwrap() + e.body;
+                assert_eq!(
+                    t.lookup(&wrapped),
+                    Some(&Entry::Unique(ent(flat, e.key))),
+                    "body {} under placement {j} is output body {flat}",
+                    e.body
+                );
+            }
+        }
     }
 }
 
@@ -753,7 +954,164 @@ mod display_tests {
         }
     }
 
+    /// **Two distinct edge keys, out of a real arena.** `EdgeKey` is a
+    /// slotmap key and nothing in this crate mints one by hand, so the
+    /// arena is the only source; nothing below depends on their VALUES,
+    /// only on their being distinct and rendering distinctly.
+    fn two_edges() -> (EdgeKey, EdgeKey) {
+        // Two solids in ONE arena: keys are per-body, so two bodies
+        // would hand out the same index twice.
+        let mut body = topo::Body::<f64>::new();
+        let mut mint = |x: f64| {
+            let born = body
+                .mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                .expect("mvfs births a solid, shell, face and lone vertex");
+            body.mev_line(
+                topo::MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                geom_core::Point3::new(x + 1.0, 0.0, 0.0),
+                geom_core::Tol::witness(),
+            )
+            .expect("mev on an empty loop grows it by one edge")
+            .edge
+        };
+        let (a, b) = (mint(0.0), mint(10.0));
+        assert_ne!(a, b, "two DISTINCT keys, or the rows below prove nothing");
+        (a, b)
+    }
+
+    /// **Two distinct face keys, out of a real arena.** `FaceKey` is a
+    /// slotmap key and nothing in this crate mints one by hand, so the
+    /// arena is the only source; two solids in ONE arena is what makes
+    /// the keys different, and nothing below depends on their VALUES.
+    fn two_faces() -> (FaceKey, FaceKey) {
+        let mut body = topo::Body::<f64>::new();
+        let mut mint = |x: f64| {
+            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                .expect("mvfs births a solid, shell, face and lone vertex")
+                .face
+        };
+        let (a, b) = (mint(0.0), mint(10.0));
+        assert_ne!(a, b, "two DISTINCT keys, or the rows below prove nothing");
+        (a, b)
+    }
+
+    /// **The cycling edge survives the conversion and the node
+    /// boundary — and it is THIS edge, not a constant.** The node-level
+    /// prose is the only route by which an emitter refusal reaches a
+    /// human (Python's typed exception message is exactly this string),
+    /// so the locator is pinned there rather than at `NamingError`'s own
+    /// `Display`. Two different keys must give two different sentences:
+    /// a refusal that reads the same for both has no locator, which is
+    /// the defect `map_err(|_| ..)` used to have here.
+    #[test]
+    fn the_cycling_edge_reaches_the_node_level_prose() {
+        let (a, b) = two_edges();
+        let carried =
+            |edge| NodeErrorKind::Naming(NamingError::from(SplitLineageCycle { edge })).to_string();
+
+        let sa = carried(a);
+        assert!(
+            sa.contains(&format!("{a:?}")),
+            "the cycling edge is the only locator this failure has: {sa}"
+        );
+        let sb = carried(b);
+        assert!(sb.contains(&format!("{b:?}")), "{sb}");
+        assert_ne!(
+            sa, sb,
+            "a refusal that reads the same for two edges has no locator"
+        );
+        assert!(
+            !sa.contains(&format!("{b:?}")),
+            "the refusal names the edge it caught, not another: {sa}"
+        );
+
+        // The category stays honest: a corrupt birth record IS an
+        // emission inconsistency, so the framing sentence is the one
+        // `Emission` speaks and the node boundary's own word survives it.
+        assert!(sa.contains(EMISSION_FRAMING), "category kept: {sa}");
+        assert!(
+            sa.contains("name emission failed"),
+            "node category kept: {sa}"
+        );
+
+        // `crate::py::typed_err` (pncad-py) asserts `reads_as_prose` on
+        // every raise, live under release, and its fingerprint is the
+        // field brace. A payload rendered through a derived `Debug` is
+        // how that assertion gets broken, and this refusal carries one.
+        for s in [&sa, &sb] {
+            assert!(
+                !s.contains(" { "),
+                "a braced payload panics the Python binding at the arm \
+                 meant to refuse gracefully: {s}"
+            );
+        }
+    }
+
+    /// **The cycling FACE survives to the node-level prose — and it is
+    /// THIS face.** The sibling of the row above, for the third
+    /// bounded lineage walk: `emit_topo`'s `chase` used to fall out of
+    /// its budget and return the cursor it was holding, which became a
+    /// group key and named faces after a stranger. It refuses now, and
+    /// what makes the refusal worth having rather than a sentence is
+    /// that the key reaches the human: two different faces must give
+    /// two different sentences.
+    #[test]
+    fn the_cycling_face_reaches_the_node_level_prose() {
+        let (a, b) = two_faces();
+        let carried =
+            |face| NodeErrorKind::Naming(NamingError::FragmentLineage { face }).to_string();
+
+        let sa = carried(a);
+        assert!(
+            sa.contains(&format!("{a:?}")),
+            "the cycling face is the only locator this failure has: {sa}"
+        );
+        let sb = carried(b);
+        assert!(sb.contains(&format!("{b:?}")), "{sb}");
+        assert_ne!(
+            sa, sb,
+            "a refusal that reads the same for two faces has no locator"
+        );
+        assert!(
+            !sa.contains(&format!("{b:?}")),
+            "the refusal names the face it caught, not another: {sa}"
+        );
+
+        // The category is the same as the edge cycle's — a corrupt
+        // mint-time record — and the record FAMILY is what separates
+        // the two sentences, which is the whole argument for a second
+        // word rather than one generalised over the key's kind.
+        assert!(sa.contains(EMISSION_FRAMING), "category kept: {sa}");
+        assert!(
+            sa.contains("name emission failed"),
+            "node category kept: {sa}"
+        );
+        assert!(
+            sa.contains("fragment lineage") && !sa.contains("split lineage"),
+            "the face cycle names the record family it caught, not the edge \
+             walk's: {sa}"
+        );
+
+        // `crate::py::typed_err` (pncad-py) asserts `reads_as_prose` on
+        // every raise, live under release, and its fingerprint is the
+        // field brace.
+        for s in [&sa, &sb] {
+            assert!(
+                !s.contains(" { "),
+                "a braced payload panics the Python binding at the arm \
+                 meant to refuse gracefully: {s}"
+            );
+        }
+    }
+
     /// Every variant names WHICH entity/node/fact it refused on.
+    ///
+    /// **The enumeration is the compiler's claim, not prose**: the
+    /// `sampled` match below is exhaustive, so a new variant has no arm
+    /// until someone writes one, and the arm names the row that samples
+    /// it, so a row that goes missing reds the set comparison.
     #[test]
     fn every_variant_names_its_subject() {
         let name = StableName {
@@ -782,10 +1140,10 @@ mod display_tests {
                 vec!["11"],
             ),
             (
-                // A refusal that still EXISTS: LIB-G14 retired the
-                // tied-upstream one this row used to sample (ties
-                // propagate now), and a sample payload that greps to
-                // nothing would outlive its own subject.
+                // A refusal that still EXISTS (ties propagate, so there
+                // is no tied-upstream refusal to sample): a sample
+                // payload that greps to nothing would outlive its own
+                // subject.
                 NamingError::Emission {
                     what: "section face classified On",
                 },
@@ -798,7 +1156,49 @@ mod display_tests {
                 },
                 vec!["side_of_plane"],
             ),
+            (
+                NamingError::SplitLineage(SplitLineageCycle {
+                    edge: two_edges().0,
+                }),
+                vec!["split lineage of edge"],
+            ),
+            (
+                NamingError::FragmentLineage {
+                    face: two_faces().0,
+                },
+                vec!["fragment lineage of face"],
+            ),
+            (
+                // The band's subject is the pair of thresholds that
+                // could not separate: which end of the axis the ambient
+                // tolerance landed on is what tells the reader whether
+                // to raise eps or lower K.
+                NamingError::Band(BandError::Empty {
+                    zero: 5e-324,
+                    escalate: 5e-324,
+                }),
+                vec!["5e-324"],
+            ),
         ];
+        let sampled = |err: &NamingError| -> usize {
+            match err {
+                NamingError::Duplicate { .. } => 0,
+                NamingError::Unnamed { .. } => 1,
+                NamingError::MissingUpstream { .. } => 2,
+                NamingError::Emission { .. } => 3,
+                NamingError::Escalated { .. } => 4,
+                NamingError::SplitLineage(_) => 5,
+                NamingError::FragmentLineage { .. } => 6,
+                NamingError::Band(_) => 7,
+            }
+        };
+        let covered: std::collections::BTreeSet<usize> =
+            rows.iter().map(|(e, _)| sampled(e)).collect();
+        assert_eq!(
+            covered,
+            (0..rows.len()).collect::<std::collections::BTreeSet<_>>(),
+            "a variant lost its row, so \"every variant\" is prose again"
+        );
         for (err, wanted) in rows {
             let shown = err.to_string();
             for w in wanted {

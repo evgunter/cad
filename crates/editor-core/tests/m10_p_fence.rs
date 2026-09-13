@@ -117,6 +117,18 @@
 //! The two claims stay separate because the fence's subject is that
 //! the lift changed nothing where nothing should change.
 //!
+//! RE-BLESSED FOR THE TUBE SQUARE'S OTHER TWO CORNERS. `tube_arc` and
+//! `hollow_tube_ring` joined the registry, so two documents' worth of
+//! node outcomes and points entered the stream and all three numbers
+//! moved. A ROSTER ADDITION, which is the case the paragraph below
+//! about the finer instrument was written for, and it was checked the
+//! same way: `lib_g16_corpus_name_digests` gained exactly two rows and
+//! every one of its twenty-six existing digests is byte-identical, so
+//! no pre-existing document moved. The `probe` row moved with the
+//! `f64` row and stayed EQUAL to it, which is the property that row
+//! exists for; the `interval` row was re-read under the `interval`
+//! feature, the only lane that builds it.
+//!
 //! RE-BLESSED AGAIN FOR THE IN-PLANE REVOLVE AXIS, and this time the
 //! finer instrument DID separate it. A revolve's axis is written in the
 //! profile's own frame now, so `kitchen_sink` — which shared one
@@ -233,6 +245,22 @@
 //!   pairs moved once more within the same unit when `face_sketch`
 //!   gained a non-zero spin (its review's A3 finding): the document's
 //!   own geometry, the removal returning to the same constants.
+//!
+//! - DOCM-2 added `part_select`, the first document that takes ONE
+//!   body out of a multi-body value (`Node::Part`): a split's two
+//!   halves unioned back together and a pattern's middle instance
+//!   placed. Removing it alone returned `f64`/`probe`
+//!   `d4fd1ccc2e6d8886, 8d78a6930d6c9102` and `interval`
+//!   `0cf7de91f6a41015, eb2817baa67d6be1` — the committed constants
+//!   of the tree it landed on, and all three rows came back GREEN
+//!   against them, the probe row executed. That removal is also the
+//!   receipt for two changes the unit made on the path every other
+//!   document walks: `wire_split` stamping both halves in one source
+//!   index space, and the same-source debug assertions reading a
+//!   channel-less scalar as no evidence — neither moved a coordinate
+//!   of any pre-existing document. `lib_g16_corpus_name_digests`
+//!   agrees the finer way — every pre-existing per-document row
+//!   unchanged, one row added.
 //!
 //! The M10-2, SEAT-5 and LIB-TUBE measurements are the strongest of
 //! the five, for a reason worth stating: in each, the roster minus the
@@ -570,7 +598,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xd4fd_1ccc_2e6d_8886, 0x8d78_a693_0d6c_9102),
+        (0x9b76_9fcc_95b7_40a8, 0x9df5_aab0_46b6_073c),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -597,7 +625,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x0cf7_de91_f6a4_1015, 0xeb28_17ba_a67d_6be1),
+        (0xd9b9_1f6d_8585_513d, 0x0f4e_3d18_31f7_4221),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -621,7 +649,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xd4fd_1ccc_2e6d_8886, 0x8d78_a693_0d6c_9102),
+        (0x9b76_9fcc_95b7_40a8, 0x9df5_aab0_46b6_073c),
         "the corpus's Probe evaluation moved"
     );
 }

@@ -28,9 +28,11 @@
 //!   that pose does reach the join.
 //! - **The join has no frame for the pair.** A germ-pair frame is one
 //!   conic's centre and axis, and a self-crossing ellipse pair is not
-//!   one conic; the frame dispatch is keyed on surface KINDS alone, so
-//!   it has no point with which to select a branch either. It refuses
-//!   typed at a door that names the pinch. Walking the section across
+//!   one conic. The dispatch reads WHICH of the two shapes the locus
+//!   has off the lowered parameter-identity channel — `Declared` for
+//!   the equal-radius pinch, `None` for the open question — but
+//!   neither answer yields one conic, so it has no frame to hand over
+//!   either way. It refuses typed at a door that names the pinch. Walking the section across
 //!   a pinch is a chord lane this tree does not have — the plane-side
 //!   `BoolPlanar` chord and the plane-carrying `Split` context are
 //!   both premised on one member of the pair being a PLANE — and that
@@ -45,69 +47,11 @@
 
 use core::f64::consts::PI;
 
+use crate::common::germ_pair::{cyl, repose, seams_off_the_pinch, spin, steinmetz};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
-
-/// A cylinder about `z`, radius `r`, `z ∈ [−h, h]`, through the public
-/// extrude door.
-fn cyl(r: f64, h: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -h)));
-    let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(2.0 * h), tol)
-        .unwrap()
-        .body
-}
-
-fn spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
-    topo::transform_rigid(
-        b,
-        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
-        Tol::witness(),
-    )
-    .unwrap()
-}
-
-/// **The re-pose**: a rotation about `(1,2,3)` by 0.7 rad followed by a
-/// translation off every axis plane. Nothing about the configuration
-/// changes — the same two solids, the same contacts — so every row's
-/// re-posed twin must answer exactly what its direct copy answers.
-fn repose(b: &Body<f64>) -> Body<f64> {
-    let r = Affine3::rotation_about_axis(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 2.0, 3.0).normalize(),
-        0.7,
-    );
-    topo::transform_rigid(
-        b,
-        &Affine3::from_parts(r.linear, r.translation + Vec3::new(0.3, -0.45, 0.6)),
-        Tol::witness(),
-    )
-    .unwrap()
-}
-
-/// The classic Steinmetz pair: equal radii, perpendicular intersecting
-/// axes, both seams on the pinch points.
-fn steinmetz(h: f64) -> (Body<f64>, Body<f64>) {
-    (
-        cyl(1.0, h),
-        spin(&cyl(1.0, h), Vec3::new(1.0, 0.0, 0.0), PI / 2.0),
-    )
-}
-
-/// The same SURFACES with both seams turned off the pinch: each
-/// operand is spun about its own axis, which a cylinder of revolution
-/// is invariant under. Only the charts move.
-fn seams_off_the_pinch(h: f64, phi: f64) -> (Body<f64>, Body<f64>) {
-    let (a, b) = steinmetz(h);
-    (
-        spin(&a, Vec3::new(0.0, 0.0, 1.0), phi),
-        spin(&b, Vec3::new(0.0, 1.0, 0.0), phi),
-    )
-}
 
 fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
     topo::union(a, b, Tol::witness()).expect_err("this family has no join arm")

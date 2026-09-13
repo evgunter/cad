@@ -57,13 +57,29 @@ the class, measured working on an interior column (envelope 3.86e-14 m at
 an axis-aligned rectangle in its chart — the quadrature and tessellation lanes'
 own frontier — not about the pcurve.
 
-## Unmeasured
+## Measured (TRIM-1, `m8_4_intersection_iso.rs::an_interior_column_intersection_mints_a_general_image`)
 
-That these six are *exactly* the set a face carrying a `General` cache hits at
-runtime has NOT been measured: the whole-body mint is currently blocked upstream
-by the rim arms (see #498's P-2 PR), so no body carrying such a face at rest
-exists to call volume/area/tessellate/offset on. The list above is a static
-survey of the refusals that name the class, not a trace.
+With the interior-column seam minting exactly (TRIM-1), the P-2 body
+mints and validates at rest, and the row calls the two lanes on it:
+
+- `topo::mass_properties` → `MassPropsError::Face { source:
+  QuadratureUnsupported { what: "a NURBS-face half-edge carries a
+  non-iso pcurve — a trimmed NURBS region's quadrature is the cut-loft
+  unit's …" } }` — the `props.rs` non-iso site above, reached by the
+  `General` image on the `Intersection` seam.
+- `mesh::tessellate` → `TessellateError::UnsupportedNurbsFace { note:
+  "degree-1 NURBS direction with interior knots (a C⁰ crease) — the
+  interpolation Taylor bound needs C¹; split the face at the crease" }`
+  — NOT one of the sites above: the widened chart has interior knots
+  in its degree-1 `u` direction and
+  `geom_brep::patch_bound::PatchBoundError::Degree1Crease` fires
+  before any trimmed-region site is reached.
+
+So on this fixture tessellation never reaches the trimmed-region
+refusals; measuring those needs a trimmed chart without a C⁰ crease
+(a degree ≥ 2 widening, or a chart whose extra columns carry no
+interior knot in a degree-1 direction). Offset (`replace_face`) was
+not called by the row.
 
 ## Home
 

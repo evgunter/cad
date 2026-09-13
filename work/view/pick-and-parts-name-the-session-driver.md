@@ -1,10 +1,12 @@
 ---
 id: pick-and-parts-name-the-session-driver
 kind: issue
-title: pick and parts are vocabularies that name DocSession, so the boundary rule is false at two sites
-status: open
+title: pick and parts are vocabularies that name DocSession, so the boundary rule is false at five sites
+status: closed
 opened: 2026-09-04
-refs: [1848]
+closed: 2026-09-05
+pr: 1953
+refs: [1848, 1883, inserting-an-item-above-another-steals-its-docs, index-request-and-index-inputs-are-one-concept-twice]
 ---
 
 
@@ -78,3 +80,136 @@ session` records the state for a reader, and both modules say so in
 their own doc headers — the gate requires it, because a header reading
 *"it names no driver type"* nine lines above naming one is false and
 rustdoc publishes it.
+
+## Put to Ev (VIEW orchestrator, 2026-09-04)
+
+**This one is here because the ratified text is yours, not because the
+answer is hard.** `crates/viewer/README.md`'s `## Module boundaries`
+rule — *no vocabulary may name a driver* — was ratified at #1801, and
+the gate built at #1848 to enforce it found the rule is **false of the
+tree at five sites across two files**, and was false before the check
+existed. Verified on today's tree: `pick.rs:67` and `:2269`,
+`parts.rs:43`, `:143` and `:152`.
+
+Both files take `&DocSession` as a **read-only argument**; neither
+mutates it and neither dispatches, so neither is a driver under the
+README's own definition. The two answers are in the body above (hoist
+the read into a value; or widen the rule to permit a read-only
+`&DocSession`). This program has no preference strong enough to
+self-certify a change to a rule you ratified a day earlier, which is
+the whole reason it is on this PR.
+
+**What holds the line meanwhile, so nothing is urgent.**
+`scripts/gates/viewer-module-kinds.sh:156-159` carries the two files
+as its only `VOCAB_EXCEPTIONS`, and the entries are **site-granular**
+(`FILE|NEEDLE|COUNT`): a sixth site reds, a different forbidden name in
+the same file reds, and fixing a site without lowering the count reds
+too. The exemption cannot outlive its reason.
+
+That granularity is itself offered as evidence for an open
+code-quality ruling — `work/code-quality/D103.md`, *"the allowlist is
+file-granular while its justifications are per-seam, so later bounds
+inherit ratification"*. D103 lists "a count pinned per file" as one of
+three shapes; this is that shape, built inside D103's fence. It is
+evidence for that ruling, not a substitute for it.
+
+## RULED (Ev, #1883, 2026-09-05): hoist the read, and the reason generalises
+
+> "i think a sounds good, since it's easy to switch to b later and hard
+> to do the reverse"
+
+**Answer (a): hoist the read.** The session hands out a value — the
+parts census, the pick-cache inputs — and `pick.rs` and `parts.rs` take
+that instead of a `&DocSession`. `crates/viewer/README.md`'s
+*no vocabulary may name a driver* stays **unqualified**; the cost is a
+new value per reader and the derivation moving into the driver.
+
+**The reason is worth more than the answer and this program should
+carry it as a rule.** The two options are not symmetric in
+reversibility. Hoisting keeps widening available: if the values turn
+out to be a bad trade, the rule can still be widened later. Widening
+first does not keep hoisting available — the clause gets relied on, and
+by the time anyone wants it back there is a set of sites that were
+written against it. *"Easy to switch to b later and hard to do the
+reverse"* is the general test for a fork between a strict rule and a
+rule with a clause, and this item is now the worked instance of it.
+
+That is also the answer to the item's own worry, which was that a
+clause is "exactly the kind a later unit widens again". It is — and the
+asymmetry is why the strict branch is the safe one, not merely the
+tidier one.
+
+## What lands, and what does not
+
+- `scripts/gates/viewer-module-kinds.sh`'s two `VOCAB_EXCEPTIONS`
+  entries **go** when the sites do. The entry is `FILE|NEEDLE|COUNT`
+  and site-granular, so it cannot outlive its reason: fixing a site
+  without lowering the count reds.
+- `crates/viewer/README.md`'s `### Two vocabularies that read the
+  session` section goes with them, and both modules' doc headers stop
+  recording the exception.
+- **The evidence offered to `work/code-quality/D103.md` stands and is
+  not withdrawn.** That ruling asks whether an allowlist should be
+  file-granular or per-seam; this exemption was the per-seam shape
+  built inside D103's fence, and its retirement is evidence about the
+  shape rather than a reason to stop offering it. The retiring unit
+  should say so where the entries are deleted, the way
+  `interval-square-allowlist.sh:125-133` argues about its own retired
+  entries.
+
+## Closed
+
+Hoisted, per the ruling. The session mints two values and the two
+vocabularies take them:
+
+- `pick::IndexInputs<'a>` — `generation`, `doc`, `evaluation`, `tol`.
+  `PickCache::sync` took a `&DocSession` and destructured three
+  accessors by hand to get exactly these; it now takes
+  `Option<IndexInputs>` and keeps its "nothing landed → forget" arm as
+  the `None` case, so the behaviour is unchanged and the property the
+  destructuring spelled out (the four are read together because they
+  are SET together) is now the value's own.
+- `parts::PartCensus` — `dir` and `offered`, which is precisely what
+  `PartChooser::opened` used to read off the session and store.
+
+`DocSession::index_inputs` and `DocSession::part_census` are the
+minting doors. A driver naming a vocabulary is the direction the rule
+allows, so nothing moved the wrong way.
+
+Both `VOCAB_EXCEPTIONS` entries are gone, both module headers stopped
+claiming an exception, and `crates/viewer/README.md`'s section is
+rewritten as **What a vocabulary reads, it is handed** — carrying Ev's
+reversibility argument as the general test it is, not just this fork's
+answer. The gate's site-granular machinery stays, empty, and the
+argument it offered to `work/code-quality/D103.md` is restated at the
+deletion site: the entries retired in the same PR as the seam they
+described, without anyone having to notice, which is the property a
+file-granular entry does not have. That is evidence FOR the ruling.
+
+## What the retirement turned up
+
+Emptying the list exposed a latent crash in the gate: with no hits at
+all the union pipeline's `grep -v` matched nothing and `set -euo
+pipefail` killed the run with exit 1 and NO diagnosis — a gate that
+could not pass a clean tree. Fixed here, with the reason written at the
+line. It had survived because the clean self-test fixture plants the
+exempted files, so no run had ever had zero hits.
+
+The self-test's four exception arms used to aim at
+`VOCAB_EXCEPTIONS[0]` — whatever the tree was currently wrong about —
+so retiring the last entry would have retired their coverage with it.
+Borrowing a live defect WAS the defect: they now plant their own entry
+(the list is overridable for a planted tree, and only for one — the
+override is honoured under `--root`, which only the self-test passes),
+so the exemption machinery stays exercised whether or not the tree
+carries an exemption. The zero-hit path is a control of its own rather
+than an accident of the list being empty.
+
+The first fix for the empty-hits crash was `|| true` on the whole
+pipeline, which is the pattern `scripts/gates/lib.sh` exists to remove:
+it folds "could not search" (exit 2) and "no grep at all" (127) into
+"nothing matched", so it would have greened over a scan that never ran.
+The pipeline now writes `gate_grep` at every filter, which draws that
+distinction per stage. Three OTHER `|| true`s in the same function
+predate this unit and went with it — the worst interpolated its pattern
+from an exception entry, so a malformed needle read as zero hits.

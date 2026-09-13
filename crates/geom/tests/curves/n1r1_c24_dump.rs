@@ -122,15 +122,15 @@ fn n1r1_c24_dump() {
         }
         // In-span doors at every span, at both ends and the middle.
         for si in 0..c.knots().knots().len() {
-            let Some(span) = c.knots().span(si) else {
+            let Some(span) = c.span(si) else {
                 continue;
             };
             for f in [0.0, 0.5, 1.0, 0.125, 0.875] {
                 let t = lo + (hi - lo) * f;
-                let a = c.eval_in_span(span, t);
-                let b = c.deriv_in_span(span, t);
-                let e = c.deriv2_in_span(span, t);
-                let (j0, j1, j2) = c.ders_in_span(span, t);
+                let a = span.eval_in_span(t);
+                let b = span.deriv_in_span(t);
+                let e = span.deriv2_in_span(t);
+                let (j0, j1, j2) = span.ders_in_span(t);
                 for v in [
                     a.x, a.y, a.z, b.x, b.y, b.z, e.x, e.y, e.z, j0.x, j0.y, j0.z, j1.x, j1.y,
                     j1.z, j2.x, j2.y, j2.z,

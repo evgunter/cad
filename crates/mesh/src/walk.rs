@@ -107,7 +107,7 @@
 use std::collections::HashMap;
 
 use geom_core::{Point3, Vec3};
-use topo::{Body, EdgeKey, FaceKey, LoopBoundary, LoopKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 
 use crate::sizing::Eps;
 use crate::types::TessellateError;
@@ -142,6 +142,20 @@ pub(crate) fn loop_edges(
     lk: LoopKey,
     face: FaceKey,
 ) -> Result<Vec<(EdgeKey, bool)>, TessellateError> {
+    Ok(loop_half_edges(body, lk, face)?
+        .into_iter()
+        .map(|(_, ek, forward)| (ek, forward))
+        .collect())
+}
+
+/// [`loop_edges`] with each traversal's half-edge beside its edge —
+/// the form a reader of per-half-edge data (a stored pcurve) walks.
+/// The one cycle walk both are; `loop_edges` is its projection.
+pub(crate) fn loop_half_edges(
+    body: &Body<f64>,
+    lk: LoopKey,
+    face: FaceKey,
+) -> Result<Vec<(HalfEdgeKey, EdgeKey, bool)>, TessellateError> {
     let lp = body
         .get_loop(lk)
         .ok_or(TessellateError::MissingEntity { what: "loop" })?;
@@ -159,7 +173,7 @@ pub(crate) fn loop_edges(
         let edge = body
             .get_edge(he.edge)
             .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-        out.push((he.edge, edge.he_plus == hek));
+        out.push((hek, he.edge, edge.he_plus == hek));
     }
     Ok(out)
 }

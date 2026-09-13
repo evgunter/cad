@@ -24,7 +24,7 @@ test_utils::gated_to![
     "crates/geom-core/src/ring_interval.rs",
 ];
 
-use geom_core::spline::{KnotVector, basis, hull};
+use geom_core::spline::{KnotVector, basis};
 use test_utils::fuzz;
 
 /// A clamped knot vector on `[0, 1]` whose interior knots are multiples
@@ -55,7 +55,7 @@ fn dyadic_coeffs(rng: &mut fuzz::Rng, n: usize) -> (Vec<f64>, Vec<i64>) {
 /// the hull machinery.
 fn eval_rational(kv: &KnotVector, coeffs: &[f64], weights: &[f64], t: f64) -> f64 {
     let span = kv.span_at(t);
-    let nvals = basis::basis_funs(kv, span, t);
+    let nvals = basis::basis_funs(span, t);
     let first = span.first_control();
     let (mut num, mut den) = (0.0, 0.0);
     for (j, nj) in nvals.iter().enumerate() {
@@ -91,15 +91,20 @@ fn near_collapse_weights_never_escape_the_hull() {
                     }
                 })
                 .collect();
-            let domain = hull::domain_hull_rational(&kv, &coeffs, &weights);
+            let Some(pair) = kv.with_rational_coeffs(&coeffs, &weights) else {
+                unreachable!("both arrays are this vector's length by construction");
+            };
+            let domain = pair.domain_hull_rational();
             assert!(
                 !domain.is_poison(),
                 "positive weights must not poison — {}",
                 fuzz::replay()
             );
             for index in kv.first_span()..=kv.last_span() {
-                let Some(span) = kv.span(index) else { continue };
-                let b = hull::span_hull_rational(&kv, &coeffs, &weights, span);
+                let Some(win) = pair.span(index) else {
+                    continue;
+                };
+                let b = win.hull_rational();
                 let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
                 // Falsification grid across the span; its density is a
                 // sweep count like any other, so it rides the EFFORT dial.
@@ -160,7 +165,10 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
             };
             let n = kv.control_count();
             let (coeffs, cints) = dyadic_coeffs(&mut rng, n);
-            let qs = hull::derivative_coeffs(&kv, &coeffs);
+            let Some(pair) = kv.with_coeffs(&coeffs) else {
+                unreachable!("the coefficients are this vector's length by construction");
+            };
+            let qs = pair.derivative_coeffs();
             assert_eq!(
                 qs.len(),
                 n - 1,

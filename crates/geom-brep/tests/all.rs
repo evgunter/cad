@@ -56,6 +56,8 @@ mod shared;
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
+#[path = "budget_faces.rs"]
+mod budget_faces;
 #[path = "cert1_r1_probes.rs"]
 mod cert1_r1_probes;
 #[path = "cert1_sphere_polar.rs"]
@@ -71,6 +73,10 @@ mod cert5_r1_patch_probes;
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
+#[path = "interior_iso_column.rs"]
+mod interior_iso_column;
+#[path = "interior_iso_review.rs"]
+mod interior_iso_review;
 #[path = "intersect_table.rs"]
 mod intersect_table;
 #[path = "m4_remint_headroom.rs"]
@@ -91,6 +97,8 @@ mod m8_f67_r1_probes;
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
 mod offb_r1_probes;
+#[path = "onb_c_payoff_interval.rs"]
+mod onb_c_payoff_interval;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
 
@@ -206,6 +214,8 @@ mod cert_n2r2_class56_probes;
 
 #[path = "iso_rectangle_door.rs"]
 mod iso_rectangle_door;
+#[path = "kstats_escalation_channel.rs"]
+mod kstats_escalation_channel;
 #[path = "mesh10r1_probes.rs"]
 mod mesh10r1_probes;
 #[path = "mesh10r2_probes.rs"]
@@ -218,6 +228,8 @@ mod mesh11r1_probes;
 mod mesh11r2_base_probes;
 #[path = "mesh11r2_probes.rs"]
 mod mesh11r2_probes;
+#[path = "mesh12_saturated_span.rs"]
+mod mesh12_saturated_span;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
 #[path = "tcost_k1_budget_exit.rs"]

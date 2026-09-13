@@ -217,6 +217,20 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             input: i,
             ..
         } => (none(), id(c), id(i), none(), none(), none(), none(), none()),
+        // The reading edge's own severed case: the MATE takes the
+        // `node` slot and the OPERAND the `input` slot, which is the
+        // pair a caller reads off `severed_edge` too — one shape for
+        // "these two ended up on opposite sides".
+        E::OperandSeveredFromMate { mate, operand, .. } => (
+            id(mate),
+            none(),
+            id(operand),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         E::TornCluster {
             gauge: g,
             instance: i,
@@ -299,7 +313,9 @@ pub(crate) struct SplitOutcome {
     remainder: d::ProfileDoc,
     part: d::ProfileDoc,
     remainder_edits: Vec<d::DocEdit<d::ProfileProgram>>,
+    remainder_maintenance: Vec<d::ClusterMaintenance>,
     part_edits: Vec<d::DocEdit<d::ProfileProgram>>,
+    part_maintenance: Vec<d::ClusterMaintenance>,
     instance: NodeId,
     node_map: Vec<(NodeId, NodeId)>,
 }
@@ -308,20 +324,29 @@ pub(crate) struct SplitOutcome {
 impl SplitOutcome {
     /// The original document with the cut nodes replaced by ONE
     /// instance of the new part.
+    ///
+    /// The document and the maintenance its edits performed travel
+    /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
+    /// the record `remainder_edits` produced rather than an empty
+    /// list that would read as "nothing moved".
     #[getter]
     fn remainder(&self) -> Doc {
         Doc {
             inner: self.remainder.clone(),
-            maintenance: Vec::new(),
+            maintenance: self.remainder_maintenance.clone(),
         }
     }
 
     /// The new part document, carrying the cut nodes.
+    ///
+    /// Its `last_maintenance` is what building the part from empty
+    /// did to the placement registry — a cut cluster re-forms as one
+    /// join per mate that welded two members still separate.
     #[getter]
     fn part(&self) -> Doc {
         Doc {
             inner: self.part.clone(),
-            maintenance: Vec::new(),
+            maintenance: self.part_maintenance.clone(),
         }
     }
 
@@ -395,7 +420,9 @@ pub(crate) fn split(
         remainder: out.remainder,
         part: out.part,
         remainder_edits: out.remainder_edits,
+        remainder_maintenance: out.remainder_maintenance,
         part_edits: out.part_edits,
+        part_maintenance: out.part_maintenance,
         instance: NodeId(out.instance),
         node_map: out
             .node_map
@@ -554,6 +581,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
 pub(crate) struct InlineOutcome {
     doc: d::ProfileDoc,
     edits: Vec<d::DocEdit<d::ProfileProgram>>,
+    maintenance: Vec<d::ClusterMaintenance>,
     node_map: Vec<(NodeId, NodeId)>,
 }
 
@@ -561,11 +589,15 @@ pub(crate) struct InlineOutcome {
 impl InlineOutcome {
     /// The host document with the instance replaced by the referenced
     /// document's own nodes.
+    ///
+    /// The document and the maintenance its edits performed travel
+    /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
+    /// what the splice did to the placement registry.
     #[getter]
     fn doc(&self) -> Doc {
         Doc {
             inner: self.doc.clone(),
-            maintenance: Vec::new(),
+            maintenance: self.maintenance.clone(),
         }
     }
 
@@ -617,6 +649,7 @@ pub(crate) fn inline(
     Ok(InlineOutcome {
         doc: out.doc,
         edits: out.edits,
+        maintenance: out.maintenance,
         node_map: out
             .node_map
             .into_iter()

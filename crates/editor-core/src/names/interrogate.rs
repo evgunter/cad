@@ -38,7 +38,7 @@ use topo::Body;
 use topo::readback::{self, Pose, ReadbackError};
 
 use crate::eval::{BooleanValue, Evaluation, NodeResult, SplitSide, ValuePayload};
-use crate::names::{EntityKey, EntityKind, Entry, StableName};
+use crate::names::{EntityKey, EntityKind, Entry, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 
 /// **What a name denotes**, without the keys it denotes — the
@@ -50,7 +50,7 @@ use crate::node::RecipeNodeId;
 /// This type is how a caller finds that out before asking, and it
 /// deliberately carries a COUNT rather than the candidates: the
 /// candidates are arena keys, and those do not leave this crate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Denotation {
     /// Exactly one entity answers to this name.
     Unique,
@@ -396,8 +396,9 @@ fn entity_of<'a, T: Decide>(
 }
 
 /// The node's output body at `index` — the same body ordering the
-/// naming emission used (single-body ops: 0; split: 0 above, 1 below;
-/// pattern: the instance index).
+/// naming emission used (single-body ops: 0; a split's halves by
+/// [`SplitHalf::output_body`]; a pattern's instances by instance
+/// index).
 pub(crate) fn output_body<T: Decide>(
     payload: &ValuePayload<T>,
     index: u32,
@@ -420,20 +421,32 @@ pub(crate) fn output_body<T: Decide>(
             }
         }
         ValuePayload::Boolean(BooleanValue::Empty) => none("empty boolean"),
-        ValuePayload::Split { above, below } => match (index, above, below) {
-            (0, SplitSide::Body(b), _) | (1, _, SplitSide::Body(b)) => Ok(b),
-            (0 | 1, _, _) => Err(missing()),
-            _ => Err(missing()),
-        },
+        // The half that owns `index` by `SplitHalf::output_body` (the
+        // one definition of that mapping), if either does.
+        ValuePayload::Split { above, below } => {
+            let side = match SplitHalf::of_output_body(index) {
+                Some(SplitHalf::Above) => above,
+                Some(SplitHalf::Below) => below,
+                None => return Err(missing()),
+            };
+            match side {
+                SplitSide::Body(b) => Ok(b),
+                SplitSide::Empty => Err(missing()),
+            }
+        }
         ValuePayload::Instances(v) => v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing),
-        ValuePayload::Datum(_) => none("datum"),
-        ValuePayload::Profile(_) => none("profile"),
-        ValuePayload::Declarations(_) => none("declarations"),
-        // A12: a mate denotes no body. Interrogating one for geometry
-        // is the same category error as interrogating a declaration —
-        // and so is interrogating a measurement or its verdict.
-        ValuePayload::Mate(_) => none("mate"),
-        ValuePayload::Measure { .. } | ValuePayload::MeasureUnavailable { .. } => none("measure"),
-        ValuePayload::Assertion(_) => none("assertion"),
+        // The families that denote no body at all. A12: a mate denotes
+        // none, and interrogating one for geometry is the same category
+        // error as interrogating a declaration — as is interrogating a
+        // measurement or its verdict. The word is the payload's own
+        // family word, so this arm cannot drift from the vocabulary
+        // `ValuePayload::kind_name` speaks.
+        ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => none(payload.kind_name()),
     }
 }

@@ -2,8 +2,7 @@
 id: pinch-carrying-machinery-valence-4
 kind: issue
 title: design - pinch-carrying machinery to support the intersecting equal-radius boolean family (valence-4 section vertices)
-status: parked
-blocked_on: [parameter-identity-channel-to-boolean]
+status: open
 opened: 2026-08-31
 github: 1377
 refs: [1353, 1372]
@@ -53,3 +52,13 @@ VERBS: this is the cyl×cyl germ lane's geometry-side acceptance — Wave 2's cu
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Trigger fired (SEAT, 2026-09-05)
+
+`parameter-identity-channel-to-boolean` closed as delivered by SEAT-6
+(PR 1593): the channel exists and `RadiusEvidence` has its production
+caller at `germ_section_frame`. Re-opened here by the SEAT orchestrator
+because lint refuses a row parked on a fired trigger; CURVED schedules
+it. Note for the pinch design: the channel carries stored SCALAR
+fields only — axis-flavoured declarations are
+`work/issues/axis-flavoured-declarations-have-no-channel.md`.

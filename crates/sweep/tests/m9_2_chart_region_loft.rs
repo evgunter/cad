@@ -22,6 +22,11 @@ use geom_core::{Affine3, Band, Point2, Vec3};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use topo::{Body, ChartOverlap, FaceKey, Pcurve, chart_region_overlap};
 
+/// **A FIXED band, deliberately NOT `common::approx::band`.** These
+/// rows decide at 1e-9/1e-8 whatever the run's ε is: the digits
+/// above are the extension's acceptance figures, so the shared
+/// home — which resolves the RUN's band — would change what they
+/// decide against rather than just where the helper lives.
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
 }

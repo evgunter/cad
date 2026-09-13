@@ -1,0 +1,71 @@
+---
+id: escalated-recourse-dispatch-has-no-coaxiality-arm
+kind: unit
+title: blend: an in-band fillet3_support_coaxiality escalation renders no recourse
+status: closed
+opened: 2026-09-05
+branch: blend/1-coaxiality-arm
+pr: 2123
+closed: 2026-09-08
+---
+
+## Finding
+
+`BlendError::Escalated`'s `Display` picks its recourse sentence by the
+escalating predicate's name (`crates/sweep/src/blend/mod.rs`, the
+`match source.predicate` inside `impl fmt::Display for BlendError`). The
+match has arms for the six battery predicates, `fillet3_ring_clearance`
+and (since FILLET-H7) `fillet3_cap_transverse`, and a deliberate F6
+fall-through that renders "no recourse is recorded for predicate …; this
+is a gap in the error table, not advice to act on".
+
+`fillet3_support_coaxiality` (`crates/sweep/src/blend/battery.rs`,
+`support_coaxiality`) is not in the match. Its DEFINITE arm refuses
+`SpineUnsupported` with `FILLET3_SPINE_KIND_RECOURSE`; its IN-BAND arm
+escalates through `esc(BlendSite::Chain, e)` and renders the F6 gap
+sentence — so the two-tolerance pair (D4 ¶1 addendum: both arms carry
+one recourse) is broken for this one routing decision. Found while
+adding the `fillet3_cap_transverse` arm in the same match (FILLET-H7,
+PR 1897), which is why the gap was visible; not changed there because
+the sentence the in-band arm should carry (`FILLET3_SPINE_KIND_RECOURSE`,
+the canal-surface door) is a design statement about which door a
+near-coaxial pair belongs to, and that pairing is the arms' owner's.
+
+## Fix shape
+
+One arm: `Some("fillet3_support_coaxiality") => FILLET3_SPINE_KIND_RECOURSE`,
+with a row in `crates/sweep/tests/m5_pr12_refusals.rs`'s trio family
+that reaches the in-band arm through `run_battery` on a pair whose
+stored axes are misaligned by an in-band amount, asserting the sentence.
+
+## Cross-program note
+
+The code is FILLET's (`sweep::blend`); the arm it names is VERBS-ARMS-2's,
+which is closed. Filed here as the owner of `blend/mod.rs`.
+
+## Re-homed (2026-09-06)
+
+Moved from `work/issues/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). `blend/mod.rs` and `blend/battery.rs` are BLEND's ground; an E unit.
+
+## Landed
+
+`crates/sweep/tests/m5_pr12_refusals.rs`'s `trio_support_coaxiality`
+is the row: it reaches the in-band arm through `run_battery` on the
+whole raised rim of a two-arc cylinder whose cap plane parts from the
+rim circle's axis by `5ε` at the rim's lever arm, and
+`assert_same_recourse` pins the definite `SpineUnsupported` and the
+escalation to one sentence. The three legs read build / escalate /
+refuse on one body, so the exact leg is a PASS and not a downstream
+refusal on some other predicate.
+
+## Closed (2026-09-08, PR 2123)
+
+The arm landed with its trio row red-first; the fix pass took the
+review's union: the convexity-sign in-band routing fixed at the same
+site (the D4 pair rule applied, its residue item closed here), every
+`trio_*` row tied by `assert_same_recourse`, the hand-kept recourse
+list replaced by `ALL_RECOURSES`, the two-arc whole-rim fixture giving
+build / escalate / refuse on one body, eight reviewer rows adopted.
+The review's MAJOR outside this fence is unit 7
+(`closed-chain-junctions-pair-with-a-rotated-link`), with its witness
+kept here as a characterization row.

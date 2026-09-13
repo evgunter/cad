@@ -41,6 +41,14 @@
 //!   typo. Same word, different provenance, different answer.
 //! - **A missing file is the default, silently.** Never having set a
 //!   preference is not a fault.
+//! - **A store that can keep nothing at all reports** — not as the
+//!   answer to a write, which is why it is [`PrefsStore::unusable`]
+//!   and not a [`StoreError`]. It is true before anything is
+//!   attempted and stays true for the run, so a person hears it
+//!   before they spend a choice on it rather than after the session
+//!   ends. Two builds reach it: one with nowhere to keep preferences
+//!   ([`Absent`]) and a native one launched where no config directory
+//!   can be named.
 //!
 //! Every notice is returned, never logged: the caller decides whether
 //! a person sees it, the same way every other refusal in this crate
@@ -285,10 +293,20 @@ pub trait PrefsStore {
     /// [`StoreError`] when the store could not be written.
     fn save(&self, document: &str) -> Result<(), StoreError>;
 
-    /// Whether this store can hold anything at all. A caller shows
-    /// the difference between "not saved yet" and "cannot save here".
-    fn usable(&self) -> bool {
-        true
+    /// **Why this store can hold nothing at all**, and `None` when it
+    /// can hold something.
+    ///
+    /// A read of the store's own STATE, not the outcome of a write:
+    /// it is decided when the store is built and answers the same on
+    /// every frame of a run. A caller shows the difference between
+    /// "not saved yet" and "cannot save here" — and it needs the
+    /// store's own words to do it, which is why this hands back a
+    /// [`Unusable`] rather than a bool. With a bool the only party
+    /// able to say WHY was the store, and the only party with a
+    /// person to say it to was the caller, so the sentence a reader
+    /// saw had to be composed somewhere that did not know it.
+    fn unusable(&self) -> Option<Unusable> {
+        None
     }
 }
 
@@ -301,27 +319,128 @@ pub struct StoreError {
     pub because: String,
 }
 
+/// **Destructured rather than field-read**, so a field added to
+/// [`StoreError`] is E0027 here rather than landing in a value whose
+/// only public face is this sentence and going unsaid in it.
 impl std::fmt::Display for StoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "preferences: could not {} ({})",
-            self.doing, self.because
-        )
+        let Self { doing, because } = self;
+        write!(f, "preferences: could not {doing} ({because})")
     }
 }
 
 impl std::error::Error for StoreError {}
 
+/// **Why a store keeps nothing at all**, in the store's own words.
+///
+/// A [`StoreError`] is the outcome of a write that was attempted; this
+/// is a standing fact about the store, true from the moment it is
+/// built and answered the same on every frame of a run. Nothing has to
+/// happen for it to be so, which is what makes it a read a reader
+/// consults — `crate::frame::prefs_badge` is that read's one home in
+/// the chrome.
+///
+/// **What is held is that the two renderings cannot DIVERGE**, not
+/// that the condition has one spelling. The chrome shows these words
+/// and [`Self::refusal`] renders them for a caller that asks such a
+/// store to save anyway; `tests/prefs.rs`'s
+/// `the_words_a_store_shows_and_the_words_it_refuses_with_are_one`
+/// asserts the two are EQUAL, so a second, hand-written spelling reds
+/// the moment it says something different — and stays green while it
+/// says the same thing. Re-introducing an identical literal at a
+/// `save` is not caught; that limit was measured rather than assumed.
+/// **The words are a `String` and not a `&'static str`**, which costs
+/// this type `Copy` and costs an allocation per frame in a build that
+/// keeps nothing. The reason is what the field IS: the backing store's
+/// own words, exactly as [`StoreError::because`] is, and a store need
+/// not know them statically — a browser store refused by a privacy
+/// mode is handed a message. [`crate::frame::ChooserBackend`] is
+/// `Copy` over the same shape of fact and is NOT the precedent here,
+/// because it is a probe over a closed three-value vocabulary whose
+/// reason is a const the value never carries; that a store carries its
+/// own is the whole of this type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Unusable {
+    /// The backing store's own words for why it can hold nothing.
+    pub because: String,
+}
+
+/// **Destructured rather than field-read**, for [`StoreError`]'s
+/// reason: a field added to [`Unusable`] is E0027 here rather than
+/// being silently dropped from the sentence a reader sees.
+/// [`Unusable::refusal`] destructures for the same reason, so a second
+/// field breaks BOTH renderings rather than one — a guard over
+/// `Display` alone would leave the refusal quietly saying less than
+/// the badge, which is the divergence this type exists to prevent.
+impl std::fmt::Display for Unusable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { because } = self;
+        write!(f, "not kept in this session ({because})")
+    }
+}
+
+impl Unusable {
+    /// This standing fact as the refusal a `save` on such a store
+    /// answers with.
+    ///
+    /// **The one place the words become an error.** A store that keeps
+    /// nothing is asked nothing by this crate —
+    /// [`crate::app::ViewerApp::remember_theme`] reads
+    /// [`PrefsStore::unusable`] and does not call `save` — but the
+    /// trait's `save` is total and public, so it still owes an honest
+    /// answer to a caller that did not ask first. Composing that answer
+    /// here rather than at each impl is what stops it being a second,
+    /// drifting statement of a condition the read already states.
+    #[must_use]
+    pub fn refusal(&self) -> StoreError {
+        let Self { because } = self;
+        StoreError {
+            doing: "save preferences",
+            because: because.clone(),
+        }
+    }
+
+    /// This standing fact, from the store's own words.
+    ///
+    /// The one constructor, so a store that keeps nothing states a
+    /// reason rather than repeating a shape.
+    #[must_use]
+    pub fn new(because: impl Into<String>) -> Self {
+        Self {
+            because: because.into(),
+        }
+    }
+}
+
 /// The store for a build with nowhere to keep preferences.
 ///
-/// **Reports rather than pretends**, exactly as `frame::chooser_backend`
-/// does for a desktop with no portal and no `zenity`: a control backed
-/// by this is disabled with a reason, never offered and then silently
-/// ineffective. It is what the browser build uses until a
-/// `web_sys::Storage` store is written.
+/// **Reports rather than pretends.** It says why it keeps nothing
+/// ([`PrefsStore::unusable`]) and the chrome puts those words beside
+/// the control they bear on, so a preference is never offered and then
+/// silently dropped.
+///
+/// **Annotated, not disabled**, and that is where this parts company
+/// with [`crate::frame::chooser_backend`]'s posture for Open…/Save As…. A file
+/// dialog with no backend can do nothing at all, so the control is
+/// disabled with a reason. The palette picker still works: the theme
+/// applies to the screen on the frame it is chosen and only the
+/// memory of it is lost, so refusing the switch would cost a reader
+/// the part that works to protect the part that does not.
+///
+/// It is what the browser build uses until a `web_sys::Storage` store
+/// is written.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Absent;
+
+impl Absent {
+    /// Why this store keeps nothing, in its own words — read by the
+    /// chrome through [`PrefsStore::unusable`] and rendered into a
+    /// refusal by [`Unusable::refusal`] for a caller that saves
+    /// without asking.
+    fn keeps_nothing() -> Unusable {
+        Unusable::new("this build has nowhere to keep them")
+    }
+}
 
 impl PrefsStore for Absent {
     fn load(&self) -> Result<Option<String>, StoreError> {
@@ -329,14 +448,11 @@ impl PrefsStore for Absent {
     }
 
     fn save(&self, _document: &str) -> Result<(), StoreError> {
-        Err(StoreError {
-            doing: "save preferences",
-            because: "this build has nowhere to keep them".to_owned(),
-        })
+        Err(Self::keeps_nothing().refusal())
     }
 
-    fn usable(&self) -> bool {
-        false
+    fn unusable(&self) -> Option<Unusable> {
+        Some(Self::keeps_nothing())
     }
 }
 
@@ -345,7 +461,7 @@ impl PrefsStore for Absent {
 pub mod file {
     use std::path::PathBuf;
 
-    use super::{PrefsStore, StoreError};
+    use super::{PrefsStore, StoreError, Unusable};
 
     /// Preferences in a file.
     #[derive(Debug, Clone)]
@@ -385,6 +501,16 @@ pub mod file {
         pub fn path(&self) -> Option<&std::path::Path> {
             self.path.as_deref()
         }
+
+        /// Why a store with no path keeps nothing, in its own words.
+        ///
+        /// A store states its own reason and nothing else states it:
+        /// [`super::PrefsStore::unusable`] hands it to the chrome and
+        /// [`Unusable::refusal`] renders it for a caller that saves
+        /// without asking.
+        fn keeps_nothing() -> Unusable {
+            Unusable::new("no config directory in this environment")
+        }
     }
 
     impl PrefsStore for FileStore {
@@ -406,10 +532,7 @@ pub mod file {
 
         fn save(&self, document: &str) -> Result<(), StoreError> {
             let Some(path) = &self.path else {
-                return Err(StoreError {
-                    doing: "save preferences",
-                    because: "no config directory in this environment".to_owned(),
-                });
+                return Err(Self::keeps_nothing().refusal());
             };
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| StoreError {
@@ -423,8 +546,8 @@ pub mod file {
             })
         }
 
-        fn usable(&self) -> bool {
-            self.path.is_some()
+        fn unusable(&self) -> Option<Unusable> {
+            self.path.is_none().then(Self::keeps_nothing)
         }
     }
 }

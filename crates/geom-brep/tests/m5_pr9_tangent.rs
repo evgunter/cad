@@ -97,13 +97,13 @@ fn the_authored_tangent_pair_certifies_with_the_full_jet_schedule() {
 fn the_tangent_predicates_reach_the_k_funnel() {
     // Telemetry from birth (C7/C12.2): the family the PR 14
     // K-snapshot will read, visible by name in the verdict log.
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     let (k1, k2, map) = keys2();
     let spec = ruling_spec(k1, k2);
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
-    start_verdict_log();
+    let bracket = Bracket::open();
     let _ = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap();
-    let v = take_verdict_log();
+    let v = bracket.finish().verdicts;
     for name in [
         "tangent_on_surface_1",
         "tangent_on_surface_2",

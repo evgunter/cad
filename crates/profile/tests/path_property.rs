@@ -44,7 +44,7 @@ use crate::common;
 
 use common::pinned;
 use geom_core::Point2;
-use profile::path::{HasAng, HasPos, WithIncoming};
+use profile::path::{CornerReason, CornerWindow, HasAng, HasPos, WithIncoming};
 use profile::{Open, PartialPath, PathError, Profile, ProfileLoop, SketchPlane, Start};
 use proptest::prelude::*;
 
@@ -423,10 +423,19 @@ fn corner_behind_ray_refuses_no_corner() {
         .unwrap()
         .at(p2(4.0, -1.0), Tol::witness())
         .unwrap();
-    assert!(matches!(
-        arrival.angle(0.0, Tol::witness()),
-        Err(PathError::NoCornerForFillet { .. })
-    ));
+    let refused = arrival
+        .angle(0.0, Tol::witness())
+        .expect_err("a corner behind the ray start must refuse");
+    // A straight pair derives ONE corner, and the row names it: the
+    // arrival carrier y = -1 crosses the northbound ray at (2, -1).
+    crate::common::assert_corners(&refused, &[(2.0, -1.0)], "the derived corner");
+    assert!(
+        matches!(
+            crate::common::corners(&refused)[0].reason,
+            CornerReason::OutsideAnchors(CornerWindow::BehindIncomingRay)
+        ),
+        "expected the incoming window, got {refused:?}"
+    );
 }
 
 #[test]
@@ -438,10 +447,13 @@ fn trim_eating_an_anchor_refuses_typed() {
         .unwrap()
         .at(p2(2.5, 2.0), Tol::witness())
         .unwrap();
-    assert!(matches!(
-        arrival.angle(0.0, Tol::witness()),
-        Err(PathError::AnchorOutsideTrimmedExtent { .. })
-    ));
+    let refused = arrival
+        .angle(0.0, Tol::witness())
+        .expect_err("the trim must refuse");
+    assert!(
+        crate::common::anchor_fit(&refused).is_some(),
+        "expected the anchor-fit entry, got {refused:?}"
+    );
 }
 
 /// **§2c**: an arc ARRIVAL is authored with the fillet that trims it,
@@ -1134,26 +1146,33 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 ///    lens never reached that gate honestly, because on this geometry
 ///    every radius past the waist (1/2) is either offset-disjoint or
 ///    enclosing;
-/// 2. the boundary's **refusal precedence**: `resolve` keeps gate
-///    refusals and construction refusals in two channels and lets the
-///    CONSTRUCTION one win. Here the discarded root's advance gate also
-///    refuses, so a single-channel "first refusal wins" reports
-///    `NoCornerForFillet{BehindIncomingRay}` — a claim that a corner
-///    which is in fact ahead of the anchor is behind it — and this
-///    assertion fails. Do not weaken it to `matches!(.., PathError::_)`.
+/// 2. the boundary's **attribution**: the discarded root's advance gate
+///    also refuses here, so a single-channel "first refusal wins"
+///    would report a corner that is behind the ray about a corner that
+///    is in fact ahead of it. The construction channel answers instead,
+///    and the envelope carries exactly the corners that reached it —
+///    one, here, and it says which corner it is about. Do not weaken
+///    this to `matches!(.., PathError::_)`.
 #[test]
 fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
     let err = lens(5.0).unwrap_err();
-    let PathError::FilletEnclosesLegCarrier {
-        carrier_radius,
-        offset_radius,
-        radius,
-        largest_tangent_radius,
-        ..
-    } = err
-    else {
-        panic!("expected the enclosing-class refusal, got {err:?}");
+    let PathError::NoCornerOfPair { radius, .. } = &err else {
+        panic!("expected a NoCornerOfPair envelope, got {err:?}")
     };
+    let radius = *radius;
+    let Some((_, carrier_radius, offset_radius, largest_tangent_radius)) =
+        crate::common::enclosing(&err)
+    else {
+        panic!("expected the enclosing-class entry, got {err:?}");
+    };
+    // The window-discarded root is NOT listed beside the answer: the
+    // construction channel is what refused, so the envelope carries the
+    // corner that reached it and nothing else.
+    assert_eq!(
+        crate::common::corners(&err).len(),
+        1,
+        "only the corner that reached the construction is reported: {err:?}"
+    );
     assert!(
         (carrier_radius - 1.0).abs() < 1e-12,
         "the lens's lobes are R = 1, got {carrier_radius}"
@@ -1342,10 +1361,32 @@ fn the_new_arc_carrier_gates_decide_outside_the_band() {
             },
             Tol::witness(),
         );
+    let refused = refused.expect_err("a decided-behind arrival anchor must refuse");
+    // Both crossings of the ray with the R = 1 carrier about `centre`
+    // are window-discarded, and the row reads WHICH window each got.
+    let listed: Vec<(f64, f64, bool)> = crate::common::corners(&refused)
+        .iter()
+        .map(|c| {
+            (
+                c.at.x,
+                c.at.y,
+                matches!(
+                    c.reason,
+                    CornerReason::OutsideAnchors(CornerWindow::BehindArrivalAnchor)
+                ),
+            )
+        })
+        .collect();
     assert!(
-        matches!(refused, Err(PathError::NoCornerForFillet { .. })),
+        listed.iter().any(|&(_, _, behind_anchor)| behind_anchor),
         "a decided-behind arrival anchor must refuse typed, got {refused:?}"
     );
+    for &(x, y, _) in &listed {
+        assert!(
+            ((x - centre.x).hypot(y - centre.y) - r).abs() < 1e-9,
+            "every entry names a point on the arrival carrier, got {listed:?}"
+        );
+    }
 }
 
 /// **MINOR-2 (review)**: the third new gate's escalation path.

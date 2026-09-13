@@ -7,7 +7,7 @@ use crate::shared::fixture::segment;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
-use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, EdgeNurbsLane};
+use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, plane_nurbs_limbs};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 use slotmap::SlotMap;
@@ -65,7 +65,7 @@ fn n2r2_class5_plane_nurbs_limbs_on_masquerade() {
     ] {
         let w = wall(f);
         assert!(!w.is_placeholder());
-        let r = f64::plane_nurbs_limbs(&carrier, &plane(), &w, 1.0, band());
+        let r = plane_nurbs_limbs::<f64>(&carrier, &plane(), &w, 1.0, band());
         eprintln!("[class 5 {name}] plane_nurbs_limbs -> {r:?}");
     }
 }

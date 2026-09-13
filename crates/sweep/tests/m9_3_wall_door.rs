@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -132,9 +132,9 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
     let bored = bored_plate();
     let peg = cyl(0.0, 1.0, 0.5);
     let decls = wall_declarations(&bored, &peg, ContactClass::Rest);
-    start_verdict_log();
+    let bracket = Bracket::open();
     let out = topo::union_with(&bored, &peg, &decls, Tol::witness());
-    let v = take_verdict_log();
+    let v = bracket.finish().verdicts;
     // The carrier ladder's cylinder rungs ran — the declared descent
     // executed rather than being skipped past (telemetry from birth).
     for name in ["carrier_cyl_axis_parallel", "carrier_cyl_radius"] {
@@ -326,14 +326,14 @@ fn tangent_door_contradicts_escalates_and_admits() {
     // The genuinely-touching pair is ADMITTED: whatever the outcome,
     // it is not a door refusal, and the second-order sector rows run.
     let resting = lying_cyl(1.5);
-    start_verdict_log();
+    let bracket = Bracket::open();
     let out = topo::union_with(
         &a,
         &resting,
         &top_wall_declarations(&a, &resting, ContactClass::Tangent),
         Tol::witness(),
     );
-    let v = take_verdict_log();
+    let v = bracket.finish().verdicts;
     assert!(
         v.iter().any(|x| x.predicate == "tangent_locus_gap"),
         "the witness lane must have derived the ruling"

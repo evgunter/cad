@@ -14,8 +14,11 @@
 //! file still render a payload through `Debug`, each for a stated
 //! reason: `WebStartupError::Runner` (a `JsValue` the orphan rule
 //! forecloses writing a `Display` for) and `Disagreement` (a role path,
-//! whose `RoleSeg` has none). `PreviewError::Transition` renders a
-//! `profile::path::Verb` that has no `Display` yet.
+//! whose `RoleSeg` has none). `PreviewError::Transition` is not one of
+//! them and is not covered here either: it needs a replayed chain to
+//! carry a verb at all, so its prose row sits beside the chain that
+//! produces it (`tests/path_authoring.rs`,
+//! `an_illegal_walk_refuses_at_the_preview_and_at_the_door`).
 
 use bvh::Aabb;
 use editor_core::{HitTestError, InterrogateError, MateSide, NodePickError};
@@ -24,7 +27,7 @@ use pncad::mesh::TessellateError;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
 use viewer::history::ReplayError;
 use viewer::matetool::MateToolError;
-use viewer::pick::{EdgeNameFault, IdMapError, PatchId, PickError, PickIndexError};
+use viewer::pickindex::{EdgeNameFault, IdMapError, PatchId, PickError, PickIndexError};
 use viewer::scene::{SceneDocError, SceneError};
 
 /// Whether a rendering looks like a derived `Debug` rather than prose:

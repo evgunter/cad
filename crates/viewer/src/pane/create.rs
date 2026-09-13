@@ -11,9 +11,10 @@ use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::PatternOutputChoice;
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, BOOLEAN_OPS, COUNT_DRAG_SPEED, DatumKind, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PathVerb, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKind, FIELD_DRAG_SPEED, MATE_PRIMITIVES, PathVerb,
+    PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
 };
+use crate::frame;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::parts::PartChooser;
 use crate::seats::{Seat, seat_line};
@@ -21,7 +22,8 @@ use crate::session::{DatumSpec, SessionOp};
 use crate::sketch::{self, PreviewError};
 use crate::tools::ToolKind;
 use crate::widgets::{
-    angle_picker, fresh_step, length_picker, path_step_fields, unit_field, unit_vec3_row, vec3_row,
+    angle_picker, fresh_step, length_picker, number_field, path_step_fields, unit_field,
+    unit_vec3_row, vec3_row,
 };
 
 /// **The smallest pattern count the form offers.**
@@ -161,14 +163,15 @@ impl ViewerBehavior<'_> {
                                 close = true;
                             }
                             Err(error) => {
-                                *self.status = Some(ToolKind::Mate.says(&error));
+                                self.notices
+                                    .push(frame::tool_news(ToolKind::Mate.says(&error)));
                             }
                         }
                     }
                     _ => {
-                        *self.status = Some(
+                        self.notices.push(frame::tool_news(
                             ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
-                        );
+                        ));
                     }
                 }
             }
@@ -210,7 +213,7 @@ impl ViewerBehavior<'_> {
                 // emits its op from a button — so it neither closes a
                 // pick tool nor is closed by one, and a pick made while
                 // it is open lands exactly where it would have.
-                *self.part_chooser = Some(PartChooser::opened(self.session));
+                *self.part_chooser = Some(PartChooser::opened(self.session.part_census()));
             }
             return;
         }
@@ -291,7 +294,7 @@ impl ViewerBehavior<'_> {
             close = true;
         }
         if rescan && let Some(chooser) = self.part_chooser.as_mut() {
-            chooser.rescan(self.session);
+            chooser.rescan(self.session.part_census());
         }
         if close {
             *self.part_chooser = None;
@@ -374,7 +377,10 @@ impl ViewerBehavior<'_> {
                 // The add-datum form is not a seated TOOL, so it has
                 // no `ToolKind` to compose the prefix — the form's own
                 // name is the sentence's subject here.
-                Err(error) => *self.status = Some(format!("add datum: {error}")),
+                Err(error) => {
+                    self.notices
+                        .push(frame::tool_news(format!("add datum: {error}")));
+                }
             }
         }
     }
@@ -599,8 +605,14 @@ impl ViewerBehavior<'_> {
                 // and typed rather than unwrapped: a form's enabling
                 // condition and its commit are two pieces of code, and
                 // this one does not assume the other got it right.
-                (None, _) => *self.status = Some("add profile: no frame picked".to_owned()),
-                (_, Err(error)) => *self.status = Some(format!("add profile: {error}")),
+                (None, _) => {
+                    self.notices
+                        .push(frame::tool_news("add profile: no frame picked"));
+                }
+                (_, Err(error)) => {
+                    self.notices
+                        .push(frame::tool_news(format!("add profile: {error}")));
+                }
             }
         }
     }
@@ -713,7 +725,7 @@ impl ViewerBehavior<'_> {
                         // candidate verb, which is cheap but not free,
                         // and a closed combo has nobody to show it to.
                         let mut chain = self.drafts.profile_path.clone();
-                        for option in PathVerb::ALL {
+                        for (option, label) in PathVerb::ALL {
                             chain[index] = option.fresh();
                             let refusal = sketch::admits_at(&chain, index, notation, tol).err();
                             // `add_enabled` on the widget itself, not
@@ -724,7 +736,7 @@ impl ViewerBehavior<'_> {
                             // response shows nothing.
                             let row = ui.add_enabled(
                                 refusal.is_none(),
-                                egui::Button::selectable(option == verb, option.label()),
+                                egui::Button::selectable(option == verb, label),
                             );
                             match refusal {
                                 Some((state, _refused)) => {
@@ -734,7 +746,7 @@ impl ViewerBehavior<'_> {
                                     // reader is looking at.
                                     row.on_disabled_hover_text(format!(
                                         "{} is not well-typed here — the tip is {}",
-                                        option.label(),
+                                        label,
                                         sketch::tip_state_words(state),
                                     ));
                                 }
@@ -807,7 +819,10 @@ impl ViewerBehavior<'_> {
                             profile: node,
                             distance,
                         }),
-                        Err(error) => *self.status = Some(format!("extrude: {error}")),
+                        Err(error) => {
+                            self.notices
+                                .push(frame::tool_news(format!("extrude: {error}")));
+                        }
                     }
                 }
             }
@@ -875,8 +890,10 @@ impl ViewerBehavior<'_> {
         ]));
         ui.horizontal(|ui| {
             ui.label("operation");
-            for (op, label) in BOOLEAN_OPS {
-                ui.radio_value(&mut self.drafts.boolean_op, op, label);
+            // One button per operation the KERNEL has, in its order:
+            // the form offers the vocabulary, never a copy of it.
+            for &op in BooleanOp::ALL {
+                ui.radio_value(&mut self.drafts.boolean_op, op, boolean_op_label(op));
             }
         });
         if self.drafts.boolean_op == BooleanOp::Subtract {
@@ -988,8 +1005,7 @@ impl ViewerBehavior<'_> {
             // and a non-positive one refuses at evaluation, so the
             // form does not offer to author a node that cannot build.
             ui.add(
-                egui::DragValue::new(&mut self.drafts.pattern_count)
-                    .speed(COUNT_DRAG_SPEED)
+                number_field(&mut self.drafts.pattern_count, COUNT_DRAG_SPEED)
                     .range(MIN_PATTERN_COUNT..=i64::MAX),
             );
         });
@@ -1116,14 +1132,16 @@ impl ViewerBehavior<'_> {
         let Some(((target, eval), index)) = ready else {
             ui.add_enabled(false, egui::Button::new("Select all edges"))
                 .on_disabled_hover_text(
-                    "click an edge or a face of the body first, and let it evaluate —                      a feature picked in the tree does not say which body",
+                    "click an edge or a face of the body first, and let it evaluate — \
+                     a feature picked in the tree does not say which body",
                 );
             return;
         };
         let clicked = ui
             .button("Select all edges")
             .on_hover_text(
-                "every edge of this body as it stands now, stored as a frozen set —                  whether the kernel can BLEND that set is its own answer, on the node's badge",
+                "every edge of this body as it stands now, stored as a frozen set — \
+                 whether the kernel can BLEND that set is its own answer, on the node's badge",
             )
             .clicked();
         if !clicked {
@@ -1138,7 +1156,8 @@ impl ViewerBehavior<'_> {
             .blend_mut()
             .and_then(|tool| tool.load_all_edges(target, eval, index));
         if let Some(event) = event {
-            *self.status = Some(ToolKind::Blend.says(&event));
+            self.notices
+                .push(frame::tool_news(ToolKind::Blend.says(&event)));
         }
     }
 
@@ -1170,12 +1189,16 @@ impl ViewerBehavior<'_> {
                         match op {
                             Some(Ok(op)) => self.ops.push(op),
                             Some(Err(error)) => {
-                                *self.status = Some(ToolKind::Blend.says(&error));
+                                self.notices
+                                    .push(frame::tool_news(ToolKind::Blend.says(&error)));
                             }
                             None => {}
                         }
                     }
-                    Err(error) => *self.status = Some(ToolKind::Blend.says(&error)),
+                    Err(error) => {
+                        self.notices
+                            .push(frame::tool_news(ToolKind::Blend.says(&error)));
+                    }
                 }
             }
             if ui
@@ -1216,7 +1239,9 @@ impl ViewerBehavior<'_> {
             if ui.button(label).clicked() {
                 match op(self.drafts) {
                     Ok(op) => self.ops.push(op),
-                    Err(error) => *self.status = Some(kind.says(&error)),
+                    Err(error) => {
+                        self.notices.push(frame::tool_news(kind.says(&error)));
+                    }
                 }
             }
             if ui.button("Cancel").clicked() {

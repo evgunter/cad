@@ -438,3 +438,58 @@ directory's item files and in `work/STATUS.md`; this log stays the
 narrative. Items created at migration: MESH-12 (dispatched, PR 1617; its
 spec landed at PR 1605), MESH-9 (parked on issue 950's trigger), MESH-R
 (open).
+
+## Announced seam from PROPS (2026-09-05): one call in `chords.rs`
+
+The coeffs-window unit (`docs/PROPS-COEFFS-SPEC.md`) makes
+`derivative_coeffs(kv, coeffs)` a method on `SplineCoeffs` (the pair,
+minted from the vector); `crates/mesh/src/chords.rs:~240` is one call
+re-spelled, arithmetic unchanged, pinned by the unit's digest. Signed
+(PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the coeffs-window unit
+(#1985) also re-pointed one intra-doc link in
+`crates/mesh/src/nurbs_cert.rs`; doc only. The review found the
+omission. Signed (PROPS orchestrator).
+
+Addendum (2026-09-05, PROPS orchestrator): the coeffs fix pass (#1992)
+folds `chords.rs`'s local `differenced` helper into
+`KnotVector::difference_coeffs` (one home for the mint-or-poison-vector
+step, its never-empty contract stated once); six call sites re-spelled,
+no arithmetic. Signed (PROPS orchestrator).
+
+## MESH-12 taken over by PROPS (2026-09-06)
+
+Ev, in chat to the PROPS orchestrator: "you can take over 1617". PR
+1617 (`mesh/12-saturated-span`, frozen 0e053a727, dispatched by this
+program and never reviewed) is finished by PROPS: merge-forward, CI,
+the dual under the ordinal this program claimed for it (1210, parity
+byte 40 ⇒ R1 opus / R2 fable), fix pass, landing, all recorded in
+`work/props/log.md` and in the A/B log's S-MESH band with a takeover
+note. `work/mesh/MESH-12.md` closes with the landing. Signed (PROPS
+orchestrator).
+
+## MESH-12 landed by S-MESH (2026-09-08)
+
+Ev, in chat 2026-09-08: PROPS is paused, S-MESH lands 1617. The takeover
+note above was wrong on one fact and the A/B row corrects it: the unit
+HAD been reviewed — S-MESH's dual under ordinal 1210 ran on `0e053a727`
+on 2026-09-03 (R1 opus 0/4/7, R2 fable 0/1/5, no tally candidate;
+probe branches `mesh/12r1-probes`, `mesh/12r2-probes`), and its union
+fix pass died with a provider rate limit before pushing, together with
+the orchestrator's session. PROPS's dual on `3daab7d80` (R1 1/6/3, R2
+0/3/6, the one MAJOR bilateral) and its fix pass (`6859ece19`, green
+2026-09-06) are the ones that landed; the row records both duals and
+names PROPS's as the sample. S-MESH merged main forward
+(`267e2510f`, no conflicts), ran the touched crates' battery, waited for
+CI, and merged with the row as the last commit. Items closed:
+MESH-12, `saturated-sphere-span-folds-short` (1601),
+`rim-continuation-witness-fixture-needed` (1588);
+`rim-only-sphere-cap-panics-at-census` (1615) un-parked to open.
+
+What Dual B found that Dual A did not — the reversed span — is an
+instrument note for the twelve: Dual A's ladders ran forward spans only.
+
+Slate state: MESH-9 parked on its trigger; MESH-R open; three open
+findings on this slate (1615, 1618, the period-headroom margin). The
+next unit is a slate decision.

@@ -423,7 +423,7 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
 /// intervals suffice for the real margins"). The symbolic tier
 /// discharges the identities and hands the ceiling to the next mechanism
 /// along; naming it is the point of this row, and the class is tracked
-/// as `work/m10/real-margin-dependency-widening.md`.
+/// as `work/sym/real-margin-dependency-widening.md`.
 ///
 /// **The ceiling is ε-DEPENDENT**, which is the second thing the earlier
 /// version got wrong by quoting one number. It rises as ε tightens —
@@ -677,12 +677,52 @@ fn the_tier_off_reproduces_the_pre_e12_refusal() {
     );
 }
 
+/// **Evidence: the two-parameter fixture's whole-certifying half-width
+/// at this ε**, bisected the way the slab's row does — the number the
+/// two bisection rows below are scaled against.
+#[test]
+#[ignore = "evidence-only: prints the two-parameter fixture's whole-certifying bracket"]
+fn evidence_two_param_plate_whole_certifying_half_width() {
+    let certifies_whole = |half: f64| {
+        let doc = two_param_plate(uniform(half), uniform(half));
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+        v.receipt().splits == 0 && v.receipt().certified == 1
+    };
+    let (mut lo, mut hi) = (eps() / 4.0, 0.25);
+    println!(
+        "two_param_plate eps={:e}: lo {lo:e} certifies_whole={} hi {hi:e} certifies_whole={}",
+        eps(),
+        certifies_whole(lo),
+        certifies_whole(hi)
+    );
+    for _ in 0..20 {
+        let mid = 0.5 * (lo + hi);
+        if certifies_whole(mid) {
+            lo = mid
+        } else {
+            hi = mid
+        }
+    }
+    println!(
+        "two_param_plate eps={:e}: whole-certifying bracket [{lo:e}, {hi:e}]",
+        eps()
+    );
+}
+
 /// **The worked example's driver half**, on the two-parameter document:
 /// leaves certify after real bisection, the receipt identity holds, and
 /// the accounting sums to 1.
+///
+/// At ±0.05 on both parameters — a REAL study, a fifth of the radius.
+/// Under M10-10's tier (rule D with amendment A1) the fixture's
+/// whole-certifying half-width is a real margin at about 0.022
+/// (`evidence_two_param_plate_whole_certifying_half_width`), so an
+/// ε-scaled box no longer splits and a row about bisection has to be
+/// wider than that.
 #[test]
 fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it() {
-    let doc = two_param_plate(uniform(eps() / 4.0), uniform(eps() / 4.0));
+    let doc = two_param_plate(uniform(0.05), uniform(0.05));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("the nominal builds");
 
@@ -935,6 +975,73 @@ fn a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined() {
     assert!(mass > 0.0, "sliver mass priced at {mass}");
 }
 
+/// **A sliver that reaches the driver inside the op's own error is
+/// still a sliver.** The planted-flip box `20ε ± 40ε` covers the
+/// ambiguity band on both sides of zero — `(ε, Kε)` and `(−Kε, −ε)` —
+/// and a leaf whose depth enclosure sits wholly inside either is
+/// deciding `extrusion_normal_component` on a quantity that IS in the
+/// band, so no refinement moves it out. That escalation does not
+/// surface as `NodeErrorKind::Escalated`: the extrude op wraps it in
+/// its own `ExtrudeError` first. The driver reads the node's
+/// ESCALATION LOG — the funnel's own record of the indeterminate
+/// outcome — rather than the error enum, so the leaf is priced
+/// `SliverTerminal`, naming the predicate, and never refined to the
+/// depth floor as `Budget` mass.
+///
+/// The band's share of the box is the pin: `2 · (K − 1)ε / 80ε` with
+/// `K = 10` is 22.5%, and the sliver mass has to be that, up to the
+/// leaves straddling the band's four edges. What the depth budget may
+/// still price `Budget` here is the coincidence zone `(−ε, ε)` — 2.5%
+/// of the box — where the depth decides `Zero` and the extrude refuses
+/// `DegenerateExtrusion`: a DEFINITE refusal, not an escalation, which
+/// this driver refines to the floor. That zone is a different class
+/// from this row's and is bounded here, not claimed.
+#[test]
+fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() {
+    let doc = slab(20.0 * eps(), 40.0 * eps());
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).expect("the nominal builds");
+    assert!(v.receipt().holds());
+    let classes: Vec<_> = v.refused().iter().map(|l| l.reason.class()).collect();
+    let slivers: Vec<&'static str> = v
+        .refused()
+        .iter()
+        .filter_map(|l| match &l.reason {
+            RefusalReason::SliverTerminal { predicate } => Some(*predicate),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        slivers.iter().all(|p| *p == "extrusion_normal_component"),
+        "every sliver here is the extrude's normal component: {slivers:?}"
+    );
+    let sliver_mass = v
+        .accounting()
+        .refused
+        .get(&ReasonClass::SliverTerminal)
+        .cloned()
+        .map_or(0.0, |m| m.unwrap());
+    let budget_mass = v
+        .accounting()
+        .refused
+        .get(&ReasonClass::Budget)
+        .cloned()
+        .map_or(0.0, |m| m.unwrap());
+    let k = Tol::witness().k();
+    let band_share = 2.0 * (k - 1.0) * eps() / (80.0 * eps());
+    assert!(
+        (sliver_mass - band_share).abs() < 1e-3,
+        "the band's share of the box is sliver mass: sliver {sliver_mass}, budget \
+         {budget_mass}, band share {band_share}; classes {classes:?}"
+    );
+    let coincidence_share = 2.0 * eps() / (80.0 * eps());
+    assert!(
+        budget_mass <= coincidence_share + 1e-3,
+        "only the coincidence zone and the band's edge leaves may reach the depth floor: \
+         budget mass {budget_mass}, coincidence zone {coincidence_share}"
+    );
+}
+
 // ------------------------------------------------------------ budgets
 
 /// Budgets refuse typed and PRICED, and the receipt still holds: a
@@ -1000,9 +1107,14 @@ fn an_exhausted_depth_budget_refuses_the_whole_box() {
 /// **Certification is measure-free; pricing is not.** With a `Band`
 /// parameter varying, leaves certify and refuse exactly as they would
 /// otherwise, and the ACCOUNTING columns refuse typed, naming the band.
+///
+/// At ±0.05, past the fixture's whole-certifying half-width (the row
+/// above): a leaf that covers a band's WHOLE support prices as 1 by
+/// the band's own rule (`box_mass`), so the refusal this row is about
+/// needs a leaf that covers part of it, i.e. a drive that split.
 #[test]
 fn a_band_parameter_certifies_normally_and_prices_nothing() {
-    let w = eps() / 4.0;
+    let w = 0.05;
     let banded = two_param_plate(Distribution::Band { lo: -w, hi: w }, uniform(w));
     let priced = two_param_plate(uniform(w), uniform(w));
     let analyzed = analyzed_box(&banded, &AnalysisPolicy::default());

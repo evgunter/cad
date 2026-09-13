@@ -2,10 +2,9 @@
 id: add-parameter-form-authors-canonical-only
 kind: issue
 title: The add-parameter form authors only the canonical unit, though the kernel's written_length/written_angle doors are total
-status: parked
+status: open
 opened: 2026-09-04
 refs: [1776]
-blocked_on: [viewer-session-god-module-split]
 ---
 
 
@@ -75,3 +74,13 @@ panel row and left the form.
 
 CHROME. Everything above is `crates/viewer/src/*`; the kernel doors it
 calls already exist.
+
+## Un-parked — the trigger fired (2026-09-04)
+
+`viewer-session-god-module-split` closed on 2026-09-04, so this row's
+only blocker is gone and the row is dispatchable. Un-parked here, from
+VIEW's PR #1857, rather than by CHROME: on Ev's ruling there, `work.py
+lint` now REFUSES a `parked` row whose every blocker is closed, and a
+program cannot un-park another program's rows in the PR that closes
+their trigger — `work/README.md`'s one-file-one-item rule makes that a
+merge conflict by design.

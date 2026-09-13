@@ -49,8 +49,8 @@ away channel (opened 2026-09-04, Ev's nod) or at S-BOOL's exit.
 ## Lanes
 
 - **VERBS' executable remainder (first dispatches)**: `VERBS-C5ARMS`
-  PR-2 (cone×cylinder section arm; specced in
-  `docs/VERBS-C5ARMS-SPEC.md`, small) → `VERBS-CONE` (the cone and
+  PR-2 (cone×cylinder section arm; DELIVERED #1864, 2026-09-05; the
+  spec is ledgered) → `VERBS-CONE` (the cone and
   torus operand lanes; spec to write, sequenced on what C5ARMS PR-2 and
   the torus lane learn) with `plane-cone-elliptic-section-split-refusal`
   folded in where VERBS-CONE's spec reaches `intersect.rs`.

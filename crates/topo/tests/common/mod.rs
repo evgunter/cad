@@ -577,7 +577,8 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
 }
 
 /// Test-authoring convenience: the [`BooleanDeclarations`] declaring
-/// every flush-plane face pair of `(a, b)` — the test author's
+/// every flush face pair of `(a, b)`, on any carrier the `Rest`
+/// ladder verifies — the test author's
 /// stand-in for a recipe `Declare` (the author built the contact
 /// deliberately; this writes the intent down).
 ///

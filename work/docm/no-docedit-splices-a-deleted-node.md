@@ -2,10 +2,9 @@
 id: no-docedit-splices-a-deleted-node
 kind: issue
 title: Deleting a feature from the middle of a chain is impossible: no DocEdit rewires a live node's inputs, so delete can only cascade
-status: parked
+status: open
 opened: 2026-08-31
 github: 1324
-blocked_on: [n-ary-union-has-no-declaration-channel]
 ---
 
 ## From GitHub issue 1324
@@ -149,3 +148,11 @@ die showed a splice would also break the rim fillet's frozen names for
 every earlier pip (N1 records join depth). `DOCM-3` adds `Node::Union`
 and `DocEdit::SetMembers`; this item reopens only for a chain a flat
 operator cannot flatten that a user needs to edit from the middle.
+
+## Unparked (2026-09-06)
+
+DOCM-7 merged without a rewire edit — DM6 holds (a node's inputs are
+not rewired), so this is not blocked on a unit; it is the design
+conversation the section above describes, for Ev. Its nearest
+neighbour is `deletenode-strands-a-declare-payload-name` (a payload
+name is not a DAG edge, so `DeleteNode` strands it).

@@ -12,10 +12,13 @@
 //!   n = ceil(Δt/φ).
 //! - Adjacent-torus tightening: a face on a torus certifies through
 //!   the UV interpolation bound (crate docs), which needs boundary UV
-//!   steps ≤ its grid step h = √(δ_s/(3(R+2r))); a circle edge's
-//!   carrier parameter *is* the torus chart coordinate along it
-//!   (azimuth for rims, minor angle for meridians), so each adjacent
-//!   torus face adds n ≥ ceil(Δt/h).
+//!   steps within its grid steps `(h_u, h_v)` =
+//!   `sizing::torus_grid_steps`; a circle edge's carrier parameter
+//!   *is* the torus chart coordinate along it (azimuth for rims, minor
+//!   angle for meridians), so each adjacent torus face adds
+//!   n ≥ ceil(Δt/h) with `h` the step of the edge's OWN direction —
+//!   `sizing::torus_boundary_step` classifies it with the walk's own
+//!   rim/meridian rule and says what refuses.
 //! - Adjacent-NURBS tightening (M7, the trimmed-NURBS lane): the same
 //!   shape with a hull-derived Hessian — a described NURBS face
 //!   certifies through `crate::nurbs_cert`'s anisotropic bound, which
@@ -31,7 +34,8 @@
 //!
 //! An adjacent surface reaches a chord count only through
 //! [`adjacent_surface`], and the two tightenings above are its two
-//! call sites — the `Circle` arm's torus step and [`nurbs_tighten`].
+//! call sites — the `Circle` arm's torus boundary step and
+//! [`nurbs_tighten`].
 //! The claim is therefore about one function's callers, which a reader
 //! settles by grepping this file for the name. **Nothing in the tree
 //! checks it**: a third caller compiles green, and it would be a third
@@ -51,11 +55,10 @@ use geom::Curve3;
 use geom_brep::Pcurve;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
-use geom_core::spline::hull::derivative_coeffs;
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
-use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_step};
+use crate::sizing::{ceil_count, curvature_step, ellipse_step, sagitta_step, torus_boundary_step};
 use crate::types::TessellateError;
 
 /// The chord pass's output: every edge's chord-point ids and the
@@ -102,7 +105,9 @@ pub(crate) fn compute_chords(
                 let mut n =
                     ceil_count(span, sagitta_step(delta_s, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {
-                    if let Some(h) = torus_step(adjacent_surface(body, fk)?, delta_s) {
+                    if let Some(h) =
+                        torus_boundary_step(adjacent_surface(body, fk)?, curve, ek, delta_s)?
+                    {
                         n = n.max(ceil_count(span, h)?);
                     }
                 }
@@ -237,7 +242,7 @@ fn nurbs_chord_count(
                     })
                 })
                 .collect();
-            let q1 = derivative_coeffs(kv, &coeffs);
+            let q1 = kv.difference_coeffs(&coeffs);
             let inner = kv.derivative_knot_slice().to_vec();
             let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
                 return Err(TessellateError::UnsupportedCurve {
@@ -246,7 +251,7 @@ fn nurbs_chord_count(
                            materialise — outside the certified chord inventory",
                 });
             };
-            let q2 = derivative_coeffs(&kv1, &q1);
+            let q2 = kv1.difference_coeffs(&q1);
             let mut hull = RingInterval::poison();
             for (k, q) in q2.iter().enumerate() {
                 hull = if k == 0 {
@@ -288,7 +293,7 @@ fn nurbs_chord_count(
 /// `sup|C − c| ≤ max_active |P − c|` (positive weights — the licence
 /// the caller checked — make the rational basis a nonnegative
 /// partition of unity), `sup|Ã'|`/`sup|Ã″|`/`sup|w′|`/`sup|w″|` are
-/// iterated [`derivative_coeffs`] hulls, and the divisor is the span's
+/// iterated [`geom_core::spline::SplineCoeffs::derivative_coeffs`] hulls, and the divisor is the span's
 /// weight range: for a SUP bound with a nonnegative numerator the
 /// conservative division is by `w_min` (the mirror image of the speed
 /// meter's lower-bound `w_max` choice — the interval division by
@@ -338,8 +343,8 @@ fn rational_carrier_m_bound(
         .iter()
         .map(|w| RingInterval::point(*w))
         .collect();
-    let dw = derivative_coeffs(kv, &w_pts);
-    let ddw = derivative_coeffs(&kv1, &dw);
+    let dw = kv.difference_coeffs(&w_pts);
+    let ddw = kv1.difference_coeffs(&dw);
     let comp = |c: usize| -> Vec<RingInterval> {
         refined
             .control()
@@ -358,8 +363,8 @@ fn rational_carrier_m_bound(
     let a_nets: Vec<(Vec<RingInterval>, Vec<RingInterval>)> = (0..3)
         .map(|c| {
             let a = comp(c);
-            let da = derivative_coeffs(kv, &a);
-            let dda = derivative_coeffs(&kv1, &da);
+            let da = kv.difference_coeffs(&a);
+            let dda = kv1.difference_coeffs(&da);
             (da, dda)
         })
         .collect();

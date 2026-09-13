@@ -25,16 +25,19 @@
 //!   artifact); control points are the only generically-typed data.
 //! - **Positive weights**: `w > 0`, enforced at construction — the
 //!   convex-hull property every C9 hull bound stands on.
-//! - **The span contract**: evaluation restricted to a caller-supplied
-//!   span is total for every scalar; outside the span's interval it is
-//!   the polynomial extension (documented garbage-out), and a [`Span`]
-//!   this knot vector does not admit ([`KnotVector::admits`] — degree
-//!   agreement, an index within range, and that index naming a
-//!   nonempty span here) is poison. What that check cannot see is
-//!   *which* vector of the right shape the span came from, so a span
-//!   from a different vector of equal degree and equal control count,
-//!   nonempty at that index in both, is a wrong answer rather than a
-//!   refusal; the [`Span`] docs state the residue in full.
+//! - **The span contract**: a [`Span`] borrows the [`KnotVector`] it is
+//!   a proof about, and every door restricted to a span reads its
+//!   knots from that borrow and takes no second vector — so evaluation
+//!   in a span is total for every scalar with no pairing check and no
+//!   refusal, and outside the span's interval it is the polynomial
+//!   extension (documented garbage-out). One level down, a coefficient
+//!   array takes the same shape: a [`SplineCoeffs`] (or, with the
+//!   weights that license a rational claim, a [`RationalCoeffs`])
+//!   borrows the vector it was fitted against, is minted only by that
+//!   vector with the count checked once, and mints the [`Span`] its
+//!   hull doors read — so a same-length array from another curve has
+//!   no door to reach, and a span of another vector beside the pair
+//!   has no spelling ([`hull`]'s docs).
 
 pub mod algebra;
 pub mod basis;
@@ -46,6 +49,7 @@ pub mod net;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
 pub use compose::{BernsteinSpans, ComposeError, CompositeForm, CurveRingData, ImplicitSurface};
+pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs};
 pub use knots::{KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice};
 pub use locate::{SpanLocate, SpanSet};
 pub use net::TensorNet;
