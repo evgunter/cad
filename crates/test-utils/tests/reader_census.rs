@@ -92,7 +92,9 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/editor-core/src/eval/mod.rs",
-        disposition: Shared, // node-kind vocabulary census, code view
+        disposition: Shared, // node-kind vocabulary census, code view; and the
+                             // operand-door/expected-phrase census over this
+                             // file, eval/wire.rs and verbs/split.rs
     },
     Entry {
         path: "crates/editor-core/src/verbs/mod.rs",
