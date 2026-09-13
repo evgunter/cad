@@ -373,3 +373,53 @@ against the level each was run at. It does not re-run the instrument, so
 a row whose recorded `E0624` list or warning was itself mis-transcribed
 would survive it — the two corrections above were found by reading the
 code, which is the check that catches that.
+
+
+## State at 2026-09-13: instance 1 disposed (PR 2487), instance 2 live
+
+**Instance 1, `Frame::linear<T>`, is deleted.** Its measurement was run
+at level **A** — drop `pub` entirely, `warning: method 'linear' is never
+used`, no errors, whole workspace compiling — which is the level that
+answers *"any consumer anywhere"*, and the review confirmed the deletion
+is complete: nothing in code, `docs/`, any `crates/*/README.md` or
+`pncad.pyi` still names the method, and the surviving test's subject is
+`Frame::affine`, which still reds for real reasons.
+
+**Instance 2, the two `profile` `map_scalar` rungs, is untouched and
+outside WIRE's fence.** The dispositions differ for a reason worth
+keeping: `Frame::linear` **lost** its consumers and nothing owed it an
+existence, while `profile`'s rungs were **minted to a written
+convention**. That convention, and whether this project wants it to mint
+public doors ahead of consumers, is
+`work/props/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`
+— and neither it nor the opposing rule in `crates/pncad/src/lib.rs` is
+ratified, so it is ordinary engineering rather than Ev's.
+
+## The side-finding this row exported was FALSE, and the cause is the row's own instrument
+
+The first cut of PR 2487 reported that deleting `Frame::linear` left
+`Mat3::map` consumerless. It does not. `Affine3::map`'s body is
+`Affine3::from_parts(self.linear.map(&f), self.translation.map(&f))`,
+`self.linear` is a `Mat3<T>`, and that call **is** `Mat3::map`.
+
+Three things make this worth a section rather than a line:
+
+- **`Frame::affine`, the door this row's unit KEPT, reaches `Mat3::map`
+  through exactly that path.** The deletion orphaned nothing.
+- **The refutation was already on PROPS's own slate**, twice, in
+  `affine3-try-map-the-fallible-walk-has-no-kernel-door.md`: *"descends
+  through `Mat3::map` and `Vec3::map`."* The false claim was filed into
+  the directory that already contained its refutation.
+- **The instrument was right and the narration overstated it.** Level
+  **B** (`pub` → `pub(crate)`) answers *"any consumer outside this
+  crate"* and `E0624` cannot fire for a same-crate caller; the verdict
+  was then written as *"workspace-wide"*. **A missing `never used`
+  warning beside a level-B row is positive evidence of an in-crate
+  consumer**, and two rows in this table had no warning and were read as
+  if they did.
+
+Corrected by sweeping **every** level-B row rather than the two named,
+with each row's disposition recorded. What that sweep could not match is
+stated on the row: it re-reads verdicts against the level each was run
+at, and does not re-run the instrument, so a mis-transcribed `E0624`
+list or warning would survive it.
