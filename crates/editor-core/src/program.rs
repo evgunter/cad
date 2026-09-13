@@ -69,30 +69,62 @@ use geom_core::Tol;
 /// that reaches no witness there reds.
 macro_rules! document_vocabulary {
     (
-        $(#[$enum_meta:meta])*
-        $vis:vis enum $name:ident {
-            $(
-                $(#[$variant_meta:meta])*
-                $variant:ident $(( $($tuple:tt)* ))? $({ $($named:tt)* })?
-            ),* $(,)?
-        }
+        $(
+            $(#[$enum_meta:meta])*
+            $vis:vis enum $name:ident {
+                $(
+                    $(#[$variant_meta:meta])*
+                    $variant:ident $(( $($tuple:tt)* ))? $({ $($named:tt)* })?
+                ),* $(,)?
+            }
+        )*
     ) => {
-        $(#[$enum_meta])*
-        $vis enum $name {
-            $(
-                $(#[$variant_meta])*
-                $variant $(( $($tuple)* ))? $({ $($named)* })?
-            ),*
-        }
+        $(
+            $(#[$enum_meta])*
+            $vis enum $name {
+                $(
+                    $(#[$variant_meta])*
+                    $variant $(( $($tuple)* ))? $({ $($named)* })?
+                ),*
+            }
 
-        impl $name {
-            /// Every variant this vocabulary declares, in declaration
-            /// order — projected from the same declaration as the
-            /// variants, so a census keyed on it grows with the
-            /// vocabulary rather than behind it.
-            #[doc(hidden)]
-            pub const ALL_NAMES: &'static [&'static str] = &[$(stringify!($variant)),*];
-        }
+            impl $name {
+                /// Every variant this vocabulary declares, in
+                /// declaration order — projected from the same
+                /// declaration as the variants, so a census keyed on it
+                /// grows with the vocabulary rather than behind it.
+                #[doc(hidden)]
+                pub const ALL_NAMES: &'static [&'static str] = &[$(stringify!($variant)),*];
+            }
+        )*
+
+        /// **Every document vocabulary, projected rather than typed.**
+        ///
+        /// `ALL_NAMES` closes *a variant arrives without a witness*.
+        /// This closes the same failure one level up — *a VOCABULARY
+        /// arrives without a census* — and it has to be closed the same
+        /// way, because a roster typed out on the test side is a second
+        /// list kept in step with this one by hand, which is the defect
+        /// the whole macro exists to remove.
+        ///
+        /// It is projected from the single invocation below, and the
+        /// invocation is single BY CONSTRUCTION: this constant is
+        /// emitted once per invocation, so a second one does not
+        /// compile. Every vocabulary declared through this macro is
+        /// therefore in this list, and the census iterates the list
+        /// rather than naming its members.
+        ///
+        /// **What it does not cover, stated:** an enum declared with a
+        /// plain `pub enum` rather than through this macro is not a
+        /// document vocabulary as far as anything here can tell — it has
+        /// no `ALL_NAMES`, it is not in this list, and nothing detects
+        /// that it should have been. Closing that needs a walk over the
+        /// file's declarations, which is a text scan, which is what this
+        /// macro replaced and for a reason. Filed:
+        /// `work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+        #[doc(hidden)]
+        pub const DOCUMENT_VOCABULARIES: &[(&str, &[&str])] =
+            &[$((stringify!($name), $name::ALL_NAMES)),*];
     };
 }
 
@@ -116,9 +148,7 @@ pub enum ProgramTarget {
     /// no payload: there is exactly one declaration to make there.
     StartArriving,
 }
-}
 
-document_vocabulary! {
 /// One Expr-bearing recorded verb — the document-layer mirror of
 /// [`profile::Step`], structural tags literal, continuous args [`Expr`]
 /// (V2's table: coordinates/lengths/radii `Length`, angle/turn/phase
@@ -209,9 +239,7 @@ pub enum ProgramStep {
     /// `.to(Start)` — the seam-fillet close (structural).
     CloseTo,
 }
-}
 
-document_vocabulary! {
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
 /// arc-spec record): continuous fields [`Expr`], structural tags
 /// literal (`side`, `winding`, `Start`).

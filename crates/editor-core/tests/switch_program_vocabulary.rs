@@ -91,7 +91,10 @@
 //! variant's name can hide one from it. The three censuses over it are
 //! set equalities against what the CORPUS carries: not floors, and not
 //! against a witness function, so a declared member is a member the
-//! wire round-trip and the slot bijection actually walk.
+//! wire round-trip and the slot bijection actually walk. Which
+//! vocabularies get censused is projected from the same invocation:
+//! `program::DOCUMENT_VOCABULARIES`, so a fourth arrives in the census
+//! rather than waiting for a fourth call site to be written.
 //!
 //! The corpus below is deliberately NOT a legal lattice walk. Nothing
 //! here replays: resolution, persistence and slot addressing are all
@@ -530,7 +533,7 @@ fn every_table_verb_is_a_document_program() {
 /// uncovered: a form added to `ProgramTarget` and to no other
 /// vocabulary is invisible here — `res_target` resolves it into one of
 /// the kernel forms and `TargetKind::ALL` stays fully witnessed — so
-/// [`every_document_target_is_witnessed`] anchors on
+/// [`every_document_vocabulary_member_is_witnessed`] anchors on
 /// `ProgramTarget::ALL_NAMES` instead. Each of the three vocabularies
 /// has that pair.
 #[test]
@@ -633,8 +636,8 @@ fn every_target_form_is_a_document_program() {
 /// The anchor is the KERNEL vocabulary and only it, which is the right
 /// anchor for the failure above and says nothing about a mode the
 /// DOCUMENT vocabulary gains alone.
-/// [`every_document_arc_spec_is_witnessed`] is that direction, keyed on
-/// `ProgramArcData::ALL_NAMES`.
+/// [`every_document_vocabulary_member_is_witnessed`] is that
+/// direction, keyed on `ProgramArcData::ALL_NAMES`.
 #[test]
 fn every_arc_mode_is_a_document_program() {
     for mode in ArcMode::ALL {
@@ -836,6 +839,15 @@ fn corpus_vocabulary() -> (Vec<String>, Vec<String>, Vec<String>) {
 /// at once: every site the compiler named was dischargeable by
 /// laundering, and no witness was acquired anywhere.
 ///
+/// # The roster of vocabularies is projected too
+///
+/// This door is called from one place, over
+/// `program::DOCUMENT_VOCABULARIES` — the list the same macro
+/// invocation projects as it declares the enums. Three calls naming
+/// three vocabularies would have closed *a variant arrives without a
+/// witness* while leaving *a vocabulary arrives without a census* open,
+/// which is this file's own defect one level up.
+///
 /// # Why the anchor is `ALL_NAMES`
 ///
 /// It is projected from each enum's declaration by `program.rs`'s
@@ -892,36 +904,64 @@ fn every_declared_variant_is_witnessed(vocabulary: &str, declared: &[&str], witn
     );
 }
 
-/// **The verb census's mirror**, keyed on the document vocabulary.
+/// **The census over every document vocabulary at once**, and the
+/// bijection one level up from the one above.
 ///
-/// [`chain_steps`] is a `Vec` and forces no verb — its own doc says so
-/// — so `Verb::ALL` being fully witnessed says nothing about a verb
-/// `ProgramStep` gains alone. `res_step` would resolve it into an
-/// existing kernel verb and every clause above would stay green.
-#[test]
-fn every_document_verb_is_witnessed() {
-    let (verbs, _, _) = corpus_vocabulary();
-    every_declared_variant_is_witnessed("ProgramStep", ProgramStep::ALL_NAMES, &verbs);
-}
-
-/// **The mode census's mirror**, keyed on the document vocabulary.
-#[test]
-fn every_document_arc_spec_is_witnessed() {
-    let (_, specs, _) = corpus_vocabulary();
-    every_declared_variant_is_witnessed("ProgramArcData", ProgramArcData::ALL_NAMES, &specs);
-}
-
-/// **The target census's mirror**, keyed on the document vocabulary.
+/// `ALL_NAMES` says which VARIANTS a vocabulary declares.
+/// `DOCUMENT_VOCABULARIES` says which VOCABULARIES exist, projected
+/// from the same single macro invocation that declares them — so a
+/// fourth document enum declared through `document_vocabulary!` arrives
+/// in this loop rather than waiting for someone to remember a fourth
+/// call site. Three call sites naming three vocabularies would have
+/// been a hand-written roster over a projected set, which is the defect
+/// this file exists to catch, one level up from where it catches it.
 ///
-/// `res_target` is the arm that can launder a document-only form into
-/// an existing kernel one — a new `ProgramTarget` variant resolving to
-/// `Start` would close a loop declaring something the author never
-/// wrote, with `TargetKind::ALL` still fully witnessed and every other
-/// clause in this file green.
+/// The witness sets are the hand-written part, and they are the part
+/// that cannot be projected: only this suite knows which walk of the
+/// corpus answers for which vocabulary. **So they are bijected too** —
+/// the names this test can supply a witness set for and the names
+/// `DOCUMENT_VOCABULARIES` carries are compared as sets, and a
+/// vocabulary with no witness set reds with instructions rather than
+/// going uncensused.
+///
+/// `res_step`, `res_spec` and `res_target` are the three construct hops
+/// this covers; each matches its document vocabulary and builds the
+/// kernel one, so each can launder a document-only variant into an
+/// existing kernel form with every kernel-anchored clause in this file
+/// still green.
 #[test]
-fn every_document_target_is_witnessed() {
-    let (_, _, targets) = corpus_vocabulary();
-    every_declared_variant_is_witnessed("ProgramTarget", ProgramTarget::ALL_NAMES, &targets);
+fn every_document_vocabulary_member_is_witnessed() {
+    let (verbs, specs, targets) = corpus_vocabulary();
+    let witnesses: Vec<(&str, &Vec<String>)> = vec![
+        ("ProgramStep", &verbs),
+        ("ProgramArcData", &specs),
+        ("ProgramTarget", &targets),
+    ];
+
+    let declared: Vec<&str> = editor_core::program::DOCUMENT_VOCABULARIES
+        .iter()
+        .map(|(name, _)| *name)
+        .collect();
+    let supplied: Vec<&str> = witnesses.iter().map(|(name, _)| *name).collect();
+    let uncensused: Vec<&&str> = declared.iter().filter(|d| !supplied.contains(*d)).collect();
+    let stale: Vec<&&str> = supplied.iter().filter(|w| !declared.contains(*w)).collect();
+    assert!(
+        uncensused.is_empty() && stale.is_empty(),
+        "the document vocabularies this suite can witness are not the vocabularies \
+         `document_vocabulary!` declares.\n  \
+         declared and uncensused — add the walk of `corpus()` that answers for it to \
+         `corpus_vocabulary` and its line to `witnesses` above; until then nothing in \
+         this file says anything about it: {uncensused:?}\n  \
+         witnessed and no longer declared — delete the line: {stale:?}"
+    );
+
+    for (vocabulary, names) in editor_core::program::DOCUMENT_VOCABULARIES {
+        let (_, witnessed) = witnesses
+            .iter()
+            .find(|(name, _)| name == vocabulary)
+            .expect("the set equality above admits only vocabularies with a witness set");
+        every_declared_variant_is_witnessed(vocabulary, names, witnessed);
+    }
 }
 
 /// The persisted vocabulary is the document vocabulary: every verb and
