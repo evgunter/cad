@@ -2,10 +2,11 @@
 id: fillet-escalation-site-has-no-producer
 kind: unit
 title: The six profile fillet recourse sentences are dead: EscalationSite::Fillet has no producer and PathError::Escalated has no fillet arm
-status: dispatched
+status: review
 opened: 2026-09-04
 refs: [S11]
 branch: blend/12-fillet-recourse-arm
+pr: 2508
 ---
 
 ## The class
