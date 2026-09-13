@@ -770,3 +770,13 @@ dispatched on the union (`/home/user/blend-briefs/fix-11-brief.md`):
 the reason corrected at every site, the pick routed through
 `nearest_candidate`, the roster and docs made true, a residue filed
 for the recourse's metering; both probe branches adopted; delta by R1.
+
+**Block BLEND-B1 concluded (2026-09-13, ~07:20 UTC)** with unit 9's
+merge (PR #2491, sample #181): three slots (6 OPUS, 7 FABLE, 9 OPUS),
+three concurrent duals on frozen heads, three implementer-inherited
+fix passes, three deltas by R1; zero counted tally candidates (one
+recorded at slot 2 and excluded under 3(d)); the v6 tally unchanged.
+The branch-side record folds into main on PR #2500 with the six stored
+briefs. Block B2 is fully dispatched: unit 8 (slot 0, OPUS) opened on
+B1's close; unit 10 (slot 1, OPUS) implementing; unit 11 (slot 2,
+FABLE) in its fix pass. Unit 9's lanes reclaimed; 21 GB free.
