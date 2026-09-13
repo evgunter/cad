@@ -71,3 +71,31 @@ add the row that builds a near-osculating concave blend and asserts the typed
 refusal. Deliberately NOT done on BLEND-9: that unit's spec scopes the change
 to the extrude strut arm and the revolve latitude join, and constrains
 `dihedral.rs` to the wrapper.
+
+## Landed
+
+PR 2509. `attach_contact`'s intrinsic arm routes through
+`geom_brep::must_carry_over_edge` with the exact contact carrier, its
+window, `edge_extent` and the band: `JetDeterminate` stores
+`TangentIntersection`; `UnderDetermined` stores
+`EdgeDescriptionSpec::chart(s1)` — pinned through the public door by
+`review_contact_edge_must_carry_r1_probes::r1_a_slim_wedges_corner_arcs_reach_the_in_band_and_under_determined_verdicts`
+(a slim wedge's corner arcs, whose extent is the lever); `InBand`
+refuses `BlendError::Escalated { site: BlendSite::Link { edge: the
+requested link } }` carrying `tangent_second_order`, rendered with
+`FILLET3_CONTACT_RECOURSE`:
+
+> the contact's second-order separation is levered by the blend radius,
+> in a direction the site fixes: on a plane support it grows with the
+> radius; on a support curving the band's own way it peaks at half the
+> support's radius of curvature, and past that peak only a smaller
+> radius raises it; on a slim corner arc the arc's own extent is the
+> lever, and a smaller radius leaves the join under-determined and
+> builds it conventionally — move the radius that way, blend a larger
+> feature, or lower the tolerance
+
+The corpus's 158 contact edges are all jet-determinate and no stored
+description moved. Residues filed:
+`ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle`,
+`contact-edge-arm-is-picked-from-the-carrier-kind-not-the-dihedral`
+(this slate), `work/issues/dome-clearance-screen-escalates-an-invalid-margin`.
