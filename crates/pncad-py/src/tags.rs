@@ -118,6 +118,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
         PathErrorKind::NoCornerForFillet => "no_corner_for_fillet",
         PathErrorKind::NoCornerOfPair => "no_corner_of_pair",
+        PathErrorKind::FilletArcCannotCarryTangency => "fillet_arc_cannot_carry_tangency",
         PathErrorKind::FilletOffsetLeverTooShort => "fillet_offset_lever_too_short",
         PathErrorKind::ArcLegOnOpenFillet => "arc_leg_on_open_fillet",
         PathErrorKind::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",

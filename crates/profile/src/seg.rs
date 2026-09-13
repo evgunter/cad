@@ -75,18 +75,39 @@ pub(crate) struct ArcGeom<T: Real> {
     pub turn: Sign,
 }
 
-/// Why a segment could not be built.
-pub(crate) enum SegIssue {
+/// Why a segment could not be built, each arm carrying the margin the
+/// predicate that refused it classified — what a caller's sentence
+/// names when it reports the refusal.
+pub(crate) enum SegIssue<T: Real> {
     /// The chord is degenerate: consecutive vertices coincident at
     /// tolerance (`vertex_separation` classified Zero — or Negative,
     /// unreachable for a true distance but mapped here defensively).
-    Degenerate,
+    Degenerate {
+        /// The chord length |b − a|, meters.
+        margin: T,
+    },
     /// The arc is within tolerance of a full circle
     /// (`arc_diameter_clearance` classified Zero — or Negative, only
     /// reachable through rounding at the boundary).
-    NearFull,
+    NearFull {
+        /// The diameter clearance 2r − |a − apex|, meters.
+        margin: T,
+    },
     /// A classification landed in the ambiguity band or was poisoned.
     Escalated(Indeterminate),
+}
+
+impl<T: Real> SegIssue<T> {
+    /// The predicate that refused the segment — the name the run's own
+    /// funnel recorded, so a caller reporting the refusal names what
+    /// the classification named.
+    pub(crate) fn predicate(&self) -> &'static str {
+        match self {
+            Self::Degenerate { .. } => "vertex_separation",
+            Self::NearFull { .. } => "arc_diameter_clearance",
+            Self::Escalated(source) => source.predicate.unwrap_or("<unnamed>"),
+        }
+    }
 }
 
 /// The chord frame of the segment a → b: its length, chord vector,
@@ -187,12 +208,12 @@ pub(crate) fn build_seg<T: Decide>(
     b: Point2<T>,
     bulge: T,
     band: Band,
-) -> Result<Seg<T>, SegIssue> {
+) -> Result<Seg<T>, SegIssue<T>> {
     let frame = ChordFrame::of(a, b);
     let len = frame.len;
     match decide("vertex_separation", Margin::of(len), band).map_err(SegIssue::Escalated)? {
         Sign::Positive => {}
-        Sign::Zero | Sign::Negative => return Err(SegIssue::Degenerate),
+        Sign::Zero | Sign::Negative => return Err(SegIssue::Degenerate { margin: len }),
     }
     let half = T::from_f64(0.5);
     let sagitta = len * bulge * half;
@@ -208,15 +229,14 @@ pub(crate) fn build_seg<T: Decide>(
             let ArcCarrier { center, radius } = arc_carrier(&frame, bulge);
             let apex = frame.mid - frame.normal * sagitta;
             let span_chord = a.distance(apex);
-            match decide(
-                "arc_diameter_clearance",
-                Margin::of(radius + radius - span_chord),
-                band,
-            )
-            .map_err(SegIssue::Escalated)?
+            let clearance = radius + radius - span_chord;
+            match decide("arc_diameter_clearance", Margin::of(clearance), band)
+                .map_err(SegIssue::Escalated)?
             {
                 Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(SegIssue::NearFull),
+                Sign::Zero | Sign::Negative => {
+                    return Err(SegIssue::NearFull { margin: clearance });
+                }
             }
             SegKind::Arc(ArcGeom {
                 center,
@@ -241,8 +261,9 @@ pub(crate) fn build_seg<T: Decide>(
 /// **`chord_side`** — which side of a segment's (infinite) chord line a
 /// point lies on. Margin: the signed perpendicular distance
 /// perp_dot(û, q − a) (meters; positive = left of the chord direction).
-fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<Sign, Indeterminate> {
-    decide("chord_side", Margin::of(s.unit.perp_dot(q - s.a)), band)
+fn chord_side<T: Decide>(s: &Seg<T>, q: Point2<T>, band: Band) -> Result<(Sign, T), Indeterminate> {
+    let margin = s.unit.perp_dot(q - s.a);
+    Ok((decide("chord_side", Margin::of(margin), band)?, margin))
 }
 
 /// **`line_span`** — whether a point *known to lie on the carrier line*
@@ -315,6 +336,19 @@ pub(crate) enum JointClass {
     SameCarrier,
 }
 
+/// A classified joint: the class, plus the predicate the funnel stopped
+/// at and the margin it classified. A caller refusing a joint names
+/// what the classification named, rather than re-deriving a second
+/// expression for the same question.
+pub(crate) struct JointReading<T: Real> {
+    /// What the two carriers do at the shared vertex.
+    pub class: JointClass,
+    /// The predicate that decided it.
+    pub predicate: &'static str,
+    /// The margin that predicate classified, meters.
+    pub margin: T,
+}
+
 /// Classifies the joint between two adjacent segments — `prev` arrives
 /// at the shared vertex, `next` leaves it (the classification is
 /// symmetric; the roles only name the arguments). This is the single
@@ -334,16 +368,21 @@ pub(crate) fn joint_tangency<T: Decide>(
     prev: &Seg<T>,
     next: &Seg<T>,
     band: Band,
-) -> Result<JointClass, Indeterminate> {
+) -> Result<JointReading<T>, Indeterminate> {
     match (&prev.kind, &next.kind) {
         (SegKind::Line, SegKind::Line) => {
             // Distinct lines are never tangent; the only Zero question
             // is carrier identity (collinearity). The shared vertex is
             // on both carriers, so identity ⟺ the far endpoint of one
             // lies on the other's carrier line.
-            Ok(match chord_side(prev, next.b, band)? {
-                Sign::Zero => JointClass::SameCarrier,
-                Sign::Positive | Sign::Negative => JointClass::Transversal,
+            let (side, margin) = chord_side(prev, next.b, band)?;
+            Ok(JointReading {
+                class: match side {
+                    Sign::Zero => JointClass::SameCarrier,
+                    Sign::Positive | Sign::Negative => JointClass::Transversal,
+                },
+                predicate: "chord_side",
+                margin,
             })
         }
         (SegKind::Line, SegKind::Arc(g)) => line_circle_joint(prev, g, band),
@@ -351,30 +390,46 @@ pub(crate) fn joint_tangency<T: Decide>(
         (SegKind::Arc(g1), SegKind::Arc(g2)) => {
             let d = g1.center.distance(g2.center);
             let dr = (g1.radius - g2.radius).abs();
-            match decide("carrier_circles_identity", Margin::of(d + dr), band)? {
-                Sign::Zero | Sign::Negative => Ok(JointClass::SameCarrier),
+            let identity = d + dr;
+            match decide("carrier_circles_identity", Margin::of(identity), band)? {
+                Sign::Zero | Sign::Negative => Ok(JointReading {
+                    class: JointClass::SameCarrier,
+                    predicate: "carrier_circles_identity",
+                    margin: identity,
+                }),
                 Sign::Positive => {
-                    match decide(
-                        "carrier_circles_external",
-                        Margin::of(d - (g1.radius + g2.radius)),
-                        band,
-                    )? {
-                        Sign::Zero => Ok(JointClass::Tangent),
+                    let external = d - (g1.radius + g2.radius);
+                    match decide("carrier_circles_external", Margin::of(external), band)? {
+                        Sign::Zero => Ok(JointReading {
+                            class: JointClass::Tangent,
+                            predicate: "carrier_circles_external",
+                            margin: external,
+                        }),
                         // Positive external clearance (disjoint) is
                         // unreachable for carriers sharing a vertex —
                         // defensively definite non-tangency.
-                        Sign::Positive => Ok(JointClass::Transversal),
+                        Sign::Positive => Ok(JointReading {
+                            class: JointClass::Transversal,
+                            predicate: "carrier_circles_external",
+                            margin: external,
+                        }),
                         Sign::Negative => {
-                            Ok(
-                                match decide("carrier_circles_internal", Margin::of(d - dr), band)?
-                                {
+                            let internal = d - dr;
+                            Ok(JointReading {
+                                class: match decide(
+                                    "carrier_circles_internal",
+                                    Margin::of(internal),
+                                    band,
+                                )? {
                                     Sign::Zero => JointClass::Tangent,
                                     Sign::Positive => JointClass::Transversal,
                                     // Nested carriers: unreachable with a
                                     // shared vertex; defensive.
                                     Sign::Negative => JointClass::Transversal,
                                 },
-                            )
+                                predicate: "carrier_circles_internal",
+                                margin: internal,
+                            })
                         }
                     }
                 }
@@ -389,17 +444,20 @@ fn line_circle_joint<T: Decide>(
     line: &Seg<T>,
     g: &ArcGeom<T>,
     band: Band,
-) -> Result<JointClass, Indeterminate> {
+) -> Result<JointReading<T>, Indeterminate> {
     let h = line.unit.perp_dot(g.center - line.a);
-    Ok(
-        match decide("carrier_line_circle", Margin::of(g.radius - h.abs()), band)? {
+    let margin = g.radius - h.abs();
+    Ok(JointReading {
+        class: match decide("carrier_line_circle", Margin::of(margin), band)? {
             Sign::Zero => JointClass::Tangent,
             Sign::Positive => JointClass::Transversal,
             // A definitely-disjoint carrier pair cannot share a vertex —
             // defensively definite non-tangency.
             Sign::Negative => JointClass::Transversal,
         },
-    )
+        predicate: "carrier_line_circle",
+        margin,
+    })
 }
 
 /// The kind of an isolated contact between two segments.
@@ -479,8 +537,8 @@ fn line_line<T: Decide>(
     s2: &Seg<T>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
-    let o_c = chord_side(s1, s2.a, band)?;
-    let o_d = chord_side(s1, s2.b, band)?;
+    let (o_c, _) = chord_side(s1, s2.a, band)?;
+    let (o_d, _) = chord_side(s1, s2.b, band)?;
     if o_c == Sign::Zero && o_d == Sign::Zero {
         // Collinear carriers: 1-D overlap on s1's arc-length axis.
         let tc = (s2.a - s1.a).dot(s1.unit);
@@ -501,8 +559,8 @@ fn line_line<T: Decide>(
             },
         );
     }
-    let o_a = chord_side(s2, s1.a, band)?;
-    let o_b = chord_side(s2, s1.b, band)?;
+    let (o_a, _) = chord_side(s2, s1.a, band)?;
+    let (o_b, _) = chord_side(s2, s1.b, band)?;
     let opposite = |x: Sign, y: Sign| {
         matches!(
             (x, y),

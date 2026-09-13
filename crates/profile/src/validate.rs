@@ -1464,8 +1464,8 @@ fn build_loop_segs<T: Decide>(
                 segment_index: k,
             };
             match issue {
-                SegIssue::Degenerate => ProfileError::DegenerateSegment(at),
-                SegIssue::NearFull => ProfileError::NearFullArc(at),
+                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
+                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
                 SegIssue::Escalated(source) => ProfileError::Escalated {
                     site: EscalationSite::Segment(at),
                     source,
@@ -1593,12 +1593,12 @@ fn judge_joints<T: Decide>(
             segment_index: joint,
         };
         let declared = lp.tangent_joints.contains(&joint);
-        let class = seg::joint_tangency(&segs[prev], &segs[joint], band).map_err(|source| {
-            ProfileError::Escalated {
+        let class = seg::joint_tangency(&segs[prev], &segs[joint], band)
+            .map_err(|source| ProfileError::Escalated {
                 site: EscalationSite::SegmentPair(first, second),
                 source,
-            }
-        })?;
+            })?
+            .class;
         match (class, declared) {
             (seg::JointClass::Tangent, false) => {
                 return Err(ProfileError::UndeclaredTangency {
@@ -1777,8 +1777,8 @@ fn canonicalize_loop<T: Decide>(
                 segment_index: k,
             };
             match issue {
-                SegIssue::Degenerate => ProfileError::DegenerateSegment(at),
-                SegIssue::NearFull => ProfileError::NearFullArc(at),
+                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
+                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
                 // The recorded shape is a consumed decision, so a
                 // guided pass names the segment whose classification
                 // went unconfirmed instead of the bare segment site.

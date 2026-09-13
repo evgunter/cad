@@ -4159,6 +4159,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_arc_spec",
             "escalated",
             "far_end_anchor_without_fillet",
+            "fillet_arc_cannot_carry_tangency",
             "fillet_offset_lever_too_short",
             "guided_structure",
             "junction_cusp",

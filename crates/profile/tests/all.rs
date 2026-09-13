@@ -92,6 +92,8 @@ mod declared_tangency;
 mod enclose_refusal_r2_probes;
 #[path = "fillet_recourse_followability.rs"]
 mod fillet_recourse_followability;
+#[path = "fillet_stored_tangency.rs"]
+mod fillet_stored_tangency;
 #[path = "generic_replay.rs"]
 mod generic_replay;
 #[path = "guided_replay.rs"]
