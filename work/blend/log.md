@@ -485,3 +485,14 @@ dispatched to the implementer's lane on the union
 R1 on the fixed head, then state-sync and merge, then the A/B row
 with its sample number. Reviewer targets reclaimed for unit 7's lane;
 reviewer worktrees stay until merge.
+
+**Outage (2026-09-08 ~19:10Z → 2026-09-13):** a session usage limit
+killed both running lanes minutes after dispatch — unit 6's fix pass
+after its fix commit and local main-merge (nothing pushed; the branch
+stayed at `41b45adc`) and unit 7 mid-Phase-1 with uncommitted edits.
+Both worktrees and targets survived; both lanes resumed on 2026-09-13
+from their own state (unit 7 told to checkpoint-commit first). Main
+moved ~1,700 commits in between; both re-merge it before pushing. The
+unit 6 pair's review arms both ran uninterrupted before the outage,
+so the pair still counts; the fix and delta phases are annotated on
+wall-clock, per the BLEND-7 precedent.
