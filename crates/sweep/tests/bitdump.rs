@@ -7,7 +7,8 @@
 //! sphere–cone and cone–plane rims, the waisted body's cone–plane rims),
 //! the RULED band (the rod with a flat milled along it — the only row
 //! that reaches `ruled_phase`, whose transverse-cap carve no other
-//! fixture here executes),
+//! fixture here executes), the repaired boss's base rim (the HOSTLESS
+//! crossing on a ring-free host),
 //! and one CONCAVE rim per closed-rim door (the waist annulus, the
 //! `cube ∪ ball` boss's ladder)
 //! — and writes a bit-faithful text dump of every output body to
@@ -339,6 +340,15 @@ fn bitdump_convex_closed_rims() {
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
         text.push_str(&dump_rim(name, &body, &arcs, r));
     }
+    // The repaired boss's BASE rim: the HOSTLESS crossing, whose host is
+    // a ring-free disc — the one convex closed rim above that reaches
+    // `HostFoot::Strut` rather than a seam split.
+    let mut body = sweep::test_support::boss(true, tol);
+    body.merge_coplanar_faces(tol)
+        .expect("the pole-split caps repair");
+    let arcs = rim_arcs_at(&body, 1.0, 0.0);
+    assert_eq!(arcs.len(), 2, "the repaired boss's base rim is two arcs");
+    text.push_str(&dump_rim("boss base rim", &body, &arcs, r));
     save(&dir, "convex_closed_rims", &text);
 }
 
