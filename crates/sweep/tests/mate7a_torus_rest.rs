@@ -382,18 +382,34 @@ fn a_partly_covered_torus_pair_still_gates_on_the_uncovered_one() {
 
 /// **Where the lane stops once the gate is past, held still.** The
 /// admitted pair reaches the crossing layer and refuses at the
-/// curved-pierce frontier: every edge of a torus-walled body is a
-/// CIRCLE, and the circle-versus-face clearance enclosure the frontier
-/// consults has no torus arm, so it declines before the declared-cover
-/// rung behind it is consulted at all. This is a boundary, not a
-/// verdict about the declaration — and it is asserted so that growing
-/// that enclosure shows up here as a change rather than as silence.
+/// curved-pierce frontier — and the ROW is the same while the CAUSE
+/// has moved one rung on.
+///
+/// It used to be that every edge of a torus-walled body is a CIRCLE
+/// and the clearance enclosure had no torus arm at all, so the rung
+/// declined on a `None` before the declared-cover rung behind it was
+/// consulted. The enclosure has a torus arm now
+/// (`geom_brep::circle_arc_residual_range`), so the rung DECIDES —
+/// and on this fixture, two coincident tori, it decides
+/// definitely-NEGATIVE: the residual is identically zero along a seam
+/// meridian, so the sampled enclosure is `±charge` and its
+/// one-sidedness margin is `−charge`, which is 1.8e-5 m and outruns
+/// every eps cell in the run matrix. The rung takes the frontier at
+/// its `Zero | Negative` arm instead of at the `None` door.
+///
+/// The declared-cover rung behind it needs a `Zero`, and a sampled
+/// enclosure of a COINCIDENT pair cannot produce one at any `K`: the
+/// charge falls as `K⁻²` and the band does not follow it. That is
+/// `work/curved/torus-coincident-pair-cannot-reach-the-covered-rung`,
+/// and the number is pinned in `geom-brep`'s
+/// `a_coincident_torus_pair_encloses_pm_charge_and_reads_negative`.
 #[test]
 fn the_admitted_torus_lane_stops_at_the_curved_pierce_frontier() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Rest);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("the circle-versus-torus clearance has no enclosure yet");
+        .expect_err("a coincident torus pair still has no crossing verdict");
+    println!("the admitted torus lane answers {err:?}");
     assert!(
         matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
         "the lane's stopping point is the curved-pierce frontier: {err:?}"
