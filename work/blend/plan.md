@@ -75,7 +75,7 @@ H, in dependency order:
 8. `ladder-rim-phase-may-retire-a-new-split-key` — a fixture whose
    meridian runs pole-to-rim first, then the `split_rim` guard shape
    applied to the ladder path. Spec `docs/BLEND-8-SPEC.md`; block
-   BLEND-B2's first slot.
+   BLEND-B2 slot 0.
 9. `smooth-arm-siblings-disagree-on-the-in-band-case` — the in-band
    policy is the predicate's documented contract (in-band escalates
    typed; a behaviour change for revolve), one wrapper beside
@@ -83,10 +83,12 @@ H, in dependency order:
    `docs/BLEND-9-SPEC.md`; block BLEND-B1 slot 2.
 10. `path-fillet-door-validator-tangency-disagree` — which side is
     right across four decades of turn angle; the door's stored arc or
-    the validator's tangency test moves.
+    the validator's tangency test moves. Spec `docs/BLEND-10-SPEC.md`;
+    block BLEND-B2 slot 1 (S-BOOL seam announced at dispatch).
 11. `overrun-attribution-picks-the-first-candidate` — a stated rule
     for which corner-side candidate is reported, the FILLET-ATTR
-    shape one level down.
+    shape one level down: the nearest fit. Spec `docs/BLEND-11-SPEC.md`;
+    block BLEND-B2 slot 2 (S-BOOL seam announced at dispatch).
 12. `fillet-escalation-site-has-no-producer` — one of the three
     dispositions in the item (a fillet arm on `PathError::Escalated`,
     route through `ProfileError` at the `Fillet` site, or retire the

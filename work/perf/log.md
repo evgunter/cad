@@ -1219,6 +1219,27 @@ across `topo/src`, `SweepTrace`/`SweepPairs`, `planar_face`'s linear
 find per crossing, the backstop's 520 lines). The fix pass is with
 the implementer; both reviewer lanes reclaimed (20 GB free).
 
+## PERF-12 lands on TOPO ground (2026-09-13)
+
+Unit `PERF-12` (branch `perf/12-census-bvh`) changes `topo`'s at-rest
+census (`crates/topo/src/census.rs`, `curved`'s territory): the five
+vertex-granular coincidence sweeps examine the candidates of a BVH
+pre-filter (`census::Trees`, `census::Candidates`; one tree per entity
+class over the boolean's own `face_box`/`edge_box` and padded vertex
+points) instead of every pair, and both arms of the cross-solid
+backstop take the same pre-filter over their reach and extent boxes;
+an idealized/realized differential door (`census_traces`) rides on the
+boolean sweep's terms. A pair the filter clears is decided apart by the
+box answer (pad ≥ escalate + 2·zero), so the exact sweep's
+escalations and refusals about the carriers of such a pair are not
+raised — the boolean sweep's own named divergence, recorded at
+`validate_pseudomanifold`, `CensusEscalated` and the README row. The three
+`validate` doors that reach the census gain `Bounds`, ratified into the
+bounds allowlist under the 2026-07-29 driver amendment beside
+`separation`. Pins: verdict goldens per ε row over the corpus, the heat
+sink at 10/40/160 fins and the STEP fixtures (cut on main first), and
+the differential suites in `editor-core` and `topo`.
+
 ## PERF-11 lands on PROPS/TOPO ground (2026-09-13)
 
 **Announcing a `crates/topo/src/props.rs` edit in PROPS' territory**
