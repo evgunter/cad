@@ -63,7 +63,7 @@ was re-measured with it open:
   the constructor's own node, but the CENTRE the predicate asks about
   is re-derived by `build_seg` from `(a, b, bulge)` and the constructor
   does not hold the far endpoint that closed form needs. Filed as
-  `work/m10/fillet-tangency-is-not-the-constructors-node`.
+  `work/blend/fillet-tangency-is-not-the-constructors-node`.
 - The pad's whole-certifying ceiling is unmoved by the door at
   ε = 1e-6, 1e-9 and 1e-12 alike, and what bounds it at ceiling + δ is
   `carrier_matches_mapped_source`, not `carrier_line_circle` and not

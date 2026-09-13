@@ -174,7 +174,7 @@
 //! the RIM identity too — the same rule applied to the second
 //! constructor, not to the second identity. Rim only: neither builder
 //! is handed the far endpoint, so the span identity has nothing to be
-//! stated about (`work/m10/revolve-carriers-state-only-the-rim`).
+//! stated about (`work/blend/revolve-carriers-state-only-the-rim`).
 //!
 //! **Where the door may be called is an ALLOWLIST**, not a
 //! convention: `scripts/gates/register-equal-allowlist.sh` names the
@@ -204,7 +204,7 @@
 //! `MappedCurve` pushforward at the certifier's own samples, an
 //! identity between two INDEPENDENTLY BUILT objects that meet only
 //! where their trig collapses
-//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). The
+//! (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`). The
 //! door reaches its `i = 0` sample and no other — until the trig is
 //! written in closed form, which is the section below: with rule D on,
 //! the door is what closes that residual at EVERY sample, and the two
@@ -290,7 +290,7 @@
 //! The plate's and the annulus's whole-certifying CEILINGS stopped
 //! scaling with ε — each is a fraction of the document's real study —
 //! and what bounds each is DEPENDENCY WIDENING of a real margin, not a
-//! flip (`work/m10/real-margin-dependency-widening`, the class E12
+//! flip (`work/sym/real-margin-dependency-widening`, the class E12
 //! hands the ceiling to). On the plate the bound is the study's own web
 //! assertion, whose margin `web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b`
 //! is AFFINE: its true range at scale `s` of the study is `1e-4 ±
@@ -325,12 +325,12 @@
 //! both reviews, by execution). What they wait on is the scaffold
 //! residual's retirement for arc carriers (PCURVE/D3). On the pad the
 //! fillet's identity-shaped `line_span` is a `Min` over frozen
-//! 60-term, degree-16 products (`work/m10/symbolic-tier-census`).
+//! 60-term, degree-16 products (`work/sym/symbolic-tier-census`).
 //! And the reach is the UNIT bulge: a parameter bulge is outside the
 //! mechanism (R2's D-tab: `3.52e2 · ε` on and off alike) and a literal
 //! bulge other than 1 leaves residue (R1's boss at bulge 2: 6 of 54
 //! and 27 of 90 still numeric, ceiling unmoved) —
-//! `work/m10/rule-d-reaches-the-unit-bulge-only`.
+//! `work/sym/rule-d-reaches-the-unit-bulge-only`.
 //!
 //! **What it costs** (release, one whole-box leaf, algebra off → on):
 //! plate at `1e2 · ε` 0.15 → 0.21 s; plate at its REAL study 0.02 →
@@ -398,7 +398,7 @@
 //! funnel door, one for identity/gap-shaped string literals — and their
 //! union minus the bare filter words and the test-harness names. **107
 //! names.** The rule is written out in
-//! `work/m10/symbolic-tier-census.md`, which also carries the full
+//! `work/sym/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
 //! Only the counts and the two families that matter are here.
 //!
@@ -466,7 +466,7 @@
 //! name, which says the instrument answers "which identity-shaped
 //! predicates does the tier reach" and NOT "which predicates bound
 //! certification". Those are different populations and the second one is
-//! `work/m10/real-margin-dependency-widening.md`.
+//! `work/sym/real-margin-dependency-widening.md`.
 //!
 //! # No session, no tier — and what that does NOT mean
 //!
@@ -1025,8 +1025,9 @@ struct Rat {
 /// the annulus's ceilings still move by the factors measured at
 /// `i128`, the worst forms freeze again, and the plate's rim residual
 /// (degree 12 in a 53-bit nominal, ~640 bits) does NOT fit: that is
-/// the measured trade, recorded on
-/// `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`.
+/// the measured trade, recorded on M10's closed
+/// `plate-rim-residual-needs-the-wide-coefficient-ring`
+/// (`docs/DOC-LEDGER.md` sweep 13).
 const COEFF_BITS: u64 = 256;
 
 impl Rat {

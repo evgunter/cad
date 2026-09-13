@@ -87,7 +87,7 @@ answer "which identity-shaped predicates does the tier reach", and it
 answers that. It does not answer "which predicates bound certification",
 and the two questions have different populations: the ceiling is set by
 a predicate the census cannot name. The follow-on is
-`work/m10/real-margin-dependency-widening.md`, whose population is the K
+`work/sym/real-margin-dependency-widening.md`, whose population is the K
 CSV rather than a name filter.
 
 ## The table
@@ -231,11 +231,12 @@ per replay and are off on cost. The rows that stay numeric on every
 rung are the arc family's remainder — `carrier_endpoint_start` /
 `_end` on the plate (the rim's `‖q − c‖ = r`, an outer `sqrt` over
 nested even-power atoms:
-`work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`), the
+M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`,
+`docs/DOC-LEDGER.md` sweep 13), the
 declared tangency `carrier_line_circle` on R2's pad
-(`work/m10/declared-tangency-needs-the-registered-identity-door`), and
+(`work/sym/declared-tangency-needs-the-registered-identity-door`), and
 the real-margin class M10-7 named (`arc_diameter_clearance`:
-`work/m10/real-margin-dependency-widening`). `line_span` was listed in
+`work/sym/real-margin-dependency-widening`). `line_span` was listed in
 that class until M10-9 read it; it is an IDENTITY, and the section
 below says why.
 
@@ -331,7 +332,7 @@ because they are the ones the door was expected to reach and does not:
   fenced SCAFFOLDING residual, the carrier against the `MappedCurve`
   pushforward at the certifier's own samples: an identity between two
   INDEPENDENTLY BUILT objects, which is not what a node alias can
-  reach (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+  reach (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`).
   The share the door DOES reach is one per curve — the `i = 0` sample
   of the nine-sample schedule, where the mapped source evaluates to its
   own start vertex verbatim. The other eight per curve are not reached:
@@ -346,7 +347,7 @@ because they are the ones the door was expected to reach and does not:
   predicate asks about is re-derived by `build_seg` from `(a, b,
   bulge)` (`seg.rs:140-148`) and the constructor does not hold the far
   endpoint that closed form needs
-  (`work/m10/fillet-tangency-is-not-the-constructors-node`).
+  (`work/blend/fillet-tangency-is-not-the-constructors-node`).
 
 ## The form-level bucket (M10-10): rule D and rules A/B per node
 
@@ -365,14 +366,14 @@ against ON (`m10_10_pins_interval`,
 | plate | `carrier_on_surface_2` | 108/0/0/72 | 180/0/0/0 | **D + early A/B** (theorem) |
 | plate | `witness_on_surface_2` | 12/0/0/8 | 20/0/0/0 | **D + early A/B** (theorem) |
 | plate | `carrier_matches_mapped_source` | 180/0/8/64 | 180/0/72/0 | **D + the door** (registered: rule D meets the trig, the rim identity closes it) |
-| plate | `pcurve_map_residual` | 0/0/0/36 | 0/0/36/0 | **D (A1's `atan2` and half-π folds) + the door** (registered: the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form as a syntactic fact, `cos π` on the negative frame to −1, and the rim identity closes the rest; `work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`, closed) |
+| plate | `pcurve_map_residual` | 0/0/0/36 | 0/0/36/0 | **D (A1's `atan2` and half-π folds) + the door** (registered: the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form as a syntactic fact, `cos π` on the negative frame to −1, and the rim identity closes the rest; M10's closed `pcurve-chart-phase-is-atan2-of-the-start-radial`, `docs/DOC-LEDGER.md` sweep 13) |
 
 The five ceilings under the shipped set (three ε rows, the over-band
 set at ceiling + δ; `m10_10_pins_interval`):
 
 | document | M10-9 | M10-10 | bounded by |
 | --- | --- | --- | --- |
-| two-hole plate | `7.81e2 · ε` | 0.2368 / 0.2631 / 0.2631 of its REAL study (ε = 1e-6 / 1e-9 / 1e-12) | `assert_bound`'s ENCLOSURE — dependency widening of the study's own web margin (`work/m10/real-margin-dependency-widening`): the margin is affine, `1e-4 ± 1.6e-4·s`, positive over the whole box below `s = 0.625`, its enclosure at the ceiling `[−2.09e-9, 2.00e-4]` widened ~6e-5 each side. No identity residual bounds the plate any more; the LEAVES certify up to the real flip at 0.625 |
+| two-hole plate | `7.81e2 · ε` | 0.2368 / 0.2631 / 0.2631 of its REAL study (ε = 1e-6 / 1e-9 / 1e-12) | `assert_bound`'s ENCLOSURE — dependency widening of the study's own web margin (`work/sym/real-margin-dependency-widening`): the margin is affine, `1e-4 ± 1.6e-4·s`, positive over the whole box below `s = 0.625`, its enclosure at the ceiling `[−2.09e-9, 2.00e-4]` widened ~6e-5 each side. No identity residual bounds the plate any more; the LEAVES certify up to the real flip at 0.625 |
 | R1 annulus | `7.81e2 · ε` | 0.6963 / 0.8416 / 0.8415 of its real study | `dihedral_wedge` at `1e-6`, `arc_diameter_clearance` at the finer rows — the same widening class (`arc_diameter_clearance` cannot be zero for any `r > 0`: the widening finding's second site), not flips |
 | R2 link | `4.93e2 · ε` | unmoved | `carrier_matches_mapped_source` — the term/coefficient BUDGET freezes the carrier frame's two squared components (`sqrt(Σ)` over frozen squares) at any affordable width; the per-node cap is a cost wall, not a reach (512 → 4096 leaves ceiling + δ byte-identical; 32,768 terms / degree 256 leaves the bracket unchanged at 16× the cost) |
 | R2 filleted bracket | `3.87e2 · ε` | unmoved | `carrier_matches_mapped_source` — both components freeze before squaring; as the link |
@@ -385,7 +386,7 @@ boss at bulge 2: `carrier_matches_mapped_source` 6 of 54 and
 `carrier_on_surface_2` 27 of 90 still numeric, ceiling unmoved), and
 a PARAMETER bulge is entirely outside the mechanism (R2's D-tab:
 `3.52e2 · ε` with the algebra on and off alike) —
-`work/m10/rule-d-reaches-the-unit-bulge-only`, the next ceiling class.
+`work/sym/rule-d-reaches-the-unit-bulge-only`, the next ceiling class.
 
 `line_span` and `contact_at_shared_vertex` were measured under the
 new rules too: unmoved (`line_span` 0/0/0/8 on the plate at the

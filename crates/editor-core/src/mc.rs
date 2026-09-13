@@ -623,7 +623,7 @@ impl Rng {
 
     /// Uniform in `[0, 1)` from the top 53 bits — the value the lane
     /// feeds [`sample_offset`], and so the one a consumer reproducing a
-    /// draw needs. Public since `work/m10`'s
+    /// draw needs. Public since `work/props`'s
     /// `mc-lanes-draws-are-not-reproducible-from-outside-the-crate`:
     /// [`next_u64`](Self::next_u64) alone left a caller transcribing
     /// `(x >> 11) as f64 * 2^-53`, which is exactly the third copy of

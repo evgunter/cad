@@ -82,7 +82,7 @@ no `crates/*/README.md`, nothing in the tracker states a convention;
 232 `#[must_use]` sites on `pub fn`, 4 on non-`pub` ones
 (`geom-brep/src/ssi/march.rs` ×2, `geom-core/src/real.rs`,
 `sweep/src/blend/battery.rs`), and reviewers flagging its absence as a
-finding (`work/m10/the-span-identity-is-not-a-theorem-of-the-floats.md`,
+finding (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats.md`,
 where a missing one on `Real::register_equal` was the defect).
 
 So, per this row's own instruction, the file was made internally

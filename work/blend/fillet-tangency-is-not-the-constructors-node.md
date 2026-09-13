@@ -9,7 +9,7 @@ opened: 2026-09-06
 **Measured by M10-9** (the registered-identity door, branch
 `m10/m10-9-registered-identity`), on R2's rounded-corner pad
 (`crates/editor-core/tests/m10_8_r2_probes_interval.rs`, `pad`), the
-document `work/m10/declared-tangency-needs-the-registered-identity-door`
+document `work/sym/declared-tangency-needs-the-registered-identity-door`
 filed as the door's live consumer.
 
 The `Fillet` step's declared tangency is the second registrant M10-9's
@@ -109,7 +109,7 @@ ceiling's sake.**
    outside a tier unit.
 
 Both are decisions for the unit that owns the path algebra, taken with
-`work/m10/declared-tangency-needs-the-registered-identity-door`.
+`work/sym/declared-tangency-needs-the-registered-identity-door`.
 
 ## Re-homed at M10's exit sweep (2026-09-13)
 

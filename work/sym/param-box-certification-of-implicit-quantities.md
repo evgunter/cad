@@ -14,7 +14,8 @@ item for the frontier to s cert"), from the M10-7 design conversation.
 funnel predicate decides definitely over the box at `Interval`. Today
 that fails at ε-scale widths because checked IDENTITIES (an endpoint on
 its carrier, consecutive walls cosurface) widen as `[0, c·w]` under
-dependency loss. M10-7 (`work/m10/M10-7.md`) closes that for EXPLICIT
+dependency loss. M10-7 (merged #1725; the unit row is recoverable through
+`docs/DOC-LEDGER.md` sweep 13) closes that for EXPLICIT
 quantities: a hash-consed expression DAG over the parameter symbols
 rides beside the lane value, and a margin whose polynomial normal form
 (exact rational coefficients; sqrt/trig/float literals as opaque atoms)

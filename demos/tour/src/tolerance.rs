@@ -54,7 +54,7 @@
 //! of ε any more (it was `1.25e3 · ε` before A1, and `7.81e2 · ε` under
 //! M10-7's, M10-8's and M10-9's tiers alike). What bounds that CEILING
 //! is `assert_bound`'s ENCLOSURE straddling zero — dependency widening
-//! of a real margin, not a flip (`work/m10/real-margin-dependency-widening`):
+//! of a real margin, not a flip (`work/sym/real-margin-dependency-widening`):
 //! the margin `web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b` is affine, its
 //! true range at the ceiling is `[5.8e-5, 1.4e-4]` m, positive
 //! everywhere, and the real flip first enters the box at 0.625 of the
@@ -84,11 +84,11 @@
 //! (PCURVE/D3). And the mechanism's reach is the UNIT bulge — this
 //! plate's circles: a parameter bulge is entirely outside it and a
 //! literal bulge other than 1 leaves residue
-//! (`work/m10/rule-d-reaches-the-unit-bulge-only`). So the honest
+//! (`work/sym/rule-d-reaches-the-unit-bulge-only`). So the honest
 //! general statement is: **a real study on circle-authored geometry
 //! certifies up to its real flips, and a study whose arcs carry a
 //! frame the budget freezes, or a bulge that is not 1, still gets an
-//! ε-scale answer.** `work/m10/symbolic-tier-census` carries what
+//! ε-scale answer.** `work/sym/symbolic-tier-census` carries what
 //! bounds each document, with numbers.
 //!
 //! Where a leaf refuses it is not silence: the receipt says how many
@@ -252,7 +252,7 @@ fn real_study(tol: Tol) {
                  certified leaves [{:.4e}, {:.4e}] m (the web is affine in the parameters, \
                  so that range is exact): padding {:.2e} m below and {:.2e} m above — the \
                  interval lane's dependency widening, proportional to the leaf's width \
-                 (work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane)",
+                 (work/props/certified-hull-padding-is-the-leaf-width-not-the-lane)",
                 report.worst_case.lo,
                 report.worst_case.hi,
                 slack.true_lo,
@@ -273,7 +273,7 @@ fn real_study(tol: Tol) {
                  web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b is affine, its true range at the \
                  ceiling is [5.8e-5, 1.4e-4] m > 0 everywhere while the enclosure is \
                  [−2.1e-9, 2.0e-4], and the real flip first enters the box at 0.625 of \
-                 the study (work/m10/real-margin-dependency-widening). The LEAVES certify \
+                 the study (work/sym/real-margin-dependency-widening). The LEAVES certify \
                  up to that flip: every refusal above is the leaf budget, sitting along \
                  the surface where the web crosses the floor, and refining a refused leaf \
                  leaves assert_bound alone over the band. What moved it: M10-9's door \
@@ -285,9 +285,9 @@ fn real_study(tol: Tol) {
                  (pcurve_map_residual 36). No value was read by any of them. The reach: \
                  the unit bulge (this plate's circles) — a parameter bulge is outside the \
                  mechanism and a literal bulge other than 1 leaves residue \
-                 (work/m10/rule-d-reaches-the-unit-bulge-only); what still bounds R2's \
+                 (work/sym/rule-d-reaches-the-unit-bulge-only); what still bounds R2's \
                  bracket and link is the term budget freezing their carrier frames' \
-                 squared components (work/m10/symbolic-tier-census)."
+                 squared components (work/sym/symbolic-tier-census)."
             );
         }
         Err(StackupRefusal::NothingCertified {

@@ -7,8 +7,9 @@ opened: 2026-09-04
 ---
 
 
-Found while repairing the code-tier red in
-`work/m10/pncad-py-tag-inventory-misses-two-measure-tags.md`. Not that
+Found while repairing the code-tier red in M10's closed
+`pncad-py-tag-inventory-misses-two-measure-tags` (`docs/DOC-LEDGER.md`
+sweep 13). Not that
 item's defect and not repaired with it: that one is two inventory
 lines, this is a question about the gate's reach.
 

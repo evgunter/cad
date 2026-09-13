@@ -178,7 +178,7 @@ flip (R2's fix-pass finding, by execution): the margin `web − floor =
 scale `s` is `1e-4 ± 1.6e-4·s`, so at the ceiling (`s ≈ 0.263`) it is
 `[5.79e-5, 1.42e-4] > 0` everywhere and the enclosure is widened ~6e-5
 each side; the flip first enters the box at `s = 0.625`
-(`work/m10/real-margin-dependency-widening`, pinned in
+(`work/sym/real-margin-dependency-widening`, pinned in
 `m10_10_pins_interval::m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`).
 The "real margin" this table's last row predicted is therefore the
 margin's WIDENED enclosure — the ceiling is widening-bound; the leaves
@@ -225,7 +225,7 @@ link and the bracket wait on.
 - `line_span` and `contact_at_shared_vertex`, which the first cut named
   as the bracket's and the pad's bound, are themselves IDENTITY-shaped
   residuals of the fillet construction, not real margins; they are
-  recorded as such in `work/m10/symbolic-tier-census`.
+  recorded as such in `work/sym/symbolic-tier-census`.
 
 ## Re-homed at M10's exit sweep (2026-09-13)
 
