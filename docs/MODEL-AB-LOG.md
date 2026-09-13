@@ -5476,3 +5476,5 @@ when block BLEND-B1's last slot (BLEND-9) merges; slots 1 and 2 may run
 concurrently with it as lanes and disk allow.
 
 Block BLEND-B2 slot record (branch-side, appended as each slot concludes):
+slot 1 = BLEND-10 implementer dispatch (2026-09-13, ~05:30Z): arm OPUS per the draw above (byte 44); `docs/BLEND-10-SPEC.md` (M / NUMERIC, pre-draw); brief `/home/user/blend-briefs/unit-10-brief.md` (lane-local; the spec is the binding text); S-BOOL seam announced in `work/bool/log.md` before dispatch. Review ordinal claimed on main at the dual's dispatch.
+slot 2 = BLEND-11 implementer dispatch (2026-09-13, ~05:30Z): arm FABLE per the draw above (byte 44); `docs/BLEND-11-SPEC.md` (S / STRUCTURAL, pre-draw); brief `/home/user/blend-briefs/unit-11-brief.md`; same seam announcement. Slot 0 (BLEND-8, OPUS) dispatches when block B1's last slot merges.
