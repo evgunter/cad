@@ -519,3 +519,56 @@ FABLE, R2 = OPUS; briefs stored with digests on `blend/b1-block`
 before either ran; the four deviations stated in both briefs as
 hypotheses. The unit's log entry waits for the dual. Unit 7's target
 reclaimed for the reviewers' base-tree builds (its fix pass re-seeds).
+**MERGED — unit 6 (2026-09-13)** on PR [#2215](https://github.com/evgunter/cad/pull/2215):
+the ring-clearance circle arm gets the relation it is asked, the
+hostless annulus's rings metered by containment, the refusal on a
+ringed host gone; both items closed. Dual: no MAJOR either side, no
+tally candidate; the bilateral headline corrected the unit's own D5
+(the backstop is reachable by an extruded bored cylinder and is not
+bit-identical to the screen). Fix pass on the union: both probe
+branches adopted, the falsified residue closed against the adopted
+rows, the trio built at the ring predicate, fixtures homed once, six
+doc sites, the three suite files renamed by subject; CI caught a
+probe-gated suite the sweep did not run and it was rostered. Delta by
+R1 on the fixed head: recorded below. Sample #176 (main's order rules).
+Residues on the slate from this unit: `unit-numbered-test-suite-prefixes-collide-across-program-generations`.
+Delta (R1, on `e3f8d06a`): all six items CONFIRMED by execution —
+both probe branches as merge parents with the canary and the
+bored-cylinder rows green together and the rostered probe suite
+running seven rows under the sweep's own invocation; mutant A one red
+(the plate row), mutant B six red as tabled; the ring-predicate trio's
+three legs reading the predicate and the recourse off the errors; the
+ulp table reproduced by `to_bits` arithmetic; the six doc sites; the
+renames with unit 5's resolver row present and green (the lane's
+belief that it was absent was wrong). One survivor: the new
+`CircleMargins` paragraph still said "exactly" — corrected in the
+state-sync commit to "the same real, in closed form".
+
+**MERGED — unit 7 (2026-09-13)** on PR [#2483](https://github.com/evgunter/cad/pull/2483):
+a closed chain's junctions are judged against the links that touch
+them; N ≥ 3 closed rims carve on both doors and both sides; the item
+closed. Dual: no MAJOR either side, no tally candidate; the kernel
+change confirmed by both arms' own instruments; the findings were
+record-level and the stronger unique ones (the oracle as a second
+`wedge_fill`; the fix minting fixture copies of what it closes) went
+into the fix pass, which also adopted both probe branches and re-took
+the bit-dump differential after reshaping the closing arm. Delta by
+R1 on the fixed head: recorded below. Sample #177 (main's order
+rules). Residues on the slate from this unit:
+`rim-of-refuses-extruded-multi-arc-rims`,
+`battery-holds-the-chain-data-model-beside-the-predicates`,
+`self-closed-link-sharing-its-vertex-records-two-junctions`.
+Delta (R1, on `3dd896cb`): all seven items CONFIRMED by execution —
+both probe merges in the ancestry with ten rows green through the
+accessors (a spelled-out `Junction` literal fails to compile from a
+test); the oracle through `wedge_fill` with every pinned value
+unchanged; write-side mutant 11 red / 41 green and read-side 9 red /
+43 green, the three record rows green under the latter; the closing
+arm's loud and silent cases swapped as asked; `assert_full_revolve_rim`
+at sixteen sites; the half-cap sites, the recourse-audit reason, the
+centroid sentence and the dead citations all as reported; a re-run of
+the differential judged unwarranted from the `battery.rs` diff. Three
+notes folded into the state-sync commit: the sort's doc named the
+wrong reader (it serves the open row's "first junction"); R1's wrapper
+kept the retired oracle's name; the two re-homed fixtures moved by bits
+(recorded on the item).
