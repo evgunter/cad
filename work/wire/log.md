@@ -2840,3 +2840,62 @@ green, and this program has now proved that twice in one day, once by a
 reviewer walking a const past a guard's own rule. `small-batch` gets a
 light style review, with the bit-exact path as the one thing a reviewer
 is told not to take on report.
+
+## 2026-09-13 — the small batch returned, and it falsified a row this orchestrator wrote
+
+PR 2499, full matrix green (12 `test (…)`, 5 `k-lint`, 0 in flight, 0
+non-success — verified here at the check-run level, and `draft=false`
+via REST after the GraphQL endpoint refused again). To a light review.
+
+### Two checks in the brief paid for themselves, and one of them against me
+
+**`product.rs`'s gate is a DUPLICATION, not prose.** The brief told the
+lane to check whether the two sentences were one rule with two spellings
+**before** calling it a prose fix, because `verbatim` at a copy site is
+the self-declared-duplication tell. They are. `model.instances.len() > 1`
+counts instances; an instance is one solid (`build_one_solid` makes one
+body per `SolidSpec`, `transform_rigid` does not change the count,
+`graft_disjoint` appends one per call, and
+`the_assembly_record_indexes_the_shipped_solids` pins that the A7
+record's per-instance `index` *is* the shipped body's `solids()` order),
+so `instances.len()` **is** the shipped solid count and both sites say
+the same thing. The row therefore **stays open, recharacterized**: the
+policy has **no home** and is stated at **six sites across three
+crates**, each citing another by prose. A row that would have closed as a
+one-word prose edit is now a cross-crate finding.
+
+**The doc-ratio row's premise was false, measured.** I wrote that row,
+including *"part of the measurement will move without anyone writing
+prose at all"* once `Frame::linear` was deleted. Measured across that
+deletion: **the type doc moved by exactly zero lines**, and the file's
+comment share went 42% → **43%** — *up*, because the door was more code
+than prose. The parent row's *"fewer doors, not less prose"* does not
+survive its own measurement.
+
+Two of my numbers were also wrong: the type doc is **55** lines, not
+~51, and the struct is a **4**-line declaration under 4 lines of field
+doc, not "7 lines". **Fourth time this session a lane's or reviewer's
+number has beaten the orchestrator's**, after the three shallow-clone
+datings, the `wire.rs` line count, and the `Mat3::map` narration. The
+pattern is now unambiguous and it is not about carelessness: **the
+orchestrator's numbers are the ones nobody re-takes**, so they survive
+in a way a lane's do not. Every figure I put in a row or a brief needs
+its provenance written beside it, or it needs to not be a figure.
+
+### The lane deleted a test rather than keep it out of politeness
+
+Asked to check whether the adopted guard still reds for a real reason
+after the branch it pinned was deleted, the lane found it did not:
+`from_affines_identity_branch_agrees_with_the_branch_free_copy` was
+comparing `from_affine` against a transcription of its own body, its
+verified mutation no longer existed, and its one open scenario would stop
+the fixture *compiling* rather than redden it. `implementer-discipline.md`
+§2 makes deleting it the repair, and it was deleted — **and replaced with
+the claim that does survive**: `from_affine` carries the affine's
+coordinates and **snaps nothing**, which `mate/solve.rs` depends on.
+Red-first verified against a tolerance-snapping `from_affine`.
+
+That is the right disposition of a test written by someone else two
+rounds earlier, and it is the disposition that is hardest to reach for.
+The review is told to re-plant that mutation rather than take it on
+report, because it is the one bit-exact path in the diff.
