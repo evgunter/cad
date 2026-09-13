@@ -73,7 +73,7 @@ use crate::structure::{
 };
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
-    arc_fillet_trims, signed_swept,
+    OverrunCandidate, arc_fillet_trims, signed_swept,
 };
 use crate::validate::FilletLegCarrier;
 
@@ -413,14 +413,17 @@ enum CornerOutcome<T: Real> {
 /// diagnostics are `f64` enclosure lower bounds, for messages and never
 /// for re-deciding.
 ///
-/// Three reads on three lines, none of them a re-decision: `arm.lo()`
-/// is a value-channel BRANCH between two message sites, `r.lo()` is an
-/// `f64` payload field, and `(margin / r).lo()` brackets a quotient
-/// computed at `T` into a second one. Nothing read here re-enters the
-/// computation, so the sole `T: Bounds` is the whole obligation: this
-/// door decides nothing, which is why it does not carry the module's
-/// `Decide` half. At a dual scalar the three are the value channel's
-/// bit for bit (D9), and a degraded tangent cannot reach them.
+/// Every read here is a value-channel read and none is a re-decision:
+/// `arm.lo()` is a BRANCH between two message sites, `r.lo()` is an
+/// `f64` payload field, `(margin / r).lo()` brackets a quotient
+/// computed at `T` into a second one, and the anchor-fit arm's
+/// `margin.lo()` reads pick WHICH overrunning candidate and WHICH of
+/// its legs the sentence is about (the nearest fit — see there). Nothing
+/// read here re-enters the computation, so the sole `T: Bounds` is the
+/// whole obligation: this door decides nothing, which is why it does
+/// not carry the module's `Decide` half. At a dual scalar the reads are
+/// the value channel's bit for bit (D9), and a degraded tangent cannot
+/// reach them.
 fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcome<T> {
     match refusal {
         ArcTrimRefusal::Band(source) => CornerOutcome::Whole(PathError::Band(source)),
@@ -490,24 +493,44 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcom
         // an arc side gets its angular story (`FilletLegCarrier::Arc`'s
         // `angular_margin`) instead of a bare linear setback that means
         // nothing on a circle.
-        ArcTrimRefusal::DoesNotFit {
-            leg,
-            carrier_radius,
-            margin,
-            setback,
-            leg_length,
-        } => CornerOutcome::Reason(CornerReason::AnchorOutsideTrimmedExtent {
-            side: leg,
-            carrier: match carrier_radius {
-                None => FilletLegCarrier::Line,
-                Some(r) => FilletLegCarrier::Arc {
-                    radius: r.lo(),
-                    angular_margin: (margin / r).lo(),
+        //
+        // THE NEAREST FIT. The construction carries every corner-side
+        // candidate whose trim overran, in enumeration order, and this
+        // arm reports the one the author is nearest to fitting: the
+        // least deficit `max(setback − extent)` over a candidate's two
+        // legs (the least radius reduction that would make it fit),
+        // ties to the earlier candidate as the envelope's ties are — and
+        // ON the leg that deficit is on, ties to the incoming leg as
+        // `fillet` gates it. The recourse the sentence ends in is
+        // metered against the setback it names, so the number has to
+        // be the nearest candidate's worse leg or the author is sent
+        // to reduce by the wrong amount. Both picks are `f64`
+        // enclosure reads of margins already classified, like the
+        // presentation key below: nothing branches on them downstream,
+        // and the payload's shape is the same whichever wins.
+        ArcTrimRefusal::DoesNotFit { first, second } => {
+            let worse = |c: &OverrunCandidate<T>| -> usize {
+                usize::from(c.legs[1].margin.lo() < c.legs[0].margin.lo())
+            };
+            let deficit = |c: &OverrunCandidate<T>| -c.legs[worse(c)].margin.lo();
+            let nearest = match second {
+                Some(s) if deficit(&s) < deficit(&first) => s,
+                _ => first,
+            };
+            let leg = nearest.legs[worse(&nearest)];
+            CornerOutcome::Reason(CornerReason::AnchorOutsideTrimmedExtent {
+                side: leg.side,
+                carrier: match leg.carrier_radius {
+                    None => FilletLegCarrier::Line,
+                    Some(r) => FilletLegCarrier::Arc {
+                        radius: r.lo(),
+                        angular_margin: (leg.margin / r).lo(),
+                    },
                 },
-            },
-            setback,
-            available: leg_length,
-        }),
+                setback: leg.setback,
+                available: leg.leg_length,
+            })
+        }
     }
 }
 
