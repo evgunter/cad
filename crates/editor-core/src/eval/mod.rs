@@ -539,7 +539,8 @@ pub(crate) mod family {
 ///
 /// The rule above governs `expected:` and nothing else. A second
 /// user-visible vocabulary sits beside it — the DIRECTION-ROLE words a
-/// [`NodeErrorKind::Direction`] refusal carries, which name the SLOT
+/// [`NodeErrorKind::DegenerateDirection`] or
+/// [`NodeErrorKind::NonFiniteDirection`] refusal carries, which name the SLOT
 /// whose vector would not normalize rather than the kind an operand
 /// had to be. They keep their own home beside the arithmetic that
 /// raises them (`eval::wire`'s `*_ROLE` consts, `pub(crate)` because
