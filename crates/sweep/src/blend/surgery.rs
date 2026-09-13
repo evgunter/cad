@@ -769,19 +769,37 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         "surgery postcondition: the result is not tier-2 valid (kernel bug)",
     );
 
-    // **A retirement names a SOURCE key** — `Retired`'s whole meaning,
-    // and the one direction of the birth records no output-side walk
-    // can see: a key this carve minted and then killed is absent from
-    // the result, so a `dead` row naming one is invisible everywhere
-    // except against the body the caller handed in. The postcondition
-    // is here, at the one place that still holds both bodies.
+    // **A retirement names a SOURCE key, in BOTH arenas** —
+    // [`Retired`](super::naming::Retired)'s whole meaning, and the one
+    // direction of the birth records no output-side walk can see: a key
+    // this carve minted and then killed is absent from the result, so a
+    // `dead` row naming one is invisible everywhere except against the
+    // body the caller handed in. The postcondition is here, at the one
+    // place that still holds both bodies.
+    //
+    // `test_support::assert_naming_totality`'s direction (b) opens with
+    // the same predicate, and this is deliberately not its deletion:
+    // that walk runs on the fixtures that call it, this one on EVERY
+    // carve a debug build takes, the callers no suite reaches included.
+    // The walk's second half — a retired edge does not survive — has no
+    // twin here, being a question about the OUTPUT that the output-side
+    // walk is the right home for.
     #[cfg(debug_assertions)]
-    for e in &rec.dead.edges {
-        debug_assert!(
-            source.get_edge(*e).is_some(),
-            "surgery postcondition: a retirement names {e:?}, which the source body does \
-             not carry (kernel bug)",
-        );
+    {
+        for e in &rec.dead.edges {
+            assert!(
+                source.get_edge(*e).is_some(),
+                "surgery postcondition: a retirement names {e:?}, which the source body \
+                 does not carry (kernel bug)",
+            );
+        }
+        for v in &rec.dead.vertices {
+            assert!(
+                source.get_vertex(*v).is_some(),
+                "surgery postcondition: a retirement names {v:?}, which the source body \
+                 does not carry (kernel bug)",
+            );
+        }
     }
     rec.dead.edges.sort_unstable();
     rec.dead.edges.dedup();
@@ -2554,6 +2572,16 @@ pub(super) struct SplitFragments {
 /// document layer's emitter refuses as "the surgery recorded one entity
 /// twice".
 ///
+/// **That arm carries no assertion, and cannot.** It is reachable by
+/// construction — the ruled band takes it whenever one cap carries two
+/// creases, and a rim phase would take it the day one call carves two
+/// rims off one cap seam — so a guard that it is never taken would
+/// assert away the generality the lookup exists for. Which callers take
+/// it is a measurement, not an invariant: over every carve the `sweep`
+/// suite runs, the ruled band's cap-rim split meets an existing row and
+/// the two rim phases' seam splits do not. A caller that wants its own
+/// arm pinned pins it with a body, not here.
+///
 /// **Which piece is `near` is the split's own answer, not the caller's
 /// guess.** [`Body::split_edge`] hands the parent key to the child
 /// carrying `start(he_plus)`, so the piece touching `vertex` is the
@@ -2595,7 +2623,8 @@ pub(super) fn split_fragment<T: Decide>(
 /// the blend took from the body the caller handed in. A piece this
 /// carve minted and then killed reaches neither the output nor the
 /// source and owes a row in neither direction — and a STRUT, which is
-/// not a source key either, is the same case.
+/// not a source key either, is the same case, which is why a strut's
+/// death reaches no caller of this function.
 ///
 /// The one home of that rule for all three band carves: the ladder's
 /// meridian splits, the annulus's seam splits and the ruled band's cap
@@ -2722,8 +2751,18 @@ fn rim_phase<T: Decide + Bounds>(
         // the two keeps the source key is `split_edge`'s to say, so
         // both the fragment row and step (6)'s retirement read the
         // source off [`split_fragment`] rather than off `m`.
+        //
+        // The split vertex is named after the edge that was SPLIT, not
+        // after that edge's own source. The two differ only where `m`
+        // is itself a fragment — which for a rim vertex's meridian
+        // means an earlier band in this call split the same cap seam,
+        // an arm `split_fragment` handles and no body in the tree
+        // reaches — so naming the original there would be an unpinned
+        // choice, while a minted key in this row refuses loudly at the
+        // document layer rather than resolving to another entity's
+        // name.
         let frag = split_fragment(body, m, v, t_split, rec, "meridian split", tol)?;
-        rec.meridian_splits.push((frag.vertex, frag.source));
+        rec.meridian_splits.push((frag.vertex, m));
         remnants.push((v, frag.near, frag.source));
     }
 
@@ -3738,22 +3777,18 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         // is a retirement", shared with the ladder's meridian splits
         // and the ruled band's cap rims.
         //
-        // The seam keys here are the PLAN's. Under a seam refresh the
-        // plan-key comparison and the live-key one COINCIDE today, and
-        // structurally: `split_edge` keeps the parent key for the
-        // `[t0, t]` child, a seam meridian's two ends are its wall's
-        // two latitude rims, so a refreshed live key differs from the
-        // plan's exactly when the earlier band sat at the seam's t0
-        // end — which puts THIS band at the t1 end, where the dying
-        // rim-side piece is always the FRESH key and neither spelling
-        // fires. The plan-key spelling is kept because it states the
-        // invariant directly (retire source keys only) instead of
-        // deriving it from the split's retention direction, which
-        // could change under it without a fixture noticing.
-        //
-        // A STRUT never appears here for the same reason it owes no
-        // birth row: it is not a source key, so its death is not a
-        // retirement of anything the caller handed in.
+        // The seam keys here are the PLAN's, and that is what keeps a
+        // source key a source key: the plan is read off the body the
+        // caller handed in, while the key this band SPLIT is the live
+        // one, which an earlier band on a shared wall may already have
+        // moved onto a piece THIS call minted. So the comparison is a
+        // live-derived dying piece against a plan key, and where the
+        // refresh has moved the seam the two cannot be equal — which is
+        // sound rather than lucky: `split_edge` keeps the parent key
+        // for the `[t0, t]` child and a seam meridian's two ends are
+        // its wall's two latitude rims, so a moved live key puts THIS
+        // band at the seam's t1 end, where the dying rim-side piece is
+        // the fresh one and no retirement is owed.
         if let (HostAnchor::Seam { rim_side, .. }, HostFoot::Seam(seam)) = (&host_feet[ix], &c.host)
         {
             retire_fragment(rec, *rim_side, *seam);

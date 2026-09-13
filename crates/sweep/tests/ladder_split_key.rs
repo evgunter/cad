@@ -9,21 +9,25 @@
 //! the meridian runs decides whether the key it retires is one the
 //! caller handed in.
 //!
-//! Both orientations are ordinary outputs of the public doors, and this
-//! suite carries one fixture of each:
+//! **Neither DOOR decides the orientation.** What decides it is which
+//! end of the seam's own stored direction the rim vertex sits at, and
+//! every door mints both: a boolean pip cut into a slab's top runs
+//! rim-to-pole and one cut into its underside runs pole-to-rim
+//! (`review_ladder_split_key_r2_probes::r2_a_pip_cut_from_below_runs_pole_to_rim_through_the_boolean_door`),
+//! a revolve's pole-touching cap seam runs pole-to-rim while the `slab ∪
+//! ball` boss's runs rim-to-pole, and the extruded two-arc rims are
+//! minted fresh-key through the extrude door
+//! (`review_ladder_split_key_r2_probes::r2_the_extruded_two_arc_ladders_are_naming_total_whichever_way_their_seams_run`).
 //!
-//! - the repaired BOSS's dome rim — a revolve of a pole-touching
-//!   profile, whose cap seams run pole-to-rim, so the rim-side piece of
-//!   each split is minted;
-//! - the pipped DIE's pip rim — a boolean-minted seam meridian running
-//!   rim-to-pole, so the rim-side piece keeps the source key.
+//! This suite carries one fixture of each orientation:
+//!
+//! - the repaired BOSS's dome rim, whose cap seams run pole-to-rim, so
+//!   the rim-side piece of each split is minted;
+//! - the pipped DIE's pip rim, whose seam runs rim-to-pole, so the
+//!   rim-side piece keeps the source key.
 //!
 //! Both carve to a tier-3-valid solid whose every retirement names a
 //! key the caller handed in.
-//!
-//! The orientation is read off `he_plus`, never off the carve's output:
-//! a fixture whose meridian direction changed would go red here rather
-//! than quietly stop witnessing anything.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -82,14 +86,22 @@ fn rim_vertices(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<VertexKey> {
     out
 }
 
-/// **Which piece of each rim meridian `split_edge` would hand the
-/// parent key to**, per rim vertex: `true` when the meridian's `he_plus`
-/// STARTS at the rim vertex (the parent key stays on the rim-side piece)
-/// and `false` when it ends there (the rim-side piece is minted).
+/// **Which end of each rim meridian's stored direction the rim vertex
+/// sits at**, per rim vertex: `true` when the meridian's `he_plus`
+/// STARTS at the rim vertex, `false` when it ends there.
 ///
-/// Derived from the direction convention alone — the parent survives as
-/// the first child, `start(he_plus)` → the new vertex — so it reads the
-/// same rule the phase is held to and not the phase's own answer.
+/// **What this pins is the FIXTURE, not `split_edge`'s rule.** Reading
+/// `he_plus` and then naming the answer after the retention rule (the
+/// parent survives as the first child, `start(he_plus)` → the new
+/// vertex) restates that rule rather than measuring it, so a rule that
+/// moved would leave the rows below green and quietly witnessing
+/// nothing. The rule itself is measured — by splitting each meridian on
+/// a CLONE and comparing which piece kept the key — at
+/// `review_ladder_split_key_r2_probes::r2_the_split_rule_is_measured_by_splitting_not_read_off_prose`,
+/// which agrees with this reading on both orientations. What the rows
+/// here add is that these two bodies carry the two orientations, so a
+/// fixture whose meridian direction changed goes red here instead of
+/// quietly ceasing to witness the minted-piece case.
 fn rim_side_keeps_the_source_key(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<bool> {
     rim_vertices(body, arcs)
         .into_iter()
@@ -110,11 +122,12 @@ fn rim_side_keeps_the_source_key(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<bool
 /// **The witness: a ladder rim whose every meridian runs POLE TO RIM.**
 ///
 /// `test_support::boss`'s dome is a revolve of a pole-touching profile,
-/// so each cap seam's `he_plus` starts at the pole and ends at the rim
-/// vertex; `split_edge` therefore keeps the source key on the piece
-/// AWAY from the rim and mints the piece the rim phase kills. The carve
-/// is tier-3 valid at its closed form, and every retirement it records
-/// names a key the caller handed in.
+/// and each of its cap seams has the rim vertex at the END of its
+/// stored direction: `he_plus` starts at the pole. `split_edge`
+/// therefore keeps the source key on the piece AWAY from the rim and
+/// mints the piece the rim phase kills. The carve is tier-3 valid at
+/// its closed form, and every retirement it records names a key the
+/// caller handed in.
 ///
 /// Both material sides: the boss's dome rim is concave and its dimple
 /// twin's is convex, one form and two signs.
@@ -178,10 +191,13 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>) {
     (pipped, rim)
 }
 
-/// **The other orientation, on the same walk**: a boolean-minted seam
+/// **The other orientation, on the same walk**: this pip's seam
 /// meridian runs RIM to pole, so `split_edge` keeps the source key on
 /// the piece the rim phase kills and the retirement it records is that
-/// source key.
+/// source key. The pip's DOOR does not decide that — the same boolean
+/// with the ball under the slab runs the other way (the module docs
+/// cite the row) — it is where the rim vertex sits on the seam's own
+/// stored direction.
 ///
 /// It is here beside the witness because the witness's claim is a
 /// comparison: a reading of `he_plus` that answered "minted" everywhere
