@@ -30,12 +30,16 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **one** of the five doors that read a box from
+//! PRUNES. That is **two** of the six doors that read a box from
 //! here; at the other four, box NON-overlap is the answer being
 //! sought, so a bigger box is a REFUSAL:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict.
+//! - `census`'s pre-filter (`census::Trees`) PRUNES on the same
+//!   terms: the at-rest sweeps examine the C10 tree's candidates over
+//!   these boxes, and a loose box only admits more pairs to the exact
+//!   sweeps.
 //! - `boolean::reduce`'s operand GATE grants on non-overlap: an
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an
@@ -53,10 +57,10 @@
 //!   interference class.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The five are not
+//! about a door, and the door has to be named. The six are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! a fifth door cannot land unargued. **It pins WHERE the doors are
+//! a seventh door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
@@ -2874,7 +2878,9 @@ mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts FIVE, and two of them are not doors:
+        // `census.rs` counts SEVEN: the pre-filter's `face_box` and
+        // `edge_box` reads (`census::Trees::build`, the pruning door),
+        // three rule reads of its own, and two that are not doors —
         // the adopted CERT-N2 reviewer probes in its test module call
         // `face_box` to execute what a partially poisoned control net
         // answers there. The number is stated with that content rather
@@ -2885,7 +2891,7 @@ mod tests {
         const PINNED: [(&str, usize); 4] = [
             ("boolean/ops.rs", 5),
             ("boolean/reduce.rs", 5),
-            ("census.rs", 5),
+            ("census.rs", 7),
             ("separation.rs", 2),
         ];
         const HOME: &str = "boolean/boxes.rs";

@@ -167,7 +167,7 @@ REGISTER=(
   "crates/topo/src/census.rs|snapshot||1|unaudited"
   # The hull closure decides nothing about emptiness: its two callers
   # want opposite things from it and each answers at its own call site.
-  "crates/topo/src/census.rs|sweep_cross_solid_backstop|else { continue|1|audited: the arm above face_points — a loop this cannot walk contributes nothing, and both callers answer emptiness themselves"
+  "crates/topo/src/census.rs|sweep_cross_solid_backstop|else { continue|2|audited: the arms above face_vertices and face_points — a loop this cannot walk contributes nothing; face_points' two callers answer emptiness themselves, and an empty vertex set is disjoint from every other, so the pair it belongs to is examined rather than skipped"
   # The planar x planar skip's premise: only a face whose whole boundary
   # is admitted is in front of the exact sweeps.
   "crates/topo/src/census.rs|sweep_cross_solid_backstop|else { return|1|audited: the arm above line_bounded — anything unresolvable is not a line, so the face stays with the containment arm"
@@ -645,7 +645,7 @@ gate_selftest() {
   # a FRAGMENT narrows — the two shapes a key without a count absorbs.
   gate_selftest_case "matched 2" plant_extra_site \
     crates/editor-core/src/names/emit.rs face_half_edges oneline
-  gate_selftest_case "matched 2" plant_extra_site \
+  gate_selftest_case "matched 3" plant_extra_site \
     crates/topo/src/census.rs sweep_cross_solid_backstop wrapped-continue
   gate_selftest_malformed_register
   gate_selftest_passes "a let-else and a match arm discarding some OTHER enum" plant_other_enum_discard
