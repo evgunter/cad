@@ -800,6 +800,37 @@ anyway — all put to the reviewers. **Ordinal 2904 claimed
 frozen head** — byte 66 ⇒ R1 = OPUS, R2 = FABLE; briefs stored with
 digests on `blend/b2-block` before either ran. The unit's log entry
 waits for the dual.
+**MERGED — unit 11 (2026-09-13)** on PR [#2495](https://github.com/evgunter/cad/pull/2495):
+the overrun refusal reports the nearest fit through the crate's one
+home for the pick; the item closed. Dual: bilateral MAJOR on the spec's
+own reason for the pick (retracted; the pick survives), no tally
+candidate; the fix pass routed the pick through
+`fillet_select::nearest_candidate`, corrected the reason at every
+site, re-classified the door's read in the bounds census, homed the
+fixtures, and filed the recourse-metering residue. Delta by R1 on the
+fixed head: recorded below. Sample #182 (main's order rules). Residues
+on the slate from this unit:
+`anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`.
+Delta (R1, on `7e0758c8`): all seven items CONFIRMED by execution —
+nine adopted rows green at three ε rows with the anchor-fit payloads
+byte-identical across them (the closer bucket honest); the struck
+reason surviving nowhere; the pick through `nearest_candidate` with a
+re-taken 19,104-line dump identical to the reviewed head's; the census
+row a `Selection`; the array pin's reason right; the docs; the
+line×arc grid's unreproducibility CLOSED (234 / 180 / 66 rebuilt from
+the committed fixture); all five mutants as tabled, and the
+candidate-tie mutant now RED in the crate's lib suite (re-homing the
+pick closed R1's MINOR-2 as a side effect). Four new findings: DL5 has
+no arm for a selection whose result is the payload — FILED unowned
+(`dl5-has-no-arm-for-a-selection-whose-result-is-the-payload`; ratified
+ground, Ev's call); the censuses' closer bucket unbounded — bounded
+(`≤ 2`) in the state-sync commit; the array pin's comment naming the
+geometry where the guarantee is the producers' arity — one sentence
+added; `nearest_candidate`'s dominance argument cited for non-survivors
+— the widening stated at the call. The README's new candidate-level
+paragraph (new text beside a ratified clause, no clause id) is flagged
+for Ev's read: it scopes itself one level below the envelope and
+retires nothing.
 
 **Unit 10's dual concluded (2026-09-13, ~08:45 UTC):** R1 (OPUS)
 MERGEABLE-AFTER-FIXES 1/7/5 plus six style findings, rubric 4/3/3;

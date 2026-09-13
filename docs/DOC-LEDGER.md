@@ -1845,6 +1845,19 @@ recorded in the PR body). The unit's record is its row in
 `## Landed` section of its item.
 
 - `BLEND-9-SPEC.md` — BLEND-9, the must-carry rule's in-band policy has one home (#2491)
+## Per-merge deletion — BLEND-11's spec (2026-09-13)
+
+Recoverable at `git show 7e0758c87792fd058cf150658136af5a75d68fe8:docs/BLEND-11-SPEC.md`
+(the fix-pass head). Two of its sentences did not survive review: the
+pick could not be spelled inside `sugar.rs` (the Bounds scope rule)
+and moved to the door's `map_refusal` through
+`fillet_select::nearest_candidate`; and its reason for the pick — "the
+least radius reduction that would make it fit" — was falsified by both
+reviewers over every grid-A entry (the deficit meters the setback, not
+the radius). Both are recorded in the PR body and the unit's log entry;
+the residue is `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`.
+
+- `BLEND-11-SPEC.md` — BLEND-11, the overrun refusal reports the nearest fit (#2495)
 
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
