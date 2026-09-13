@@ -1,11 +1,12 @@
 ---
 id: circle-residual-harmonics-needs-torus-arm
-kind: issue
+kind: unit
 title: circle_residual_harmonics needs a torus arm — the declared-Rest torus boolean lane's last blocker
-status: open
+status: dispatched
 opened: 2026-09-01
 github: 1489
 refs: [1477, 968]
+branch: curved/torus-arm
 ---
 
 ## From GitHub issue 1489
