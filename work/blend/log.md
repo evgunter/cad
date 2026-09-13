@@ -675,7 +675,7 @@ fold gone; the item closed. Dual: one unilateral MAJOR (R2's receipt
 finding), recorded and excluded from the tally under 3(d); the fix
 pass measured the site (Positive at every station on the corpus) and
 filed it; everything else converged and taken. Delta by R1 on the
-fixed head: recorded below. Sample #180 (main's order rules). **Block
+fixed head: recorded below. Sample #181 (PERF-12 took #180 on main first). **Block
 BLEND-B1 concludes with this merge**: three slots, three duals, zero
 counted tally candidates; its branch-side record folds into main.
 Residues on the slate from this unit:
