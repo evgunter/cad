@@ -2,8 +2,9 @@
 id: census-messages-assert-a-mismatch-without-naming-what-they-found
 kind: issue
 title: A CLASS - three census clauses report a mismatch without naming what they found, in a file whose sibling clause does
-status: open
+status: dispatched
 opened: 2026-09-12
+branch: wire/census-localise
 ---
 
 

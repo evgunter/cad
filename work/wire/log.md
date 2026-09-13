@@ -2769,3 +2769,74 @@ exist; R2 broke the census R1's findings caused; the orchestrator's own
 read caught the vacuity R2 did not name. The lesson stands for the
 program: **a round is worth running when the diff contains a mechanism
 no previous round has seen**, and is not worth running otherwise.
+
+## 2026-09-13 — the second block: the census family, and three small rows
+
+Four units merged, nineteen rows closed, nothing in flight — so the next
+block goes out. Two lanes, and the split is by **whether the delta
+round's verdict governs them**.
+
+### `wire/census-localise` — three rows, one file, and the rule they inherit
+
+`census-messages-assert-a-mismatch-without-naming-what-they-found`,
+`wire-roundtrip-census-localises-nothing` and
+`document-only-vocabulary-blind-spot` are one subject seen three ways,
+all in `crates/editor-core/tests/switch_program_vocabulary.rs`. **This is
+the block that was held pending the delta round**, and the verdict is now
+its design rule, handed over in the brief with both corollaries:
+
+> Prefer a bijection. A floor is what you write when you have *proved*
+> no bijection exists, and then you write why, at the site.
+> A set equality is **not** automatically safe — it passes when both
+> sides are empty — so every equality owes a non-emptiness assertion on
+> its own derived set. And assert the rule, not a proxy for it.
+
+Deliverable 3 is where that bites and is the reason this unit is not
+three small ones. Both censuses anchor on the **kernel** `ALL` — the
+right anchor for the failure they exist to catch. The mirror is open: a
+document-only variant of `ProgramArcData` or `ProgramTarget` is forced
+through every exhaustive match that consumes it, **and every one of those
+arms may legally resolve it into an existing kernel variant**, at which
+point all five clauses stay green and the document form silently authors
+something nobody wrote. The witness functions match on the kernel tag, so
+nothing makes a document-only variant acquire a witness at all.
+
+Deliverable 1's instance is small and load-bearing: the mode census's
+laundering clause is, measured, **the only catch in the tree** for the
+`res_spec` hop that #836 and S195 both call the hop that matters — and
+it is the one clause that will not tell you where you landed. Its fix is
+written fifteen lines above it, in the target census, which does the same
+comparison and names what it got.
+
+### `wire/small-batch` — three unrelated rows in one PR, deliberately
+
+`from-affines-identity-fast-path-…`, `product-gate-says-verbatim-…` and
+`placement-rs-frame-carries-51-doc-lines-…`. Each is a few lines, and
+three PRs would be three CI runs; at the cancellation rate this program
+measured on 2026-09-12 (three of five runs cancelled in thirteen
+minutes, four programs) that is a cost paid by other programs, not by
+this one. Separate commits, one PR.
+
+Two steers in that brief are there because they are easy to get wrong:
+
+- the justification for deleting `from_affine`'s branch is **not** that
+  output is unchanged — `memories/output-stability-as-justification.md`
+  says an argument of that shape justifies nothing — it is that the
+  branch *cannot change the answer*, which is a property of the code
+  that the adopted test pins. And after the deletion the lane must
+  check whether that test still reds for a real reason rather than
+  keeping it out of politeness to its author.
+- `product.rs`'s gate calling itself the import rule **verbatim** is the
+  exact self-declared-duplication tell `reviewer-style-lane.md` Q1 has
+  reviewers grep for. The lane is told to check whether the two
+  sentences are one rule with two spellings **before** calling it a
+  prose fix; if they are, the row is a duplication wearing a
+  documentation costume.
+
+### Posture
+
+`census-localise` gets a **full review** — a census with a hole reports
+green, and this program has now proved that twice in one day, once by a
+reviewer walking a const past a guard's own rule. `small-batch` gets a
+light style review, with the bit-exact path as the one thing a reviewer
+is told not to take on report.

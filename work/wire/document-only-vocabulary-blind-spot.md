@@ -2,8 +2,9 @@
 id: document-only-vocabulary-blind-spot
 kind: issue
 title: The construct-hop censuses are anchored only on the kernel vocabulary: a document-only variant that launders into a kernel form is invisible
-status: open
+status: dispatched
 opened: 2026-09-12
+branch: wire/census-localise
 ---
 
 ## Finding

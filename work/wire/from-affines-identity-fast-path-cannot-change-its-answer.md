@@ -2,8 +2,9 @@
 id: from-affines-identity-fast-path-cannot-change-its-answer
 kind: issue
 title: Frame::from_affine's identity fast path is a no-op: is_identity_bits() is true exactly when the value it discards already has IDENTITY's bits
-status: open
+status: dispatched
 opened: 2026-09-12
+branch: wire/small-batch
 ---
 
 

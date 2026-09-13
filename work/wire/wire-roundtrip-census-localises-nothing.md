@@ -2,8 +2,9 @@
 id: wire-roundtrip-census-localises-nothing
 kind: issue
 title: The wire round-trip census compares whole programs, so a laundered vocabulary member reads as two corpus-sized Debug dumps
-status: open
+status: dispatched
 opened: 2026-09-12
+branch: wire/census-localise
 ---
 
 

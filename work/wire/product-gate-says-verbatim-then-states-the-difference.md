@@ -2,8 +2,9 @@
 id: product-gate-says-verbatim-then-states-the-difference
 kind: issue
 title: product.rs's per-source gate calls itself the import loop's rule verbatim and the next sentence says it counts something else
-status: open
+status: dispatched
 opened: 2026-09-12
+branch: wire/small-batch
 ---
 
 
