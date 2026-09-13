@@ -81,6 +81,35 @@
 //! refusal ([`PropsError::QuadratureBudget`]), never a silent wide
 //! answer.
 //!
+//! # Two levels of certification
+//!
+//! The schedule above is the REPORTING level: a face is answered when
+//! its enclosure's mean boundary displacement is under
+//! `QUAD_TARGET_LEN_FACTOR·ε`, and a face that cannot get there is a
+//! typed refusal. That target is a compromise cut for a caller who
+//! wants the NUMBER (the paragraph above says so, and says why an
+//! ε-tight target would refuse every real face).
+//!
+//! A caller who wants only the SIGN of a body's volume enclosure needs
+//! none of it: an enclosure that excludes zero decides that sign at
+//! whatever round it first does, and refining further changes no
+//! verdict. So every lane here is entered over a [`RoundWindow`] and
+//! answers with a [`RoundOutcome`]: `Converged` at the reporting
+//! level, or `Open` — a sound enclosure at a named round, with the
+//! refusal a number-wanting caller would earn from it when the
+//! schedule has nothing further to offer. The rounds are independent
+//! recomputations, so the windows of one face compose: running
+//! `0..=k` and then `k+1..=…` evaluates the pieces the uninterrupted
+//! run evaluates, once each, and ends in the same place.
+//!
+//! **One arm has no rounds to address and ignores the window's
+//! start**: [`nurbs_patch_face`]'s exact per-span rule, which answers
+//! a whole patch in one Newton–Cotes pass. It reports `Open` at round
+//! `0` carrying its own refusal when its enclosure misses the target,
+//! so a sign-deciding caller gets the tightest enclosure the lane has
+//! and a number-wanting one gets the refusal — and because that
+//! outcome leaves no round to resume at, no window ever re-enters it.
+//!
 //! # Honesty pads (both directions accounted)
 //!
 //! - **Map residual**: each pcurve tracks its carrier within its
@@ -111,6 +140,134 @@ const QUAD_MAX_ROUNDS: usize = 12;
 /// Convergence target as a multiple of ε, metered as the mean boundary
 /// displacement `width(flux)/(3·area)` (module docs: why not 1·ε).
 const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
+
+/// **The rounds one call of a face lane runs** — the schedule's
+/// refinement made addressable, so a caller whose certification is
+/// complete before the reporting target can stop there and a later
+/// caller can pick the same schedule up where it was left.
+///
+/// The rounds of a lane are INDEPENDENT: each recomputes its composite
+/// sum from scratch over `QUAD_INIT_PIECES << round` pieces, and
+/// nothing carries over but the piece count. So a window is exactly a
+/// sub-range of the one schedule, its enclosures are the enclosures
+/// that round would have produced inside an uninterrupted run, and a
+/// face run as `0..=k` then `k+1..=…` evaluates every piece the
+/// uninterrupted run evaluates, once each.
+#[derive(Clone, Copy, Debug)]
+pub struct RoundWindow {
+    /// The first round to run. `0` starts the schedule; a higher value
+    /// RESUMES it, and the after-round-0 budget exit
+    /// ([`last_round_refuses`]) is then not re-asked — the run that
+    /// reached round 0 already asked it, and asking twice would meter
+    /// one face's one decision twice.
+    pub first: usize,
+    /// The last round to run. A value at or past the lane's own last
+    /// round asks for the whole schedule, so the lane ends in its
+    /// convergence or in its typed budget refusal exactly as it always
+    /// did; a lower one stops with the enclosure that round reached.
+    pub last: usize,
+}
+
+impl RoundWindow {
+    /// The whole schedule — the reporting use, and the only window
+    /// that can reach [`PropsError::QuadratureBudget`]'s last-round
+    /// payload.
+    pub const SCHEDULE: Self = Self {
+        first: 0,
+        last: usize::MAX,
+    };
+
+    /// Exactly one round of the schedule.
+    #[must_use]
+    pub const fn at(round: usize) -> Self {
+        Self {
+            first: round,
+            last: round,
+        }
+    }
+}
+
+/// **Where a face lane's window ended.**
+///
+/// The two levels of certification the lane can be asked for (module
+/// docs): [`Self::Converged`] is the reporting level — the enclosure
+/// met `QUAD_TARGET_LEN_FACTOR·ε` — and [`Self::Open`] is an
+/// enclosure at a named round, sound as an enclosure and below the
+/// reporting target, which is all a caller deciding a SIGN needs.
+#[derive(Clone, Debug)]
+pub enum RoundOutcome {
+    /// A round's enclosure met the reporting target: the lane's final
+    /// answer, and the one [`FaceCutBounds`] an uninterrupted run
+    /// returns.
+    Converged(FaceCutBounds),
+    /// The window ended without meeting the target.
+    Open {
+        /// The enclosure at `round` — sound, and wider than the
+        /// reporting target asks for.
+        bounds: FaceCutBounds,
+        /// The round `bounds` was taken at.
+        round: usize,
+        /// The refusal a caller wanting a NUMBER from this face earns,
+        /// when the schedule has nothing further to offer it: the
+        /// budget refusal an uninterrupted run would have returned.
+        /// `None` means the window simply ended early and rounds
+        /// `round + 1 ..` remain.
+        refusal: Option<PropsError>,
+    },
+}
+
+impl RoundOutcome {
+    /// The same outcome with its enclosures mapped — the traversal
+    /// winding a caller carries into the flux, applied at whichever
+    /// round the window ended rather than only at convergence.
+    #[must_use]
+    pub fn map_bounds(self, f: impl FnOnce(FaceCutBounds) -> FaceCutBounds) -> Self {
+        match self {
+            Self::Converged(bounds) => Self::Converged(f(bounds)),
+            Self::Open {
+                bounds,
+                round,
+                refusal,
+            } => Self::Open {
+                bounds: f(bounds),
+                round,
+                refusal,
+            },
+        }
+    }
+
+    /// **The reporting level's reading of this outcome**: bounds that
+    /// met the target, or the refusal the schedule ended in.
+    ///
+    /// INVARIANT: a [`RoundWindow::SCHEDULE`] window ends either
+    /// converged or with a refusal in hand — every lane's last round
+    /// falls through to its own [`PropsError::QuadratureBudget`], and
+    /// the exact per-span arm hands its enclosure back beside one — so
+    /// the `None` arm is reachable only from a window a caller
+    /// deliberately cut short, which is a caller that wanted the
+    /// enclosure rather than the number.
+    ///
+    /// # Errors
+    ///
+    /// The lane's own refusal, unchanged.
+    pub fn into_target(self) -> Result<FaceCutBounds, PropsError> {
+        match self {
+            Self::Converged(bounds) => Ok(bounds),
+            Self::Open {
+                refusal: Some(refusal),
+                ..
+            } => Err(refusal),
+            Self::Open {
+                round,
+                refusal: None,
+                ..
+            } => unreachable!(
+                "a target-level reading of a window cut short at round {round}: the \
+                 reporting door runs the whole schedule, which ends converged or refused"
+            ),
+        }
+    }
+}
 
 /// Certified enclosures of one curved-cut face's contributions.
 #[derive(Clone, Copy, Debug)]
@@ -526,6 +683,48 @@ fn displacement_len(width: f64, area: RingInterval) -> Result<f64, PropsError> {
     Ok(len)
 }
 
+/// **The round loop's exit ladder**, one home for the three lanes.
+///
+/// Asked after a round that did NOT converge: is there anything to
+/// return, or is there another round? `Some` is the lane's answer —
+/// the SCHEDULE's last round, which carries the budget refusal a
+/// number-wanting caller earns (its width is
+/// [`mean_boundary_displacement`]'s, finite and non-negative by that
+/// function's invariant, so the refusal carries a number the caller
+/// can act on — the `eps_posture` contract the suites pin), or the
+/// WINDOW's last, which carries no refusal because rounds remain.
+/// `None` means refine.
+///
+/// One home because the ladder is one decision written three times
+/// otherwise, and the three lanes differ in it only by their own
+/// last-round constant. What each lane keeps is what is genuinely
+/// its own: the after-round-0 budget exit, which reads a bound only
+/// that lane can compute.
+fn round_exit(
+    round: usize,
+    max_rounds: usize,
+    window: RoundWindow,
+    bounds: FaceCutBounds,
+    (width_len, target_len): (f64, f64),
+) -> Option<RoundOutcome> {
+    if round == max_rounds {
+        return Some(RoundOutcome::Open {
+            bounds,
+            round,
+            refusal: Some(PropsError::QuadratureBudget {
+                width_len,
+                target_len,
+                rounds: max_rounds + 1,
+            }),
+        });
+    }
+    (round == window.last).then_some(RoundOutcome::Open {
+        bounds,
+        round,
+        refusal: None,
+    })
+}
+
 /// The flux and area enclosures of a **cylinder** face with a curved
 /// trim loop (module docs: the Green form, the composite rule, the
 /// refinement funnel, the honesty pads).
@@ -545,14 +744,41 @@ pub fn cylinder_cut_face<T: Decide>(
     eps: f64,
     band: Band,
 ) -> Result<FaceCutBounds, PropsError> {
+    cylinder_cut_face_rounds::<T>(radius, o_dot_va, edges, eps, band, RoundWindow::SCHEDULE)?
+        .into_target()
+}
+
+/// [`cylinder_cut_face`] over a [`RoundWindow`] — the same schedule,
+/// entered and left where the window says (that type's docs carry why
+/// the pieces of a schedule compose).
+///
+/// `pub` because its consumer is `topo`'s `props::quad_lane`, across
+/// the crate boundary; there is no narrower visibility that reaches
+/// it. Its whole-schedule wrapper [`cylinder_cut_face`] keeps the
+/// signature this file's own suites drive.
+///
+/// # Errors
+///
+/// As [`cylinder_cut_face`], less the budget refusal, which a window
+/// short of the schedule's end reports as
+/// [`RoundOutcome::Open`]'s `refusal` instead.
+pub fn cylinder_cut_face_rounds<T: Decide>(
+    radius: RingInterval,
+    o_dot_va: RingInterval,
+    edges: &[TrimEdgeQ],
+    eps: f64,
+    band: Band,
+    window: RoundWindow,
+) -> Result<RoundOutcome, PropsError> {
+    debug_assert!(
+        window.first <= QUAD_MAX_ROUNDS,
+        "a window resuming at round {} is past this lane's last round {QUAD_MAX_ROUNDS}",
+        window.first
+    );
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let mut pieces = QUAD_INIT_PIECES;
-    // INVARIANT: every round assigns this from
-    // `mean_boundary_displacement`, which returns only finite
-    // lengths — so the budget refusal below carries a finite width
-    // by construction (the `eps_posture` contract the suites pin).
-    let mut last_width_len = f64::NAN;
-    for round in 0..=QUAD_MAX_ROUNDS {
+    let first = window.first.min(QUAD_MAX_ROUNDS);
+    let mut pieces = QUAD_INIT_PIECES << first;
+    for round in first..=QUAD_MAX_ROUNDS {
         // Signed UV area at this resolution: A_s = ∮ u dv.
         let mut a_s = RingInterval::zero();
         for e in edges {
@@ -565,7 +791,6 @@ pub fn cylinder_cut_face<T: Decide>(
         // zero-UV-area trim loop makes `area` exactly `[0, 0]` here,
         // which is a degenerate face and not a tolerance question.
         let width_len = mean_boundary_displacement(flux, area)?;
-        last_width_len = width_len;
         if classify_len::<T>(
             "props_quad_converged",
             Margin::of(target_len - width_len),
@@ -585,17 +810,20 @@ pub fn cylinder_cut_face<T: Decide>(
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
-            return Ok(FaceCutBounds { flux, area });
+            return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
-        if round < QUAD_MAX_ROUNDS {
-            pieces *= 2;
+        if let Some(out) = round_exit(
+            round,
+            QUAD_MAX_ROUNDS,
+            window,
+            FaceCutBounds { flux, area },
+            (width_len, target_len),
+        ) {
+            return Ok(out);
         }
+        pieces *= 2;
     }
-    Err(PropsError::QuadratureBudget {
-        width_len: last_width_len,
-        target_len,
-        rounds: QUAD_MAX_ROUNDS + 1,
-    })
+    unreachable!("the round window is non-empty: `first` is clamped to the last round")
 }
 
 // ---------------------------------------------------------------------
@@ -2955,7 +3183,14 @@ fn rational_patch_face<T: Decide>(
     boundary_defect: f64,
     eps: f64,
     band: Band,
-) -> Result<FaceCutBounds, PropsError> {
+    window: RoundWindow,
+) -> Result<RoundOutcome, PropsError> {
+    debug_assert!(
+        window.first <= QUAD2_RATIONAL_MAX_ROUNDS,
+        "a window resuming at round {} is past this lane's last round \
+         {QUAD2_RATIONAL_MAX_ROUNDS}",
+        window.first
+    );
     let (u0, u1, v0, v1) = rect;
     if weights.len() != control.len() {
         return Err(PropsError::QuadratureUnsupported {
@@ -3143,7 +3378,8 @@ fn rational_patch_face<T: Decide>(
     };
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let mut pieces = QUAD2_INIT_PIECES;
+    let first = window.first.min(QUAD2_RATIONAL_MAX_ROUNDS);
+    let mut pieces = QUAD2_INIT_PIECES << first;
     // The last round's flux width, bounded from below before any round
     // runs ([`last_round_width_lo`]): its cut lists are the schedule's
     // last, its hulls are the blocks above, and under the exact-v arm
@@ -3164,12 +3400,7 @@ fn rational_patch_face<T: Decide>(
         block_hulls,
         boundary_defect * p_bound,
     );
-    // INVARIANT: every round assigns this from
-    // `mean_boundary_displacement`, which returns only finite
-    // lengths — so the budget refusal below carries a finite width
-    // by construction (the `eps_posture` contract the suites pin).
-    let mut last_width_len = f64::NAN;
-    for round in 0..=QUAD2_RATIONAL_MAX_ROUNDS {
+    for round in first..=QUAD2_RATIONAL_MAX_ROUNDS {
         let mut flux = RingInterval::zero();
         let cuts_u = knot_aligned_cuts(u0, u1, pieces, &knots_u);
         let cuts_v = knot_aligned_cuts(v0, v1, v_pieces(nc_v.is_some(), pieces), &knots_v);
@@ -3226,7 +3457,6 @@ fn rational_patch_face<T: Decide>(
             });
         }
         let width_len = mean_boundary_displacement(flux, area)?;
-        last_width_len = width_len;
         if classify_len::<T>(
             "props_quad_converged",
             Margin::of(target_len - width_len),
@@ -3242,7 +3472,7 @@ fn rational_patch_face<T: Decide>(
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
-            return Ok(FaceCutBounds { flux, area });
+            return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
         // This round did not certify. The last-round bound is loop-
         // invariant, so it is asked ONCE, after round 0
@@ -3257,26 +3487,33 @@ fn rational_patch_face<T: Decide>(
         if round == 0 {
             let last_round_len = displacement_len(last_round_width_lo, area)?;
             if last_round_refuses::<T>(last_round_len, target_len, band) {
-                return Err(PropsError::QuadratureBudget {
-                    width_len: last_round_len,
-                    target_len,
-                    rounds: 1,
+                return Ok(RoundOutcome::Open {
+                    bounds: FaceCutBounds { flux, area },
+                    round,
+                    refusal: Some(PropsError::QuadratureBudget {
+                        width_len: last_round_len,
+                        target_len,
+                        rounds: 1,
+                    }),
                 });
             }
         }
-        if round < QUAD2_RATIONAL_MAX_ROUNDS {
-            pieces *= 2;
+        debug_assert!(
+            round < QUAD2_RATIONAL_MAX_ROUNDS || pieces == last_pieces,
+            "the schedule's last round is the bound's"
+        );
+        if let Some(out) = round_exit(
+            round,
+            QUAD2_RATIONAL_MAX_ROUNDS,
+            window,
+            FaceCutBounds { flux, area },
+            (width_len, target_len),
+        ) {
+            return Ok(out);
         }
+        pieces *= 2;
     }
-    debug_assert_eq!(
-        pieces, last_pieces,
-        "the schedule's last round is the bound's"
-    );
-    Err(PropsError::QuadratureBudget {
-        width_len: last_width_len,
-        target_len,
-        rounds: QUAD2_RATIONAL_MAX_ROUNDS + 1,
-    })
+    unreachable!("the round window is non-empty: `first` is clamped to the last round")
 }
 
 /// **Certified NURBS-patch contributions** (M6-3 Leg C): the
@@ -3335,6 +3572,59 @@ pub fn nurbs_patch_face<T: Decide>(
     eps: f64,
     band: Band,
 ) -> Result<FaceCutBounds, PropsError> {
+    nurbs_patch_face_rounds::<T>(
+        kv_u,
+        kv_v,
+        control,
+        weights,
+        rect,
+        perimeter,
+        boundary_defect,
+        eps,
+        band,
+        RoundWindow::SCHEDULE,
+    )?
+    .into_target()
+}
+
+/// [`nurbs_patch_face`] over a [`RoundWindow`] — the same schedule (and
+/// the same rational lane behind it), entered and left where the window
+/// says.
+///
+/// The exact per-span arm has no rounds at all: it answers once, and a
+/// window can neither start after it nor ask it for a tighter
+/// enclosure. It therefore reports [`RoundOutcome::Open`] at round `0`
+/// carrying its own refusal — its enclosure is final, and a caller
+/// deciding a sign may use it while a caller wanting a number may not.
+///
+/// `pub` for the same reason [`cylinder_cut_face_rounds`] is: its
+/// consumer is `topo`'s `props::quad_lane`, across the crate
+/// boundary. [`nurbs_patch_face`] keeps the signature this file's own
+/// suites drive.
+///
+/// # Errors
+///
+/// As [`nurbs_patch_face`], less the budget refusal, which a window
+/// short of the schedule's end reports as [`RoundOutcome::Open`]'s
+/// `refusal` instead.
+#[allow(clippy::too_many_arguments)]
+pub fn nurbs_patch_face_rounds<T: Decide>(
+    kv_u: &KnotVector,
+    kv_v: &KnotVector,
+    control: &[RVec3],
+    weights: &[f64],
+    rect: (f64, f64, f64, f64),
+    perimeter: f64,
+    boundary_defect: f64,
+    eps: f64,
+    band: Band,
+    window: RoundWindow,
+) -> Result<RoundOutcome, PropsError> {
+    debug_assert!(
+        window.first <= QUAD2_MAX_ROUNDS,
+        "a window resuming at round {} is past this lane's last round {QUAD2_MAX_ROUNDS}",
+        window.first
+    );
     let (u0, u1, v0, v1) = rect;
     if !(u1 - u0).is_finite() || u1 <= u0 || !(v1 - v0).is_finite() || v1 <= v0 {
         return Err(PropsError::QuadratureUnsupported {
@@ -3354,6 +3644,7 @@ pub fn nurbs_patch_face<T: Decide>(
             boundary_defect,
             eps,
             band,
+            window,
         );
     }
     // The derivative grids, built once (mixed partials commute on
@@ -3384,12 +3675,8 @@ pub fn nurbs_patch_face<T: Decide>(
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let mut pieces = QUAD2_INIT_PIECES;
-    // INVARIANT: every round assigns this from
-    // `mean_boundary_displacement`, which returns only finite
-    // lengths — so the budget refusal below carries a finite width
-    // by construction (the `eps_posture` contract the suites pin).
-    let mut last_width_len = f64::NAN;
+    let first = window.first.min(QUAD2_MAX_ROUNDS);
+    let mut pieces = QUAD2_INIT_PIECES << first;
     // GLOBAL second-derivative hulls, computed ONCE (the whole-rect
     // hull contains every cell's, so the per-cell remainder
     // `hull(f_uu)·h³/24` may use it soundly — looser by a constant,
@@ -3501,16 +3788,22 @@ pub fn nurbs_patch_face<T: Decide>(
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
-            return Ok(FaceCutBounds { flux, area });
+            return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
         // An exact-lane enclosure missing the target can only be pad-
         // or degeneracy-dominated; refinement cannot do better —
         // refuse at the budget with the honest width; no composite
-        // round ran.
-        return Err(PropsError::QuadratureBudget {
-            width_len,
-            target_len,
-            rounds: 0,
+        // round ran. The enclosure itself is handed back beside the
+        // refusal: it is the tightest this face has, and a caller
+        // deciding a sign can be finished with it.
+        return Ok(RoundOutcome::Open {
+            bounds: FaceCutBounds { flux, area },
+            round: 0,
+            refusal: Some(PropsError::QuadratureBudget {
+                width_len,
+                target_len,
+                rounds: 0,
+            }),
         });
     }
 
@@ -3528,7 +3821,7 @@ pub fn nurbs_patch_face<T: Decide>(
         |_, _| (g_f_uu, Some(g_f_vv)),
         boundary_defect * p_bound,
     );
-    for round in 0..=QUAD2_MAX_ROUNDS {
+    for round in first..=QUAD2_MAX_ROUNDS {
         let mut flux = RingInterval::zero();
         // Knot-aligned cells, for the reason [`knot_aligned_cuts`]
         // gives: this lane reaches the composite only where the exact
@@ -3563,7 +3856,6 @@ pub fn nurbs_patch_face<T: Decide>(
         let flux = widen(flux, boundary_defect * p_bound);
         // Convergence: the shared mean-boundary-displacement meter.
         let width_len = mean_boundary_displacement(flux, area)?;
-        last_width_len = width_len;
         if classify_len::<T>(
             "props_quad_converged",
             Margin::of(target_len - width_len),
@@ -3579,33 +3871,40 @@ pub fn nurbs_patch_face<T: Decide>(
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
             }
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
-            return Ok(FaceCutBounds { flux, area });
+            return Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }));
         }
         // The budget exit, as in the rational lane: asked once, after
         // round 0 ([`last_round_refuses`]).
         if round == 0 {
             let last_round_len = displacement_len(last_round_width_lo, area)?;
             if last_round_refuses::<T>(last_round_len, target_len, band) {
-                return Err(PropsError::QuadratureBudget {
-                    width_len: last_round_len,
-                    target_len,
-                    rounds: 1,
+                return Ok(RoundOutcome::Open {
+                    bounds: FaceCutBounds { flux, area },
+                    round,
+                    refusal: Some(PropsError::QuadratureBudget {
+                        width_len: last_round_len,
+                        target_len,
+                        rounds: 1,
+                    }),
                 });
             }
         }
-        if round < QUAD2_MAX_ROUNDS {
-            pieces *= 2;
+        debug_assert!(
+            round < QUAD2_MAX_ROUNDS || pieces == last_pieces,
+            "the schedule's last round is the bound's"
+        );
+        if let Some(out) = round_exit(
+            round,
+            QUAD2_MAX_ROUNDS,
+            window,
+            FaceCutBounds { flux, area },
+            (width_len, target_len),
+        ) {
+            return Ok(out);
         }
+        pieces *= 2;
     }
-    debug_assert_eq!(
-        pieces, last_pieces,
-        "the schedule's last round is the bound's"
-    );
-    Err(PropsError::QuadratureBudget {
-        width_len: last_width_len,
-        target_len,
-        rounds: QUAD2_MAX_ROUNDS + 1,
-    })
+    unreachable!("the round window is non-empty: `first` is clamped to the last round")
 }
 
 #[cfg(test)]

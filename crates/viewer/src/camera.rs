@@ -115,14 +115,40 @@ pub struct Camera {
 /// comparison of the numbers.
 impl PartialEq for Camera {
     fn eq(&self, other: &Self) -> bool {
-        self.target.x == other.target.x
-            && self.target.y == other.target.y
-            && self.target.z == other.target.z
-            && self.distance == other.distance
-            && self.yaw == other.yaw
-            && self.pitch == other.pitch
-            && self.fov_y == other.fov_y
-            && self.scene_radius == other.scene_radius
+        // Every number equality is on, in declaration order — read by
+        // ONE pattern that both sides go through, because a census
+        // stated twice is a census that can disagree with itself.
+        //
+        // **Destructured rather than field-read.** A field added to
+        // `Camera` is E0027 in this pattern, so it cannot land outside
+        // equality without an author deciding it should be there — and
+        // a second pattern carries `Point3`'s three coordinates for the
+        // same reason, since expanding `target` by hand is where the
+        // census would otherwise stop at this crate's boundary. The tie
+        // is worth more here than in a dump: an `eq` that misses a
+        // field answers *wrong*, it does not merely say less. That tie
+        // is also why this reads the fields rather than the six public
+        // accessors below: an accessor call is a field READ, so a
+        // seventh field would leave a census built from them silently
+        // short, which is the whole property being bought.
+        //
+        // Nested in its only caller rather than sited in `impl Camera`:
+        // the helper exists for `eq` alone, and a second inherent block
+        // would leave a reader of `impl Camera` unable to see the type's
+        // surface in one place.
+        fn coordinates(camera: &Camera) -> [f64; 8] {
+            let &Camera {
+                target,
+                distance,
+                yaw,
+                pitch,
+                fov_y,
+                scene_radius,
+            } = camera;
+            let Point3 { x, y, z } = target;
+            [x, y, z, distance, yaw, pitch, fov_y, scene_radius]
+        }
+        coordinates(self) == coordinates(other)
     }
 }
 
@@ -316,6 +342,18 @@ impl core::fmt::Display for CameraOp {
             }
             Self::Pan { right, up } => write!(f, "pan by right {right}, up {up}"),
             Self::Dolly { factor } => write!(f, "dolly by a factor of {factor}"),
+            // `bounds` is dropped, and the sentence names it as the
+            // caller's own rather than rendering it. `Aabb` carries no
+            // `Display` in this workspace, so putting it here would set
+            // a six-number `Debug` derivation inside a prose line; and
+            // it is not the actionable half. The two errors that
+            // provoke this sentence say what was wrong with the box
+            // themselves — `CameraError::UnusableBounds` names an empty
+            // or NaN-bounded box, `CameraError::Unfittable` names the
+            // stand-off the fit needed — while `aspect` is rendered
+            // because the viewport shape is the half a reader can act
+            // on. A third `Frame` field would arrive under this
+            // argument, not under the `..`, so it is written here.
             Self::Frame { aspect, .. } => {
                 write!(f, "frame the given bounds at aspect {aspect}")
             }

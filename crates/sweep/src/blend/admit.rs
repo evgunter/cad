@@ -535,8 +535,9 @@ mod tests {
     /// splice the needle out of pieces at run time, which buys the
     /// same non-self-matching and no lexing at all — a construction
     /// site quoted in a doc comment or a message counted as one, and a
-    /// real site commented out went on counting. The census at
-    /// `crates/test-utils/tests/reader_census` is what keeps that
+    /// real site commented out went on counting. `test-utils`'s own
+    /// census row — `reader_census::every_site_that_reads_rust_source_is_in_the_ledger`,
+    /// in that crate's `tests/`, not this one's — is what keeps that
     /// choice from being made again silently.
     ///
     /// **Blind spot, stated:** clause 1 is a text scan over a lexed

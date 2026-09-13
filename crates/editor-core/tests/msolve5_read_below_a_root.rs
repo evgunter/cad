@@ -392,11 +392,12 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
         kind: EntityKind::Face,
         node: s.top,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: NO_SUCH_PART_NODE,
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
-            }),
+            }
+            .into(),
         }],
     };
     let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));

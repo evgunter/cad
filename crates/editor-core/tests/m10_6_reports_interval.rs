@@ -387,7 +387,8 @@ fn the_cache_serves_equal_keys_and_only_those() {
     );
     assert!(
         seam.get(pre(&starved_drive), "stackup").is_none(),
-        "a DIFFERENT budget must miss: it would have produced a different report, and          serving this one for it is the collision the key exists to prevent"
+        "a DIFFERENT budget must miss: it would have produced a different report, and \
+         serving this one for it is the collision the key exists to prevent"
     );
 }
 

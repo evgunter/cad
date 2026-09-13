@@ -239,7 +239,12 @@ macro_rules! nurbs_project {
                     // feet land here — module docs).
                     if ((tn - t) * speed).abs() <= PROJECT_EPS_POINT {
                         let span = self.span_at(tn);
-                        let (c, c1, _) = span.ders_in_span(T::from_f64(tn));
+                        // The foot and its tangent only: the order-1
+                        // door answers both from one basis pass, bit
+                        // for bit with the order-2 door's first two
+                        // components, whose third row this acceptance
+                        // has no use for.
+                        let (c, c1) = span.ders1_in_span(T::from_f64(tn));
                         let d = c - p;
                         let dist = d.norm();
                         if !mid(dist).is_nan() {

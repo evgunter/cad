@@ -36,11 +36,19 @@
 use k_lint::{Reason, lint_csv};
 
 /// The lint ran and found margins crowding a decision boundary.
+///
+/// **`tools/tess-lint`'s `main.rs` spells this pair with the same two
+/// names and the same two values, and the two are NOT one item.**
+/// Separate cargo roots by design, so there is nothing to share; what
+/// is shared is the RULE about which voice an event leaves in, and
+/// that has one home (`tools/README.md`, `CC5`).
 const EXIT_FINDINGS: i32 = 2;
 
 /// The lint could not run: no inputs, unreadable file, malformed CSV.
 /// Distinct from [`EXIT_FINDINGS`] on purpose — blurring the two would
 /// let a sweep-format drift read as a geometry finding, or vice versa.
+/// Every cross-column admission [`lint_csv`] refuses leaves here
+/// (`tools/README.md`, `CC5`).
 const EXIT_HARNESS: i32 = 1;
 
 /// Stdout write guard: a closed pipe downstream (`k-lint … | head`)

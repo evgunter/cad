@@ -25,7 +25,7 @@ A reader cannot tell where the cause list ends and the next notice
 begins, because the inner join and the outer join are the same
 character. The em-dash nests the same way: `DisplayFault`'s own
 `Display` arms contain one (`FusedGeometry`,
-`crates/viewer/src/display.rs:190-200`), and so does each notice's
+`crates/viewer/src/display.rs:199-209`), and so does each notice's
 preamble.
 
 ## Why it is a design question and not a formatting nit
@@ -43,7 +43,7 @@ One hazard worth recording separately, because it is mechanical and
 present today: **`DisplayFault::NonRigidFrame`'s `Display` contains a
 `"; "` of its own** (`display.rs:180`). Any reading of the joined line
 that counts separators — including the assertion at
-`crates/viewer/src/frame.rs:1122` — is wrong the moment that arm
+`crates/viewer/src/frame.rs:1186` — is wrong the moment that arm
 reaches the line. #1886's fix pass was asked to stop that assertion
 lying; the ambiguity it is a symptom of is this file.
 
@@ -85,3 +85,10 @@ type as well as in the prose, and `joined_subject` throws it away to
 pick one `Subject`. Answering the separator without answering that
 would render a structure the value no longer has.
 
+## Note (`view/gesture-doors`, 2026-09-11): the assertion citation is stale
+
+`crates/viewer/src/frame.rs:1186` is named here as *"the assertion"*
+and is a doc-comment line inside `delta_not_a_number` at the merge base
+of this note. The finding is untouched; the pointer was already wrong,
+so it is disclosed rather than moved — a number that was never about
+its subject has no shift to apply.

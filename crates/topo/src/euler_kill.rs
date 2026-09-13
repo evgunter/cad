@@ -1118,6 +1118,7 @@ mod tests {
         ArenaSnapshot, arena_snapshot, deep_snapshot, ops_cube, ops_holed_box, prov,
     };
     use crate::iso::{canonical_form, isomorphic};
+    use crate::readback::euler_counts;
     use crate::test_support_impl::ArenaCounts;
     use crate::validate::validate;
 
@@ -2038,9 +2039,8 @@ mod tests {
         assert_eq!(validate(&body), Ok(()));
         // Euler–Poincaré at genus 0 with one ring left (the hole's top
         // rim): v − e + f − r = 16 − 24 + 11 − 1 = 2 = 2(1 − 0).
-        let rings: usize = body.faces().map(|(_, face)| face.rings.len()).sum();
-        assert_eq!(rings, 1);
-        assert_eq!(body.faces().count(), 11);
+        let counts = euler_counts(&body);
+        assert_eq!((counts.r, counts.f, counts.genus()), (1, 11, Ok(0)));
         let plug = body.kfmrh(bottom_face, created.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(plug.ring, t.plug.ring);

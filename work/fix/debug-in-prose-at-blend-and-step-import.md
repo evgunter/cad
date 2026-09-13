@@ -2,9 +2,12 @@
 id: debug-in-prose-at-blend-and-step-import
 kind: issue
 title: sweep's BlendSite renders through Debug inside a Display — a live panic at py::typed_err on any fillet or chamfer escalation at a link or a joint
-status: open
+status: closed
 opened: 2026-09-04
 refs: [step-import-source-debug-in-prose-panics-the-binding]
+branch: fix/blend-site-display
+pr: 2367
+closed: 2026-09-11
 ---
 
 
@@ -133,3 +136,49 @@ evidence and is **not this program's to fix**.
 Moved from `work/issues/` to `work/fillet/` in the tracker-wide re-home
 sweep of 2026-09-04 (Ev's direction, in-chat). Title narrowed to the
 blend half at the same time; the id is unchanged.
+
+## Re-verified on head, and the Home section above names a program that no longer exists (FIX orchestrator, 2026-09-11)
+
+**The panic is still live**, a week after the upgrade note, and the
+citations above have drifted. On this head:
+
+- `BlendError::Escalated { site: BlendSite, source }` is declared at
+  `crates/sweep/src/blend/mod.rs:1050`.
+- It renders at **`:1385` and `:1391`** (not `:949, 955`), inside
+  `impl fmt::Display for BlendError` (`:1242`), as
+  `"escalated at {site:?}"`.
+- `BlendSite` (`:325`) is brace-shaped in two of its three arms —
+  `Link { edge: EdgeKey }` and `Joint { vertex: VertexKey }`. Only
+  `Chain` is fieldless and safe.
+- `py::typed_err` (`crates/pncad-py/src/py/mod.rs:624`) asserts
+  `reads_as_prose` on the message. Its own doc (`:610`) states the
+  thing that makes this a shipping defect rather than a test-only one:
+  *"It is a `debug_assert`, which in this workspace is live in every
+  profile — the root manifest keeps them on under release too — so it
+  runs over every door the Python suite exercises and stays on in a
+  built wheel."*
+
+So a fillet or chamfer escalation at a link or a joint panics the
+binding in a shipped wheel. The title has said so since 2026-09-04.
+
+**Why it has waited: `## Home` above sends it to `work/fillet/`, and
+there is no such directory.** FILLET is gone and `crates/sweep/src/blend/*`
+is **BLEND's** glob (`work/blend/program.md`). The 2026-09-04 split
+took the EXCH half out on the explicit argument that *"a live panic on
+a public door should not wait on another program's slate"* — and then
+left this half pointing at a slate that does not exist, where it
+waited anyway. The re-home sweep moved the file to `work/fix/` and did
+not update the prose, so the directory (which is the claim, per
+`work/README.md`) and the body have disagreed ever since.
+
+**Disposition: it stays on FIX and is dispatched from here.** Not
+re-homed to BLEND — that would restart the wait this item has already
+served once. This is precisely the shape FIX's charter describes: one
+PR, the fix written, the fence named in the PR body and the owning
+program told. The `## Home` and `## SPLIT` sections above are retained
+as the record of how it got here; this section is the operative one.
+
+**Live overlap, flagged rather than discovered later:** BLEND's open
+PR **#2215** (blend-6 ring clearance, open since 2026-09-08) edits
+`crates/sweep/src/blend/mod.rs`, `build.rs` and `surgery.rs`. Whichever
+lands second owes the merge-forward.

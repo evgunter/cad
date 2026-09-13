@@ -27,10 +27,10 @@ and set it against `session-shims-and-test-imports`, whose deviation is
 
 `crates/viewer/src/lib.rs:55` is `pub mod camera;` and
 `crates/viewer/src/lib.rs:65` is `pub mod marks;`. Both modules are
-public, so `crates/viewer/src/camera.rs:882`'s `pub fn
+public, so `crates/viewer/src/camera.rs:914`'s `pub fn
 cursor_projection` is reachable as **both**
 `viewer::camera::cursor_projection` and — through
-`crates/viewer/src/lib.rs:127`'s `pub use camera::{…, cursor_projection}`
+`crates/viewer/src/lib.rs:128`'s `pub use camera::{…, cursor_projection}`
 — `viewer::cursor_projection`. Before the move the same two paths
 existed through `marks`. What the move preserved is the COUNT, not a
 uniqueness that was never there.

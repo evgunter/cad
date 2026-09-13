@@ -252,7 +252,13 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // ---- 6. Graft B whole (disjoint interiors: nothing discarded),
     // then glue every patch pair in BFS order. ----
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
-    let mut body = red.a;
+    // The zip, the merge and the closing mint are one door's surgery
+    // (`crate::surgery`): tier 1 is paid once, over the body `gate`
+    // below certifies, rather than once per operator. The guard owns
+    // the borrow, so a refusal on the way closes the scope by dropping
+    // it.
+    let mut zipped = red.a;
+    let mut body = zipped.begin_surgery();
     let solid = single_solid(&body).map_err(|_| desync("REST lane: operand A not one solid"))?;
     let graft = graft_solid(&mut body, solid, &red.b, tol)?;
 
@@ -332,6 +338,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         &KeyView::Graft(&graft),
         &desc,
     );
+    body.sweep_and_close();
+    let body = zipped;
     gate(&body)?;
     volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);

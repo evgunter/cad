@@ -2,9 +2,12 @@
 id: nightly-demotions-have-never-run
 kind: issue
 title: A row demoted to the nightly is not verified at the demotion - the three from 2026-09-03 first ran two nights later, unwatched
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1650, 1654, 1655]
+branch: ciw/demotion-verified
+pr: 2124
+closed: 2026-09-08
 ---
 
 
@@ -113,3 +116,47 @@ The evidence for the convention is now stronger rather than weaker: three
 rows ran unattended two nights after their demotion and happened to be
 correct, and nothing in the tree would have said otherwise if they had not
 been. `c5263958` is the case where one was not.
+
+## Disposition (PR 2124)
+
+The convention is written. `docs/prompts/implementer-discipline.md` §2 now
+carries it: `workflow_dispatch` the demoted job on the demoting PR's head,
+read the STEP that does the work rather than the job name, name the run id in
+the PR body, and only then delete the per-PR copy — with the 2026-09-03 three
+and `c5263958` as its evidence. A second paragraph carries the same rule one
+level in, for a `--selftest` sited only in a scheduled workflow.
+
+**The parity claim this item reserved is NOT built, and that is the finding
+rather than an omission.** "Has this scheduled job ever fired?" is a question
+about run history; `scripts/check-ci-mirror-parity.py` is a static reader of
+tracked files, and answering it needs the Actions API. A check that needs a
+network call is a check that fails on a fork, offline, and in the local half —
+so the demotion rule stays prose. What IS a tree question got one: claim 4
+grew a second arm (see the sibling item) refusing a `--selftest` mode no
+workflow invokes.
+
+**The nightly's variable length, read so nobody re-derives it.** Run
+`34024781262` (2026-09-06) concluded in 10 minutes and `34111341944`
+(2026-09-07) in 27. Both have 13 jobs and both ran the body — `has main moved`
+did not skip a night. The whole delta is `opt-level calibration`'s cadence
+step: on 09-06 `do the measured arms have to run tonight` said no and steps
+7-15 skipped (job: 23 s), on 09-07 it said yes and the two measured arms ran
+10:26:27 → 10:51:51. All three demoted rows executed and passed at STEP level
+on 09-06 as well.
+
+## Closed 2026-09-08
+
+PR 2124. The reading is taken (all three demoted rows executed and passed
+on nightly runs 15, 16 and 17, read at STEP level), and the convention is
+in `docs/prompts/implementer-discipline.md` §2: a demotion is verified AT
+the demotion, with the run id named in the PR body.
+
+The mechanical half the item hoped for is **deliberately not built**, and
+the reason is on the record rather than left as an omission: "has this
+scheduled job ever fired" is a question about run HISTORY, and
+`check-ci-mirror-parity.py` is a static reader of tracked files. A check
+that needs the Actions API fails on a fork, offline, and in the local
+half. What IS a tree question got a check — claim 4's second arm, below.
+
+The convention therefore rests on prose that nothing enforces, which is
+stated at the §2 paragraph itself rather than implied.

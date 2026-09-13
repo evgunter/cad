@@ -57,7 +57,7 @@ typed fault enums (`grep -rn "pub enum .*Error\|pub enum .*Fault"
 crates/viewer/src/`). Two carry the same shape one layer down and were
 found by the #1846 style review, not by either pattern:
 
-- **`BlendError::NoEdges`** (`crates/viewer/src/blend.rs:170-180`).
+- **`BlendError::NoEdges`** (`crates/viewer/src/blend.rs:183-192`).
   Its own doc-comment names the lower rule it duplicates:
   *"`NodeErrorKind::BlendSelectionEmpty` refuses an empty selection at
   evaluation, so a hand-written recipe gets the same answer as an

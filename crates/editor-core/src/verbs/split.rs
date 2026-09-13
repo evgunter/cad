@@ -26,7 +26,7 @@
 //! # Every field is direct per-instance data
 //!
 //! As in the sibling modules: function pointers and literals per
-//! instance, no match over a verb vocabulary anywhere in this file, so
+//! instance, no match over the kernel's verb vocabulary anywhere in this file, so
 //! a future verb never has to open it. The one match here is over the
 //! DATUM vocabulary — which kind of datum is a split's tool — and it is
 //! exhaustive with no wildcard arm (D3), so a datum kind added upstairs
@@ -35,19 +35,40 @@
 //! # Where an operand's expected-kind label lives, by convention
 //!
 //! Three labels of this shape exist and they are three different
-//! things, which is why they have three homes. `tool_expected` is
-//! correspondence DATA because the reading it labels is the
-//! correspondence's (`tool`): whoever declares which datum kinds a
-//! verb accepts declares what to call the refusal. The profile
-//! lowering's inline `expected: "profile"` is the LOWERING's, because
-//! every profile verb takes a profile — the operand contract belongs
-//! to `wire_swept`, not to any one correspondence. The blends'
+//! things, which is why they have three homes.
+//!
+//! **The convention is about which DECLARATION carries the label, not
+//! about who picks the word.** `tool_expected` is correspondence DATA
+//! because the reading it labels is the correspondence's (`tool`):
+//! whoever declares which datum kinds a verb accepts declares WHICH
+//! label the refusal carries. The profile lowering's
+//! `expected: family::PROFILE` is the LOWERING's, because every
+//! profile verb takes a profile — the operand contract belongs to
+//! `wire_swept`, not to any one correspondence. The blends'
 //! `selection_label` is not an operand label at all: it is the kernel
 //! refusal label a SELECTION failure carries (`BlendKind`), shared
 //! with the kernel's own refusal so a verb is never rendered twice.
 //! The rule: a label is data on the correspondence that owns the
 //! reading it names, and inline in the lowering that owns the
 //! contract it names.
+//!
+//! **The WORD is never a home's to invent, this one included.** Every
+//! `expected:` in the evaluation comes from `crate::eval::family` or
+//! `crate::eval::phrase`, which is where the vocabulary a refusal
+//! speaks is enumerable; a correspondence choosing its own spelling of
+//! "a plane datum" is how one vocabulary becomes several. So the field
+//! stays here and its value is `eval::phrase::DATUM_PLANE`.
+//!
+//! The `assert_eq!` below pins that value BYTE-EXACT, from the
+//! correspondence's side: the label is document-reachable (a split
+//! whose tool is an axis datum refuses with it), and a const is
+//! exactly as easy to re-word as a literal was. The same two bytes are
+//! pinned from the OTHER side by
+//! `crates/editor-core/tests/wire_operand_door.rs`, which asserts the
+//! refusal a document actually gets; the two are worth having together
+//! because they fail for different reasons — one when this
+//! correspondence is re-worded, the other when the word stops reaching
+//! the user.
 
 use std::sync::Arc;
 
@@ -76,7 +97,7 @@ pub(crate) type SplitEmitter<T> = fn(
 ) -> Result<Arc<NameTable>, NamingError>;
 
 /// **The split's correspondence**, as data — everything the split's
-/// lowering needs to turn a `Node::Split` into a [`Verb`] and its two
+/// lowering needs to turn a `Node::Split` into a [`verbs::Verb`] and its two
 /// sides into a name table. Adding a field here is how the verb
 /// declares something the lowering must know.
 pub(crate) struct SplitVerb<T: Decide> {
@@ -89,7 +110,7 @@ pub(crate) struct SplitVerb<T: Decide> {
     /// `WrongOperand` refusal carries when it is not.
     pub(crate) tool_expected: &'static str,
     /// **The plane → the kernel verb.** The one place a document's
-    /// resolved tool plane becomes a [`Verb`] payload, per instance.
+    /// resolved tool plane becomes a [`verbs::Verb`] payload, per instance.
     pub(crate) build: fn(SplitPlane<T>) -> Verb<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: SplitEmitter<T>,
@@ -154,7 +175,7 @@ fn plane_of<T: Decide>(datum: &DatumValue<T>) -> Option<SplitPlane<T>> {
 pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
     SplitVerb {
         tool: plane_of,
-        tool_expected: "datum plane",
+        tool_expected: crate::eval::phrase::DATUM_PLANE,
         build: build_split,
         emitter: names::name_split,
         record: split_record,

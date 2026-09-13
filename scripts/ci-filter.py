@@ -82,14 +82,14 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
   RUN_STL=true|false            watertight (admesh) row
   RUN_STEP_EXPORT=true|false    step import (freecad) row
-  RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row — keyed on
-                                SEEDS, not on the closure, like
-                                RUN_VIEWER_TOOLKIT below; see `PNCAD_PY_SEEDS`
+  RUN_PNCAD_PY=true|false       whether this diff's SEEDS reach the members a
+                                BUILD OF THE WHEEL compiles (pncad-py's non-dev
+                                dependency closure; see `pncad_py_seeds`).
+                                REPORTED, GATES NOTHING — the python suite runs
+                                on every code-tier run in both halves
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
   RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
-  RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row. LOCAL-ONLY
-                                today — the hosted job moved to nightly.yml and
-                                runs ungated there; see JOB_ROOTS
+  RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row
   RUN_K_LINT=true|false         k-lint (gate) row
   LANE_ADVISORY=true|false      this diff touches `*interval*` files and this
                                 run was NARROWED to the default lane by a
@@ -157,11 +157,33 @@ TIER=all one**, against medians of 22 and 31.
 WALL CLOCK IS NOT FREE AND THE FIRST VERSION OF THIS NOTE SAID IT WAS. The eps
 legs do start together behind an archive that was already being built, but a
 run's wall follows their MAXIMUM, and the maximum of six legs is larger than
-the maximum of two: measured, ~+20 s of critical path on a run that would have
-drawn `interval` anyway, on top of the ~+172 s the interval archive adds to one
-that would have drawn `default` — about +96 s in expectation on a TIER=all run.
-The last job on that path is `test (interval, eps = default, 1/2)`, the first
-eps row's shard 1, which also carries the two editor-core steps.
+the maximum of two. THE SIZE OF THAT WAS FIRST WRITTEN AS ~+20 s OF CRITICAL
+PATH on a run that would have drawn `interval` anyway, and the 2026-09-12
+shard measurement falsifies it: the eps rows' cost on that lane is the
+ε = 1e-12 leg, which runs several times the ε = default leg beside it, so the
+term is hundreds of seconds and not tens. The "+96 s in expectation on a
+TIER=all run" that was composed from it — with the ~+172 s the interval
+archive adds to a run that would have drawn `default`, which nothing here
+re-took — goes with it. Neither figure is re-derived here: the readings that
+replace the first term are on
+`work/tcost/one-test-is-the-whole-ci-critical-path`.
+
+THE LAST JOB ON THAT PATH IS THE eps = 1e-12 INTERVAL LEG, AND IT USED TO BE
+NAMED AS `test (interval, eps = default, 1/2)` HERE (corrected 2026-09-12).
+That naming was right when every interval leg cost about the same; it is not
+now. The ε = 1e-12 row carries `editor-core::all
+r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`,
+which is most of its leg at that ε and a rounding error at the other two, so
+the leg holding it finishes last on EVERY code-tier run measured — 30 of them,
+18 at the live count of 2 and 12 more across counts 2, 3, 4 and 6. THE
+DURATIONS ARE NOT RESTATED HERE, because this note would be their fifth home
+and three of the four disagreed on the day they were written: they live once,
+on `work/tcost/one-test-is-the-whole-ci-critical-path`, with the per-run
+readings behind them on `work/tcost/nextest-shard-count-needs-remeasure`.
+WHICH shard of that row holds the test is not fixed: the count partition reads
+no timings, so it moves with the test list. Separately, and unchanged, the two
+editor-core steps ride on shard 1 of the FIRST eps row — that is where they
+are wired, not where the wall is.
 
 THE JOB-MINUTE FIGURES ARE FLOORS, NOT FORECASTS: three un-sampled runs came in
 at 54.0 / 44.4 / 49.7 job-minutes against a 30.6-minute TIER=all median. The
@@ -1097,21 +1119,33 @@ def _repo_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-_MEMBERS_CACHE: dict[str, tuple[dict[str, str], dict[str, set[str]]]] = {}
+_MEMBERS_CACHE: dict[
+    str, tuple[dict[str, str], dict[str, set[str]], dict[str, set[str]]]
+] = {}
 
 
-def _members(root: str) -> tuple[dict[str, str], dict[str, set[str]]]:
-    """Return (dir-name -> package name, package -> set of member deps).
+def _member_graph(
+    root: str,
+) -> tuple[dict[str, str], dict[str, set[str]], dict[str, set[str]]]:
+    """Return (dir-name -> package name, every member dep, the non-dev ones).
 
-    MEMOISED PER ROOT. Two callers now want the member map in one process —
-    the closure, and the gated-suite terms' binary ids — and `cargo metadata`
-    is a subprocess. The cache is keyed on the root and holds for the life of
-    the process, which is one classification.
+    MEMOISED PER ROOT. Three callers now want the member map in one process —
+    the change closure, the gated-suite terms' binary ids, and the python
+    suite's seed set — and `cargo metadata` is a subprocess. The cache is keyed
+    on the root and holds for the life of the process, which is one
+    classification.
 
     `--no-deps` reads the workspace manifests only: no registry resolution,
-    no network, no lockfile update. Dependency kinds are all kept — normal,
-    build, AND dev — because `cargo test -p X` builds X's dev-dependencies,
-    so a dev-dep edge propagates a change just as a normal one does.
+    no network, no lockfile update.
+
+    TWO EDGE SETS, BECAUSE THE TWO DIRECTIONS DISAGREE ABOUT DEV EDGES.
+    `_closure` walks UPWARD, from a changed crate to what a TEST of the
+    workspace rebuilds, and there every kind counts — `cargo test -p X` builds
+    X's dev-dependencies, so a dev-dep edge propagates a change just as a
+    normal one does. `_dependency_closure` walks DOWNWARD, from one crate to
+    what a BUILD of that crate compiles, and `maturin build` compiles no
+    dev-dependency at all — so a dev edge followed downward names a crate the
+    thing being built never sees.
     """
     if root in _MEMBERS_CACHE:
         return _MEMBERS_CACHE[root]
@@ -1121,6 +1155,7 @@ def _members(root: str) -> tuple[dict[str, str], dict[str, set[str]]]:
     names = {p["name"] for p in meta["packages"]}
     dir_of: dict[str, str] = {}
     deps: dict[str, set[str]] = {}
+    normal: dict[str, set[str]] = {}
     for pkg in meta["packages"]:
         manifest = os.path.abspath(pkg["manifest_path"])
         rel = os.path.relpath(os.path.dirname(manifest), root)
@@ -1129,13 +1164,39 @@ def _members(root: str) -> tuple[dict[str, str], dict[str, set[str]]]:
             # A member outside crates/<name>/ breaks the path mapping below.
             raise Bail(f"member {pkg['name']} lives at {rel}, not crates/<name>")
         dir_of[parts[1]] = pkg["name"]
-        deps[pkg["name"]] = {
-            d["name"] for d in pkg["dependencies"] if d["name"] in names
-        }
+        member_deps = [d for d in pkg["dependencies"] if d["name"] in names]
+        deps[pkg["name"]] = {d["name"] for d in member_deps}
+        # `cargo metadata` spells a normal dependency's kind as null and names
+        # the others ("dev", "build"); the fixture stub spells it "normal".
+        normal[pkg["name"]] = {d["name"] for d in member_deps if d.get("kind") != "dev"}
     if not dir_of:
         raise Bail("no workspace members found")
-    _MEMBERS_CACHE[root] = (dir_of, deps)
+    _MEMBERS_CACHE[root] = (dir_of, deps, normal)
+    return dir_of, deps, normal
+
+
+def _members(root: str) -> tuple[dict[str, str], dict[str, set[str]]]:
+    """(dir-name -> package name, package -> every member dep). See `_member_graph`."""
+    dir_of, deps, _ = _member_graph(root)
     return dir_of, deps
+
+
+def _dependency_closure(root_pkg: str, deps: dict[str, set[str]]) -> frozenset[str]:
+    """One member + everything it transitively DEPENDS ON — the other direction.
+
+    `_closure` answers "what does this change reach"; this answers "what does
+    building this crate compile". Pass the non-dev edge set for a build that
+    compiles no test targets."""
+    if root_pkg not in deps:
+        raise Bail(f"{root_pkg} is not a workspace member")
+    out = {root_pkg}
+    stack = [root_pkg]
+    while stack:
+        for dep in sorted(deps.get(stack.pop(), ())):
+            if dep not in out:
+                out.add(dep)
+                stack.append(dep)
+    return frozenset(out)
 
 
 def _closure(seeds: set[str], deps: dict[str, set[str]]) -> list[str]:
@@ -1302,35 +1363,20 @@ def _all_tier(root: str) -> dict[str, str]:
 #               for exactly those modules), and `rebuild latency` moved to
 #               nightly.yml. What still reads this is ci.yml's `test-interval`
 #               job — its two named interval rows — plus ci-local.sh.
-# pncad-py      NO LONGER HERE. `RUN_PNCAD_PY` is computed in `decorate`
-#               off the SEEDS, beside `RUN_VIEWER_TOOLKIT` and for the
-#               same reason; the argument is at that site. What this
-#               table said, and why it stopped being the right condition:
-#               the wheel compiles pncad-py's whole dependency graph —
-#               the entire façade stack — so `pncad-py in closure` is
-#               "something the wheel compiles moved", which is true of
-#               nearly every kernel change and therefore gates almost
-#               nothing while costing a second kernel compile under the
-#               `python` feature on almost every code-tier run.
+# pncad-py      NOT HERE, AND NOT A GATE ANYWHERE. `RUN_PNCAD_PY` is
+#               computed in `decorate` off the SEEDS and is REPORTING:
+#               the python suite runs on every code-tier run in both
+#               halves, so no job reads the key. A closure entry here
+#               would not have gated anything either — the wheel
+#               compiles pncad-py's whole dependency graph, the entire
+#               façade stack, so "something the wheel compiles moved" is
+#               true of nearly every kernel change.
 # topo          the release-profile corrupt-input row compiles
 #               `-p topo --lib`, so topo's own closure membership is
 #               exactly the condition under which anything it runs can
 #               have moved. It is the one root whose crate is where the
-#               suite lives rather than a downstream consumer.
-#
-#               THE HOSTED HALF OF THIS ROW IS GONE (S-TCOST C1,
-#               2026-09-03): `corrupt input (release profile)` moved to
-#               nightly.yml, where it runs UNGATED once a day, so no job
-#               in ci.yml reads this key any more and ci.yml's `filter`
-#               publishes no `run_topo_release` output. THE KEY STAYS
-#               because `local-scripts/ci-local.sh` still consumes it —
-#               nothing bills the local gate by the minute, so the row
-#               keeps its per-change scoping there. Deleting the key
-#               would silently promote a scoped local row to
-#               unconditional, which is the opposite of what the demotion
-#               decided. The soundness argument for the demotion is at
-#               the job in nightly.yml, per row, against
-#               docs/CI-MINUTES-2026-08.md's absence rule.
+#               suite lives rather than a downstream consumer. Both
+#               halves read it.
 JOB_ROOTS = {
     "RUN_EDITOR_CORE": {"editor-core"},
     "RUN_STL": {"stl"},
@@ -1376,7 +1422,10 @@ def _touches_oracle(files: list[str] | None) -> bool:
 
 
 # THE SEEDS THAT BUY THE GUI TOOLKIT ROWS (Ev's viewer-CI-posture ruling,
-# 2026-08-27; docs/GUI-LOG.md). SEEDS, not the closure — the argument is at
+# 2026-08-27, which was recorded in the closed GUI program's log; that log left
+# the tracker with the program's directory in DOC-LEDGER sweep 5 and reads at
+# `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
+# SEEDS, not the closure — the argument is at
 # `RUN_VIEWER_TOOLKIT` in `decorate`, and it is the whole of why this is a
 # three-name set rather than "anything viewer depends on".
 #
@@ -1386,32 +1435,50 @@ def _touches_oracle(files: list[str] | None) -> bool:
 # small.
 VIEWER_TOOLKIT_SEEDS: frozenset[str] = frozenset({"viewer", "pncad", "bvh"})
 
-# THE SEEDS THAT BUY THE PYTHON SUITE (Ev's approval in chat, 2026-09-03;
-# S-TCOST unit C3). SEEDS, not the closure, and the argument is at
-# `RUN_PNCAD_PY` in `decorate`.
-#
-# `pncad-py` sits downstream of `pncad`, which re-exports the whole kernel, so
-# it is in the dependent CLOSURE of nearly every kernel change — a
-# closure-keyed test is true almost always and gates almost nothing, while the
-# row it gates is a SECOND compile of the kernel under the `python` feature.
-# That is the identical shape the viewer axis was ruled on, one crate over.
-#
-# WHY THESE THREE. `pncad-py` — the binding layer's own Rust and the suite's
-# own .py/.pyi files, which live under that member directory. `pncad` — the
-# façade every binding call goes through, and the one crate whose own source
-# can change what the suite sees without any other crate moving. `editor-core`
-# — the document model the suite drives through the façade (the guide and
-# north-star tests build documents), and the one non-façade edge the bindings
-# have. A kernel crate that `pncad` merely re-exports is deliberately NOT here:
-# a breaking change to a re-exported type reddens the ordinary closure rows on
-# the offending PR, and a change in its NUMBERS is what the nightly re-take is
-# for.
-#
-# Adding a name here is a decision about what can change the wheel's observable
-# behaviour without touching the three above; it is not a convenience. The
-# nightly lane re-takes the whole suite daily, which is what makes the set safe
-# to keep small.
-PNCAD_PY_SEEDS: frozenset[str] = frozenset({"pncad-py", "pncad", "editor-core"})
+# THE MEMBER THE PYTHON SUITE IS ABOUT. The seed set below is derived from it
+# and nothing else names it.
+PNCAD_PY = "pncad-py"
+
+
+def pncad_py_seeds(root: str) -> frozenset[str]:
+    """The members whose own sources can move what the python suite observes.
+
+    THE CONDITION IS THE DEPENDENCY GRAPH, not a list and not a text. `pncad`
+    re-exports the kernel and the bindings wrap what it hands them, so the
+    question "can a change to crate X reach the wheel's Python surface" has
+    the same answer as "does building the wheel compile X" — and that answer
+    lives in `cargo metadata`, where nothing can spell it wrong.
+
+    WHY NOT THE FAÇADE'S OWN TEXT, which is the reading this replaced and the
+    reason it had to. A crate reaches Python through any path the re-exports
+    take, not only through a whole-crate `pub use` at the façade's top level:
+    `bvh::Ray` arrives via `editor_core`'s `pub use bvh::Ray`
+    (`crates/editor-core/src/lib.rs`), `pncad::select`'s re-export of it, and
+    a `#[pyclass] Ray` in `crates/pncad-py/src/py/pick.rs` that
+    `tests/test_picking.py` drives through `pick_face`. Top-level naming is
+    SUFFICIENT for reach and not necessary, so a rule keyed on it calls a
+    crate unreachable that the suite calls in 37 places.
+
+    THIS MAKES THE AXIS the closure condition `RUN_PNCAD_PY` carried before
+    S-TCOST C3, up to dev edges — `seed in deps(pncad-py)` and
+    `pncad-py in dependents(seed)` are one statement read from two ends. C3
+    withdrew it on cost: a second compile of the kernel under the `python`
+    feature, bought on nearly every code-tier run. That cost was re-measured
+    on 2026-09-06 and does not survive the reading this repository actually
+    uses — see the wall-clock figures at `RUN_PNCAD_PY` in `decorate`.
+
+    DEV EDGES ARE NOT FOLLOWED, so `test-utils` — a dev-dependency of
+    `pncad-py` and of half the workspace — stays out: `maturin build` compiles
+    no test target, so nothing it contains can reach the wheel. `viewer` stays
+    out because nothing under `pncad-py` depends on it.
+
+    FAILS CLOSED — uncertain means the row RUNS, which is the conservative
+    action for a gate. A workspace with no `pncad-py` in it is a reader that
+    has stopped reading, not a wheel that compiles nothing, and
+    `_dependency_closure`'s `Bail` puts the suite back on."""
+    _, _, normal = _member_graph(root)
+    return _dependency_closure(PNCAD_PY, normal)
+
 
 # THE MATRIX. Every point of LANES x EPS_ROWS runs on every hosted code-tier
 # run (2026-09-04); these two lists are also the legal values a request may
@@ -1591,6 +1658,18 @@ _ALL_RS_MOD_RE = re.compile(r"^\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;"
 # path cannot contain anything else; a path that does is not silently emitted
 # as a malformed filterset, it fails open (below).
 _MODULE_PATH_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$")
+# A suite's dependency on a SIBLING module of its own test binary. `crate::`
+# and `super::` are the two spellings that reach one; a `use` of the crate
+# under test goes through its package name and is not this.
+_USE_SIBLING_RE = re.compile(
+    r"^[ \t]*(?:pub[ \t]+)?use[ \t]+(?:crate|super)[ \t]*::[ \t]*(\{|[A-Za-z_][A-Za-z0-9_]*)",
+    re.M,
+)
+_IDENT_HEAD_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)")
+# An attribute or a doc line, which may sit BETWEEN a `#[path]` and the `mod`
+# it decorates — `crates/mesh/src/lib.rs` writes `#[allow(...)]` there — and
+# must not break the pair for a reader looking for one.
+_ATTRIBUTE_LINE_RE = re.compile(r"^\s*(?:#!?\[|///|//!)")
 _BINARY_ID_RE = re.compile(r"^[A-Za-z0-9_-]+(?:::[A-Za-z0-9_-]+)?$")
 
 # A diff touching one of these empties the whole filter: they are the inputs
@@ -1724,6 +1803,207 @@ def _all_rs_modules(root: str, crate_dir: str) -> dict[str, str]:
         if line.strip():
             pending = None
     return out
+
+
+def _src_path_mounts(root: str) -> dict[str, str]:
+    """Mounted file -> `"<mounting file>:<line>"`, over `crates/*/src`.
+
+    `_suite_term`'s `src/` arm assumes THE MODULE PATH IS THE FILE PATH, and
+    that is false for a `#[cfg(test)]` module mounted from a sibling with
+    `#[path]`: `crates/topo/src/boolean/r1_probes.rs` is
+    `boolean::solid_contain::r1_probes::`, not `boolean::r1_probes::`. A term
+    built from the file path would match no test at all — and a term matching
+    nothing EXCLUDES nothing, so the suite runs on every pull request while
+    reading, in the file, as a gate. It is also the one direction
+    `--gated-set` cannot catch: the nightly runs what it derives, so such a
+    term quietly SHRINKS the re-take instead of reddening it, and the tree
+    reports two green gates over a suite that is neither gated nor re-taken.
+
+    So a marker on a mounted file is refused, by name, here. Resolving the
+    mount instead was weighed and is the larger fix: a mount can nest, and the
+    module path depends on where the mounting `mod` sits in its own file's
+    module tree, so a reader that resolves one level and stops derives a wrong
+    prefix and goes back to selecting nothing — this defect one level deeper.
+    Refusing is exact; deriving would have to be right.
+
+    INTERVENING ATTRIBUTES ARE THE LIVE SHAPE, not a hypothetical:
+    `crates/mesh/src/lib.rs` writes `#[cfg(test)]`, `#[path = "..."]`,
+    `#[allow(...)]`, then `mod`. A reader that required the two to be adjacent
+    would miss it and report a clean tree.
+    """
+    out: dict[str, str] = {}
+    crates = os.path.join(root, "crates")
+    for crate_dir in sorted(os.listdir(crates)):
+        base = os.path.join(crates, crate_dir, "src")
+        for dirpath, dirs, names in os.walk(base):
+            dirs.sort()
+            for name in sorted(names):
+                if not name.endswith(".rs"):
+                    continue
+                full = os.path.join(dirpath, name)
+                here = os.path.relpath(full, root).replace(os.sep, "/")
+                with open(full, encoding="utf-8", errors="replace") as fh:
+                    lines = _gated_code_only(fh.read()).splitlines()
+                pending: tuple[str, int] | None = None
+                for lineno, line in enumerate(lines, 1):
+                    found = _ALL_RS_PATH_RE.search(line)
+                    if found:
+                        pending = (found.group(1), lineno)
+                        continue
+                    if pending is not None and _ATTRIBUTE_LINE_RE.match(line):
+                        continue
+                    mod = _ALL_RS_MOD_RE.match(line)
+                    if mod and pending is not None:
+                        target = os.path.normpath(os.path.join(dirpath, pending[0]))
+                        rel = os.path.relpath(target, root).replace(os.sep, "/")
+                        out.setdefault(rel, f"{here}:{pending[1]}")
+                    if line.strip():
+                        pending = None
+    return out
+
+
+def _tests_sibling_files(root: str, crate_dir: str) -> dict[str, str]:
+    """Module name -> the `tests/`-relative file `tests/all.rs` mounts it from.
+
+    `_all_rs_modules` READS THE OTHER HALF OF THIS FILE and cannot stand in for
+    it. It records `#[path = "..."] mod x;` pairs, because a suite's test-id
+    prefix is not derivable from its filename; the HELPER modules are declared
+    as a bare `mod common;` with no attribute at all, and are invisible to it.
+    That is not a quirk of one crate — it is how every helper tree in the repo
+    is mounted, and reusing the term reader here would have made this check
+    resolve nothing and pass every tree, silently and in green.
+
+    So: the `#[path]` pairs, plus the bare `mod x;` declarations resolved by
+    Rust's own rule — `x/mod.rs` first, then `x.rs`. A name that resolves to
+    neither is left out rather than guessed at.
+    """
+    out = {mod: inner for inner, mod in _all_rs_modules(root, crate_dir).items()}
+    tests_dir = os.path.join(root, "crates", crate_dir, "tests")
+    try:
+        with open(os.path.join(tests_dir, "all.rs"), encoding="utf-8", errors="replace") as fh:
+            lines = _gated_code_only(fh.read()).splitlines()
+    except OSError:
+        return out
+    attributed = False
+    for line in lines:
+        if _ALL_RS_PATH_RE.search(line):
+            attributed = True
+            continue
+        mod = _ALL_RS_MOD_RE.match(line)
+        if mod:
+            name = mod.group(1)
+            if not attributed and name not in out:
+                for candidate in (f"{name}/mod.rs", f"{name}.rs"):
+                    if os.path.isfile(os.path.join(tests_dir, candidate)):
+                        out[name] = candidate
+                        break
+            attributed = False
+            continue
+        if line.strip():
+            attributed = False
+    return out
+
+
+def _sibling_module_heads(text: str) -> set[str]:
+    """The head identifiers of every `use crate::<h>` / `use super::<h>` in `text`.
+
+    The HEAD is the whole question: `use crate::common::bodies::brick` depends
+    on the `common` module, and which item it reaches inside it is a fact about
+    Rust and not about the change filter. A brace list is split on its TOP-LEVEL
+    commas only — `use crate::{common::{a, b}, corpus}` is `common` and `corpus`
+    and never `a` — because an over-matched head that happened to collide with a
+    real module name would demand a path the suite does not depend on, and that
+    reds a correct tree. This check may only ever be wrong in the direction of
+    missing an import.
+    """
+    heads: set[str] = set()
+    for match in _USE_SIBLING_RE.finditer(text):
+        if match.group(1) != "{":
+            heads.add(match.group(1))
+            continue
+        start = text.index("{", match.start())
+        depth = 0
+        end = None
+        for i in range(start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        if end is None:
+            continue
+        depth = 0
+        entry: list[str] = []
+        for ch in text[start + 1 : end] + ",":
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+            if ch == "," and depth == 0:
+                found = _IDENT_HEAD_RE.match("".join(entry).strip())
+                if found:
+                    heads.add(found.group(1))
+                entry = []
+            else:
+                entry.append(ch)
+    return heads
+
+
+def _unnamed_helper_imports(root: str, suite: "GatedSuite") -> list[str]:
+    """The sibling helper modules `suite` imports and its marker does not name.
+
+    THE CONVERSE OF THE PATH CHECK, and the hole it closes is silent and green.
+    A marker's own file is an implicit member of its path set; a sibling helper
+    module is NOT. A suite that writes `use crate::common;` takes its fixtures,
+    its bodies and often its tolerance from that directory — so a pull request
+    editing `crates/<c>/tests/common/mod.rs` seeds the crate, and the filter
+    then SKIPS every gated suite whose set omits it, on the one diff most
+    likely to have broken them. Nothing reds, and the notice line reads exactly
+    like a correct skip.
+
+    That is not hypothetical. TCOST-9 swept all 54 markers in the tree for this
+    and found TEN — seven of them written under TCOST-1's review and three
+    under its own, whose stated bar in both cases WAS the path set. Every
+    author made the same omission. The ten were widened by hand; this is the
+    arm that stops the eleventh.
+
+    `tests/` shape only. A `src/` marker's `use crate::<m>` names a crate
+    SOURCE module, where whether the suite is specific to it is the ordinary
+    path-set judgement a reviewer makes and not a fact this script can derive.
+    """
+    parts = suite.path.split("/")
+    if len(parts) < 4 or parts[2] != "tests":
+        return []
+    crate_dir = parts[1]
+    file_of = _tests_sibling_files(root, crate_dir)
+    try:
+        with open(os.path.join(root, suite.path), encoding="utf-8", errors="replace") as fh:
+            text = _gated_code_only(fh.read())
+    except OSError:
+        return []
+    missing: list[str] = []
+    for head in sorted(_sibling_module_heads(text)):
+        inner = file_of.get(head)
+        if inner is None:
+            # Not a module `tests/all.rs` mounts, so not a sibling of this
+            # suite at all — a re-export through the crate's own lib, or a
+            # name this reader cannot resolve. Silence is the safe answer.
+            continue
+        resolved = f"crates/{crate_dir}/tests/{inner}"
+        if resolved == suite.path:
+            continue
+        # THE SAME MATCH `selected_by` MAKES, and it has to be: a check that
+        # accepted a spelling the filter would not honour would pass a marker
+        # that still skips on the diff it must run for.
+        covered = any(
+            resolved.startswith(want) if want.endswith("/") else want == resolved
+            for want in suite.paths
+        )
+        if not covered:
+            missing.append(f"`use crate::{head};` -> {resolved}")
+    return missing
 
 
 def _suite_term(root: str, rel: str, dir_of: dict[str, str] | None) -> tuple[str | None, str | None]:
@@ -1993,6 +2273,7 @@ def gated_check(root: str) -> int:
                     "one that does"
                 )
 
+    mounts = _src_path_mounts(root)
     suites = _scan_gated(root, dir_of)
     for suite in suites:
         if suite.problem is not None:
@@ -2008,6 +2289,28 @@ def gated_check(root: str) -> int:
                 "The term it derives selects nothing, so the marker gates nothing and "
                 "says otherwise"
             )
+        # A MARKER ON A `#[path]`-MOUNTED FILE. Its term is derived from the
+        # file path and the compiler's module path is the MOUNTING module's,
+        # so the term selects nothing — the suite runs on every run while
+        # reading as gated, and drops out of the nightly re-take silently.
+        if suite.path in mounts:
+            problems.append(
+                f"{suite.path}: carries a marker and is `#[path]`-mounted from "
+                f"{mounts[suite.path]}, so its module path is the MOUNTING module's "
+                "and the term derived from this file's path selects no test. Move the "
+                "gated rows to a file whose path matches its module path, and mark that"
+            )
+
+        # A HELPER THE SUITE IMPORTS AND THE MARKER DOES NOT NAME. Everything
+        # above asks whether what the marker SAYS resolves; this asks the
+        # converse — whether what the suite DEPENDS ON is said — for the one
+        # dependency the tree makes mechanically checkable.
+        for missing in _unnamed_helper_imports(root, suite):
+            problems.append(
+                f"{suite.path}: imports {missing}, which its marker does not name. "
+                "A diff editing that helper would SKIP this suite — its fixtures "
+                "change and it does not run"
+            )
 
     if problems:
         for p in problems:
@@ -2018,6 +2321,11 @@ def gated_check(root: str) -> int:
             "and is never listed. Fix the path, or delete the marker deliberately — an "
             "unresolvable one leaves the suite running on every pull request while "
             "reading as gated, and reds the nightly's ungated re-take.\n"
+            "\nAn UNNAMED HELPER IMPORT is the other direction and fails the other "
+            "way: the suite is skipped on the diff that moved its fixtures, silently "
+            "and in green. Add the helper's directory to the marker with a trailing "
+            "`/` — `crates/<crate>/tests/common/` — which is what makes it match "
+            "everything under it.\n"
         )
         raise SystemExit(
             "error: {} problem(s) in {} gated-suite marker(s)".format(len(problems), len(suites))
@@ -2100,6 +2408,7 @@ def decorate(
     res: dict[str, str],
     files: list[str] | None = None,
     config: dict[str, tuple[str, str]] | None = None,
+    wheel_members: frozenset[str] | None = None,
 ) -> dict[str, str]:
     tier = res["TIER"]
     pkgs = set(p for p in res["PKGS"].split(",") if p)
@@ -2134,8 +2443,10 @@ def decorate(
     # member change can break it, so it runs whenever anything builds.
     res["RUN_K_LINT"] = "false" if tier == "docs" else "true"
     # THE VIEWER TOOLKIT AXIS — SEED-KEYED, NOT CLOSURE-KEYED (Ev,
-    # 2026-08-27, ruling recorded in docs/GUI-LOG.md: "the GUI is treated as a
-    # third-party consumer of the API").
+    # 2026-08-27, ruling recorded in the closed GUI program's log: "the GUI is
+    # treated as a third-party consumer of the API"; that log left the tracker
+    # with the program's directory in DOC-LEDGER sweep 5 and reads at
+    # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
     #
     # What it gates: the two rows that compile eframe + wgpu + naga + winit —
     # `clippy -p viewer --features app` and the rustdoc gate's `--all-features`
@@ -2182,44 +2493,42 @@ def decorate(
     else:
         seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
         res["RUN_VIEWER_TOOLKIT"] = "true" if seeds & VIEWER_TOOLKIT_SEEDS else "false"
-    # THE PYTHON SUITE — SEED-KEYED FOR THE SAME REASON, AND ARGUED THE SAME
-    # WAY (Ev, in chat 2026-09-03; S-TCOST unit C3). It sat in JOB_ROOTS
-    # above until then, keyed on `pncad-py in the dependent closure`.
+    # THE PYTHON SUITE'S SEED REACH — REPORTED, NOT A GATE. What this
+    # computes is whether the diff's SEEDS reach the members a BUILD OF THE
+    # WHEEL compiles; `pncad_py_seeds` derives that set from `cargo metadata`
+    # and its dev-edge rule is argued there.
     #
-    # WHY THE CLOSURE WAS THE WRONG CONDITION. `pncad-py` depends on `pncad`,
-    # which re-exports the entire kernel, so almost every kernel change puts
-    # `pncad-py` in its closure. The condition was therefore true on nearly
-    # every code-tier run, which is a gate that selects nothing — and what it
-    # bought on each of those runs was a SECOND compile of the kernel, under
-    # the non-default `python` feature (pyo3 plus four more crates, its own
-    # cache lane), to run a suite whose subject had not moved.
+    # NO JOB READS IT. `python suite (wheel + guide + north-star)` runs on
+    # every code-tier run of ci.yml and unconditionally in ci-local.sh: the
+    # job hangs off `filter` in parallel beside the serial build -> test chain
+    # that sets a run's length, so narrowing it returns nothing to the
+    # contributor waiting on the gate while costing the attribution a per-PR
+    # row buys. What it gates is the ONLY execution of
+    # `crates/pncad-py/tests/*.py` and the only compile of the kernel under
+    # the non-default `python` feature that any run has.
     #
-    # WHY THESE SEEDS ARE ENOUGH. The suite exercises the bindings' own
-    # surface: the .pyi lattice, the guide and north-star scripts, and the
-    # façade calls they make. `pncad-py` is that code; `pncad` is the façade it
-    # calls; `editor-core` is the document model those scripts drive. A change
-    # in any OTHER kernel crate reaches the suite only through `pncad`'s
-    # re-exports — and a breaking one there reddens that crate's ordinary
-    # closure rows on the offending PR, in the same run, because the Rust side
-    # of the façade is compiled by the ordinary build. What the seeds give up
-    # is a change in kernel NUMBERS that the python suite's own assertions
-    # would have caught first, and that is what the nightly re-take exists for.
+    # WHAT IT IS STILL FOR: the value is echoed with the seeds it was computed
+    # from, so the filter's log answers "did this change reach the bindings"
+    # for a reader triaging a python-suite red — a question about the diff,
+    # which this file is the one place that can answer.
     #
-    # RECORDED, NEVER SILENT (the KLINT_ROW lesson, and the viewer axis's own
-    # rule): this is an output key, the filter echoes it with the seeds it was
-    # computed from, and ci.yml prints the verdict in a step that always runs.
-    # A green job name over a skipped job is the failure mode this shape exists
-    # to avoid — and it is worse here than for the viewer rows, because a
-    # SKIPPED job shows no steps at all.
+    # THE ARMS BELOW KEEP THEIR FAIL-CLOSED DIRECTION, so the reported value
+    # never reads narrower than the truth: unscopable tiers and an unreadable
+    # graph both report `true`.
     if tier == "docs":
         res["RUN_PNCAD_PY"] = "false"
     elif tier == "all":
-        # Unscopable: no seed information, so the axis fails OPEN like every
-        # other signal here.
+        # Unscopable: no seed information, so the axis fails CLOSED —
+        # uncertain means the row RUNS — as every signal here does.
+        res["RUN_PNCAD_PY"] = "true"
+    elif wheel_members is None:
+        # The graph could not be read, so what the wheel compiles is unknown,
+        # and an unknown reach fails CLOSED exactly as an unresolvable diff
+        # does above. `main` says on stderr which way it went and why.
         res["RUN_PNCAD_PY"] = "true"
     else:
         seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
-        res["RUN_PNCAD_PY"] = "true" if seeds & PNCAD_PY_SEEDS else "false"
+        res["RUN_PNCAD_PY"] = "true" if seeds & wheel_members else "false"
     # THE CONFIGURATION IS THE LAST WORD AND READS NOTHING ABOVE IT: which
     # points of the matrix a run gates is independent of which rows the change
     # filter selected, and keeping the two apart is what lets the local gate
@@ -2337,21 +2646,27 @@ _VIEWER_FIXTURE_PKGS = {
 }
 
 
-# THE PYTHON SUITE'S FIXTURE, same shape and same argument one crate over:
+# THE PYTHON SUITE'S FIXTURE, the wheel's graph in miniature:
 #
-#   pncad-py -> pncad -> editor-core -> topo
+#   pncad-py -> pncad -> editor-core -> {topo, bvh}
+#   pncad-py -(dev)-> test-utils
+#   viewer   -> pncad                      (over the wheel, not under it)
 #
-# so a `topo` change puts `pncad-py` in the CLOSURE while seeding neither it
-# nor either crate between — precisely what a closure-keyed test gets wrong,
-# and precisely the population this axis is meant to stop paying a second
-# kernel compile for.
+# `bvh` is in it BY THE REAL CHAIN it travels here: `editor-core` re-exports
+# `bvh::Ray`, `pncad::select` re-exports that, and the bindings wrap it as a
+# `#[pyclass]`. `viewer` and `test-utils` are the two members that must not
+# buy the suite, and they fail it for different reasons — one is not under the
+# wheel at all, the other reaches it only along a dev edge no wheel build
+# follows — so a rule that got either reason wrong would still be caught.
 _PY_FIXTURE_PKGS = {
     "topo": [],
-    "editor-core": [("topo", "normal")],
+    "bvh": [],
+    "test-utils": [],
+    "editor-core": [("topo", "normal"), ("bvh", "normal")],
     "pncad": [("editor-core", "normal")],
-    "pncad-py": [("pncad", "normal")],
+    "pncad-py": [("pncad", "normal"), ("test-utils", "dev")],
+    "viewer": [("pncad", "normal")],
 }
-
 
 def _plant_seed_axis_fixture(
     t: str,
@@ -2884,12 +3199,24 @@ def selftest() -> None:
                     ["Cargo.toml"], TIER="all", SEEDS="", RUN_VIEWER_TOOLKIT="true")
         _files_case(t, "a docs-only change runs nothing, toolkit included",
                     ["README.md"], TIER="docs", SEEDS="", RUN_VIEWER_TOOLKIT="false")
+        # THE PYTHON AXIS'S FAILURE ARM, sited here because this workspace has
+        # NO `pncad-py` in it — so `pncad_py_seeds` cannot say what a wheel
+        # build compiles, and the arm that answers when it cannot is the one
+        # with the most prose and the least exercise. A run that cannot scope
+        # the axis must RUN the suite, not skip it: the alternative is a green
+        # gate over a job nothing decided to skip. Asserting the OTHER key
+        # here is what left this hole open before.
+        _files_case(t, "a workspace the wheel's graph cannot be read from runs the suite",
+                    ["crates/topo/src/lib.rs"],
+                    TIER="closure", SEEDS="topo", RUN_PNCAD_PY="true")
 
-    # --- THE PYTHON SUITE AXIS, on `_PY_FIXTURE_PKGS`. Same rule, same two
-    # directions: without the closure-only case a closure-keyed implementation
-    # passes this battery, and the axis would be unenforced.
+    # --- THE PYTHON SUITE AXIS, on `_PY_FIXTURE_PKGS`. SEED-keyed against
+    # what a BUILD OF THE WHEEL compiles, so the two directions this battery
+    # has to walk are "under the wheel" and "not under it" — and the second
+    # has two distinct shapes, a crate over the wheel and a crate reachable
+    # only along a dev edge.
     with tempfile.TemporaryDirectory() as t:
-        _plant_seed_axis_fixture(t, _PY_FIXTURE_PKGS)
+        _plant_seed_axis_fixture(t, _PY_FIXTURE_PKGS, tree_reaching="guards")
         _files_case(t, "the binding crate's own sources buy the python suite",
                     ["crates/pncad-py/src/lib.rs"],
                     TIER="closure", SEEDS="pncad-py", RUN_PNCAD_PY="true")
@@ -2906,15 +3233,37 @@ def selftest() -> None:
         _files_case(t, "the document model's own sources buy it",
                     ["crates/editor-core/src/doc.rs"],
                     TIER="closure", SEEDS="editor-core", RUN_PNCAD_PY="true")
-        # THE CASE THAT MATTERS, and the whole reason this key left JOB_ROOTS:
-        # `topo` is under `pncad-py` through two crates, so `pncad-py` is in
-        # the closure and is not a seed. A closure-keyed axis says true here —
-        # on nearly every kernel change — and buys a second kernel compile
-        # under the `python` feature for a suite whose subject held still.
-        _files_case(t, "a kernel crate reaching pncad-py only through the closure does NOT",
+        # A KERNEL CRATE THE WHEEL COMPILES. `topo` seeds nothing else the
+        # suite names, and the wheel still compiles it, so a change to it can
+        # move a number the .py assertions pin — the only job that runs them.
+        _files_case(t, "a kernel crate two hops under the wheel buys it",
                     ["crates/topo/src/lib.rs"],
-                    TIER="closure", PKGS="editor-core,pncad,pncad-py,topo",
-                    SEEDS="topo", RUN_PNCAD_PY="false")
+                    TIER="closure", SEEDS="topo", RUN_PNCAD_PY="true")
+        # THE CASE THIS AXIS WAS GETTING WRONG. `bvh` reaches Python by the
+        # chain it travels in the real tree — `editor-core` re-exports
+        # `bvh::Ray`, `pncad::select` re-exports that, and the bindings wrap
+        # it as a `#[pyclass]` that `tests/test_picking.py` drives — and no
+        # line of the façade names `bvh`. A rule keyed on the façade's own
+        # text calls this false; the graph does not.
+        _files_case(t, "a crate reaching Python through a re-export chain buys it",
+                    ["crates/bvh/src/lib.rs"],
+                    TIER="closure", SEEDS="bvh", RUN_PNCAD_PY="true")
+        # NOT A CLOSURE KEY IN DISGUISE, first shape: `viewer` is OVER the
+        # wheel, not under it. Nothing a wheel build compiles moved.
+        _files_case(t, "a crate above the wheel does NOT buy it",
+                    ["crates/viewer/src/lib.rs"],
+                    TIER="closure", PKGS="viewer", SEEDS="viewer",
+                    RUN_PNCAD_PY="false")
+        # NOT A CLOSURE KEY IN DISGUISE, second shape and the sharper one:
+        # `test-utils` reaches `pncad-py` along a DEV edge, so `pncad-py` IS
+        # in the dependent closure here — `cargo test -p pncad-py` rebuilds —
+        # and `maturin build` compiles no test target, so the wheel does not.
+        # A key that read the closure, or that followed dev edges downward,
+        # says true here.
+        _files_case(t, "a dev-only dependency of the binding crate does NOT buy it",
+                    ["crates/test-utils/src/lib.rs"],
+                    TIER="closure", PKGS="pncad-py,test-utils", SEEDS="test-utils",
+                    RUN_PNCAD_PY="false")
         # Fails OPEN with the rest of the filter.
         _files_case(t, "an unscopable change runs the python suite",
                     ["Cargo.toml"], TIER="all", SEEDS="", RUN_PNCAD_PY="true")
@@ -3070,6 +3419,7 @@ def selftest() -> None:
                  "LANE": "both", "KLINT_ROW": "all"})
 
     _selftest_docs_premise()
+    _selftest_wheel_members_premise()
     _selftest_eps_rows_workflow()
     _selftest_klint_workflow()
     _selftest_unsampled()
@@ -3096,7 +3446,15 @@ def selftest() -> None:
         "reach that finds no tree-wide guard at all bails to TIER=all rather than passing — "
         "while a path that stays inside its own crate, one under target/ and one bound in "
         "a let and ascended in the next statement pin nothing, and none of it reaches "
-        "JOB_ROOTS; the oracle signal fires on certified sources and lockfile and "
+        "JOB_ROOTS; THE PYTHON SUITE'S SEEDS are every member A BUILD OF THE WHEEL COMPILES, "
+        "read off the member graph rather than listed here or spelled in the façade — the "
+        "binding crate and its own .py files, the façade, the document model and a kernel "
+        "crate two hops under it all buy the suite, a crate that reaches Python only through "
+        "a re-export chain no façade line names buys it too, while a crate ABOVE the wheel "
+        "and a DEV-ONLY dependency of the binding crate do not though the latter puts "
+        "pncad-py in the dependent closure, and a workspace whose wheel graph cannot be read "
+        "at all runs the suite rather than skipping it; the oracle signal fires on certified "
+        "sources and lockfile and "
         "not on their prose; NO CONFIGURATION DIMENSION IS SAMPLED OR PINNED — LANE=both, "
         "EPS=all and KLINT_ROW=all over an ordinary diff, over the two file lists that used "
         "to pin the lane or the k-lint row, over the demo roots the k-lint pin left alone "
@@ -3840,6 +4198,59 @@ def _selftest_docs_premise() -> None:
           "tier: " + (", ".join(sorted(consumed)) or "(none)"))
 
 
+def _selftest_wheel_members_premise() -> None:
+    """THE PYTHON SUITE'S SEED SET, read off the REAL member graph — the
+    fixture battery proves the RULE, and this proves the rule still reads
+    THIS tree.
+
+    WHAT IT PROVES AND WHAT IT DOES NOT. It proves the set comes back on this
+    tree, that the dev-edge rule bites here rather than only in a fixture, and
+    that `bvh` — the member the previous, text-keyed reading of this axis
+    wrongly excluded — is in it. It does NOT prove the set is RIGHT for the
+    suite: the graph answers "does a wheel build compile this crate", and a
+    crate the wheel compiles but no binding path can observe is a false TRUE,
+    which costs a job run and never a missed failure. The set is therefore
+    over-approximate on purpose, and the complement printed below is the whole
+    of what it excludes."""
+    root = _repo_root()
+    try:
+        seeds = pncad_py_seeds(root)
+    except Bail as exc:
+        raise SystemExit(
+            f"SELFTEST FAILED: this tree's python-suite seed set cannot be derived: {exc}"
+        ) from exc
+    # `bvh` is the regression this axis carried: no line of the façade names
+    # it, and it still reaches Python — `crates/editor-core/src/lib.rs` does
+    # `pub use bvh::Ray`, `crates/pncad/src/select.rs` re-exports it, and
+    # `crates/pncad-py/src/py/pick.rs` wraps it as a `#[pyclass]` that
+    # `crates/pncad-py/tests/test_picking.py` drives through `pick_face`.
+    if "bvh" not in seeds:
+        raise SystemExit(
+            "SELFTEST FAILED: bvh is not in the python suite's seed set. Its `Ray` crosses "
+            "into Python as a #[pyclass] and tests/test_picking.py drives it, so a change to "
+            "it can red the suite while every other row stays green")
+    # THE DEV-EDGE RULE, CHECKED AGAINST THE REAL MANIFESTS rather than
+    # restated: `test-utils` is in `pncad-py`'s dependency closure when every
+    # kind is followed and out of it when dev edges are not, so the two edge
+    # sets have to disagree here or the rule is not being applied.
+    dir_of, deps, _ = _member_graph(root)
+    if "test-utils" not in _dependency_closure(PNCAD_PY, deps):
+        raise SystemExit(
+            "SELFTEST FAILED: test-utils is not a dependency of pncad-py at any kind, so this "
+            "tree can no longer tell a dev edge from a normal one and the check below is "
+            "vacuous. Re-site it on whatever dev-dependency the binding crate now has")
+    if "test-utils" in seeds:
+        raise SystemExit(
+            "SELFTEST FAILED: test-utils is in the python suite's seed set. It reaches pncad-py "
+            "along a DEV edge only, and `maturin build` compiles no test target, so nothing in "
+            "it can reach the wheel")
+    outside = sorted(set(dir_of.values()) - seeds)
+    print("ci-filter selftest: the python suite's seeds on this tree — every member a wheel "
+          "build compiles: " + ", ".join(sorted(seeds)))
+    print("ci-filter selftest: members outside them, the whole of what this axis skips: "
+          + (", ".join(outside) or "(none)"))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     src = ap.add_mutually_exclusive_group(required=True)
@@ -3968,7 +4379,28 @@ def main() -> int:
     # allowlist, so the very changes the oracle cares about arrive here as
     # TIER=all with a perfectly good file list. Only a failure to resolve
     # the diff at all leaves `files` None, and that is the case that runs.
-    out = decorate(res, files, config)
+
+    # THE PYTHON SUITE'S SEED SET IS READ OFF THE MEMBER GRAPH, HERE AND NOT
+    # IN `decorate`, which stays a pure function of its arguments.
+    # `_member_graph` is memoised, so on the ordinary path this costs nothing.
+    #
+    # RECORDED, NEVER SILENT: the set is printed either way, so the filter
+    # job's log says which members bought the suite — or that the graph could
+    # not be read and the suite runs unconditionally because of it.
+    wheel_members: frozenset[str] | None = None
+    try:
+        wheel_members = pncad_py_seeds(root)
+        print(
+            "ci-filter: python-suite seeds: " + ",".join(sorted(wheel_members)),
+            file=sys.stderr,
+        )
+    except Exception as exc:  # noqa: BLE001 — fail OPEN on this axis
+        print(
+            f"ci-filter: the python-suite seed set is underivable, so the suite runs: {exc}",
+            file=sys.stderr,
+        )
+
+    out = decorate(res, files, config, wheel_members)
 
     # THE NOTICES ARE COMPOSED HERE AND WRITTEN TWICE, TO ONE WORDING. They go
     # to stderr, where the local half and anyone running this by hand sees

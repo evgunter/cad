@@ -171,9 +171,10 @@ fn main() {
                 .is_none()
             {
                 session.perform(viewer::session::SessionOp::PreviewFreeMove {
+                    instance: row.id,
                     frame: pncad::document::Frame::translation([0.5, 0.0, 0.0]),
                 });
-                session.perform(viewer::session::SessionOp::CommitFreeMove);
+                session.perform(viewer::session::SessionOp::CommitFreeMove { instance: row.id });
                 let marked = probe_parts(&session);
                 println!(
                     "      node {}: free-move committed, scene probe_parts={marked:?}",
@@ -189,9 +190,10 @@ fn main() {
                 // clean.
                 session.perform(viewer::session::SessionOp::BeginFreeMove { instance: row.id });
                 session.perform(viewer::session::SessionOp::PreviewFreeMove {
+                    instance: row.id,
                     frame: pncad::document::Frame::IDENTITY,
                 });
-                session.perform(viewer::session::SessionOp::CommitFreeMove);
+                session.perform(viewer::session::SessionOp::CommitFreeMove { instance: row.id });
             } else {
                 println!("      node {}: free-move refused typed", row.id.0);
             }

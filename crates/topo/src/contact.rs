@@ -142,7 +142,14 @@ pub enum ContactVerdict {
 /// **A contact verification's typed refusal** — the two failing arms
 /// of the trilean, kept off [`ContactVerdict`] so a caller cannot
 /// pattern-match a refusal into a pass.
-#[derive(Debug)]
+///
+/// `Clone` and `PartialEq` because the refusal is CARRIED: the census
+/// wraps it in
+/// [`ValidationError::CensusUnsupported`](crate::ValidationError::CensusUnsupported)'s
+/// cause, and that error is `Clone + PartialEq` so a consumer can hold
+/// and compare a whole report. No `Eq` — the diagnostics carry `f64`
+/// margins, which is why `ValidationError` has none either.
+#[derive(Clone, Debug, PartialEq)]
 pub enum ContactRefusal {
     /// Definite counter-evidence: the declaration is contradicted
     /// where the lie meets geometry. Every definite verdict wins over

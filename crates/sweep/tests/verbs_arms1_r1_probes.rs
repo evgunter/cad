@@ -39,12 +39,14 @@
 use core::f64::consts::PI;
 
 use geom::Surface;
+use geom_brep::SurfaceKind;
 use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{one_edge_rim, revolved_about_y};
+use sweep::test_support::{one_edge_rim_at, revolved_about_y};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -101,45 +103,16 @@ fn zone(bore: f64, rev: Revolution<f64>) -> Body<f64> {
     sweep::test_support::sphere_zone(bore, rev, tol())
 }
 
-/// Every closed plane–sphere rim of a body, with its circle center
-/// height (the selector — rims are latitude circles).
-fn closed_rims(body: &Body<f64>) -> Vec<(EdgeKey, f64)> {
-    body.edges()
-        .filter_map(|(k, e)| {
-            let start = body.get_half_edge(e.he_plus)?.start;
-            if Some(start) != body.half_edge_end(e.he_plus) {
-                return None;
-            }
-            let surf = |he| -> Option<Surface<f64>> {
-                let l = body.get_half_edge(he)?.parent_loop;
-                let f = body.get_loop(l)?.face;
-                body.get_surface(body.get_face(f)?.surface).cloned()
-            };
-            let (a, b) = (surf(e.he_plus)?, surf(e.he_minus)?);
-            let ps = |x: &Surface<f64>, y: &Surface<f64>| {
-                matches!(x, Surface::Plane { .. }) && matches!(y, Surface::Sphere { .. })
-            };
-            if !(ps(&a, &b) || ps(&b, &a)) {
-                return None;
-            }
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                geom::Curve3::Circle { center, .. } => Some((k, center.y)),
-                _ => None,
-            }
-        })
-        .collect()
+/// The bored dome's equator: the unit sphere meets the base plane at
+/// radius 1, station 0.
+fn bored_dome_equator(body: &Body<f64>) -> EdgeKey {
+    one_edge_rim_at(body, 1.0, 0.0)
 }
 
-/// The one closed plane–sphere rim whose latitude is `y` (to 1e-9).
-fn rim_at(body: &Body<f64>, y: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = closed_rims(body)
-        .into_iter()
-        .filter(|(_, cy)| (cy - y).abs() < 1e-9)
-        .map(|(k, _)| k)
-        .collect();
-    assert_eq!(hits.len(), 1, "exactly one closed rim at y = {y}");
-    one_edge_rim(body, hits[0])
+/// A [`zone`] rim at station `y`: the sphere of radius 2 about the
+/// origin carries its latitude circle at radius √(4 − y²).
+fn zone_rim(body: &Body<f64>, y: f64) -> EdgeKey {
+    one_edge_rim_at(body, (4.0 - y * y).sqrt(), y)
 }
 
 // --- the corner-cut washer integral, derived independently ----------
@@ -194,7 +167,7 @@ fn the_bored_dome_equator_fillets_at_three_radii() {
                 "a full revolve's walls carry no rings"
             );
         }
-        let rim = rim_at(&body, 0.0);
+        let rim = bored_dome_equator(&body);
         let out = fillet_edges(&body, &[rim], r, tol())
             .unwrap_or_else(|e| panic!("the bored dome fillets at r = {r}, got {e:?}"));
         validate_geometric(&out.body, tol())
@@ -228,9 +201,9 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
         (4, 8, 4),
         "the zone is four revolution walls"
     );
-    let first = fillet_edges(&body, &[rim_at(&body, -0.5)], r, tol())
+    let first = fillet_edges(&body, &[zone_rim(&body, -0.5)], r, tol())
         .unwrap_or_else(|e| panic!("the bottom rim fillets, got {e:?}"));
-    let second = fillet_edges(&first.body, &[rim_at(&first.body, 1.0)], r, tol())
+    let second = fillet_edges(&first.body, &[zone_rim(&first.body, 1.0)], r, tol())
         .unwrap_or_else(|e| panic!("the top rim fillets on the filleted body, got {e:?}"));
     validate_geometric(&second.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     assert_eq!(
@@ -277,7 +250,7 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
 fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     let r = 0.08;
     let body = zone(0.6, Revolution::Full);
-    let rims = [rim_at(&body, -0.5), rim_at(&body, 1.0)];
+    let rims = [zone_rim(&body, -0.5), zone_rim(&body, 1.0)];
     let one = fillet_edges(&body, &rims, r, tol())
         .unwrap_or_else(|e| panic!("the one-call shared-wall pair builds (#935), got {e:?}"));
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -286,9 +259,9 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     assert_eq!(props.volume_pad, 0.0);
 
     let seq = |first: f64, second: f64| {
-        let a = fillet_edges(&body, &[rim_at(&body, first)], r, tol())
+        let a = fillet_edges(&body, &[zone_rim(&body, first)], r, tol())
             .expect("the first sequential call");
-        let b = fillet_edges(&a.body, &[rim_at(&a.body, second)], r, tol())
+        let b = fillet_edges(&a.body, &[zone_rim(&a.body, second)], r, tol())
             .expect("the second sequential call");
         mass_properties(&b.body, tol())
             .expect("mass properties")
@@ -320,27 +293,28 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
 #[test]
 fn the_unbored_hemisphere_equator_carves_as_one_band() {
     let body = hemisphere();
-    assert!(
-        closed_rims(&body).is_empty(),
-        "an on-axis profile mints no closed rim edge at all"
-    );
-    // The equator's two arcs: the plane–sphere edges of the body.
-    let arcs: Vec<EdgeKey> = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let surf = |he| -> Option<Surface<f64>> {
-                let l = body.get_half_edge(he)?.parent_loop;
-                let f = body.get_loop(l)?.face;
-                body.get_surface(body.get_face(f)?.surface).cloned()
-            };
-            let (a, b) = (surf(e.he_plus)?, surf(e.he_minus)?);
-            let ps = |x: &Surface<f64>, y: &Surface<f64>| {
-                matches!(x, Surface::Plane { .. }) && matches!(y, Surface::Sphere { .. })
-            };
-            (ps(&a, &b) || ps(&b, &a)).then_some(k)
+    // The equator's two arcs: the plane–sphere edges of the body, named
+    // through the kernel's own unordered adjacency predicate.
+    let arcs: Vec<EdgeKey> = query::all_edges(&body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                &body,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
         })
         .collect();
     assert_eq!(arcs.len(), 2, "the equator is two half-circle arcs");
+    assert!(
+        arcs.iter().all(|k| {
+            let e = body.get_edge(*k).unwrap();
+            let start = body.get_half_edge(e.he_plus).unwrap().start;
+            Some(start) != body.half_edge_end(e.he_plus)
+        }),
+        "an on-axis profile mints no closed rim edge at all"
+    );
     let out = fillet_edges(&body, &arcs, 0.1, tol())
         .unwrap_or_else(|e| panic!("the hemisphere equator carves whole, got {e:?}"));
     validate_geometric(&out.body, tol())
@@ -362,7 +336,7 @@ fn near_limit_radii_refuse_typed() {
     // ordering); predicate 3 is the backstop. Either is the honest
     // typed refusal.
     let body = bored_dome();
-    let rim = rim_at(&body, 0.0);
+    let rim = bored_dome_equator(&body);
     match fillet_edges(&body, &[rim], 0.45, tol()).map_err(|r| r.error) {
         Err(BlendError::SpineIrregular { .. } | BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("s < r must refuse typed, got {other:?}"),
@@ -381,7 +355,7 @@ fn near_limit_radii_refuse_typed() {
     // The narrow-bore zone: at r = 0.35 the bottom trim circle's
     // setback (≈ 0.29) exceeds the ≈ 0.24 gap to the bore rim.
     let narrow = zone(1.7, Revolution::Full);
-    let bottom = rim_at(&narrow, -0.5);
+    let bottom = zone_rim(&narrow, -0.5);
     match fillet_edges(&narrow, &[bottom], 0.35, tol()).map_err(|r| r.error) {
         Err(BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("a trim circle at the bore must refuse clearance, got {other:?}"),
@@ -398,27 +372,19 @@ fn near_limit_radii_refuse_typed() {
 #[test]
 fn the_partial_zone_refuses_through_its_own_gates() {
     let body = zone(0.6, Revolution::Partial(2.0));
-    let open_arc = body
-        .edges()
-        .map(|(k, _)| k)
-        .find(|k| {
-            let e = body.get_edge(*k).unwrap();
-            let start = body.get_half_edge(e.he_plus).unwrap().start;
-            if Some(start) == body.half_edge_end(e.he_plus) {
-                return false;
-            }
-            let surf = |he| {
-                let l = body.get_half_edge(he).unwrap().parent_loop;
-                let f = body.get_loop(l).unwrap().face;
-                body.get_surface(body.get_face(f).unwrap().surface)
-                    .unwrap()
-                    .clone()
-            };
-            let (a, b) = (surf(e.he_plus), surf(e.he_minus));
-            let ps = |x: &Surface<f64>, y: &Surface<f64>| {
-                matches!(x, Surface::Plane { .. }) && matches!(y, Surface::Sphere { .. })
-            };
-            ps(&a, &b) || ps(&b, &a)
+    let open_arc = query::all_edges(&body)
+        .into_iter()
+        .find(|&k| {
+            let e = body.get_edge(k).unwrap();
+            let closed =
+                Some(body.get_half_edge(e.he_plus).unwrap().start) == body.half_edge_end(e.he_plus);
+            !closed
+                && query::edge_adjacent_matches(
+                    &body,
+                    k,
+                    SurfaceKindSet::just(SurfaceKind::Plane),
+                    SurfaceKindSet::just(SurfaceKind::Sphere),
+                )
         })
         .expect("an open plane–sphere arc");
     match fillet_edges(&body, &[open_arc], 0.08, tol()).map_err(|r| r.error) {
@@ -434,7 +400,7 @@ fn the_partial_zone_refuses_through_its_own_gates() {
 #[test]
 fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     let body = bored_dome();
-    let rim = rim_at(&body, 0.0);
+    let rim = bored_dome_equator(&body);
     let mut out = fillet_edges(&body, &[rim], 0.1, tol()).unwrap();
     validate_geometric(&out.body, tol()).expect("tier-3 valid before the plant");
     let band_face = out.band_faces[0];

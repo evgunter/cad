@@ -40,9 +40,11 @@
 //! `|Π − T₁| ≤ Q/8` at the vertices; `Π − T₁` is affine over the
 //! triangle, hence `≤ Q/8` everywhere on it. Total: `‖S − Π‖ ≤ Q/4` —
 //! [`NurbsFaceBound::cert`]. (Sanity: with `muu = R+r`, `muv = r`,
-//! `mvv = r` and `a_u, a_v ≤ L` this is at most `(R+2r)·L²/2`,
-//! strictly inside the torus certificate's `(3/4)(R+2r)·L²` — same
-//! derivation, anisotropic accounting.)
+//! `mvv = r` this is twice the torus certificate's
+//! `(A·Δu² + 2B·Δu·Δv + C·Δv²)/8` at the same sups — the same
+//! anisotropic accounting, spent here through an affine detour at the
+//! cell centre (`Q/8` twice) where `crate::sizing::torus_grid_steps`
+//! bounds the interpolant at each point directly and pays `Q/8` once.)
 //!
 //! As everywhere in this crate the two documented additive slacks (≤ ε
 //! boundary-carrier residual, f64 evaluation rounding) sit OUTSIDE the
@@ -548,76 +550,110 @@ pub(crate) fn nurbs_cell_bounds(
         .collect())
 }
 
-/// One tessellation's memo of certified whole-patch NURBS bounds, one
-/// entry per described NURBS face.
+/// One tessellation's memo of certified NURBS cell tables, **one entry
+/// per described NURBS face and nothing per edge**.
 ///
 /// It lives HERE, beside the assembly it remembers, rather than in
 /// either pass that reads it: [`crate::chords`]' adjacent-face
 /// tightening and [`crate::trimmed`]'s band schedule both need the
 /// same per-face fact, and a cache hosted inside one of its two
 /// consumers is the shape that drifts.
+///
+/// **Who writes it, and when.** Its two consumers read it in two
+/// different phases of [`crate::tessellate()`], and the phases are what
+/// make one `HashMap` safe under the per-face parallel map:
+///
+/// * the CHORD PASS walks the edge arena and fills the entry of every
+///   described NURBS face adjacent to an edge ([`face_bound`], through
+///   `chords::nurbs_tighten`). It is a per-edge walk writing per-FACE
+///   entries, and it is serial and complete before any face's lane
+///   runs;
+/// * a FACE's LANE then reads its OWN face's entry, once, through
+///   [`face_cells`], which takes `&FaceBounds`. No lane reads another
+///   face's entry and no lane writes.
+///
+/// So the map needs no lock and no per-face split of this type: the
+/// only mutation is the chord pass's, and it has finished.
 pub(crate) type FaceBounds = std::collections::HashMap<FaceKey, NurbsCellGrid>;
 
-/// A described NURBS face's certified cell table, assembled on first
-/// ask and remembered for the rest of the tessellation.
+/// The certified cell table of a described NURBS face, **as the chord
+/// pass left it** — the lane's door onto [`FaceBounds`], and a plain
+/// lookup.
+///
+/// **Why the lanes get a different door from the chord pass, and why
+/// this one does not assemble.** [`face_bound`] takes `&mut` and is the
+/// FILL door: `chords::nurbs_tighten` calls it for every described
+/// NURBS face adjacent to an edge, which in a body
+/// whose faces have boundaries is every described NURBS face there is.
+/// That pass runs to completion before the per-face parallel map, so by
+/// the time a lane asks, the answer is already there and every lane can
+/// hold `&FaceBounds`. Assembling here as a fallback would be a second
+/// way to reach `nurbs_cell_grid` that no body takes, and a silent one:
+/// it would hide a face the chord pass failed to fill instead of
+/// refusing.
+///
+/// # Errors
+///
+/// [`TessellateError::MissingEntity`] when the entry is absent, which
+/// for a body the chord pass accepted means a face that owns no
+/// half-edge — a malformed body, and the same class as this crate's
+/// other dangling-key refusals. The certificate refusals
+/// ([`nurbs_cell_grid`]'s) cannot arrive here: they happen in the chord
+/// pass, which refuses the whole tessellation before any lane runs.
+pub(crate) fn face_cells(
+    bounds: &FaceBounds,
+    fk: FaceKey,
+) -> Result<&NurbsCellGrid, TessellateError> {
+    bounds.get(&fk).ok_or(TessellateError::MissingEntity {
+        what: "face NURBS cell table",
+    })
+}
+
+/// The whole-patch bound of a described NURBS face — the chord pass's
+/// door, and **the only thing that writes [`FaceBounds`]**: the cell
+/// table is assembled on first ask and remembered for the rest of the
+/// tessellation, and the bound returned is a reading of it
+/// ([`NurbsCellGrid::patch`]).
 ///
 /// **The memo holds the CELL GRID, not the whole-patch bound, and that
-/// is the whole point of it.** The whole-patch bound is a *reading* of
-/// the cells ([`NurbsCellGrid::patch`]) since the fold, so a memo of
-/// the coarser fact would make the finer one unreachable and force the
-/// second consumer to reassemble. It was measured doing exactly that:
-/// with a `NurbsFaceBound` memo, a swept elbow ran `patch_cells` twice
-/// per described NURBS face — once for the chord pass, once for the
-/// trimmed lane — because [`crate::tessellate()`] runs
+/// is the whole point of it.** A memo of the coarser fact would make
+/// the finer one unreachable and force the second consumer to
+/// reassemble. It was measured doing exactly that: with a
+/// `NurbsFaceBound` memo, a swept elbow ran `patch_cells` twice per
+/// described NURBS face — once for the chord pass, once for the trimmed
+/// lane — because [`crate::tessellate()`] runs
 /// [`crate::chords::compute_chords`] BEFORE the per-face dispatch, so
-/// the trimmed lane's ask was always a memo hit on a value it could
-/// not refine. `crates/mesh/tests/cert10r1_assembly_accounting.rs`
-/// pins the count.
-///
-/// It lives HERE, beside the assembly it remembers, rather than in
-/// either pass that reads it: [`crate::chords`]' adjacent-face
-/// tightening and [`crate::trimmed`]'s band schedule both need the
-/// same per-face fact, and a cache hosted inside one of its two
-/// consumers is the shape that drifts.
+/// the trimmed lane's ask was always a memo hit on a value it could not
+/// refine. `crates/mesh/tests/cert10r1_assembly_accounting.rs` pins the
+/// count.
 ///
 /// # Errors
 ///
 /// As [`nurbs_cell_grid`] — a face outside the certified inventory
 /// refuses here exactly as it would there, on the first ask and (from
 /// the memo's absence) on every later one. The refusal CLASS is
-/// unchanged from a whole-patch memo: the per-cell finite check and
-/// the whole-patch one refuse the same faces with the same prose,
-/// because the fold's hull carries a poisoned or infinite cell
-/// straight into the whole-patch number.
-pub(crate) fn face_grid<'m>(
-    memo: &'m mut FaceBounds,
+/// unchanged from a whole-patch memo: the per-cell finite check and the
+/// whole-patch one refuse the same faces with the same prose, because
+/// the fold's hull carries a poisoned or infinite cell straight into
+/// the whole-patch number. A refusal here refuses the whole
+/// tessellation, in the chord pass, before any lane runs — which is why
+/// [`face_cells`] never has to answer for one.
+pub(crate) fn face_bound(
+    memo: &mut FaceBounds,
     payload: &NurbsSurface<f64>,
     fk: FaceKey,
-) -> Result<&'m NurbsCellGrid, TessellateError> {
+) -> Result<NurbsFaceBound, TessellateError> {
     // The Entry API, not `contains_key` + `insert` (clippy::map_entry),
     // and the shape matters beyond the lint: the assembly's `?` sits
     // INSIDE the vacant arm, so a face that refuses leaves the memo
     // untouched and refuses identically on every later ask — the
     // "refuses on the first ask and (from the memo's absence) on every
     // later one" contract above, made structural.
-    match memo.entry(fk) {
-        std::collections::hash_map::Entry::Occupied(e) => Ok(e.into_mut()),
-        std::collections::hash_map::Entry::Vacant(e) => Ok(e.insert(nurbs_cell_grid(payload, fk)?)),
-    }
-}
-
-/// The whole-patch bound of a described NURBS face, read off the
-/// memoized cell table ([`face_grid`]).
-///
-/// # Errors
-///
-/// As [`face_grid`].
-pub(crate) fn face_bound(
-    memo: &mut FaceBounds,
-    payload: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<NurbsFaceBound, TessellateError> {
-    Ok(face_grid(memo, payload, fk)?.patch())
+    let grid = match memo.entry(fk) {
+        std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+        std::collections::hash_map::Entry::Vacant(e) => e.insert(nurbs_cell_grid(payload, fk)?),
+    };
+    Ok(grid.patch())
 }
 
 /// The realized-anisotropy line beyond which a band snaps to the

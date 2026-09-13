@@ -46,7 +46,8 @@ probe = [
 # enforces it).
 geom-core = { path = "../geom-core" }
 # GUI-1: the hit-test service (`resolve::pick`) traverses `Bvh::ray`
-# over per-triangle boxes and reads the mesh back-references
+# over a tree per face patch under a tree over the patches' boxes, and
+# reads the mesh back-references
 # (`FacePatch::face`) it inverts through `resolve::hit`. Both sit
 # below editor-core (bvh under geom-core only; mesh is the kernel's
 # tessellation crate) — the G1 direction is untouched.
@@ -96,6 +97,13 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+# `profile` again, with `test-support` ON. The crate is an ordinary
+# dependency above; naming it a second time here adds the feature for
+# TEST builds only — cargo unions the two entries for this package's
+# test targets and for nothing else. It turns on the
+# `profile::RawLoop` fixture door (that trait's docs carry the
+# argument); a shipped build of this crate still cannot mint a table.
+profile = { path = "../profile", features = ["test-support"] }
 proptest = { workspace = true }
 # The GUI-1 randomized sweeps' varying seed + effort dial
 # (memories/test-suite-cost): a dependency-free leaf crate, dev-only,

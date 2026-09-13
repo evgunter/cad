@@ -226,3 +226,123 @@ fn dishonest_evidence_refuses_typed_before_mutation() {
         "refusal mutated the destination"
     );
 }
+
+// ---------------------------------------------------------------------
+// The N-ary door
+// ---------------------------------------------------------------------
+
+/// A bit-faithful reading of a body: every shell's owner, every face's
+/// shell and surface, every vertex's point.
+fn reading(body: &Body<f64>) -> Vec<String> {
+    let mut out = Vec::new();
+    for (k, s) in body.shells() {
+        out.push(format!(
+            "shell {k:?} solid={:?} faces={:?}",
+            s.solid, s.faces
+        ));
+    }
+    for (k, f) in body.faces() {
+        out.push(format!(
+            "face {k:?} shell={:?} sense={} surface={:?}",
+            f.shell,
+            f.sense,
+            body.get_surface(f.surface)
+        ));
+    }
+    for (k, v) in body.vertices() {
+        out.push(format!("vertex {k:?} point={:?}", body.get_point(v.point)));
+    }
+    out
+}
+
+/// **`insert_void` is `insert_voids`'s `N = 1` case**, and the two are
+/// the same door: one destination named as a slice gives an
+/// entity-for-entity identical body.
+#[test]
+fn one_destination_through_either_door_reads_identically() {
+    let build = |n_ary: bool| {
+        let (mut dst, cavity) = outer_and_cavity();
+        let (solid, _) = dst.solids().next().unwrap();
+        let evidence = probed_in(&cavity);
+        if n_ary {
+            topo::insert_voids(&mut dst, &[solid], cavity, &evidence, Tol::witness()).unwrap();
+        } else {
+            insert_void(&mut dst, solid, cavity, &evidence, Tol::witness()).unwrap();
+        }
+        dst
+    };
+    assert_eq!(reading(&build(false)), reading(&build(true)));
+}
+
+/// **`N = 2` lands each cavity solid in its own destination**, in the
+/// cavity's solid order. Two bricks standing apart, each hollowed by
+/// its own cavity solid in one call: each destination gains exactly its
+/// own interior shell, and the volume is both cavities removed.
+#[test]
+fn two_destinations_each_take_their_own_cavity() {
+    let mut dst = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
+    let far = brick((10.0, 13.0), (0.0, 3.0), (0.0, 3.0));
+    topo::graft_disjoint(&mut dst, &far, Tol::witness()).unwrap();
+    let dst_solids: Vec<_> = dst.solids().map(|(k, _)| k).collect();
+    assert_eq!(dst_solids.len(), 2);
+
+    let mut cavity = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let far_cavity = brick((11.0, 12.5), (1.0, 2.0), (1.0, 2.0));
+    topo::graft_disjoint(&mut cavity, &far_cavity, Tol::witness()).unwrap();
+    let cavity_shells: Vec<_> = cavity.shells().map(|(k, _)| k).collect();
+    assert_eq!(cavity.solids().count(), 2);
+
+    let evidence = probed_in(&cavity);
+    let inserted =
+        topo::insert_voids(&mut dst, &dst_solids, cavity, &evidence, Tol::witness()).unwrap();
+
+    assert_eq!(validate(&dst), Ok(()));
+    assert_eq!(validate_closed(&dst), Ok(()));
+    assert_eq!(dst.shells().count(), 4);
+    // Each cavity shell landed under the destination in the same slot.
+    for (i, &src) in cavity_shells.iter().enumerate() {
+        let there = inserted.shell(src).expect("shell bridged");
+        assert_eq!(
+            dst.get_shell(there).unwrap().solid,
+            dst_solids[i],
+            "cavity solid {i} landed in the wrong destination"
+        );
+    }
+    for &solid in &dst_solids {
+        assert_eq!(dst.get_solid(solid).unwrap().shells.len(), 2);
+    }
+    // 27 + 27 − 1 − (1.5 × 1 × 1).
+    let props = mass_properties(&dst, Tol::witness()).unwrap();
+    assert!(
+        (props.volume - (54.0 - 1.0 - 1.5)).abs() < 1e-12,
+        "{}",
+        props.volume
+    );
+}
+
+/// **A destination count that does not match the cavity's solid count
+/// refuses typed**, before any mutation — the door never guesses which
+/// solid a cavity belongs in.
+#[test]
+fn a_wrong_destination_arity_refuses_typed() {
+    let (mut dst, cavity) = outer_and_cavity();
+    let (solid, _) = dst.solids().next().unwrap();
+    let evidence = probed_in(&cavity);
+    let before = reading(&dst);
+
+    // Two destinations for one cavity solid.
+    let e = topo::insert_voids(
+        &mut dst,
+        &[solid, solid],
+        cavity.clone(),
+        &evidence,
+        Tol::witness(),
+    )
+    .unwrap_err();
+    assert!(matches!(e, VoidInsertError::Corrupt { .. }), "{e}");
+
+    // None at all.
+    let e = topo::insert_voids(&mut dst, &[], cavity, &evidence, Tol::witness()).unwrap_err();
+    assert!(matches!(e, VoidInsertError::Corrupt { .. }), "{e}");
+    assert_eq!(reading(&dst), before, "the body is untouched on both");
+}

@@ -38,8 +38,7 @@
 //! cap or the budget stops a reduction.
 
 use super::{
-    AtomInfo, Form, IndetMap, Mono, Poly, Rat, SymBudget, SymOp, SymRules, indet_atom, powi_form,
-    within,
+    AtomInfo, Form, IndetMap, Mono, Poly, Rat, SymBudget, SymOp, SymRules, indet_atom, within,
 };
 
 /// One reduction the atom algebra can apply: `id² → x`, an even power of
@@ -101,30 +100,54 @@ fn find_square(f: &Form, rules: SymRules, atoms: &IndetMap<AtomInfo>) -> Option<
     None
 }
 
-/// Substitutes `id²` by `repl` in one polynomial: `id^e →
-/// repl^(e/2)·id^(e%2)`, folding each term into the quotient `Form` the
-/// substitution produces (a `repl` that is itself a quotient makes the
-/// result one).
+/// The powers `p^0 … p^n` of one polynomial, each budget-checked.
+fn powers(p: &Poly, n: u32, budget: SymBudget) -> Option<Vec<Poly>> {
+    let mut out = vec![Poly::one()];
+    for _ in 0..n {
+        let next = out.last()?.mul(p, budget)?;
+        out.push(next);
+    }
+    Some(out)
+}
+
+/// Substitutes `id²` by `repl = N / D` in one polynomial: `id^e →
+/// (N/D)^(e/2)·id^(e%2)`, over ONE common denominator `D^h` with `h`
+/// the largest `e/2` in the polynomial — every term `t·id^e` becomes
+/// `t·N^(e/2)·D^(h − e/2)·id^(e%2)` in the numerator. LINEAR in the
+/// polynomial: the first cut folded each term into a running quotient,
+/// so a `repl` with a denominator cross-multiplied that denominator in
+/// at every term and the running form grew as a product — which is
+/// what a 138-second nominal replay was made of. The powers of `N` and
+/// `D` are built once, up to `h`.
 fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> Option<Form> {
-    let mut acc = Form::zero();
+    if repl.poisoned {
+        return Some(Form::poison());
+    }
+    let half = |m: &Mono| m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e / 2);
+    let h = poly.terms.keys().map(half).max().unwrap_or(0);
+    let nums = powers(&repl.num, h, budget)?;
+    let dens = powers(&repl.den, h, budget)?;
+    let mut acc = Poly::zero();
     for (mono, coeff) in &poly.terms {
         let e = mono.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
-        let rest: Mono = mono.iter().filter(|(i, _)| *i != id).copied().collect();
-        let mut rp = Poly::zero();
-        rp.insert(rest, coeff.clone())?;
-        let mut term = Form::poly(rp);
-        if e > 0 {
-            let mut factor = powi_form(repl, e / 2, budget)?;
-            if e % 2 == 1 {
-                let mut idp = Poly::zero();
-                idp.insert(vec![(id, 1)], Rat::new(1, 1, 0)?)?;
-                factor = factor.mul(&Form::poly(idp), budget)?;
-            }
-            term = term.mul(&factor, budget)?;
-        }
-        acc = acc.add(&term, budget)?;
+        let rest: Mono = mono
+            .iter()
+            .filter(|(i, _)| *i != id || e % 2 == 1)
+            .map(|&(i, ex)| if i == id { (i, 1) } else { (i, ex) })
+            .collect();
+        let mut term = Poly::zero();
+        term.insert(rest, coeff.clone())?;
+        let k = e / 2;
+        let factor = nums
+            .get(k as usize)?
+            .mul(dens.get((h - k) as usize)?, budget)?;
+        acc = acc.add(&term.mul(&factor, budget)?)?;
     }
-    Some(acc)
+    let out = Form::quotient(acc, dens.into_iter().nth(h as usize)?);
+    Some(Form {
+        gated: repl.gated,
+        ..out
+    })
 }
 
 /// Applies one square reduction: substitute in numerator and
@@ -132,7 +155,11 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
 fn apply(f: &Form, sq: &Square, budget: SymBudget) -> Option<Form> {
     let num = poly_subst_square(&f.num, sq.id, &sq.x, budget)?;
     let den = poly_subst_square(&f.den, sq.id, &sq.x, budget)?;
-    num.mul(&den.recip()?, budget)
+    let out = num.mul(&den.recip()?, budget)?;
+    Some(Form {
+        gated: out.gated || f.gated,
+        ..out
+    })
 }
 
 /// The most substitutions `reduce` takes before it FREEZES. Each step

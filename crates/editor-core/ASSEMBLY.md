@@ -92,7 +92,8 @@ mate's declaration into the product's `ContactRecords`, the same
 currency as the boolean wrapper's; declarations are verified, never
 trusted. `class_admission` is the one table the solve and the mint door
 both read: `Rest` solves and mints; `Tangent` solves and refuses at the
-mint door (`AssemblyError::NoAtRestRecord`, no witness edge at rest);
+mint door (`AssemblyError::NoAtRestRecord`, no witness edge at rest,
+recourse `NO_AT_REST_RECORD_RECOURSE`);
 anything else, including the reserved and unbuilt `Fit { gap }`,
 refuses at the solve door.
 
@@ -278,7 +279,8 @@ tree rooted at the gauge: tree mates DETERMINE and must fold to
 `Trivial` (an UNDER tree edge refuses naming the residual subgroup,
 recourse `UNDER_RECOURSE`); non-tree mates DECLARE and are only
 verified by the gate. No cycle is ever solved; an inconsistent loop
-dies at its closing mate's verification. The solve is total and
+dies at its closing mate's verification (`MateFault::Contradictory`,
+recourse `CONTRADICTORY_RECOURSE`). The solve is total and
 per-node: a refusing cluster faults its own mate and instances
 (`SolvedPoses::fault`), nothing else. (5) `SolvedPoses::placement`
 composes the cluster frame onto the solved relative pose; a singleton

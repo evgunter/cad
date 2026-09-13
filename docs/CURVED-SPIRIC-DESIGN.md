@@ -106,8 +106,8 @@ merged (#1674) and its carried-datum arm now SOLVES that corner; the
 measured door at this head is one deeper — the rim EDGE's carrier
 mint: `ReplaceFaceError::TogetherAxialEdge { what: "a circular edge
 between two charts whose centre is off the axis" }`, raised by the
-`offset_axial_latitude` predicate in `topo/src/offset_axial.rs:
-mint_carrier` (the latitude arm), pinned by
+`offset_axial_centre` predicate in `topo/src/offset_axial.rs:
+mint_carrier` (the latitude posture), pinned by
 `sweep/tests/verbs_shell.rs:the_klein_wall_pair_waits_on_the_partial_revolve_rim`
 (both `shell_open` and sealed `shell`, same face/edge/predicate) and
 `sweep/tests/torax_axial.rs:torax_the_klein_elbow_rim_refuses_at_the_carrier_mint`.
@@ -472,7 +472,7 @@ and decide Q5 explicitly rather than by omission.**
   from `TogetherAxialEdge` to the lune's `VolumeUncomputable`
   door (payload quoted; the `verbs_shell` and `torax_axial` rows
   flip to that door WITH the old door recorded); a planted red keeps
-  `offset_axial_latitude` reachable on a genuine latitude fixture;
+  `offset_axial_centre` reachable on a genuine latitude fixture;
   wedge, lune, barrel, teapot and every TORAX row bit-identical; a
   rigid-re-pose parity row; an `Interval`-lane row that certifies the
   same rim. Difficulty **M–H**, class **structural** (breadth across

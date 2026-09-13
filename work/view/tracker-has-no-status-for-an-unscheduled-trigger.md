@@ -20,7 +20,7 @@ each had to pick between two false statuses:
 
 1. **`pick-priority-filter-vocabulary`** (VIEW). Its trigger is a
    third asymmetric tool — a vertex pick — that does not exist and is
-   not scheduled, and `crates/viewer/README.md` GQ7 **ratifies the
+   not scheduled, and `crates/viewer/GUI-DESIGN.md` GQ7 **ratifies the
    deferral**. There is no item to name, so it is `open`, which says
    it is available to dispatch. It is not.
 2. **`session-shims-and-test-imports`** (VIEW). Its blocker closed on

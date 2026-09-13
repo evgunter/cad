@@ -30,9 +30,9 @@
 //! the blend RETIRED, so a consumer can check
 //! `output = (source − dead) ⊎ minted` rather than assume it — in BOTH
 //! directions, executed by
-//! `sweep/tests/m6_5_fillet_naming.rs::every_output_entity_is_a_recorded_mint_or_a_survivor`
+//! `m6_5_fillet_naming::every_output_entity_is_a_recorded_mint_or_a_survivor`
 //! and
-//! `sweep/tests/verbs_arms1_annulus.rs::every_annulus_output_entity_is_a_recorded_mint_or_a_survivor`.
+//! `verbs_arms1_annulus::every_annulus_output_entity_is_a_recorded_mint_or_a_survivor`.
 //! A survivor is thus a birth fact too — "this key was not minted and
 //! not retired" — not an inference from geometry.
 //!
@@ -135,7 +135,11 @@ pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
 pub struct Retired {
     /// Source edges that no longer exist: the requested chain edges
     /// (excised across their strips) and, on the rim path, the
-    /// meridian remnants killed with their rim vertex.
+    /// meridian remnants killed with their rim vertex that are the
+    /// SOURCE key. A remnant the carve itself minted dies unrecorded,
+    /// and owes no row: it reaches neither this set — which names what
+    /// the blend took from the body the caller handed in — nor the
+    /// output. `surgery::retire_fragment` is that rule's one home.
     pub edges: Vec<EdgeKey>,
     /// Source vertices that no longer exist: the sharp corners fused
     /// under their octants, and the rim vertices.

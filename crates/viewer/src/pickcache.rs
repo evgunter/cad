@@ -165,7 +165,11 @@ pub struct PickCache {
 ///
 /// The one `_` arm is `seam`, a `dyn` service implementing no `Debug`.
 /// `index` is carried as the generation it describes rather than as
-/// the index itself, which is the fact a dump is asked for.
+/// the index itself, which is the fact a dump is asked for. It renders
+/// as an ELISION around that generation — `Some(<PickIndex for
+/// Generation(4)>)` — so the summary cannot be read as an
+/// `Option<Generation>` field; `finish_non_exhaustive` speaks for the
+/// `_` arm and not for this one.
 impl core::fmt::Debug for PickCache {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
@@ -175,9 +179,15 @@ impl core::fmt::Debug for PickCache {
             error,
             seam: _,
         } = self;
-        f.debug_struct("PickCache")
-            .field("index", &index.as_ref().map(PickIndex::generation))
-            .field("attempted", attempted)
+        let mut out = f.debug_struct("PickCache");
+        match index {
+            Some(index) => out.field(
+                "index",
+                &format_args!("Some(<PickIndex for {:?}>)", index.generation()),
+            ),
+            None => out.field("index", &Option::<()>::None),
+        };
+        out.field("attempted", attempted)
             .field("outstanding", outstanding)
             .field("error", error)
             .finish_non_exhaustive()
@@ -242,12 +252,13 @@ impl PickCache {
     /// Ask the seam for an index of a landed evaluation at `delta`, at
     /// most one attempt per (generation, δ).
     ///
-    /// **δ is built at, verbatim.** `scene::TRIANGLE_BUDGET` chooses
-    /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
-    /// that is the whole of the budget's authority: once a δ is in
-    /// force it is the value someone asked for, and a cache that
-    /// quietly built a different picture would make the View pane's δ
-    /// field a control that does nothing.
+    /// **δ is built at, verbatim.** [`crate::scene::TRIANGLE_BUDGET`] chooses
+    /// the δ a document OPENS at
+    /// ([`crate::app::ViewerApp::fit_delta_on_scene`]), and that is the
+    /// whole of the budget's authority: once a δ is in force it is the
+    /// value someone asked for, and a cache that quietly built a
+    /// different picture would make the View pane's δ field a control
+    /// that does nothing.
     ///
     /// The document is CLONED into the request and the evaluation is
     /// shared, so the worker owns everything it reads and the session

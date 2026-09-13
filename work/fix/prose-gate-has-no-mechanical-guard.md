@@ -2,10 +2,11 @@
 id: prose-gate-has-no-mechanical-guard
 kind: issue
 title: the prose gate is enforced only where someone remembered: no row renders every Display-reachable refusal at its struct-shaped payload variants
-status: review
+status: closed
 branch: fix/prose-gate-guard
 opened: 2026-09-04
 pr: 1809
+closed: 2026-09-04
 ---
 
 
@@ -208,3 +209,13 @@ this census found that were not previously filed —
 `geom-brep/src/offset_fit.rs` (`SplineError`) and
 `topo/src/boolean/voids.rs` (`RevertError`) — were reported to the
 orchestrator, who is filing them.
+
+## Closed
+
+PR 1809, merged 2026-09-04. `crates/pncad-py/src/prose_census.rs`
+judges every `impl Display` site from its declared shapes rather than
+from constructed samples; `KNOWN_BRACED` and `UNDECIDED` are compared
+for equality in both directions, so neither list can rot silently. The
+residue it discloses has its own file,
+`work/fix/prose-census-undecided-residue.md`. The row sat at `review`
+after the merge and is closed here by the orchestrator.

@@ -65,8 +65,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::authoring::{p2, polygon, v3};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Point2, Tol, Vec3};
+use pncad::geom_core::{Affine3, Tol, Vec3};
 use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, circle_split};
 use pncad::sweep::{Extrusion, extrude};
@@ -151,7 +152,7 @@ const V_MATED: f64 = 2.0 * PLATE_VOL;
 /// contort itself — no mismatched radii between the two plates, no
 /// one-plate-only rounding — to manufacture a shape that dodges it.
 fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
-    crate::paths::path_polygon(
+    polygon(
         &[
             (0.0, 0.0),
             (PLATE.0, 0.0),
@@ -160,6 +161,7 @@ fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
         ],
         tol,
     )
+    .expect("the plate outline")
 }
 
 /// The radius-0.5 circle about `(cx, PEG_Y)`, authored as THREE 120°
@@ -173,25 +175,15 @@ fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
 /// pairing is a fact about the loop rather than a coincidence between
 /// two spellings.
 fn rim<S: Scalar>(cx: f64, tol: Tol) -> ProfileLoop<S> {
-    circle_split(
-        Point2::new(S::from_f64(cx), S::from_f64(PEG_Y)),
-        S::from_f64(PEG_R),
-        3,
-        S::from_f64(0.0),
-        tol,
-    )
-    .expect("the three-arc peg rim authors")
-    .into()
+    circle_split(p2(cx, PEG_Y), S::from_f64(PEG_R), 3, S::from_f64(0.0), tol)
+        .expect("the three-arc peg rim authors")
+        .into()
 }
 
 /// The plate's sketch at `z0` — the outline, plus a bore rim per peg
 /// centre when `bores` is set.
 fn plate_profile<S: Scalar>(z0: f64, bores: bool, tol: Tol) -> ValidatedProfile<S> {
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(
-        S::from_f64(0.0),
-        S::from_f64(0.0),
-        S::from_f64(z0),
-    )));
+    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
     let mut loops = vec![outline::<S>(tol)];
     if bores {
         loops.extend(PEG_X.into_iter().map(|cx| rim::<S>(cx, tol)));
@@ -214,11 +206,7 @@ fn plate<S: Scalar>(z0: f64, tol: Tol) -> Body<S> {
 
 /// A peg: [`rim`] extruded `h` from `z0`.
 fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> Body<S> {
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(
-        S::from_f64(0.0),
-        S::from_f64(0.0),
-        S::from_f64(z0),
-    )));
+    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![rim::<S>(cx, tol)])
         .validate(tol)
         .expect("the peg profile validates");
@@ -480,11 +468,7 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
 
     // The apart framing: Q lifted by a rigid transform (#84 — every
     // moved edge witness is re-minted, and the moved body revalidates).
-    let lift = Affine3::translation(Vec3::new(
-        S::from_f64(0.0),
-        S::from_f64(0.0),
-        S::from_f64(1.6),
-    ));
+    let lift = Affine3::translation(v3(0.0, 0.0, 1.6));
     let q_lifted = pncad::topo::transform_rigid(&q, &lift, tol).expect("lift plate Q");
     (p, q, mated, q_lifted, refusal)
 }

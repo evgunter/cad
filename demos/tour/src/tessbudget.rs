@@ -115,7 +115,13 @@ pub fn run(path: Option<String>, deviation: bool, tol: Tol) {
                     panic!("{scene}: tessellate at delta {}: {e:?}", stop.delta)
                 });
                 let measures = budget::take();
-                let rows = tess_meter::face_rows(stop.delta, &sb.body, &mesh, &measures);
+                let rows = tess_meter::face_rows(
+                    stop.delta,
+                    &sb.body,
+                    &mesh,
+                    &measures,
+                    sb.face_names.as_ref(),
+                );
                 for row in &rows {
                     triangles += row.triangles;
                     out.push_str(&row.csv_row(&scene));

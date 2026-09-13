@@ -95,11 +95,11 @@ pub(crate) type RecordReader<T> =
 ///
 /// `A` is the argument shape of this verb's payload (see the module
 /// docs). Every field is direct per-instance data: a function pointer
-/// per instance, no match over a verb vocabulary anywhere in this file.
+/// per instance, no match over the kernel's verb vocabulary anywhere in this file.
 pub(crate) struct ProfileVerb<T: Decide, A> {
     /// **Resolved arguments → the kernel verb.** The one place a
     /// document's evaluated distance, or its resolved axis and
-    /// classified revolution, becomes a [`Verb`] payload.
+    /// classified revolution, becomes a [`verbs::Verb`] payload.
     pub(crate) build: fn(A) -> Verb<T>,
     /// This verb's record reader — its family's own arm of the closed
     /// channel, its emitter, and its wall export.

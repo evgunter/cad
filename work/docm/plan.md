@@ -83,7 +83,7 @@ place (ids kept); so are `D365`'s census, `C6`'s `WireStep` member,
    `EvalOptions::param_box`), the indeterminate-means-subdivide
    verdict contract, and pacing; the build reuses M10-3's driver.
    Waits on M10's parameter-aware certification settling.
-4. **RULED (Ev, 2026-09-06) → `DOCM-8` — the chained-order gap in the
+4. **DONE (DOCM-8, PR 2073; ruled by Ev 2026-09-06) — the chained-order gap in the
    union's declaration channel** —
    `member-space-declarations-are-order-shaped-across-a-chain`: a
    merged face's name is minted FLAT (N3's constituent set; a nested

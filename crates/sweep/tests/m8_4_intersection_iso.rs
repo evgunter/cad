@@ -23,12 +23,13 @@
 //! pick landed in the sliver band). Anything else panics.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Band, Point2, Point3, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::RawLoop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
@@ -62,10 +63,6 @@ fn prism(scale: f64) -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 /// Is this face's surface a described NURBS wall whose control net lies

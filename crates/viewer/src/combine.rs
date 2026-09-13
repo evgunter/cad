@@ -513,6 +513,9 @@ pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Sweep { .. }
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
+        // A thin solid is ONE body: the cavity is a void inside it,
+        // exactly as the hollow tube's is.
+        | Node::Shell { .. }
         | Node::Boolean { .. }
         // ONE body out, exactly as the pair union it generalizes: the
         // members are folded, not collected.

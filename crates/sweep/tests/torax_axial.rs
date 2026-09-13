@@ -627,9 +627,10 @@ fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
 /// corners ON the axis (`(ρ, h) = (0, ∓0.25)`) while both moved caps
 /// stood exactly `t = 0.05` m off it, so the minted axis line's
 /// midpoint missed each moved cap by the whole wall thickness. The rim
-/// great circles behind it fell to the latitude mint's plane predicate
-/// ("whose plane is not normal to the axis") — two mechanisms, one
-/// displacement: the moved caps stop containing the axis.
+/// great circles behind it fell to the latitude posture's plane
+/// predicate (a circle centred on the axis whose plane is not normal
+/// to it) — two mechanisms, one displacement: the moved caps stop
+/// containing the axis.
 ///
 /// **What answers now.** The two moved caps meet in a line parallel to
 /// the axis at `ρ_L = t·√2` (their common perpendicular splits the
