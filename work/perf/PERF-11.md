@@ -2,10 +2,11 @@
 id: PERF-11
 kind: unit
 title: the remaining serial face walks in props - the shell census maps, the continuation is measured
-status: review
+status: closed
 opened: 2026-09-13
 branch: perf/11-props-walks
 pr: 2486
+closed: 2026-09-13
 ---
 
 
