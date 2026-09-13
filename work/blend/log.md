@@ -417,3 +417,105 @@ in `tests/common/cap_rims.rs`; one residue filed
 (`extrude-strut-rule-has-three-homes-and-fixed-context-argument-lists`).
 With this, every unit of the E slate is merged except unit 5, whose
 re-merged head awaits its run.
+
+**Unit 6 landed (2026-09-08)** on PR [#2215](https://github.com/evgunter/cad/pull/2215),
+head `41b45adc`, full matrix green; Phase 1's four carves at closed
+forms with pad 0, no stop-clause defect, every bit-dump identical at
+both trees. The lane corrected the spec twice by measurement: the
+boss's dome rim is CONCAVE (the ball rests in the void, the band adds
+material; `plane_sphere_cut` was the wrong oracle, the external
+tangency form is homed beside it), and the hostless annulus's rings
+were already metered externally behind `resolve_rim`'s refusal, so the
+fix is a form choice at the existing meter. Its substantive finding:
+the containment margins are bit-identical to predicate 2's sampled
+screen on every coaxial pair and the screen runs first, so the exact
+backstop has no reachable fixture (filed inside the fence). **Ordinal
+2900 claimed on main; the v6 dual dispatched concurrently on the
+frozen head** — byte 67 ⇒ R1 = FABLE, R2 = OPUS; briefs stored with
+digests on `blend/b1-block` before either ran; the two spec errors are
+stated in both briefs as the lane's corrections to verify. The unit's
+log entry waits for the dual.
+
+**The E slate is done (2026-09-08, 18:0x UTC):** units 1, 2, 3, 4, 5
+and K all merged (PRs 2123, 2122, 2141, 2129, 2155, 2149). Every one
+took a single style review, a fix pass on the implementer's lane, and
+between one and three main-merge rounds at the end — the rounds were
+almost all this program's own log tails and the aggregated test list,
+which every unit appends to; the resolution is always union. Two
+orchestrator decisions were corrected by reviewers (units 3 and 5) and
+both corrections are in the tree. Open on the slate: unit 6 in its
+dual; units 7 and 9 (block B1) and 8, 10–13 to dispatch; the
+residues the E units filed.
+
+**Unit 6's dual concluded (2026-09-08, ~19:00 UTC):** R1 (FABLE)
+MERGEABLE-AFTER-FIXES 0/3/2, rubric 4/3/3; R2 (OPUS) MERGEABLE
+0/6/3, rubric 4/3/4. Both ran concurrently on the frozen head with
+private targets, neither interrupted, zero cross-lane reads disclosed.
+No MAJOR on either side, so no unilateral MAJOR and NO tally candidate.
+The headline is BILATERAL and it corrects the unit's own claim: D5 is
+false in both halves. The screen and the exact backstop are not
+bit-identical (16 ulps on the ladder relation with the screen off —
+R1, by mutant; 5 and 10 ulps on the item's own rows 2 and 3 — R2, by
+reading the item's table), and the backstop IS reachable: not by the
+boolean pip the filed item named (R2 built it — the split-join
+refuses every off-axis pierce of a cylinder cap with
+`SectionLoopMixed` except at azimuth 0/π, where the screen is exact
+and answers first), but by an extrude with an off-axis circular inner
+loop (R1's bored cylinder: `fillet3_ring_clearance` reads `−0.01` at
+the front door for both relations, carving sides carve). The two
+probe suites disagree in their canaries and are adopted together with
+the canary re-scoped to the boolean route. Converged MINORs: the
+external half of the outer `max` had no witness (both by mutant; both
+supplied the pinning row — R1 a mixed-outer-cycle plate, R2 a
+non-coaxial ladder trim circle, which is also the CROSSING row the
+spec asked for and the unit silently replaced with a concentric
+nesting under a name that says "crossing"); the trio decides in
+predicate 2 and passes at the merge base; `CircleMargins` is
+predicate 2's screen restated (both Q1); the outer-walk doc block's
+stale sentences (both Q2); D4's widening unreachable, not merely
+unexercised (R2). Unique R1: the material side read off the body as
+a row; `narrowed`/`domed` re-spelling the boss profile. Unique R2:
+the `domed` duplicate as a silent spec deviation; the `:1501` premise
+invalidated; the `!crossings.is_empty()` silent branch; the `blend6_`
+prefix naming two generations' units (filed as a class,
+`unit-numbered-test-suite-prefixes-collide-across-program-generations`;
+the instance renamed by subject on this unit's fix pass). Fix pass
+dispatched to the implementer's lane on the union
+(`/home/user/blend-briefs/fix-6-brief.md`); delta re-verification by
+R1 on the fixed head, then state-sync and merge, then the A/B row
+with its sample number. Reviewer targets reclaimed for unit 7's lane;
+reviewer worktrees stay until merge.
+
+**Outage (2026-09-08 ~19:10Z → 2026-09-13):** a session usage limit
+killed both running lanes minutes after dispatch — unit 6's fix pass
+after its fix commit and local main-merge (nothing pushed; the branch
+stayed at `41b45adc`) and unit 7 mid-Phase-1 with uncommitted edits.
+Both worktrees and targets survived; both lanes resumed on 2026-09-13
+from their own state (unit 7 told to checkpoint-commit first). Main
+moved ~1,700 commits in between; both re-merge it before pushing. The
+unit 6 pair's review arms both ran uninterrupted before the outage,
+so the pair still counts; the fix and delta phases are annotated on
+wall-clock, per the BLEND-7 precedent.
+
+**Unit 7 landed (2026-09-13)** on PR [#2483](https://github.com/evgunter/cad/pull/2483),
+head `5d2782a4e`, full matrix green (run 34730583374, twelve `test`,
+five `k-lint`). Phase 1 measured the defect as data: every junction of
+an N ≥ 3 closed rim was paired with the one link after its own in ring
+order; the two-arc rim and the open chain paired correctly. The stop
+clause did not fire — both closed-rim doors carve three- and four-arc
+rims on both material sides at the Pappus closed forms with pad 0.
+Shape taken: the spec's preferred `Junction { vertex, arriving,
+leaving }`. Deviations reported: the spec's "concave bore twin" is
+convex (the concave rims became a boss foot on the ladder and a
+pocket floor on the annulus); the open-chain "bit-identical carve"
+became a pairing pin because no chain with a junction carves today;
+one ladder doc line; two checkpoint commits carrying instrumentation
+(the orchestrator asked for the checkpoint after the outage). Filed
+outside the fence: `rim-of-refuses-extruded-multi-arc-rims` (the
+public rim selector refuses every extruded multi-arc rim on 1e-17
+carrier drift). **Ordinal 2901 claimed (PR #2485 to main); the v6
+dual dispatched concurrently on the frozen head** — byte 13 ⇒ R1 =
+FABLE, R2 = OPUS; briefs stored with digests on `blend/b1-block`
+before either ran; the four deviations stated in both briefs as
+hypotheses. The unit's log entry waits for the dual. Unit 7's target
+reclaimed for the reviewers' base-tree builds (its fix pass re-seeds).
