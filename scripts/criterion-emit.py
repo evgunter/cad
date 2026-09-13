@@ -179,7 +179,24 @@ def cpu_identity() -> tuple[str | None, list[str] | None]:
     return model, ([] if flags is None else flags)
 
 
-def environment() -> dict:
+def rayon_threads(criterion_dir: Path) -> int | None:
+    """The EFFECTIVE rayon width the tessellate rows were taken at.
+
+    `benches/benches/kernel.rs` asks `rayon::current_num_threads()` and
+    writes it beside criterion's own output, because only the benchmark
+    process can answer it: `RAYON_NUM_THREADS` is a REQUEST (absent when
+    unset, ignored when malformed) and `nproc` is the machine, neither of
+    which is the number of workers the pool actually built. Absent file
+    means an older benchmark binary wrote the sample; `None` then, rather
+    than a guess that would read as a measurement.
+    """
+    try:
+        return int((criterion_dir / "rayon-threads").read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def environment(criterion_dir: Path | None = None) -> dict:
     """The block without which none of the numbers above mean anything."""
     overrides = sorted(
         f"{k}={v}" for k, v in os.environ.items() if k.startswith("CARGO_PROFILE_")
@@ -221,6 +238,23 @@ def environment() -> dict:
         "cpu_model": cpu_model,
         "cpu_flags": cpu_flags,
         "runner": os.environ.get("CRITERION_RUNNER", ""),
+        # THE TESSELLATE ROWS ARE PARALLEL (`mesh::tessellate`'s per-face
+        # dispatch is D9 idiom 1), so their wall clock is a reading at a
+        # thread count and two samples taken at different ones do not
+        # compare. The row IDS deliberately do not carry it —
+        # `DEFAULT_ROSTER` is a fixed list and a thread count in an id
+        # would make a renamed row out of a differently-sized runner — so
+        # these two fields are where a reader looks before comparing two
+        # entries' tessellate rows.
+        #
+        # `rayon_threads` is the one to read: the width the pool actually
+        # built, measured in the benchmark process (`rayon_threads`
+        # above). `rayon_num_threads` is the REQUEST beside it, empty
+        # when unset, and it is kept because a sample where the two
+        # disagree is a sample whose environment was not what its run
+        # asked for.
+        "rayon_threads": rayon_threads(criterion_dir) if criterion_dir else None,
+        "rayon_num_threads": os.environ.get("RAYON_NUM_THREADS", ""),
         "rustup_toolchain": toolchain,
         "rustflags": os.environ.get("RUSTFLAGS", ""),
         "cargo_profile_overrides": overrides,
@@ -250,7 +284,7 @@ def build_entry(criterion_dir: Path, commit: str, roster: tuple[str, ...], metho
         "commit": commit,
         "measured_at_epoch_s": int(time.time()),
         "method": method,
-        "environment": environment(),
+        "environment": environment(criterion_dir),
         "benchmarks": {row: rows[row] for row in roster},
     }
 
@@ -317,6 +351,21 @@ def selftest() -> int:
         lo, hi = rows["a/two"]["median_ci_ns"]
         if abs(lo - 180.0) > 1e-9 or abs(hi - 220.0) > 1e-9:
             failures.append(f"confidence interval not carried through: {lo}, {hi}")
+
+        # The effective-width reader, both shapes: the file the
+        # benchmark writes beside criterion's own output, and its
+        # absence on a sample an older binary produced. `None` and `0`
+        # must not be confusable — one is "not recorded", the other
+        # would be a width.
+        if rayon_threads(root) is not None:
+            failures.append("rayon_threads invented a width with no file to read")
+        (root / "rayon-threads").write_text("3\n")
+        if rayon_threads(root) != 3:
+            failures.append(f"rayon_threads read {rayon_threads(root)} from a file saying 3")
+        (root / "rayon-threads").write_text("not a number\n")
+        if rayon_threads(root) is not None:
+            failures.append("rayon_threads accepted a non-numeric file")
+        (root / "rayon-threads").unlink()
 
         entry = build_entry(root, "deadbeef", ("a/one", "a/two"), "m")
         if list(entry["benchmarks"]) != ["a/one", "a/two"]:

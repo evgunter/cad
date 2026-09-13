@@ -269,20 +269,41 @@ Euler-op sequences stay serial — each op mutates shared arenas, and
 they are cheap; full-DAG rebuild is solved by memoization, not by
 parallelizing surgery.
 
-**State: two targets built.** `rayon` is a dependency of `editor-core`
-and of `topo`. `topo::props`' face walks are the mass-properties target
-below, built by PERF-8 — an indexed map over faces into arena-order
-slots, each face under a detached K-funnel frame
-(`geom_core::k_stats::detached`) whose recording the arena-order fold
-splices back, so the verdict log, the escalation log and the `probe`
-sample population are the serial walk's at any thread count. The
-evaluator's own map is the other, and it is switched off:
+**State: three targets built, and one of them is switched off.**
+`rayon` is a dependency of `editor-core`, of `topo` and of `mesh`.
+
+`topo::props`' face walks are the mass-properties target below, built
+by PERF-8 — an indexed map over faces into arena-order slots, each face
+under a detached K-funnel frame (`geom_core::k_stats::detached`) whose
+recording the arena-order fold splices back, so the verdict log, the
+escalation log and the `probe` sample population are the serial walk's
+at any thread count.
+
+`mesh::tessellate`'s per-face dispatch is the per-face tessellation
+target, built by PERF-7 — the same pair of idioms, over the face arena:
+the lanes in the map, and the arena-order fold that places each patch,
+records the patch memo, hands the budget meter its rows and splices the
+K-funnel recordings back through PERF-8's door.
+`crates/mesh/tests/d9_mesh_goldens.rs` digests the corpus under an
+explicit 1-thread and an explicit 4-thread pool and asserts both
+against the committed table, so the bit-identity claim is a standing
+row rather than an argument.
+
+The evaluator's own map is the third, and it is switched off:
 `eval/mod.rs`'s node map is D9-clean as written (indexed map into
 per-node slots), but `EvalOptions::default()` sets `parallel: false`
 and every shipping caller takes the default; `parallel: true` appears
 once, in a test. Two things have to be composed back before that
 switch can be flipped, and one of them changes DECISIONS rather than
 recordings — `work/wire/parallel-node-map-loses-the-funnel-and-the-symbolic-session.md`.
+
+`mesh`'s (`tessellate.rs`, `tessellate_impl`'s per-face dispatch) is
+**on unconditionally** and has no switch — idiom 1 over the face arena
+into a pre-sized buffer, then the arena-order fold that places the
+patches. `crates/mesh/tests/d9_mesh_goldens.rs` digests the corpus
+under an explicit 1-thread and an explicit 4-thread pool and asserts
+both against the committed table, so the bit-identity claim is a
+standing row rather than an argument.
 
 Tempering expectation for whoever turns it on: the scheduler is
 level-synchronous and the expensive corpus documents are *chains*
@@ -293,13 +314,6 @@ exercised — not as a fix for the corpus timings.
 
 **The unbuilt targets**, in value order:
 
-- **Per-face tessellation** — the cheapest, and the blocker is small.
-  `mesh/src/tessellate.rs` threads a `&mut positions` running counter
-  through the face loop and each lane mints grid ids as
-  `positions.len()`. Everything else is already read-only per face.
-  Emitting *local* ids into a pre-sized buffer and assigning base
-  offsets in a sequential arena-order fold is exactly the
-  idiom-1-then-idiom-2 shape, and is bit-identical.
 - **The M10 subdivision driver** — "embarrassingly parallel" is
   literally idiom 1 over sub-boxes.
 - **Certification sampling** — per-edge, idiom 1.

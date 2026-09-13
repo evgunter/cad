@@ -201,6 +201,56 @@
 //! leak is cocircular tie-breaking, which is a function of insertion
 //! order and therefore fixed here).
 //!
+//! **And it holds at any thread count.** The per-face dispatch is D9's
+//! idiom 1 — an indexed parallel map over the face arena into a
+//! pre-sized buffer — combined by the sequential arena-order fold that
+//! places each patch (idiom 2). Combination is positional, so the
+//! schedule cannot reach the bytes; the fold is where the mesh arena,
+//! the patch memo's counters and the budget meter's rows are touched,
+//! and it visits faces in arena order whatever the map did.
+//! `tests/d9_mesh_goldens.rs` digests the corpus under an explicit
+//! 1-thread and an explicit 4-thread pool and asserts both against the
+//! committed table.
+//!
+//! A refusal costs more than an answer does: every face is computed
+//! before the fold picks the first refusal in arena order, so a body
+//! that refuses pays for the faces after the refusing one and throws
+//! them away.
+//!
+//! # What a caller owes rayon (documented characteristic)
+//!
+//! [`tessellate()`] runs its per-face map on the **process-global rayon
+//! pool**, from whatever thread calls it, and three things follow that
+//! a caller may need:
+//!
+//! * a call from a thread that is not itself a pool worker injects the
+//!   map into the pool and parks — measured at about **0.05 ms** of
+//!   fixed cost per call on a 4-vCPU box, which is most of the cost of
+//!   a body under a few hundred triangles and nothing at all above
+//!   that (`work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`
+//!   has the sweep and the split);
+//! * a caller that owns a pool gets that pool:
+//!   `pool.install(|| tessellate(..))` runs the lanes on its workers,
+//!   which is how the width-pinned rows in
+//!   `tests/d9_mesh_goldens.rs` are written and how a caller keeps the
+//!   kernel off cores it wants for something else. `RAYON_NUM_THREADS`
+//!   configures the global pool ONCE per process, so it cannot give one
+//!   process two widths;
+//! * on **wasm32** there is no thread to spawn: the map runs on
+//!   rayon-core's current-thread fallback, so it is the serial walk with
+//!   the map's bookkeeping. Nothing in this tree executes that — the
+//!   wasm job is a compile — so it is a compile-time guarantee and not a
+//!   measured one.
+//!
+//! Both of the tessellation's thread-local recording channels survive
+//! the map: the budget meter ([`budget`]) and the K-funnel's verdicts,
+//! escalations and `probe` samples
+//! (`geom_core::k_stats::detached`/`splice`). Each face's lane records
+//! into a channel of its own and the arena-order fold hands both on, so
+//! a `Bracket` or an armed meter around [`tessellate()`] reads what a
+//! serial walk would have written, element for element
+//! (`tests/k_funnel_composition.rs`).
+//!
 //! # Performance (documented characteristic)
 //!
 //! Wall-clock on the CDT insertion path is **quadratic for faces whose
