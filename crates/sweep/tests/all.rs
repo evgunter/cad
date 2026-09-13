@@ -453,6 +453,12 @@ mod mate7a_torus_rest;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+#[path = "review_ring_clearance_r1_probes.rs"]
+mod review_ring_clearance_r1_probes;
+#[path = "review_ring_clearance_r2_probes.rs"]
+mod review_ring_clearance_r2_probes;
+#[path = "ring_clearance_forms.rs"]
+mod ring_clearance_forms;
 
 #[path = "r1_probes_m9_3.rs"]
 mod r1_probes_m9_3;
