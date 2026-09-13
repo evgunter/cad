@@ -2880,6 +2880,11 @@ impl<T: Decide> Core<T> {
                             turn,
                             radius,
                             scale: reading.scale,
+                            // `f64::EPSILON` by design, not by omission: every scalar this
+                            // kernel ships carries an f64 VALUE channel (a dual's value, an
+                            // interval's midpoint), so this is the resolution floor at any
+                            // `T`; an interval's own enclosure width is `margin`, printed
+                            // beside it, not folded into this number.
                             resolution: reading.scale * T::from_f64(f64::EPSILON),
                             predicate: reading.predicate,
                             margin: reading.margin,
