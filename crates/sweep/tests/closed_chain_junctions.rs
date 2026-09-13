@@ -45,6 +45,67 @@ fn describe_arcs(body: &Body<f64>, edges: &[EdgeKey]) {
     }
 }
 
+/// An `n`-arc cylinder of radius `r` about `(cx, cy)`, from `z0` up
+/// by `h`.
+fn cylinder_at(n: usize, r: f64, cx: f64, cy: f64, z0: f64, h: f64) -> Body<f64> {
+    use geom_core::{Affine3, Point2, Point3, Vec3};
+    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+    let bulge = (core::f64::consts::PI / (2.0 * n as f64)).tan();
+    let verts: Vec<ProfileVertex<f64>> = (0..n)
+        .map(|i| {
+            let th = 2.0 * core::f64::consts::PI * (i as f64) / (n as f64);
+            ProfileVertex::new(Point2::new(cx + r * th.cos(), cy + r * th.sin()), bulge)
+        })
+        .collect();
+    let plane = SketchPlane::new(Affine3::from_frame(
+        Point3::new(0.0, 0.0, z0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    ));
+    let pf = Profile::new(plane, vec![ProfileLoop::new(verts)])
+        .validate(tol())
+        .unwrap();
+    sweep::extrude(&pf, sweep::Extrusion::Distance(h), tol())
+        .unwrap()
+        .body
+}
+
+/// `block ∪ boss`: the boss's foot rim on the block's top is CONCAVE.
+fn boss(n: usize) -> Body<f64> {
+    use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+    boolean_op_with(
+        BooleanOp::Union,
+        &cube(2.0, tol()),
+        &cylinder_at(n, 0.5, 1.0, 1.0, 1.0, 2.0),
+        &topo::BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the boss unions, got {e}"))
+    .body()
+    .expect("a body")
+    .body
+    .clone()
+}
+
+/// `block − pocket`: the pocket's floor rim is CONCAVE.
+fn pocket(n: usize) -> Body<f64> {
+    use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+    boolean_op_with(
+        BooleanOp::Subtract,
+        &cube(2.0, tol()),
+        &cylinder_at(n, 0.5, 1.0, 1.0, 1.5, 2.0),
+        &topo::BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the pocket subtracts, got {e}"))
+    .body()
+    .expect("a body")
+    .body
+    .clone()
+}
+
 fn census(b: &Body<f64>) -> (usize, usize, usize) {
     (b.vertices().count(), b.edges().count(), b.faces().count())
 }
@@ -107,8 +168,22 @@ fn phase1_door_dump() {
         ("three-arc bore", bored_block_of_arcs(3, 2.0, 1.0, 0.5, tol())),
         ("four-arc bore", bored_block_of_arcs(4, 2.0, 1.0, 0.5, tol())),
         ("two-arc bore", bored_block_of_arcs(2, 2.0, 1.0, 0.5, tol())),
+        ("three-arc boss foot", boss(3)),
+        ("four-arc boss foot", boss(4)),
+        ("two-arc boss foot", boss(2)),
+        ("three-arc pocket floor", pocket(3)),
+        ("four-arc pocket floor", pocket(4)),
+        ("two-arc pocket floor", pocket(2)),
     ] {
-        let arcs = arcs_at_z(&body, 1.0);
+        let station = if name.contains("boss") {
+            2.0
+        } else if name.contains("pocket") {
+            1.5
+        } else {
+            1.0
+        };
+        let arcs = arcs_at_z(&body, station);
+        describe_arcs(&body, &arcs);
         let c0 = census(&body);
         let p0 = mass_properties(&body, tol()).unwrap();
         eprintln!("=== {name}: arcs={} census={c0:?} V0={} pad0={}", arcs.len(), p0.volume, p0.volume_pad);

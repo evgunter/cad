@@ -1474,19 +1474,6 @@ pub fn run_battery_for<T: Decide + Bounds>(
     // requested links meet; every other chain end goes to predicate 6.
     for chain in &chains {
         let ring: Vec<&Link<T>> = chain.links().collect();
-        for (i, j) in chain.junctions.iter().enumerate() {
-            let a = ring[j.arriving];
-            let b = ring[j.leaving];
-            eprintln!(
-                "PAIRING closure={:?} junction[{i}]={:?} a={:?} a_incident={} b={:?} b_incident={}",
-                chain.closure,
-                j.vertex,
-                a.edge,
-                a.start == j.vertex || a.end == j.vertex,
-                b.edge,
-                b.start == j.vertex || b.end == j.vertex
-            );
-        }
         for j in &chain.junctions {
             let v = &j.vertex;
             // The junction's two links are the ones the walk found

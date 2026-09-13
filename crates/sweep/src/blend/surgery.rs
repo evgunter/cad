@@ -895,7 +895,6 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // support is a VALUE here, and "the loop that must have run did
     // not" is a state this function no longer spells.
     let Some((plane, first_mate)) = split(link0)? else {
-        eprintln!("DOOR annulus(Seams): no planar support");
         return resolve_seam_split_rim(body, chain, HostSide::Seams);
     };
     let mut mates = Vec::with_capacity(chain.link_count());
@@ -932,7 +931,6 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         .ok_or_else(|| not_intact(EntityId::Face(plane), "a rim's plane support"))?;
     if !pd.rings.contains(&ring) {
         if pd.outer == plane_loop {
-            eprintln!("DOOR annulus(Struts): the host's outer cycle");
             return resolve_seam_split_rim(body, chain, HostSide::Struts);
         }
         // A half-edge's parent loop is a loop of the face it bounds, so
@@ -990,7 +988,6 @@ fn resolve_rim<'a, T: Decide + Bounds>(
             "a rim ring carries edges outside the requested chain",
         ));
     }
-    eprintln!("DOOR ladder: the host's ring");
     Ok(RimPlan {
         chain,
         hosts: vec![plane; chain.link_count()],
