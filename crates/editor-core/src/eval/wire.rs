@@ -1,6 +1,6 @@
-//! **Three jobs**: node-to-kernel wiring, the declaration routing that
-//! has no kernel op to wire to, and the placement-rule arithmetic two
-//! modules share.
+//! **Four jobs**: node-to-kernel wiring, the mid-evaluation name
+//! ladder, the declaration routing that has no kernel op to wire to,
+//! and the placement-rule arithmetic two modules share.
 //!
 //! **The wiring** (spec D3: wire, don't invent). Each F4 node that
 //! names a geometric operation maps to an EXISTING public kernel op;
@@ -10,6 +10,16 @@
 //! comparison. Which value a node's operand is allowed to be, and what
 //! it is told when it is not, is one door ([`operand`]) speaking one
 //! vocabulary ([`super::family`], [`super::phrase`]).
+//!
+//! **The mid-evaluation name ladder** ([`ladder`]). Every door that
+//! resolves an AUTHORED name against the tables THIS run has built so
+//! far — the blend selection, a shell's open faces, a face frame, the
+//! declare door, a measure's references — asks the same three
+//! questions in the same order, and [`ladder::Live`] is the token that
+//! makes the order a type rather than a convention. It maps to no
+//! kernel op either: the kernel takes entity keys, and everything that
+//! turns an authored name into one, or into an N5 refusal, is this
+//! module's.
 //!
 //! **The declaration routing.** A union's declared face pairs are
 //! authored against its MEMBERS and consumed by a fold of pairwise
@@ -638,11 +648,13 @@ fn value_of<T: Decide>(
     }
 }
 
-// OPERAND-DOOR BEGIN — the region `eval::mod`'s
-// `wrong_operand_is_built_in_one_place` census requires every
-// `NodeErrorKind::WrongOperand` CONSTRUCTION in this file to sit
-// inside. Moving either sentinel, or building the refusal anywhere
-// else, reds that row.
+// OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's
+// `source_rules` census reads. That row counts every `WrongOperand`
+// CONSTRUCTION in this file and requires exactly one, inside here; a
+// second construction reds it wherever it is written, including inside
+// these sentinels, and widening the region does not buy one. The
+// doors it censuses are DERIVED from what is declared between the
+// sentinels, so a door added here is measured the moment it is typed.
 
 /// **The operand refusal, constructed** — the one site in this file
 /// that writes [`NodeErrorKind::WrongOperand`]'s three fields.

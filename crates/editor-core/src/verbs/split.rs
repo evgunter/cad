@@ -59,11 +59,16 @@
 //! "a plane datum" is how one vocabulary becomes several. So the field
 //! stays here and its value is `eval::phrase::DATUM_PLANE`.
 //!
-//! The `assert_eq!` below pins that value BYTE-EXACT, and it is the
-//! only byte-exact pin any phrase in that vocabulary has: the label is
-//! document-reachable (a split whose tool is an axis datum refuses
-//! with it), and a const is exactly as easy to re-word as a literal
-//! was.
+//! The `assert_eq!` below pins that value BYTE-EXACT, from the
+//! correspondence's side: the label is document-reachable (a split
+//! whose tool is an axis datum refuses with it), and a const is
+//! exactly as easy to re-word as a literal was. The same two bytes are
+//! pinned from the OTHER side by
+//! `crates/editor-core/tests/wire_operand_door.rs`, which asserts the
+//! refusal a document actually gets; the two are worth having together
+//! because they fail for different reasons — one when this
+//! correspondence is re-worded, the other when the word stops reaching
+//! the user.
 
 use std::sync::Arc;
 

@@ -92,9 +92,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/editor-core/src/eval/mod.rs",
-        disposition: Shared, // node-kind vocabulary census, code view; and the
-                             // operand-door/expected-phrase census over this
-                             // file, eval/wire.rs and verbs/split.rs
+        disposition: Shared, // node-kind vocabulary census, code view
     },
     Entry {
         path: "crates/editor-core/src/verbs/mod.rs",
@@ -128,6 +126,12 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/editor-core/tests/m10_3_r2_probes_interval.rs",
         disposition: Shared, // unreachable-variant scan, code view
+    },
+    Entry {
+        path: "crates/editor-core/tests/wire_operand_door.rs",
+        disposition: Shared, // operand-door and expected-phrase census over
+                             // eval/wire.rs and verbs/split.rs, code and
+                             // code-and-literals views
     },
     Entry {
         path: "crates/geom-brep/tests/all.rs",
