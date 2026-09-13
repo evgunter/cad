@@ -160,3 +160,36 @@ end to end; if the mint needs a helper that splits one cached row at a
 parameter, that helper lands in `pcurves.rs` by this seam — one
 function, its doc, its rows — and the PR names it. No other edit
 there. Signed (TOPO orchestrator).
+
+## Announced seam from TOPO (2026-09-13): one helper in `pcurves.rs`, `split_cache`
+
+TOPO-B2 slot 1 (`split-edge-children-lack-pcurve-rows-on-curved-charts`,
+PR #2531) closes `Body::split_edge`'s missing child rows by CARRYING the
+parent half-edges' rows across the split rather than by documenting the
+gap. The mechanism is one new `pub(crate)` helper in this program's
+file — **`split_cache`** — plus the `SplitRows<T>` alias that names its
+answer: it reads the parent's stored row, re-derives the face's chart
+window as the hull of that face's stored chart boxes (the
+self-referential way `mint_face` builds it and `validate_pcurves`
+re-builds it), and re-certifies the parent's image over `[t0, t]` and
+`[t, t1]` through `PcurveCache::certify`. Read-only, called from
+`split_edge`'s plan phase, so a refusal arrives with the body untouched.
+
+Two smaller edits in the same file, both statements rather than
+arithmetic: `Posture::Carries` joins the `staleness_posture` vocabulary
+and `split_edge`'s `DECLARED` entry moves onto it (its old entry, "the
+one primitive that makes a row stale in CONTENT rather than by key", is
+no longer true of it), and the module docs' posture section gains a
+`Carries` bullet while the `Neither` bullet loses `split_edge`. Nothing
+else in the file moves: `mint_pcurves`, `mint_pcurves_of`, `mint_face`,
+`walk_loop`, `chart_boundary` and `validate_pcurves` are untouched, and
+no derivation lane's `PcurveFittedLane` bound changes.
+
+**A finding for this board, filed in the same PR**:
+`validate-pcurves-never-recertifies-a-face-it-finds-incomplete` — the
+pass skips its re-certification and continuity passes for the whole
+face when any half-edge is missing a row, so a stale stored row on an
+incomplete face is accepted unmeasured. Measured on the item's own
+fixture. Neighbour of `S331`, and distinct from it: that row is about a
+CLEARED face, this one about an INCOMPLETE one.
+Signed (TOPO implementer lane, `topo/split-edge-pcurve-rows`).
