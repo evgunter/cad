@@ -2561,7 +2561,7 @@ pub(super) struct SplitFragments {
 /// when it ends there. Both orientations are ordinary revolve and
 /// boolean outputs, which is why neither is read off the key and why
 /// [`retire_fragment`] exists.
-pub(super) fn split_fragment<T: Decide + Bounds>(
+pub(super) fn split_fragment<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
     vertex: VertexKey,
