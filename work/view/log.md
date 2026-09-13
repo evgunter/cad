@@ -10732,3 +10732,24 @@ filed.
 
 **VIEW stands at 73 open / 88 closed, nothing waiting on Ev**
 (`python3 scripts/work.py status`, re-run at merge time).
+
+**Filed out of fence, from this lane's own CI run.** PR 2519's run
+(34777661121) is a closure seeded only in `viewer` —
+`SEEDS=viewer`, `RUN_PNCAD_PY=false` in the `change filter` log — and
+`python suite (wheel + guide + north-star)` **ran and passed anyway**,
+which `docs/prompts/implementer-discipline.md` §2 says in bold it
+should not. `ci.yml:397-401` deleted that gate on 2026-09-12
+(`b6cc8d4d2e`) and says so at the site; the doc paragraph dates from
+2026-09-06 (`370a7dfdb9`), when the axis really did gate the job.
+Filed as `work/meta/implementer-discipline-python-suite-paragraph-
+describes-a-deleted-gate` — META's, because `docs/prompts/` is META's
+by `work.py territory` and the text binds every lane by path. Not a
+duplicate of `tcost/run-pncad-py-is-computed-and-gates-nothing`,
+`ciw/python-suite-axis-skips-only-two-members` or
+`ciw/ciw-rows-and-ci-local-prose-rotted-by-the-c1-c3-restore`; the row
+says why against each.
+
+**Job shape on that run**, checked rather than counted: twelve
+`test (…)` rows green (both lanes x three eps x two shards), five
+`k-lint (gate, …)` rows green, `gate ok` green, run conclusion
+`success`. 39 jobs total, which is not the instrument.
