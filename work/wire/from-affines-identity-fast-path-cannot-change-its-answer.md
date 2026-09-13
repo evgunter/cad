@@ -2,8 +2,9 @@
 id: from-affines-identity-fast-path-cannot-change-its-answer
 kind: issue
 title: Frame::from_affine's identity fast path is a no-op: is_identity_bits() is true exactly when the value it discards already has IDENTITY's bits
-status: open
+status: closed
 opened: 2026-09-12
+closed: 2026-09-12
 ---
 
 
@@ -72,21 +73,41 @@ the row goes red on.
 
 ## Disposition
 
-Left in place by the lane that found it: WIRE's placement-prose unit was
-a prose unit, and deleting a branch — even a provably inert one — on a
-D-3 bit-exact path is a code decision the unit was not asked to make. It
-is three lines and the argument above is complete, so it is cheap for
-whoever takes it.
+**Answer 1, taken.** The branch is deleted; `from_affine` is the copy.
 
-Two answers, and the first looks right:
+The justification is NOT that the output is unchanged —
+`memories/output-stability-as-justification.md` is explicit that an
+argument of that shape justifies nothing. It is that the branch
+**cannot change the answer**: `is_identity_bits()` is
+`bit_eq(&IDENTITY)` over every stored coordinate and `Frame` has no
+other field, so the arm fires exactly when the value it discards
+already carries `IDENTITY`'s own bits. That is a property of the code,
+and the adopted row pinned it before the deletion rather than after.
 
-1. **Delete the branch**, returning `out`. Nothing observable changes;
-   the file loses a fast path that is not one, and `is_identity_bits`
-   keeps its one real caller in `compose`.
-2. **Keep it and say why at the site** — e.g. as a defence against a
-   future `Frame` gaining a field that `bit_eq` does not compare, which
-   would make the arms differ. Nothing today plans such a field, and a
-   `#[serde(deny_unknown_fields)]` struct whose comparator walks every
-   field is not the shape that acquires one quietly.
+Answer 2 was refused: nothing plans a `Frame` field `bit_eq` does not
+compare, and the branch would not defend against one anyway — a field
+outside the comparator would be outside the copy too.
+
+### The adopted row did not survive the deletion, and should not have
+
+`from_affines_identity_branch_agrees_with_the_branch_free_copy`'s
+subject was the branch. With the branch gone, `from_affine` and the
+row's `copy_only` were the same twelve lines transcribed twice, and the
+mutation the row was verified red against — a changed identity arm —
+no longer exists. Nothing a bug could do makes that assertion false:
+the one scenario it claimed to keep open, a `Frame` field `bit_eq` does
+not compare, would stop `copy_only`'s struct literal COMPILING rather
+than redden it. `docs/prompts/implementer-discipline.md` §2 governs,
+and deleting is the repair.
+
+What survives the deletion is a different claim, and it is real:
+`from_affine` CARRIES the affine's coordinates and snaps nothing. A
+door that rounded, or that admitted a near-identity by anything but
+bits, would break it — so it has runtime values that falsify it.
+`from_affine_carries_the_affines_bits_and_snaps_nothing` keeps that,
+over the same six inputs, with the non-snapping assertions as the
+teeth. Verified red-first against a tolerance-snapping `from_affine`:
+red at the `-0.0 translation` case, the other five rows in the module
+green.
 
 Citations accurate at `846def72a`.

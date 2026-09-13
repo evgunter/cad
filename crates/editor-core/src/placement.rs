@@ -206,23 +206,21 @@ impl Frame {
     /// [`Frame::affine`], for the mate solve's poses coming back from
     /// the coset algebra (ASM-R2a D-5).
     ///
-    /// A bit-exact identity map returns [`Frame::IDENTITY`], so an
-    /// unmated instance's solved relative pose lands on the identity's
-    /// own bits.
+    /// Every coordinate is CARRIED ([`Frame`]'s exactness rule), and
+    /// nothing is snapped: a bit-exact identity map lands on
+    /// [`Frame::IDENTITY`]'s own bits because those are the bits it
+    /// arrived with — which is what an unmated instance's solved
+    /// relative pose needs — and a map merely CLOSE to the identity
+    /// keeps the coordinates it came in with.
     #[must_use]
     pub fn from_affine(a: geom_core::Affine3<f64>) -> Self {
-        let out = Self {
+        Self {
             columns: [
                 [a.linear.c0.x, a.linear.c0.y, a.linear.c0.z],
                 [a.linear.c1.x, a.linear.c1.y, a.linear.c1.z],
                 [a.linear.c2.x, a.linear.c2.y, a.linear.c2.z],
             ],
             translation: [a.translation.x, a.translation.y, a.translation.z],
-        };
-        if out.is_identity_bits() {
-            Self::IDENTITY
-        } else {
-            out
         }
     }
 
@@ -493,35 +491,18 @@ mod tests {
         assert!(f.compose(&Frame::IDENTITY).bit_eq(&f));
     }
 
-    /// `Frame::from_affine`'s identity branch cannot change its answer.
+    /// Keeps [`Frame::from_affine`]'s CARRIED-not-recomputed claim in
+    /// the direction [`Frame::affine`]'s row does not cover: the
+    /// coordinates of the affine arrive with their bits intact, and
+    /// NOTHING is snapped on the way in.
     ///
-    /// `is_identity_bits()` is `bit_eq(&IDENTITY)` over all twelve stored
-    /// coordinates and `Frame` has no other field, so the branch fires
-    /// exactly when the value it discards ALREADY carries `IDENTITY`'s
-    /// twelve bit patterns. This row is that argument as an instrument:
-    /// the branch-free copy must be bit-identical on every input, at the
-    /// exact identity (where the branch fires), at values a BITWISE test
-    /// deliberately does not snap (`-0.0`, a subnormal), and on the
-    /// module's own fixtures.
-    ///
-    /// It goes red the day the two arms diverge — which is the one
-    /// scenario left open by
-    /// `work/wire/from-affines-identity-fast-path-cannot-change-its-answer.md`:
-    /// a `Frame` field that `bit_eq` does not compare.
+    /// The teeth are the last two assertions. A door that rounded, or
+    /// that admitted a near-identity by anything but bits, would send a
+    /// frame one bit from the identity home as the identity — and the
+    /// `-0.0` translation is exactly one bit from it, while the
+    /// subnormal is the smallest magnitude a tolerance would swallow.
     #[test]
-    fn from_affines_identity_branch_agrees_with_the_branch_free_copy() {
-        // `from_affine`'s body with the identity branch removed.
-        fn copy_only(a: Affine3<f64>) -> Frame {
-            Frame {
-                columns: [
-                    [a.linear.c0.x, a.linear.c0.y, a.linear.c0.z],
-                    [a.linear.c1.x, a.linear.c1.y, a.linear.c1.z],
-                    [a.linear.c2.x, a.linear.c2.y, a.linear.c2.z],
-                ],
-                translation: [a.translation.x, a.translation.y, a.translation.z],
-            }
-        }
-
+    fn from_affine_carries_the_affines_bits_and_snaps_nothing() {
         let mut signed_zero = Frame::IDENTITY;
         signed_zero.translation[0] = -0.0;
         let mut subnormal = Frame::IDENTITY;
@@ -535,17 +516,14 @@ mod tests {
             ("other", other()),
             ("bit zoo", bit_zoo()),
         ] {
-            let a = f.affine_f64();
             assert!(
-                Frame::from_affine(a).bit_eq(&copy_only(a)),
-                "the identity branch changed the answer at {name}"
+                Frame::from_affine(f.affine_f64()).bit_eq(&f),
+                "from_affine moved a bit at {name}"
             );
         }
 
-        // Not vacuous: the branch really does fire on the exact identity,
-        // and really does NOT fire one bit away from it.
-        assert!(copy_only(Frame::IDENTITY.affine_f64()).is_identity_bits());
-        assert!(!copy_only(signed_zero.affine_f64()).is_identity_bits());
+        assert!(Frame::from_affine(Frame::IDENTITY.affine_f64()).is_identity_bits());
         assert!(!Frame::from_affine(signed_zero.affine_f64()).is_identity_bits());
+        assert!(!Frame::from_affine(subnormal.affine_f64()).is_identity_bits());
     }
 }
