@@ -340,6 +340,28 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
 fn no_corpus_row_escalates_at_interval() {
     use geom_core::Interval;
     use profile::Verb;
+    /// The classifications `Profile::validate` runs on a stored loop,
+    /// as the funnel names them. A replay refusal naming one of these
+    /// is the path door relaying validation's own verdict about the
+    /// loop it was about to emit (see this row's docs) rather than a
+    /// fact about replaying at another scalar.
+    fn stored_form_predicate<T: Real>(e: &ReplayError<T>) -> Option<&'static str> {
+        const STORED_FORM: [&str; 8] = [
+            "vertex_separation",
+            "segment_straightness",
+            "arc_diameter_clearance",
+            "chord_side",
+            "carrier_line_circle",
+            "carrier_circles_identity",
+            "carrier_circles_external",
+            "carrier_circles_internal",
+        ];
+        let profile::ReplayErrorKind::Path(profile::PathError::Escalated { source }) = &e.kind
+        else {
+            return None;
+        };
+        source.predicate.filter(|name| STORED_FORM.contains(name))
+    }
     let mut escalated: Vec<(usize, Vec<Verb>, String)> = Vec::new();
     let mut relayed: Vec<(usize, String)> = Vec::new();
     for (i, closed) in coverage_corpus().into_iter().enumerate() {
@@ -361,29 +383,6 @@ fn no_corpus_row_escalates_at_interval() {
          path door relayed from validation's own classifiers are counted \
          separately and are not this set: {relayed:#?}"
     );
-}
-
-/// The classifications `Profile::validate` runs on a stored loop, as
-/// the funnel names them. A replay refusal naming one of these is the
-/// path door relaying validation's own verdict about the loop it was
-/// about to emit — see [`no_corpus_row_escalates_at_interval`]'s docs —
-/// rather than a fact about replaying at another scalar.
-#[cfg(feature = "interval")]
-fn stored_form_predicate<T: Real>(e: &ReplayError<T>) -> Option<&'static str> {
-    const STORED_FORM: [&str; 8] = [
-        "vertex_separation",
-        "segment_straightness",
-        "arc_diameter_clearance",
-        "chord_side",
-        "carrier_line_circle",
-        "carrier_circles_identity",
-        "carrier_circles_external",
-        "carrier_circles_internal",
-    ];
-    let profile::ReplayErrorKind::Path(profile::PathError::Escalated { source }) = &e.kind else {
-        return None;
-    };
-    source.predicate.filter(|name| STORED_FORM.contains(name))
 }
 
 /// **The live instance of issue 1191, driven as a width row.** The
