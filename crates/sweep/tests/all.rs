@@ -557,6 +557,8 @@ mod fillet_h7_transverse_cap_interval;
 
 #[path = "review_blend1_r1_probes.rs"]
 mod review_blend1_r1_probes;
+#[path = "review_closed_chain_junctions_r1_probes.rs"]
+mod review_closed_chain_junctions_r1_probes;
 #[path = "review_fillet_h7_r1_probes.rs"]
 mod review_fillet_h7_r1_probes;
 #[path = "review_fillet_split_r2_probes.rs"]
