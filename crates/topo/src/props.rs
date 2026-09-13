@@ -465,6 +465,21 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
 /// certification was complete has not computed one. A caller that
 /// wants the number asks for it — [`Self::refine_to_target`] — and
 /// pays only the rounds that were not already run.
+///
+/// # The refusal rule, stated once
+///
+/// **A reading of this certificate names the FIRST refusing face in
+/// arena order, resumed or already outstanding**, because that is the
+/// reporting walk's own rule and the two doors must agree. The
+/// reporting walk visits faces in arena order and stops at the first
+/// one whose lane refuses; the sign-level walk cannot, because it
+/// needs every face's enclosure to have a sum at all, so it carries
+/// budget refusals as data and keeps going. A continuation that folded
+/// those at the end would let a later face's HARD refusal (a
+/// degenerate lever, an unsupported chart, a poisoned bracket)
+/// pre-empt an earlier face's budget one, which is a different answer
+/// and not merely a different order. Every site below points here
+/// rather than restating it.
 pub struct SignCertificate<'b, T: Decide> {
     body: &'b Body<T>,
     band: Band,
@@ -513,42 +528,26 @@ impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
     /// at `k + 1`, a face that already met the target is not touched,
     /// and the sum is over the same terms in the same arena order.
     ///
-    /// **The `Err` is the same refusal too, and that is a property of
-    /// THIS loop rather than of the arithmetic.** The reporting walk
-    /// visits faces in arena order and stops at the first one whose
-    /// lane refuses, so the face it names is the first refusing face
-    /// and not merely a refusing one. The sign-level walk cannot work
-    /// that way — it needs every face's enclosure to have a sum at all,
-    /// so it carries budget refusals as data and keeps going — and a
-    /// continuation that folded those at the end would let a later
-    /// face's HARD refusal (a degenerate lever, an unsupported chart, a
-    /// poisoned bracket) preempt an earlier face's budget one. So the
-    /// continuation walks faces in arena order and returns at the
-    /// first refusal it reaches, resumed or already outstanding, which
-    /// is the reporting walk's own rule.
-    ///
-    /// **How the rule survives a parallel resumption.** The open faces
-    /// are resumed by an indexed parallel map into one slot per face in
-    /// ARENA order (D9's addendum, idiom 1, as [`decide_faces`]), each
-    /// under a detached K-funnel frame; the walk over those slots is
-    /// sequential in that order (idiom 2) and returns at the first
-    /// refusal it reaches, resumed or already outstanding. So the face
-    /// named is still the first refusing face in arena order, and the
-    /// verdict log, the escalation log and the `probe` sample
-    /// population are the serial continuation's at any thread count —
-    /// every recording up to and including the refusing face spliced in
-    /// order, every one after it dropped with the resumption it came
-    /// with. Under a symbolic session the continuation is the SERIAL
-    /// walk instead, for [`decide_faces`]'s reason: the session's
-    /// receipt and the shape report are written in place and no splice
-    /// can take them back.
+    /// **The `Err` is the same refusal too** — [`SignCertificate`]'s
+    /// refusal rule, which this walk keeps whatever width it runs at:
+    /// the open faces are resumed by an indexed parallel map into one
+    /// slot per face in arena order (D9's addendum idiom 1, through
+    /// [`map_faces_detached`], each resumption under a K-funnel frame
+    /// of its own) and the walk over those slots is sequential in that
+    /// order (idiom 2). So the verdict log, the escalation log and the
+    /// `probe` sample population are the serial continuation's at any
+    /// thread count: every recording up to and including the refusing
+    /// face spliced in order, every one after it dropped with the
+    /// resumption it came with. Under a symbolic session the
+    /// continuation is the SERIAL walk instead, for
+    /// [`decide_faces_serially`]'s reason.
     ///
     /// **What the failure path costs**: the rounds of the open faces
-    /// after the refusing one, run and thrown away. That is the latency
-    /// of a REFUSAL and never of an answer, and it is bounded by the
-    /// faces a certificate leaves open — on the tour's 61 gated stops,
-    /// 58 leave none at all, two leave two, and one leaves eight of
-    /// ten.
+    /// between the first one and the refusing one, run and thrown
+    /// away. It is bounded by the faces a certificate leaves open
+    /// BEFORE its first outstanding refusal — the map never reaches
+    /// past that face, because the walk does not — so it is the
+    /// latency of a REFUSAL and never of an answer.
     ///
     /// **What the continuation costs against one measurement.** The
     /// piece evaluations compose exactly, but each entry into a face's
@@ -559,13 +558,12 @@ impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
     /// sign settled early**, which is a property of the body rather
     /// than of this call: a certificate whose `settle` ran the schedule
     /// to its end leaves no face open, so the continuation re-enters no
-    /// lane and gate-then-continue is 1.0× one measurement; a
+    /// lane at all and pays neither the setup nor a pool round trip; a
     /// certificate that stopped part-way pays the setup again for every
-    /// face it left open, which is between 8% and 99% of the
-    /// continuation's serial time on the bodies measured. Reusing a
-    /// face's setup across windows would remove that term and is
-    /// `work/perf/`'s `quadrature-setup-is-re-derived-per-round-window`;
-    /// the map above divides it by the width instead of removing it.
+    /// face it left open. The map above divides that term by the pool
+    /// width; removing it is `work/perf/`'s
+    /// `quadrature-setup-is-re-derived-per-round-window`, which carries
+    /// the measurements.
     ///
     /// # Errors
     ///
@@ -576,7 +574,7 @@ impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
             band,
             tol,
             mut runs,
-            refused: _,
+            refused,
         } = self;
         let resume = |face, round: usize| {
             face_flux(
@@ -591,54 +589,59 @@ impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
                 },
             )
         };
-        // The serial continuation, for exactly the reason
-        // [`decide_faces`]'s serial arm exists: under a symbolic
-        // session a decision writes the session's receipt and the
-        // shape report in place, so a face resumed past the point this
-        // walk stops inflates both with no way to take it back.
-        if !decisions_are_thread_portable() {
-            for run in &mut runs {
-                if let Some(round) = run.open_at {
-                    *run = resume(run.face, round)?;
-                }
-                if let Some(source) = run.refusal.clone() {
-                    return Err(MassPropsError::Face {
-                        face: run.face,
-                        source,
-                    });
-                }
-            }
-            return Ok(fold_runs(&runs).0);
-        }
-        // **Idiom 1 then idiom 2**, as the walks this certificate came
-        // from: one slot per face in ARENA order, holding that face's
-        // resumption and everything its lane recorded while it was
-        // taken (`geom_core::k_stats::detached`) — or nothing, for a
-        // face with no round left to resume at. Nothing is combined
-        // across slots in the map.
-        use rayon::prelude::*;
-        let decided: Vec<Option<FaceDecision<T>>> = runs
-            .par_iter()
-            .map(|run| {
-                run.open_at
-                    .map(|round| geom_core::k_stats::detached(|| resume(run.face, round)))
+        // **How far the walk below can get**: it returns at the first
+        // face carrying an outstanding refusal, which is the face
+        // `refused` names, so no slot after that one is ever reached
+        // and resuming one would be pure waste. Nothing before it is
+        // skipped by this bound, because a face with an outstanding
+        // refusal is never OPEN — `face_flux` gives a run a round to
+        // resume at only when its window ended WITHOUT one.
+        let reached = refused.map_or(runs.len(), |(face, _)| {
+            runs.iter().take_while(|run| run.face != face).count()
+        });
+        // **Idiom 1**, through the map's one home: one slot per face in
+        // ARENA order, holding that face's resumption and everything
+        // its lane recorded while it was taken — or nothing, for a face
+        // with no round left. Empty when no reachable face is open,
+        // which is the common case (most certificates settle with the
+        // schedule run out) and skips the pool round trip entirely;
+        // empty too under a symbolic session, where every resumption
+        // below is taken on the caller's thread instead, for
+        // [`decide_faces_serially`]'s reason.
+        let decided: Vec<ResumedFace<T>> = if decisions_are_thread_portable()
+            && runs[..reached].iter().any(|run| run.open_at.is_some())
+        {
+            map_faces_detached(&runs[..reached], |run| {
+                run.open_at.map(|round| resume(run.face, round))
             })
-            .collect();
-        // The sequential half, and it carries the refusal rule: the
-        // walk splices each resumption's recording in arena order and
-        // returns at the FIRST refusal it reaches — the resumed face's
-        // own, or one already outstanding on a face it did not resume.
-        // A face after that one is never reached, so its recording is
-        // dropped on the floor with the resumption it came with,
-        // exactly as the serial walk never took it.
-        for (i, slot) in decided.into_iter().enumerate() {
-            if let Some((run, recording)) = slot {
-                geom_core::k_stats::splice(recording);
-                runs[i] = run?;
+        } else {
+            Vec::new()
+        };
+        // **Idiom 2**, and the site that carries [`SignCertificate`]'s
+        // refusal rule. It is NOT [`splice_in_arena_order`], and one
+        // thing differs: this walk stops on a refusal a face it did not
+        // resume was already CARRYING, which a fold over decided slots
+        // cannot see. So the splice and that check interleave, slot by
+        // slot, in arena order. A slot the map did not cover is decided
+        // here instead — that is both the session arm and the tail past
+        // `reached`, which the return below never gets to.
+        let mut decided = decided.into_iter();
+        for run in &mut runs {
+            match decided.next() {
+                Some((Some(resumed), recording)) => {
+                    geom_core::k_stats::splice(recording);
+                    *run = resumed?;
+                }
+                Some((None, _nothing_recorded)) => {}
+                None => {
+                    if let Some(round) = run.open_at {
+                        *run = resume(run.face, round)?;
+                    }
+                }
             }
-            if let Some(source) = runs[i].refusal.clone() {
+            if let Some(source) = run.refusal.clone() {
                 return Err(MassPropsError::Face {
-                    face: runs[i].face,
+                    face: run.face,
                     source,
                 });
             }
@@ -705,6 +708,12 @@ type QuadHook<'h, T> = dyn Fn(
 /// caller's own frame and sink, because they are taken there.
 type FaceDecision<T> = (Result<FaceRun<T>, MassPropsError>, Detached);
 
+/// **One slot of a continuation's map** — [`FaceDecision`] for a walk
+/// whose items may decide NOTHING: a face with no round left to resume
+/// at answers `None` and records nothing, and its slot is skipped by
+/// [`SignCertificate::refine_to_target`]'s sequential half.
+type ResumedFace<T> = (Option<Result<FaceRun<T>, MassPropsError>>, Detached);
+
 /// **Whether a face may be decided on a worker thread at all.**
 ///
 /// The K-funnel is not the only thread-local a decision writes, and the
@@ -768,15 +777,65 @@ fn decide_faces<I: Sync, T: Decide>(
     run: impl Fn(&I) -> Result<FaceRun<T>, MassPropsError> + Send + Sync,
 ) -> Result<Vec<FaceRun<T>>, MassPropsError> {
     if decisions_are_thread_portable() {
-        use rayon::prelude::*;
-        let decided: Vec<FaceDecision<T>> = items
-            .par_iter()
-            .map(|item| geom_core::k_stats::detached(|| run(item)))
-            .collect();
-        splice_in_arena_order(decided)
+        splice_in_arena_order(map_faces_detached(items, run))
     } else {
-        items.iter().map(run).collect()
+        decide_faces_serially(items, run)
     }
+}
+
+/// **Idiom 1, one home**: one slot per item in the caller's order,
+/// each item decided on a worker under a K-funnel frame of ITS OWN, so
+/// the sequential half can splice what it recorded back into the
+/// caller's (`geom_core::k_stats::detached`). Results are written
+/// positionally and never combined arithmetically, so the schedule
+/// cannot reach the bits.
+///
+/// The map is shared; the sequential halves are not, because they
+/// answer different questions — [`splice_in_arena_order`] for the face
+/// walks, and [`SignCertificate::refine_to_target`]'s own, which has a
+/// refusal to check on the slots it left empty.
+fn map_faces_detached<I: Sync, R: Send>(
+    items: &[I],
+    run: impl Fn(&I) -> R + Send + Sync,
+) -> Vec<(R, Detached)> {
+    use rayon::prelude::*;
+    items
+        .par_iter()
+        .map(|item| geom_core::k_stats::detached(|| run(item)))
+        .collect()
+}
+
+/// **The serial face walk, one home**: items decided on the CALLER's
+/// thread in the caller's order, stopping at the first refusal — no
+/// detached frame, because the decisions are already landing in the
+/// caller's frame and sink, and no item after the refusing one
+/// decided.
+///
+/// Two callers, for two unrelated reasons, and both need this exact
+/// behaviour rather than merely "a loop":
+///
+/// - [`decide_faces`]'s non-portable arm, where a decision also writes
+///   the installed symbolic session's receipt and the shape report IN
+///   PLACE ([`decisions_are_thread_portable`]), so an item decided
+///   past the point this walk stops inflates both with no way to take
+///   it back;
+/// - [`classify_shells_of`], where mapping is simply the wrong trade:
+///   every shell the census meets is below the per-face map's
+///   break-even (`work/perf/`'s
+///   `parallel-map-costs-a-fixed-price-on-a-cheap-body` carries the
+///   numbers — a shell of the corpus heat sink has six planar faces,
+///   and the map made that document's census about three times slower
+///   at four threads while gaining on no body in the corpus, because
+///   no corpus shell is many-faced on the quadrature lane). The grain
+///   that could repay the price there is the loop over SHELLS, not the
+///   loop over a shell's faces, and it measures at about break-even on
+///   the same document — so the face grain is settled, and that one is
+///   the census's own question.
+fn decide_faces_serially<I, T: Decide>(
+    items: &[I],
+    run: impl Fn(&I) -> Result<FaceRun<T>, MassPropsError>,
+) -> Result<Vec<FaceRun<T>>, MassPropsError> {
+    items.iter().map(run).collect()
 }
 
 /// **The parallel arm's sequential half, and where the escalation path
@@ -973,6 +1032,145 @@ mod face_walk_composition_tests {
     }
 }
 
+/// **The refusal rule, at the site that carries it.** [`SignCertificate`]
+/// says a reading names the FIRST refusing face in arena order,
+/// resumed or already outstanding, and
+/// [`SignCertificate::refine_to_target`]'s sequential half is where
+/// that survives a parallel resumption. The rows below put the two
+/// kinds of refusal in the order no fixture body puts them — an
+/// EARLIER face carrying an outstanding budget refusal it was never
+/// resumed for, and a LATER face whose resumption refuses OUTRIGHT —
+/// so a walk that folded refusals at the end, or that read the map's
+/// slots before the runs it did not map, answers the later one and
+/// reds here.
+///
+/// The certificate is built by hand because no body produces that
+/// order: `sign_certified` leaves a face open only when its window
+/// ended WITHOUT a refusal, so a real certificate's outstanding
+/// refusals and its open faces never collide in one walk this way.
+#[cfg(test)]
+mod continuation_refusal_order_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use geom_core::Point3;
+
+    /// The outstanding refusal an earlier face carries: a target-level
+    /// budget refusal, the kind a sign-level walk keeps as DATA.
+    fn outstanding() -> PropsError {
+        PropsError::QuadratureBudget {
+            width_len: 1.0,
+            target_len: 0.5,
+            rounds: 1,
+        }
+    }
+
+    fn run_of(face: FaceKey, open_at: Option<usize>, refusal: Option<PropsError>) -> FaceRun<f64> {
+        FaceRun {
+            face,
+            contribution: FaceFlux {
+                flux: 0.0,
+                area: 0.0,
+                flux_pad: 0.0,
+                area_pad: 0.0,
+            },
+            open_at,
+            refusal,
+        }
+    }
+
+    /// The continuation's refusal at an explicit pool width, over a
+    /// certificate whose slot 0 carries [`outstanding`] un-resumed and
+    /// whose slot 1 is OPEN at a face whose resumption cannot answer at
+    /// all (a skeletal `mvfs` face: no loop to flatten, so `face_flux`
+    /// refuses outright rather than on budget).
+    fn refusal_at(threads: usize) -> MassPropsError {
+        let mut body = Body::<f64>::new();
+        let skeletal = body
+            .mvfs(Point3::new(0.0, 0.0, 0.0))
+            .expect("the skeletal body builds")
+            .face;
+        let early = FaceKey::null();
+        let band = Band::linear(Tol::witness()).expect("the witness band builds");
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .expect("the pool builds")
+            .install(|| {
+                SignCertificate {
+                    body: &body,
+                    band,
+                    tol: Tol::witness(),
+                    runs: vec![
+                        run_of(early, None, Some(outstanding())),
+                        run_of(skeletal, Some(0), None),
+                    ],
+                    refused: Some((early, outstanding())),
+                }
+                .refine_to_target()
+            })
+            .expect_err("slot 0 carries a refusal, so the continuation cannot answer")
+    }
+
+    #[test]
+    fn the_earlier_outstanding_refusal_is_the_one_reported_at_one_thread() {
+        let err = refusal_at(1);
+        assert!(
+            matches!(
+                err,
+                MassPropsError::Face {
+                    face,
+                    source: PropsError::QuadratureBudget { .. }
+                } if face == FaceKey::null()
+            ),
+            "the continuation reported the LATER face's outright refusal over the earlier \
+             face's outstanding budget one: {err}"
+        );
+    }
+
+    /// Non-vacuity: the LATER slot must really refuse, and refuse with
+    /// something other than a budget — otherwise the rows above compare
+    /// one refusal with itself and would pass over any ordering at all.
+    #[test]
+    fn the_later_slots_resumption_refuses_outright() {
+        let mut body = Body::<f64>::new();
+        let skeletal = body
+            .mvfs(Point3::new(0.0, 0.0, 0.0))
+            .expect("the skeletal body builds")
+            .face;
+        let band = Band::linear(Tol::witness()).expect("the witness band builds");
+        let err = SignCertificate {
+            body: &body,
+            band,
+            tol: Tol::witness(),
+            runs: vec![run_of(skeletal, Some(0), None)],
+            refused: None,
+        }
+        .refine_to_target()
+        .expect_err("a skeletal face has no loop to flatten");
+        assert!(
+            !matches!(
+                err,
+                MassPropsError::Face {
+                    source: PropsError::QuadratureBudget { .. },
+                    ..
+                }
+            ),
+            "the later slot refuses on BUDGET, so the rows above cannot tell the two \
+             refusals apart: {err}"
+        );
+    }
+
+    #[test]
+    fn the_earlier_outstanding_refusal_is_the_one_reported_at_four_threads() {
+        assert_eq!(
+            format!("{}", refusal_at(4)),
+            format!("{}", refusal_at(1)),
+            "the refusal the continuation names moved with the pool width"
+        );
+    }
+}
+
 /// The shared face walk at the REPORTING level: every face's lane run
 /// to its convergence or its typed refusal, one slot per face in arena
 /// order, the accumulation order fixed (D9).
@@ -1010,13 +1208,16 @@ fn mass_properties_impl<T: Decide>(
 
 /// The face walk's sum, and the refusal the REPORTING level owes.
 ///
-/// The sum is over faces in arena order, accumulated in that order
-/// (D9) — the enclosure exists whenever every face produced bounds at
-/// all, which a face carrying an outstanding budget refusal still
-/// does. The second half names the first face (arena order) whose
-/// lane has such a refusal outstanding: the face a caller wanting a
-/// NUMBER is refused on, and the one a caller deciding a SIGN may
-/// still finish without.
+/// **The order is the RUNS' order**, and the sum accumulates in it
+/// (D9's idiom 2): this fold never re-orders, so whichever walk built
+/// the slice decides the vocabulary — face-arena order for the
+/// whole-body walks and the continuation, the shell's own face list
+/// for [`classify_shells_of`]. The enclosure exists whenever every
+/// face produced bounds at all, which a face carrying an outstanding
+/// budget refusal still does. The second half names the FIRST face in
+/// that same order whose lane has such a refusal outstanding: the face
+/// a caller wanting a NUMBER is refused on, and the one a caller
+/// deciding a SIGN may still finish without.
 fn fold_runs<T: Decide>(runs: &[FaceRun<T>]) -> (MassProperties<T>, Option<(FaceKey, PropsError)>) {
     let mut flux = T::zero();
     let mut area = T::zero();
@@ -1057,7 +1258,8 @@ struct FaceFlux<T> {
 }
 
 /// One face's contribution and where its refinement stopped — the unit
-/// a walk that may be RESUMED carries, one per face in arena order.
+/// a walk that may be RESUMED carries, one per face in the walk's own
+/// order ([`fold_runs`] says which walk uses which).
 struct FaceRun<T> {
     /// The face this run is of.
     face: FaceKey,
@@ -1448,12 +1650,23 @@ pub fn classify_shells_of<T: PropsQuadLane>(
         };
         // The per-shell walk reads at the REPORTING level: a shell role
         // is a claim about a volume, and its faces run their whole
-        // schedules. Same walk as [`mass_properties_impl`], through the
-        // same [`decide_faces`] and the same hook, restricted to this
-        // shell's faces — idiom 1 into one slot per face in the
-        // shell's own order, then the sequential fold of [`fold_runs`]
-        // in that order (idiom 2).
-        let runs = decide_faces(&shell.faces, |&face_key| {
+        // schedules. Same flux and the same hook as
+        // [`mass_properties_impl`], restricted to this shell's faces,
+        // then the sequential fold of [`fold_runs`] in the shell's own
+        // face list order, which is this walk's order throughout — the
+        // whole-body walks' is the face arena's.
+        //
+        // **Serial, and not [`decide_faces`]**: every shell the census
+        // meets is below the per-face map's break-even, so mapping
+        // here buys a regression and no body a gain — the numbers are
+        // on `work/perf/`'s
+        // `parallel-map-costs-a-fixed-price-on-a-cheap-body`, with the
+        // reason ([`decide_faces_serially`] restates it at the door).
+        // The grain that could repay the price is the loop over SHELLS
+        // above, which measures at about break-even on the same
+        // document; that is the census's own question and not this
+        // loop's, so the face grain does not want re-trying.
+        let runs = decide_faces_serially(&shell.faces, |&face_key| {
             face_flux(
                 body,
                 face_key,

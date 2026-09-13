@@ -326,9 +326,16 @@ pub fn quad_verdicts(run: impl FnOnce()) -> usize {
 /// Beside [`quad_verdicts`] for its reason: the thread-count goldens
 /// of two walks read the same channels through the same fold, and a
 /// digest that drifts between them is two instruments reporting one
-/// number. One more copy of the basis than the tree needs is what
-/// `work/perf/fnv-digest-and-memo-machinery-copies.md` tracks; this is
-/// the sweep suites' one home for it.
+/// number.
+///
+/// **This is the home for THAT fold, not for the basis**, and the
+/// distinction is what `work/perf/fnv-digest-and-memo-machinery-copies.md`
+/// tracks. Two spellings in this crate stay where they are because
+/// neither is this function: `blend4_r1_probes`' is the same byte-wise
+/// fold accumulated IN PLACE over a coordinate stream it never
+/// materialises, and `verbs_tubewall_r1_fingerprint`'s is WORD-wise
+/// (one `u64` per step, not one byte), which is a different digest of
+/// the same name. Each says so at its own site.
 pub fn fnv1a(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for &b in bytes {

@@ -3,36 +3,48 @@
 //!
 //! `topo::classify_shells_of` restricts the REPORTING face walk to one
 //! shell's faces and sums that shell's contributions in the shell's own
-//! face order. The per-face lanes are an indexed parallel map into
-//! per-face slots (PERF-PLAN §2.2 idiom 1) and every combination after
-//! it is sequential in that order (idiom 2), so the arithmetic is
-//! schedule-free by construction — the same pair of idioms, through the
-//! same `decide_faces`, as the whole-body walk
-//! (`mass_props_are_thread_count_invariant`).
+//! face order. That walk is SERIAL, and deliberately so: every shell
+//! the census meets is below the per-face map's break-even
+//! (`work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`
+//! carries the numbers, and `topo::props`' `decide_faces_serially`
+//! states the reason at the door).
 //!
-//! What is NOT free is the K-funnel's recording: the verdict log, the
-//! escalation log and the `probe` sample population are thread-local, so
-//! a face decided on a worker records into that worker's frame and sink
-//! unless the walk composes them back. This suite is that pin for the
-//! census door.
+//! **So what do these rows pin, on a walk that is not parallel?** That
+//! the census's readings and its RECORDED CHANNELS do not depend on the
+//! pool at all. The verdict log, the escalation log and the `probe`
+//! sample population are thread-local, so any face decided off the
+//! caller's thread records into some other frame and sink: these rows
+//! are what turns red the day this walk grows a map without a splice,
+//! and they are also what the `decide_faces_serially`/`decide_faces`
+//! choice is checked against if the census's grain is ever revisited —
+//! the map's answer would have to be these bytes.
 //!
 //! **The baseline is a committed golden, not the other width.** Two
 //! widths of the SAME code agree whenever the loss is width-independent
 //! — a walk that dropped every worker's recording identically at one
 //! and four threads would pass a t1-vs-t4 row while asserting nothing.
-//! So `shell-census-digest/eps-*.txt` is cut on the MERGE BASE, where
-//! the census's face loop is serial, and both widths are read against
-//! it. Same instrument as `mass_props_are_thread_count_invariant` and
+//! So `shell-census-digest/eps-*.txt` is cut on the MERGE BASE and both
+//! widths are read against it. Same instrument as
+//! `mass_props_are_thread_count_invariant` and
 //! `reporting_door_bit_digest`, through the shared fold in
 //! `common::channels`.
 //!
-//! **The roster is the census's own shapes**, not the whole-body walk's:
-//! a body with more than one shell whose CAVITY is on the certified
-//! quadrature lane (so the map has rounds to record), a hollow body
-//! whose every face is closed form (the shell door's commonest body,
-//! and the one whose channels are the sign reads alone), and an
-//! inside-out shell whose census REFUSES — the failure path, where the
-//! serial walk stopped at a shell and the map must say the same thing.
+//! **The roster, and what it is not.** Four bodies, all authored in
+//! this file — none is a corpus document, because `editor-core` sits
+//! above this crate:
+//!
+//! * `voided_rod` — a brick with a rod-shaped cavity: two shells, and
+//!   the cavity's faces are curved, which is what makes it this
+//!   roster's richest verdict channel. Its cavity is NOT on the
+//!   quadrature lane, and no cavity this corpus can carve is (the
+//!   fixture doc says why);
+//! * `hollow_box` — the shell verb's sealed box: two shells, every face
+//!   planar, the shell door's commonest body and the one whose channels
+//!   are the two sign reads alone;
+//! * `arc_loft` — one shell whose faces ARE on the certified quadrature
+//!   lane and answer, which is the quadrature arm of this pin;
+//! * `inside_out_strip` — the reversed thin strip, whose census
+//!   REFUSES: the failure path, where the walk stops at a shell.
 //!
 //! **One row is `probe`-gated and it is rostered as EXECUTED**
 //! (`scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`): the sample
@@ -51,9 +63,15 @@ use topo::{Body, BooleanResult, BooleanResultKind};
 /// two shells, and the void shell is the rod's boundary reverted — a
 /// cylinder wall and two discs, every one of them a CURVED face whose
 /// closed form decides predicates of its own. That is what makes it
-/// this roster's multi-shell recording case: a walk that mapped the
-/// cavity's faces onto workers and dropped what they recorded loses
-/// most of this line's verdict channel.
+/// this roster's multi-shell recording case: a walk that decided the
+/// cavity's faces anywhere but the caller's thread would lose most of
+/// this line's verdict channel.
+///
+/// **Its cavity answers in CLOSED FORM, not on the quadrature lane**,
+/// and no cavity this corpus can carve does: this wall is iso-trimmed,
+/// an extruded bulge's is too, and the boolean engine refuses a lofted
+/// operand outright (`CurvedEdgeUnsupported`). `arc_loft` below is the
+/// quadrature arm instead, on one shell.
 fn voided_rod() -> Body<f64> {
     let a = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 3.0, 3.0));
     let b = rod(Point2::new(1.5, 1.5), 0.5, 1.0, 2.0);
@@ -67,11 +85,8 @@ fn voided_rod() -> Body<f64> {
 
 /// **The arc loft**: three rational-walled stations, one shell, and the
 /// body this roster has that puts a SHELL's faces on the certified
-/// quadrature lane and still answers. The boolean engine cannot carve a
-/// cavity out of one (`CurvedEdgeUnsupported`), and no cavity this
-/// corpus can carve reaches that lane — an extruded bulge's wall is
-/// iso-trimmed and a rod's is too — so the quadrature arm of the
-/// census's map is pinned on a one-shell body rather than on a void.
+/// quadrature lane and still answers — the quadrature arm of this pin,
+/// on one shell for [`voided_rod`]'s reason.
 ///
 /// Scaled against the run's own ε so the row says the same thing at
 /// every point of the matrix.
@@ -240,7 +255,8 @@ fn the_roster_records_the_censuss_own_verdicts() {
     assert!(
         quad > 0,
         "the arc loft's census recorded no props_quad verdict — no roster shell reaches \
-         the quadrature lane any more, so the golden above pins a map with no rounds in it"
+         the quadrature lane any more, so the golden above pins a census with no rounds \
+         in it"
     );
     assert!(
         sign > 0,
