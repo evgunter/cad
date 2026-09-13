@@ -1,9 +1,11 @@
 ---
 id: closed-chain-junctions-pair-with-a-rotated-link
-kind: issue
+kind: unit
 title: blend: a closed chain of three or more links refuses ChainNotG1 because the junction list is rotated against the ring
-status: open
+status: review
 opened: 2026-09-08
+branch: blend/7-closed-chain-junctions
+pr: 2483
 ---
 
 

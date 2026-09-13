@@ -154,6 +154,8 @@ mod blend_tworims;
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
 mod cert8_r1_probes;
+#[path = "closed_chain_junctions.rs"]
+mod closed_chain_junctions;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
