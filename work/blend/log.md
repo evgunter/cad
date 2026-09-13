@@ -1119,3 +1119,13 @@ Sample #185 (main's order rules). The orchestrator's plan and
 program lines that still said "unmeasured" are corrected in this
 commit. Block BLEND-B2's last slot; its CONCLUDED record folds into
 main from `blend/b2-block`.
+
+**Outage (2026-09-13, ~13:58 UTC):** the orchestrator's container
+restarted mid-turn. Killed: unit 14's fix-pass lane (its branch pushed
+at 750f06004 with the fix items landed; resumed from its transcript),
+unit 15's implementer lane (Phase 2 edits uncommitted in its worktree,
+which survived; resumed from its transcript), and the CI watch on unit
+8's re-merged head (re-armed). No reviewer arm was running: unit 12's
+and unit 8's deltas had reported, unit 14's dual had concluded. Pairs
+unaffected; the two implementer lanes carry the interruption in their
+own records.
