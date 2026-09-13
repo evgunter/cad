@@ -126,9 +126,21 @@
 //! transplanted half-edge's fresh key and DROPS any row whose key the
 //! graft walk did not reach, which is exactly the staleness test.
 //!
+//! **Carries the map** — [`crate::Body::split_edge`]. A split does not
+//! derive anything new: a [`geom_brep::Pcurve`] is a function of the
+//! carrier parameter, so each child's chart image IS the parent's,
+//! restricted to the child's sub-interval. The op re-certifies both
+//! restrictions before it mutates ([`split_cache`]) and writes them
+//! onto the parent halves and the two new halves, so the faces it
+//! touches come out complete rather than half-minted. It mints nothing
+//! where there was nothing. What it cannot carry is a
+//! `Fitted`/`General` row, whose certification doors carry the
+//! [`PcurveFittedLane`] bound; such a face is left exactly as found,
+//! and [`split_cache`]'s entry carries that frontier.
+//!
 //! **Neither clears nor re-mints** — the Euler operators, the kill ops,
-//! ring surgery, [`crate::Body::split_edge`]. These are primitives, and
-//! they are what the stale-row consequence below is about.
+//! ring surgery. These are primitives, and they are what the stale-row
+//! consequence below is about.
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
@@ -2341,6 +2353,12 @@ pub(crate) mod staleness_posture {
         /// write the map is not keyed on. Safe because the tier-3
         /// pcurve pass catches the consequence loud.
         Neither,
+        /// Carries each row it could have staled onto the keys that now
+        /// mean what it says, re-certified — deriving nothing, so it
+        /// needs neither the pass nor its bound. Read out of an entry:
+        /// no walk can see that a restriction is the right one, and the
+        /// door's own rows are what say so.
+        Carries,
     }
 
     /// `(door, posture, note)` — the doors that do NOT re-mint the
@@ -2353,7 +2371,7 @@ pub(crate) mod staleness_posture {
     /// can read it. That row is the only other reader; this table
     /// stays this guard's.
     pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
-        use Posture::{Maintains, Neither, Transfers};
+        use Posture::{Carries, Maintains, Neither, Transfers};
         &[
             // ---- Maintains, one delegation away from the re-mint. ----
             (
@@ -2481,9 +2499,10 @@ pub(crate) mod staleness_posture {
             ),
             (
                 "split_edge",
-                Neither,
-                "replaces one edge's geometry with two children — the one primitive that \
-             makes a row stale in CONTENT rather than by key",
+                Carries,
+                "restricts each parent half-edge's row to the two children's sub-intervals \
+             and re-certifies both before it mutates (`split_cache`); a `Fitted`/`General` \
+             row is the one lane it leaves as found",
             ),
             // ---- Neither: the caller's own row-level control of the
             // map, and writes the map is not keyed on. ----

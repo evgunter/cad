@@ -127,6 +127,22 @@ impl<T: Decide> Body<T> {
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
     /// forward order on each child).
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): a parent half-edge's
+    /// stored chart row is CARRIED to both children — a
+    /// [`geom_brep::Pcurve`] is a function of the carrier parameter
+    /// and holds no interval of its own, so each child's image is the
+    /// parent's restricted to its sub-interval, exactly as each
+    /// child's carrier is. Both restrictions are re-certified in the
+    /// plan phase ([`crate::pcurves::split_cache`]), so a face this op
+    /// touches is never left half-minted and a refusal
+    /// ([`EulerOpError::PcurveSplit`]) arrives with the body
+    /// untouched. A half-edge with no row keeps none: absence is never
+    /// a claim, and the op does not start caching a body whose
+    /// producer chose not to. The one lane it cannot carry is a
+    /// `Fitted`/`General` row, whose certification doors are the
+    /// `PcurveFittedLane` ones — `split_cache`'s entry carries that
+    /// frontier.
+    ///
     /// # Tier-3 caveat (review F2)
     ///
     /// Splitting a circle rim of an iso-rectangle patch (e.g. a
