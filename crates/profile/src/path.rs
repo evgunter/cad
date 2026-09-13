@@ -376,6 +376,7 @@ use crate::sugar::{
 use crate::validate::{
     FILLET_FLATTENED_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
     FILLET_STORED_FORM_INBAND_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason,
+    fillet_recourse_for,
 };
 use crate::{ProfileLoop, ProfileVertex};
 
@@ -1924,69 +1925,99 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             // at these sites — for the continuation the declaration IS the
             // verb, and for a leg length there is no coincidence to
             // declare, only a number to change.
-            Self::Escalated { source } => match source.predicate {
-                Some("path_continuation_target_offset") => write!(
-                    f,
-                    "the declared straight continuation's target is neither on the \
+            //
+            // DISPATCH ORDER. The fillet gates are asked first, through
+            // `fillet_recourse_for` — the crate's one name-to-sentence
+            // map. Their names are disjoint from every key below (the
+            // `fillet_*` family against the `path_*` verbs, the
+            // stored-form read's segment and joint classifications, and
+            // the junction keys), so the order is not resolving a
+            // conflict; it states which layer owns a name, and a
+            // `fillet_*` name added to a later arm would now be dead
+            // rather than silently outranking its own sentence.
+            Self::Escalated { source } => {
+                if let Some(predicate) = source.predicate
+                    && let Some(recourse) = fillet_recourse_for(predicate)
+                {
+                    // The fillet constructor's own gates. The caller
+                    // asked for a fillet and the door could not
+                    // classify one of the construction's decisions, so
+                    // the site is the corner being resolved and the
+                    // recourse is the gate's own — never the shared
+                    // coincidence one, which advises declaring a
+                    // coincidence at a joint this caller never
+                    // authored.
+                    return write!(
+                        f,
+                        "resolving the fillet at this corner, '{predicate}' could not be \
+                         classified: {payload}. {recourse}",
+                        payload = source.payload()
+                    );
+                }
+                match source.predicate {
+                    Some("path_continuation_target_offset") => write!(
+                        f,
+                        "the declared straight continuation's target is neither on the \
                      departing ray nor definitely off it: {payload}. The verb DECLARES the \
                      leg, so there is no coincidence to declare here — the declaration is \
                      the verb. Move the target onto the ray, or widen the input tolerance \
                      (K·ε) so this miss is admissible",
-                    payload = source.payload()
-                ),
-                Some("path_seam_arrival_turn" | "path_seam_arrival_side") => write!(
-                    f,
-                    "the declared seam arrival is neither continuing the entry\'s outgoing \
+                        payload = source.payload()
+                    ),
+                    Some("path_seam_arrival_turn" | "path_seam_arrival_side") => write!(
+                        f,
+                        "the declared seam arrival is neither continuing the entry\'s outgoing \
                      direction nor definitely off it: {payload}. The TARGET declares the \
                      arrival, so there is no coincidence left to declare here — the \
                      declaration is the target. Move the geometry so the two directions agree, \
                      or widen the input tolerance (K·ε) so a miss this size is admissible. \
                      LOWERING the tolerance is the wrong direction at this site: closeness is \
                      what is being ASSERTED here, not what is refusing",
-                    payload = source.payload()
-                ),
-                Some("path_leg_length") => write!(
-                    f,
-                    "an authored leg extent could not be told from zero: {payload}. \
+                        payload = source.payload()
+                    ),
+                    Some("path_leg_length") => write!(
+                        f,
+                        "an authored leg extent could not be told from zero: {payload}. \
                      Author a longer leg, or widen the input tolerance (K·ε)",
-                    payload = source.payload()
-                ),
-                // The STORED-FORM read's own classifications
-                // (`Core::fillets_carry_their_tangency` re-runs
-                // validation's segment and joint predicates on the loop
-                // the door is about to emit). This is not a junction:
-                // the door minted the joint itself, so "declare the
-                // coincidence" is advice about a declaration the caller
-                // never wrote, and the levers are the two the stored
-                // form actually has. The class this arm leaves is
-                // `work/blend/every-escalation-carries-the-coincidence-recourse-first.md`
-                // — an escalation that renders the shared recourse
-                // before its own site's — and this is one instance
-                // repaired at the site.
-                Some(
-                    "vertex_separation"
-                    | "segment_straightness"
-                    | "arc_diameter_clearance"
-                    | "chord_side"
-                    | "carrier_line_circle"
-                    | "carrier_circles_identity"
-                    | "carrier_circles_external"
-                    | "carrier_circles_internal",
-                ) => write!(
-                    f,
-                    "reading back the fillet arc this door is about to store, \
+                        payload = source.payload()
+                    ),
+                    // The STORED-FORM read's own classifications
+                    // (`Core::fillets_carry_their_tangency` re-runs
+                    // validation's segment and joint predicates on the loop
+                    // the door is about to emit). This is not a junction:
+                    // the door minted the joint itself, so "declare the
+                    // coincidence" is advice about a declaration the caller
+                    // never wrote, and the levers are the two the stored
+                    // form actually has. The class this arm leaves is
+                    // `work/blend/every-escalation-carries-the-coincidence-recourse-first.md`
+                    // — an escalation that renders the shared recourse
+                    // before its own site's — and this is one instance
+                    // repaired at the site.
+                    Some(
+                        "vertex_separation"
+                        | "segment_straightness"
+                        | "arc_diameter_clearance"
+                        | "chord_side"
+                        | "carrier_line_circle"
+                        | "carrier_circles_identity"
+                        | "carrier_circles_external"
+                        | "carrier_circles_internal",
+                    ) => write!(
+                        f,
+                        "reading back the fillet arc this door is about to store, \
                      '{predicate}' could not be classified: {payload}. \
                      {FILLET_STORED_FORM_INBAND_RECOURSE}",
-                    predicate = source.predicate.unwrap_or("<unnamed>"),
-                    payload = source.payload()
-                ),
-                // The junction keys (`path_junction_turn`,
-                // `path_junction_side`) keep the full `Indeterminate`
-                // Display, shared recourse and all: at a junction
-                // "declare the coincidence" is exactly the right advice,
-                // and `.tangent()` is what declaring it means.
-                _ => write!(f, "path junction classification: {source}"),
-            },
+                        predicate = source.predicate.unwrap_or("<unnamed>"),
+                        payload = source.payload()
+                    ),
+                    // The junction keys (`path_junction_turn`,
+                    // `path_junction_side`) keep the full `Indeterminate`
+                    // Display, shared recourse and all: at a junction
+                    // "declare the coincidence" is exactly the right advice,
+                    // and `.tangent()` is what declaring it means.
+                    _ => write!(f, "path junction classification: {source}"),
+                }
+            }
             Self::Band(e) => write!(f, "path tolerance band: {e}"),
             Self::Structure(r) => write!(f, "guided elaboration: {r}"),
             Self::UnderdeterminedLeg { site } => write!(

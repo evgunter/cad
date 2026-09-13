@@ -493,15 +493,10 @@ fn concentric_circles_of_close_radii_escalate_as_sliver_annulus() {
 /// Two things are covered here because they are one situation rendered
 /// at two doors: the authoring door escalates with the predicate named
 /// (so a driver bisecting a parameter box knows which decision went
-/// unconfirmed), and the fillet escalation's recourse rider carries the
-/// same sentence its definite sibling
-/// [`profile::path::CornerReason::EnclosesLegCarrier`] carries (D4 ¶1 (iv)).
-///
-/// The second half constructs its error value rather than provoking it:
-/// `EscalationSite::Fillet` has no producer in the kernel today (the
-/// arc-carrier door reports its escalations as `PathError::Escalated`),
-/// so the rider is a Display rule with no reachable input, and pinning
-/// the rule is what can honestly be pinned about it.
+/// unconfirmed), and the refusal the caller reads carries the same
+/// sentence its definite sibling
+/// [`profile::path::CornerReason::EnclosesLegCarrier`] carries
+/// (D4 ¶1 (iv)).
 #[test]
 fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
     let eps = tol().eps();
@@ -524,7 +519,7 @@ fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
             Tol::witness(),
         )
         .expect_err("a radius inside the band of the carrier radius cannot be classified");
-    match err {
+    match &err {
         PathError::Escalated { source } => assert_eq!(
             source.predicate,
             Some("fillet_enclosing_carrier"),
@@ -535,8 +530,7 @@ fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
     // The rider: the in-band arm renders the same recourse as the
     // definite refusal, and — like that refusal — it endorses no radius
     // it cannot vouch for.
-    let rendered =
-        crate::common::fillet_escalation_rendered("fillet_enclosing_carrier", Tol::witness());
+    let rendered = err.to_string();
     assert!(
         rendered.contains("puts that carrier INSIDE the fillet circle"),
         "the enclosing recourse is missing: {rendered}"

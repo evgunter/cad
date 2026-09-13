@@ -238,6 +238,20 @@ either is relayed as `PathError::Escalated` naming the same
 classification. The pins are `tests/fillet_stored_tangency.rs` and the
 three sentences' rows in `tests/fillet_recourse_followability.rs`.
 
+**Every fillet gate's in-band verdict carries that gate's own recourse.**
+`PathError::Escalated`'s `Display` asks `validate::fillet_recourse_for`
+for the sentence belonging to the escalation's predicate name — the one
+map from the nine `fillet_*` names to the six `FILLET_*_RECOURSE`
+sentences, several names sharing a sentence because they share a user
+situation (D4 ¶1's addendum) — and renders the site it was resolving
+with that sentence and no coincidence tail: a fillet the caller asked for
+has no joint they declared, so "declare the coincidence" names a
+declaration that does not exist. The fillet names are asked first, ahead
+of the stored-form classifications and the junction keys, and are
+disjoint from both. `tests/fillet_recourse_followability.rs` censuses the
+nine against `sugar.rs`'s own source, so a tenth gate without a sentence
+is a red row.
+
 **What stays.** `Leg::tangent_point`'s antipodal flip (the ρ < 0 tangent
 point) remains as the closed form's sign rule, unit-pinned and
 unreachable by any door. No construction is known to reach

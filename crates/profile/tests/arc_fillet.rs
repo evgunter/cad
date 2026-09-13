@@ -1055,8 +1055,12 @@ fn fillet_offset_line_circle_trio() {
     let err = line_arc_internal(0.5f64.mul_add(-in_band(), 1.0))
         .expect_err("an in-band offset clearance must escalate");
     assert_eq!(escalated_predicate(&err), "fillet_offset_line_circle");
+    // A fillet gate's in-band verdict renders the corner-existence
+    // recourse, not the shared coincidence one: the caller asked for a
+    // fillet and authored no joint, so the lever is the radius.
     assert!(
-        err.to_string().contains("lower the tolerance"),
+        err.to_string()
+            .contains("use a smaller radius, or move the legs"),
         "recourse: {err}"
     );
 }

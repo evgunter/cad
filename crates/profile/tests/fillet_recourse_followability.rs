@@ -3,50 +3,57 @@
 //!
 //! The sweep twin of this file
 //! (`sweep/tests/blend_recourse_followability.rs`) composes each
-//! recourse with the request it endorses. Here the composition cannot
-//! start the same way, and the reason is the finding:
+//! recourse with the request it endorses; this file does the same at
+//! the profile fillet doors.
 //!
-//! **None of the six `FILLET_*_RECOURSE` sentences reaches a caller.**
-//! Each is written by exactly one Display arm —
-//! `ProfileError::Escalated { site: EscalationSite::Fillet, .. }`,
-//! dispatched on the escalation's predicate name — and nothing in the
-//! kernel constructs that value. The gates themselves fire: every one
-//! of the nine `fillet_*` predicate names is decided in `sugar.rs`, and
-//! an in-band verdict is real and reachable. But it leaves through
-//! `PathError::Escalated`, whose Display has no fillet arm at all: it
-//! falls to `"path junction classification: {source}"` and appends the
-//! SHARED coincidence recourse. The tailored sentence — the one that
-//! names the lever this caller can actually move — is written for a
-//! caller nobody becomes.
+//! **Every one of the six `FILLET_*_RECOURSE` sentences reaches the
+//! caller the gate was written for.** All six are rendered by one arm —
+//! `PathError::Escalated`'s, which asks `fillet_recourse_for` for the
+//! sentence belonging to the escalation's predicate name, names the site
+//! ("resolving the fillet at this corner") and appends that sentence
+//! with no coincidence tail. `fillet_recourse_for` is the crate's ONE
+//! name-to-sentence map; nothing else spells it.
 //!
-//! So each row below does three things, and the middle one is the pin
-//! the class asks for:
+//! So each row below does three things:
 //!
-//! 1. drives the user situation the constant was written for through
+//! 1. drives the user situation the sentence was written for through
 //!    the PUBLIC door and asserts what refuses;
-//! 2. asserts the rendered refusal does NOT carry the constant — the
-//!    characterization, spelled against the constant so it goes red the
-//!    day a producer lands and the sentence starts reaching people;
-//! 3. EXECUTES the second request the sentence names anyway, and
-//!    asserts it builds and validates — so the sentence is known TRUE
-//!    in advance of being reachable, which is what the dead-recourse
-//!    class costs when it is discovered the other way round.
+//! 2. asserts what the caller READS — the tailored sentence present, and
+//!    the shared `COINCIDENCE_RECOURSE` absent, because a fillet the
+//!    caller asked for has no joint they declared and nothing to declare
+//!    at one;
+//! 3. EXECUTES the second request the sentence names and asserts it
+//!    builds and validates.
 //!
-//! **What step 2 watches, and what it does not.** Every row here drives
-//! the PATH door, so the value it inspects is a `PathError`. A producer
-//! that landed on the OTHER side — something constructing
-//! `ProfileError::Escalated { site: EscalationSite::Fillet, .. }`
-//! directly, which is the arm that writes these six sentences — would
-//! make them reach a caller without turning any row below red. Only
-//! [`the_six_sentences_render_off_the_one_display_arm_that_has_no_producer`]
-//! looks at that side, and it pins the dispatch RULE, not the absence
-//! of a producer. Closing the gap needs a guard over the
-//! `ProfileError` surface, which is the door change
-//! `work/fillet/fillet-escalation-site-has-no-producer.md` owns.
+//! **Which gates a caller can actually drive in band, and which not.**
+//! Nine `fillet_*` predicates are decided in `sugar.rs`, and four of
+//! them take an in-band verdict from a request a caller can author:
+//! `fillet_enclosing_carrier`, `fillet_offset_line_circle`,
+//! `fillet_offset_circles_external` and — at a radius whose window is a
+//! couple of ulps wide rather than a multiple of ε —
+//! `fillet_offset_circles_internal`. The other five are pre-empted by a
+//! gate that sits earlier on the same request:
 //!
-//! [`the_six_sentences_render_off_the_one_display_arm_that_has_no_producer`]
-//! pins the render rule itself, so a producer landing finds the wiring
-//! already held.
+//! - `fillet_corner_turn` needs the two carriers tangent within the
+//!   band, which `path_carrier_meet` classifies on the RAW carriers
+//!   first, refusing `NoCornerForFillet { CarriersParallel }`;
+//! - `fillet_corner_arm` needs a collapsed lever arm, and a collapsed
+//!   leg extent puts the derived corner behind the incoming ray's start
+//!   (`CornerWindow::BehindIncomingRay`) while a collapsed carrier
+//!   radius trips `path_arc_center_radius` first;
+//! - `fillet_leg_fit` and `fillet_leg_reach` classify against the
+//!   EXACT-order band, inside which no representable f64 lies, so at
+//!   this scalar their classification is total;
+//! - `fillet_offset_lever` has no in-band witness at any tolerance
+//!   (`review_s2::a_collapsed_offset_lever_refuses_typed_at_every_band`
+//!   reaches only its definite arm, and only below ε = 1e-10).
+//!
+//! Their rows therefore drive the pre-empting refusal and say so, and
+//! [`every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one`]
+//! is what holds the render rule for all nine: it renders the door's own
+//! error value for each name and reads the text off it. That row is also
+//! the census the map owes — it takes the nine names from `sugar.rs`'s
+//! source, so a tenth gate added without a sentence turns it red.
 //!
 //! **The advice a caller DOES read here is inline, not a constant.**
 //! Every definite fillet refusal this file provokes ends in a second
@@ -99,17 +106,47 @@ const ALL: [(&str, &str); 6] = [
     ("leg-extent", FILLET_LEG_EXTENT_RECOURSE),
 ];
 
-/// **The characterization half**: what the caller reads carries no
-/// tailored fillet recourse at all — not this constant, and not one of
-/// its five siblings either.
+/// **What a pre-empted gate's refusal reads like**: an earlier gate
+/// answered, so the situation the caller is in is that gate's, and none
+/// of the six fillet sentences belongs to it.
 fn carries_no_fillet_recourse(err: &PathError<f64>, what: &str) {
     let shown = err.to_string();
     for (name, sentence) in ALL {
         assert!(
             !shown.contains(sentence),
-            "{what}: the `{name}` recourse reached a caller — its producer has landed, \
-             so this row owes a composed pin instead of a characterization.\n  got: {shown}"
+            "{what}: the `{name}` recourse belongs to a gate that did not answer here.\n  \
+             got: {shown}"
         );
+    }
+}
+
+/// **What an in-band fillet verdict reads like**: the site the door was
+/// resolving, the gate's own sentence, and never the shared coincidence
+/// recourse — the caller authored no joint here, so there is no
+/// coincidence for them to declare.
+fn carries_its_own_recourse(err: &PathError<f64>, sentence: &str, what: &str) {
+    let shown = err.to_string();
+    assert!(
+        shown.starts_with("resolving the fillet at this corner"),
+        "{what}: the refusal must name the site the door was resolving.\n  got: {shown}"
+    );
+    assert!(
+        shown.contains(sentence),
+        "{what}: the caller must read the gate's own sentence.\n  got: {shown}"
+    );
+    assert!(
+        !shown.contains(geom_core::COINCIDENCE_RECOURSE),
+        "{what}: a fillet the caller asked for has no joint they declared.\n  got: {shown}"
+    );
+}
+
+/// The escalation's predicate name, or a panic naming what came instead.
+fn escalating_predicate(err: &PathError<f64>, what: &str) -> &'static str {
+    match err {
+        PathError::Escalated { source } => source
+            .predicate
+            .unwrap_or_else(|| panic!("{what}: the escalation must name its predicate")),
+        other => panic!("{what}: expected an in-band escalation, got {other:?}"),
     }
 }
 
@@ -185,6 +222,28 @@ fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     .map(|c| c.loop_)
 }
 
+/// **The mixed-winding arc × arc corner.** The legs turn opposite ways,
+/// so the two offset carriers go to `R + r` and `R − r` and the INTERNAL
+/// clearance `d − |ρ₁ − ρ₂| = 2 − 2r` is the one that closes.
+fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(-1.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(1.0, 0.0),
+        },
+        radius,
+        Center {
+            c: p2(1.0, 0.0),
+            winding: ArcSweep::Cw,
+            p: p2(3.0, 0.0),
+        },
+        tol(),
+    )?
+    .line_to(Start, tol())
+    .map(|closed| closed.loop_)
+}
+
 /// A line × line bend: the incoming ray runs east from `(start_x, 0)`,
 /// the corner sits at `(4, 0)`, and the arrival leaves it at `theta`,
 /// anchored three units along. `radius` rounds the corner.
@@ -202,30 +261,69 @@ fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathE
 
 // ------------------------------------------------------------------ rows
 
-/// **The render rule, with no producer behind it.**
+/// **The census: every `fillet_*` gate the sugar decides has a sentence
+/// of its own, and none of them renders the shared one.**
 ///
-/// All six sentences ARE written — by one Display arm, keyed on
-/// `EscalationSite::Fillet` and the escalation's predicate name. The
-/// value has to be built by hand here because nothing in the kernel
-/// builds one, which is the whole finding; pinning the rule is what can
-/// honestly be pinned about it, and it means a producer landing finds
-/// the dispatch already held.
+/// The nine names are read out of `sugar.rs` rather than listed here, so
+/// a tenth gate added without a sentence turns this row red instead of
+/// slipping through a list nobody updated. For each, the door's own
+/// error value is rendered and the text read off it: the site, the
+/// gate's sentence from the one map, and no coincidence recourse.
 #[test]
-fn the_six_sentences_render_off_the_one_display_arm_that_has_no_producer() {
-    for (predicate, sentence) in [
-        ("fillet_corner_turn", FILLET_TURN_INBAND_RECOURSE),
-        ("fillet_leg_reach", FILLET_NO_CORNER_RECOURSE),
-        ("fillet_offset_lever", FILLET_OFFSET_LEVER_RECOURSE),
-        ("fillet_enclosing_carrier", FILLET_ENCLOSING_RECOURSE),
-        ("fillet_leg_fit", FILLET_FIT_RECOURSE),
-        ("fillet_corner_arm", FILLET_LEG_EXTENT_RECOURSE),
-    ] {
-        let rendered = crate::common::fillet_escalation_rendered(predicate, tol());
+fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
+    // Leaked so the names slice it with the `'static` lifetime an
+    // `Indeterminate`'s predicate carries; the process is one test
+    // binary and the text is read once.
+    let sugar: &'static str = Box::leak(
+        std::fs::read_to_string(
+            test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/sugar.rs"),
+        )
+        .expect("the construction sugar is readable")
+        .into_boxed_str(),
+    );
+    let decided = decided_fillet_predicates(sugar);
+    assert_eq!(
+        decided.len(),
+        9,
+        "the fillet gate family is nine names; found {decided:?}"
+    );
+    for predicate in decided {
+        let sentence = profile::fillet_recourse_for(predicate).unwrap_or_else(|| {
+            panic!("`{predicate}` is decided in sugar.rs and owes a recourse sentence")
+        });
+        let err = PathError::<f64>::Escalated {
+            source: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::Value(-5.0 * tol().eps()),
+                band: geom_core::Band::linear(tol()).expect("the run's band forms"),
+                predicate: Some(predicate),
+            },
+        };
+        carries_its_own_recourse(&err, sentence, predicate);
         assert!(
-            rendered.contains(sentence),
-            "`{predicate}` must render its own sentence: {rendered}"
+            err.to_string().contains(predicate),
+            "the refusal names the gate that could not be classified: {err}"
         );
     }
+}
+
+/// The `fillet_*` names `sugar.rs` hands to `decide`, deduplicated and
+/// sorted. Reads the source's code view, so a name inside a comment or a
+/// doc example is not a gate.
+fn decided_fillet_predicates(sugar: &str) -> Vec<&str> {
+    let code = test_utils::source::code_and_literals(sugar);
+    let mut names: Vec<&str> = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = code[at..].find("\"fillet_") {
+        let from = at + hit + 1;
+        let end = from + code[from..].find('"').expect("a closed string literal");
+        // Offsets index `sugar` directly: the code view blanks characters
+        // in place, so it is byte-for-byte aligned with the source.
+        names.push(&sugar[from..end]);
+        at = end;
+    }
+    names.sort_unstable();
+    names.dedup();
+    names
 }
 
 /// **`FILLET_NO_CORNER_RECOURSE` — "use a smaller radius".**
@@ -256,6 +354,73 @@ fn the_no_corner_recourse_reduces_to_a_radius_that_builds() {
     );
     carries_no_fillet_recourse(&err, "no corner for a fillet");
     builds_and_validates(line_arc_internal(0.5), "the smaller radius");
+}
+
+/// **`FILLET_NO_CORNER_RECOURSE` at the gate it was written for — the
+/// offset-carrier clearances, in band, read off the caller's own
+/// refusal.**
+///
+/// The same corner-existence question the definite refusal above answers
+/// with a `CornerReason`, asked where the answer is undecidable. Two of
+/// the three clearance gates take an in-band verdict from a request a
+/// caller can author, and each is driven here at a margin fixed in units
+/// of the run's ε, so the row holds at every tolerance the run can be
+/// given:
+///
+/// - the **line × circle** clearance, at the radius where the offset
+///   line and the offset circle are tangent: the straight run's offset
+///   is `y = r` and the circle's is `2 − r`, so they touch at `r = 1`
+///   and the margin `|ρ| − |h|` is `2·(1 − r)`;
+/// - the **circle × circle** external clearance on the two unit lobes,
+///   where `|ρ₁| + |ρ₂| − d` is `2·(0.5 − r)`;
+/// - the **circle × circle** internal clearance on the mixed-winding
+///   corner, whose legs offset to `R + r` and `R − r`, so
+///   `d − |ρ₁ − ρ₂|` is `2 − 2r`.
+///
+/// All three render the site and `FILLET_NO_CORNER_RECOURSE`, and none
+/// renders the shared coincidence recourse. The sentence's request — a
+/// smaller radius — then builds and validates at each corner.
+#[test]
+fn the_offset_clearance_recourse_reaches_the_caller_and_reduces() {
+    let eps = tol().eps();
+
+    let line_circle =
+        line_arc_internal(1.0 - 2.5 * eps).expect_err("the offset carriers' clearance is in band");
+    assert_eq!(
+        escalating_predicate(&line_circle, "the line x circle clearance"),
+        "fillet_offset_line_circle"
+    );
+    carries_its_own_recourse(
+        &line_circle,
+        FILLET_NO_CORNER_RECOURSE,
+        "the line x circle clearance",
+    );
+    builds_and_validates(line_arc_internal(0.5), "the smaller radius");
+
+    let circles =
+        two_lobes(0.5 - 2.5 * eps).expect_err("the offset carriers' clearance is in band");
+    assert_eq!(
+        escalating_predicate(&circles, "the circle x circle clearance"),
+        "fillet_offset_circles_external"
+    );
+    carries_its_own_recourse(
+        &circles,
+        FILLET_NO_CORNER_RECOURSE,
+        "the circle x circle clearance",
+    );
+    builds_and_validates(two_lobes(0.4), "the smaller radius");
+
+    let mixed = mixed_corner(1.0 - 2.5 * eps).expect_err("the internal clearance is in band");
+    assert_eq!(
+        escalating_predicate(&mixed, "the mixed corner's internal clearance"),
+        "fillet_offset_circles_internal"
+    );
+    carries_its_own_recourse(
+        &mixed,
+        FILLET_NO_CORNER_RECOURSE,
+        "the mixed corner's internal clearance",
+    );
+    builds_and_validates(mixed_corner(0.5), "the smaller radius");
 }
 
 /// **`FILLET_FIT_RECOURSE` — "use a smaller radius or longer legs".**
@@ -308,17 +473,21 @@ fn the_enclosing_recourse_endorses_a_bound_that_builds() {
     let bound = largest_tangent_radius.expect("both carriers swallowed, so the bound exists");
     builds_and_validates(two_lobes(0.99 * bound), "the endorsed bound");
 
-    // The in-band sibling — the arm this constant was written for.
+    // The in-band sibling — the arm this constant was written for, and
+    // the one a caller reads it from.
     let inband = two_lobes(1.0 + 5.0 * tol().eps()).expect_err("rho inside the band");
-    match &inband {
-        PathError::Escalated { source } => assert_eq!(
-            source.predicate,
-            Some("fillet_enclosing_carrier"),
-            "the gate escalates by name"
-        ),
-        other => panic!("expected the in-band escalation, got {other:?}"),
-    }
-    carries_no_fillet_recourse(&inband, "the enclosing gate in band");
+    assert_eq!(
+        escalating_predicate(&inband, "the enclosing gate in band"),
+        "fillet_enclosing_carrier"
+    );
+    carries_its_own_recourse(
+        &inband,
+        FILLET_ENCLOSING_RECOURSE,
+        "the enclosing gate in band",
+    );
+    // The lever the sentence names, followed from the in-band site: a
+    // radius moved clearly below the leg's carrier radius builds.
+    builds_and_validates(two_lobes(0.4), "the radius moved clearly downward");
 }
 
 /// **`FILLET_OFFSET_LEVER_RECOURSE` — "move the fillet radius away from
@@ -343,7 +512,13 @@ fn the_offset_lever_recourse_has_no_default_tolerance_witness() {
             "the lever gate reached the caller at default eps — this row owes a \
              composed pin, got {err:?}"
         );
-        carries_no_fillet_recourse(&err, "a radius at the carrier radius");
+        // The enclosing gate answers this geometry, definitely at 50ε
+        // and in band at 5ε, so its sentence is what the caller reads
+        // and the lever gate's is not.
+        assert!(
+            !err.to_string().contains(FILLET_OFFSET_LEVER_RECOURSE),
+            "the lever gate's sentence belongs to a gate that did not answer here, got {err}"
+        );
     }
     builds_and_validates(
         two_lobes(0.4),
