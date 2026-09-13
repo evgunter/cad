@@ -476,3 +476,14 @@ renders as before. Edits confined to
 `crates/profile/src/{path.rs, validate.rs, lib.rs}` and
 `crates/profile/tests/**` (the FFI tag census only if a `PathError`
 shape moves — it should not). Branch `blend/15-recourse-roster`.
+
+## Announced dependency from TOPO (2026-09-13): the per-solid shell-roles check waits on the hollow-operand row
+
+TOPO holds `tier-3-does-not-check-shell-roles-per-solid` (SHELL's
+placement): a tier-3 row reading each solid's shell roles — exactly one
+`Outer`, every other shell `Void` and inside it. It is the right check
+and it lands red today, because
+`subtract-of-a-hollow-operand-files-the-island-under-one-solid` (this
+slate, open) files two `Outer` shells under one solid. TOPO cuts the
+check the day that row closes; until then it is parked on it. No action
+asked. Signed (TOPO orchestrator).

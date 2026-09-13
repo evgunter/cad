@@ -77,7 +77,7 @@ place (ids kept); so are `D365`'s census, `C6`'s `WireStep` member,
    `run_checks` computes the product once and hands residents a
    subject; `assemble` takes a pre-gathered product; the `product.rs`
    Dual arms are edited by announced seam to M10.
-3. **A certified range query** —
+3. **RULED (Ev, 2026-09-13) → `DOCM-9` — a certified range query** —
    `certify-locally-valid-range-instead-of-sampling`: the
    slot-widening override (document parameters already widen through
    `EvalOptions::param_box`), the indeterminate-means-subdivide
