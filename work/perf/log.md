@@ -1287,3 +1287,27 @@ open items rather than new rows:
 over the tour's 61 gated stops, and the setup term's 8–99% share) and
 `parallel-map-costs-a-fixed-price-on-a-cheap-body` (the census's
 measured regression, the ruling it forced, and the shell grain).
+
+## Block PERF-B4 concluded (2026-09-13)
+
+All three units are on main in this order: PERF-10 (`f877f47c3`,
+sample #178), PERF-11 (`90d47d4a7`, #179), PERF-12 (`ee899bc9c`,
+#180) — BLEND-6 and BLEND-7 took #176/#177 between B3's close and
+PERF-10's merge. PERF-12's last push needed a main merge for a
+log-stub conflict (both sides appended a section at the same spot;
+kept both) and ran the full matrix green again before the merge. Six
+reviews, three fix passes, no interruption, no monitor parking, no
+usage-limit death; the block's draw record (byte 8, fable position 2)
+and the three rows fold into `docs/MODEL-AB-LOG.md` by the docs-only
+PR that follows this entry. PERF's tally: ten clean pairs, the same
+two unilateral MAJORs (PERF-7, PERF-8, opus arm); B4 added none —
+PERF-12's two opus-arm MAJORs were each raised by the fable arm at
+MINOR and one is doc-only. Headline numbers the block leaves on main:
+the tour die's memo-primed index 25 → 14 ms; the round spout's
+continuation 16.2 → 4.1 s and the tour 24.9 → 12.5 s at four threads;
+the heat sink's at-rest census at 160 fins 1.3 s → 9 ms and `assemble`
+at 640 fins 20.8 s → 196 ms. Two things go to Ev with the status: the
+one-line carve-out at DESIGN.md's census bullet (a pruned pair's
+carrier-stage escalation is decided, not skipped) and the v6
+twelve-pair stop rule's status across programs. Lanes reclaimed; the
+orchestrator holds no lane.
