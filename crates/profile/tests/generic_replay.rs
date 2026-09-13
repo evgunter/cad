@@ -566,6 +566,14 @@ fn the_stored_form_names_are_segs_own() {
         test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/seg.rs"),
     )
     .expect("the profile crate's own source is readable from its own tests");
+    // Through the shared reader, not a hand-rolled one: `code_only`
+    // blanks every comment and literal, so `item_body` parses real
+    // brackets and a `fn` mentioned in prose is not mistaken for a
+    // definition; `code_and_literals` keeps the literals the scan is
+    // actually after while still dropping the comments that mention
+    // predicate names.
+    let code = test_utils::source::code_only(&seg);
+    let with_literals = test_utils::source::code_and_literals(&seg);
     // The predicates the DOOR's read can fire are exactly those of the
     // four bodies it calls — `build_seg` for the stored segment, and
     // `joint_tangency` with the two helpers it dispatches to. `seg.rs`
@@ -578,16 +586,16 @@ fn the_stored_form_names_are_segs_own() {
         "fn line_circle_joint",
         "fn chord_side",
     ] {
-        let start = seg
+        let head = code
             .find(name)
             .unwrap_or_else(|| panic!("seg.rs still defines `{name}`"));
-        let body = &seg[start..];
-        let end = body.find("\n}\n").unwrap_or(body.len());
-        // Every double-quoted snake_case literal in those bodies is a
-        // predicate name — they carry no other string — and taking them
-        // this way rather than off `decide("` also catches the calls
-        // rustfmt has wrapped onto a line of their own.
-        for literal in body[..end].split('"').skip(1).step_by(2) {
+        let test_utils::source::ItemBody::Body(body) = test_utils::source::item_body(&code, head)
+        else {
+            panic!("`{name}` is a definition with a body");
+        };
+        // Every double-quoted snake_case literal in the body is a
+        // predicate name — these four carry no other string.
+        for literal in with_literals[body].split('"').skip(1).step_by(2) {
             let predicate = literal.to_string();
             if !predicate.is_empty()
                 && predicate
