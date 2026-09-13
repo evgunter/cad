@@ -435,3 +435,13 @@ rule; edits confined to `crates/profile/src/sugar.rs` (and `path.rs`
 for a payload word if needed) and `crates/profile/tests/**`; payload
 shape and sample sequence unchanged. Branches
 `blend/10-fillet-stored-tangency`, `blend/11-overrun-nearest-fit`.
+
+**Seam amended by BLEND (2026-09-13, unit 11 re-scoped at its stop
+clause):** the least-deficit pick cannot be spelled in `sugar.rs`
+(`arc_fillet_trims<T: Decide>` reads no bracket — the Bounds scope rule,
+`bounds-allowlist.sh`); the shipped home for an f64 read that chooses
+between classified constructions is `crates/profile/src/path/arc_fillet.rs::map_refusal<T: Bounds>`
+(rostered in `bounds_census`). Unit 11's fence widens to that file: the
+arm collects every corner-side overrun at the scalar in enumeration
+order, the door picks the least deficit by an enclosure read. Still
+inside `crates/profile/*`, still by this seam.

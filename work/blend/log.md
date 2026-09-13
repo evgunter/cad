@@ -679,3 +679,21 @@ before dispatch. Units 10 and 11 run beside unit 9's fix pass; unit 8
 (slot 0, the sweep crate) opens when unit 9 merges. Unit 10's Phase 1
 decides which side of the door/validator disagreement moves; the spec
 states the stored-form conditioning hypothesis as a hypothesis.
+
+**Unit 11 stopped at its fence and is re-scoped (2026-09-13, ~05:50 UTC).**
+Phase 1 reproduced the item's 232 exactly and sharpened it: 203 of them
+are reported `AnchorOutsideTrimmedExtent` entries, all carrying the
+first candidate's numbers, and 19 change under the least-deficit rule
+(setback moves by −0.12 to −0.70 m; the item's own example had its
+labels reversed). Phase 2 stopped honestly: a discrete choice between
+two candidates needs a bracket read `sugar.rs`'s `T: Decide` bound
+forbids, and the door's `map_refusal<T: Bounds>` is the shipped home
+for exactly that read. Ruling: the fence widens to
+`path/arc_fillet.rs` (seam amended in `work/bool/log.md`); the arm
+collects both overruns at the scalar, the door picks the least deficit
+by an enclosure read, ties to the earlier — the spec's rule with the
+read where the tree already puts such reads. One addition from the
+measurement: the reported leg is the candidate's WORSE leg (the one
+whose overrun is the deficit), not "incoming first" — at two grid-A
+corners the arm's incoming-first ordering reported the smaller of the
+candidate's two overruns.
