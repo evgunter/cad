@@ -2,10 +2,11 @@
 id: path-fillet-door-validator-tangency-disagree
 kind: unit
 title: The PATHS .fillet(r) door builds tangent joints Profile::validate refuses as transversal, for turns from 1e-7 to 1e-4 rad
-status: review
+status: closed
 opened: 2026-09-04
 branch: blend/10-fillet-stored-tangency
 pr: 2497
+closed: 2026-09-13
 ---
 
 ## The witness
@@ -86,3 +87,19 @@ can still refuse a loop with a small-turn fillet in it because the
 fillet's own LEGS are close together — that is
 `work/blend/arc-arc-shallow-corner-legs-escalate-arc-span.md`, a class
 with three recorded instances across `arc_span` and `line_span`.
+
+## Closed (2026-09-13, PR 2497)
+
+The door moved. Its computed carrier was always tangent; what the
+profile STORES (chord + bulge) flattens to a line below the sagitta
+band, and a second loss — the bulge pinning a carrier only to ulps of
+its radius — fails the carrier predicate with the sagitta far above
+the band. The door now asks the validator's own classifier of its
+stored form at the close and refuses typed with two arms
+(`FilletArcFlattenedInStorage`, `FilletCarrierBelowSceneResolution`),
+each with its own recourse in `validate.rs`'s home; every loop that
+built and validated before is bit-identical; the validator's recourse
+naming the door stays true because the door's every output validates
+for its declaration. Residues filed on this slate: the `arc_span` /
+`line_span` class between legs the door's promise does not cover;
+the instance on `every-escalation-carries-the-coincidence-recourse-first`.

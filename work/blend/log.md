@@ -862,3 +862,14 @@ exists at 1e-12 for the smallest turns. Fix pass dispatched on the
 union (`/home/user/blend-briefs/fix-10-brief.md`): two situations,
 two sentences, the recourse in its home; both probe branches adopted;
 delta by R1.
+
+**MERGED — unit 10 (2026-09-13)** on PR [#2497](https://github.com/evgunter/cad/pull/2497):
+the path fillet door never mints a joint the validator refuses for its
+declaration; the item closed. Dual: bilateral headline at differing
+severity (a second loss mechanism), no tally candidate; the fix pass
+gave the two situations two arms and two sentences, homed the
+recourses, made every pin non-degradable, deleted the harness copies,
+and widened the differential's corpus. Delta by R1 on the fixed head:
+recorded below. Sample #183 (main's order rules). Residues on the
+slate from this unit: the `arc_span`/`line_span` class between legs;
+the coincidence-recourse instance.
