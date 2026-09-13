@@ -421,12 +421,9 @@ impl core::fmt::Display for MergeCoplanarError {
                 "merge_coplanar_faces: declared pair ({f1:?}, {f2:?}) meets with opposite \
                  orientations — unmergeable in a closed solid"
             ),
-            Self::DeclaredCarrierUnsupported {
-                pair: (k1, k2),
-                kind,
-            } => write!(
+            Self::DeclaredCarrierUnsupported { pair, kind } => write!(
                 f,
-                "merge_coplanar_faces: declared pair ({k1:?}, {k2:?}) lies on a {kind} carrier — \
+                "merge_coplanar_faces: declared pair {pair:?} lies on a {kind} carrier — \
                  the declaration is legal and served the op, but this door's declared-pair \
                  rung is planar and has no {kind} arm; the pair is left unmerged and recorded",
                 kind = kind.name()
