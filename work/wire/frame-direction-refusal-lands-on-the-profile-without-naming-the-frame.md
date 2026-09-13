@@ -2,8 +2,9 @@
 id: frame-direction-refusal-lands-on-the-profile-without-naming-the-frame
 kind: issue
 title: A frame slot's direction refusal now surfaces on the profile node carrying only a role word, with no id for the frame that actually refused
-status: open
+status: dispatched
 opened: 2026-09-12
+branch: wire/refusal-subject
 ---
 
 

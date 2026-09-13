@@ -2,8 +2,9 @@
 id: the-entity-kind-door-has-six-spellings
 kind: issue
 title: Read a name, test its EntityKey kind, refuse: three copies in eval/wire.rs and six spellings of the refusal across the crate, with no shared door
-status: open
+status: dispatched
 opened: 2026-09-12
+branch: wire/entity-door
 ---
 
 

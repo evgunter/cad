@@ -3462,3 +3462,81 @@ own words say *an empty escape hatch is a hatch that will be used.*
 review for one sentence — *a census with a hole reports green* — against
 three rows rated as prose fixes. That call was right, and the margin was
 not small.
+
+## 2026-09-13 — the third block: the entity-kind door, and two refusals that do not name their subject
+
+Six units merged, twenty-four rows closed, nothing in flight — so two
+lanes go out. Fifteen rows remain; these are the two coherent subjects
+among them, and the rest of the slate is deliberately left for the block
+after, because two of those rows are about the **macro layer** that PR
+2501 just changed and their dust should settle first.
+
+### `wire/entity-door` — the same job the value door had, one kind up
+
+The crate answers *"read a thing, test its kind, refuse"* in **six**
+spellings, and the field names are the census: `expected`/`found`,
+`name`/`found` (three error kinds), `verb`/`found`, `wanted`/`found`,
+`expected`/`found` again in `stackup.rs`, and the recipe road already
+filed on DOCM. Three of them are **the same five lines in one file**,
+sharing their *resolution* door already and sharing neither the kind test
+nor the refusal after it.
+
+PR 2480 did exactly this for **value** kinds a day ago and took 17
+construction sites to 1. This unit is that job for **entity** kinds, and
+the brief hands it 2480's shape *and its two review rounds' findings*,
+because those were expensive: the door computes `found:` itself; a set
+equality needs a non-emptiness assertion on its own derived set; assert
+the rule and not a proxy for it; and **project a guard's subject rather
+than typing a roster** — three times in two units the roster was the
+hole.
+
+One constraint is the interesting one: **three error kinds must survive
+with their own identities.** `ShellOpenKind` carries a `name`,
+`BlendSelectionKind` also a `verb`. A door that flattens three refusals
+into one has changed behaviour rather than unified a spelling, and the
+brief says to label that a half-fix if it cannot be avoided.
+
+Also carried: PR 2480's hit list disposed of `Selected::faces` as *"one
+enum, two arms, no duplication yet"*, which is **false of the class as it
+stands and is retracted on the row**. Repeating a retracted disposition
+is the cheapest mistake available here, so the brief names it.
+
+### `wire/refusal-subject` — the third chase, and a refusal with no id
+
+`emit_topo`'s `chase()` is the **third** of three bounded lineage walks.
+PR 2474 made the other two refuse on a spent budget — a budget bounded by
+the arena means the walk revisited a key, and a revisit is a corrupt
+record — and did not sweep this one. On exhaustion it **falls out of the
+loop and returns the key it happened to be holding**, which becomes a
+group key and is handed to `upstream_name`. So a cycling fragment map
+does not refuse: **it names faces after the wrong root.** For a naming
+kernel that is the worst of the three outcomes, because a wrong name
+beats a refusal only in the sense that nobody notices.
+
+It travels with `frame-direction-refusal-lands-on-the-profile-without-naming-the-frame`
+for a reason that is about cost rather than shape: **both decisions run
+through `crates/pncad-py`'s error vocabulary**, where a new locator is
+actually paid for — the chase needs a `FaceKey` where PR 2474 built an
+`EdgeKey`, so the refusal it made does not fit and a new
+`naming_error_tag` word is new public Python surface. A taker who reads
+one should price the other at the same time.
+
+**The sweep obligation is the sharp part.** Q4 says an invariant a bugfix
+establishes sweeps its siblings *in the same PR*, and PR 2474's sweep
+**missed this very function because it was keyed to one spelling**. So
+the brief asks for a grep by *shape* — a bounded walk over a map that
+falls out of its loop and returns its cursor — with the hit list and the
+pattern's stated blind spot.
+
+And the honesty requirement, which PR 2474 met and is the standard here:
+its chases are **unreachable from `editor-core`** and it said so **at the
+claim site**, not only in a PR body. If the same holds for this one, that
+sentence goes where a reader of the refusal will find it.
+
+### Posture
+
+`entity-door` gets a **light style review** with the assertion sweep as
+its one hard obligation — it is a structural unification of three
+copies, and three user-visible refusals move. `refusal-subject` gets a
+**full review**: it turns a silently wrong answer into a refusal, on a
+naming path, and adds public Python surface to do it.

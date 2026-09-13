@@ -2,9 +2,10 @@
 id: face-fragment-chase-returns-a-silently-wrong-root-on-exhaustion
 kind: issue
 title: emit_topo's chase() falls out of its budget and returns a wrong face root with no refusal
-status: open
+status: dispatched
 opened: 2026-09-12
 refs: [2474]
+branch: wire/refusal-subject
 ---
 
 
