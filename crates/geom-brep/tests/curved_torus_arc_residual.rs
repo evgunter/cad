@@ -176,6 +176,52 @@ fn a_ring_plane_circle_reaches_both_closed_form_extremes() {
     );
 }
 
+/// **Row 2b — a circle whose plane holds the axis direction, so the
+/// AXIAL channel of the bound is the one on trial.** Rows 1 and 2 both
+/// have `a_h = 0` and cannot see the `2a_h² + 2·H_max·a_h` terms at
+/// all. Here the circle stands in a plane parallel to the axis, 2.5 m
+/// out, so `a_h = ρ_c` is maximal while the radial channel is mild —
+/// and both its `ρ` extremes and its `|h|` maximum are attained AT
+/// samples, which makes the charge comparison exact.
+#[test]
+fn a_circle_parallel_to_the_axis_pins_the_bounds_axial_channel() {
+    let (big_r, minor) = (1.0, 0.2);
+    let s = torus(Point3::origin(), Vec3::unit_z(), big_r, minor);
+    let (offset, rho_c) = (2.5, 0.5);
+    let center = Point3::new(offset, 0.0, 0.0);
+    // Frame: the circle's own axis is radial, so its plane is spanned
+    // by the torus axis and the tangential direction.
+    let (axis, u_ref) = (Vec3::unit_x(), Vec3::unit_z());
+    let (lo, hi) =
+        circle_arc_residual_range(&s, center, axis, rho_c, u_ref, 0.0, TAU).expect("the torus arm");
+    let rho_far = (offset.powi(2) + rho_c.powi(2)).sqrt();
+    let charge = f2_oracle(big_r, minor, rho_c, TAU, (offset, rho_far), rho_c, rho_c)
+        * full_turn_step().powi(2)
+        * 0.125;
+    let residual_at_rho =
+        |rho: f64, h: f64| ((rho - big_r).powi(2) + h.powi(2) - minor.powi(2)) / (2.0 * minor);
+    // The residual's extremes over this circle: `ρ² + h²` is CONSTANT
+    // on it (the circle's own centre stands on the axis-through-centre
+    // plane), so `d² = (ρ−R)² + h² = ρ² + h² + R² − 2Rρ` falls as `ρ`
+    // rises and both ends of the `ρ` range are samples. The maximum
+    // is therefore the CLOSEST-to-the-axis point and the minimum the
+    // farthest.
+    let top = residual_at_rho(offset, rho_c);
+    let bottom = residual_at_rho(rho_far, 0.0);
+    assert!(
+        bottom < top,
+        "the fixture's residual falls as rho rises: {bottom}, {top}"
+    );
+    assert!(
+        (lo - (bottom - charge)).abs() <= 1e-9 * charge.max(1.0),
+        "lo {lo} is not the far-point extreme {bottom} less the charge {charge}"
+    );
+    assert!(
+        (hi - (top + charge)).abs() <= 1e-9 * charge.max(1.0),
+        "hi {hi} is not the near-point extreme {top} plus the charge {charge}"
+    );
+}
+
 /// **Row 3 — a meridian of the torus itself, and a concentric tube.**
 /// A meridian circle lies ON the locus, so the enclosure must
 /// straddle zero; a circle concentric with it at a different tube
