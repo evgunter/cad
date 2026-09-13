@@ -788,3 +788,10 @@ plan-phase contract under two mutants. Seven-item fix pass to a fresh
 lane on the inherited branch (the implementer's worktree was gone);
 both reviewers' probes handed over. The ring-nesting dual dispatches
 now beside it: claim for ordinal 2704 to main.
+
+## Ring-nesting dual out at ordinal 2704 (2026-09-13)
+
+Claim merged to main; both reviewers dispatched concurrently on frozen
+`a8703bdc9` beside the split-edge fix pass: byte 0 ⇒ R1 OPUS, R2
+FABLE; briefs stored with sha256 privately at the unit's delivery,
+re-verified identical modulo lane paths at dispatch.
