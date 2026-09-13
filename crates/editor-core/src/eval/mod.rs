@@ -439,22 +439,134 @@ pub enum ValuePayload<T: Decide> {
     Assertion(crate::measure::AssertionVerdict<T>),
 }
 
+/// **One family word, as a literal** — so [`concat!`] can compose a
+/// phrase out of it at compile time, which a `const` cannot be fed
+/// to. [`family`]'s consts are defined FROM this macro and
+/// [`phrase`]'s are composed from it, so each word is spelled once in
+/// the tree and a composed phrase cannot drift from the `found:` word
+/// that answers beside it.
+// OPERAND-VOCABULARY BEGIN — the region
+// `every_family_word_has_exactly_one_const` reads. An arm with no
+// const, or a const with no arm, reds that row.
+macro_rules! family_word {
+    (datum) => {
+        "datum"
+    };
+    (profile) => {
+        "profile"
+    };
+    (body) => {
+        "body"
+    };
+    (boolean) => {
+        "boolean"
+    };
+    (split) => {
+        "split"
+    };
+    (instances) => {
+        "instances"
+    };
+    (declarations) => {
+        "declarations"
+    };
+    (mate) => {
+        "mate"
+    };
+    (measure) => {
+        "measure"
+    };
+    (assertion) => {
+        "assertion"
+    };
+}
+
 /// **The family words** — the vocabulary a typed operand mismatch
 /// speaks ([`NodeErrorKind::WrongOperand`]'s `found` and `expected`),
 /// written once. [`ValuePayload::kind_name`] says them over a value,
-/// [`node_value_kind`] over a node, and `eval::wire`'s operand doors
-/// say them in the refusals they build.
+/// [`node_value_kind`] over a node, and `eval::wire`'s operand door
+/// says them in the refusals it builds.
 pub(crate) mod family {
-    pub(crate) const DATUM: &str = "datum";
-    pub(crate) const PROFILE: &str = "profile";
-    pub(crate) const BODY: &str = "body";
-    pub(crate) const BOOLEAN: &str = "boolean";
-    pub(crate) const SPLIT: &str = "split";
-    pub(crate) const INSTANCES: &str = "instances";
-    pub(crate) const DECLARATIONS: &str = "declarations";
-    pub(crate) const MATE: &str = "mate";
-    pub(crate) const MEASURE: &str = "measure";
-    pub(crate) const ASSERTION: &str = "assertion";
+    pub(crate) const DATUM: &str = family_word!(datum);
+    pub(crate) const PROFILE: &str = family_word!(profile);
+    pub(crate) const BODY: &str = family_word!(body);
+    pub(crate) const BOOLEAN: &str = family_word!(boolean);
+    pub(crate) const SPLIT: &str = family_word!(split);
+    pub(crate) const INSTANCES: &str = family_word!(instances);
+    pub(crate) const DECLARATIONS: &str = family_word!(declarations);
+    pub(crate) const MATE: &str = family_word!(mate);
+    pub(crate) const MEASURE: &str = family_word!(measure);
+    pub(crate) const ASSERTION: &str = family_word!(assertion);
+}
+// OPERAND-VOCABULARY END
+
+/// **The composed phrases** — every `expected:` a refusal names that is
+/// not exactly one family word.
+///
+/// # The rule
+///
+/// An `expected:` names what to author, and it comes from a const:
+/// [`family`] when it is exactly a value family, this module when it is
+/// anything else. **No `expected:` is a literal written at a call
+/// site.** The reason is not that two copies of a two-word phrase are
+/// expensive to keep in step — they are not — it is that the phrases a
+/// document author has to learn are then enumerable in one screen,
+/// instead of being the set you get by grepping every refusal that
+/// speaks one.
+///
+/// `found:` never appears here. The door computes it from the value it
+/// was handed ([`ValuePayload::kind_name`]) or from the node
+/// ([`node_value_kind`]), so no site can answer it with the negation of
+/// its own `expected:` and leave a reader told twice what the input is
+/// not and never what it is.
+///
+/// # The three shapes, and how each is composed
+///
+/// - **Narrower than a family** ([`phrase::DATUM_FRAME`], [`phrase::DATUM_AXIS`],
+///   [`phrase::DATUM_PLANE`]): a variant WITHIN a family. The family word is
+///   still in the phrase — and is exactly the word `found:` answers
+///   beside it — so it is composed from `family_word!` rather than
+///   respelled.
+/// - **Wider than a family** ([`phrase::BODY_OR_INSTANCES`]): two families and
+///   the conjunction between them, and nothing else; both words are
+///   composed.
+/// - **A whole sentence** ([`phrase::AXIS_IN_SKETCH_FRAME`]): a seat no family
+///   word names, so there is nothing to compose and the const is the
+///   literal. It is here for the rule above — one home per phrase —
+///   rather than for a vocabulary it shares.
+///
+/// # What this module is NOT, and where the neighbouring words live
+///
+/// The rule above governs `expected:` and nothing else. A second
+/// user-visible vocabulary sits beside it — the DIRECTION-ROLE words a
+/// [`NodeErrorKind::Direction`] refusal carries, which name the SLOT
+/// whose vector would not normalize rather than the kind an operand
+/// had to be. They keep their own home beside the arithmetic that
+/// raises them (`eval::wire`'s `*_ROLE` consts, `pub(crate)` because
+/// the mate solve re-derives the same refusals), and where one of them
+/// opens with a phrase from here it is composed from that const rather
+/// than respelled — `FRAME_X_ROLE`, `FRAME_Y_ROLE`,
+/// `PLANE_NORMAL_ROLE` and `DATUM_AXIS_ROLE` all are.
+/// `TRANSFORM_AXIS_ROLE` and `PATTERN_DIRECTION_ROLE` share no family
+/// word with anything here, so they are literals in that home and
+/// nothing is gained by moving them.
+pub(crate) mod phrase {
+    /// A frame datum: [`crate::node::Datum::Frame`] or
+    /// [`crate::node::Datum::FaceFrame`], the two nodes that carry a
+    /// [`super::DatumValue::Frame`].
+    pub(crate) const DATUM_FRAME: &str = concat!(family_word!(datum), " frame");
+    /// A 3-D axis datum ([`crate::node::Datum::Axis`]).
+    pub(crate) const DATUM_AXIS: &str = concat!(family_word!(datum), " axis");
+    /// A plane datum ([`crate::node::Datum::Plane`]).
+    pub(crate) const DATUM_PLANE: &str = concat!(family_word!(datum), " plane");
+    /// What a placer places: one body, or a list of placed ones.
+    pub(crate) const BODY_OR_INSTANCES: &str =
+        concat!(family_word!(body), " or ", family_word!(instances));
+    /// A revolve's axis seat. A 3-D [`crate::node::Datum::Axis`] lands
+    /// in this refusal, so the sentence has to say what to author
+    /// instead: the seat is not "an axis", it is an axis written in the
+    /// sketch the profile is drawn on.
+    pub(crate) const AXIS_IN_SKETCH_FRAME: &str = "an axis in a sketch frame (Datum::AxisInPlane)";
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -5393,4 +5505,267 @@ pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
     h.write_tag(tag);
     h.write_str(serialized);
     h.finish()
+}
+
+#[cfg(test)]
+#[allow(clippy::panic, clippy::expect_used)]
+mod operand_vocabulary_census {
+    //! **Two source rules with nothing else to red them.**
+    //!
+    //! `eval::wire` gives "what kind is this operand, and refuse if it
+    //! is not" one home, and [`super::phrase`] states the rule that no
+    //! `expected:` is a literal written at a call site. Both are
+    //! predicates over SOURCE TEXT: a third place that builds the
+    //! refusal, or a phrase typed back in at a call site, compiles,
+    //! passes every behavioural row in the tree, and ships.
+    //!
+    //! That is not hypothetical here. The family literals were swept
+    //! onto consts once, and came back as the composed phrases these
+    //! rows now guard; closing that a second time with nothing
+    //! watching is how it returns a third. So the rules are read off
+    //! the text, through the shared Rust reader
+    //! ([`test_utils::source`]) rather than a lexer of their own.
+    //!
+    //! **What these rows cannot see**, stated so the receipt is
+    //! honest: a refusal built in another module (`mate/member.rs`
+    //! builds one, and `work/docm/` carries its row), a phrase reached
+    //! through a helper that takes it as an argument from somewhere
+    //! else, and the OTHER kind-mismatch vocabularies in this crate —
+    //! `ShellOpenKind`, `BlendSelectionKind`, `FaceFrameKind`,
+    //! `MeasureSelectionKind` and `names::interrogate`'s
+    //! `wanted`/`found` pair are a different door over entity kinds,
+    //! and `work/wire/` carries their row.
+
+    const WIRE: &str = include_str!("wire.rs");
+    const MOD: &str = include_str!("mod.rs");
+    const SPLIT: &str = include_str!("../verbs/split.rs");
+
+    /// The byte range between two sentinel comments, located in the
+    /// RAW text — which is the same offset space every
+    /// [`test_utils::source`] view has, because a view blanks in place.
+    fn region(text: &str, what: &str, begin: &str, end: &str) -> std::ops::Range<usize> {
+        let b = text
+            .find(begin)
+            .unwrap_or_else(|| panic!("{what}: no `{begin}`"));
+        let e = text
+            .find(end)
+            .unwrap_or_else(|| panic!("{what}: no `{end}`"));
+        assert!(b < e, "{what}: `{begin}` must precede `{end}`");
+        b..e
+    }
+
+    /// **`WrongOperand` is constructed in exactly one place in
+    /// `eval/wire.rs`**, and that place is inside the operand door.
+    ///
+    /// A construction is told from a pattern by the brace body naming
+    /// `expected`: the file's one pattern is `WrongOperand { .. }` and
+    /// names nothing. A future pattern that DID bind `expected` would
+    /// be counted as a construction and red this row — the safe
+    /// direction, and the only one available to a textual reader.
+    #[test]
+    fn wrong_operand_is_built_in_one_place() {
+        let code = test_utils::source::blanked(test_utils::source::code_only, "eval/wire.rs", WIRE);
+        let door = region(
+            WIRE,
+            "eval/wire.rs",
+            "OPERAND-DOOR BEGIN",
+            "OPERAND-DOOR END",
+        );
+        for name in [
+            "fn operand",
+            "fn node_operand",
+            "fn wrong_operand",
+            "fn operand_refusal",
+        ] {
+            let at = code[door.clone()]
+                .find(name)
+                .unwrap_or_else(|| panic!("the door region no longer holds `{name}`"));
+            assert!(at < door.len(), "{name}");
+        }
+        let mut built = Vec::new();
+        for (at, _) in code.match_indices("NodeErrorKind::WrongOperand") {
+            let open = at + code[at..].find('{').expect("the refusal opens a brace");
+            let close =
+                test_utils::source::balanced_end(&code, open).expect("the refusal's brace closes");
+            if !code[open..=close].contains("expected") {
+                continue; // a pattern, not a construction
+            }
+            assert!(
+                door.contains(&at),
+                "eval/wire.rs builds a `WrongOperand` outside the operand door, at byte {at} \
+                 (line {}) — the refusal has one home and `found:` is not a caller's to write",
+                WIRE[..at].lines().count()
+            );
+            built.push(at);
+        }
+        assert_eq!(
+            built.len(),
+            1,
+            "the operand door builds `WrongOperand` {} times, not once",
+            built.len()
+        );
+    }
+
+    /// **No `expected:` phrase is a string literal at a call site.**
+    ///
+    /// Reads the door's callers in `eval/wire.rs` and the split verb's
+    /// own `tool_expected` datum, which is the one `expected:` this
+    /// crate carries as correspondence data rather than as a door
+    /// argument.
+    #[test]
+    fn no_expected_phrase_is_a_literal_at_a_call_site() {
+        let code = test_utils::source::blanked(
+            test_utils::source::code_and_literals,
+            "eval/wire.rs",
+            WIRE,
+        );
+        // (door name, which argument carries `expected`)
+        let mut calls = 0usize;
+        for (name, slot) in [
+            ("operand", 2usize),
+            ("node_operand", 2),
+            ("wrong_operand", 2),
+            ("refusal", 1),
+        ] {
+            let needle = format!("{name}(");
+            for (at, _) in code.match_indices(&needle) {
+                // `operand(` is a suffix of `wrong_operand(` and of
+                // `body_operand(`: a call starts at an identifier
+                // boundary, and a definition is skipped by its `fn `.
+                let before = code[..at].chars().next_back().unwrap_or(' ');
+                if before.is_alphanumeric() || before == '_' {
+                    continue;
+                }
+                if code[..at].trim_end().ends_with("fn") {
+                    continue;
+                }
+                let open = at + needle.len() - 1;
+                let close =
+                    test_utils::source::balanced_end(&code, open).expect("the call's paren closes");
+                let args = test_utils::source::top_level_split(&code[open + 1..close], ',');
+                let Some(arg) = args.get(slot) else {
+                    continue; // the declaration's own parameter list shape
+                };
+                let text = &code[open + 1..close][arg.clone()];
+                assert!(
+                    test_utils::source::plain_string_literal(text).is_none(),
+                    "eval/wire.rs line {}: `{name}` is handed the literal {text} — an \
+                     `expected:` phrase comes from `eval::family` or `eval::phrase`, never \
+                     from a call site",
+                    WIRE[..at].lines().count()
+                );
+                calls += 1;
+            }
+        }
+        assert!(
+            calls >= 12,
+            "the call census found only {calls} door calls — the scan has drifted from the \
+             doors it is supposed to read"
+        );
+        let split = test_utils::source::blanked(
+            test_utils::source::code_and_literals,
+            "verbs/split.rs",
+            SPLIT,
+        );
+        for init in test_utils::source::initializers(&split, "tool_expected:") {
+            assert!(
+                test_utils::source::plain_string_literal(&split[init.clone()]).is_none(),
+                "verbs/split.rs: `tool_expected` is a literal — the correspondence still owns \
+                 the FIELD, but the word comes from `eval::phrase`"
+            );
+        }
+    }
+
+    /// **The family vocabulary is closed both ways.**
+    ///
+    /// A `family::` const with no `family_word!` arm is already a
+    /// compile error. The silent direction is the other one: a macro
+    /// arm no const uses is dead text no lint reads, so the macro
+    /// would be a second hand-written list kept in step by hand —
+    /// which is the defect it exists to remove. This asserts the two
+    /// lists are the same set.
+    ///
+    /// It also refuses a family word spelled anywhere but the macro:
+    /// [`super::ValuePayload::kind_name`] and
+    /// [`super::node_value_kind`] answer the vocabulary over a value
+    /// and over a node, and a new variant whose arm returned a fresh
+    /// literal would mint a word nothing here knows about.
+    #[test]
+    fn every_family_word_has_exactly_one_const() {
+        // The LITERAL-bearing view: the macro's arms ARE literals, and
+        // `code_only` would blank exactly the text this row reads.
+        let text =
+            test_utils::source::blanked(test_utils::source::code_and_literals, "eval/mod.rs", MOD);
+        let vocab = region(
+            MOD,
+            "eval/mod.rs",
+            "OPERAND-VOCABULARY BEGIN",
+            "OPERAND-VOCABULARY END",
+        );
+        let mut arms: Vec<(&str, &str)> = Vec::new();
+        let mut used: Vec<&str> = Vec::new();
+        let mut pending: Option<&str> = None;
+        for line in text[vocab].lines() {
+            let line = line.trim();
+            if let Some(rest) = line.strip_prefix('(')
+                && let Some((word, tail)) = rest.split_once(')')
+                && tail.trim_start().starts_with("=>")
+            {
+                pending = Some(word);
+                continue;
+            }
+            if let Some(word) = pending
+                && let Some(lit) = test_utils::source::plain_string_literal(line)
+            {
+                arms.push((word, lit));
+                pending = None;
+            }
+            if let Some((_, rest)) = line.split_once("family_word!(")
+                && let Some((word, _)) = rest.split_once(')')
+            {
+                used.push(word);
+            }
+        }
+        assert!(
+            arms.len() >= 10,
+            "the vocabulary census found only {} macro arms — the sentinels or the scan have \
+             drifted from the macro they read",
+            arms.len()
+        );
+        for (word, lit) in &arms {
+            assert_eq!(
+                word, lit,
+                "a `family_word!` arm's head names the word it expands to, so a reader of one \
+                 `family::` const does not have to open the macro to learn what it says"
+            );
+        }
+        let mut heads: Vec<&str> = arms.iter().map(|(w, _)| *w).collect();
+        heads.sort_unstable();
+        let mut sorted_used = used.clone();
+        sorted_used.sort_unstable();
+        assert_eq!(
+            heads, sorted_used,
+            "every `family_word!` arm owes exactly one `family::` const and every const owes \
+             an arm; an arm with no const is dead text no lint reads"
+        );
+        // No arm of either kind function spells a family word itself.
+        let code = test_utils::source::blanked(test_utils::source::code_only, "eval/mod.rs", MOD);
+        for head in ["pub fn kind_name", "pub(crate) fn node_value_kind"] {
+            let at = code
+                .find(head)
+                .unwrap_or_else(|| panic!("`{head}` is declared"));
+            let test_utils::source::ItemBody::Body(body) = test_utils::source::item_body(&code, at)
+            else {
+                panic!("`{head}` has a body");
+            };
+            let body = &text[body];
+            for (_, lit) in &arms {
+                assert!(
+                    !body.contains(&format!("\"{lit}\"")),
+                    "`{head}` spells the family word {lit:?} as a literal — the vocabulary is \
+                     `family`'s, and a variant added here must take a word from it"
+                );
+            }
+        }
+    }
 }

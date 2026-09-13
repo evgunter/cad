@@ -5,6 +5,7 @@ title: eval/wire.rs's header says each F4 node maps to an existing kernel op, an
 status: open
 opened: 2026-09-11
 refs: [2376]
+pr: 2480
 ---
 
 

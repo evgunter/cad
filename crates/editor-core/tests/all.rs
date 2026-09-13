@@ -503,5 +503,7 @@ mod m10_10_r2_probes_interval;
 mod wire_band_cause;
 #[path = "wire_frame_placement_carry.rs"]
 mod wire_frame_placement_carry;
+#[path = "wire_operand_door.rs"]
+mod wire_operand_door;
 #[path = "wire_product_gather_tie.rs"]
 mod wire_product_gather_tie;

@@ -5,6 +5,7 @@ title: PR 2435 deleted frame_kind, whose doc said 'is this a frame' is answered 
 status: open
 opened: 2026-09-12
 refs: [2435]
+pr: 2480
 ---
 
 
