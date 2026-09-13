@@ -197,9 +197,12 @@ pub fn classify_dihedral<T: Decide>(
 /// issue 1439. Three hand-rolled siblings of this fold remain across
 /// the workspace — `topo::boolean::contact_verify` (the fold's own
 /// stated origin), `crate::ssi` and `topo::boolean::ops` — down from
-/// the six that issue counted: `crate::certify`, `sweep::extrude` and
-/// `sweep::revolve::upgrade` reach the fold through
-/// [`tangent_second_order`] now. `contact_tangent_opposed` is also
+/// the six that issue counted: `crate::certify` reaches the fold
+/// through [`tangent_second_order`], and `sweep::extrude` and
+/// `sweep::revolve::upgrade` through [`must_carry_over_edge`], which
+/// composes it. The two hand-rolled siblings of the second-order
+/// MARGIN are a different pair and are counted on
+/// [`tangent_second_order`]. `contact_tangent_opposed` is also
 /// [`classify_material_pairing`]'s own twin — the same C1 lemma
 /// between bodies rather than within one. Consolidating the rest is
 /// that issue's work, deliberately NOT absorbed here; until it lands,
@@ -237,8 +240,10 @@ pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>,
 /// the SAME predicate name, or the demanded set and the stored set are
 /// two sets and every disagreement is a spurious
 /// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs
-/// routes here, as do `Intersection`-tangency certification and the
-/// boolean rim wedge; the two remaining hand-rolled siblings are the
+/// routes here through [`must_carry_over_edge`], which is where the
+/// gate, the stations and the three-way policy live; `Intersection`-
+/// tangency certification and the boolean rim wedge fold this reading
+/// into walks of their own. The two remaining hand-rolled siblings are the
 /// tier-3 validator's (`topo::validate`) and the boolean rebuild's
 /// (`topo::boolean::ops`), which fold this margin into a per-sample
 /// walk they already run — issue 1439's work. A new site spelling its
@@ -280,6 +285,138 @@ pub struct SecondOrder<T: geom_core::Real> {
     /// `Zero`/`Negative` under-determined, `Err` in-band (predicate
     /// `"tangent_second_order"`).
     pub verdict: Result<Sign, Indeterminate>,
+}
+
+/// **The must-carry rule over an EDGE** — [`tangent_second_order`]'s
+/// contract asked of a whole smooth join rather than one point, and
+/// the one place a constructor decides what description such a join
+/// carries.
+///
+/// The answer is three-way and typed, exactly as the metered
+/// predicate's own doc states it:
+///
+/// - **[`MustCarryVerdict::JetDeterminate`]** — every station read
+///   `Positive`: the surfaces determine the locus along the whole
+///   edge, so prefer-intrinsic (D2/OQ7) demands the intrinsic
+///   [`crate::EdgeDescription::TangentIntersection`].
+/// - **[`MustCarryVerdict::UnderDetermined`]** — the pair is outside
+///   the certificate's lane, or a station read `Zero`/`Negative`: the
+///   conventional description is the honest one.
+/// - **[`MustCarryVerdict::InBand`]** — a station was certifiable as
+///   neither, carrying that station's escalation: the caller refuses
+///   TYPED (D4 ¶3). An in-band verdict is never silently either side,
+///   so no caller may fold it into "conventional".
+///
+/// **The lane gate comes first, before any metering.**
+/// [`crate::tangent_certificate_lane`] says whether the jet
+/// certificate can certify this carrier over this pair at all, and a
+/// pair it refuses cannot STORE an intrinsic tangency whatever the jet
+/// says. Gating first is therefore not an optimisation: metering an
+/// out-of-lane pair spends decisions — and K-stream samples — on a
+/// verdict no caller may act on.
+///
+/// **The stations are the certification schedule's interior**
+/// (`1..`[`crate::CERT_SAMPLES`]`-1`, through [`crate::sample_param`]), read in
+/// order, the first non-`Positive` station deciding — the same walk,
+/// in the same order, with the same early exit as the tier-3
+/// must-carry arm that re-asks this question of the stored
+/// description. That is what keeps the demanded set and the stored set
+/// ONE set: a constructor reading a coarser schedule can store a
+/// description tier 3 then refuses, and one reading a finer schedule
+/// can refuse what tier 3 would have accepted.
+///
+/// **Why the extra stations never disagree on the joins this kernel
+/// mints**, stated because it is an argument and not a licence to read
+/// fewer: an extruded wall is ruled in the sweep direction and the
+/// strut is one of its rulings, along which both surfaces' Hessians
+/// and the transverse direction are constant — so `κ_rel` is constant
+/// along it; and a revolve's latitude join carries a circle coaxial
+/// with both surfaces of revolution, along which the configuration is
+/// carried by a symmetry flow of both — so `κ_rel` is constant there
+/// too. Each fact holds for the pairs ONE verb mints, while this walk
+/// must hold for every pair it is handed, so neither licenses reading
+/// one station.
+///
+/// **The one home** [`folded_lever_arm`]'s doc calls aspirational, one
+/// level up: the fold has a single spelling and so does the metered
+/// margin, but the EDGE-level rule — gate, stations, three-way policy
+/// — was spelled once per caller, and the spellings disagreed on the
+/// in-band case. A new constructor spelling its own is that
+/// disagreement again.
+pub fn must_carry_over_edge<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    extent: T,
+    band: Band,
+) -> MustCarry<T> {
+    if !crate::tangent::tangent_certificate_lane(carrier, s1, s2) {
+        return MustCarry {
+            first: None,
+            verdict: MustCarryVerdict::UnderDetermined,
+        };
+    }
+    let mut first = None;
+    for i in 1..crate::CERT_SAMPLES - 1 {
+        let t = crate::sample_param(t0, t1, i);
+        let p = carrier.eval(t);
+        let reading = tangent_second_order(s1, s2, p, carrier.deriv(t), extent, band);
+        let first = *first.get_or_insert(reading);
+        match reading.verdict {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => {
+                return MustCarry {
+                    first: Some(first),
+                    verdict: MustCarryVerdict::UnderDetermined,
+                };
+            }
+            Err(source) => {
+                return MustCarry {
+                    first: Some(first),
+                    verdict: MustCarryVerdict::InBand(source),
+                };
+            }
+        }
+    }
+    MustCarry {
+        first,
+        verdict: MustCarryVerdict::JetDeterminate,
+    }
+}
+
+/// [`must_carry_over_edge`]'s answer: the verdict, and the reading the
+/// first station was taken from.
+#[derive(Clone, Copy, Debug)]
+pub struct MustCarry<T: Real> {
+    /// The FIRST interior station's [`SecondOrder`] — the jet and the
+    /// folded lever arm the verdict was read from, kept because a
+    /// caller that folds this into a longer walk needs the same
+    /// numbers a line later and computing them twice is how two
+    /// spellings start. `None` exactly when the pair is outside the
+    /// certificate's lane and nothing was metered.
+    pub first: Option<SecondOrder<T>>,
+    /// What the edge must carry.
+    pub verdict: MustCarryVerdict,
+}
+
+/// [`must_carry_over_edge`]'s three-way verdict.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MustCarryVerdict {
+    /// Every interior station of the certification schedule read a
+    /// definitely-positive second-order separation: the intrinsic
+    /// description is demanded.
+    JetDeterminate,
+    /// The conventional description is the honest one — the pair is
+    /// outside [`crate::tangent_certificate_lane`], or a station's
+    /// second-order separation was definitely `Zero`/`Negative` (a G2
+    /// join, a same-surface split, coplanar planes).
+    UnderDetermined,
+    /// A station was in-band: near-osculating geometry, certifiable as
+    /// neither, carrying that station's escalation for the caller to
+    /// refuse typed.
+    InBand(Indeterminate),
 }
 
 /// **The material wedge** an edge's two faces subtend at a sample —

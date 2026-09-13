@@ -1,9 +1,10 @@
 ---
 id: smooth-arm-siblings-disagree-on-the-in-band-case
-kind: issue
+kind: unit
 title: sweep: the two must-carry Smooth arms disagree on the in-band case and on how much of the edge they read
-status: open
+status: dispatched
 opened: 2026-09-05
+branch: blend/9-must-carry-one-home
 ---
 
 
