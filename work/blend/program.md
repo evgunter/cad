@@ -15,8 +15,8 @@ keep_out: [crates/sweep/src/loft.rs is S-BOOL's — the twin sentence in sweep-t
 FILLET's residue, re-homed at its sweep (DOC-LEDGER sweep 7) to
 `work/issues/` as "the next blend program's opening slate" — this is
 that program. The closed-rim reach the surgery still refuses (the
-ringed host, the nested trim circle), the ladder phase's unmeasured
-orientation, the two must-carry arms that disagree, the recourse
+ringed host, the nested trim circle), the ladder phase's fresh-key
+retirement (called unmeasured; unit 8 found it live), the two must-carry arms that disagree, the recourse
 table's honesty at three doors, and the profile fillet door's
 disagreements with its own validator. Class H at its core with E
 openers; one `[ev]` question (the K floor). Claims code-quality Track

@@ -14,8 +14,12 @@
 //! every door mints both: a boolean pip cut into a slab's top runs
 //! rim-to-pole and one cut into its underside runs pole-to-rim
 //! (`review_ladder_split_key_r2_probes::r2_a_pip_cut_from_below_runs_pole_to_rim_through_the_boolean_door`),
-//! a revolve's pole-touching cap seam runs pole-to-rim while the `slab ∪
-//! ball` boss's runs rim-to-pole, and the extruded two-arc rims are
+//! a revolve's pole-touching cap seam runs pole-to-rim and so does the
+//! `slab ∪ ball` boss's surviving union piece
+//! (`review_ladder_split_key_r2_probes::r2_the_h4_boss_and_pip_are_naming_total`
+//! — every revolve or union boss in this tree that reaches the ladder
+//! runs pole-to-rim; the boolean pip's two sides are the one door here
+//! that shows both orientations), and the extruded two-arc rims are
 //! minted fresh-key through the extrude door
 //! (`review_ladder_split_key_r2_probes::r2_the_extruded_two_arc_ladders_are_naming_total_whichever_way_their_seams_run`).
 //!

@@ -1093,3 +1093,18 @@ the K-conditional algebra; "toward half its radius of curvature"
 unreachable on a plane–sphere rim. Fix pass dispatched on the union
 (`/home/user/blend-briefs/fix-14-brief.md`); both probe branches
 adopted; delta by R1.
+
+**MERGED — unit 8 (2026-09-13)** on PR [#2505](https://github.com/evgunter/cad/pull/2505):
+the ladder rim phase never pushes a fresh split key as a retirement;
+the item closed. The spec's premise was overturned in Phase 1 (the
+retirement was live on 14 shipped rows, not unmeasured) and its door
+(b) is unreachable. Dual: bilateral headline at differing severity
+(the stale mutant table; the annulus's second spelling), no tally
+candidate; the fix pass re-took the table and the counts, measured the
+annulus and filed it, completed the postcondition, withdrew the door →
+direction rule, and filed the `topo` pin and the emitter residue.
+Delta by R1 on the fixed head: all seven items CONFIRMED by execution — both mutants exact (21 red, twenty at the postcondition and one relaying it, no other site, the totality string unreachable; 45 red at the carve with 0 postcondition firings); the annulus reading re-taken at the refresh call site over 735 crossings: the live seam key moves off the plan's 38 times (28 mate, 10 host — the lane counted 37) and is call-minted every time, the residue states both fix shapes and `split_fragment`'s live-key fallback is real (the annulus records a piece in `rec.slits`); the corrected door rule checked against the pinned orientations; the "0 in 346" argument holds (the ruled band takes the arm 20 in 112); bit-dump byte-identical over 14 files and the delta exact (648 at head, 31 moved, every one `dead.edges` losing keys, 0 vanished) though the lane's base-side totals (640 / 630) did not reproduce against R1's 634 — the constrained quantity reproduces, the totals are noted; 1378 passed / 0 failed / 8 ignored; fmt clean. One NEW MINOR the fix introduced: the corrected door paragraph called the `slab ∪ ball` boss's seam rim-to-pole in three places while the row it cites (and the census, and the mutant) show it pole-to-rim — corrected in the state-sync commit (suite module doc, item, PR body); the revolve half of "every door mints both" has no example in this tree, the boolean pip's two sides carry the claim. Verdict MERGEABLE.
+Sample #185 (main's order rules). The orchestrator's plan and
+program lines that still said "unmeasured" are corrected in this
+commit. Block BLEND-B2's last slot; its CONCLUDED record folds into
+main from `blend/b2-block`.

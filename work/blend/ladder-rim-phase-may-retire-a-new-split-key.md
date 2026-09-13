@@ -2,7 +2,8 @@
 id: ladder-rim-phase-may-retire-a-new-split-key
 kind: unit
 title: blend: the ladder rim phase can push a fresh split key as a retirement
-status: review
+status: closed
+closed: 2026-09-13
 opened: 2026-09-05
 branch: blend/8-ladder-split-key
 pr: 2505
@@ -51,9 +52,12 @@ of its own data ("a revolve seam runs pole-to-rim, a boolean pip seam
 rim-to-pole") is false, and the review measured it false. What decides it
 is which end of the seam's own STORED direction the rim vertex sits at,
 and each door mints both: a boolean pip cut into a slab's underside runs
-pole-to-rim while one cut into its top runs rim-to-pole, the `slab ∪
-ball` boss's revolve-minted seam runs rim-to-pole, and the extruded
-two-arc rims are fresh-key through the extrude door the census never
+pole-to-rim while one cut into its top runs rim-to-pole — the one door
+in this tree that shows both orientations; the `slab ∪ ball` boss's
+surviving union piece runs pole-to-rim like every revolve or union boss
+that reaches the ladder (the review's delta caught this sentence saying
+rim-to-pole against the row it cites) — and the extruded two-arc rims
+are fresh-key through the extrude door the census never
 named. The rows that pin those are
 `review_ladder_split_key_r1_probes::r1_a_pip_and_a_boss_on_the_slabs_underside_carve_naming_total`
 and `review_ladder_split_key_r2_probes`' six.
@@ -109,3 +113,19 @@ postcondition over both `Retired` arenas.
   with the shared-wall refresh measurement behind it.
 - Two residues elsewhere: `topo`'s `split-edges-key-retention-direction-is-pinned-by-no-row`
   and `work/issues/emit-blend-cannot-observe-a-retirement-naming-a-minted-key`.
+
+## Closed (2026-09-13, PR 2505)
+
+The split's provenance has one home (`split_fragment`, asking the live
+body which piece kept the source key) and the surgery's retirements
+are guarded by a debug postcondition over edges and vertices. The
+premise was wrong the useful way: the retirement was live on 14 shipped
+rows, not unmeasured, and the fix makes them naming-total with every
+carve bit-identical. The door → direction rule first committed here was
+withdrawn by measurement — what decides the orientation is which end of
+the seam's stored direction the rim vertex sits at (346 ladder meridian
+splits and 112 cap-rim splits over 153 carves on 25 rows). Residues on the
+slate from this unit: the annulus's second spelling of the split half
+(measured, filed with both fix shapes); `topo`'s retention direction
+pinned by no row (TOPO's slate); `emit_blend` unable to observe a
+minted-key retirement (`work/issues/`, for EVAL).
