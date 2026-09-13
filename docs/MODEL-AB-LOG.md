@@ -5734,3 +5734,23 @@ dual concludes. Shared-box note applying to BOTH arms equally: one
 4-core cloud box beside one other lane (block slot 0's implementer),
 `-j2`; R1's target is the implementer's warm one, R2's is seeded from
 an older warm build — wall-clock asymmetry only.
+
+Ring-nesting review ordinal fixed at dispatch (2026-09-13, PR #2529
+open — frozen head `a8703bdc9`; unit
+`work/topo/tier3-accepts-a-ring-outside-its-outer-loop`, SHELL-5's
+placement): **ordinal 2704** (TOPO band). Pre-draw fields (logged in
+`work/topo/log.md` at `41edc9d2a` BEFORE block TOPO-B2 was drawn —
+clean): difficulty **M**, task class **STRUCTURAL-GEOMETRIC**.
+Implementer arm per block TOPO-B2 slot 0 (record branch-side on
+`topo/b2-block`). Protocol v6 dual: draw = `/dev/urandom` byte **0**,
+parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either
+review runs: CONCURRENT same-head on frozen `a8703bdc9`, both briefs
+authored and STORED with sha256 before either dispatches (identical
+text modulo lane name, target and scratch paths, verified by diff;
+stored at the unit's delivery, dispatched after the split-edge pair
+freed the box), neither reviewer sees the other's report, v6 item 5
+isolation in both briefs; the implementer's unit log entry is not
+written until the dual concludes. Shared-box note applying to BOTH
+arms equally: one 4-core cloud box beside one other lane (the
+split-edge fix pass), `-j2`; R1's target is the implementer's warm one,
+R2's is seeded from an older warm build — wall-clock asymmetry only.
