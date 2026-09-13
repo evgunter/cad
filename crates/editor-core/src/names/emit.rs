@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{BandError, Indeterminate};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SplitLineageCycle, VertexKey};
 
 use super::role::{EntityKind, StableName};
 use super::table::{DuplicateName, EntityKey, EntityRef, NameTable};
@@ -55,6 +55,27 @@ pub enum NamingError {
         /// What was inconsistent.
         what: &'static str,
     },
+    /// An edge's split lineage cycles, caught where an emitter chased
+    /// it to its root — the same category of kernel bug as
+    /// [`Self::Emission`], carrying the one thing the repair needs
+    /// that a sentence cannot supply: WHICH edge.
+    ///
+    /// **Unguardable from this crate, and here is why.** A cycling
+    /// lineage is real — `topo::props`' carrier-identity fold
+    /// documents it as what a graft aliases, because the graft copies
+    /// `SplitEdge` records with their SOURCE keys and they chain into
+    /// strangers in the destination, and
+    /// `work/bool/graft-copies-provenance-keys-verbatim.md` records
+    /// `Body::split_root`'s cycle arm firing on real assembly
+    /// products. What has no constructed case is this refusal's own
+    /// chase: `emit_topo`'s stops at the first key the operand's table
+    /// names, where `props`' passes a `stop` that never stops, so a
+    /// budget the unbounded walk spends the bounded one may not. No
+    /// row here evaluates a cycling body; the rows below pin the
+    /// locator's route from the caught record to the human, and the
+    /// reachability of the raise itself is **untested rather than
+    /// proven absent**.
+    SplitLineage(SplitLineageCycle),
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -77,6 +98,13 @@ pub enum NamingError {
         source: Indeterminate,
     },
 }
+
+/// **The one sentence every emission-inconsistency refusal opens
+/// with**, written once. Two variants speak it — [`NamingError::Emission`]
+/// with a fact, [`NamingError::SplitLineage`] with the record it caught
+/// — and a reworded copy would let two refusals of one category read as
+/// two categories.
+const EMISSION_FRAMING: &str = "a mint-time emission fact was inconsistent with the result body";
 
 // #380: the refusal must NAME its subject. Every variant above is
 // diagnosed precisely at the emitter — which name collided, which
@@ -113,10 +141,10 @@ impl core::fmt::Display for NamingError {
                 "the name table of upstream node {} lacks an entity the emission needed",
                 node.0
             ),
-            Self::Emission { what } => write!(
-                f,
-                "a mint-time emission fact was inconsistent with the result body: {what}"
-            ),
+            Self::Emission { what } => write!(f, "{EMISSION_FRAMING}: {what}"),
+            // The category IS an emission inconsistency, so the framing
+            // is the same one; what the caught record adds is the locator.
+            Self::SplitLineage(cycle) => write!(f, "{EMISSION_FRAMING}: {cycle}"),
             Self::Band(error) => write!(
                 f,
                 "the N2 classification band could not be built from the ambient tolerance, so \
@@ -136,6 +164,15 @@ impl core::fmt::Display for NamingError {
 impl From<BandError> for NamingError {
     fn from(e: BandError) -> Self {
         Self::Band(e)
+    }
+}
+
+// `body.split_root(..)?` rather than a closure at the chase site: a
+// `map_err` closure is one keystroke from `map_err(|_| ..)`, and the
+// `EdgeKey` this carries is the only locator a cycling lineage has.
+impl From<SplitLineageCycle> for NamingError {
+    fn from(e: SplitLineageCycle) -> Self {
+        Self::SplitLineage(e)
     }
 }
 
@@ -888,7 +925,91 @@ mod display_tests {
         }
     }
 
+    /// **Two distinct edge keys, out of a real arena.** `EdgeKey` is a
+    /// slotmap key and nothing in this crate mints one by hand, so the
+    /// arena is the only source; nothing below depends on their VALUES,
+    /// only on their being distinct and rendering distinctly.
+    fn two_edges() -> (EdgeKey, EdgeKey) {
+        // Two solids in ONE arena: keys are per-body, so two bodies
+        // would hand out the same index twice.
+        let mut body = topo::Body::<f64>::new();
+        let mut mint = |x: f64| {
+            let born = body
+                .mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                .expect("mvfs births a solid, shell, face and lone vertex");
+            body.mev_line(
+                topo::MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                geom_core::Point3::new(x + 1.0, 0.0, 0.0),
+                geom_core::Tol::witness(),
+            )
+            .expect("mev on an empty loop grows it by one edge")
+            .edge
+        };
+        let (a, b) = (mint(0.0), mint(10.0));
+        assert_ne!(a, b, "two DISTINCT keys, or the rows below prove nothing");
+        (a, b)
+    }
+
+    /// **The cycling edge survives the conversion and the node
+    /// boundary — and it is THIS edge, not a constant.** The node-level
+    /// prose is the only route by which an emitter refusal reaches a
+    /// human (Python's typed exception message is exactly this string),
+    /// so the locator is pinned there rather than at `NamingError`'s own
+    /// `Display`. Two different keys must give two different sentences:
+    /// a refusal that reads the same for both has no locator, which is
+    /// the defect `map_err(|_| ..)` used to have here.
+    #[test]
+    fn the_cycling_edge_reaches_the_node_level_prose() {
+        let (a, b) = two_edges();
+        let carried =
+            |edge| NodeErrorKind::Naming(NamingError::from(SplitLineageCycle { edge })).to_string();
+
+        let sa = carried(a);
+        assert!(
+            sa.contains(&format!("{a:?}")),
+            "the cycling edge is the only locator this failure has: {sa}"
+        );
+        let sb = carried(b);
+        assert!(sb.contains(&format!("{b:?}")), "{sb}");
+        assert_ne!(
+            sa, sb,
+            "a refusal that reads the same for two edges has no locator"
+        );
+        assert!(
+            !sa.contains(&format!("{b:?}")),
+            "the refusal names the edge it caught, not another: {sa}"
+        );
+
+        // The category stays honest: a corrupt birth record IS an
+        // emission inconsistency, so the framing sentence is the one
+        // `Emission` speaks and the node boundary's own word survives it.
+        assert!(sa.contains(EMISSION_FRAMING), "category kept: {sa}");
+        assert!(
+            sa.contains("name emission failed"),
+            "node category kept: {sa}"
+        );
+
+        // `crate::py::typed_err` (pncad-py) asserts `reads_as_prose` on
+        // every raise, live under release, and its fingerprint is the
+        // field brace. A payload rendered through a derived `Debug` is
+        // how that assertion gets broken, and this refusal carries one.
+        for s in [&sa, &sb] {
+            assert!(
+                !s.contains(" { "),
+                "a braced payload panics the Python binding at the arm \
+                 meant to refuse gracefully: {s}"
+            );
+        }
+    }
+
     /// Every variant names WHICH entity/node/fact it refused on.
+    ///
+    /// **The enumeration is the compiler's claim, not prose**: the
+    /// `sampled` match below is exhaustive, so a new variant has no arm
+    /// until someone writes one, and the arm names the row that samples
+    /// it, so a row that goes missing reds the set comparison.
     #[test]
     fn every_variant_names_its_subject() {
         let name = StableName {
@@ -933,7 +1054,42 @@ mod display_tests {
                 },
                 vec!["side_of_plane"],
             ),
+            (
+                NamingError::SplitLineage(SplitLineageCycle {
+                    edge: two_edges().0,
+                }),
+                vec!["split lineage of edge"],
+            ),
+            (
+                // The band's subject is the pair of thresholds that
+                // could not separate: which end of the axis the ambient
+                // tolerance landed on is what tells the reader whether
+                // to raise eps or lower K.
+                NamingError::Band(BandError::Empty {
+                    zero: 5e-324,
+                    escalate: 5e-324,
+                }),
+                vec!["5e-324"],
+            ),
         ];
+        let sampled = |err: &NamingError| -> usize {
+            match err {
+                NamingError::Duplicate { .. } => 0,
+                NamingError::Unnamed { .. } => 1,
+                NamingError::MissingUpstream { .. } => 2,
+                NamingError::Emission { .. } => 3,
+                NamingError::Escalated { .. } => 4,
+                NamingError::SplitLineage(_) => 5,
+                NamingError::Band(_) => 6,
+            }
+        };
+        let covered: std::collections::BTreeSet<usize> =
+            rows.iter().map(|(e, _)| sampled(e)).collect();
+        assert_eq!(
+            covered,
+            (0..rows.len()).collect::<std::collections::BTreeSet<_>>(),
+            "a variant lost its row, so \"every variant\" is prose again"
+        );
         for (err, wanted) in rows {
             let shown = err.to_string();
             for w in wanted {
