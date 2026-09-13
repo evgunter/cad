@@ -101,3 +101,29 @@ table lists. Neither site is one. **Two unratified conventions point
 opposite ways at the same altitude with neither aware of the other**, and
 whoever takes this row decides it as ordinary engineering, ratifying the
 answer afterwards if it turns out to be worth binding.
+
+
+## `Mat3::map` is now consumerless, not "consumed by a dead door" (2026-09-12)
+
+The prediction in the leaf-`map` list above has fired. WIRE's
+`linear-door` lane deleted `Frame::linear<T>` from
+`crates/editor-core/src/placement.rs` — the door that was `Mat3::map`'s
+**only** consumer workspace-wide — so as of that lane's merge base plus
+its diff, `Mat3::map` (`crates/geom-core/src/linalg/mat.rs`) has **zero**
+call sites anywhere: no `src/`, no `tests/`, and no hit in the four roots
+`--workspace` excludes (`demos/`, `tools/`, `benches/`,
+`interval-transcendentals/`).
+
+That moves it out of the leaf list's middle case and into `Vec2::map`'s:
+two of the six leaf `map` doors the convention names now have no consumer
+at all, and `Vec3::map`'s fifteen are all inside the dead `Curve3`/
+`Surface` ladder. The decision this row asks for is unchanged in shape —
+it is just one door more expensive to answer with "the convention owes
+the door".
+
+**`Mat3::map` was deliberately NOT deleted** by the lane that orphaned
+it. `crates/geom-core/` is PROPS's fence, and the disposition is the
+convention question this row owns, not a second delete taken by a lane
+passing through. Recorded here rather than as a new row because this row
+is already the right subject: the evidence is a line in its own leaf
+table, not a new finding.

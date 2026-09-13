@@ -78,8 +78,8 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// do not restate it.
 ///
 /// A frame's stored coordinates are CARRIED, never recomputed: reading
-/// one back at any scalar ([`Frame::linear`], [`Frame::affine`]) is a
-/// structural map through [`Real::from_f64`], so it is exact wherever
+/// them back at any scalar ([`Frame::affine`]) is a structural map
+/// through [`Real::from_f64`], so it is exact wherever
 /// that conversion is and the identity at `f64`. Where a door does
 /// arithmetic the claim is weaker, deliberately — D9-deterministic, not
 /// exact: [`Mat3::determinant`]'s fixed evaluation order for the sign,
@@ -269,13 +269,6 @@ impl Frame {
         )
     }
 
-    /// The linear part, in the backend scalar: the stored matrix
-    /// through [`Mat3::map`] ([`Frame`]'s exactness rule).
-    #[must_use]
-    pub fn linear<T: Real>(&self) -> Mat3<T> {
-        self.linear_f64().map(T::from_f64)
-    }
-
     /// The affine map this frame denotes, in the backend scalar — what
     /// the kernel's placement door consumes: the stored map through
     /// [`Affine3::map`] ([`Frame`]'s exactness rule).
@@ -420,7 +413,7 @@ mod tests {
     }
 
     /// Keeps the CARRIED-not-recomputed claim: a read-back at `f64`
-    /// moves no bits, through either door.
+    /// moves no bits.
     #[test]
     fn affine_at_f64_carries_the_stored_bits() {
         for f in [sample(), bit_zoo()] {
@@ -442,17 +435,6 @@ mod tests {
                 .enumerate()
             {
                 assert_eq!(x.to_bits(), f.translation[i].to_bits(), "translation {i}");
-            }
-            let l = f.linear::<f64>();
-            for (m, n) in [
-                (a.linear.c0, l.c0),
-                (a.linear.c1, l.c1),
-                (a.linear.c2, l.c2),
-            ] {
-                assert_eq!(
-                    [m.x.to_bits(), m.y.to_bits(), m.z.to_bits()],
-                    [n.x.to_bits(), n.y.to_bits(), n.z.to_bits()],
-                );
             }
         }
     }

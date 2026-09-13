@@ -1,7 +1,7 @@
 ---
 id: frame-linear-generic-door-has-no-consumers
 kind: issue
-title: A CLASS - public generic doors with zero production call sites, kept alive by their own tests: Frame::linear<T> (PR 2375) and both profile map_scalar rungs (PR 2409)
+title: A CLASS - public generic doors with zero production call sites, kept alive by their own tests: Frame::linear<T> is DELETED; the two profile map_scalar rungs (PR 2409) are the half still open
 status: open
 opened: 2026-09-11
 refs: [2375, 2409]
@@ -262,3 +262,43 @@ removal's blast radius is reviewed on its own terms, including the
 finding it exports to PROPS that `Mat3::map` is then consumerless. This
 row stays `open` until that unit lands; PR 2475 measured and recommended
 and removed nothing.
+
+
+## Half disposed (2026-09-12) — `Frame::linear<T>` deleted
+
+**This row stays `open`.** It is a CLASS with two instances and this
+unit disposes of one; closing it here would label a half-fix as a fix.
+
+**Instance 1 — `Frame::linear<T>` (`crates/editor-core/src/placement.rs`): DONE.**
+Deleted, on the recommendation this row already carries and the review
+that re-took it independently. What went with it: the sole caller, the
+`let l = f.linear::<f64>()` cross-check block inside
+`affine_at_f64_carries_the_stored_bits`. The test itself STAYS — its
+subject is `Frame::affine`, and only the half that read the deleted door
+was removed. The `# Exactness` section's cross-reference (it named both
+`Frame::linear` and `Frame::affine` as the read-back doors) now names
+`Frame::affine` alone; a pointer at a deleted door is worse than none.
+`linear_f64` stays, private, as `determinant` and `affine_f64` need it.
+
+There is no assertion to add for this. The deletion's guard is the
+compiler — a caller anywhere in the workspace is now a build error —
+plus `pncad`'s `every_document_layer_root_export_is_carried_or_listed`
+and `pncad-py`'s `test_every_curated_name_is_bound_or_listed` over the
+public surface. A test asserting that a deleted function is absent is
+documentation, and `docs/prompts/implementer-discipline.md` §2 says
+deleting it is the repair.
+
+**Instance 2 — `profile`'s two `map_scalar` rungs (`crates/profile/src/lib.rs`):
+STILL OPEN, and untouched by this unit.** `crates/profile/` is not
+WIRE's fence. Its disposition is the one this row's own adjudication
+says differs: those rungs were MINTED to `crates/geom/src/scalar_lift.rs`'s
+written convention rather than having LOST their consumers, so the
+argument that decides them is the convention's, filed on PROPS's slate
+as `work/props/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`.
+
+**What the delete exported**, as this row's own counterargument
+predicted: `Mat3::map` (`crates/geom-core/src/linalg/mat.rs`) had exactly
+one consumer workspace-wide, `Frame::linear`'s body, and now has none.
+That is `geom-core`, PROPS's ground, not WIRE's — recorded on the PROPS
+row above rather than opened as a second one. `Mat3::map` was NOT
+deleted here.
