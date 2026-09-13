@@ -681,3 +681,19 @@ counted tally candidates; its branch-side record folds into main.
 Residues on the slate from this unit:
 `blend-contact-edges-mint-the-intrinsic-description-without-the-rule`,
 `cap-rim-smooth-arm-decides-by-argument-not-by-the-rule`.
+Delta (R1, on `3996ee8c`): all seven items CONFIRMED by execution —
+both probe merges in the ancestry with the eight rows green at the
+default ε and at 1e-12 through the verdict-only return; the midpoint
+mutant red on exactly R1's two station rows; the contact-edge
+measurement reproduced (minima matching on both bodies) with two
+corrections folded into the state-sync commit: the cube carries 48
+intrinsic edges, not 40, and the collapse clause names a band
+osculating a support of its own convexity (the difference branch),
+not "a concave band"; the lane row's reach stated as its doc claims;
+the eight record items; the `strut_carrier` hoist read as the whole
+`extrude.rs` diff; the BOOL residue's citations resolving. The
+receipt disposition of the unilateral MAJOR judged complete. Three
+doc survivors folded too: R2's adopted row doc still named the
+dropped `first`; the lane row's message printed one surface kind
+twice; the K row's doc said "spends ONE" where the table says "the
+deciding station's index".

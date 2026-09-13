@@ -304,8 +304,8 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
 /// walk must answer for every triple it is handed. A sphere and a
 /// cylinder read along a circle that is coaxial with neither gives
 /// stations that disagree, and the row pins what the walk then does —
-/// the first non-`Positive` station decides, and the reading returned
-/// beside the verdict is the FIRST station's, not that one's.
+/// the first non-`Positive` station decides, and the verdict carries
+/// THAT station's reading (nothing of the first station's is returned).
 #[test]
 fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() {
     let (s1, s2, carrier, t0, t1, extent) = varying_triple();

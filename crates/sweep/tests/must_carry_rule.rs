@@ -457,8 +457,7 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
             assert!(
                 geom_brep::tangent_certificate_lane(c.carrier(), &a, &b),
                 "{name}: edge {k:?} presents the rule a triple the certificate's lane \
-                 refuses — carrier {:?} over {:?} / {:?}",
-                SurfaceKind::of(&a),
+                 refuses — surfaces {:?} / {:?}",
                 SurfaceKind::of(&a),
                 SurfaceKind::of(&b)
             );
@@ -477,8 +476,9 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
 /// **What the rule itself costs the K stream**, isolated from every
 /// other site that meters the same predicate: a jet-determinate pair
 /// spends `CERT_SAMPLES − 2` samples of `tangent_second_order`, an
-/// under-determined one spends ONE (the walk exits at the station that
-/// decides), and an out-of-lane one spends none (the gate answers
+/// under-determined one spends the deciding station's index — one here,
+/// where the first station decides (the walk exits there) — and an
+/// out-of-lane one spends none (the gate answers
 /// before any station is read).
 #[cfg(feature = "probe")]
 #[test]
