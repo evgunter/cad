@@ -445,3 +445,18 @@ between classified constructions is `crates/profile/src/path/arc_fillet.rs::map_
 arm collects every corner-side overrun at the scalar in enumeration
 order, the door picks the least deficit by an enclosure read. Still
 inside `crates/profile/*`, still by this seam.
+
+**Seam announced by BLEND (2026-09-13, at unit 12's dispatch):** BLEND
+unit 12 (`docs/BLEND-12-SPEC.md`, item
+`fillet-escalation-site-has-no-producer`) edits the profile fillet
+door's refusal rendering inside S-BOOL's glob `crates/profile/*`, by
+announced seam: `PathError::Escalated`'s Display gains a fillet arm
+keyed on the nine `fillet_*` predicate names through ONE map in
+`validate.rs` (`fillet_recourse_for`), and the producerless
+`ProfileError::Escalated { site: EscalationSite::Fillet }` arm (and the
+variant, if Phase 1 confirms no producer) is retired; edits confined to
+`crates/profile/src/{validate.rs, path.rs, lib.rs}` and
+`crates/profile/tests/**` (the FFI tag census only if a `PathError`
+shape moves). Branch `blend/12-fillet-recourse-arm`. Unit 15
+(`docs/BLEND-15-SPEC.md`) follows it on the same files and will be
+announced at its own dispatch.
