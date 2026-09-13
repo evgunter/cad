@@ -712,6 +712,34 @@ concurrently on the frozen head** — byte 214 ⇒ R1 = OPUS, R2 = FABLE;
 briefs stored with digests on `blend/b2-block` before either ran; the
 re-scope and the deviations stated in both briefs as hypotheses. The
 unit's log entry waits for the dual.
+**MERGED — unit 9 (2026-09-13)** on PR [#2491](https://github.com/evgunter/cad/pull/2491):
+the must-carry rule's in-band policy has one home; revolve's silent
+fold gone; the item closed. Dual: one unilateral MAJOR (R2's receipt
+finding), recorded and excluded from the tally under 3(d); the fix
+pass measured the site (Positive at every station on the corpus) and
+filed it; everything else converged and taken. Delta by R1 on the
+fixed head: recorded below. Sample #181 (PERF-12 took #180 on main first). **Block
+BLEND-B1 concludes with this merge**: three slots, three duals, zero
+counted tally candidates; its branch-side record folds into main.
+Residues on the slate from this unit:
+`blend-contact-edges-mint-the-intrinsic-description-without-the-rule`,
+`cap-rim-smooth-arm-decides-by-argument-not-by-the-rule`.
+Delta (R1, on `3996ee8c`): all seven items CONFIRMED by execution —
+both probe merges in the ancestry with the eight rows green at the
+default ε and at 1e-12 through the verdict-only return; the midpoint
+mutant red on exactly R1's two station rows; the contact-edge
+measurement reproduced (minima matching on both bodies) with two
+corrections folded into the state-sync commit: the cube carries 48
+intrinsic edges, not 40, and the collapse clause names a band
+osculating a support of its own convexity (the difference branch),
+not "a concave band"; the lane row's reach stated as its doc claims;
+the eight record items; the `strut_carrier` hoist read as the whole
+`extrude.rs` diff; the BOOL residue's citations resolving. The
+receipt disposition of the unilateral MAJOR judged complete. Three
+doc survivors folded too: R2's adopted row doc still named the
+dropped `first`; the lane row's message printed one surface kind
+twice; the K row's doc said "spends ONE" where the table says "the
+deciding station's index".
 
 **Unit 11's dual concluded (2026-09-13, ~06:50 UTC):** R1 (OPUS)
 MERGEABLE-AFTER-FIXES 2/6/3, rubric 3/3/2; R2 (FABLE)
