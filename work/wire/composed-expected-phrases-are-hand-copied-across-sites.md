@@ -2,10 +2,11 @@
 id: composed-expected-phrases-are-hand-copied-across-sites
 kind: issue
 title: The composed expected: phrases PR 2376 licensed to stay prose are themselves hand-copied: datum frame three times, datum axis three, datum plane twice
-status: dispatched
+status: closed
 opened: 2026-09-11
 refs: [2376]
-branch: wire/operand-door
+pr: 2480
+closed: 2026-09-13
 ---
 
 
@@ -63,3 +64,35 @@ with no dependency (`unsure` whether it is an improvement).
 Read beside `frame-plane-lane-and-axis-frame-are-one-door`: two of
 `"datum frame"`'s three copies are that one duplicated door, so unifying
 it retires them as a side effect.
+
+
+## Closed 2026-09-13 (PR 2480)
+
+**The licensing rule was written, and it covers all three cases the row
+said it had to.** An `expected:` comes from a const — `family` when it
+is exactly a value family, `phrase` otherwise — and no `expected:` is a
+literal at a call site. Narrower-than-a-family, wider-than-one
+(`"body or instances"`) and the whole-sentence case are all inside it,
+because the rule is about where the word lives rather than about what
+shape the phrase has.
+
+Implemented with the reviewer's own unruled suggestion: a
+`macro_rules!` per family word, with `family`'s consts defined **from**
+it and `phrase`'s composed by `concat!` at compile time. One literal per
+word, no new public name.
+
+**And the rule is guarded**, which is the part that took two review
+rounds. The first cut stated it in prose with nothing behind it; the
+delta round then broke the first guard by hoisting a const to a call
+site, which is the exact move the same commit had made three times.
+The census now asserts the rule it states rather than a proxy for it,
+and the reviewer's breaking mutation is the first row of its mutant
+table.
+
+**One residue, filed rather than disclosed**: four direction role words
+respell a phrase const instead of composing it, because `concat!` takes
+literals and a `const` is not one, so composition needs the macro layer
+extended from words to phrases —
+`work/wire/direction-role-words-respell-the-operand-phrases.md`. The
+sweep was attempted and failed to compile; the three that were literals
+at call sites are named consts now.

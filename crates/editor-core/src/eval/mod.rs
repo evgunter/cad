@@ -439,22 +439,143 @@ pub enum ValuePayload<T: Decide> {
     Assertion(crate::measure::AssertionVerdict<T>),
 }
 
+/// **One family word, as a literal** — so [`concat!`] can compose a
+/// phrase out of it at compile time, which a `const` cannot be fed
+/// to. [`family`]'s consts are defined FROM this macro and
+/// [`phrase`]'s are composed from it, so each word is spelled once in
+/// the tree and a composed phrase cannot drift from the `found:` word
+/// that answers beside it.
+// OPERAND-VOCABULARY BEGIN — the region
+// `every_family_word_has_exactly_one_const` reads. An arm with no
+// const, or a const with no arm, reds that row.
+macro_rules! family_word {
+    (datum) => {
+        "datum"
+    };
+    (profile) => {
+        "profile"
+    };
+    (body) => {
+        "body"
+    };
+    (boolean) => {
+        "boolean"
+    };
+    (split) => {
+        "split"
+    };
+    (instances) => {
+        "instances"
+    };
+    (declarations) => {
+        "declarations"
+    };
+    (mate) => {
+        "mate"
+    };
+    (measure) => {
+        "measure"
+    };
+    (assertion) => {
+        "assertion"
+    };
+}
+
 /// **The family words** — the vocabulary a typed operand mismatch
 /// speaks ([`NodeErrorKind::WrongOperand`]'s `found` and `expected`),
 /// written once. [`ValuePayload::kind_name`] says them over a value,
-/// [`node_value_kind`] over a node, and `eval::wire`'s operand doors
-/// say them in the refusals they build.
+/// [`node_value_kind`] over a node, and `eval::wire`'s operand door
+/// says them in the refusals it builds.
 pub(crate) mod family {
-    pub(crate) const DATUM: &str = "datum";
-    pub(crate) const PROFILE: &str = "profile";
-    pub(crate) const BODY: &str = "body";
-    pub(crate) const BOOLEAN: &str = "boolean";
-    pub(crate) const SPLIT: &str = "split";
-    pub(crate) const INSTANCES: &str = "instances";
-    pub(crate) const DECLARATIONS: &str = "declarations";
-    pub(crate) const MATE: &str = "mate";
-    pub(crate) const MEASURE: &str = "measure";
-    pub(crate) const ASSERTION: &str = "assertion";
+    pub(crate) const DATUM: &str = family_word!(datum);
+    pub(crate) const PROFILE: &str = family_word!(profile);
+    pub(crate) const BODY: &str = family_word!(body);
+    pub(crate) const BOOLEAN: &str = family_word!(boolean);
+    pub(crate) const SPLIT: &str = family_word!(split);
+    pub(crate) const INSTANCES: &str = family_word!(instances);
+    pub(crate) const DECLARATIONS: &str = family_word!(declarations);
+    pub(crate) const MATE: &str = family_word!(mate);
+    pub(crate) const MEASURE: &str = family_word!(measure);
+    pub(crate) const ASSERTION: &str = family_word!(assertion);
+}
+// OPERAND-VOCABULARY END
+
+/// **The composed phrases** — every `expected:` a refusal names that is
+/// not exactly one family word.
+///
+/// # The rule
+///
+/// An `expected:` names what to author, and it comes from a const:
+/// [`family`] when it is exactly a value family, this module when it is
+/// anything else. **No `expected:` is a literal written at a call
+/// site.** The reason is not that two copies of a two-word phrase are
+/// expensive to keep in step — they are not — it is that the phrases a
+/// document author has to learn are then enumerable in one screen,
+/// instead of being the set you get by grepping every refusal that
+/// speaks one.
+///
+/// `found:` never appears here. The door computes it from the value it
+/// was handed ([`ValuePayload::kind_name`]) or from the node
+/// ([`node_value_kind`]), so no site can answer it with the negation of
+/// its own `expected:` and leave a reader told twice what the input is
+/// not and never what it is.
+///
+/// # The three shapes, and how each is composed
+///
+/// - **Narrower than a family** ([`phrase::DATUM_FRAME`], [`phrase::DATUM_AXIS`],
+///   [`phrase::DATUM_PLANE`]): a variant WITHIN a family. The family word is
+///   still in the phrase — and is exactly the word `found:` answers
+///   beside it — so it is composed from `family_word!` rather than
+///   respelled.
+/// - **Wider than a family** ([`phrase::BODY_OR_INSTANCES`]): two families and
+///   the conjunction between them, and nothing else; both words are
+///   composed.
+/// - **A whole sentence** ([`phrase::AXIS_IN_SKETCH_FRAME`]): a seat no family
+///   word names, so there is nothing to compose and the const is the
+///   literal. It is here for the rule above — one home per phrase —
+///   rather than for a vocabulary it shares.
+///
+/// # What this module is NOT, and where the neighbouring words live
+///
+/// The rule above governs `expected:` and nothing else. A second
+/// user-visible vocabulary sits beside it — the DIRECTION-ROLE words a
+/// [`NodeErrorKind::DegenerateDirection`] or
+/// [`NodeErrorKind::NonFiniteDirection`] refusal carries, which name the SLOT
+/// whose vector would not normalize rather than the kind an operand
+/// had to be. They keep their own home beside the arithmetic that
+/// raises them (`eval::wire`'s `*_ROLE` consts, `pub(crate)` because
+/// the mate solve re-derives the same refusals), and every one of them
+/// is a named const rather than a literal at its call site — that half
+/// of the rule they do follow.
+///
+/// **What they do NOT do is compose: they RESPELL.** Four of them open
+/// with a phrase declared here and write it out again as a literal —
+/// `"datum frame x axis"`, `"datum frame y axis"`, `"datum plane
+/// normal"`, `"datum axis direction"`. That is not a boundary and not
+/// a choice: `concat!` takes literals and a `const` is not one, so
+/// composing them needs this module's macro layer extended from the
+/// WORDS to the PHRASES, which is a design step rather than a rename.
+/// It is a residue, and it has a row —
+/// `work/wire/direction-role-words-respell-the-operand-phrases.md`.
+/// `TRANSFORM_AXIS_ROLE` and `PATTERN_DIRECTION_ROLE` share no family
+/// word with anything here, so they are not that row.
+pub(crate) mod phrase {
+    /// A frame datum: [`crate::node::Datum::Frame`] or
+    /// [`crate::node::Datum::FaceFrame`], the two nodes that carry a
+    /// [`super::DatumValue::Frame`].
+    pub(crate) const DATUM_FRAME: &str = concat!(family_word!(datum), " frame");
+    /// A 3-D axis datum ([`crate::node::Datum::Axis`]).
+    pub(crate) const DATUM_AXIS: &str = concat!(family_word!(datum), " axis");
+    /// A plane datum ([`crate::node::Datum::Plane`]).
+    pub(crate) const DATUM_PLANE: &str = concat!(family_word!(datum), " plane");
+    /// What a placer places: one body, or a list of placed ones.
+    pub(crate) const BODY_OR_INSTANCES: &str =
+        concat!(family_word!(body), " or ", family_word!(instances));
+    /// A revolve's axis seat. A 3-D [`crate::node::Datum::Axis`] lands
+    /// in this refusal, so the sentence has to say what to author
+    /// instead: the seat is not "an axis", it is an axis written in the
+    /// sketch the profile is drawn on.
+    pub(crate) const AXIS_IN_SKETCH_FRAME: &str = "an axis in a sketch frame (Datum::AxisInPlane)";
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -907,8 +1028,10 @@ pub enum NodeErrorKind {
     },
     /// A direction-valued vector decided to zero length. Which
     /// vectors those are is the ROLE constants' to say, not this
-    /// doc's: `wire`'s `DATUM_AXIS_ROLE`, `PATTERN_DIRECTION_ROLE` and
-    /// `TRANSFORM_AXIS_ROLE`, and `placement`'s `PLACEMENT_AXIS_ROLE`.
+    /// doc's — every `*_ROLE` const in `wire` and in `placement`, as a
+    /// CLASS rather than as a list, because a list here is a second
+    /// copy of a set those modules already hold and it went stale the
+    /// first time one of them was added.
     DegenerateDirection {
         /// Which vector, by role.
         role: &'static str,
@@ -4998,13 +5121,15 @@ mod tag_vocabulary_tests {
     #[test]
     fn node_kind_vocabulary_is_injective() {
         const SOURCE: &str = include_str!("mod.rs");
-        let region = SOURCE
-            .split_once("NODE-KIND-VOCABULARY BEGIN")
-            .expect("the tag match carries its opening sentinel")
-            .1
-            .split_once("NODE-KIND-VOCABULARY END")
-            .expect("the tag match carries its closing sentinel")
-            .0;
+        // The sentinel walk is `test_utils::source`'s, not this row's:
+        // three sites had written it themselves, and the third was
+        // nearly line-for-line the second.
+        let region = &SOURCE[test_utils::source::sentinel_region(
+            SOURCE,
+            "eval/mod.rs",
+            "NODE-KIND-VOCABULARY BEGIN",
+            "NODE-KIND-VOCABULARY END",
+        )];
         // Comments inside the region discuss tag numbers in prose ("24
         // is the chamfer's"), which are not arms — blanked through the
         // SHARED Rust reader rather than a `split("//")` this test rolled

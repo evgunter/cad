@@ -2,10 +2,11 @@
 id: the-is-this-a-frame-door-was-deleted-and-its-classification-dispersed
 kind: issue
 title: PR 2435 deleted frame_kind, whose doc said 'is this a frame' is answered once with one refusal vocabulary, and inlined the classification at three sites; the same value_of + payload-match + WrongOperand shape recurs over seven other kinds
-status: dispatched
+status: closed
 opened: 2026-09-12
 refs: [2435]
-branch: wire/operand-door
+pr: 2480
+closed: 2026-09-13
 ---
 
 
@@ -111,3 +112,28 @@ found: "datum" }` **about a node that is a frame**. `frame_placement` is
 the only mint, but only by convention. Reviewer: `sure` about the
 mechanism, `unsure` it is worth paying for — so it is recorded here
 rather than given a row.
+
+
+## Closed 2026-09-13 (PR 2480)
+
+"Is this a frame, and which kind" has a home again, and so does every
+other operand's kind check: **`WrongOperand` is constructed at exactly
+one site**, down from seventeen on the merge base. The door computes
+`found:` from the value it was handed, which is why the negation row
+closed as a consequence rather than as a text edit.
+
+**The frame trio is a half-fix and is labelled one.** `frame_plane_lane`
+and `axis_frame` collapse onto one `frame_value`; `profile_plane_f64`
+cannot join, because it tests the **`placement` carry** and the other two
+test the payload — verified on the head rather than inherited from this
+row. They share the door's refusal and phrase but not the read, and the
+review confirmed their admitted sets coincide today while nothing
+enforces it.
+
+**The class was swept past the three frame sites.** The row said "seven
+other kinds"; the count is **thirteen**, and the sweep's own blind spot
+— it keyed on `NodeErrorKind::WrongOperand` — hid four more same-shape
+sites in the same file, two of them the same five lines. Those are
+`work/wire/the-entity-kind-door-has-six-spellings.md`, filed rather than
+swept, because the shape recurs under six different field vocabularies
+and unifying them is a decision this unit did not own.

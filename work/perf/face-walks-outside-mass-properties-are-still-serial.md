@@ -2,8 +2,10 @@
 id: face-walks-outside-mass-properties-are-still-serial
 kind: issue
 title: two per-face walks in topo::props are still one face at a time
-status: open
+status: closed
 opened: 2026-09-12
+parent: PERF-11
+closed: 2026-09-13
 ---
 
 
