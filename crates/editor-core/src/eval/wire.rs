@@ -2550,14 +2550,16 @@ mod ladder {
 }
 
 // ENTITY-DOOR BEGIN — the region the `wire_entity_door` suite's
-// `source_rules` census reads. Those rows count every construction of
-// an entity-kind refusal in this file — the `NodeErrorKind` variants
-// `eval/mod.rs` declares with a `found: EntityKind` field, derived
-// from that file rather than listed here — and require each to sit in
-// a `refuse` argument handed to a door below; they also require
-// `EntityKey::kind`, the one call that answers `found:`, to be made
-// inside these sentinels and nowhere else in this file. A door added
-// here is measured the moment it is typed.
+// `source_rules` census reads. Those rows equate two independently
+// derived sets: the `NodeErrorKind` variants `eval/mod.rs` declares
+// with a `found: …EntityKind` field, and the refusals written inside
+// the ARGUMENT LIST of a call to a door declared between these
+// sentinels. A carrier built anywhere else in this file is named by
+// line. They also require `kind()` — the call that answers `found:` —
+// to be made inside these sentinels and nowhere else here. A door
+// added here is measured the moment it is typed, and the call sites
+// the rows read are derived from what is declared here, so a rename
+// carries them.
 
 /// **What kind of entity is this, and refuse if it is not** — the one
 /// home for that question, over a resolved [`names::EntityKey`].
@@ -2571,14 +2573,12 @@ mod ladder {
 /// verb, a measure's reference names a scope — three sentences a user
 /// reads, three variants, one question behind them.
 ///
-/// **`found:` is not a caller's to write.** It is the kind the entity
-/// ACTUALLY has, read off the key HERE. A door that let a caller spell
-/// it could answer with the negation of its own wanted kind — *"denotes
-/// something that is not a face, not a face"* — which tells a reader
-/// what the name is not, twice, and what it is, never. It is also the
-/// half that a hand-written word gets wrong: the article agrees with
-/// the kind ("an edge", "a face"), so a literal is wrong for some kind
-/// its own arm can reach.
+/// **`found:` is not a caller's to write**, for the reason
+/// [`operand`] gives at length over values — the one statement of that
+/// rule in this file, and this door obeys it rather than restating it.
+/// What is this door's own is the SOURCE of the word: the kind the
+/// entity actually has, read off the key HERE, where a value door
+/// reads a payload.
 fn entity<R>(
     key: names::EntityKey,
     read: impl FnOnce(names::EntityKey) -> Option<R>,

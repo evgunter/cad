@@ -24,7 +24,9 @@
 //!
 //! The article is part of that: it agrees with the kind ("an edge", "a
 //! face"), so a row that found an edge and a row that found a vertex
-//! cannot both pass against a hand-written word.
+//! cannot both pass against a hand-written word. The two words the
+//! measure road used to spell by hand were both CORRECT — these rows
+//! pin the rule, they do not repair a bug.
 //!
 //! These refusals are DOCUMENT-REACHABLE: the strings here are what an
 //! author reads. The SOURCE rules behind them — `EntityKey::kind` has
@@ -189,7 +191,8 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
 /// **A measure's reference is a SCOPE** — a whole body or one of its
 /// faces. The one road whose refusal names no designation, so it takes
 /// the inner door directly; two rows, because the article is the half a
-/// hand-written word gets wrong.
+/// hand-written word CAN get wrong — this road's two were right, and
+/// what changed is that a word is no longer written at all.
 #[test]
 fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
     for (what, select, want) in [
@@ -234,43 +237,74 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
 /// The document rows say the refusals are right today. These say they
 /// stay right by construction: there is one place that answers what an
 /// entity IS, and every refusal that carries the answer takes it from
-/// there.
+/// there, in a position these rows check rather than describe.
 ///
 /// **Every row here is an EQUALITY or a count of one, never a floor.**
 /// A floor over a hand-written roster is the same defect one level up
 /// — it cannot see one arm of its own scan go to zero — so each row
-/// names the two sets it equates and asserts its own derived set is
-/// non-empty. `crates/test-utils/tests/reader_census.rs` states the
-/// rule this module follows.
+/// names the two sets it equates and asserts EACH derived set
+/// non-empty on its own. `crates/test-utils/tests/reader_census.rs`
+/// states the rule this module follows.
 ///
-/// **What these rows cannot see**, stated so the receipt is honest:
-/// a kind test written against a type that is not `NodeErrorKind` (the
-/// crate has three — `names::interrogate`'s `kind_mismatch`,
-/// `stackup.rs` and `mate/member.rs`, all enumerated on
-/// `work/wire/the-entity-kind-door-has-six-spellings.md`), a refusal
-/// built in a TEST rather than in `src/`, and a kind answered through
-/// something other than `EntityKey::kind` — a hand-written `match` over
-/// `EntityKey` in a `refuse` closure would be read as a forwarded
-/// binding by the second row and caught only by the first if it spelled
-/// `.kind()`.
+/// **The two sets are derived from different files by different
+/// needles**, and that is load-bearing rather than incidental. A
+/// census whose second set is built by looking for the members of its
+/// first passes at the lower count whenever a member leaves the first:
+/// re-spelling one carrier's field type drops it from both sides at
+/// once and the equality still holds, with that carrier covered by
+/// nothing. Here the declarations come from `eval/mod.rs`'s enum body
+/// and the constructions from the argument lists of `eval/wire.rs`'s
+/// own door calls, so a carrier that leaves one side stays in the
+/// other and reds.
+///
+/// # What these rows cannot see
+///
+/// Stated so the receipt is honest, and the first line is the general
+/// one: **a census that finds its sites by the spelling it is
+/// normalising can only find the ones that already comply.** These
+/// rows key on `NodeErrorKind` variants with a `found:` field, so the
+/// class they cannot enumerate is exactly the class worth finding.
+/// Known members, none of which is this module's subject:
+///
+/// - **`DeclareUnsupportedPair`**, in the very enum walked below and
+///   built in the very file scanned below (`route_declarations`). It
+///   carries `kinds: (EntityKind, EntityKind)` rather than a `found:`,
+///   and it reads those kinds off the authored `StableName`s rather
+///   than off the resolved keys. `work/wire/the-declared-pair-refusal-
+///   reads-the-authored-kind.md` is the row.
+/// - **A kind refusal on another error type**: `names::interrogate`'s
+///   `kind_mismatch` (`InterrogateError`), `assembly.rs`'s
+///   `RefusedRef::NotAFace`, `clearance.rs`'s
+///   `SelectionRefusal::NotAFace`, `mate/member.rs`'s recipe road.
+///   `work/wire/the-entity-kind-door-has-six-spellings.md` enumerates
+///   them with their dispositions.
+/// - **A refusal built in a test**, here or in another crate: the walk
+///   below stops at `eval/wire.rs`'s own `#[cfg(test)]` module and
+///   reads no other file.
+/// - **A kind answered without saying `kind`**: a hand-written `match`
+///   over `EntityKey` inside a `refuse` closure binds its own word and
+///   would pass the form test below.
 mod source_rules {
     use test_utils::source;
+    use test_utils::source::{boundary_before, line};
 
     const MOD: &str = include_str!("../src/eval/mod.rs");
     const WIRE: &str = include_str!("../src/eval/wire.rs");
 
-    /// The line `at` is on, for a failure a reader can open.
-    fn line(text: &str, at: usize) -> usize {
-        text[..at].lines().count()
-    }
-
-    /// Is the byte before `at` part of an identifier? Used to make a
-    /// name match a whole name.
-    fn boundary_before(code: &str, at: usize) -> bool {
-        code[..at]
-            .chars()
-            .next_back()
-            .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+    /// `eval/wire.rs`'s code, with its inline `#[cfg(test)]` module
+    /// cut off.
+    ///
+    /// The subject is the SHIPPED doors. An inline test that builds one
+    /// of these refusals by hand is a test fixture, and counting it
+    /// would red the equality below with a message describing a
+    /// production defect that is not there. Offsets survive the cut
+    /// because it only truncates.
+    fn wire_code() -> String {
+        let code = source::blanked(source::code_only, "eval/wire.rs", WIRE);
+        match code.find("#[cfg(test)]") {
+            Some(at) => code[..at].to_string(),
+            None => code,
+        }
     }
 
     /// The byte range of the entity door, located once.
@@ -278,14 +312,57 @@ mod source_rules {
         source::sentinel_region(WIRE, "eval/wire.rs", "ENTITY-DOOR BEGIN", "ENTITY-DOOR END")
     }
 
-    /// **Every `NodeErrorKind` variant that carries an entity kind**,
-    /// derived from `eval/mod.rs`'s own declaration rather than listed
-    /// here: a fifth such refusal is measured the moment it is
-    /// declared, and one renamed cannot fall out of a roster that does
-    /// not exist.
+    /// **Every `fn` declared inside the entity door**, derived rather
+    /// than listed: a door added between the sentinels is measured the
+    /// moment it is typed, and a door renamed cannot fall out of a
+    /// roster that does not exist.
+    fn doors(code: &str) -> Vec<&str> {
+        let door = door();
+        let mut out = Vec::new();
+        for (at, _) in code[door.clone()].match_indices("fn ") {
+            let at = door.start + at;
+            if !boundary_before(code, at) {
+                continue;
+            }
+            let head = at + "fn ".len();
+            let end = head
+                + code[head..]
+                    .find(|c: char| !c.is_alphanumeric() && c != '_')
+                    .expect("a fn name ends");
+            out.push(&code[head..end]);
+        }
+        out
+    }
+
+    /// **The argument list of every CALL to a door**, as byte ranges —
+    /// where a road's own `refuse` constructor is allowed to be
+    /// written, and the only place it is.
     ///
-    /// The walk is over the enum's own body, so a `found: EntityKind`
-    /// on some other type is not read as one of these.
+    /// Derived from [`doors`], so it follows a rename and covers a new
+    /// door without being told.
+    fn door_calls(code: &str) -> Vec<std::ops::Range<usize>> {
+        let mut out = Vec::new();
+        for name in doors(code) {
+            for (at, _) in code.match_indices(&format!("{name}(")) {
+                if !boundary_before(code, at) || code[..at].trim_end().ends_with("fn") {
+                    continue; // the declaration itself
+                }
+                let open = at + name.len();
+                let close = source::balanced_end(code, open).expect("the call's paren closes");
+                out.push(open + 1..close);
+            }
+        }
+        out
+    }
+
+    /// **Every `NodeErrorKind` variant that carries an entity kind**,
+    /// derived from `eval/mod.rs`'s own declaration.
+    ///
+    /// The field's TYPE is matched by its tail (`EntityKind`), not by
+    /// one path spelling: the enum already mixes `crate::names::`-
+    /// qualified fields with imported ones, so keying on the long form
+    /// would let a carrier leave this set under a re-spelling that
+    /// changes nothing.
     fn carriers(code: &str) -> Vec<&str> {
         let head = code
             .find("pub enum NodeErrorKind")
@@ -298,8 +375,8 @@ mod source_rules {
         // indented one level further, so the two cannot be confused.
         let mut out = Vec::new();
         let mut variant: Option<&str> = None;
-        for line in body.lines() {
-            if let Some(head) = line.strip_prefix("    ")
+        for text in body.lines() {
+            if let Some(head) = text.strip_prefix("    ")
                 && head.starts_with(|c: char| c.is_ascii_uppercase())
                 && let Some(name) = head
                     .split(|c: char| !c.is_alphanumeric() && c != '_')
@@ -307,9 +384,55 @@ mod source_rules {
             {
                 variant = Some(name);
             }
-            if line.contains("found: crate::names::EntityKind") {
+            if text
+                .trim()
+                .strip_prefix("found:")
+                .is_some_and(|ty| ty.trim().trim_end_matches(',').ends_with("EntityKind"))
+            {
                 out.push(variant.expect("a field sits inside a variant"));
             }
+        }
+        out
+    }
+
+    /// One brace-form `NodeErrorKind::<Variant> { … }` in a view: the
+    /// variant, where it starts, and its fields.
+    struct Built<'c> {
+        variant: &'c str,
+        at: usize,
+        fields: &'c str,
+    }
+
+    /// Every brace-form `NodeErrorKind::<Variant> { … }` inside
+    /// `within`, whatever the variant.
+    ///
+    /// The qualifier is REQUIRED here, which is the one narrowing this
+    /// walk makes: it is what tells a refusal apart from any other
+    /// braced path expression in an argument list, and `eval/wire.rs`
+    /// writes every one of these qualified.
+    fn built_in<'c>(code: &'c str, within: std::ops::Range<usize>) -> Vec<Built<'c>> {
+        let mut out = Vec::new();
+        for (rel, _) in code[within.clone()].match_indices("NodeErrorKind::") {
+            let at = within.start + rel;
+            if !boundary_before(code, at) {
+                continue;
+            }
+            let head = at + "NodeErrorKind::".len();
+            let Some(len) = code[head..].find(|c: char| !c.is_alphanumeric() && c != '_') else {
+                continue;
+            };
+            let rest = &code[head + len..];
+            let pad = rest.len() - rest.trim_start().len();
+            if !rest[pad..].starts_with('{') {
+                continue; // a tuple variant, a match arm, a type position
+            }
+            let open = head + len + pad;
+            let close = source::balanced_end(code, open).expect("the brace closes");
+            out.push(Built {
+                variant: &code[head..head + len],
+                at,
+                fields: &code[open + 1..close],
+            });
         }
         out
     }
@@ -321,20 +444,28 @@ mod source_rules {
     /// what an entity is, which is the shape this unit removed — three
     /// copies of `found: ent.key.kind()`, one per road.
     ///
-    /// The two sets: every `.kind()` call in the file, against the one
-    /// the door makes. `found.len() == 1` is the whole guard — it fails
-    /// on a second call anywhere, INCLUDING one inside the sentinels,
-    /// which a containment test alone would miss.
+    /// **The needle is `kind(` at a name boundary**, which catches the
+    /// method form and the UFCS form alike and does NOT catch
+    /// `carrier_kind(` or `kind_name(`. It is deliberately wider than
+    /// `EntityKey::kind`: a textual reader cannot see a receiver's
+    /// type, and the safe direction is to red on a `kind()` that turns
+    /// out to be someone else's — the message says so, so a reader
+    /// meeting that case is not told a falsehood about their code.
     #[test]
     fn the_entity_kind_is_read_in_one_place() {
-        let code = source::blanked(source::code_only, "eval/wire.rs", WIRE);
+        let code = wire_code();
         let door = door();
         let mut found = Vec::new();
-        for (at, _) in code.match_indices(".kind()") {
+        for (at, _) in code.match_indices("kind(") {
+            if !boundary_before(&code, at) {
+                continue;
+            }
             assert!(
                 door.contains(&at),
-                "eval/wire.rs line {}: a kind is read outside the entity door — `found:` is \
-                 the door's to answer and no road's to write",
+                "eval/wire.rs line {}: a `kind()` is called outside the entity door. The one \
+                 this file needs is `EntityKey::kind`, which answers `found:` and is the \
+                 door's to answer, not a road's; if this call is some other `kind()`, it \
+                 wants a name that does not read as that question",
                 line(WIRE, at)
             );
             found.push(at);
@@ -342,77 +473,103 @@ mod source_rules {
         assert_eq!(
             found.len(),
             1,
-            "`eval/wire.rs` reads a kind {} times, not once (lines {:?})",
+            "`eval/wire.rs` calls `kind()` {} times, not once (lines {:?})",
             found.len(),
             found.iter().map(|a| line(WIRE, *a)).collect::<Vec<_>>()
         );
     }
 
-    /// **Every entity-kind refusal is built exactly once, and its
-    /// `found` is a binding it was HANDED.**
+    /// **Every entity-kind refusal is written in a door call's
+    /// arguments, exactly once, and its `found` is a binding it was
+    /// HANDED.**
     ///
-    /// The two sets, equated by variant name: the carriers `eval/mod.rs`
-    /// declares ([`carriers`]), and the variants `eval/wire.rs`
-    /// constructs. Both directions carry a failure a lane can make — a
-    /// fifth carrier declared and refused somewhere else reds, a road
-    /// that stopped refusing reds, and a scan that matched nothing reds
-    /// rather than passing over an empty pair.
+    /// The two sets, equated by variant name and derived
+    /// independently:
+    ///
+    /// - **declared** — `eval/mod.rs`'s `NodeErrorKind` variants with a
+    ///   `found: …EntityKind` field ([`carriers`]).
+    /// - **built** — the `NodeErrorKind::<Variant> { … }` expressions
+    ///   written inside the argument list of a call to a door
+    ///   ([`door_calls`], [`built_in`]). This side never consults the
+    ///   other, so a carrier that leaves `declared` stays here and the
+    ///   equality reds.
+    ///
+    /// Three failures a lane can actually make, all of them live:
+    ///
+    /// - a fifth carrier declared and refused somewhere else — in
+    ///   `built` it is absent, in `declared` it is not;
+    /// - a road that built its refusal outside a door call, by
+    ///   computing its own answer first — absent from `built`, and the
+    ///   POSITION check below names the line;
+    /// - a variant with no `found: …EntityKind` handed to a door as a
+    ///   refusal — present in `built`, absent from `declared`.
     ///
     /// The `found` field must be the bare binding `found` — the door's
     /// closure parameter. A construction that computed its own word
-    /// (`found: EntityKind::Face`, or a `match` over the key) fails the
-    /// form test, and that is the rule as stated rather than a proxy
-    /// for it: the assertion checks what the message claims.
+    /// (`found: EntityKind::Face`, or a `match` over the key bound to
+    /// another name) fails the form test, and that is the rule as
+    /// stated rather than a proxy for it.
     #[test]
     fn every_entity_kind_refusal_takes_found_from_the_door() {
         let mod_code = source::blanked(source::code_only, "eval/mod.rs", MOD);
         let mut declared = carriers(&mod_code);
         assert!(
             !declared.is_empty(),
-            "`eval/mod.rs` declares no `found: crate::names::EntityKind` field at all — the \
-             enum moved and this row is reading the wrong file"
+            "`eval/mod.rs` declares no `found: …EntityKind` field at all — the enum moved \
+             and this row is reading the wrong file"
         );
-        let code = source::blanked(source::code_only, "eval/wire.rs", WIRE);
+        let code = wire_code();
+        let calls = door_calls(&code);
+        assert!(
+            !calls.is_empty(),
+            "`eval/wire.rs` calls no entity door at all — the sentinels or the scan have \
+             drifted from the doors they read, and every refusal below would look misplaced"
+        );
         let mut built: Vec<&str> = Vec::new();
-        for name in &declared {
-            for (at, _) in code.match_indices(name.trim()) {
-                if !boundary_before(&code, at) {
-                    continue;
-                }
-                let rest = &code[at + name.len()..];
-                let brace = rest.len() - rest.trim_start().len();
-                if !rest[brace..].starts_with('{') {
-                    continue; // a `use`, a type position, a doc mention
-                }
-                let open = at + name.len() + brace;
-                let close = source::balanced_end(&code, open).expect("the brace closes");
-                let fields = &code[open + 1..close];
-                let mut fs = source::top_level_split(fields, ',')
+        for call in &calls {
+            for b in built_in(&code, call.clone()) {
+                let found = source::top_level_split(b.fields, ',')
                     .into_iter()
-                    .map(|r| fields[r].trim());
-                let Some(found) =
-                    fs.find(|f| f.split(':').next().is_some_and(|n| n.trim() == "found"))
-                else {
-                    continue; // a pattern binding nothing, not a construction
-                };
+                    .map(|r| b.fields[r].trim())
+                    .find(|f| f.split(':').next().is_some_and(|n| n.trim() == "found"));
+                let Some(found) = found else { continue };
                 assert!(
                     found == "found"
                         || found.split(':').nth(1).is_some_and(|v| v.trim() == "found"),
-                    "eval/wire.rs line {}: `{name}` sets `found` to `{found}` — the entity \
-                     door answers what was found and a road takes the word it is handed",
-                    line(WIRE, at)
+                    "eval/wire.rs line {}: `{}` sets `found` to `{found}` — the entity door \
+                     answers what was found and a road takes the word it is handed",
+                    line(WIRE, b.at),
+                    b.variant
                 );
-                built.push(name);
+                built.push(b.variant);
+            }
+        }
+        assert!(
+            !built.is_empty(),
+            "no entity-kind refusal is written in a door call's arguments — the walk read \
+             nothing and would pass over every carrier `eval/mod.rs` declares"
+        );
+        // The POSITION rule, in the direction the set equality cannot
+        // see: a carrier built anywhere else in this file at all.
+        for name in &declared {
+            for b in built_in(&code, 0..code.len()) {
+                assert!(
+                    b.variant != *name || calls.iter().any(|c| c.contains(&b.at)),
+                    "eval/wire.rs line {}: `{name}` is built outside any entity-door call — \
+                     a road that writes its own refusal has somewhere to put its own answer \
+                     to `found:`, which is the whole shape this door removed",
+                    line(WIRE, b.at)
+                );
             }
         }
         declared.sort_unstable();
         built.sort_unstable();
         assert_eq!(
             declared, built,
-            "every `NodeErrorKind` variant carrying a `found: EntityKind` is built in \
-             `eval/wire.rs` exactly once and every such construction is one of them; the \
-             list above is `eval/mod.rs`'s declarations, the list below `eval/wire.rs`'s \
-             constructions"
+            "the `NodeErrorKind` variants carrying a `found: …EntityKind` and the refusals \
+             written in an entity-door call's arguments are the same multiset; the list \
+             above is `eval/mod.rs`'s declarations, the list below `eval/wire.rs`'s door \
+             calls"
         );
     }
 }
