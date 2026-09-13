@@ -820,7 +820,8 @@ fn corpus_vocabulary() -> (Vec<String>, Vec<String>, Vec<String>) {
 
 /// **The one document-vocabulary census.** The variants a document enum
 /// DECLARES and the variants this suite's corpus WITNESSES are the same
-/// set.
+/// set — reported, not asserted, so its caller can name every
+/// vocabulary that is short rather than the first one.
 ///
 /// # Why this direction needs its own anchor
 ///
@@ -883,7 +884,12 @@ fn corpus_vocabulary() -> (Vec<String>, Vec<String>, Vec<String>) {
 /// hatch that will be used"*. The day a real document-only variant
 /// exists, the census needs a form that can hold it, and that gets
 /// decided then, with its argument.
-fn every_declared_variant_is_witnessed(vocabulary: &str, declared: &[&str], witnessed: &[String]) {
+/// Returns the complaint rather than asserting it, so the caller can
+/// walk EVERY vocabulary and report all of them. Asserting here would
+/// abort on the first, and a run that names one of three offenders is
+/// the defect this file was opened to fix, re-introduced by the loop
+/// that fixed a different one.
+fn unwitnessed_report(vocabulary: &str, declared: &[&str], witnessed: &[String]) -> Option<String> {
     let unwitnessed: Vec<&&str> = declared
         .iter()
         .filter(|d| !witnessed.iter().any(|w| w == *d))
@@ -892,16 +898,18 @@ fn every_declared_variant_is_witnessed(vocabulary: &str, declared: &[&str], witn
         .iter()
         .filter(|w| !declared.contains(&w.as_str()))
         .collect();
-    assert!(
-        unwitnessed.is_empty() && unknown.is_empty(),
+    if unwitnessed.is_empty() && unknown.is_empty() {
+        return None;
+    }
+    Some(format!(
         "the {vocabulary} members the corpus witnesses are not the members \
-         `{vocabulary}` declares.\n  \
+         `{vocabulary}` declares.\n    \
          declared and unwitnessed — give it a witness in `chain_steps`, because a \
          variant with no kernel form of its own launders into one and that is the \
          failure this clause exists to catch, so it has to be exercised rather than \
-         excused: {unwitnessed:?}\n  \
+         excused: {unwitnessed:?}\n    \
          witnessed and no longer declared — delete the witness: {unknown:?}"
-    );
+    ))
 }
 
 /// **The census over every document vocabulary at once**, and the
@@ -955,13 +963,27 @@ fn every_document_vocabulary_member_is_witnessed() {
          witnessed and no longer declared — delete the line: {stale:?}"
     );
 
-    for (vocabulary, names) in editor_core::program::DOCUMENT_VOCABULARIES {
-        let (_, witnessed) = witnesses
-            .iter()
-            .find(|(name, _)| name == vocabulary)
-            .expect("the set equality above admits only vocabularies with a witness set");
-        every_declared_variant_is_witnessed(vocabulary, names, witnessed);
-    }
+    // Every vocabulary is walked and every complaint collected before
+    // anything fires: three offenders reported as one is the failure
+    // this suite exists to make legible, so the loop must not stop at
+    // the first.
+    let complaints: Vec<String> = editor_core::program::DOCUMENT_VOCABULARIES
+        .iter()
+        .filter_map(|(vocabulary, names)| {
+            let (_, witnessed) = witnesses
+                .iter()
+                .find(|(name, _)| name == vocabulary)
+                .expect("the set equality above admits only vocabularies with a witness set");
+            unwitnessed_report(vocabulary, names, witnessed)
+        })
+        .collect();
+    assert!(
+        complaints.is_empty(),
+        "{} of the {} document vocabularies are short:\n  {}",
+        complaints.len(),
+        editor_core::program::DOCUMENT_VOCABULARIES.len(),
+        complaints.join("\n  ")
+    );
 }
 
 /// The persisted vocabulary is the document vocabulary: every verb and
