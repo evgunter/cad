@@ -5414,3 +5414,16 @@ in both briefs, neither reviewer sees the other's report; the same
 shared-box note applies to both arms (PERF-11's reviewers and PERF-12's
 implementer beside them; per-crate builds asked of both). Block
 PERF-B4's draw record stays branch-side until the block concludes.
+
+## PERF-12 review ordinal fixed at dispatch (2026-09-13)
+
+PERF-12 (`work/perf/PERF-12.md`, PR #2490 open — frozen head `cd526c5fa`;
+block PERF-B4 slot 2): **ordinal 3411** (PERF band). Protocol v6 dual:
+draw = `/dev/urandom` byte **172**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method as for the earlier PERF units: concurrent same-head on frozen
+`cd526c5fa`, briefs stored with sha256 before dispatch (6c87138f9b9afa0d… r1 /
+5b7c2494556728fb… r2 — identical modulo lane names, verified by diff), isolation
+in both briefs, neither reviewer sees the other's report; the same
+shared-box note applies to both arms (two fix-pass lanes building
+beside them; per-crate builds asked of both). Block PERF-B4's draw
+record stays branch-side until the block concludes.
