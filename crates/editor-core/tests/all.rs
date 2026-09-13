@@ -358,6 +358,8 @@ mod mate6r1_shared;
 mod mate6r2_probes;
 #[path = "perf2_name_keying_differential.rs"]
 mod perf2_name_keying_differential;
+#[path = "perf12_census_goldens.rs"]
+mod perf12_census_goldens;
 #[path = "pinned_lift_validates_once.rs"]
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
