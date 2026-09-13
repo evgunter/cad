@@ -304,6 +304,8 @@ mod review_m5_pr10;
 mod review_m5_pr10_interval;
 #[path = "review_m5_pr9_base_props_probe.rs"]
 mod review_m5_pr9_base_props_probe;
+#[path = "review_must_carry_rule_r1_probes.rs"]
+mod review_must_carry_rule_r1_probes;
 #[path = "review_m5_pr9_boss_probe.rs"]
 mod review_m5_pr9_boss_probe;
 #[path = "review_m5_pr9_inband_at_rest.rs"]
