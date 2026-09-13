@@ -42,9 +42,69 @@ use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
 use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
 
+/// **One declaration, two projections** — a document vocabulary's enum,
+/// and the variant names it declares.
+///
+/// `profile` declares each of its three vocabularies once and projects
+/// `Verb::ALL`, `ArcMode::ALL` and `TargetKind::ALL` from the same
+/// declaration, so a census keyed on one grows with the vocabulary
+/// rather than behind it. The three enums below are those vocabularies'
+/// SECOND spelling — G1 layering keeps expressions and serde out of the
+/// kernel crate — and they had no such projection.
+///
+/// What that cost is one direction of the construct hop. A variant
+/// added to a document enum is forced through every match that consumes
+/// it, so it cannot ship un-noticed; but every one of those arms may
+/// legally resolve it into an EXISTING kernel form, and when one does
+/// the kernel-anchored censuses stay green (`Verb::ALL`, `ArcMode::ALL`
+/// and `TargetKind::ALL` are all still fully witnessed) while the
+/// document form silently authors something nobody wrote.
+///
+/// `ALL_NAMES` is the anchor for that direction. It is derived from the
+/// declaration at COMPILE time, so there is nothing to keep in step and
+/// nothing a variant can hide behind — an attribute, a `cfg`, a doc
+/// comment or a raw identifier in front of the name changes the tokens
+/// this macro captures and not the name it projects.
+/// `tests/switch_program_vocabulary.rs` is keyed on it, and a variant
+/// that reaches no witness there reds.
+macro_rules! document_vocabulary {
+    (
+        $(#[$enum_meta:meta])*
+        $vis:vis enum $name:ident {
+            $(
+                $(#[$variant_meta:meta])*
+                $variant:ident $(( $($tuple:tt)* ))? $({ $($named:tt)* })?
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$enum_meta])*
+        $vis enum $name {
+            $(
+                $(#[$variant_meta])*
+                $variant $(( $($tuple)* ))? $({ $($named)* })?
+            ),*
+        }
+
+        impl $name {
+            /// Every variant this vocabulary declares, in declaration
+            /// order — projected from the same declaration as the
+            /// variants, so a census keyed on it grows with the
+            /// vocabulary rather than behind it.
+            #[doc(hidden)]
+            pub const ALL_NAMES: &'static [&'static str] = &[$(stringify!($variant)),*];
+        }
+    };
+}
+
+document_vocabulary! {
 /// Where a target-taking step ends: an authored point (two Length
 /// expressions) or the entry vertex (`Start` — structural; targeting it
 /// closes the loop). Mirrors `profile::Target`.
+///
+/// `res_target` matches THIS vocabulary and constructs
+/// [`profile::Target`], so a form added here alone can be resolved into
+/// an existing kernel form and never be seen. [`Self::ALL_NAMES`] is
+/// what forces it to reach a witness instead.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramTarget {
     /// An authored absolute point in the profile frame.
@@ -56,7 +116,9 @@ pub enum ProgramTarget {
     /// no payload: there is exactly one declaration to make there.
     StartArriving,
 }
+}
 
+document_vocabulary! {
 /// One Expr-bearing recorded verb — the document-layer mirror of
 /// [`profile::Step`], structural tags literal, continuous args [`Expr`]
 /// (V2's table: coordinates/lengths/radii `Length`, angle/turn/phase
@@ -76,6 +138,11 @@ pub enum ProgramTarget {
 /// checked at the edit door via [`ProfileProgram::slots`] +
 /// [`StepArg::dimension`], and at the persistence doors' shared
 /// validator — never trusted from a parsed file).
+///
+/// The mirror direction is [`Self::ALL_NAMES`]'s: `res_step` matches
+/// THIS vocabulary and constructs [`profile::Step`], so a verb added
+/// here alone can be resolved into an existing kernel verb, leaving
+/// `Verb::ALL` fully witnessed and the document verb unexercised.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramStep {
     /// `.at(p)`.
@@ -142,7 +209,9 @@ pub enum ProgramStep {
     /// `.to(Start)` — the seam-fillet close (structural).
     CloseTo,
 }
+}
 
+document_vocabulary! {
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
 /// arc-spec record): continuous fields [`Expr`], structural tags
 /// literal (`side`, `winding`, `Start`).
@@ -159,6 +228,11 @@ pub enum ProgramStep {
 /// `tests/switch_program_vocabulary.rs`, keyed on
 /// [`profile::ArcMode::ALL`]: its witness is a match on the mode tag,
 /// so a mode with no document spelling is a compile error there.
+///
+/// That census is keyed on the KERNEL vocabulary and says nothing about
+/// a mode added HERE alone — `res_spec` would resolve it into an
+/// existing kernel mode and every clause keyed on `ArcMode::ALL` would
+/// stay green. [`Self::ALL_NAMES`] is that direction's anchor.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
@@ -209,6 +283,7 @@ pub enum ProgramArcData {
         /// The arc length.
         len: Expr,
     },
+}
 }
 
 /// One loop's program: a CHAIN step list, or one of the complete-loop
