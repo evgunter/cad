@@ -4,6 +4,7 @@ kind: issue
 title: A frame slot's direction refusal now surfaces on the profile node carrying only a role word, with no id for the frame that actually refused
 status: open
 opened: 2026-09-12
+pr: 2518
 ---
 
 

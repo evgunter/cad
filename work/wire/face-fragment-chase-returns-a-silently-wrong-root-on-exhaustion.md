@@ -5,6 +5,7 @@ title: emit_topo's chase() falls out of its budget and returns a wrong face root
 status: open
 opened: 2026-09-12
 refs: [2474]
+pr: 2518
 ---
 
 
