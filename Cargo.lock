@@ -2004,6 +2004,7 @@ dependencies = [
  "geom-brep",
  "geom-core",
  "profile",
+ "rayon",
  "spade",
  "sweep",
  "test-utils",

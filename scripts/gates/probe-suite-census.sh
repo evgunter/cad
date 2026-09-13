@@ -201,6 +201,7 @@ RUN_FLOOR=(
   plain:geom-core:k_stats_doors:2
   plain:geom-core:m10_7_r1_retag_probe:1
   plain:geom-core:m10_7_r2_sym_probes:18
+  plain:mesh:k_funnel_composition:2
   plain:profile:review_m2_pr2_probe:2
   plain:profile:review_s2_probe:1
   plain:profile:scalar_channels_probe:4
