@@ -24,25 +24,31 @@
 //! line, a NURBS-walled loft with a brick flush on its cap, and an
 //! L-shaped face with an edge that crosses its box through the notch
 //! (a candidate the box keeps and the exact predicate rejects). The
-//! corpus rows run every registered document.
+//! corpus rows run every registered document, and one fin row runs the
+//! heat sink at 10 fins — the 40- and 160-fin bodies' order pin rides
+//! on the goldens (`perf12_census_goldens`), which run them at every ε
+//! row. A planted row shows the comparator can go red.
+//!
+//! The comparators (restriction of the examined sequence, lost accepted
+//! pairs, the sweep roster) are [`SweepPairs`]'s and [`CensusTrace`]'s
+//! own; `census.rs`'s unit rows read the same ones, and their `pin` is
+//! this file's over an operator-built body.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
 use crate::fixture;
 
-use std::collections::BTreeSet;
-
 use corpus::{documents, eval, failures};
 use editor_core::{
-    Datum, Dimension, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, TubeWindow,
-    product_recorded,
+    Datum, Dimension, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc,
+    ProfileProgram, TubeWindow, apply, product_recorded,
 };
 use fixture::{Recorder, band, frame, len, xy_frame};
 use geom_core::Tol;
-use topo::{CensusStrategy, CensusTrace, EntityId, SweepPairs, census_traces};
-
-type Pair = (EntityId, EntityId);
+use topo::{
+    CensusStrategy, CensusTrace, EntityId, PlantedDegradation, census_traces, census_traces_planted,
+};
 
 /// One strategy's run: the error vector rendered, and the trace.
 struct Run {
@@ -68,29 +74,6 @@ fn run(name: &str, doc: &ProfileDoc, strategy: CensusStrategy) -> Run {
     }
 }
 
-fn sweeps(t: &CensusTrace) -> [(&'static str, &SweepPairs); 6] {
-    [
-        ("vv", &t.vv),
-        ("ve", &t.ve),
-        ("vf", &t.vf),
-        ("ef", &t.ef),
-        ("ee", &t.ee),
-        ("backstop", &t.backstop),
-    ]
-}
-
-/// `EntityId` carries no `Ord`; its `Debug` rendering is total and
-/// injective (a key with its version), so it keys the sets here.
-fn key(p: &Pair) -> String {
-    format!("{p:?}")
-}
-
-/// Whether `sub` is `sup` with elements removed and nothing reordered.
-fn is_subsequence(sub: &[Pair], sup: &[Pair]) -> bool {
-    let mut it = sup.iter();
-    sub.iter().all(|p| it.any(|q| q == p))
-}
-
 /// The three pins on one document; returns the number of pairs the
 /// filter pruned, summed over the sweeps.
 fn pin(name: &str, doc: &ProfileDoc) -> usize {
@@ -101,17 +84,12 @@ fn pin(name: &str, doc: &ProfileDoc) -> usize {
         "{name}: the error vector differs between the realized and idealized census"
     );
     let mut pruned = 0;
-    for ((sweep, r), (_, i)) in sweeps(&real.trace).iter().zip(sweeps(&ideal.trace).iter()) {
+    for ((sweep, r), (_, i)) in real.trace.sweeps().iter().zip(ideal.trace.sweeps().iter()) {
         assert!(
-            is_subsequence(&r.examined, &i.examined),
+            r.is_restriction_of(i),
             "{name}/{sweep}: the realized sweep's order is not the exact order restricted"
         );
-        let examined: BTreeSet<String> = r.examined.iter().map(key).collect();
-        let lost: Vec<&Pair> = i
-            .accepted
-            .iter()
-            .filter(|p| !examined.contains(&key(p)))
-            .collect();
+        let lost = r.lost_accepted(i);
         assert!(
             lost.is_empty(),
             "{name}/{sweep}: the filter pruned pairs the exact sweep decided against: {lost:?}"
@@ -322,6 +300,66 @@ fn the_grazing_notch_keeps_the_candidate_the_exact_predicate_rejects() {
         real.errors.is_empty(),
         "the notch scene is at rest with no contact: {:?}",
         real.errors
+    );
+}
+
+/// The corpus heat sink with its fin count driven to `fins`.
+fn heatsink_at(fins: i64) -> ProfileDoc {
+    let entry = documents()
+        .into_iter()
+        .find(|d| d.name == "heat_sink")
+        .expect("the corpus carries the heat sink");
+    apply(
+        &entry.doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("fins"),
+            value: DocParam::Count { value: fins },
+        },
+        Tol::witness(),
+    )
+    .expect("the fin count is a document parameter")
+    .doc
+}
+
+#[test]
+fn the_ten_fin_heat_sink_is_bit_equal_superset_and_ordered() {
+    let pruned = pin("heat_sink@10", &heatsink_at(10));
+    assert!(pruned > 0, "eleven solids prune");
+}
+
+/// The comparator can go red: one face box planted empty, and the
+/// superset pin MUST report the loss (`m5_pr8_bvh_diff`'s pin 3).
+#[test]
+fn planted_degradation_is_caught() {
+    let doc = boss_on_plate();
+    let tol = Tol::witness();
+    let ev = eval::<f64>(&doc);
+    let product = product_recorded(&doc, &ev, tol).expect("the boss gathers");
+    let (_, ideal) = census_traces(
+        &product.body,
+        &product.contacts,
+        band(),
+        CensusStrategy::Idealized,
+    );
+    let &(_, EntityId::Face(face)) = ideal
+        .vf
+        .accepted
+        .first()
+        .expect("the boss's arc joints rest in the plate's top face")
+    else {
+        panic!("a vf pair names a face");
+    };
+    let (_, real) = census_traces_planted(
+        &product.body,
+        &product.contacts,
+        band(),
+        CensusStrategy::Realized,
+        PlantedDegradation { face },
+    );
+    let lost = real.vf.lost_accepted(&ideal.vf);
+    assert!(
+        lost.iter().any(|&(_, f)| f == EntityId::Face(face)),
+        "a planted-empty face box must lose its accepted pairs (got {lost:?})"
     );
 }
 

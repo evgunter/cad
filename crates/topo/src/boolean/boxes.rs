@@ -39,7 +39,11 @@
 //! - `census`'s pre-filter (`census::Trees`) PRUNES on the same
 //!   terms: the at-rest sweeps examine the C10 tree's candidates over
 //!   these boxes, and a loose box only admits more pairs to the exact
-//!   sweeps.
+//!   sweeps. The backstop's two classes — its reach boxes over
+//!   `face_reach` and its instance extents — read the same direction
+//!   through the same door (`census::Candidates::class`); they are
+//!   built from `face_reach`, not from these constructors, so the
+//!   inventory below does not count them.
 //! - `boolean::reduce`'s operand GATE grants on non-overlap: an
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an

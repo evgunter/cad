@@ -1008,8 +1008,12 @@ pub mod bounds_allowlist {
     //! be read without the bracket, so there is no tree to query. The
     //! bound rides the three `validate` doors that reach the census
     //! (`validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
-    //! and the `via` they share) because the census cannot be reached
-    //! except through them.
+    //! and the `via` they share) as a REACHABILITY ride only: those
+    //! doors are validators, not driver code, and carry `T: Bounds`
+    //! because the census cannot be reached except through them — the
+    //! first time this amendment's bound rides onto a non-driver public
+    //! door, said plainly so the next ride is argued rather than
+    //! inherited.
     //!
     //! `Separation::of`, `Separation::certify` and `image` carry **no**
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT

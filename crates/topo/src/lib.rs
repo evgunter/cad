@@ -297,9 +297,9 @@ pub use surgery::Surgery;
 pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
-#[cfg(feature = "sweep-testing")]
-pub use census::census_traces;
 pub use census::{CensusStrategy, CensusTrace, SweepPairs};
+#[cfg(feature = "sweep-testing")]
+pub use census::{census_traces, census_traces_planted};
 pub use contact::{
     CONTACT_RECOURSE, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
     DeclaredContact, FIT_DEFERRAL,

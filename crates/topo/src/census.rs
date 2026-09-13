@@ -235,7 +235,9 @@ use crate::body::Body;
 use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
 use crate::boolean::{ContactRecords, ContainError, FaceContainment, contfp};
 use crate::chart_region::ChartRegionError;
-use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
+use crate::entity::{
+    EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
+};
 use crate::null::CurveGeom;
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, StaleDeclaration, ValidationError, decide,
@@ -284,11 +286,15 @@ struct Geo<T: Real> {
 }
 
 /// Which candidate-generation path the five vertex-granular sweeps
-/// run — the idealized/realized pair of PERF-PLAN §4.4, the boolean
-/// sweep's [`crate::boolean::SweepStrategy`] one door over. Production
-/// entries always run [`CensusStrategy::Realized`]; the idealized path
-/// is the executable definition of the candidate set, alive for the
-/// differential suite's pins alone.
+/// and the backstop run — the idealized/realized pair of PERF-PLAN
+/// §4.4, the boolean sweep's [`crate::boolean::SweepStrategy`] one
+/// door over. Production entries always run
+/// [`CensusStrategy::Realized`]; the idealized path is the executable
+/// definition of the candidate set, alive for the differential suite's
+/// pins alone. Outside `sweep-testing` this enum has ONE variant, and
+/// the trace plumbing ([`CensusTrace`]) rides every production sweep
+/// as `None` — the [`crate::boolean::SweepTrace`] precedent, kept
+/// rather than a test-only twin of the sweeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CensusStrategy {
     /// BVH-pruned candidates (the production path).
@@ -323,6 +329,27 @@ impl SweepPairs {
             self.accepted.push(pair);
         }
     }
+
+    /// Whether this sweep's examined sequence is `exact`'s with pairs
+    /// removed and nothing reordered — the order pin of the
+    /// differential suites (`sweep-testing`; both suites read it here).
+    #[cfg(feature = "sweep-testing")]
+    pub fn is_restriction_of(&self, exact: &Self) -> bool {
+        let mut it = exact.examined.iter();
+        self.examined.iter().all(|p| it.any(|q| q == p))
+    }
+
+    /// `exact`'s accepted pairs this sweep never examined — any entry
+    /// is a finding the filter lost (the superset pin).
+    #[cfg(feature = "sweep-testing")]
+    pub fn lost_accepted(&self, exact: &Self) -> Vec<(EntityId, EntityId)> {
+        exact
+            .accepted
+            .iter()
+            .filter(|p| !self.examined.contains(p))
+            .copied()
+            .collect()
+    }
 }
 
 /// One census run's examined/accepted pairs, per sweep.
@@ -342,6 +369,22 @@ pub struct CensusTrace {
     /// its reach test (after its structural and deferral skips) and
     /// the instance pairs that reached its extent-containment test.
     pub backstop: SweepPairs,
+}
+
+#[cfg(feature = "sweep-testing")]
+impl CensusTrace {
+    /// The six sweeps by name, in census order — what a differential
+    /// suite walks.
+    pub fn sweeps(&self) -> [(&'static str, &SweepPairs); 6] {
+        [
+            ("vv", &self.vv),
+            ("ve", &self.ve),
+            ("vf", &self.vf),
+            ("ef", &self.ef),
+            ("ee", &self.ee),
+            ("backstop", &self.backstop),
+        ]
+    }
 }
 
 /// The BVH pre-filter: one tree per entity class over the snapshot's
@@ -382,33 +425,130 @@ pub struct CensusTrace {
 /// What a pruned pair CAN carry in the exact sweep is an outcome
 /// decided on the infinite CARRIERS rather than on the entities: a
 /// vertex whose distance to an edge's line is in band while it sits
-/// metres beyond the edge's end; two lines whose crossing lies in
-/// band of one edge's endpoint while the other edge is far from it;
-/// a vertex coplanar with a face whose region walk refuses (an arc
-/// loop) though the vertex is nowhere near the face. The exact sweep
+/// metres beyond the edge's end (`pm_census_ve_line_gap`); two lines
+/// whose crossing lies in band of one edge's endpoint while the other
+/// edge is far from it (`pm_census_ee_span`); two far edges at a
+/// marginal angle — `pm_census_ee_parallel` is an angle quantity with
+/// no positional content at all; and a vertex coplanar with a face
+/// whose region walk refuses or escalates though the vertex is
+/// nowhere near the face (`contfp`'s `ArcLoopUnsupported` and
+/// `RayExhausted` refusals, its ray-walk escalations). The exact sweep
 /// escalates or refuses those — it asked a carrier question and could
 /// not answer it — and the box separation answers the entity question
-/// the census is asking: the entities are apart. That class is the
-/// filter's one behavioural difference from the exact sweep, named
-/// here and pinned as such by the differential suite, never absorbed.
+/// the census is asking with a DEFINITE verdict: the entities are
+/// apart by more than the pad. No indeterminate is swallowed — a
+/// cleared pair is decided, not skipped, and a poisoned box is never
+/// cleared. That class is the filter's one behavioural difference
+/// from the exact sweep, the same one the boolean sweep names for its
+/// tree (`boolean/reduce.rs`'s module docs: a pair whose boxes are
+/// disjoint can still escalate the brute path on a face's infinite
+/// plane; pruning drops only such spurious escalations), pinned as
+/// such by the differential suites, never absorbed.
 ///
 /// A box door that reports corruption yields the poison box: the
 /// filter has no opinion, and the exact examination that follows is
 /// the authority on a face the tier-1 gate let through.
 struct Trees {
-    /// The vertex boxes — the query side of three sweeps, kept beside
-    /// the tree that answers the fourth (vertex×vertex).
-    vert_boxes: Vec<Aabb>,
-    verts: Bvh,
-    /// The edge boxes — the query side of edge×face and edge×edge.
-    edge_boxes: Vec<Aabb>,
-    edges: Bvh,
-    /// Faces are only ever the answering side; the tree holds their boxes.
-    faces: Bvh,
+    /// The vertices — the query side of three sweeps and the
+    /// self-joined side of the fourth.
+    verts: Class,
+    /// The `Line` edges — the query side of edge×face, self-joined for
+    /// edge×edge.
+    edges: Class,
+    /// The planar faces — always the answering side.
+    faces: Class,
 }
 
-impl Trees {
-    fn build<T: Decide + Bounds>(body: &Body<T>, geo: &Geo<T>, band: Band) -> Self {
+/// One entity class under the strategy: its padded boxes in snapshot
+/// order and, where the strategy prunes, the C10 tree over them.
+///
+/// `boxes` is kept beside the tree, which holds its own copy: the
+/// crate hands back no item box, and the query side of a cross-class
+/// sweep (a vertex against the edge tree) needs this class's box for
+/// item `i`.
+struct Class {
+    boxes: Vec<Aabb>,
+    /// `None` where every pair is a candidate (the idealized strategy).
+    tree: Option<Bvh>,
+}
+
+impl Class {
+    fn build(strategy: CensusStrategy, boxes: Vec<Aabb>) -> Self {
+        let tree = match strategy {
+            CensusStrategy::Realized => Some(Bvh::build(&boxes)),
+            #[cfg(feature = "sweep-testing")]
+            CensusStrategy::Idealized => None,
+        };
+        Self { boxes, tree }
+    }
+
+    /// This class's box for item `i` — the query another class answers.
+    fn query(&self, i: usize) -> &Aabb {
+        candidate(&self.boxes, i)
+    }
+
+    /// The items whose box overlaps `query`, ascending — a subsequence
+    /// of the snapshot order, independent of tree shape
+    /// ([`Bvh::overlapping`]'s contract); every item where nothing
+    /// prunes.
+    fn overlapping(&self, query: &Aabb) -> Vec<usize> {
+        match &self.tree {
+            Some(tree) => tree.overlapping(query),
+            None => (0..self.boxes.len()).collect(),
+        }
+    }
+
+    /// The items after `i` whose box overlaps item `i`'s — the
+    /// self-join of a class, ascending.
+    fn later(&self, i: usize) -> Vec<usize> {
+        let mut out = self.overlapping(self.query(i));
+        out.retain(|&j| j > i);
+        out
+    }
+}
+
+/// The empty box: overlaps nothing, so the face it stands for is
+/// examined against nothing — the planted degradation the
+/// differential suites must catch (`boolean::reduce`'s pin (iii), the
+/// same shape).
+fn empty_box() -> Aabb {
+    Aabb {
+        min_x: f64::INFINITY,
+        min_y: f64::INFINITY,
+        min_z: f64::INFINITY,
+        max_x: f64::NEG_INFINITY,
+        max_y: f64::NEG_INFINITY,
+        max_z: f64::NEG_INFINITY,
+    }
+}
+
+/// The candidate pairs every sweep examines, under one strategy: the
+/// three snapshot classes, and a door for the classes the backstop
+/// builds over its own boxes.
+struct Candidates {
+    strategy: CensusStrategy,
+    trees: Trees,
+}
+
+/// The item of a snapshot slice at a candidate index. The index is
+/// minted by a tree built over this very slice (or by a range over
+/// its length), so a miss is a kernel bug, not an input.
+fn candidate<X>(items: &[X], i: usize) -> &X {
+    items
+        .get(i)
+        .unwrap_or_else(|| unreachable!("a candidate index is minted over this slice"))
+}
+
+impl Candidates {
+    /// `plant` names a face whose box is the empty box instead of its
+    /// own (the planted degradation; `None` in production).
+    fn build<T: Decide + Bounds>(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        band: Band,
+        strategy: CensusStrategy,
+        plant: Option<FaceKey>,
+    ) -> Self {
         let pad = sweep_pad(band);
         let vert_boxes: Vec<Aabb> = geo
             .verts
@@ -423,118 +563,28 @@ impl Trees {
         let face_boxes: Vec<Aabb> = geo
             .faces
             .iter()
-            .map(|f| face_box(body, f.key, pad).unwrap_or_else(|_| Aabb::poison()))
+            .map(|f| {
+                if plant == Some(f.key) {
+                    empty_box()
+                } else {
+                    face_box(body, f.key, pad).unwrap_or_else(|_| Aabb::poison())
+                }
+            })
             .collect();
         Self {
-            verts: Bvh::build(&vert_boxes),
-            vert_boxes,
-            edges: Bvh::build(&edge_boxes),
-            edge_boxes,
-            faces: Bvh::build(&face_boxes),
-        }
-    }
-}
-
-/// The candidate pairs the five vertex-granular sweeps examine, by
-/// snapshot index. Every answer is ascending — a subsequence of the
-/// arena order, independent of tree shape ([`Bvh::overlapping`]'s
-/// contract) — so a sweep over the pruned candidates decides in
-/// exactly the order the exact sweep decides, minus the pruned pairs.
-enum Candidates {
-    /// Every pair (the reference definition; `sweep-testing` only).
-    #[cfg(feature = "sweep-testing")]
-    Exact,
-    /// The pairs whose padded boxes overlap. Boxed: three trees and two
-    /// box vectors beside a unit variant.
-    Pruned(Box<Trees>),
-}
-
-/// The item of a snapshot slice at a candidate index. The index is
-/// minted by a tree built over this very slice (or by a range over
-/// its length), so a miss is a kernel bug, not an input.
-fn candidate<X>(items: &[X], i: usize) -> &X {
-    items
-        .get(i)
-        .unwrap_or_else(|| unreachable!("a candidate index is minted over this slice"))
-}
-
-impl Candidates {
-    fn build<T: Decide + Bounds>(
-        body: &Body<T>,
-        geo: &Geo<T>,
-        band: Band,
-        strategy: CensusStrategy,
-    ) -> Self {
-        match strategy {
-            CensusStrategy::Realized => Self::Pruned(Box::new(Trees::build(body, geo, band))),
-            #[cfg(feature = "sweep-testing")]
-            CensusStrategy::Idealized => Self::Exact,
+            strategy,
+            trees: Trees {
+                verts: Class::build(strategy, vert_boxes),
+                edges: Class::build(strategy, edge_boxes),
+                faces: Class::build(strategy, face_boxes),
+            },
         }
     }
 
-    /// Whether candidates are pruned at all — the backstop builds its
-    /// own tree over its reach boxes under the same strategy.
-    fn prunes(&self) -> bool {
-        match self {
-            #[cfg(feature = "sweep-testing")]
-            Self::Exact => false,
-            Self::Pruned(_) => true,
-        }
-    }
-
-    /// The candidates of `query` among `items`, ascending; `n` is the
-    /// exact form's population (read only where that form exists).
-    #[cfg_attr(not(feature = "sweep-testing"), expect(unused_variables))]
-    fn near(&self, query: impl FnOnce(&Trees) -> Vec<usize>, n: usize) -> Vec<usize> {
-        match self {
-            #[cfg(feature = "sweep-testing")]
-            Self::Exact => (0..n).collect(),
-            Self::Pruned(trees) => query(trees),
-        }
-    }
-
-    /// Vertices after `i` (arena order) whose box overlaps vertex `i`'s.
-    fn later_vertices<T: Real>(&self, geo: &Geo<T>, i: usize) -> Vec<usize> {
-        let mut out = self.near(
-            |t| t.verts.overlapping(candidate(&t.vert_boxes, i)),
-            geo.verts.len(),
-        );
-        out.retain(|&j| j > i);
-        out
-    }
-
-    /// Edges whose box overlaps vertex `i`'s.
-    fn edges_near_vertex<T: Real>(&self, geo: &Geo<T>, i: usize) -> Vec<usize> {
-        self.near(
-            |t| t.edges.overlapping(candidate(&t.vert_boxes, i)),
-            geo.edges.len(),
-        )
-    }
-
-    /// Faces whose box overlaps vertex `i`'s.
-    fn faces_near_vertex<T: Real>(&self, geo: &Geo<T>, i: usize) -> Vec<usize> {
-        self.near(
-            |t| t.faces.overlapping(candidate(&t.vert_boxes, i)),
-            geo.faces.len(),
-        )
-    }
-
-    /// Faces whose box overlaps edge `i`'s.
-    fn faces_near_edge<T: Real>(&self, geo: &Geo<T>, i: usize) -> Vec<usize> {
-        self.near(
-            |t| t.faces.overlapping(candidate(&t.edge_boxes, i)),
-            geo.faces.len(),
-        )
-    }
-
-    /// Edges after `i` (arena order) whose box overlaps edge `i`'s.
-    fn later_edges<T: Real>(&self, geo: &Geo<T>, i: usize) -> Vec<usize> {
-        let mut out = self.near(
-            |t| t.edges.overlapping(candidate(&t.edge_boxes, i)),
-            geo.edges.len(),
-        );
-        out.retain(|&j| j > i);
-        out
+    /// A class over `boxes` under this run's strategy — the door the
+    /// backstop's two arms build their own classes through.
+    fn class(&self, boxes: Vec<Aabb>) -> Class {
+        Class::build(self.strategy, boxes)
     }
 }
 
@@ -547,7 +597,7 @@ pub(crate) fn census_and_certify<T: Decide + Bounds + crate::chart_region::Chart
     contacts: &ContactRecords,
     band: Band,
 ) -> Vec<ValidationError> {
-    census_with(body, contacts, band, CensusStrategy::Realized, None)
+    census_with(body, contacts, band, CensusStrategy::Realized, None, None)
 }
 
 /// The differential door: the census under `strategy`, with every
@@ -561,7 +611,30 @@ pub fn census_traces<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
     strategy: CensusStrategy,
 ) -> (Vec<ValidationError>, CensusTrace) {
     let mut trace = CensusTrace::default();
-    let errors = census_with(body, contacts, band, strategy, Some(&mut trace));
+    let errors = census_with(body, contacts, band, strategy, None, Some(&mut trace));
+    (errors, trace)
+}
+
+/// [`census_traces`] with one face's box planted EMPTY, so that face is
+/// examined against nothing: the degradation the differential suites'
+/// superset comparator must catch (`boolean::reduce`'s pin (iii)).
+#[cfg(feature = "sweep-testing")]
+pub fn census_traces_planted<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
+    body: &Body<T>,
+    contacts: &ContactRecords,
+    band: Band,
+    strategy: CensusStrategy,
+    plant: crate::boolean::PlantedDegradation,
+) -> (Vec<ValidationError>, CensusTrace) {
+    let mut trace = CensusTrace::default();
+    let errors = census_with(
+        body,
+        contacts,
+        band,
+        strategy,
+        Some(plant.face),
+        Some(&mut trace),
+    );
     (errors, trace)
 }
 
@@ -570,12 +643,13 @@ fn census_with<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
     contacts: &ContactRecords,
     band: Band,
     strategy: CensusStrategy,
+    plant: Option<FaceKey>,
     mut trace: Option<&mut CensusTrace>,
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     let geo = snapshot(body);
     let declared = Declared::index(contacts);
-    let cands = Candidates::build(body, &geo, band, strategy);
+    let cands = Candidates::build(body, &geo, band, strategy, plant);
     sweep_vertex_vertex(
         &geo,
         &declared,
@@ -894,6 +968,32 @@ fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) -> bool {
         .is_some_and(|c| matches!(c, geom::Curve3::Line { .. }))
 }
 
+/// Every loop of `face` — the outer, then the rings.
+fn face_loops(face: &Face) -> impl Iterator<Item = LoopKey> + '_ {
+    core::iter::once(face.outer).chain(face.rings.iter().copied())
+}
+
+/// Every loop of `face` with its walk: `Ok(cycle)` for a cycle loop
+/// `body` can walk, `Err(loop)` for one it cannot — a lost loop, an
+/// empty (lone-vertex) loop, an unwalkable cycle. What an unwalkable
+/// loop MEANS is the caller's to say, at the call site; this walk
+/// never decides it. The file's one loop-walk: every site that reads
+/// a face's boundary reads it here.
+fn face_cycles<'a, T: Real>(
+    body: &'a Body<T>,
+    face: &'a Face,
+) -> impl Iterator<Item = Result<Vec<HalfEdgeKey>, LoopKey>> + 'a {
+    face_loops(face).map(move |lk| {
+        let Some(loop_) = body.loops.get(lk) else {
+            return Err(lk);
+        };
+        let LoopBoundary::Cycle { first } = loop_.boundary else {
+            return Err(lk);
+        };
+        body.loop_cycle(first).ok_or(lk)
+    })
+}
+
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let verts: Vec<(VertexKey, Point3<T>)> = body
         .vertices
@@ -948,16 +1048,8 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
             }
         };
         let mut boundary = BTreeSet::new();
-        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-            let Some(loop_) = body.loops.get(lk) else {
-                continue;
-            };
-            let LoopBoundary::Cycle { first } = loop_.boundary else {
-                continue;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
+        // A loop this cannot walk contributes no boundary vertex.
+        for cycle in face_cycles(body, face).filter_map(Result::ok) {
             for he in cycle {
                 if let Some(he_data) = body.half_edges.get(he) {
                     boundary.insert(he_data.start);
@@ -1058,7 +1150,7 @@ fn sweep_vertex_vertex<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(ka, pa)) in geo.verts.iter().enumerate() {
-        for j in cands.later_vertices(geo, i) {
+        for j in cands.trees.verts.later(i) {
             let &(kb, pb) = candidate(&geo.verts, j);
             let before = errors.len();
             pair_vertex_vertex(geo, declared, band, (ka, pa), (kb, pb), errors);
@@ -1105,7 +1197,7 @@ fn sweep_vertex_edge<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
-        for j in cands.edges_near_vertex(geo, i) {
+        for j in cands.trees.edges.overlapping(cands.trees.verts.query(i)) {
             let e = candidate(&geo.edges, j);
             if vk == e.v0 || vk == e.v1 {
                 continue; // structural adjacency
@@ -1242,7 +1334,7 @@ fn sweep_vertex_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, &(vk, q)) in geo.verts.iter().enumerate() {
-        for j in cands.faces_near_vertex(geo, i) {
+        for j in cands.trees.faces.overlapping(cands.trees.verts.query(i)) {
             let f = candidate(&geo.faces, j);
             if f.boundary.contains(&vk) {
                 continue; // structural adjacency
@@ -1442,7 +1534,7 @@ fn sweep_edge_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, e) in geo.edges.iter().enumerate() {
-        for j in cands.faces_near_edge(geo, i) {
+        for j in cands.trees.faces.overlapping(cands.trees.edges.query(i)) {
             let f = candidate(&geo.faces, j);
             if f.key == e.f_plus || f.key == e.f_minus {
                 continue; // structural adjacency
@@ -1613,25 +1705,10 @@ fn sweep_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
     errors: &mut Vec<ValidationError>,
 ) {
     for (i, ea) in geo.edges.iter().enumerate() {
-        for j in cands.later_edges(geo, i) {
+        for j in cands.trees.edges.later(i) {
             let eb = candidate(&geo.edges, j);
             let before = errors.len();
-            let ncross = ea.dir.cross(eb.dir);
-            // sin(angle of the unit dirs) × the shorter edge's own
-            // length: the displacement the angular deviation induces
-            // over the edge (a bare sine was a dimensionless comparand
-            // against the length band — rim-dimensional audit, (c)).
-            let arm = ea.len.min(eb.len);
-            match gap_is_zero(
-                "pm_census_ee_parallel",
-                Margin::levered(ncross.norm(), arm),
-                band,
-                errors,
-            ) {
-                Some(false) => ee_crossing_lane(body, geo, declared, ea, eb, ncross, band, errors),
-                Some(true) => ee_collinear_lane(ea, eb, geo, declared, band, errors),
-                None => {}
-            }
+            pair_edge_edge(body, geo, declared, band, ea, eb, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ee.note(
                     (EntityId::Edge(ea.key), EntityId::Edge(eb.key)),
@@ -1639,6 +1716,34 @@ fn sweep_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
                 );
             }
         }
+    }
+}
+
+/// One edge pair of pass 5.
+fn pair_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    errors: &mut Vec<ValidationError>,
+) {
+    let ncross = ea.dir.cross(eb.dir);
+    // sin(angle of the unit dirs) × the shorter edge's own
+    // length: the displacement the angular deviation induces
+    // over the edge (a bare sine was a dimensionless comparand
+    // against the length band — rim-dimensional audit, (c)).
+    let arm = ea.len.min(eb.len);
+    match gap_is_zero(
+        "pm_census_ee_parallel",
+        Margin::levered(ncross.norm(), arm),
+        band,
+        errors,
+    ) {
+        Some(false) => ee_crossing_lane(body, geo, declared, ea, eb, ncross, band, errors),
+        Some(true) => ee_collinear_lane(ea, eb, geo, declared, band, errors),
+        None => {}
     }
 }
 
@@ -2379,7 +2484,7 @@ fn boundary_axial<T: Decide>(
     let face = body.get_face(f)?;
     let (o, ax) = (SpanBox::point(origin), SpanBox::vector(axis));
     let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
-    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+    for lk in face_loops(face) {
         let l = body.loops.get(lk)?;
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
@@ -2452,7 +2557,7 @@ fn boundary_reach<T: Decide>(
             ),
         });
     };
-    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+    for lk in face_loops(face) {
         let l = body.loops.get(lk)?;
         match l.boundary {
             LoopBoundary::Empty { vertex } => {
@@ -2683,6 +2788,24 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
         let shell: ShellKey = body.get_face(f)?.shell;
         Some(body.get_shell(shell)?.solid)
     };
+    // Every boundary vertex of `f` — outer loop and rings — exactly as
+    // `snapshot` records them into `vertex_faces`; a loop this cannot
+    // walk contributes none, and an empty set is disjoint from every
+    // other, so the pair it belongs to is examined rather than skipped.
+    let face_vertices = |f: FK| -> BTreeSet<VertexKey> {
+        let mut out = BTreeSet::new();
+        let Some(face) = body.get_face(f) else {
+            return out;
+        };
+        for cycle in face_cycles(body, face).filter_map(Result::ok) {
+            for he in cycle {
+                if let Some(hd) = body.half_edges.get(he) {
+                    out.insert(hd.start);
+                }
+            }
+        }
+        out
+    };
     // Boundary-vertex hull of a face (every loop), as raw points.
     //
     // A loop this cannot walk contributes nothing, and an EMPTY loop is
@@ -2694,46 +2817,12 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     // reading, "empty means nothing to look at" — a `continue` on an
     // empty set, under exactly that reading, is the same defect one
     // deferral over, and `splitting/rules.rs` carried one.
-    // Every boundary vertex of `f` — outer loop and rings — exactly as
-    // `snapshot` records them into `vertex_faces`.
-    let face_vertices = |f: FK| -> BTreeSet<VertexKey> {
-        let mut out = BTreeSet::new();
-        let Some(face) = body.get_face(f) else {
-            return out;
-        };
-        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-            let Some(loop_) = body.loops.get(lk) else {
-                continue;
-            };
-            let LoopBoundary::Cycle { first } = loop_.boundary else {
-                continue;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
-            for he in cycle {
-                if let Some(hd) = body.half_edges.get(he) {
-                    out.insert(hd.start);
-                }
-            }
-        }
-        out
-    };
     let face_points = |f: FK| -> Vec<Point3<T>> {
         let mut out = Vec::new();
         let Some(face) = body.get_face(f) else {
             return out;
         };
-        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-            let Some(loop_) = body.loops.get(lk) else {
-                continue;
-            };
-            let LoopBoundary::Cycle { first } = loop_.boundary else {
-                continue;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
+        for cycle in face_cycles(body, face).filter_map(Result::ok) {
             for he in cycle {
                 if let Some(hd) = body.half_edges.get(he)
                     && let Some(v) = body.vertices.get(hd.start)
@@ -2757,14 +2846,8 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
         let Some(face) = body.get_face(f) else {
             return false;
         };
-        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-            let Some(loop_) = body.loops.get(lk) else {
-                return false;
-            };
-            let LoopBoundary::Cycle { first } = loop_.boundary else {
-                return false;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
+        for cycle in face_cycles(body, face) {
+            let Ok(cycle) = cycle else {
                 return false;
             };
             for he in cycle {
@@ -2922,17 +3005,9 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             })
         })
         .collect();
-    let reach_tree = cands.prunes().then(|| Bvh::build(&reach_boxes));
+    let reach = cands.class(reach_boxes);
     for (i, a) in reaches.iter().enumerate() {
-        let later: Vec<usize> = match &reach_tree {
-            Some(tree) => {
-                let mut out = tree.overlapping(candidate(&reach_boxes, i));
-                out.retain(|&j| j > i);
-                out
-            }
-            None => (i + 1..reaches.len()).collect(),
-        };
-        for j in later {
+        for j in reach.later(i) {
             let b = candidate(&reaches, j);
             if a.solid == b.solid || !a.verts.is_disjoint(&b.verts) {
                 continue; // same instance / structural adjacency
@@ -3108,17 +3183,9 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             },
         )
         .collect();
-    let extent_tree = cands.prunes().then(|| Bvh::build(&extent_boxes));
+    let extents = cands.class(extent_boxes);
     for (i, &(&sa, (alo, ahi))) in solids.iter().enumerate() {
-        let later: Vec<usize> = match &extent_tree {
-            Some(tree) => {
-                let mut out = tree.overlapping(candidate(&extent_boxes, i));
-                out.retain(|&j| j > i);
-                out
-            }
-            None => (i + 1..solids.len()).collect(),
-        };
-        for j in later {
+        for j in extents.later(i) {
             let &(&sb, (blo, bhi)) = candidate(&solids, j);
             let before = errors.len();
             // No deferral on records here, deliberately (arm 2's docs
@@ -4211,14 +4278,22 @@ mod tests {
     /// prism skeleton with real geometry — every face a `Plane` with
     /// its outward normal, every edge a `Line` between its vertices.
     fn cube_at(at: Vec3<f64>, tol: Tol) -> Body<f64> {
+        cube_at_turned(at, 0.0, tol)
+    }
+
+    /// [`cube_at`], turned by `theta` about the vertical through its
+    /// minimum corner — a marginal `theta` puts its edges at a
+    /// marginal angle to an axis-aligned cube's.
+    fn cube_at_turned(at: Vec3<f64>, theta: f64, tol: Tol) -> Body<f64> {
         use geom_brep::EdgeCurveSpec;
         let mut p = crate::fixtures::prism(4, tol);
         let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let (c, sn) = (theta.cos(), theta.sin());
         for (i, (x, y)) in corners.into_iter().enumerate() {
             for (v, z) in [(p.t[i], 1.0), (p.u[i], 0.0)] {
                 let point = p.body.get_vertex(v).expect("a rim vertex").point;
                 *p.body.points.get_mut(point).expect("its point") =
-                    Point3::new(at.x + x, at.y + y, at.z + z);
+                    Point3::new(at.x + x * c - y * sn, at.y + x * sn + y * c, at.z + z);
             }
         }
         let point_of = |body: &Body<f64>, v: VertexKey| -> Point3<f64> {
@@ -4227,7 +4302,7 @@ mod tests {
                 .get(body.vertices.get(v).expect("a vertex").point)
                 .expect("a point")
         };
-        let centre = Point3::new(at.x + 0.5, at.y + 0.5, at.z + 0.5);
+        let centre = Point3::new(at.x + 0.5 * (c - sn), at.y + 0.5 * (sn + c), at.z + 0.5);
         let faces: Vec<FaceKey> = p.body.faces().map(|(k, _)| k).collect();
         for f in faces {
             let outer = p.body.get_face(f).expect("a face").outer;
@@ -4253,12 +4328,14 @@ mod tests {
                 pts.iter().map(|q| q.y).sum::<f64>() / n,
                 pts.iter().map(|q| q.z).sum::<f64>() / n,
             );
-            // An axis-aligned cube: the face centroid sits exactly half a
-            // side from the centre along the face's own axis.
+            // A cube: the face centroid sits exactly half a side from the
+            // centre along the face's own (turned) axis.
             let d = centroid - centre;
             let normal = Vec3::new(2.0 * d.x, 2.0 * d.y, 2.0 * d.z);
-            let u_ref = if normal.x.abs() > 0.5 {
-                Vec3::unit_y()
+            // A wall's normal is horizontal, so the vertical is in its
+            // plane; a cap's is vertical, so any horizontal axis is.
+            let u_ref = if normal.z.abs() < 0.5 {
+                Vec3::unit_z()
             } else {
                 Vec3::unit_x()
             };
@@ -4291,10 +4368,73 @@ mod tests {
     /// One body: the unit cube at the origin and a second cube whose
     /// minimum corner is at `at`.
     fn two_cubes(at: Vec3<f64>) -> Body<f64> {
+        two_cubes_turned(at, 0.0)
+    }
+
+    /// [`two_cubes`] with the second cube turned by `theta`.
+    fn two_cubes_turned(at: Vec3<f64>, theta: f64) -> Body<f64> {
         let tol = Tol::witness();
         let mut body = cube_at(Vec3::new(0.0, 0.0, 0.0), tol);
-        let other = cube_at(at, tol);
+        let other = cube_at_turned(at, theta, tol);
         crate::instance::graft_disjoint(&mut body, &other, tol).expect("a disjoint graft");
+        body
+    }
+
+    /// A planar half-disc cap — one arc edge of the unit circle and its
+    /// chord, a two-vertex arc-bearing loop no region walk expresses
+    /// (`contfp` refuses it `ArcLoopUnsupported`) — with a cube grafted
+    /// in beside it whose bottom vertices lie in the cap's plane, far
+    /// away.
+    fn half_disc_cap_and_far_cube() -> Body<f64> {
+        use geom::Curve3;
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let (p0, p1) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
+        let seed = body.mvfs(p0).expect("a seed");
+        // After the seed: a surface on an empty body is an orphan.
+        let plane = body.add_surface(Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        });
+        let cyl = body.add_surface(cyl_surface());
+        let arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p1,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        s1: cyl,
+                        s2: plane,
+                        witness: Point3::new(0.0, 1.0, 0.0),
+                    },
+                    carrier: Curve3::Circle {
+                        center: Point3::origin(),
+                        axis: Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    param_start: 0.0,
+                    param_end: std::f64::consts::PI,
+                },
+                tol,
+            )
+            .expect("the arc");
+        body.mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared(plane),
+            tol,
+        )
+        .expect("the chord closes the cap");
+        let cube = cube_at(Vec3::new(10.0, 3.0, 0.0), tol);
+        crate::instance::graft_disjoint(&mut body, &cube, tol).expect("a disjoint graft");
         body
     }
 
@@ -4302,26 +4442,12 @@ mod tests {
         errors.iter().map(|e| format!("{e:?}")).collect()
     }
 
-    fn sweeps(t: &CensusTrace) -> [(&'static str, &SweepPairs); 6] {
-        [
-            ("vv", &t.vv),
-            ("ve", &t.ve),
-            ("vf", &t.vf),
-            ("ef", &t.ef),
-            ("ee", &t.ee),
-            ("backstop", &t.backstop),
-        ]
-    }
-
-    /// Whether `sub` is `sup` with elements removed and nothing reordered.
-    fn is_subsequence(sub: &[(EntityId, EntityId)], sup: &[(EntityId, EntityId)]) -> bool {
-        let mut it = sup.iter();
-        sub.iter().all(|p| it.any(|q| q == p))
-    }
-
     /// The realized run against the idealized one: identical errors,
-    /// the realized examined sequence a subsequence of the exact one
-    /// holding every accepted pair. Returns the pairs pruned.
+    /// the realized examined sequence a restriction of the exact one
+    /// holding every accepted pair. Returns the pairs pruned. The
+    /// comparators are [`SweepPairs`]'s own, shared with editor-core's
+    /// `perf12_census_bvh_diff`, whose `pin` is this loop over a
+    /// product body.
     fn pin(body: &Body<f64>) -> usize {
         let records = ContactRecords::default();
         let (real_errors, real) = census_traces(body, &records, band(), CensusStrategy::Realized);
@@ -4329,18 +4455,45 @@ mod tests {
             census_traces(body, &records, band(), CensusStrategy::Idealized);
         assert_eq!(rendered(&real_errors), rendered(&ideal_errors));
         let mut pruned = 0;
-        for ((name, r), (_, i)) in sweeps(&real).iter().zip(sweeps(&ideal).iter()) {
-            assert!(is_subsequence(&r.examined, &i.examined), "{name}: order");
-            for a in &i.accepted {
-                assert!(
-                    r.examined.contains(a),
-                    "{name}: the filter pruned an accepted pair {a:?}"
-                );
-            }
+        for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
+            assert!(r.is_restriction_of(i), "{name}: order");
+            let lost = r.lost_accepted(i);
+            assert!(
+                lost.is_empty(),
+                "{name}: the filter pruned accepted pairs {lost:?}"
+            );
             assert_eq!(r.accepted, i.accepted, "{name}: accepted");
             pruned += i.examined.len() - r.examined.len();
         }
         pruned
+    }
+
+    /// The comparator can go red: plant one face box empty and the
+    /// superset comparator MUST report the loss (`m5_pr8_bvh_diff`'s
+    /// pin 3, at this door).
+    #[test]
+    fn planted_degradation_is_caught() {
+        // The second cube's corner rests in the interior of the first's
+        // x = 1 face: a vertex-on-face event, undeclared.
+        let flush = two_cubes(Vec3::new(1.0, 0.25, 0.25));
+        let records = ContactRecords::default();
+        let (_, ideal) = census_traces(&flush, &records, band(), CensusStrategy::Idealized);
+        let &(_, EntityId::Face(face)) = ideal
+            .vf
+            .accepted
+            .first()
+            .expect("a corner in a face's interior is a vertex-on-face event")
+        else {
+            panic!("a vf pair names a face");
+        };
+        let plant = crate::boolean::PlantedDegradation { face };
+        let (_, real) =
+            census_traces_planted(&flush, &records, band(), CensusStrategy::Realized, plant);
+        let lost = real.vf.lost_accepted(&ideal.vf);
+        assert!(
+            lost.iter().any(|&(_, f)| f == EntityId::Face(face)),
+            "a planted-empty face box must lose its accepted pairs (got {lost:?})"
+        );
     }
 
     #[test]
@@ -4513,12 +4666,113 @@ mod tests {
             predicates.contains("pm_census_ve_line_gap"),
             "{predicates:?}"
         );
-        for ((name, r), (_, i)) in sweeps(&real).iter().zip(sweeps(&ideal).iter()) {
-            assert!(is_subsequence(&r.examined, &i.examined), "{name}: order");
+        restricted_and_silent(&real, &ideal);
+    }
+
+    /// The class's shape, shared by its three rows: the realized
+    /// examination is the exact one restricted, and every pair the
+    /// exact sweep pushed for is one the filter pruned.
+    fn restricted_and_silent(real: &CensusTrace, ideal: &CensusTrace) {
+        for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
+            assert!(r.is_restriction_of(i), "{name}: order");
             assert!(
                 i.accepted.iter().all(|p| !r.examined.contains(p)),
                 "{name}: every accepted pair is a pruned one"
             );
         }
+    }
+
+    #[test]
+    fn an_angle_stage_escalation_on_separated_edges_is_the_filters_to_answer() {
+        // The second cube 10 m away and turned by 5e-9 rad: its edges
+        // meet the first cube's at sin θ · min_len = 5e-9, inside the
+        // escalation zone of `pm_census_ee_parallel` — an angle
+        // quantity with no positional content — metres from any edge.
+        // The class's angle member.
+        let body = two_cubes_turned(Vec3::new(10.0, 0.0, 0.0), 5e-9);
+        let records = ContactRecords::default();
+        let (real_errors, real) = census_traces(&body, &records, band(), CensusStrategy::Realized);
+        let (ideal_errors, ideal) =
+            census_traces(&body, &records, band(), CensusStrategy::Idealized);
+        assert!(real_errors.is_empty(), "{real_errors:?}");
+        let mut predicates = BTreeSet::new();
+        for e in &ideal_errors {
+            let ValidationError::CensusEscalated { cause } = e else {
+                panic!("a non-escalation on separated cubes: {e:?}");
+            };
+            predicates.insert(cause.predicate.expect("a named predicate"));
+        }
+        assert!(
+            predicates.contains("pm_census_ee_parallel"),
+            "{predicates:?}"
+        );
+        restricted_and_silent(&real, &ideal);
+    }
+
+    #[test]
+    fn a_region_walk_refusal_on_a_separated_vertex_is_the_filters_to_answer() {
+        // A far cube's bottom vertices lie in a half-disc cap's plane.
+        // The exact sweep reaches the cap's region walk for each and is
+        // refused — a two-vertex arc loop has no walk — so it pushes
+        // `CensusUnsupported` about a face the vertex is nowhere near.
+        // The class's REFUSAL member: the box answer decides the
+        // vertex apart, and the refusal is not raised.
+        // (The sheet's seed face has a placeholder surface, so the
+        // backstop refuses the sheet×cube instance pair `Undecidable`
+        // under BOTH strategies — a poisoned extent is never pruned;
+        // that shared refusal is not the class and is not this row's
+        // subject.)
+        let body = half_disc_cap_and_far_cube();
+        let records = ContactRecords::default();
+        let (real_errors, real) = census_traces(&body, &records, band(), CensusStrategy::Realized);
+        let (ideal_errors, ideal) =
+            census_traces(&body, &records, band(), CensusStrategy::Idealized);
+        let is_refusal = |e: &ValidationError| {
+            matches!(
+                e,
+                ValidationError::CensusUnsupported {
+                    cause: CensusUnsupportedCause::Containment(
+                        ContainError::ArcLoopUnsupported { .. }
+                    ),
+                    ..
+                }
+            )
+        };
+        let real_rendered = rendered(&real_errors);
+        for e in &real_errors {
+            assert!(
+                !is_refusal(e),
+                "a refusal about a separated vertex was raised: {e:?}"
+            );
+        }
+        assert!(
+            real_rendered
+                .iter()
+                .all(|e| rendered(&ideal_errors).contains(e)),
+            "the realized errors are the exact errors less the refusals"
+        );
+        let dropped: Vec<&ValidationError> = ideal_errors
+            .iter()
+            .filter(|e| !real_rendered.contains(&format!("{e:?}")))
+            .collect();
+        assert!(
+            !dropped.is_empty(),
+            "the exact sweep refuses the far coplanar vertices"
+        );
+        assert!(
+            dropped.iter().all(|e| is_refusal(e)),
+            "only region-walk refusals are dropped: {dropped:?}"
+        );
+        for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
+            assert!(r.is_restriction_of(i), "{name}: order");
+        }
+        assert!(
+            ideal
+                .vf
+                .accepted
+                .iter()
+                .all(|p| !real.vf.examined.contains(p)),
+            "every vertex-on-face pair the exact sweep refused is a pruned one"
+        );
     }
 }
