@@ -519,3 +519,18 @@ FABLE, R2 = OPUS; briefs stored with digests on `blend/b1-block`
 before either ran; the four deviations stated in both briefs as
 hypotheses. The unit's log entry waits for the dual. Unit 7's target
 reclaimed for the reviewers' base-tree builds (its fix pass re-seeds).
+
+**MERGED — unit 7 (2026-09-13)** on PR [#2483](https://github.com/evgunter/cad/pull/2483):
+a closed chain's junctions are judged against the links that touch
+them; N ≥ 3 closed rims carve on both doors and both sides; the item
+closed. Dual: no MAJOR either side, no tally candidate; the kernel
+change confirmed by both arms' own instruments; the findings were
+record-level and the stronger unique ones (the oracle as a second
+`wedge_fill`; the fix minting fixture copies of what it closes) went
+into the fix pass, which also adopted both probe branches and re-took
+the bit-dump differential after reshaping the closing arm. Delta by
+R1 on the fixed head: recorded below. Sample #177 (main's order
+rules). Residues on the slate from this unit:
+`rim-of-refuses-extruded-multi-arc-rims`,
+`battery-holds-the-chain-data-model-beside-the-predicates`,
+`self-closed-link-sharing-its-vertex-records-two-junctions`.

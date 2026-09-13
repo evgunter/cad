@@ -2,10 +2,11 @@
 id: closed-chain-junctions-pair-with-a-rotated-link
 kind: unit
 title: blend: a closed chain of three or more links refuses ChainNotG1 because the junction list is rotated against the ring
-status: review
+status: closed
 opened: 2026-09-08
 branch: blend/7-closed-chain-junctions
 pr: 2483
+closed: 2026-09-13
 ---
 
 
@@ -80,5 +81,19 @@ none; `surgery.rs`'s per-crossing `arcs.len() != 2` is a vertex
 invariant holding at every crossing of an N-arc rim.
 
 Filed from here: `rim-of-refuses-extruded-multi-arc-rims`,
+`battery-holds-the-chain-data-model-beside-the-predicates`,
+`self-closed-link-sharing-its-vertex-records-two-junctions`.
+
+## Closed (2026-09-13, PR 2483)
+
+Every junction of a closed chain is judged against the two links that
+touch it (`battery::Junction`, read by index; the walk records it at
+the step that meets it). Three-, four-, five- and six-arc rims carve on
+both closed-rim doors and both material sides at `wedge_fill`'s closed
+form with pad 0; every two-link rim and open chain is bit-identical to
+the merge base. The dual found no MAJOR; its record-level findings
+(the premise table, the rows' claims, the oracle copy, the fixture
+copies) are in the fix pass. Residues filed:
+`rim-of-refuses-extruded-multi-arc-rims`,
 `battery-holds-the-chain-data-model-beside-the-predicates`,
 `self-closed-link-sharing-its-vertex-records-two-junctions`.
