@@ -944,3 +944,73 @@ branch-side on `blend/b3-block` (byte 124 ⇒ fable at slot 1: 12 OPUS,
 `work/bool/log.md` before dispatch; unit 14 dispatches when its spec
 is on main; unit 15 when unit 12 merges. Block B2's last slot (unit 8)
 is in its dual beside them.
+
+**Unit 8's dual concluded (2026-09-13, ~11:50 UTC):** R1 (OPUS)
+MERGEABLE-AFTER-FIXES 2/6/6, rubric 4/4/3; R2 (FABLE)
+MERGEABLE-AFTER-FIXES 0/5/5, rubric 4/4/3. Both concurrent on the
+frozen head with private targets, neither interrupted, zero
+cross-lane reads disclosed. The code is right by both instruments:
+both re-took both differentials at the true merge base, re-derived
+the split rule from `topo/src/split.rs` (and found `split_fragment`
+asks the live body rather than restating the rule — the better
+posture), and built bodies the census did not carve (an underside pip
+and boss; a pip cut from below and a boss grown downward; the H4 boss;
+the extruded two-arc ladders), all naming-total at the head and red at
+the base. R1's two MAJORs are R2's MINORs — the PR's mutant table is
+false at the head (the old push restored reds 17–18 rows at the new
+postcondition, not one; the table predates the postcondition commit)
+and the annulus phase keeps a second spelling of the split half
+(closure, hand-kept remnants, fragment rows without a source lookup)
+with the spec's asked-for residue unfiled — so both headlines are
+bilateral at differing severity: NO tally candidate. Converged: the
+door → direction rule the lane committed is measured false (the
+determinant is which end of the seam's stored direction the rim sits
+at); the postcondition covers edges only (R1 measured the vertex
+channel clean); the orientation row restates `topo`'s retention rule
+instead of measuring it; the counts do not reproduce; the census's
+scope is narrower than claimed. Unique R1: no row in `topo` pins
+`split_edge`'s retention direction; the emitter residue unscheduled;
+`meridian_splits` changed unpinned. Unique R2: the spec's door (b) is
+unreachable (`profile` canonicalizes traversal); the orchestrator's
+own plan and program lines still say "unmeasured". Fix pass dispatched
+on the union (`/home/user/blend-briefs/fix-8-brief.md`); both probe
+branches adopted; delta by R1.
+
+**Unit 12 landed (2026-09-13)** on PR [#2508](https://github.com/evgunter/cad/pull/2508),
+head `b4403f1fb`, full matrix green (run 34754788782). Phase 1 drove
+four of the nine `fillet_*` predicates in band through the public door
+at every ε row and found each rendering the shared coincidence recourse
+at the merge base; five are pre-empted (two by a proof that the
+exact-order band admits no finite f64, three by point sweeps).
+`EscalationSite::Fillet` had no producer and is retired with its arm;
+the nine names map to the six sentences through one function in
+`validate.rs`, dispatched first in the door's Display; 897 public-door
+requests at three ε rows are bit-identical in every built loop and
+every refusal's variant and payload. Two fence crossings the
+retirement forced (the `pncad` re-export census; the reader-census
+ledger), a re-baselined trio row, and a filed residue (four sentences
+no longer name the tolerance lever at their in-band site). **Ordinal
+2906 claimed (orchestrator PR to main); the v6 dual dispatched
+concurrently on the frozen head** — byte 157 ⇒ R1 = FABLE, R2 = OPUS;
+briefs stored with digests on `blend/b3-block` before either ran. The
+unit's log entry waits for the dual; unit 15 dispatches when it merges.
+
+**Unit 14 landed (2026-09-13)** on PR [#2509](https://github.com/evgunter/cad/pull/2509),
+head `c603c8fb5`, full matrix green (run 34754771075). Phase 1 walked
+158 contact edges on the corpus (all in lane, all seven stations
+Positive, every minimum the closed form) and found the spec's
+near-osculating family screened by the battery before the rule
+(`fillet3_face_clearance` refuses below `R/r ≈ 1.2`); the stop clause
+did not fire because an admitted rod scaled into the band's octave
+reaches the in-band verdict at all three ε rows — today it builds the
+intrinsic description and then refuses from inside the attachment
+gate. `attach_contact`'s intrinsic arm now routes through
+`must_carry_over_edge` (`JetDeterminate` → the intrinsic description;
+`UnderDetermined` → the `he_plus` chart; `InBand` → `Escalated` with a
+new `FILLET3_CONTACT_RECOURSE` whose lever is ENLARGE the radius); the
+differential byte-identical; K 7 per contact edge where it was 0. A
+D-bore's concave fixture refuses `BodyNotIntact` at the ruled door and
+is filed. **Ordinal 2907 claimed (orchestrator PR to main); the v6
+dual dispatched concurrently on the frozen head** — byte 201 ⇒ R1 =
+FABLE, R2 = OPUS; briefs stored with digests on `blend/b3-block`
+before either ran. The unit's log entry waits for the dual.
