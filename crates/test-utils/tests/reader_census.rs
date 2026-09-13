@@ -200,6 +200,11 @@ const LEDGER: &[Entry] = &[
                              // gate, code+literal view
     },
     Entry {
+        path: "crates/profile/tests/recourse_roster.rs",
+        disposition: Shared, // the recourse roster reads every decide site in
+                             // the crate's src, code+literal view
+    },
+    Entry {
         path: "crates/profile/tests/seal.rs",
         disposition: Shared, // serde-free seal, code view
     },
@@ -230,6 +235,11 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/sweep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/sweep/tests/recourse_roster.rs",
+        disposition: Shared, // the recourse roster reads every decide site in
+                             // the crate's src, code+literal view
     },
     Entry {
         path: "crates/sweep/tests/review_blend5_r5_probes.rs",
