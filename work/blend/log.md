@@ -1129,3 +1129,13 @@ which survived; resumed from its transcript), and the CI watch on unit
 and unit 8's deltas had reported, unit 14's dual had concluded. Pairs
 unaffected; the two implementer lanes carry the interruption in their
 own records.
+
+**Outage (2026-09-13, ~14:45 UTC → ~21:40 UTC):** the session's usage
+limit (429) killed unit 14's delta re-verification (R1, mid-run, no
+report) and unit 15's implementer lane (mid Phase 2, its branch pushed
+at 8476909f7); the limit reset at 16:00 UTC but the orchestrator's
+check-in did not wake it until ~21:39 UTC. Both resumed from their
+transcripts. The delta is a re-verification, not a review arm: unit
+14's pair concluded before the outage and still counts; unit 15's
+dual has not been drawn. The dead time is the orchestrator's, not a
+lane's.
