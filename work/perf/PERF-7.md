@@ -2,10 +2,11 @@
 id: PERF-7
 kind: unit
 title: the tessellator's face loop is an indexed parallel map
-status: review
+status: closed
 pr: 2448
 opened: 2026-09-12
 branch: perf/7-parallel-tessellation
+closed: 2026-09-13
 ---
 
 

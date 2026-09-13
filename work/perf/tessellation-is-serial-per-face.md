@@ -2,9 +2,10 @@
 id: tessellation-is-serial-per-face
 kind: issue
 title: the tessellator visits faces one at a time although every lane is read-only per face
-status: open
+status: closed
 opened: 2026-09-12
 parent: PERF-7
+closed: 2026-09-13
 ---
 
 
