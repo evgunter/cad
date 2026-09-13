@@ -61,3 +61,13 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the half that cannot compose is the engine: `min_separation` is written
+at `geom_core::Interval` concretely in `crates/editor-core/src/clearance.rs`, this
+program's file, and SHELL-3 is the unit that moves its body-level half into `topo`
+behind `interval` — the same question from the other end. SYM owns the tier side and
+the `Sym<Interval>` replay that asks for it.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

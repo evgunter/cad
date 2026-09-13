@@ -78,3 +78,13 @@ was re-measured with it open:
 This row stays open for the last bullet of its "what is owed" — the R2
 probe row re-cut against the measured state above — and the door half
 is done.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because it is the registered-identity door's live consumer, and the door is
+this program's. The constructor change it waits on is BLEND's
+`fillet-tangency-is-not-the-constructors-node`: until the joint classifier is handed
+the Fillet step's own centre, there is nothing to register. Kept `open` rather than
+`parked` — the dependency is stated here and in `work/sym/plan.md`'s door lane.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

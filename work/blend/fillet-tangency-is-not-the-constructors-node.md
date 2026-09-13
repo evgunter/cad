@@ -110,3 +110,15 @@ ceiling's sake.**
 
 Both are decisions for the unit that owns the path algebra, taken with
 `work/m10/declared-tangency-needs-the-registered-identity-door`.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the obstacle is the profile fillet door — `validate.rs` calls
+`seg::build_seg`, which RE-DERIVES the carrier from three stored numbers, so the
+centre the classifier asks about is never the constructor's. This program's title
+names that door and it inherited FILLET's residue; `crates/profile/*` is S-BOOL's
+glob and the fillet arms inside it are edited here by the announced seam this
+program's `keep_out` already carries. The certification consumer that waits on this
+row is SYM's `declared-tangency-needs-the-registered-identity-door`.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

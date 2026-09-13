@@ -93,3 +93,11 @@ both are named rather than folded into a "closed":
   the charter saying what closing it delivers. That is the gate
   working — a curated façade name may be bound or dispositioned, and
   nothing else.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because `crates/editor-core/src/mc.rs` is the advisory half of M10's analysis
+lane and arrives with it. The second half of the row is `crates/pncad/src/analysis.rs`'s
+unconditional re-export, which is LIB's territory and is named in the body.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

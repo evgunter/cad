@@ -60,3 +60,12 @@ until a leaf budget spent on the hull runs out; and the report saying
 which of the two stopped it. Not M10-10's: it is a stackup deliverable,
 and the number a user reads today is sound, only looser than it needs
 to be.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the padding is a property of the E5 stackup's hull over certified
+leaves — `crates/editor-core/src/stackup.rs`, PROPS' file before this sweep and the
+site of both pins the row re-baselined. The symbolic tier is the CAUSE (it certifies
+in fewer, wider leaves) and not the site; SYM holds the tier.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

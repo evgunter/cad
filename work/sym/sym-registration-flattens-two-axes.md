@@ -42,3 +42,10 @@ the obvious next edit if a third registrant lands.
 Recorded in the type's own doc comment
 (`crates/geom-core/src/real.rs`), so a reader meets the argument where
 the type is.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because it records the door's shape and its cost; the type is
+`geom_core::real::SymRegistration`, reached in PROPS' `real.rs` by announced seam.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

@@ -95,3 +95,11 @@ these two sites are a class or a pair.
   mechanism and the ceiling band, so a move here reds that row rather
   than passing silently.
 - `crates/geom-brep/` — `arc_diameter_clearance`, R1's bracket site.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because this is the numeric channel's half of E12's division of labour, and
+it is what stands between the plate's whole-certifying ceiling (0.263 of its real
+study) and the genuine flip at 0.625. SYM's ceiling lane.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

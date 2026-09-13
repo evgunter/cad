@@ -59,3 +59,13 @@ Not urgent, and not M10-9's to take: the door's own five spellings are
 consistent and measured
 (`editor-core/tests/m10_9_pins_interval.rs`, the K row in
 `docs/K-REPORT.md`).
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because four of the five spellings are the tier's own (`SymCounts::registered`,
+`Discharge::Registered`, `ShapeOutcome::Registered`, and `SampleOutcome::Registered`
+in PROPS' `k_stats.rs`). The fifth, `Scan::registered` in `tools/k-lint`, is INSTR's
+and is the one pair already pinned across the workspace boundary; a sixth discharge
+kind moves all five together, so the row travels with the tier that would mint it.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

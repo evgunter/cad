@@ -426,3 +426,10 @@ from the segment the funnel re-derived, so the constructor holds
 neither operand. They belong to the same class as
 `carrier_line_circle` — an identity the representation loses on the
 way in — and not to the real-margin class.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because it is the tier's own reference: 107 rows of evidence that
+`geom_core::sym`'s module docs summarize and cite by name.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

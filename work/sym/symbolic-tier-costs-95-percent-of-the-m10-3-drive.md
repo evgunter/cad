@@ -122,3 +122,14 @@ watch it skipped the suite on that very PR (the marker names
 editor-core paths; #1725 changed `geom-core`). The cost was never
 recorded anywhere — `work/m10/` records the tier's API costs and the
 `COEFF_BITS` trade, and no runtime figure at all.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the work it asks for — a profile INSIDE the normal form — is in this
+program's file. **The measurement stays S-TCOST's**: that program filed it on Ev's
+direction, its figures and its successor rows
+(`work/tcost/m10-3-chamber-row-reads-ten-times-its-recorded-cost`,
+`work/tcost/one-test-is-the-whole-ci-critical-path`) are named in the body, and no
+row here is justified by a cpu-second without S-TCOST's measurement behind it.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

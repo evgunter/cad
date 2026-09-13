@@ -73,3 +73,12 @@ why at the site.
   identity's assertion, which was removed with it. Neither has been
   observed to contradict on a non-adversarial document; the M10-9 pins
   assert `registrations_contradicted == 0` on the fixtures they drive.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because it is the limit of what a registration means: an axiom whose soundness
+rests on the registrant's proof. `Real::register_equal` lives in
+`crates/geom-core/src/real.rs`, which stays PROPS' file — SYM reaches the door there
+by announced seam.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

@@ -53,3 +53,12 @@ failing).
   documents whose ceilings M10-9 measures). Until one is, this is
   machinery for zero certificate content (ERROR-DESIGN E6) and the row
   stays filed rather than built.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the two builders are `crates/sweep/src/revolve/surfaces.rs` and
+`revolve/full.rs`, this program's paths, and what is owed is a constructor change:
+the builder is never handed the far endpoint the span identity would be stated
+about. The door the registration goes through is SYM's and is named in the body.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

@@ -64,3 +64,10 @@ says "the unit bulge" beside its numbers rather than "arcs".
   fact of the authoring door (a bulge's sign is the arc's turn, which
   the profile program knows) — the same shape as the chart phase was,
   and the same two routes.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because rule D is the tier's own mechanism and this is the next ceiling class
+after M10-10.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

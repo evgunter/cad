@@ -85,3 +85,13 @@ endpoint", discharged structurally and verified at the f64 witness — is
 the shape that closes it; this item is where it should be scheduled
 against, since the driver's refusal for it is the same typed-and-priced
 refusal the implicit rows get.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because it is the tier's frontier — an iterated quantity (an SSI march point, a
+projection foot) has no expression in the parameters at all, so no normal form
+reaches it. It came to M10 from S-CERT; it follows the tier rather than S-CERT's
+successor because what it bounds is the tier's reach. A design conversation before
+it is a unit.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

@@ -39,3 +39,12 @@ naming it is a driver decision: a `RefusalReason` for "the box lies in
 a coincidence zone of a magnitude slot", terminal like a sliver, with
 the degenerate-extrusion (and its siblings: a zero revolve angle, a
 zero pattern step) mapped to it.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the fix is a `RefusalReason` arm in `drive::classify_replay`, and
+`crates/editor-core/src/drive.rs` is PROPS' at this sweep — the analysis lane its
+`keep_out` said it would inherit here. The row already `refs` PROPS' own
+`k-stats-escalation-channel-and-redo`.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

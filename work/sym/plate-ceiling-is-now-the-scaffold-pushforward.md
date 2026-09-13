@@ -226,3 +226,13 @@ link and the bracket wait on.
   as the bracket's and the pad's bound, are themselves IDENTITY-shaped
   residuals of the fillet construction, not real margins; they are
   recorded as such in `work/m10/symbolic-tier-census`.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the ceiling is the tier's statement about itself: one predicate bounds
+all five measured documents, door open and shut alike. The FIX half — retiring the
+scaffold residual for arc carriers — is a PCURVE/D3 question, and the site that
+decides the residual (`crates/geom-brep/src/certify.rs`) is in no program's paths;
+TRIM is PCURVE's successor and is who to open that half with.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

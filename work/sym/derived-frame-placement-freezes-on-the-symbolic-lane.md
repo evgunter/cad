@@ -61,3 +61,13 @@ until this is answered, and become unit rows when it is.
 ## Home
 
 M10. Filed by DOCM at DOCM-1's merge (2026-09-04).
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the mechanism is the tier's: every freeze is a budget refusal in
+`geom_core::sym::form_in`, where a derived frame's re-normalised stored unit vectors
+double the degree per square. DOCM-1's dual review found it and DOCM owns the
+derived-frame door (`Datum::FaceFrame`) the other half would change; the row follows
+the mechanism and names DOCM.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

@@ -52,3 +52,9 @@ the tier's structure:
 
 Not M10-9's to take (a 3900-line move in a fix pass is a diff nobody
 can review against a door), and not urgent.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because it is this program's file and nothing else's.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

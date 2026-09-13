@@ -70,3 +70,11 @@ receive the tolerance rather than read it.
 Either is a design decision for the unit that next touches the door.
 Whichever is taken, the relative floor stays: the absolute-only
 spelling is measured wrong.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here for the same reason and through the same seam: `WITNESS_REL` is the door's
+f64 witness and lives in PROPS' `real.rs`, and what the row is about is what the
+tier's door accepts.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

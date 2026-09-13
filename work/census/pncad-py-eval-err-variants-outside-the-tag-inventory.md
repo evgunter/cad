@@ -64,3 +64,13 @@ Territory note: `crates/pncad-py/*` is LIB's fence and the gate is
 LIB's (`434964dfa`), but LIB is not active and the uncovered word is
 M10-6's, so this is filed to M10 on the same reasoning Ev gave for
 re-homing the sibling item (2026-09-04).
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the class is this program's charter exactly: a vocabulary spelled by
+hand in more than one place, and the census that cannot see one of the spellings —
+`TAG_INVENTORY` lexes `tags.rs` alone while eight `eval_err` call sites mint four
+words as string literals. `crates/pncad-py/*` is LIB's territory and this program's
+`keep_out` already says its pncad-py rows are announced there.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

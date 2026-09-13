@@ -25,3 +25,12 @@ where a curved gate lives relative to `editor-core`).
 Acceptance: the measure layer's refusal is the engine's own type (or a
 typed projection of it), the class read by `decide_assertion` is an enum
 match, and the `(class, String)` pair is gone.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the stringly twin is at `crates/editor-core/src/measure.rs:564`, PROPS'
+at this sweep with the rest of the analysis lane. The layering question it waits on
+— where a curved gate lives relative to `editor-core` — is the same seam as the
+issue-1055 valve, and `clearance.rs` itself is SHELL's.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

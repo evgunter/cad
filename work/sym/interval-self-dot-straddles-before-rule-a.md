@@ -51,3 +51,12 @@ tight across zero — `powi_is_tight_across_zero`) would give the exact
   squares component-wise through `powi(2)`, used by the carrier
   constructors, with the f64 bit-identity pinned across the swap; the
   allowlist gate re-read for the new site.
+
+## Re-homed at M10's exit sweep (2026-09-13)
+
+Here because the row is about rule A's reach — clause 1 refusing before the algebra
+is asked. The FIX is one line in `crates/geom-core/src/linalg/vec.rs` (`powi(2)`
+for `v·v`), which is PROPS' file and its linalg interval-honesty lane's ground: the
+seam is announced there and PROPS may simply take the row.
+
+From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
