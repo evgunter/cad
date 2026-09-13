@@ -2,10 +2,11 @@
 id: smooth-arm-siblings-disagree-on-the-in-band-case
 kind: unit
 title: sweep: the two must-carry Smooth arms disagree on the in-band case and on how much of the edge they read
-status: review
+status: closed
 opened: 2026-09-05
 branch: blend/9-must-carry-one-home
 pr: 2491
+closed: 2026-09-13
 ---
 
 
@@ -74,3 +75,20 @@ green; that limit is stated at the row.
 - `work/bool/boolean-rebuild-folds-an-in-band-second-order-into-conventional.md`
   — `topo::boolean::ops` still folds an in-band verdict into the conventional
   posture, citing a tier-3 stance tier 3 does not take.
+
+## Closed (2026-09-13, PR 2491)
+
+One home for the must-carry rule at the edge level
+(`geom_brep::must_carry_over_edge`): gate first, the schedule's interior
+stations, a typed three-way verdict; both verbs call it and revolve's
+silent fold is gone — an in-band latitude join now refuses typed. Every
+stored description in the tree unchanged (differential over 22
+fixtures). The dual's converged findings (a dead field, a hand-written
+census, unpinned station positions) are in the fix pass; its one
+unilateral MAJOR — a fourth site minting the intrinsic description
+outside the rule, in the blend surgery — was measured Positive at every
+station on the corpus and filed
+(`blend-contact-edges-mint-the-intrinsic-description-without-the-rule`).
+Residues filed: that one; `cap-rim-smooth-arm-decides-by-argument-not-by-the-rule`
+(the arm is unreachable on both doors); on BOOL's slate,
+`boolean-rebuild-folds-an-in-band-second-order-into-conventional`.
