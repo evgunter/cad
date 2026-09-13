@@ -277,7 +277,15 @@ by PERF-8 — an indexed map over faces into arena-order slots, each face
 under a detached K-funnel frame (`geom_core::k_stats::detached`) whose
 recording the arena-order fold splices back, so the verdict log, the
 escalation log and the `probe` sample population are the serial walk's
-at any thread count.
+at any thread count. PERF-11 put the module's third walk on the
+same pair — `SignCertificate::refine_to_target`'s continuation as one
+slot per face walked sequentially in arena order, which is what keeps
+the refusal it names the first in that order. Its FOURTH,
+`classify_shells_of`'s per-shell face loop, was mapped, measured and
+left serial: every shell the census meets is below the map's
+break-even and none is many-faced on the quadrature lane
+(`work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`). A
+map is a shape, not a gain, and the measurement is what says which.
 
 `mesh::tessellate`'s per-face dispatch is the per-face tessellation
 target, built by PERF-7 — the same pair of idioms, over the face arena:
