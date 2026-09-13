@@ -2,9 +2,10 @@
 id: escalation-recourse-dispatch-has-three-homes
 kind: unit
 title: blend: three Display impls dispatch a recourse by predicate name, with three different answers on an unknown name
-status: dispatched
+status: review
 opened: 2026-09-08
 branch: blend/15-recourse-roster
+pr: 2514
 ---
 
 
