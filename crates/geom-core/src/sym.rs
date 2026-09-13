@@ -1128,13 +1128,16 @@ impl Rat {
         let exp2 = exp2
             .checked_add(i32::try_from(nz).ok()?)?
             .checked_sub(i32::try_from(dz).ok()?)?;
-        #[cfg(feature = "sym-profile-testing")]
-        profile::coefficient_bits(num.bits().max(den.bits()));
         if num.bits() > COEFF_BITS || den.bits() > COEFF_BITS {
             #[cfg(feature = "sym-profile-testing")]
-            profile::note(profile::FreezeCause::Coefficient);
+            {
+                profile::coefficient_bits(num.bits().max(den.bits()), false);
+                profile::note(profile::FreezeCause::Coefficient);
+            }
             return None;
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::coefficient_bits(num.bits().max(den.bits()), true);
         Some(Self { num, den, exp2 })
     }
 

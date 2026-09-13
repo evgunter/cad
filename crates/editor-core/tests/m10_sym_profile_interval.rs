@@ -21,19 +21,25 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it profiles: the normal form and its rules, the
-// driver that replays leaves through it, and the fixtures.
+// driver that replays leaves through it, and the fixtures — the shared
+// tree and the four sibling suites whose doors build the documents and
+// run the replay.
 test_utils::gated_to![
     "crates/geom-core/src/sym.rs",
     "crates/geom-core/src/sym/",
     "crates/editor-core/src/drive.rs",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/tests/m10_3_r1_probes_interval.rs",
+    "crates/editor-core/tests/m10_7_plate.rs",
+    "crates/editor-core/tests/m10_8_arc_family_interval.rs",
+    "crates/editor-core/tests/m10_8_harness.rs",
 ];
 
 use std::collections::BTreeMap;
 use std::time::Instant;
 
 use editor_core::ProfileDoc;
-use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use geom_core::sym::profile::{start_profile, take_profile};
 use geom_core::sym::report::DecisionShape;
@@ -61,13 +67,36 @@ fn the_plate(tol: Tol) -> ProfileDoc {
     plate(5.0e-5, 1.0e-5, tol).0
 }
 
-/// The two scales a replay is read at: the degenerate box at the
-/// nominal, and the whole analyzed box.
-fn boxes(doc: &ProfileDoc) -> [(&'static str, ParamBox); 2] {
+/// The three scales a replay is read at: the degenerate box at the
+/// nominal (every form built); a LEAF-sized box — every axis `± ε`
+/// about its nominal, the width at which the M10-3 drive's leaves
+/// certify, so the evaluation runs to the end and the forms are
+/// built only where the numeric channel does not answer; and the
+/// whole analyzed box, which on the slab refuses at its second node
+/// (the extrusion vector straddles zero over it) and is kept as the
+/// record of that.
+fn boxes(doc: &ProfileDoc) -> [(&'static str, ParamBox); 3] {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
+    let root = ParamBox::of(&analyzed);
+    let leaf = ParamBox::from_axes(
+        root.axes()
+            .iter()
+            .map(|(n, a)| {
+                let m = a.midpoint();
+                (
+                    n.clone(),
+                    BoxAxis::Varying {
+                        lo: m - eps(),
+                        hi: m + eps(),
+                    },
+                )
+            })
+            .collect(),
+    );
     [
         ("nominal", nominal_box(&analyzed)),
-        ("root", ParamBox::of(&analyzed)),
+        ("leaf", leaf),
+        ("root", root),
     ]
 }
 
@@ -97,10 +126,9 @@ fn profiled_replay(label: &str, doc: &ProfileDoc, box_: &ParamBox, tol: Tol) {
 }
 
 /// **The slab, one replay at each scale** — the nominal (every form
-/// built) and the whole analyzed box (forms built only where the
-/// numeric channel does not answer).
+/// built), a leaf-sized box, and the whole analyzed box ([`boxes`]).
 #[test]
-#[ignore = "evidence-only: prints the tier's cost profile of one slab replay at two scales"]
+#[ignore = "evidence-only: prints the tier's cost profile of one slab replay at three scales"]
 fn sym_profile_slab_replays() {
     let tol = Tol::witness();
     let doc = slab();
@@ -148,7 +176,7 @@ fn sym_profile_plate_nominal() {
 
 /// **The callgrind target**: `CAD_SYM_PROFILE_DOC` (`slab` | `plate`,
 /// default `slab`) replayed over `CAD_SYM_PROFILE_BOX` (`nominal` |
-/// `root`, default `nominal`) `CAD_SYM_PROFILE_REPEATS` times (default
+/// `leaf` | `root`, default `nominal`) `CAD_SYM_PROFILE_REPEATS` times (default
 /// 1), the profile NOT installed, so an instruction count over the
 /// process is the tier's own. Prints the counts per replay.
 #[test]
@@ -167,7 +195,7 @@ fn sym_profile_callgrind_replay() {
     let (scale, box_) = boxes(&doc)
         .into_iter()
         .find(|(s, _)| *s == which)
-        .expect("CAD_SYM_PROFILE_BOX is `nominal` or `root`");
+        .expect("CAD_SYM_PROFILE_BOX is `nominal`, `leaf` or `root`");
     for i in 0..repeats {
         let t0 = Instant::now();
         let (shapes, _, counts) = replay(&doc, &box_, SymRules::shipped(), tol);

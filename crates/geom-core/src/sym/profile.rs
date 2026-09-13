@@ -163,8 +163,12 @@ pub struct SymProfile {
     /// Of those, PROMOTIONS: both operands `Small` and the checked
     /// `i128` operation overflowed.
     pub promotions: u64,
-    /// The widest integer (bits) any coefficient carried.
+    /// The widest integer (bits) any coefficient KEPT carried — at most
+    /// `COEFF_BITS`.
     pub widest_bits: u64,
+    /// The widest integer (bits) the ring REFUSED at the coefficient
+    /// bound — zero when nothing was refused.
+    pub widest_refused_bits: u64,
     /// The per-node rule A/B reduction in the early walk
     /// (`algebra::reduce_steps` under `SymRules::early_ab`).
     pub reduce: Timed,
@@ -353,10 +357,16 @@ pub(super) fn big_path(promoted: bool) {
     });
 }
 
-/// The width of one reduced coefficient.
+/// The width of one reduced coefficient, kept or refused at the bound.
 #[inline]
-pub(super) fn coefficient_bits(bits: u64) {
-    with(|p| p.widest_bits = p.widest_bits.max(bits));
+pub(super) fn coefficient_bits(bits: u64, kept: bool) {
+    with(|p| {
+        if kept {
+            p.widest_bits = p.widest_bits.max(bits);
+        } else {
+            p.widest_refused_bits = p.widest_refused_bits.max(bits);
+        }
+    });
 }
 
 fn timed(t: &mut Timed, t0: Option<Instant>) {
@@ -494,8 +504,8 @@ impl core::fmt::Display for SymProfile {
         )?;
         writeln!(
             f,
-            "ring: rat ops {}  big-path int ops {}  promotions {}  widest coefficient {} bits",
-            self.rat_ops, self.big_ops, self.promotions, self.widest_bits
+            "ring: rat ops {}  big-path int ops {}  promotions {}  widest coefficient kept {} bits, refused {} bits",
+            self.rat_ops, self.big_ops, self.promotions, self.widest_bits, self.widest_refused_bits
         )?;
         writeln!(
             f,
@@ -539,5 +549,160 @@ impl core::fmt::Display for SymProfile {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::k_stats::decide;
+    use crate::predicate::Margin;
+    use crate::real::Real;
+    use crate::sym::{ParamSymbol, Sym, SymRules, with_session_rules};
+    use crate::tolerance::Tol;
+
+    fn p(name: &str, v: f64) -> Sym<f64> {
+        Sym::param(ParamSymbol::of(name), v)
+    }
+
+    fn ask(m: Sym<f64>) {
+        let band = crate::predicate::Band::linear(Tol::witness()).unwrap();
+        let _ = decide("sym_profile_test", Margin::of(m), band);
+    }
+
+    fn budget(max_terms: usize, max_degree: u32) -> SymBudget {
+        SymBudget {
+            max_terms,
+            max_degree,
+        }
+    }
+
+    /// One session under the shipped rules with the profile installed,
+    /// answering what it recorded.
+    fn profiled(b: SymBudget, f: impl FnOnce()) -> SymProfile {
+        start_profile();
+        let _ = with_session_rules(b, SymRules::shipped(), f);
+        take_profile()
+    }
+
+    /// Every freeze as `(cause, op, walk)`. A node the plain walk
+    /// freezes is frozen AGAIN by the early walk (a second memo, the
+    /// same refusal), so under the shipped rules a freeze appears
+    /// once per walk — which is why this profile's `frozen()` is not
+    /// `SymCounts::frozen`, the plain walk's count alone.
+    fn causes(p: &SymProfile) -> Vec<(FreezeCause, &'static str, Walk)> {
+        p.freezes.iter().map(|f| (f.cause, f.op, f.walk)).collect()
+    }
+
+    /// **Uninstalled, the profile records nothing** — the hooks are one
+    /// flag read, and a session run before `start_profile` leaves no
+    /// trace in what a later `take_profile` answers.
+    #[test]
+    fn nothing_is_recorded_while_uninstalled() {
+        let _ = with_session_rules(budget(4096, 128), SymRules::shipped(), || {
+            ask(p("x", 1.0) * p("y", 2.0) - p("y", 2.0) * p("x", 1.0));
+        });
+        start_profile();
+        let out = take_profile();
+        assert_eq!(out.sessions, 0, "{out:?}");
+        assert!(out.ops.is_empty() && out.freezes.is_empty(), "{out:?}");
+    }
+
+    /// **A product past the term budget freezes for `Terms`**, on the
+    /// `Mul` that asked for it, with the kids' sizes at the freeze —
+    /// `(x + y)·(x − y)` has four candidate terms and a budget of three
+    /// refuses it before it is built.
+    #[test]
+    fn a_term_budget_refusal_is_a_terms_freeze_on_the_product() {
+        let out = profiled(budget(3, 128), || {
+            let (x, y) = (p("x", 1.0), p("y", 2.0));
+            ask((x + y) * (x - y));
+        });
+        assert_eq!(out.sessions, 1);
+        assert_eq!(
+            causes(&out),
+            vec![
+                (FreezeCause::Terms, "Mul", Walk::Plain),
+                (FreezeCause::Terms, "Mul", Walk::Early),
+            ],
+            "{out}"
+        );
+        let site = out.freezes[0];
+        assert_eq!(site.kids[0].unwrap().num, (2, 1), "x + y");
+        assert_eq!(site.kids[1].unwrap().num, (2, 1), "x − y");
+        assert_eq!(out.ops["Mul"].frozen, 2, "once per walk");
+        assert_eq!(out.walks[&Walk::Plain].frozen, 1);
+        assert_eq!(out.walks[&Walk::Early].frozen, 1);
+        assert_eq!(out.frozen(), 2);
+    }
+
+    /// **A product past the degree budget freezes for `Degree`** —
+    /// `x·x·x` at a degree budget of two — and the kid degrees at the
+    /// freeze are the two operands', `x²` and `x`.
+    #[test]
+    fn a_degree_budget_refusal_is_a_degree_freeze_with_the_kids_degrees() {
+        let out = profiled(budget(4096, 2), || {
+            let x = p("x", 1.0);
+            ask(x * x * x);
+        });
+        assert_eq!(
+            causes(&out),
+            vec![
+                (FreezeCause::Degree, "Mul", Walk::Plain),
+                (FreezeCause::Degree, "Mul", Walk::Early),
+            ],
+            "{out}"
+        );
+        let site = out.freezes[0];
+        let degrees: Vec<u32> = site.kids.iter().flatten().map(|k| k.num.1).collect();
+        assert_eq!(degrees, vec![2, 1]);
+    }
+
+    /// **A coefficient past the ring's bound freezes for
+    /// `Coefficient`**: the product of five 53-bit mantissas is 265
+    /// bits, past `COEFF_BITS`, and the profile names the refused
+    /// width beside the widest coefficient the form kept.
+    #[test]
+    fn a_coefficient_past_the_bound_is_a_coefficient_freeze() {
+        let out = profiled(budget(4096, 128), || {
+            // Minted INSIDE the session: a literal built before it is
+            // not in the session's table and freezes as `Unrecorded`.
+            let m = Sym::<f64>::from_f64(9_007_199_254_740_991.0);
+            let x = p("x", 1.0);
+            ask(x * m * m * m * m * m);
+        });
+        assert_eq!(
+            causes(&out),
+            vec![
+                (FreezeCause::Coefficient, "Mul", Walk::Plain),
+                (FreezeCause::Coefficient, "Mul", Walk::Early),
+            ],
+            "{out}"
+        );
+        assert_eq!(out.widest_refused_bits, 265, "{out}");
+        assert_eq!(out.widest_bits, 212, "four mantissas: {out}");
+        assert!(out.promotions >= 1, "the third product leaves i128: {out}");
+    }
+
+    /// **The walks and the ring are counted**: a theorem asked of the
+    /// plain form is one plain-walk call with its forms, no early walk,
+    /// and every `Rat` operation the forms took.
+    #[test]
+    fn the_walks_and_the_ring_are_counted() {
+        let out = profiled(budget(4096, 128), || {
+            let (x, y) = (p("x", 1.0), p("y", 2.0));
+            ask(x * y - y * x);
+        });
+        let plain = out.walks[&Walk::Plain];
+        assert_eq!(plain.calls, 1);
+        // x, y, x·y, y·x and the difference: five nodes, five forms.
+        assert_eq!(plain.forms, 5, "{out}");
+        assert!(!out.walks.contains_key(&Walk::Early), "{out}");
+        assert_eq!(out.ops["Mul"].built, 2);
+        assert_eq!(out.ops["Sub"].built, 1);
+        assert_eq!(out.nodes, 5);
+        assert!(out.rat_ops > 0 && out.promotions == 0, "{out}");
+        assert_eq!(out.frozen(), 0);
     }
 }
