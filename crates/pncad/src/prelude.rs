@@ -224,11 +224,14 @@ pub use ::profile::{
 //   isolated endpoint touch, or a shared sub-locus of positive
 //   length. Three self-intersections with three repairs, and the arm
 //   is the only place the profile says which.
-// - `EscalationSite` is `Escalated`'s: which decision could not be
-//   made — one segment, a segment PAIR, a loop's orientation, or the
-//   fillet construction. The first three are facts about the authored
-//   geometry and the fourth is a fact about the requested radius, so
-//   the recourse forks on this discriminant before it reads the band.
+// - `EscalationSite` is `ProfileError::Escalated`'s: which decision
+//   could not be made — one segment, a segment PAIR, or a loop's
+//   orientation. All three are facts about the authored geometry, and
+//   a caller that cannot name the site cannot act on the refusal. The
+//   fillet construction is NOT among them: its gates leave through
+//   `PathError::Escalated`, whose Display selects the gate's own
+//   recourse from the predicate name rather than from a site
+//   discriminant.
 // - `SegmentRef` is the rung under that one, and under four arms
 //   besides: `DegenerateSegment` and `NearFullArc` carry one,
 //   `NonSimple` and `TangentialContact` two apiece. It is where in

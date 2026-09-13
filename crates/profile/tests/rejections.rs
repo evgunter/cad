@@ -12,8 +12,8 @@ use geom_core::Point2;
 use geom_core::Tol;
 
 use profile::{
-    ArcSweep, Center, ContactKind, EscalationSite, Open, PathError, ProfileError, SegmentRef,
-    SketchPlane, Start,
+    ArcSweep, Center, ContactKind, EscalationSite, FILLET_ENCLOSING_RECOURSE, Open, PathError,
+    ProfileError, SegmentRef, SketchPlane, Start,
 };
 
 fn err(p: &profile::Profile<f64>) -> ProfileError {
@@ -530,13 +530,12 @@ fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
     // The rider: the in-band arm renders the same recourse as the
     // definite refusal, and — like that refusal — it endorses no radius
     // it cannot vouch for.
+    // Named, not restated: the sentence is exported under `test-support`
+    // precisely so an assertion agrees with the code rather than with a
+    // copy of it.
     let rendered = err.to_string();
     assert!(
-        rendered.contains("puts that carrier INSIDE the fillet circle"),
+        rendered.contains(FILLET_ENCLOSING_RECOURSE),
         "the enclosing recourse is missing: {rendered}"
-    );
-    assert!(
-        rendered.contains("expect to go well below it"),
-        "the recourse must not endorse the class bound: {rendered}"
     );
 }

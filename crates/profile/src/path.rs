@@ -1993,6 +1993,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // — an escalation that renders the shared recourse
                     // before its own site's — and this is one instance
                     // repaired at the site.
+                    //
+                    // A `fillet_*` name added to THIS list is dead: the
+                    // fillet arm above is asked first and answers every
+                    // name `validate::fillet_recourse_for` knows, so the
+                    // name never reaches here. Verified by mutation, not
+                    // asserted from the shape of the code.
                     Some(
                         "vertex_separation"
                         | "segment_straightness"

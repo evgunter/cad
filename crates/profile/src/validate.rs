@@ -309,29 +309,34 @@ impl fmt::Display for NoCornerReason {
     }
 }
 
-/// The recourse for an in-band corner **turn**, where the constructor
-/// has admitted it cannot classify the margin and therefore cannot say
-/// which of the two degenerate corner classes it is looking at
-/// (smooth-tangent, whose recourse is declaring the tangency, or
-/// reverse-tangent — a cusp, which the kernel refuses; #131 is the
-/// tabled front door).
+/// The recourse for an in-band corner **turn**.
 ///
-/// Deliberately names both doors. The two-tolerance discipline asks for
-/// one sentence per user situation, and the situation here is precisely
-/// "this corner is degenerate and which kind is below the tolerance" —
-/// rendering either single-class sentence would assert the very thing
-/// the escalation declined to decide.
+/// **The margin is LEVERED, and that is what the sentence has to be
+/// true of.** `fillet_corner_turn` classifies `sin φ · arm` — the sine
+/// of the angle between the legs times the shorter leg's own extent
+/// (`Margin::levered`, `sugar::arc_fillet_corner`'s gate (2)) — so the
+/// band admits two different user situations, and a sentence that
+/// named only the first would be false at the second:
+///
+/// - **the angle is degenerate**: the legs run smoothly into each other
+///   (recourse: declare the tangency) or reverse into a cusp (which the
+///   kernel refuses; #131 is the tabled front door), and which of the
+///   two is itself below the tolerance;
+/// - **the angle is real and the LEG is short**: a leg whose extent is a
+///   few ε carries a 64° turn into the band while the angle is nothing
+///   like degenerate. The lever there is the leg's extent, and the same
+///   corner with a leg long enough to take the setback builds.
+///
+/// Both are reachable through the public door and both are pinned
+/// (`profile/tests/fillet_recourse_followability.rs`'s
+/// `the_turn_in_band_recourse_names_both_of_its_situations`, and the two
+/// reviewer rows it cites), so the sentence names both levers and the
+/// tolerance, which is true at either.
 ///
 /// Reaches the caller through [`crate::PathError::Escalated`]'s fillet
 /// arm, which selects it with [`fillet_recourse_for`]; that is where all
-/// six `FILLET_*_RECOURSE` sentences are rendered, and
-/// `profile/tests/fillet_recourse_followability.rs` measures each one at
-/// that door and follows the request it endorses. This one's row is
-/// `the_turn_in_band_recourse_is_followed_by_moving_the_geometry`, which
-/// also records that the near-degenerate turn a caller can author
-/// escalates under `path_corner_turn` — a PATH key with its own
-/// recourse — so the fillet gate this sentence belongs to is reached
-/// only from inside the arc-carrier construction.
+/// six `FILLET_*_RECOURSE` sentences are rendered.
+/// Gates: `fillet_corner_turn`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -340,11 +345,14 @@ impl fmt::Display for NoCornerReason {
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
-     the tolerance: if the legs run smoothly into each other, keep them and declare the \
-     tangency (the joint's index in the loop's tangent_joints); if they double back, that is a cusp and the \
-     kernel refuses it; otherwise move the geometry so a real corner exists (or lower \
-     the tolerance)";
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner's turn is metered through its lever arm — the sine of the angle between the \
+     legs times the shorter leg's extent — so either the angle is degenerate at any precision \
+     you could care about, and which kind is below the tolerance, or the angle is real and the \
+     leg is too short to state it: if the legs run smoothly into each other, keep them and \
+     declare the tangency (the joint's index in the loop's tangent_joints); if they double back, \
+     that is a cusp and the kernel refuses it; if the angle is real, give the shorter leg a \
+     longer extent, which is the lever a leg of a few tolerances does not have; otherwise move \
+     the geometry so a real corner exists (or lower the tolerance)";
 
 /// The recourse for a corner that admits no tangent circle of the
 /// requested radius — one sentence for the definite refusal and for the
@@ -358,6 +366,7 @@ pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any 
 /// [`crate::PathError::Escalated`]'s fillet arm. Followed to a build by
 /// the rows named `the_no_corner_recourse_reduces_to_a_radius_that_builds`
 /// and `the_offset_clearance_recourse_reaches_the_caller_and_reduces`.
+/// Gates: `fillet_offset_line_circle`, `fillet_offset_circles_external`, `fillet_offset_circles_internal`, `fillet_leg_reach`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -375,16 +384,30 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
 /// escalation of `fillet_offset_lever` alike (D4 ¶1's clause (iv): a new
 /// definite arm inherits its in-band sibling's one story).
 ///
-/// It names the lever the user can actually move. ρ = R − σ·τ·r collapses
-/// when the fillet radius approaches the leg's own carrier radius on the
-/// side the corner turns toward, and everything else in the threshold is
-/// the corner's scale, which the author usually cannot trade.
+/// It names the lever the user can actually move, **and the direction
+/// and bound of it**. ρ = R − σ·τ·r collapses when the fillet radius
+/// approaches the leg's own carrier radius on the side the corner turns
+/// toward, so moving the radius away from that carrier radius is the
+/// direction. The threshold is `C·u·R₂·scale²/(d·ε)`
+/// (`sugar::ArcCarrier::offset_circles`) and its `scale²` carries ρ², so
+/// where the offset radius itself dominates the corner's magnitude the
+/// threshold grows faster than the lever does and the window closes:
+/// past it a larger move refuses again, definitely. The sentence says
+/// so rather than promising a direction without a bound.
 ///
 /// Selected by [`fillet_recourse_for`] and rendered by
-/// [`crate::PathError::Escalated`]'s fillet arm; the gate itself has no
-/// in-band witness at any tolerance the run can be given, which the row
-/// named `the_offset_lever_recourse_has_no_default_tolerance_witness`
-/// records.
+/// [`crate::PathError::Escalated`]'s fillet arm. **The gate IS reachable
+/// in band through the public door, at every tolerance the run can be
+/// given** — two independent fixtures reach it, a mixed-winding lens
+/// whose centres sit `d = R + r` apart and a two-lobe scene whose
+/// carrier radius is solved from ε — and the rows are
+/// `the_offset_lever_recourse_reaches_the_caller_at_its_own_site` here
+/// plus the two reviewer rows it cites. At the lens site the sentence's
+/// request builds and validates; at the ε-solved scene the lens is so
+/// shallow that what the door emits has an `arc_span` of its own in the
+/// band, so there the request builds and does not validate — recorded at
+/// the row rather than smoothed over.
+/// Gates: `fillet_offset_lever`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -396,8 +419,11 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
 pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by projecting the fillet's centre back onto that leg's \
      carrier, and the projection divides by the offset radius rho = R - sigma*tau*r, so a \
      fillet radius this close to the leg's carrier radius cannot place the tangent point \
-     within tolerance: move the fillet radius away from that leg's carrier radius, or bring \
-     the corner's carriers closer together (or lower the tolerance)";
+     within tolerance: move the fillet radius away from that leg's carrier radius — that is \
+     the direction, and the window is bounded, because the threshold this lever is measured \
+     against grows as the corner's squared scale and that scale carries rho itself, so on a \
+     scene rho already dominates a larger move refuses again. Where it does, what is left is \
+     to bring the corner's carriers closer together, or lower the tolerance";
 
 /// The recourse for a fillet radius sitting within the band of a leg's
 /// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
@@ -417,6 +443,7 @@ pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered b
 /// [`crate::PathError::Escalated`]'s fillet arm; the bound it endorses is
 /// followed to a build by the row named
 /// `the_enclosing_recourse_endorses_a_bound_that_builds`.
+/// Gates: `fillet_enclosing_carrier`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -439,6 +466,7 @@ pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward
 /// [`crate::PathError::Escalated`]'s fillet arm; both its clauses are
 /// followed by the row named
 /// `the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs`.
+/// Gates: `fillet_leg_fit`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -544,6 +572,7 @@ pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "this run cannot say whethe
 /// [`crate::PathError::Escalated`]'s fillet arm; followed to a build by
 /// the row named
 /// `the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent`.
+/// Gates: `fillet_corner_arm`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(

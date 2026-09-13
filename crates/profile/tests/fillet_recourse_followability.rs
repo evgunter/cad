@@ -26,34 +26,58 @@
 //!    builds and validates.
 //!
 //! **Which gates a caller can actually drive in band, and which not.**
-//! Nine `fillet_*` predicates are decided in `sugar.rs`, and four of
-//! them take an in-band verdict from a request a caller can author:
-//! `fillet_enclosing_carrier`, `fillet_offset_line_circle`,
-//! `fillet_offset_circles_external` and — at a radius whose window is a
-//! couple of ulps wide rather than a multiple of ε —
-//! `fillet_offset_circles_internal`. The other five are pre-empted by a
-//! gate that sits earlier on the same request:
+//! Nine `fillet_*` predicates are decided in `sugar.rs`. **Six of them
+//! take an in-band verdict from a request a caller can author** —
+//! `fillet_enclosing_carrier`, the three offset clearances
+//! (`fillet_offset_line_circle`, `fillet_offset_circles_external`,
+//! `fillet_offset_circles_internal`), `fillet_corner_turn` and
+//! `fillet_offset_lever`. Three do not, and the reasons are different
+//! shapes of fact:
 //!
-//! - `fillet_corner_turn` needs the two carriers tangent within the
-//!   band, which `path_carrier_meet` classifies on the RAW carriers
-//!   first, refusing `NoCornerForFillet { CarriersParallel }`;
-//! - `fillet_corner_arm` needs a collapsed lever arm, and a collapsed
-//!   leg extent puts the derived corner behind the incoming ray's start
-//!   (`CornerWindow::BehindIncomingRay`) while a collapsed carrier
-//!   radius trips `path_arc_center_radius` first;
-//! - `fillet_leg_fit` and `fillet_leg_reach` classify against the
-//!   EXACT-order band, inside which no representable f64 lies, so at
-//!   this scalar their classification is total;
-//! - `fillet_offset_lever` has no in-band witness at any tolerance
-//!   (`review_s2::a_collapsed_offset_lever_refuses_typed_at_every_band`
-//!   reaches only its definite arm, and only below ε = 1e-10).
+//! - **`fillet_corner_arm` is shadowed by magnitude, not by ordering.**
+//!   Its margin IS the lever arm, so every way of putting it inside the
+//!   band puts a length-shaped gate on the same request inside the band
+//!   too: a short straight leg is the ray-order window's own margin
+//!   (`path_corner_advance`, and below the band
+//!   `CornerWindow::BehindIncomingRay`), a short arc extent is
+//!   `path_corner_reach_arc`'s, and a collapsed carrier radius is
+//!   `path_arc_center_radius`'s. Reported per configuration by
+//!   `review_fillet_recourse_arm_r1_probes::the_arm_gate_is_pre_empted_by_the_advance_gate_on_the_same_margin`
+//!   and
+//!   `review_fillet_recourse_arm_r2_probes::r2_the_arm_gate_is_shadowed_by_a_gate_of_the_same_magnitude`
+//!   — a family of witnesses, not a proof that no configuration exists.
+//! - **`fillet_leg_fit` and `fillet_leg_reach` are unreachable AT THIS
+//!   SCALAR, and only at this scalar.** Both classify against the
+//!   exact-order band `(f64::from_bits(1), f64::from_bits(2))`, inside
+//!   which no representable f64 lies, so `sign_within` is total on every
+//!   finite f64 margin. That is a statement about `f64` and nothing
+//!   wider: under `--features interval` a margin is an enclosure, and
+//!   `tests/interval_lane.rs` already drives `fillet_leg_fit` in band
+//!   there. The two rows below are scalar-scoped by construction.
 //!
-//! Their rows therefore drive the pre-empting refusal and say so, and
+//! The turn and lever gates were read as pre-empted when this suite was
+//! first written, on the strength of the two-lobe and bend fixtures it
+//! had; both are reachable, and the rows that drive them say by what
+//! mechanism. Their sentences were corrected to be true at the sites
+//! they actually fire at (the A3-2 rule), which is why
+//! `FILLET_TURN_INBAND_RECOURSE` now names the leg extent and
+//! `FILLET_OFFSET_LEVER_RECOURSE` now names the bound on its own window.
+//!
 //! [`every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one`]
-//! is what holds the render rule for all nine: it renders the door's own
-//! error value for each name and reads the text off it. That row is also
-//! the census the map owes — it takes the nine names from `sugar.rs`'s
-//! source, so a tenth gate added without a sentence turns it red.
+//! holds the render rule for all nine: it renders the door's own error
+//! value for each name and reads the text off it. It is also the census
+//! the map owes — it takes the gate names from the `decide("fillet_…")`
+//! CALL SITES across `crates/profile/src`, not from one file, so a gate
+//! added anywhere in the crate without a sentence turns it red.
+//!
+//! **One mouth of the public door is not covered by any of this.** A
+//! guided replay (`replay_guided`) wraps an in-band `fillet_*` verdict in
+//! `StructureRefusal::indeterminate`, whose Display prints the
+//! `Indeterminate` whole — so there the caller reads the shared
+//! coincidence recourse and not the gate's sentence.
+//! `review_fillet_recourse_arm_r1_probes::a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate`
+//! characterizes today's text; the repair is
+//! `work/blend/the-guided-replay-door-renders-the-shared-recourse-for-a-fillet-gate.md`.
 //!
 //! **The advice a caller DOES read here is inline, not a constant.**
 //! Every definite fillet refusal this file provokes ends in a second
@@ -244,6 +268,83 @@ fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     .map(|closed| closed.loop_)
 }
 
+/// **A short straight leg meeting a radius-2 circle at a real angle.**
+/// The ray `y = 2 − delta` heads east from `a` behind its first crossing
+/// with the circle about the origin; at that crossing the leg and the
+/// circle's tangent meet at `sin(phi) = sqrt(delta)`, and the fillet's
+/// lever arm is the straight leg's extent `a`, so the turn gate's
+/// levered margin is `a * sqrt(delta)`. Both factors are the caller's,
+/// which is the whole point: the margin can sit in the band with the
+/// angle nowhere near degenerate.
+fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    let y = 2.0 - delta;
+    let cx = -(4.0 - y * y).sqrt();
+    Open.at(p2(cx - a, y))
+        .toward(1.0, 0.0, tol())?
+        .fillet_arc(
+            radius,
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, -2.0),
+            },
+            tol(),
+        )?
+        .line_to(p2(-3.0, -3.0), tol())?
+        .line_to(p2(-3.0, 3.0), tol())?
+        .line_to(Start, tol())
+        .map(|c| c.loop_)
+}
+
+/// **The lever lens.** Two carriers of radius `big`, mixed winding, so
+/// the offsets are `big + r` and `big − r = rho2`; the centres sit
+/// `d = big + r` apart, which puts the small offset circle's centre ON
+/// the large one. Both clearances then equal `rho2` and are definite,
+/// and the enclosing gate is definite too, so the conditioning margin
+/// `rho2 − least_lever` is the only thing that can land in the band.
+fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    let r = big - rho2;
+    let d = big + r;
+    Open.arc_fillet_arc(
+        Center {
+            c: p2(0.0, 0.0),
+            winding: ArcSweep::Ccw,
+            p: p2(0.0, -big),
+        },
+        r,
+        Center {
+            c: p2(d, 0.0),
+            winding: ArcSweep::Cw,
+            p: p2(d, big),
+        },
+        tol(),
+    )?
+    .line_to(p2(d, 2.0 * big), tol())?
+    .line_to(p2(-1.5 * big, 2.0 * big), tol())?
+    .line_to(p2(-1.5 * big, -1.5 * big), tol())?
+    .line_to(Start, tol())
+    .map(|c| c.loop_)
+}
+
+/// The conditioning gate's own threshold at the lens, computed from
+/// `sugar::ArcCarrier::offset_circles`' law with its shipped constant.
+/// A fixed point, because the threshold's scene scale depends weakly on
+/// the `rho2` being solved for.
+fn lever_lens_least_lever(big: f64, eps: f64) -> f64 {
+    let law = |rho2: f64| {
+        let r = big - rho2;
+        let d = big + r;
+        let rho1 = big + r;
+        let scale2 = d * d + rho1 * rho1 + rho2 * rho2;
+        128.0 * f64::EPSILON * big * scale2 / (d * eps)
+    };
+    let mut l = law(0.0);
+    for _ in 0..4 {
+        l = law(l);
+    }
+    l
+}
+
 /// A line × line bend: the incoming ray runs east from `(start_x, 0)`,
 /// the corner sits at `(4, 0)`, and the arrival leaves it at `theta`,
 /// anchored three units along. `radius` rounds the corner.
@@ -261,27 +362,24 @@ fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathE
 
 // ------------------------------------------------------------------ rows
 
-/// **The census: every `fillet_*` gate the sugar decides has a sentence
+/// **The census: every `fillet_*` gate the CRATE decides has a sentence
 /// of its own, and none of them renders the shared one.**
 ///
-/// The nine names are read out of `sugar.rs` rather than listed here, so
-/// a tenth gate added without a sentence turns this row red instead of
-/// slipping through a list nobody updated. For each, the door's own
-/// error value is rendered and the text read off it: the site, the
-/// gate's sentence from the one map, and no coincidence recourse.
+/// The names are read off the `decide("fillet_…")` call sites across
+/// every `.rs` under `crates/profile/src`, not out of one file, so a
+/// gate added in `path/arc_fillet.rs` or anywhere else in the crate is
+/// as visible to this row as one added in `sugar.rs` — a `sugar.rs`-only
+/// scan would have missed it while the crate README promised flatly that
+/// it could not. For each name, the door's own error value is rendered
+/// and the text read off it: the site, the gate's sentence from the one
+/// map, and no coincidence recourse.
+///
+/// The count is asserted as well as the mapping, so a gate that
+/// DISAPPEARS is a red row too: this census is an equality with the
+/// tree, not a lower bound on it.
 #[test]
 fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
-    // Leaked so the names slice it with the `'static` lifetime an
-    // `Indeterminate`'s predicate carries; the process is one test
-    // binary and the text is read once.
-    let sugar: &'static str = Box::leak(
-        std::fs::read_to_string(
-            test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/sugar.rs"),
-        )
-        .expect("the construction sugar is readable")
-        .into_boxed_str(),
-    );
-    let decided = decided_fillet_predicates(sugar);
+    let decided = decided_fillet_predicates();
     assert_eq!(
         decided.len(),
         9,
@@ -306,20 +404,129 @@ fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
     }
 }
 
-/// The `fillet_*` names `sugar.rs` hands to `decide`, deduplicated and
-/// sorted. Reads the source's code view, so a name inside a comment or a
-/// doc example is not a gate.
-fn decided_fillet_predicates(sugar: &str) -> Vec<&str> {
-    let code = test_utils::source::code_and_literals(sugar);
-    let mut names: Vec<&str> = Vec::new();
-    let mut at = 0usize;
-    while let Some(hit) = code[at..].find("\"fillet_") {
-        let from = at + hit + 1;
-        let end = from + code[from..].find('"').expect("a closed string literal");
-        // Offsets index `sugar` directly: the code view blanks characters
-        // in place, so it is byte-for-byte aligned with the source.
-        names.push(&sugar[from..end]);
-        at = end;
+/// **The pairing, checked against a source the map does not write.**
+///
+/// The census above proves every gate HAS a sentence; it cannot prove
+/// the gate has the RIGHT one, because it asks the map for the sentence
+/// it then looks for. The driven rows prove the pairing wherever a gate
+/// can be reached — but `fillet_leg_fit` and `fillet_leg_reach` cannot
+/// be reached at this scalar, so swapping their two sentences reddens
+/// nothing that executes them.
+///
+/// This row closes that hole from prose. Each sentence's doc comment in
+/// `validate.rs` declares the gates it serves on a `/// Gates:` line —
+/// written for a reader, not consumed by the code — and the row asserts
+/// that two gates share a sentence in the MAP exactly when they are
+/// declared under one sentence in the DOCS. A swap inside a group is
+/// invisible to that (turn ↔ arm are both singletons), which is the
+/// division of labour: the driven rows catch those, and this catches a
+/// name moved between groups, which is the only swap the unreachable
+/// pair admits.
+#[test]
+fn the_map_groups_the_gates_the_way_the_sentences_docs_say_it_does() {
+    let text = std::fs::read_to_string(
+        test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/validate.rs"),
+    )
+    .expect("the validation module is readable");
+    // The `Gates:` lines live in doc comments, so the PROSE view is what
+    // holds them — a code view blanks exactly this.
+    let prose = test_utils::source::comments_only(&text);
+    let mut declared: Vec<Vec<String>> = Vec::new();
+    for line in prose.lines() {
+        let Some(rest) = line.trim_start().strip_prefix("/// Gates:") else {
+            continue;
+        };
+        let group: Vec<String> = rest
+            .split('`')
+            .filter(|piece| piece.starts_with("fillet_"))
+            .map(str::to_string)
+            .collect();
+        assert!(!group.is_empty(), "a `Gates:` line names no gate: {line}");
+        declared.push(group);
+    }
+    assert_eq!(
+        declared.len(),
+        6,
+        "six sentences declare their gates; found {declared:?}"
+    );
+    let flat: Vec<&String> = declared.iter().flatten().collect();
+    let mut seen = flat.clone();
+    seen.sort();
+    let before = seen.len();
+    seen.dedup();
+    assert_eq!(before, seen.len(), "a gate is declared twice: {flat:?}");
+    assert_eq!(
+        seen.len(),
+        decided_fillet_predicates().len(),
+        "the declarations and the decided gates are not the same set"
+    );
+
+    for a in &flat {
+        for b in &flat {
+            let same_group = declared.iter().any(|g| g.contains(a) && g.contains(b));
+            let same_sentence = profile::fillet_recourse_for(a)
+                .expect("a declared gate is in the map")
+                == profile::fillet_recourse_for(b).expect("a declared gate is in the map");
+            assert_eq!(
+                same_group,
+                same_sentence,
+                "`{a}` and `{b}`: the docs group them {}, the map groups them {}",
+                if same_group { "together" } else { "apart" },
+                if same_sentence { "together" } else { "apart" }
+            );
+        }
+    }
+}
+
+/// Every `fillet_*` name the crate hands to a `decide` door, deduplicated
+/// and sorted.
+///
+/// **Call sites, not string literals.** The scan matches
+/// `decide…("fillet_…"` — the funnel's own spelling, including its
+/// `_flagged` and `_invariant` doors and a call broken across lines —
+/// over each file's CODE+LITERAL view, so a name in a comment is not a
+/// gate, and neither is `validate.rs`'s own map (its arms are match
+/// patterns, not calls) nor `path/program.rs`'s `"fillet_arc"` step
+/// name. Without that precision a crate-wide scan would read the map it
+/// is supposed to be checking and pass by construction.
+///
+/// The names are leaked so they carry the `'static` lifetime an
+/// `Indeterminate`'s predicate needs; this is one test binary and each
+/// source file is read once.
+fn decided_fillet_predicates() -> Vec<&'static str> {
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut names: Vec<&'static str> = Vec::new();
+    for path in test_utils::source::rust_sources(&src) {
+        let text = std::fs::read_to_string(&path).expect("a readable source file");
+        let code = test_utils::source::code_and_literals(&text);
+        let mut at = 0usize;
+        while let Some(hit) = code[at..].find("decide") {
+            let after = at + hit + "decide".len();
+            at = after;
+            // The door's name may carry a suffix (`_flagged`,
+            // `_invariant`); what must follow is `(` and then, across any
+            // whitespace, a `"fillet_…"` literal.
+            let rest = &code[after..];
+            let Some(i) = rest.find('(') else { continue };
+            if !rest[..i]
+                .chars()
+                .all(|c| c == '_' || c.is_ascii_alphanumeric())
+            {
+                continue;
+            }
+            let paren = after + i + 1;
+            let arg = code[paren..].trim_start();
+            let lead = paren + (code[paren..].len() - arg.len());
+            if !arg.starts_with("\"fillet_") {
+                continue;
+            }
+            let from = lead + 1;
+            let end = from + code[from..].find('"').expect("a closed string literal");
+            // The code view blanks characters in place, so its offsets
+            // index the source text byte for byte.
+            names.push(Box::leak(text[from..end].to_string().into_boxed_str()));
+            at = end;
+        }
     }
     names.sort_unstable();
     names.dedup();
@@ -490,75 +697,121 @@ fn the_enclosing_recourse_endorses_a_bound_that_builds() {
     builds_and_validates(two_lobes(0.4), "the radius moved clearly downward");
 }
 
-/// **`FILLET_OFFSET_LEVER_RECOURSE` — "move the fillet radius away from
-/// that leg's carrier radius".**
+/// **`FILLET_OFFSET_LEVER_RECOURSE` reaches the caller at its own site,
+/// and the sentence is measured there.**
 ///
-/// The lever gate conditions the arc × arc offset intersection and
-/// fires only where `|rho|` collapses against the corner's scale. At
-/// the run's default tolerance the enclosing gate reaches the same
-/// geometry first — definitely above the carrier radius, in band beside
-/// it — so no request here reaches the lever gate; the tree's one
-/// witness for it needs `eps < 1e-10`
-/// (`review_s2::a_collapsed_offset_lever_refuses_typed_at_every_band`).
+/// The conditioning gate compares `|rho|` against
+/// `C*u*R2*scale^2/(d*eps)`, so it is reached by making the SCENE large
+/// rather than by making the radius small: the threshold grows with the
+/// corner's magnitude while `|rho|` does not. The fixture is a
+/// mixed-winding lens whose two carriers of radius `big` sit
+/// `d = big + r` apart — which puts the small offset circle's centre on
+/// the large one, so both clearances are definite at `|rho2|` and the
+/// enclosing gate is definite too, leaving the conditioning margin as
+/// the only thing in the band. `big` is a fixed multiple of the run's
+/// eps, so the least lever (proportional to `R^2/eps`) stays a fixed
+/// fraction of the scene and the row holds at every tolerance.
 ///
-/// The lever the sentence names is followed anyway: a radius moved
-/// clearly away from the carrier radius builds.
+/// The sentence's request is then followed AT THIS SITE: the radius
+/// moved clearly away from the carrier radius builds and validates. The
+/// bound the sentence now names is real and is pinned by
+/// `review_fillet_recourse_arm_r2_probes::r2_a_scene_scaled_to_eps_renders_the_offset_lever_sentence`,
+/// where a scene scaled until `rho` dominates it refuses the same lever
+/// again past a narrow window — which is why the sentence says the
+/// direction AND the bound rather than promising the direction alone.
 #[test]
-fn the_offset_lever_recourse_has_no_default_tolerance_witness() {
-    for m in [5.0, 50.0] {
-        let err = two_lobes(1.0 + m * tol().eps()).expect_err("a radius at the carrier radius");
-        assert!(
-            !matches!(err, PathError::FilletOffsetLeverTooShort { .. }),
-            "the lever gate reached the caller at default eps — this row owes a \
-             composed pin, got {err:?}"
+fn the_offset_lever_recourse_reaches_the_caller_at_its_own_site() {
+    let eps = tol().eps();
+    let big = 3e10 * eps;
+    let least = lever_lens_least_lever(big, eps);
+    for k in [-5.0, 5.0] {
+        let err = lever_lens(big, least + k * eps).expect_err("the lever margin is in band");
+        assert_eq!(
+            escalating_predicate(&err, "the lever lens"),
+            "fillet_offset_lever"
         );
-        // The enclosing gate answers this geometry, definitely at 50ε
-        // and in band at 5ε, so its sentence is what the caller reads
-        // and the lever gate's is not.
-        assert!(
-            !err.to_string().contains(FILLET_OFFSET_LEVER_RECOURSE),
-            "the lever gate's sentence belongs to a gate that did not answer here, got {err}"
-        );
+        carries_its_own_recourse(&err, FILLET_OFFSET_LEVER_RECOURSE, "the lever lens");
     }
+    // The definite sibling below the band, carrying the same story.
+    let short = lever_lens(big, least - 50.0 * eps).expect_err("below the least lever");
+    assert!(
+        matches!(short, PathError::FilletOffsetLeverTooShort { .. }),
+        "expected the definite sibling, got {short:?}"
+    );
+    // The sentence's own request, followed at the site it fired at.
     builds_and_validates(
-        two_lobes(0.4),
-        "a radius moved clearly away from the carrier",
+        lever_lens(big, big / 10.0),
+        "the radius moved clearly away from the carrier radius",
     );
 }
-
-/// **`FILLET_TURN_INBAND_RECOURSE` — "move the geometry so a real
-/// corner exists".**
+/// **`FILLET_TURN_INBAND_RECOURSE` names both of the situations its
+/// band admits, and both are driven here.**
 ///
-/// A bend of `1e-9` radians is a corner whose turn lands inside the
-/// band — the turn's margin is `sin(theta)` at the corner's own lever
-/// arm of 7, so a turn of one epsilon lands at `7·eps`, inside
-/// `(eps, K·eps)` at every tolerance the run can be given.
+/// The gate's margin is LEVERED — `sin(angle between the legs) * the
+/// shorter leg's extent` — so a margin in the band means one of two
+/// unrelated things, and the sentence has to be true of each:
 ///
-/// It escalates — but under the PATH family's own key, not the
-/// `fillet_corner_turn` this sentence dispatches on, so even a
-/// `ProfileError` wrapper would not select it. What the caller reads is
-/// the shared coincidence recourse.
+/// 1. **the angle is degenerate.** A bend of one epsilon at a lever arm
+///    of 7 lands at `7*eps`. It escalates under the PATH family's own
+///    key (`path_corner_turn`) rather than the fillet one, so what a
+///    caller reads at this site is the shared coincidence recourse and
+///    not this sentence — recorded, not asserted away.
+/// 2. **the angle is real and the LEG is short.** A straight leg of
+///    `500*eps` meeting a radius-2 circle at `asin(0.01)` puts
+///    `sin(phi) * arm` at `5*eps` while the arm itself is far above the
+///    band and the raw carriers cross transversally, so no length-shaped
+///    gate and no `path_carrier_meet` verdict answers first. The fillet
+///    gate escalates by name and the caller reads this sentence.
 ///
-/// The clause that names a second request is followed: a real turn
-/// builds and validates. The sentence's other two clauses — declaring
-/// the tangency (held by `declared_tangency.rs`) and the cusp the
-/// kernel refuses — endorse no request against this geometry.
+/// At (2) the corner is not degenerate at all, which is what the
+/// sentence used to assert: the identical carriers with a leg long
+/// enough to take the setback build and validate. That is the clause the
+/// sentence now names — give the shorter leg a longer extent — and it is
+/// executed here. The reviewer rows
+/// `review_fillet_recourse_arm_r1_probes::the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle`
+/// and
+/// `review_fillet_recourse_arm_r2_probes::r2_a_definite_turn_on_a_short_leg_renders_the_turn_sentence`
+/// pin the same mechanism at a 0.57-degree and a 64-degree corner.
 #[test]
-fn the_turn_in_band_recourse_is_followed_by_moving_the_geometry() {
-    let err = bend(0.0, tol().eps(), 0.2).expect_err("a turn inside the band");
-    match &err {
+fn the_turn_in_band_recourse_names_both_of_its_situations() {
+    let eps = tol().eps();
+
+    // (1) the degenerate angle: a PATH key answers, so this sentence is
+    // not what the caller reads there.
+    let degenerate = bend(0.0, eps, 0.2).expect_err("a turn inside the band");
+    match &degenerate {
         PathError::Escalated { source } => assert!(
             matches!(
                 source.predicate,
                 Some("path_corner_turn" | "path_junction_turn")
             ),
-            "the corner turn escalates under a PATH key, not a fillet one, got {:?}",
+            "the degenerate turn escalates under a PATH key, not a fillet one, got {:?}",
             source.predicate
         ),
         other => panic!("expected the in-band escalation, got {other:?}"),
     }
-    carries_no_fillet_recourse(&err, "a turn inside the band");
+    carries_no_fillet_recourse(&degenerate, "a degenerate turn inside the band");
     builds_and_validates(bend(0.0, 1.0, 0.2), "a real corner");
+
+    // (2) the real angle on a short leg: the fillet gate answers and the
+    // caller reads this sentence.
+    let short = short_leg_at_angle(500.0 * eps, 1e-4, 0.05)
+        .expect_err("the levered turn margin is in band");
+    assert_eq!(
+        escalating_predicate(&short, "a real angle on a short leg"),
+        "fillet_corner_turn"
+    );
+    carries_its_own_recourse(
+        &short,
+        FILLET_TURN_INBAND_RECOURSE,
+        "a real angle on a short leg",
+    );
+    // The lever the sentence names at THIS site, followed: the identical
+    // carriers with a leg long enough to take the setback.
+    builds_and_validates(
+        short_leg_at_angle(1.0, 1e-4, 0.05),
+        "the same corner with a longer leg",
+    );
 }
 
 /// **`FILLET_LEG_EXTENT_RECOURSE` — "give the leg a real extent".**
@@ -590,13 +843,15 @@ fn the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent() {
 }
 
 // ------------------------------------------------------------------
-// The three STORED-FORM sentences, which DO reach a caller
+// The three STORED-FORM sentences
 // ------------------------------------------------------------------
 //
-// The six above are written by a Display arm nothing constructs. These
-// three are not: the path door's stored-form read produces all three,
-// so the rows below can do what the six cannot — assert the caller
-// reads the sentence, then follow it.
+// These are the path door's stored-form read's own, not the
+// construction gates': the door re-runs validation's segment and joint
+// predicates on the loop it is about to emit, so their situation is a
+// joint the door itself minted rather than a corner the caller
+// authored, and their arm is BLEND-10's, one screen below the fillet
+// one in `path.rs`.
 //
 // They are two situations and one undecided twin, and the point of
 // keeping them apart is that their levers run in OPPOSITE directions.
