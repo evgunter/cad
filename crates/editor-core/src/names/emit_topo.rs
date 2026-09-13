@@ -99,14 +99,24 @@ fn face_extent<T: Decide>(
 
 /// Chases a face key through fragment rows to its root (the key that
 /// is not itself a minted fragment). Bounded by the row count.
-fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
+///
+/// # Errors
+///
+/// A spent budget means the walk revisited a key, which is a corrupt
+/// mint-time record — [`NamingError::FragmentLineage`], carrying the
+/// face this chase was asked about. The root becomes a GROUP key and
+/// is handed to [`upstream_name`], so falling out of the loop with the
+/// cursor would name faces after a stranger instead of refusing.
+/// Guarded by `a_cycling_fragment_map_refuses` below.
+fn chase(rows: &BTreeMap<FaceKey, FaceKey>, f: FaceKey) -> Result<FaceKey, NamingError> {
+    let mut at = f;
     for _ in 0..=rows.len() {
-        match rows.get(&f) {
-            Some(&p) => f = p,
-            None => return f,
+        match rows.get(&at) {
+            Some(&p) => at = p,
+            None => return Ok(at),
         }
     }
-    f
+    Err(NamingError::FragmentLineage { face: f })
 }
 
 /// Chases an edge through `SplitEdge` birth records
@@ -121,17 +131,22 @@ fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
 /// — [`NamingError::SplitLineage`], carrying the cycling edge, which
 /// is the only locator this failure has.
 ///
-/// **Unguardable, and here is why.** Cycling lineages exist: a graft
-/// copies `SplitEdge` records with their source keys and they chain
-/// into strangers in the destination (`chase_b`'s note below says the
-/// same thing from the other side), and `Body::split_root`'s cycle arm
-/// has fired on real assembly products. What no case constructs is a
-/// cycle this chase can reach: `stop` here halts at the first key the
-/// operand's table names, where the consumer that met one in the wild
-/// passes a `stop` that never halts. So the raise is **untested rather
-/// than proven unreachable**, and what `names::emit`'s
-/// `display_tests` pin is the locator's route from the caught record to
-/// the human, not the catch.
+/// **Unguardable from this crate, and the reason is WRITER ACCESS,
+/// not a survey of call sites.** This walk advances only on
+/// `Body::edge_provenance`, which is `pub(crate)` to `topo`; the one
+/// door that writes a `SplitEdge` record is `Body::split_edge`, and it
+/// records the parent on the child it has just minted, so every record
+/// points at a key that already existed and a chain is strictly
+/// decreasing in age. Nothing outside `topo` can close it. That a
+/// cycling lineage exists at all is real — a graft copies these
+/// records with their SOURCE keys and they chain into strangers in the
+/// destination (`work/bool/graft-copies-provenance-keys-verbatim.md`
+/// records `Body::split_root`'s cycle arm firing on real assembly
+/// products) — but the aliasing is `topo`-internal and this crate has
+/// no door to it. `chase_b` below is NOT covered by this argument and
+/// is guarded instead: it hops through a caller-supplied graft map
+/// between provenance reads, which is enough to close a loop that
+/// `split_edge`'s records alone cannot.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
@@ -302,7 +317,7 @@ fn name_split_edges_vertices<T: Decide>(
         // have no covariant order-along direction of their own.
         let mut chords_by_face: BTreeMap<FaceKey, Vec<EdgeKey>> = BTreeMap::new();
         for (&e, &other) in &chord_faces {
-            let root = chase(frag_rows, other);
+            let root = chase(frag_rows, other)?;
             chords_by_face.entry(root).or_default().push(e);
         }
         for (root, edges) in chords_by_face {
@@ -509,12 +524,19 @@ pub(crate) fn name_boolean<T: Decide>(
     // right key space).
     let descend_face = |f: FaceKey| -> Result<Descent, NamingError> {
         match (naming.a_keys, naming.b_keys) {
+            // The key the B arm chases — and therefore the key a
+            // refusal here renders — is a B-CLONE key, not a key of
+            // the result arena the other three arms name. That is the
+            // graft's key space, inherited rather than chosen: the
+            // rows are `face_fragments_b`, minted before the clone was
+            // grafted. A reader comparing the rendered key against the
+            // result body will not find it.
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_faces.get(&f) {
-                Some(&fb) => Ok(Descent::B(chase(&b_rows, fb))),
-                None => Ok(Descent::A(chase(&a_rows, f))),
+                Some(&fb) => Ok(Descent::B(chase(&b_rows, fb)?)),
+                None => Ok(Descent::A(chase(&a_rows, f)?)),
             },
-            (OperandKeys::Direct, OperandKeys::Absent) => Ok(Descent::A(chase(&a_rows, f))),
-            (OperandKeys::Absent, OperandKeys::Direct) => Ok(Descent::B(chase(&b_rows, f))),
+            (OperandKeys::Direct, OperandKeys::Absent) => Ok(Descent::A(chase(&a_rows, f)?)),
+            (OperandKeys::Absent, OperandKeys::Direct) => Ok(Descent::B(chase(&b_rows, f)?)),
             _ => Err(NamingError::Emission {
                 what: "unsupported operand-key layout",
             }),
@@ -908,7 +930,12 @@ fn name_boolean_edges<T: Decide>(
     // corrupt record `chase_edge_to_table` refuses, on the lane where
     // the aliasing above can actually produce one — so it refuses with
     // the same locator rather than falling out of the loop with a root
-    // it cannot justify.
+    // it cannot justify. **Guarded**, by
+    // `a_cycling_graft_map_refuses_in_the_b_lane` below: unlike
+    // `chase_edge_to_table`, this walk reads `fwd_edges` — built from
+    // `BooleanNaming::graft_edges`, which the caller supplies —
+    // between provenance reads, so one honest `split_edge` record and
+    // two synthetic graft rows close the loop from outside `topo`.
     let chase_b = |e_b0: EdgeKey| -> Result<EdgeKey, NamingError> {
         let mut e_b = e_b0;
         for _ in 0..=fwd_edges.len() {
@@ -1384,7 +1411,10 @@ fn name_split_faces<T: Decide>(
     b: geom_core::Band,
 ) -> Result<(), NamingError> {
     // Every root that was ever divided: fragments cover it.
-    let divided: BTreeSet<FaceKey> = frag_rows.values().map(|&p| chase(frag_rows, p)).collect();
+    let divided: BTreeSet<FaceKey> = frag_rows
+        .values()
+        .map(|&p| chase(frag_rows, p))
+        .collect::<Result<_, NamingError>>()?;
     // (root, side-slot) → members.
     type Members = Vec<(u32, SplitHalf, FaceKey)>;
     let mut groups: BTreeMap<(FaceKey, u32), Members> = BTreeMap::new();
@@ -1393,7 +1423,7 @@ fn name_split_faces<T: Decide>(
             if section_keys.contains(&f) {
                 continue;
             }
-            let root = chase(frag_rows, f);
+            let root = chase(frag_rows, f)?;
             if root == f && !divided.contains(&root) {
                 // Uncut operand face: pass-through (N1: the split
                 // contributes no segment to survivors).
@@ -1491,9 +1521,11 @@ mod tests {
     use geom_core::Tol;
     use profile::RawLoop;
 
-    #[test]
-    fn merged_lane_names_kept_face_with_sorted_deduped_constituents() {
-        // A unit-cube extrusion: the "result body" stand-in.
+    /// **The result-body stand-in every row here descends from**: a
+    /// unit-cube extrusion, whose table names a top, a bottom and four
+    /// laterals. Written once — the rows below differ in the synthetic
+    /// `BooleanNaming` they hand the emitter, never in the body.
+    fn unit_cube() -> sweep::Extruded<f64> {
         let plane = profile::SketchPlane::from_frame(
             geom_core::Point3::new(0.0, 0.0, 0.0),
             geom_core::Vec3::new(1.0, 0.0, 0.0),
@@ -1507,12 +1539,18 @@ mod tests {
         let profile = profile::Profile::new(plane, vec![square])
             .validate(geom_core::Tol::witness())
             .unwrap();
-        let built = sweep::extrude(
+        sweep::extrude(
             &profile,
             sweep::Extrusion::Distance(1.0_f64),
             Tol::witness(),
         )
-        .unwrap();
+        .unwrap()
+    }
+
+    #[test]
+    fn merged_lane_names_kept_face_with_sorted_deduped_constituents() {
+        // A unit-cube extrusion: the "result body" stand-in.
+        let built = unit_cube();
         let ext_node = RecipeNodeId(1);
         let a_table = name_extrude(ext_node, &built).unwrap();
 
@@ -1574,31 +1612,141 @@ mod tests {
         );
     }
 
+    /// **A cycling fragment map refuses, and the refusal is what
+    /// stands between the kernel and a face named after a stranger.**
+    ///
+    /// `BooleanNaming` is a public struct with public fields and the
+    /// emitter takes it as data, so the corrupt mint `chase` exists to
+    /// catch is writable at this door — which is why this raise is
+    /// guarded rather than argued about.
+    ///
+    /// The row is worth more than its pass. With `chase`'s refusal
+    /// removed, `name_boolean` returns `Ok` with a TOTAL table of 27
+    /// rows in which the two caps carry each other's operand names —
+    /// measured, not argued: `built.top` comes out
+    /// `FromA(Cap(Start))` and `built.bottom` comes out
+    /// `FromA(Cap(End))`, each the other's. Nothing is missing and
+    /// nothing refuses; the document is simply wrong about which face
+    /// is which.
+    ///
+    /// Written by the review lane of 2026-09-13; adopted with its
+    /// argument.
+    #[test]
+    fn a_cycling_fragment_map_refuses() {
+        let built = unit_cube();
+        let ext_node = RecipeNodeId(1);
+        let a_table = name_extrude(ext_node, &built).unwrap();
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Absent,
+            // The corrupt mint, spelled: top is a fragment of bottom
+            // and bottom a fragment of top.
+            face_fragments_a: vec![(built.top, built.bottom), (built.bottom, built.top)],
+            ..topo::BooleanNaming::default()
+        };
+        let empty = NameTable::new();
+        let a = OperandCtx {
+            node: ext_node,
+            table: &a_table,
+            body: &built.body,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId(2),
+            table: &empty,
+            body: &built.body,
+        };
+        let err = name_boolean(
+            RecipeNodeId(9),
+            &built.body,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .expect_err("a cycling fragment map must refuse");
+        assert!(
+            matches!(
+                err,
+                NamingError::FragmentLineage { face }
+                    if face == built.top || face == built.bottom
+            ),
+            "the refusal names one of the two faces in the cycle: {err:?}"
+        );
+        assert!(
+            err.to_string().contains("fragment lineage of face"),
+            "and says which record family it caught: {err}"
+        );
+    }
+
+    /// **The B-lane edge chase refuses on a cycle too, and this is the
+    /// row `chase_edge_to_table` cannot have.**
+    ///
+    /// `chase_b` advances in two steps — a hop through `fwd_edges`,
+    /// built from the caller's `BooleanNaming::graft_edges`, and then
+    /// a read of `Body::edge_provenance`. The second is `topo`'s and
+    /// writes only strictly-older parents; the FIRST is the caller's,
+    /// and two rows through it close a loop that `split_edge`'s
+    /// records alone cannot. So the refusal `chase_edge_to_table`
+    /// shares is exercised here, on the lane where a real graft can
+    /// alias the same way.
+    ///
+    /// The chain is honest: `split_edge` twice off one lateral gives
+    /// `e2 → e1 → e0` as genuine birth records, and only the two graft
+    /// rows are synthetic.
+    #[test]
+    fn a_cycling_graft_map_refuses_in_the_b_lane() {
+        let built = unit_cube();
+        let ext_node = RecipeNodeId(1);
+        let b_table = name_extrude(ext_node, &built).unwrap();
+        let mut body = built.body.clone();
+        let e0 = body.edges().next().map(|(k, _)| k).unwrap();
+        let e1 = body
+            .split_edge(e0, 0.25, Tol::witness())
+            .expect("an edge splits at an interior parameter")
+            .new_edge;
+        let e2 = body
+            .split_edge(e1, 0.5, Tol::witness())
+            .expect("the second child splits again")
+            .new_edge;
+        assert!(
+            b_table.name_of(&ent(0, EntityKey::Edge(e0))).is_some()
+                && b_table.name_of(&ent(0, EntityKey::Edge(e1))).is_none(),
+            "the parent is named and the children are not, or the walk stops early"
+        );
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Absent,
+            b_keys: topo::OperandKeys::Direct,
+            // ONE synthetic graft row is enough: e1 forwards to e2,
+            // whose birth record points back at e1.
+            graft_edges: vec![(e1, e2)],
+            ..topo::BooleanNaming::default()
+        };
+        let empty = NameTable::new();
+        let a = OperandCtx {
+            node: RecipeNodeId(2),
+            table: &empty,
+            body: &body,
+        };
+        let b = OperandCtx {
+            node: ext_node,
+            table: &b_table,
+            body: &body,
+        };
+        let err = name_boolean(RecipeNodeId(9), &body, &naming, &a, &b, Tol::witness())
+            .expect_err("a graft row that forwards into its own parent must refuse");
+        assert!(
+            matches!(err, NamingError::SplitLineage(c) if c.edge == e1),
+            "the refusal names the edge the walk was asked about: {err:?}"
+        );
+    }
+
     /// Review R8 (resolved M4 PR 5): two merge groups with the SAME
     /// constituent set — kept faces that are fragments of one operand
     /// face, each absorbing a fragment of one partner — refuse
     /// LOUDLY (typed `NamingError`), never a silent alias.
     #[test]
     fn merged_same_constituent_groups_collide_loudly() {
-        let plane = profile::SketchPlane::from_frame(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        );
-        let square = profile::ProfileLoop::polygon(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .into_iter()
-                .map(|(x, y)| geom_core::Point2::new(x, y)),
-        );
-        let profile = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tol::witness())
-            .unwrap();
-        let built = sweep::extrude(
-            &profile,
-            sweep::Extrusion::Distance(1.0_f64),
-            Tol::witness(),
-        )
-        .unwrap();
+        let built = unit_cube();
         let ext_node = RecipeNodeId(1);
         let a_table = name_extrude(ext_node, &built).unwrap();
         let laterals: Vec<_> = a_table
@@ -1654,25 +1802,7 @@ mod tests {
     /// by the descent side, and never its `Merged` name.
     #[test]
     fn a_merge_over_a_merged_face_lists_its_constituents_flat() {
-        let plane = profile::SketchPlane::from_frame(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        );
-        let square = profile::ProfileLoop::polygon(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .into_iter()
-                .map(|(x, y)| geom_core::Point2::new(x, y)),
-        );
-        let profile = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tol::witness())
-            .unwrap();
-        let built = sweep::extrude(
-            &profile,
-            sweep::Extrusion::Distance(1.0_f64),
-            Tol::witness(),
-        )
-        .unwrap();
+        let built = unit_cube();
         let ext_node = RecipeNodeId(1);
         let ext_table = name_extrude(ext_node, &built).unwrap();
         // Three laterals: one the merge absorbs, two standing as the
@@ -1769,25 +1899,7 @@ mod tests {
     /// door that holds N3 for it.
     #[test]
     fn a_merge_over_a_nested_merged_face_refuses_at_the_mint() {
-        let plane = profile::SketchPlane::from_frame(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        );
-        let square = profile::ProfileLoop::polygon(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .into_iter()
-                .map(|(x, y)| geom_core::Point2::new(x, y)),
-        );
-        let profile = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tol::witness())
-            .unwrap();
-        let built = sweep::extrude(
-            &profile,
-            sweep::Extrusion::Distance(1.0_f64),
-            Tol::witness(),
-        )
-        .unwrap();
+        let built = unit_cube();
         let ext_node = RecipeNodeId(1);
         let ext_table = name_extrude(ext_node, &built).unwrap();
         let mut laterals: Vec<(StableName, FaceKey)> = ext_table
