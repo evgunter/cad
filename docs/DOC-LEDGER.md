@@ -2106,6 +2106,21 @@ body and the unit's log entry.
 
 - `BLEND-8-SPEC.md` — BLEND-8, the ladder rim phase never retires a fresh split key (#2505)
 
+## Per-merge deletion — BLEND-14's spec (2026-09-13)
+
+Recoverable at `git show 253183c0dbc63bb9d4a1dd98f6732d317254da04:docs/BLEND-14-SPEC.md`
+(the fix-pass head). Its claim that the rule is reachable on the
+near-osculating family did not survive Phase 1 — the clearance screen
+refuses that family before the rule can read it, and the rule is
+reached in band through the public door only at radii of a few `K·ε`
+or on a slim wedge whose corner arcs' extent is the folded arm (the
+lever its out-of-scope clause asked to be named, which the dual named);
+its `UnderDetermined` arm, described as a lane-refused pair's, is
+reached instead by an admitted pair whose jet is under-determined.
+Recorded in the PR body and the unit's log entry.
+
+- `BLEND-14-SPEC.md` — BLEND-14, the blend's contact edges carry the tangency rule (#2509)
+
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
 Sweep SHA: `116d96c01d4a03084d4701d7d58fb3b5dcf1703b` — the commit

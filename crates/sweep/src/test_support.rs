@@ -1241,34 +1241,88 @@ pub const ROD_FILLET: f64 = 0.1;
 /// compound this file is not ratified to spell (the bracket-bound
 /// allowlist is per file). The interval twin takes the same body through
 /// the extrude door instead — [`rod_d_profile_at`].
+///
+/// Bit-identical to the pre-delegation body only because `ROD_L = 1.0`
+/// makes the general form's `2·len` coincide with the old `len + 1.0`;
+/// the bit-dump differential is the guard, not the arithmetic.
 pub fn rod_with_flat(tol: Tol) -> Body<f64> {
+    rod_with_flat_at(ROD_R, ROD_FLAT, ROD_L, 1.0, tol).unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// **A rod with a flat at any radius** — [`rod_with_flat`]'s
+/// construction with the rod's radius `big_r`, the flat's distance
+/// `flat`, the length `len` and the cutter box's half-width
+/// `cutter_half` as parameters; the cutter runs from `−len/2` to
+/// `3·len/2` along `z`, so `rod_with_flat` is this at
+/// `(ROD_R, ROD_FLAT, ROD_L, 1.0)`, bit for bit. The boolean door keeps
+/// the cylinder's stored radius exactly `big_r`, which a D-profile
+/// through the extrude door does not (it reconstructs the radius from
+/// a chord that collapses as the flat nears tangency). The mill's own
+/// refusal comes back as text rather than a panic, so a family walk
+/// can report an unbuildable member and go on.
+///
+/// # Errors
+///
+/// The boolean door's refusal, rendered.
+pub fn rod_with_flat_at(
+    big_r: f64,
+    flat: f64,
+    len: f64,
+    cutter_half: f64,
+    tol: Tol,
+) -> Result<Body<f64>, String> {
     let disc =
-        profile::circle(Point2::new(0.0, 0.0), ROD_R, tol).expect("the rod's disc is a valid loop");
+        profile::circle(Point2::new(0.0, 0.0), big_r, tol).expect("the rod's disc is a valid loop");
     let rod = Profile::new(SketchPlane::xy(), vec![disc.into()])
         .validate(tol)
         .expect("the rod's profile validates");
-    let rod = extrude(&rod, Extrusion::Distance(ROD_L), tol)
+    let rod = extrude(&rod, Extrusion::Distance(len), tol)
         .expect("the rod extrudes")
         .body;
     let square = ProfileLoop::new(
-        [(ROD_FLAT, -1.0), (1.0, -1.0), (1.0, 1.0), (ROD_FLAT, 1.0)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-            .collect(),
+        [
+            (flat, -cutter_half),
+            (cutter_half, -cutter_half),
+            (cutter_half, cutter_half),
+            (flat, cutter_half),
+        ]
+        .into_iter()
+        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+        .collect(),
     );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.5)));
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.5 * len)));
     let cutter = Profile::new(plane, vec![square])
         .validate(tol)
         .expect("the cutter's profile validates");
-    let cutter = extrude(&cutter, Extrusion::Distance(ROD_L + 1.0), tol)
+    let cutter = extrude(&cutter, Extrusion::Distance(2.0 * len), tol)
         .expect("the cutter extrudes")
         .body;
-    topo::subtract(&rod, &cutter, tol)
-        .expect("the flat mills")
+    Ok(topo::subtract(&rod, &cutter, tol)
+        .map_err(|e| format!("the flat does not mill: {e:?}"))?
         .body()
         .expect("a body remains")
         .body
-        .clone()
+        .clone())
+}
+
+/// **The `+y` crease of a rod with a flat** (or of any body whose
+/// cylinder–plane line edges are a rod's two creases): the one whose
+/// `he_plus` starts above the axis. One crease, so a band asked for it
+/// cannot collide with the other crease's on the flat.
+pub fn rod_upper_crease(body: &Body<f64>) -> EdgeKey {
+    let creases: Vec<EdgeKey> = rod_creases(body)
+        .into_iter()
+        .filter(|&k| {
+            let e = body.get_edge(k).expect("a crease");
+            let v = body.get_half_edge(e.he_plus).expect("its plus half").start;
+            let p = body
+                .get_point(body.get_vertex(v).expect("its start").point)
+                .expect("its point");
+            p.y > 0.0
+        })
+        .collect();
+    assert_eq!(creases.len(), 1, "one crease on the +y side: {creases:?}");
+    creases[0]
 }
 
 /// **The same rod with a flat, spelled as a D-profile extrude**: the
