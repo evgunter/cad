@@ -3964,3 +3964,79 @@ rather than both-sides-in-step, by moving a road's refusal into a helper
 and watching `built` drop to 3 against `declared`'s 4. The tail check's
 own hole fails **red**. P1 reds with an accurate message. Claim 4 holds
 on both limbs of both sides.
+
+## 2026-09-13 — PR 2518 MERGED (`56f18092e`): seven units, twenty-six rows closed
+
+The unit that turned a silently wrong answer into a refusal, after a
+full review that found the "unguardable" note false and wrote the guard
+itself.
+
+### What the fix pass did better than comply
+
+**It re-measured the exhibit rather than quoting the review.** With the
+refusal removed, `name_boolean` returns `Ok` with a **total 27-row
+table** in which the two cap faces carry **each other's names** —
+`top = FaceKey(1v1)` taking `FromA([Cap(Start)])` and `bottom` taking
+`FromA([Cap(End)])`. Nothing missing, nothing refusing, the document
+wrong about which face is which. Observed, then written on the row as an
+observation.
+
+**And it found the family's actual dividing line, which is writer
+access.** `chase_b`'s identical note was wrong too and is now guarded —
+one synthetic `graft_edges` row closes a loop provenance records alone
+cannot, because that walk advances in two steps and only the first is the
+caller's data. `chase_edge_to_table` genuinely cannot be reached, and the
+argument is now **checkable rather than a survey**: it advances only on
+`Body::edge_provenance`, `pub(crate)` to `topo`, whose one writer records
+a parent on a child it has just minted — so every chain is **strictly
+decreasing in age**.
+
+`grep Unguardable` over `editor-core/src` now returns **exactly one
+hit**, at the site that earns it. The PR body says plainly that this
+corrects text PR 2474 merged.
+
+**The rule that generalises**: *a bounded walk is guardable exactly when
+something outside the crate can write a step of it.* That replaces three
+copies of a survey with one property.
+
+### One row went further than it was asked
+
+`FrameDirection` names **both** nodes, not one — because
+`profile_plane_f64` is also called from `section_of`, where the error
+lands on the loft or sweep and **neither node in the sentence is the one
+it attaches to**. The row asked for a frame id; the lane found the
+three-node case and carried the profile too.
+
+### The red on the state-sync commit, and why it did not block
+
+My docs-only state-sync run went **red** on
+`review_gui1_r1::random_integer_rays_match_the_exact_oracle` — the
+**anti-vacuity guard**, not an oracle mismatch: *"no draw hit the cube"*
+at `CAD_FUZZ_SEED=0x1a9e0f26198e881b CAD_FUZZ_EFFORT=1`.
+
+Established rather than assumed, in this order: the reddening commit was
+**two markdown files**; the previous run on the same code was green; and
+**re-running the failed job on identical code passed.** The variable is
+the seed, not the tree.
+
+**And a row already existed** —
+`work/docm/pick-face-fuzz-anti-vacuity-guard-trips-at-effort-1.md`,
+opened 2026-09-08 from S-MESH's landing run on a *different* seed. So the
+occurrence went onto that row as a **second instance** rather than into a
+duplicate, which is the "grep the owner's directory first" rule paying
+for itself — I was one command from filing a second copy.
+
+Worth stating on the row and here: **one bad seed reads as bad luck, two
+read as a distribution.** And the tree already carries the convention the
+fix would land on — `test-utils/src/vacuity.rs` says an anti-vacuity
+claim is *"stated against the floor of the dial, never"*.
+
+The PR carries the annotation the standing rule requires before merging
+over an inherited red.
+
+### An operational note against myself
+
+My PR comment came back through the away channel as an event, because I
+did not **lead it with the `(WIRE orchestrator)` tag** — which is both
+the thread subscription and the self-suppression key. The etiquette is in
+`memories/orchestration-model.md` and I simply did not follow it.
