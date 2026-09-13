@@ -32,8 +32,8 @@ use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    assert_naming_totality, bowl, hemisphere_on_flat_base, lantern, plane_sphere_cut,
-    revolved_about_y, rim_arcs_at, waisted, wedge_fill,
+    assert_full_revolve_rim, assert_naming_totality, bowl, hemisphere_on_flat_base, lantern,
+    plane_sphere_cut, revolved_about_y, rim_arcs_at, waisted, wedge_fill,
 };
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey, mass_properties, validate_geometric};
 
@@ -188,11 +188,7 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
     ];
     for (name, body, r, y, concave) in &fixtures {
         let arcs = rim_arcs_at(body, *r, *y);
-        assert_eq!(
-            arcs.len(),
-            2,
-            "{name}: the repair leaves the rim the two arcs a full revolve's one seam splits it into"
-        );
+        assert_full_revolve_rim(&arcs, name);
 
         let hosts = planar_supports(body, &arcs);
         assert_eq!(hosts.len(), 1, "{name}: ONE plane face hosts every arc");
@@ -352,11 +348,7 @@ fn a_pole_touching_revolve_splits_the_walls_that_do_not_touch_the_axis_too() {
             "{name}: four profile segments, every one of them split in two"
         );
         let arcs = rim_arcs_at(&body, 0.5, 1.0);
-        assert_eq!(
-            arcs.len(),
-            2,
-            "{name}: the rim is the two arcs a full revolve's one seam splits it into"
-        );
+        assert_full_revolve_rim(&arcs, name);
         assert_eq!(
             planar_supports(&body, &arcs).len(),
             2,

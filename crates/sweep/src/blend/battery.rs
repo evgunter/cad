@@ -301,10 +301,30 @@ pub struct Junction {
     /// The vertex the two links meet at.
     pub vertex: VertexKey,
     /// The link arriving at the vertex, as a position in walk order.
-    pub arriving: usize,
+    /// Crate-private with [`Junction::arriving`] as its reader: the
+    /// positions index [`Chain`]'s private links, so a consumer can
+    /// read a junction's pair but not spell one the chain does not have.
+    pub(crate) arriving: usize,
     /// The link leaving it: the position after `arriving` in walk
-    /// order, or `0` for a closed chain's wrap-around.
-    pub leaving: usize,
+    /// order, or `0` for a closed chain's wrap-around. Read through
+    /// [`Junction::leaving`], for the reason `arriving` is private.
+    pub(crate) leaving: usize,
+}
+
+impl Junction {
+    /// The link arriving at the vertex, as a position in
+    /// [`Chain::links`]' order.
+    #[must_use]
+    pub fn arriving(&self) -> usize {
+        self.arriving
+    }
+
+    /// The link leaving the vertex, as a position in
+    /// [`Chain::links`]' order.
+    #[must_use]
+    pub fn leaving(&self) -> usize {
+        self.leaving
+    }
 }
 
 /// One resolved chain.
@@ -325,8 +345,10 @@ pub struct Chain<T: Real> {
     /// predicate 4 judges — each with the two links that meet there.
     /// One per adjacent pair, plus the wrap-around on a closed chain,
     /// in walk order: `junctions[i]` sits between links `i` and
-    /// `i + 1`, and every junction names its own two links, so no
-    /// reader depends on that order.
+    /// `i + 1`. The check reads each junction's OWN pair and not this
+    /// order; the order is kept so the record is the same chain from
+    /// any seed, which is what the suites' pairing rows compare against
+    /// the body's incidence read in cycle order.
     pub junctions: Vec<Junction>,
     /// How it terminates.
     pub closure: ChainClosure,
@@ -1283,11 +1305,19 @@ pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
                     let grew = !before.is_empty() || !after.is_empty();
                     if pair.iter().all(|&j| used[j]) && grew {
                         closed = true;
-                        let Some(&other) = pair.iter().find(|&&j| j != own) else {
-                            unreachable!(
+                        // The junction holds exactly two links and one
+                        // of them is the run's own end link; a pair
+                        // that does not contain `own` is a walk that
+                        // arrived here along a link the vertex does
+                        // not carry, and that is loud rather than a
+                        // pairing taken on the wrong link.
+                        let other = match pair[..] {
+                            [a, b] if a == own => b,
+                            [a, b] if b == own => a,
+                            _ => unreachable!(
                                 "chain walk: the run arrived at this junction along its own \
                                  end link, so that link is one of the two incident here"
-                            )
+                            ),
                         };
                         joints.push(if forward {
                             (at, own, other)
@@ -1360,7 +1390,9 @@ pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
             .collect();
         // Walk order along the chain, so `junctions[i]` sits between
         // links `i` and `i + 1` — the wrap-around, recorded last by the
-        // backward pass, sorts to the end by its arriving link.
+        // backward pass, sorts to the end by its arriving link. Nothing
+        // in the battery reads the order (`Chain::junctions`' doc says
+        // who does).
         junctions.sort_by_key(|j| j.arriving);
         chains.push(Chain::new(
             links[first].clone(),
@@ -1478,8 +1510,10 @@ pub fn run_battery_for<T: Decide + Bounds>(
             let v = &j.vertex;
             // The junction's two links are the ones the walk found
             // incident to it; a record that names any other link is a
-            // walk defect, and it is loud here rather than a verdict
-            // taken on a far-end tangent.
+            // walk defect, and this tripwire makes it loud in every
+            // build that keeps debug assertions rather than a verdict
+            // taken on a far-end tangent. The pin is the suites' rows,
+            // which read the record and the carve, not this line.
             let (a, b) = (ring[j.arriving], ring[j.leaving]);
             debug_assert!(
                 [a, b].iter().all(|l| l.start == *v || l.end == *v),

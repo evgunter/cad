@@ -19,6 +19,7 @@ use sweep::blend::battery::{
     spine_regularity,
 };
 use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, VertexKey};
 
@@ -53,22 +54,7 @@ fn boxy() -> Body<f64> {
 
 /// A cylinder: a three-arc circle extruded.
 fn cylinder() -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    disc_of_arcs(3, 0.5, 1.0, tol())
 }
 
 /// Any face / vertex / edge key of a real body — the trio rows below

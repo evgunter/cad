@@ -14,29 +14,38 @@
 //! through both closed-rim doors: a disc's raised rim and a pocket's
 //! floor rim sit in their host's OUTER cycle (the annulus with strut
 //! crossings), a through-bore's cap rim and a boss's foot rim sit in a
-//! RING of their host (the ladder). Every carve is checked against
-//! the Pappus closed form of the corner region — area `ρ²(1−π/4)` in
-//! the (r, z) half-plane, centroid `ρ/(6(1−π/4))` from the corner
-//! along r — with `volume_pad == 0` on both sides.
+//! RING of their host (the ladder). Every carve is graded against the
+//! homed Pappus oracle `test_support::wedge_fill` at the meridian
+//! corner — a right angle between the cap plane and the wall — with
+//! `volume_pad == 0` on both sides.
+//!
+//! **What each row pins, and what it does not.** The walk's RECORD and
+//! the check's READ of it are two things, and a mutant can break one
+//! without the other:
 //!
 //! - `every_junction_of_every_walked_chain_touches_both_its_links` —
-//!   the invariant, read off the walk's record over every fixture
-//!   here at N = 2…5, from every seed, and on the open cube chain.
-//!   Red under a positional pairing on every N ≥ 3 rim; green on the
-//!   two-arc rims and the open chain.
-//! - `n_arc_discs_carve_the_annulus_at_the_convex_closed_form`,
-//!   `n_arc_pocket_floors_carve_the_annulus_at_the_concave_closed_form`,
-//!   `n_arc_bores_and_boss_feet_carve_the_ladder_at_their_closed_forms`
-//!   — N = 3, 4 (and 5 on the disc) carve, tier-3 valid, at the closed
-//!   forms; N = 2 beside them is the control every other suite builds.
-//! - `an_open_three_link_chain_pairs_each_junction_with_its_two_links`
-//!   — the open case: three cube edges in a row, one junction at each
-//!   inner vertex between exactly the two links that meet there, and
-//!   the 90° refusal at the first is the verdict the pairing owes.
+//!   the record: over discs N = 2…5 and bores, bosses and pockets
+//!   N = 2…4, each walked from every seed rotation and once in reversed
+//!   order, and the open cube chain — every junction's `arriving` and
+//!   `leaving` link has the vertex as an end, and the two are
+//!   consecutive in walk order. Red under a walk that records the
+//!   merge base's positional pairs; GREEN under a check that mis-reads
+//!   a correct record, which is the carve rows' job to catch.
+//! - `n_arc_discs_carve_the_annulus_at_the_convex_closed_form`
+//!   (N = 2…5),
+//!   `n_arc_pocket_floors_carve_the_annulus_at_the_concave_closed_form`
+//!   and `n_arc_bores_and_boss_feet_carve_the_ladder_at_their_closed_forms`
+//!   (N = 2…4) — the read: the carve succeeds at the closed form only if
+//!   the check judged each junction between its own two links. N = 2 in
+//!   each is the control every other suite builds; one N past each
+//!   range is `review_closed_chain_junctions_r2_probes`'.
+//! - `an_open_three_link_chain_refuses_chain_g1_at_its_first_junction`
+//!   — the open case, which no pairing ever broke: three cube edges in a
+//!   row, one junction at each inner vertex between exactly the two
+//!   links that meet there, and the 90° refusal at the FIRST junction is
+//!   the verdict that pairing owes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-use core::f64::consts::PI;
 
 use crate::common::approx::band;
 use geom_core::Tol;
@@ -45,7 +54,7 @@ use sweep::blend::battery::{BlendRequest, Chain, ChainClosure, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
     bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube, disc_of_arcs, pocket_of_arcs,
-    walked_chains,
+    walked_chains, wedge_fill,
 };
 use topo::{Body, EdgeKey, VertexKey, mass_properties, validate_geometric};
 
@@ -60,26 +69,17 @@ const RHO: f64 = 0.1;
 /// The block side of the bored, bossed and pocketed fixtures.
 const L: f64 = 2.0;
 
-/// **The volume a plane–cylinder fillet of radius `rho` moves at a
-/// wall of radius `big_r`**, by Pappus. The corner region of the
-/// (r, z) half-plane — the `rho × rho` square at the corner minus the
-/// quarter disc of radius `rho` — has area `rho²(1−π/4)`, and its
-/// centroid sits `rho/(6(1−π/4))` from the corner along r (the
-/// square's `rho/2` at area `rho²` against the quarter disc's
-/// `4rho/(3π)` at area `π rho²/4`). `inward` says the region lies
-/// inside the wall, `r ∈ [R−rho, R]` — a disc's rim or a pocket's
-/// floor — rather than outside it, `r ∈ [R, R+rho]` — a bore's cap rim
-/// or a boss's foot. A convex rim REMOVES this volume, a concave one
-/// ADDS it.
-fn corner_torus(big_r: f64, rho: f64, inward: bool) -> f64 {
-    let area = rho * rho * (1.0 - PI / 4.0);
-    let off = rho / (6.0 * (1.0 - PI / 4.0));
-    let r_bar = if inward {
-        big_r - rho + off
-    } else {
-        big_r + rho - off
-    };
-    2.0 * PI * r_bar * area
+/// **The volume a plane–cylinder fillet of radius [`RHO`] moves at a
+/// wall of radius [`R`]**, from the homed Pappus oracle: the meridian
+/// corner `(R, 0)` and the two generators leaving it — the cap plane,
+/// toward the axis when `inward` (a disc's rim, a pocket's floor: the
+/// region lies in `r ∈ [R−ρ, R]`) or away from it (a bore's cap rim, a
+/// boss's foot: `r ∈ [R, R+ρ]`), and the wall downward — a right angle
+/// either way. A convex rim REMOVES this volume, a concave one ADDS it;
+/// the caller supplies the sign.
+fn corner_fill(inward: bool) -> f64 {
+    let along_cap = if inward { (-1.0, 0.0) } else { (1.0, 0.0) };
+    wedge_fill((R, 0.0), along_cap, (0.0, -1.0), RHO)
 }
 
 /// `(vertices, edges, faces)`.
@@ -117,7 +117,7 @@ fn three_top_edges_in_a_row(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// One carve through the public door, checked the same way for every
 /// fixture: one band, tier-3 valid, the `+N, +N+1, +1` census delta,
-/// and `V₁ − V₀` equal to `signed` — the closed form with the material
+/// and `V₁ − V₀` equal to `signed` — the oracle with the material
 /// side's sign — to well inside the agreement measured (~1e-15 on
 /// volumes of order 1–10).
 fn carve_and_check(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) {
@@ -142,25 +142,27 @@ fn carve_and_check(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) 
     let moved = volume(&out.body, what) - v0;
     assert!(
         (moved - signed).abs() < 1e-13,
-        "{what}: V₁ − V₀ = {moved} against the closed form {signed}"
+        "{what}: V₁ − V₀ = {moved} against wedge_fill's {signed}"
     );
 }
 
-/// **The pairing invariant.** Every junction of every chain the walk
-/// builds names two links that both have the junction's vertex as an
-/// end, and the two are consecutive in walk order (the wrap-around
-/// pairs the last link with the first). Read off the walk's own
-/// record, before any predicate: on a closed rim of N arcs from every
-/// seed rotation and in reversed request order — `walk_chains` seeds
-/// from the first requested link, so the rotation moves the closing
-/// junction — and on the open cube chain, which the G1 check refuses
-/// but the walk pairs.
+/// **The pairing invariant, on the walk's RECORD.** Every junction of
+/// every chain the walk builds names two links that both have the
+/// junction's vertex as an end, and the two are consecutive in walk
+/// order (the wrap-around pairs the last link with the first). Read
+/// off the record before any predicate: on a closed rim of N arcs from
+/// every seed rotation and in reversed request order — `walk_chains`
+/// seeds from the first requested link, so the rotation moves the
+/// closing junction — and on the open cube chain, which the G1 check
+/// refuses but the walk pairs.
 ///
-/// Under a positional pairing (`junctions[i]` against links `i` and
-/// `i+1` of a list that puts the closing vertex first) every N ≥ 3 rim
-/// here fails the incidence assertion; the two-arc rims and the open
-/// chain pass, which is exactly the blindness the merge base's corpus
-/// had.
+/// Under a walk that records the merge base's pairs (the closing
+/// vertex first, junction `i` against links `i` and `i+1`) every
+/// N ≥ 3 rim here fails the incidence assertion while the two-arc rims
+/// and the open chain pass — the blindness the merge base's corpus
+/// had. Under a check that mis-reads a CORRECT record positionally this
+/// row stays green: it pins the record, and the carve rows pin that
+/// the check reads it.
 #[test]
 fn every_junction_of_every_walked_chain_touches_both_its_links() {
     let mut closed: Vec<(String, Body<f64>, f64)> = Vec::new();
@@ -227,7 +229,7 @@ fn assert_incident(chain: &Chain<f64>, name: &str) {
     let links: Vec<_> = chain.links().collect();
     let n = links.len();
     for j in &chain.junctions {
-        for (role, ix) in [("arriving", j.arriving), ("leaving", j.leaving)] {
+        for (role, ix) in [("arriving", j.arriving()), ("leaving", j.leaving())] {
             let l = links[ix];
             assert!(
                 l.start == j.vertex || l.end == j.vertex,
@@ -239,8 +241,8 @@ fn assert_incident(chain: &Chain<f64>, name: &str) {
             );
         }
         assert_eq!(
-            j.leaving,
-            (j.arriving + 1) % n,
+            j.leaving(),
+            (j.arriving() + 1) % n,
             "{name}: a junction's links are consecutive in walk order"
         );
     }
@@ -255,12 +257,7 @@ fn n_arc_discs_carve_the_annulus_at_the_convex_closed_form() {
         let body = disc_of_arcs(n, R, 1.0, tol());
         let arcs = circle_arcs_at_z(&body, 1.0);
         assert_eq!(arcs.len(), n, "the raised rim is the N arcs authored");
-        carve_and_check(
-            &body,
-            &arcs,
-            -corner_torus(R, RHO, true),
-            &format!("{n}-arc disc"),
-        );
+        carve_and_check(&body, &arcs, -corner_fill(true), &format!("{n}-arc disc"));
     }
 }
 
@@ -273,12 +270,7 @@ fn n_arc_pocket_floors_carve_the_annulus_at_the_concave_closed_form() {
         let body = pocket_of_arcs(n, L, R, 1.5, tol());
         let arcs = circle_arcs_at_z(&body, 1.5);
         assert_eq!(arcs.len(), n, "the floor rim is the N arcs authored");
-        carve_and_check(
-            &body,
-            &arcs,
-            corner_torus(R, RHO, true),
-            &format!("{n}-arc pocket"),
-        );
+        carve_and_check(&body, &arcs, corner_fill(true), &format!("{n}-arc pocket"));
     }
 }
 
@@ -293,12 +285,7 @@ fn n_arc_bores_and_boss_feet_carve_the_ladder_at_their_closed_forms() {
         let bore = bored_block_of_arcs(n, L, 1.0, R, tol());
         let arcs = circle_arcs_at_z(&bore, 1.0);
         assert_eq!(arcs.len(), n, "the bore's cap rim is the N arcs authored");
-        carve_and_check(
-            &bore,
-            &arcs,
-            -corner_torus(R, RHO, false),
-            &format!("{n}-arc bore"),
-        );
+        carve_and_check(&bore, &arcs, -corner_fill(false), &format!("{n}-arc bore"));
 
         let boss = boss_of_arcs(n, L, R, 1.0, 2.0, tol());
         let arcs = circle_arcs_at_z(&boss, L);
@@ -307,12 +294,7 @@ fn n_arc_bores_and_boss_feet_carve_the_ladder_at_their_closed_forms() {
             n,
             "the boss's foot rim is the N arcs the top cuts"
         );
-        carve_and_check(
-            &boss,
-            &arcs,
-            corner_torus(R, RHO, false),
-            &format!("{n}-arc boss"),
-        );
+        carve_and_check(&boss, &arcs, corner_fill(false), &format!("{n}-arc boss"));
     }
 }
 
@@ -320,9 +302,10 @@ fn n_arc_bores_and_boss_feet_carve_the_ladder_at_their_closed_forms() {
 /// chain whose two junctions are its inner vertices, each between
 /// exactly the two links that meet there; and the battery's verdict on
 /// it is the one those pairs owe — `ChainNotG1` at the FIRST junction,
-/// `sin 90° · 1 m` — not a verdict on a far-end tangent.
+/// `sin 90° · 1 m` — not a verdict on a far-end tangent. No pairing the
+/// tree has had broke the open case; the pin here is the verdict.
 #[test]
-fn an_open_three_link_chain_pairs_each_junction_with_its_two_links() {
+fn an_open_three_link_chain_refuses_chain_g1_at_its_first_junction() {
     let body = cube(1.0, tol());
     let edges = three_top_edges_in_a_row(&body);
     let chains = walked_chains(&body, &edges, RHO, band());
@@ -337,7 +320,7 @@ fn an_open_three_link_chain_pairs_each_junction_with_its_two_links() {
         "junctions are the inner vertices"
     );
     for (i, j) in chain.junctions.iter().enumerate() {
-        assert_eq!((j.arriving, j.leaving), (i, i + 1));
+        assert_eq!((j.arriving(), j.leaving()), (i, i + 1));
         let shared = [links[i].start, links[i].end]
             .into_iter()
             .find(|v| *v == links[i + 1].start || *v == links[i + 1].end);

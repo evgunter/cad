@@ -24,7 +24,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
 use sweep::test_support::{
     bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, disc_of_arcs, pocket_of_arcs,
-    walked_chains,
+    walked_chains, wedge_fill,
 };
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, VertexKey, mass_properties, validate_geometric};
@@ -37,24 +37,14 @@ const R: f64 = 0.5;
 const RHO: f64 = 0.1;
 const L: f64 = 2.0;
 
-/// The plane–cylinder corner torus, re-derived: the corner region of
-/// the (r, z) half-plane has area `ρ²(1−π/4)`; its centroid sits
-/// `ρ/(6(1−π/4))` from the BALL CENTRE (the square's corner opposite
-/// the rim), i.e. `ρ(5/6−π/4)/(1−π/4) ≈ 0.2234ρ` from the rim corner.
-/// Written here from the ball centre so the two readings are both
-/// visible.
+/// The plane–cylinder corner torus at wall radius `big_r`, from the
+/// HOMED Pappus oracle: the meridian corner `(big_r, 0)` and the two
+/// generators leaving it — the cap plane, toward the axis (`inward`,
+/// a disc's rim or a pocket's floor) or away from it, and the wall
+/// downward — a right angle either way.
 fn corner_torus(big_r: f64, rho: f64, inward: bool) -> f64 {
-    let area = rho * rho * (1.0 - PI / 4.0);
-    let from_centre = rho / (6.0 * (1.0 - PI / 4.0));
-    let from_rim = rho * (5.0 / 6.0 - PI / 4.0) / (1.0 - PI / 4.0);
-    assert!((from_centre + from_rim - rho).abs() < 1e-15);
-    let centre = if inward { big_r - rho } else { big_r + rho };
-    let r_bar = if inward {
-        centre + from_centre
-    } else {
-        centre - from_centre
-    };
-    2.0 * PI * r_bar * area
+    let along_cap = if inward { (-1.0, 0.0) } else { (1.0, 0.0) };
+    wedge_fill((big_r, 0.0), along_cap, (0.0, -1.0), rho)
 }
 
 /// An edge's two end vertices, read off the BODY (`he_plus` start and
@@ -96,7 +86,7 @@ fn assert_pairing_is_the_bodys(
     for chain in chains {
         let links: Vec<_> = chain.links().collect();
         for j in &chain.junctions {
-            let (ea, el) = (links[j.arriving].edge, links[j.leaving].edge);
+            let (ea, el) = (links[j.arriving()].edge, links[j.leaving()].edge);
             for (role, e) in [("arriving", ea), ("leaving", el)] {
                 let (s, t) = body_ends(body, e);
                 assert!(

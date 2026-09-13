@@ -59,13 +59,14 @@ fn assert_pairing_off_the_body(
     let n = links.len();
     let mut seen: Vec<VertexKey> = Vec::new();
     for j in &chain.junctions {
-        let named = [j.arriving, j.leaving];
+        let named = [j.arriving(), j.leaving()];
         assert!(
             named.iter().all(|&i| i < n),
             "{what}: a junction indexes a link the chain does not carry"
         );
         assert_ne!(
-            j.arriving, j.leaving,
+            j.arriving(),
+            j.leaving(),
             "{what}: a junction names one link twice"
         );
         for &i in &named {
@@ -89,7 +90,7 @@ fn assert_pairing_off_the_body(
             })
             .collect();
         touching.sort();
-        let mut named_edges = vec![links[j.arriving], links[j.leaving]];
+        let mut named_edges = vec![links[j.arriving()], links[j.leaving()]];
         named_edges.sort();
         assert_eq!(
             touching, named_edges,

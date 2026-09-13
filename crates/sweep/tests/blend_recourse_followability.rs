@@ -64,11 +64,11 @@ use sweep::blend::{
     FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::{
-    ROD_FILLET, cube, dome, one_edge_rim_at, prism, rim_arcs_at, rod_creases, rod_with_flat, spool,
-    waisted,
+    ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
+    rod_with_flat, spool, waisted,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, query, validate_geometric};
 
 fn tol() -> Tol {
@@ -85,19 +85,7 @@ fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
 
 /// `a ∖ b`, the one boolean these rows use.
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 /// A radius-0.3 ball centred at `c`. Same body the review probe dimples

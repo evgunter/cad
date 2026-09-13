@@ -57,12 +57,12 @@ use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
     ROD_FILLET, ball_poled_z, bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube,
-    disc_of_arcs, dome, lantern, one_edge_rim_at, pocket_of_arcs, rim_arcs_at, rod_creases,
-    rod_with_flat, sphere_zone, waisted,
+    disc_of_arcs, dome, lantern, one_edge_rim_at, pocket_of_arcs, realized, rim_arcs_at,
+    rod_creases, rod_with_flat, sphere_zone, waisted,
 };
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{Body, EdgeKey};
 
 /// Dump one body, bit for bit, in key iteration order (identical
 /// operation sequences produce identical key orders).
@@ -173,19 +173,7 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
         Vec3::new(0.5, 0.5, DIE_L + (PIP_R - PIP_H)),
         Tol::witness(),
     );
-    let pipped = boolean_op_with(
-        BooleanOp::Subtract,
-        &cube0,
-        &pip,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    )
-    .unwrap()
-    .body()
-    .expect("a body")
-    .body
-    .clone();
+    let pipped = realized(BooleanOp::Subtract, &cube0, &pip, Tol::witness());
     let box_edges: Vec<_> = box_keys
         .into_iter()
         .filter(|k| pipped.get_edge(*k).is_some())
@@ -435,19 +423,7 @@ fn bitdump_concave_closed_rims() {
     // the rim radius is `sqrt(R^2 − (R − H)^2)`.
     let (slab, ball_r, cap_h) = (1.0_f64, 0.3_f64, 0.1_f64);
     let ball = ball_poled_z(ball_r, Vec3::new(0.5, 0.5, slab - (ball_r - cap_h)), tol);
-    let boss = boolean_op_with(
-        BooleanOp::Union,
-        &cube(slab, tol),
-        &ball,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol,
-    )
-    .expect("the boss builds")
-    .body()
-    .expect("a body")
-    .body
-    .clone();
+    let boss = realized(BooleanOp::Union, &cube(slab, tol), &ball, tol);
     let rim: Vec<EdgeKey> = query::all_edges(&boss)
         .into_iter()
         .filter(|&k| {

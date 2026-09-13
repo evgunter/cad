@@ -58,7 +58,9 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{assert_naming_totality, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{
+    assert_full_revolve_rim, assert_naming_totality, revolved_about_y, rim_arcs_at,
+};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -252,11 +254,7 @@ fn every_lantern_rim_carves_whole_to_its_closed_form() {
     let source = lantern();
     for (name, rim_r, rim_y, center) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
-        assert_eq!(
-            arcs.len(),
-            2,
-            "{name} arrives as the two arcs a full revolve's one seam splits it into"
-        );
+        assert_full_revolve_rim(&arcs, name);
         let out = fillet_edges(&source, &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets whole, got {e:?}"));
         validate_geometric(&out.body, tol())
@@ -335,11 +333,7 @@ fn each_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
     let source = lantern();
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
-        assert_eq!(
-            arcs.len(),
-            2,
-            "{name} arrives as the two arcs a full revolve's one seam splits it into"
-        );
+        assert_full_revolve_rim(&arcs, name);
         let (a0, b0) = faces_of(&source, arcs[0]);
         let (a1, b1) = faces_of(&source, arcs[1]);
         assert_eq!(
