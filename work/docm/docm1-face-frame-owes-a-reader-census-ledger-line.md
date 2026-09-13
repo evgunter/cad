@@ -2,8 +2,9 @@
 id: docm1-face-frame-owes-a-reader-census-ledger-line
 kind: issue
 title: main is RED at TIER=all: docm1_face_frame.rs reads Rust source and owes a reader_census ledger line
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-13
 refs: [1850]
 ---
 
@@ -66,3 +67,10 @@ means reading the file, which is why this is filed for DOCM rather than
 fixed by the CIW lane that met it: the ledger's `Shared` rows are
 CLAIMS, checked by `every_shared_entry_actually_reaches_the_shared_lexer`,
 and a guessed disposition is a false claim rather than a stale one.
+
+## Closed (2026-09-13)
+
+The ledger line exists on main: `crates/test-utils/tests/reader_census.rs`
+carries `crates/editor-core/tests/docm1_face_frame.rs` (disposition
+`Shared`, the two read-door module docs), and `TIER=all` has been green
+on it since. Closed at DOCM's exit sweep.
