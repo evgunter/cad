@@ -1061,7 +1061,8 @@ with samples #173–#175, and the tally — seven clean pairs toward the
 twelve, two carrying a unilateral MAJOR (PERF-7's silenced funnel
 channel and PERF-8's orphaned roster plus eager serial arm, both
 found by the opus arm alone and both real). The B3 draw and the row
-notes leave this branch with that fold. The board after three
+notes leave this branch with that fold; merged at `6d261de7d` (PR
+2481, Ev confirmed it green). The board after three
 blocks: every dispatched unit and side unit landed; what remains
 under `work/perf/` is filed findings (the assemble census prefilter,
 the scene-module gate-then-measure sweep, the per-build triangle
