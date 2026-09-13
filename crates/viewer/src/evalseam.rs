@@ -382,12 +382,12 @@ pub struct MemoReport {
     pub face_misses: usize,
     /// The patch memo's heap footprint, approximately.
     pub bytes: usize,
-    /// Per-patch pick trees held after the build.
-    pub trees: usize,
-    /// Patches whose pick tree was served from the memo.
-    pub tree_hits: usize,
-    /// Patches whose pick tree was built.
-    pub tree_misses: usize,
+    /// Per-patch pick tables held after the build.
+    pub tables: usize,
+    /// Patches whose whole pick table was served from the memo.
+    pub table_hits: usize,
+    /// Patches whose pick table was built.
+    pub table_misses: usize,
 }
 
 impl MemoReport {
@@ -402,9 +402,9 @@ impl MemoReport {
             face_hits: patches.hits(),
             face_misses: patches.misses(),
             bytes: patches.bytes(),
-            trees: memo.tree_len(),
-            tree_hits: memo.tree_hits(),
-            tree_misses: memo.tree_misses(),
+            tables: memo.table_len(),
+            table_hits: memo.table_hits(),
+            table_misses: memo.table_misses(),
         }
     }
 }

@@ -4,6 +4,7 @@ kind: issue
 title: the pick index copies every triangle and recomputes every box on every build, memo hit or miss
 status: open
 opened: 2026-09-12
+parent: PERF-10
 ---
 
 
