@@ -944,3 +944,34 @@ branch-side on `blend/b3-block` (byte 124 ⇒ fable at slot 1: 12 OPUS,
 `work/bool/log.md` before dispatch; unit 14 dispatches when its spec
 is on main; unit 15 when unit 12 merges. Block B2's last slot (unit 8)
 is in its dual beside them.
+
+**Unit 8's dual concluded (2026-09-13, ~11:50 UTC):** R1 (OPUS)
+MERGEABLE-AFTER-FIXES 2/6/6, rubric 4/4/3; R2 (FABLE)
+MERGEABLE-AFTER-FIXES 0/5/5, rubric 4/4/3. Both concurrent on the
+frozen head with private targets, neither interrupted, zero
+cross-lane reads disclosed. The code is right by both instruments:
+both re-took both differentials at the true merge base, re-derived
+the split rule from `topo/src/split.rs` (and found `split_fragment`
+asks the live body rather than restating the rule — the better
+posture), and built bodies the census did not carve (an underside pip
+and boss; a pip cut from below and a boss grown downward; the H4 boss;
+the extruded two-arc ladders), all naming-total at the head and red at
+the base. R1's two MAJORs are R2's MINORs — the PR's mutant table is
+false at the head (the old push restored reds 17–18 rows at the new
+postcondition, not one; the table predates the postcondition commit)
+and the annulus phase keeps a second spelling of the split half
+(closure, hand-kept remnants, fragment rows without a source lookup)
+with the spec's asked-for residue unfiled — so both headlines are
+bilateral at differing severity: NO tally candidate. Converged: the
+door → direction rule the lane committed is measured false (the
+determinant is which end of the seam's stored direction the rim sits
+at); the postcondition covers edges only (R1 measured the vertex
+channel clean); the orientation row restates `topo`'s retention rule
+instead of measuring it; the counts do not reproduce; the census's
+scope is narrower than claimed. Unique R1: no row in `topo` pins
+`split_edge`'s retention direction; the emitter residue unscheduled;
+`meridian_splits` changed unpinned. Unique R2: the spec's door (b) is
+unreachable (`profile` canonicalizes traversal); the orchestrator's
+own plan and program lines still say "unmeasured". Fix pass dispatched
+on the union (`/home/user/blend-briefs/fix-8-brief.md`); both probe
+branches adopted; delta by R1.
