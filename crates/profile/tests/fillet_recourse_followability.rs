@@ -75,8 +75,10 @@
 use geom_core::{Point2, Tol};
 use profile::{
     ArcSweep, Center, CornerReason, CornerWindow, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
-    FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
-    FILLET_TURN_INBAND_RECOURSE, Open, PathError, Profile, ProfileLoop, SketchPlane, Start,
+    FILLET_FLATTENED_RECOURSE, FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE,
+    FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE, Open, PathError, Profile,
+    ProfileLoop, SketchPlane, Start,
 };
 
 fn tol() -> Tol {
@@ -410,4 +412,203 @@ fn the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent() {
     );
     carries_no_fillet_recourse(&err, "a leg with no extent");
     builds_and_validates(bend(0.0, 1.0, 0.2), "a leg with a real extent");
+}
+
+// ------------------------------------------------------------------
+// The three STORED-FORM sentences, which DO reach a caller
+// ------------------------------------------------------------------
+//
+// The six above are written by a Display arm nothing constructs. These
+// three are not: the path door's stored-form read produces all three,
+// so the rows below can do what the six cannot — assert the caller
+// reads the sentence, then follow it.
+//
+// They are two situations and one undecided twin, and the point of
+// keeping them apart is that their levers run in OPPOSITE directions.
+// A row that followed "a larger radius" against the reconstruction loss
+// would watch it get worse.
+
+/// The same bend on a scene `shift` metres from the origin, with legs
+/// to match — the reconstruction loss needs magnitude, not shallowness.
+fn far_bend(shift: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    let anchor = p2(shift + 4.0 + 3.0 * theta.cos(), shift + 3.0 * theta.sin());
+    Open.at(p2(shift, shift))
+        .angle(0.0, tol())?
+        .fillet(radius, tol())?
+        .at(anchor, tol())?
+        .angle(theta, tol())?
+        .line(3.0, tol())?
+        .line_to(Start, tol())
+        .map(|c| c.loop_)
+}
+
+/// The turn at which the stored sagitta `r(1 − cos(θ/2))` crosses the
+/// run's ε — the flattening loss's own threshold, `√(8ε/r)`.
+fn flattening_turn(radius: f64) -> f64 {
+    (8.0 * tol().eps() / radius).sqrt()
+}
+
+fn carries(err: &PathError<f64>, sentence: &str, what: &str) {
+    let shown = err.to_string();
+    assert!(
+        shown.contains(sentence),
+        "{what}: the caller must read this sentence.\n  got: {shown}"
+    );
+}
+
+/// **The flattening recourse, followed in its own regime.** Inside the
+/// window the sentence reaches the caller; both levers it names are
+/// then executed AT THE SAME ε and each builds and validates.
+///
+/// The larger-radius lever is offered conditionally, and this row is
+/// where that condition is read rather than assumed: the radius that
+/// lifts the sagitta clear of the band is `≈ 8Kε/θ²`, and past
+/// `ε/2^-52` the other loss takes it away again. Where the two bounds
+/// cross there is no radius at all, and the row asserts the sentence
+/// still leaves a lever standing — the unconditional one.
+#[test]
+fn the_flattened_recourse_is_followed_by_a_larger_turn_and_a_larger_radius() {
+    let radius = 0.2;
+    let theta = 0.5 * flattening_turn(radius);
+    let err = bend(0.0, theta, radius).expect_err("a turn inside the window refuses at the door");
+    assert!(
+        matches!(err, PathError::FilletArcFlattenedInStorage { .. }),
+        "the window's refusal is the flattening one, got {err:?}"
+    );
+    carries(&err, FILLET_FLATTENED_RECOURSE, "the flattening refusal");
+
+    // Lever 1, the larger turn: unconditional, and clear of the band at
+    // a multiple of the threshold the sentence's own law fixes.
+    builds_and_validates(
+        bend(0.0, 32.0 * flattening_turn(radius), radius),
+        "a larger turn",
+    );
+
+    // Lever 2, the larger radius, at the SAME turn — offered only while
+    // the scene still resolves one.
+    let needed = 8.0 * tol().eps() * tol().k() / (theta * theta);
+    let ceiling = tol().eps() / f64::EPSILON;
+    if needed * 4.0 < ceiling {
+        builds_and_validates(bend(0.0, theta, needed * 4.0), "a larger radius");
+    } else {
+        // The impossible regime, stated as impossible rather than
+        // skipped: no radius is large enough to store the arc and small
+        // enough for the scene to read its carrier, and the sentence
+        // must not have promised one unconditionally.
+        assert!(
+            FILLET_FLATTENED_RECOURSE.contains("while the scene still resolves one")
+                && FILLET_FLATTENED_RECOURSE.contains("drop the fillet"),
+            "at eps = {:e} and turn {theta:e} no radius works, so the sentence must offer \
+             the radius conditionally and still leave a lever standing",
+            tol().eps()
+        );
+    }
+
+    // Lever 3, unconditional at every ε: the sharp corner.
+    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    builds_and_validates(
+        Open.at(p2(0.0, 0.0))
+            .line_to(p2(4.0, 0.0), tol())
+            .and_then(|p| p.line_to(anchor, tol()))
+            .and_then(|p| p.line_to(Start, tol()))
+            .map(|c| c.loop_),
+        "dropping the fillet",
+    );
+}
+
+/// **The reconstruction recourse, followed in its own regime — and the
+/// flattening sentence's lever shown running the wrong way here.**
+///
+/// The stored arc IS an arc (sagitta 6e-3 m at these numbers, metres
+/// above every band): what cannot be read is a clearance taken as a
+/// difference of lengths ten billion metres long. Both levers the
+/// sentence names shrink that magnitude; the sibling's larger radius
+/// does not, which is the reason the two sentences exist.
+#[test]
+fn the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_scene() {
+    // The loss fires where the coordinate magnitude's own resolution,
+    // `M·2^-52`, is coarser than ε; a thousand-fold margin on that puts
+    // the row well inside it at whatever ε the run committed.
+    let shift = 1e3 * tol().eps() / f64::EPSILON;
+    let err = far_bend(shift, 0.5, 0.2).expect_err("a far scene refuses at the door");
+    let (scale, radius) = match err {
+        PathError::FilletCarrierBelowSceneResolution { scale, radius, .. } => (scale, radius),
+        ref other => panic!("the far scene's loss is the reconstruction one, got {other:?}"),
+    };
+    carries(
+        &err,
+        FILLET_SCENE_RESOLUTION_RECOURSE,
+        "the reconstruction refusal",
+    );
+    assert!(
+        scale >= shift,
+        "the sentence names the magnitude the arithmetic passed through, got {scale:e}"
+    );
+
+    // Lever 1: the geometry nearer the origin, at the same radius.
+    builds_and_validates(far_bend(0.0, 0.5, radius), "the geometry nearer the origin");
+
+    // Lever 2: a smaller radius, on a scene where the magnitude is the
+    // radius itself rather than the coordinates.
+    let huge = 64.0 * tol().eps() / f64::EPSILON;
+    if let Err(e @ PathError::FilletCarrierBelowSceneResolution { .. }) = bend(0.0, 1e-3, huge) {
+        carries(
+            &e,
+            FILLET_SCENE_RESOLUTION_RECOURSE,
+            "a radius the scene cannot read",
+        );
+        builds_and_validates(bend(0.0, 1e-3, huge / 64.0), "a smaller radius");
+    }
+
+    // And the lever the SIBLING sentence names is not one here: a
+    // larger radius leaves the far scene refusing.
+    assert!(
+        far_bend(shift, 0.5, 0.2 * 4.0).is_err(),
+        "a larger radius is the other situation's lever, and must not be read as this one's"
+    );
+}
+
+/// **The undecided twin.** When the stored form's own classification
+/// lands in band the run has declined to say which loss it is, so the
+/// sentence names both checks and the lever that settles either. The
+/// row drives it and follows that lever.
+#[test]
+fn the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet() {
+    let radius = 0.2;
+    // The band's own edge: the sagitta crosses ε at √(8ε/r), and the
+    // escalating window sits just above it, at √(8Kε/r).
+    let mut found = None;
+    for k in 1..=64 {
+        let theta = flattening_turn(radius) * (1.0 + f64::from(k) * 0.05);
+        if let Err(e @ PathError::Escalated { .. }) = bend(0.0, theta, radius)
+            && e.to_string().contains(FILLET_STORED_FORM_INBAND_RECOURSE)
+        {
+            found = Some((theta, e));
+            break;
+        }
+    }
+    let (theta, err) = found.expect(
+        "somewhere across the band's own width the stored form's classification is undecided",
+    );
+    let shown = err.to_string();
+    assert!(
+        shown.starts_with("reading back the fillet arc this door is about to store"),
+        "the escalation names the site the door read, not a junction.\n  got: {shown}"
+    );
+    // The wrong site's prose is what this row watches for: a junction
+    // escalation's shared sentence tells the caller to declare a
+    // coincidence they never authored.
+    assert!(
+        !shown.contains("declare the coincidence"),
+        "a joint the door minted has no declaration for the caller to add.\n  got: {shown}"
+    );
+    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    builds_and_validates(
+        Open.at(p2(0.0, 0.0))
+            .line_to(p2(4.0, 0.0), tol())
+            .and_then(|p| p.line_to(anchor, tol()))
+            .and_then(|p| p.line_to(Start, tol()))
+            .map(|c| c.loop_),
+        "dropping the fillet settles it either way",
+    );
 }

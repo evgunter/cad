@@ -792,3 +792,20 @@ doc lines, `mint_pcurves_of` and its registry rows), LIB
 draw and slot lines; a successor starts from it, reads this entry,
 and cuts SHELL-3 into slot 2 when sign-hull lands (ask M10's
 orchestrator for the co-review at dispatch, per plan item 5).
+
+## The tier-versus-engine row arrives from M10 (2026-09-13)
+
+M10 closed at its exit sweep (`docs/DOC-LEDGER.md` sweep 13) and
+`symbolic-tier-and-clearance-engine` came here by header edit and
+`git mv` (id unchanged): `editor_core::measure::MinClearanceLane` is
+the one lane trait the E12 symbolic tier cannot replay, because
+`min_separation` is written at `geom_core::Interval` CONCRETELY in
+`crates/editor-core/src/clearance.rs` — this program's file — and
+`topo::Body`'s `SlotMap` arenas admit no scalar remap. **SHELL-3 is
+the same question from the other end**, so the row belongs on that
+unit's slate.
+
+**The co-review pointer above has moved.** The entry that cut SHELL-3
+says to "ask M10's orchestrator for the co-review at dispatch"; M10
+has no orchestrator now. The tier side is SYM's (`work/sym/`) and the
+`clearance.rs`/`measure.rs` seam is PROPS' — ask those two.

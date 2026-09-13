@@ -376,7 +376,7 @@ fn m10_10_the_door_and_the_algebra_move_the_plate_together() {
 
 /// **THE PLATE'S CEILING IS DEPENDENCY WIDENING OF A REAL MARGIN, NOT
 /// A FLIP** (R2's MAJOR, by execution; the class
-/// `work/m10/real-margin-dependency-widening` names). The web
+/// `work/sym/real-margin-dependency-widening` names). The web
 /// assertion's margin is AFFINE in the study's parameters — `web −
 /// floor = 1e-4 + 2·Δhalf_spacing − Δr_a − Δr_b` — so its TRUE range
 /// over the box at scale `s` of the study is exact arithmetic: `1e-4 ±
