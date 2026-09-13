@@ -5,6 +5,7 @@ title: the remaining serial face walks in props - the shell census maps, the con
 status: review
 opened: 2026-09-13
 branch: perf/11-props-walks
+pr: 2486
 ---
 
 
