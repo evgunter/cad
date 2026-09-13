@@ -14,7 +14,7 @@ reverting the arm — so none blocked the merge. They are recorded here
 because the rows will outlive the review that read them.
 
 **1. The reach assertion is monotone in the wrong direction.**
-`crates/viewer/tests/valid_range.rs:405` asserts
+`crates/viewer/tests/valid_range.rs:441` asserts
 `result.high.limit() < 10.0`. That goes red when the reach GROWS —
 the metre-seed regression it was written for — and is satisfied by
 every degradation that makes the probe search LESS: a seed collapsing
@@ -25,9 +25,9 @@ for a row that goes red when the guarantee DEGRADES, not only when it
 is violated in the one direction someone happened to think of.
 
 **2. Both thresholds silently encode `BoundsProbe`'s constants.**
-`10.0` at `valid_range.rs:405` is chosen against `MAX_REACHES = 12`
-(`bounds.rs:380`) and `1.0e-4` at `:418` against `MAX_REFINES = 10`
-(`:385`); neither cites the constant it depends on. The margin on the
+`10.0` at `valid_range.rs:441` is chosen against `MAX_REACHES = 12`
+(`bounds.rs:402`) and `1.0e-4` at `:455` against `MAX_REFINES = 10`
+(`bounds.rs:407`); neither cites the constant it depends on. The margin on the
 first is only about 2.4× — a millimetre seed reaches ~4.1 m — so
 raising `MAX_REACHES` to 14 turns this row red for a reason it is not
 about, and the next reader has no pointer telling them why.
@@ -37,7 +37,7 @@ closure "to about a thousandth of the seed" — 1e-6 m at a millimetre
 seed, two orders tighter than the number beside it.
 
 **4. The "a refused probe lands no reading" rows cannot distinguish
-"does not set" from "does not clear".** `valid_range.rs:342` and the
+"does not set" from "does not clear".** `valid_range.rs:378` and the
 new `story_parametric` block both assert `session.bounds().is_none()`
 from a state where no probe has ever landed, so a refusal that
 returned before `self.bounds = Some(..)` and a refusal that correctly
