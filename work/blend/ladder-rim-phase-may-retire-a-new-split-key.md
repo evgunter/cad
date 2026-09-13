@@ -2,9 +2,10 @@
 id: ladder-rim-phase-may-retire-a-new-split-key
 kind: unit
 title: blend: the ladder rim phase can push a fresh split key as a retirement
-status: dispatched
+status: review
 opened: 2026-09-05
 branch: blend/8-ladder-split-key
+pr: 2505
 ---
 
 ## Finding
