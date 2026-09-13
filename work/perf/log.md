@@ -1092,3 +1092,24 @@ M / structural (slot 0); PERF-11 = M / structural + numeric (slot 1);
 PERF-12 = M–L / structural + numeric (slot 2). Dual review on every
 unit. Ordinals continue in the PERF band from 3409.
 Draw: `/dev/urandom` byte **8** (< 252), 8 mod 3 = 2 ⇒ fable position 2. **Slot 0 PERF-10 = OPUS, slot 1 PERF-11 = OPUS, slot 2 PERF-12 = FABLE.**
+
+## 2026-09-13 — block B4: PERF-11 and PERF-10 under dual review
+
+PERF-11 (PR 2486, `1bc6037eb`, ordinal 3409, R1 opus / R2 fable): the
+shell census as one more call site of PERF-8's shape; the
+continuation measured first — 58 of the tour's 61 tier-3 stops leave
+no face open, the round spout leaves 8 of 10 and is the whole
+continuation cost — and then mapped into one slot per face with a
+serial arena walk (the carried setup left on its item with the
+numbers): the spout's continuation 15.3 → 4.1 s, the tour 24 → 12.5 s
+at four threads; a small regression reported on the heat sink's
+many-shell census (six-face planar shells below the map's break-
+even), with the observation that the shell is the grain that would
+repay it — the reviewers are asked to judge the grain. PERF-10 (PR
+2484, `e8092fcad`, ordinal 3410, R1 fable / R2 opus): the pick index
+serves a patch whole under `mesh::StoredPatchId`, the identity of a
+patch-memo entry minted past the full-key comparison, so a hit
+compares nothing; the tour die's memo-primed index 25 → 14 ms with
+the seam's own work 17 → 6; no first-open regression; the marginal
+bytes ~3 KB (shared `Arc`s not counted). PERF-12 is still
+implementing.
