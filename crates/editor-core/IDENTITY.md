@@ -162,10 +162,11 @@ typed:
   path's directory. Inbound `DocRef`s to the old id do not follow,
   which is what a fork means.
 
-*Record: the build is CHROME's, landed 2026-09-08 —
-`Workspace::save` / `Workspace::save_as_new_document` and
-`WorkspaceError::SaveWouldDuplicateId` in `crates/pncad/src/workspace.rs`,
-closing `save-a-copy-duplicate-id-bricks-store`. History in
+*Record: the build is CHROME's, landed 2026-09-08 in
+`crates/pncad/src/workspace.rs` — the two acts are `Workspace::save_at`
+and `Workspace::save_as_new_document`, the refusal
+`WorkspaceError::SaveWouldDuplicateId { id, existing }` — closing
+`save-a-copy-duplicate-id-bricks-store`. History in
 `docs/DOC-LEDGER.md`.*
 
 ## DI5 — Releasing a free-move gesture is the placement edit
