@@ -2336,3 +2336,74 @@ transform over a profile would refuse **`expected: "profile", found:
 first, which is why it is MINOR rather than MAJOR; but a door whose two
 halves disagree about their subject is the thing that becomes reachable
 later, quietly.
+
+## 2026-09-13 — PR 2475 MERGED (`9dafd4172`), and two process corrections against the orchestrator
+
+Verified at the check-run level on the final head — the one with
+`origin/main` merged in, not the one the fix pass reported — **0 in
+flight, 0 non-success, twelve `test (…)` jobs, five `k-lint (gate, …)`
+rows**. The distinction matters: the lane's green was on `650ab6bcd`,
+and merging main moved the head to `f1e697baa`, which is a different
+tree and got its own run.
+
+**The fix pass wrote the guard rather than taking the escape.** The
+review's sharpest finding was that the new section's one genuinely new
+assertion was the false one. The lane could have written *"unguardable,
+and here is why"* and been within the rules. Instead it pinned
+`Mat3::determinant`'s **association** — `c0.dot(c1.cross(c2))`, `dot`
+summed left to right — on a frame whose three summands are `1.0`,
+`1e16`, `-1e16`, where the two groupings of one addition chain answer
+`0.0` and `1.0`. It asserts **the groupings disagree** before asserting
+which one the code gives, so it cannot pass vacuously, and it is
+red-first verified. A D9 evaluation-order claim that had no test
+anywhere in `editor-core` now reddens from one crate away.
+
+**And it repaired the minted defect structurally.** The hand-written
+census of test names is gone, by **inverting the reference**: the home
+names no test, and each test row names the claim it keeps. Nothing
+points at a test from outside, so nothing can rot. The one citation that
+cannot be inverted — it lives in `asm2a_instantiate` because its claim
+needs a whole document — carries the Q6 sentence at the site saying a
+test fn is not an intra-doc link target, so a rename there is silent and
+the rustdoc gate is blind to it.
+
+**The row closed and its residue got a file, not a sentence.** S6 and S8
+are discharged; S9, the ratio, is not, and
+`placement-rs-frame-carries-51-doc-lines-over-a-7-line-struct` now
+carries it — deliberately narrower than its parent, because "is 60%
+prose a defect" is not answerable and a row that asks it sits open
+forever. `work/README.md` is explicit that a residue disclosed only in a
+closing section is invisible to the re-homing sweep.
+
+### Two corrections against this orchestrator
+
+**I committed a file with conflict markers in it.** Merging main
+produced two tracker conflicts; I resolved one, then ran the whole-tree
+marker grep and `git add -A && git commit` **in the same call**, so I
+read the grep's output after the commit had already staged the second
+file verbatim. That is the exact hazard
+[[agent-lane-operations]] records — *"`git add -A && git commit
+--no-edit` stages a conflicted file verbatim and prompts for nothing"* —
+and knowing the rule did not help, because I ran the check and the
+action together. **Check and act must be two calls.** Caught by the next
+`work.py lint`, fixed forward rather than by rewriting.
+
+**The upstream cause is mine too, and it is now fixed.** Both conflicts
+existed because I had been writing interim `status=review` and `pr:`
+onto item files **on the orchestrator branch** while the unit branches
+own the same YAML block. The convention already says state-sync rides
+the unit's own PR; writing it twice manufactured the conflicts.
+**Stopping: from here the unit branch owns `status`, `pr` and `closed`
+on its own rows**, and the orchestrator branch carries the log, the plan
+and rows no unit is touching. Dispatch-time `status=dispatched` stays
+here, because at that moment no unit branch exists yet.
+
+### `Frame::linear` dispatched
+
+`wire/linear-door`, off the merged main. The measurement is now exact
+rather than a lower bound, reproduced by two parties with the same
+instrument, and the sweep hole that could have hidden a consumer is
+closed. The brief carries the grounds so the lane can recognise evidence
+that would overturn them, and is explicit that the row is a **class with
+two instances** and this unit disposes of one — closing the whole row
+would mislabel a half-fix.
