@@ -3752,3 +3752,64 @@ mechanical total is **seven**, not four. That is the fourth row this
 session whose own numbers were wrong and were corrected by the lane that
 read them — the standing lesson holds: **a figure in a row is one nobody
 re-takes until someone has to use it.**
+
+## 2026-09-13 — 2518's review: the reviewer wrote the guard the lane called impossible, and it reaches back into merged work
+
+**1 MAJOR, 1 MINOR, 2 NOTE, 7 style.** The strongest single finding of
+the session, and the only one so far that indicts a unit already merged.
+
+### The finding
+
+The unit shipped *"unguardable, and here is why"* at two claim sites, on
+the argument that no door reachable from `editor-core` can build a
+cycling face-fragment map. **`topo::BooleanNaming` is a public struct
+with public fields, `name_boolean` is `pub(crate)`, and `emit_topo.rs`'s
+own test module was already minting synthetic `face_fragments_a` rows**
+to guard two other emission refusals. The technique was idiomatic in the
+file the lane was editing.
+
+The reviewer wrote the guard — **~35 lines, at that door** — and it does
+better than pass. Under the M6 mutant it **exhibits the defect**:
+`name_boolean` returns `Ok`, publishes a total table, and **the two cap
+faces are named after each other**, `built.top` taking bottom's operand
+name and `built.bottom` taking top's. The row's claim, made visible
+rather than argued.
+
+### It is a class, and it reaches PR 2474, which this orchestrator merged
+
+The identical sentence sits on `chase_edge_to_table` and `chase_b` from
+**PR 2474**, and on `NamingError::SplitLineage`. Those shipped two units
+ago on the same false reasoning, **and I accepted it at merge** — the
+report said the refusal was unreachable and pinned by the type system,
+the note was at the claim site as Q6 requires, and I took the argument
+because it was honestly made and well placed. It was still wrong.
+
+The lesson is not "distrust the lane". It is that **Q6's discharge is
+available only when the guard genuinely cannot be built, and nobody had
+tested that**. An "unguardable" note is a claim about a call graph, and
+the strongest evidence against it was in the same file's own tests.
+Directed: repair every copy, guard the siblings or argue per site, and
+**say in the PR that this corrects a claim PR 2474 merged** — an error
+found in merged work is worth more recorded than quietly overwritten.
+
+### What held, and one of them is a technique worth keeping
+
+**The tag-compatibility claim was executed, not read**: all four arms,
+before → after, unchanged; inner tags `None` on both sides; the 85
+`pncad-py` rows green. A backward-compatibility claim about a public
+binding settled by running it.
+
+**And the reviewer turned another program's row into a repro.** The BOOL
+row's cycling-descendant claim had been read off the code path; the
+reviewer built it — two mutually-referring dead face keys plus a declared
+v-on-f contact — and measured **cycle → 0 records, dead end → 0 records,
+indistinguishable**. BOOL inherits a repro instead of an argument.
+
+### The style finding that converged with the MAJOR
+
+**S2**: 35 doc-lines on a 4-line variant, 25 on a 9-line function, the
+argument restated a third time in the PR body — **and that is the
+justification that turned out to be wrong.** `reviewer-style-lane.md`
+§1's rule is that unusual justification length is *mild evidence* a thing
+is worth flagging. Here it pointed straight at the false claim, which is
+the second time today the length tell has paid.
