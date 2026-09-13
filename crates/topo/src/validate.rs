@@ -7723,7 +7723,10 @@ mod tests {
                     )
                 })
                 .collect();
-            assert!(ours.is_empty(), "the nesting arm refused a fixture: {ours:?}");
+            assert!(
+                ours.is_empty(),
+                "the nesting arm refused a fixture: {ours:?}"
+            );
         }
         assert!(
             ringed > 0,
