@@ -110,9 +110,11 @@ pub mod cone_nappe;
 pub mod oracles;
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::RawLoop;
+use profile::{Profile, SketchPlane};
 use sweep::{ProfileLoop, ProfileVertex, Section};
+use topo::Body;
 
 /// The placement a path sweep starts from: the plane through the
 /// path's start point whose normal is the start TANGENT, with the
@@ -183,6 +185,100 @@ pub fn arc_section(s: f64) -> Section {
     ])]
 }
 
+/// **Runs `run` on a pool of exactly `threads` threads**, and answers
+/// its value.
+///
+/// One home for the rule, which every caller would otherwise restate:
+/// `RAYON_NUM_THREADS` configures the GLOBAL pool once per process, so
+/// it cannot give one test binary a one-thread row and a four-thread
+/// row. A `ThreadPool` can, and `ThreadPool::install` runs the closure
+/// on that pool's worker — which is also the pool `topo::props`' face
+/// map then uses, so everything a row measures sits inside the width it
+/// names. (`benches/` is a separate cargo root and cannot reach this;
+/// its copy carries a one-line pointer here.)
+pub fn on_pool<R: Send>(threads: usize, run: impl Fn() -> R + Send + Sync) -> R {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build()
+        .expect("the pool builds")
+        .install(run)
+}
+
+/// The quintic prism: six square sections of DIFFERING scale at
+/// v-degree 5, which is outside the exact per-span rule window (> 4 per
+/// direction), so its walls take the patch engine's COMPOSITE rounds
+/// and the round they stop at is an ε question.
+///
+/// The scale is chosen so the committed rows DIFFER across the matrix:
+/// the composite's starting width lands between the 1e-12 target and
+/// the 1e-9 one, so this body refuses on budget at the tight ε and
+/// certifies at the other two. The sections must differ, or the walls
+/// are flat — a flat patch's second derivatives are zero, the
+/// composite's remainder vanishes and round 0 certifies at
+/// ring-rounding width whatever ε is.
+pub fn quintic_prism() -> Body<f64> {
+    let s = 0.1;
+    let sq = |k: f64| {
+        quad([
+            (-k * s, -k * s),
+            (k * s, -k * s),
+            (k * s, k * s),
+            (-k * s, k * s),
+        ])
+    };
+    sweep::loft_body::<f64>(
+        &[sq(1.0), sq(1.05), sq(1.15), sq(1.3), sq(1.5), sq(1.75)],
+        &stacked(&[0.0, 0.4, 0.8, 1.2, 1.6, 2.0], s),
+        5,
+        Tol::witness(),
+    )
+    .expect("the quintic prism lofts")
+    .body
+}
+
+/// The tilted cylinder cut, upper part: a cylinder split by a plane at
+/// `φ = 0.3`, whose wall pieces are bounded by exact `Ellipse`
+/// carriers — the CYLINDER chart's Green form, which no loft or sweep
+/// verb can produce (their walls carry iso boundaries and take the
+/// closed forms).
+pub fn tilted_cut_upper() -> Body<f64> {
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(Point2::new(-0.5, 0.0), 1.0),
+        ProfileVertex::new(Point2::new(0.5, 0.0), 1.0),
+    ]);
+    let disc = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("the disc profile validates");
+    let cylinder = sweep::extrude::<f64>(&disc, sweep::Extrusion::Distance(1.0), Tol::witness())
+        .expect("the cylinder extrudes")
+        .body;
+    let phi = 0.3f64;
+    let result = topo::splitting::split(
+        &cylinder,
+        &topo::splitting::SplitPlane {
+            origin: Point3::new(0.0, 0.0, 0.5),
+            normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
+        },
+        Tol::witness(),
+    )
+    .expect("the tilted cut splits");
+    let topo::splitting::SplitPart::Body(above) = result.above else {
+        panic!("both sides of the tilted cut carry material");
+    };
+    above
+}
+
+/// The bulged extrusion: an analytic cylinder wall with a CURVED trim
+/// loop — the cylinder chart's Green form.
+pub fn bulged_extrusion() -> Body<f64> {
+    let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
+        .validate(Tol::witness())
+        .expect("the profile validates");
+    sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
+        .expect("extrude")
+        .body
+}
+
 /// The **sup-norm distance** between two points — the largest
 /// coordinate disagreement, which is the honest meter for "these two
 /// constructions produced the same point": it bounds every coordinate
@@ -219,6 +315,60 @@ pub fn quad_verdicts(run: impl FnOnce()) -> usize {
         .iter()
         .filter(|v| v.predicate.starts_with("props_quad"))
         .count()
+}
+
+/// **FNV-1a over a byte stream** — an order- and element-sensitive
+/// fold of a recorded channel into one hex word, so a golden line
+/// stays a line. Not a cryptographic claim: what it has to do is
+/// change when any element, sign or position changes, which is what a
+/// golden compares.
+///
+/// Beside [`quad_verdicts`] for its reason: the thread-count goldens
+/// of two walks read the same channels through the same fold, and a
+/// digest that drifts between them is two instruments reporting one
+/// number.
+///
+/// **This is the home for THAT fold, not for the basis**, and the
+/// distinction is what `work/perf/fnv-digest-and-memo-machinery-copies.md`
+/// tracks. Two spellings in this crate stay where they are because
+/// neither is this function: `blend4_r1_probes`' is the same byte-wise
+/// fold accumulated IN PLACE over a coordinate stream it never
+/// materialises, and `verbs_tubewall_r1_fingerprint`'s is WORD-wise
+/// (one `u64` per step, not one byte), which is a different digest of
+/// the same name. Each says so at its own site.
+pub fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in bytes {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(0x1000_0000_01b3);
+    }
+    h
+}
+
+/// **The recorded channels of one walk, folded**: the counts
+/// (readable) and the order-sensitive hash (complete). What a
+/// thread-count golden compares, for any walk that composes a
+/// worker's K-funnel recording back into the caller's frame.
+pub fn channels(r: &geom_core::k_stats::Recorded) -> String {
+    let mut v = Vec::new();
+    for verdict in &r.verdicts {
+        v.extend_from_slice(verdict.predicate.as_bytes());
+        v.push(1);
+        v.extend_from_slice(format!("{:?}", verdict.sign).as_bytes());
+        v.push(0);
+    }
+    let mut e = Vec::new();
+    for esc in &r.escalations {
+        e.extend_from_slice(esc.predicate().as_bytes());
+        e.push(0);
+    }
+    format!(
+        "verdicts n={} h={:016x} esc n={} h={:016x}",
+        r.verdicts.len(),
+        fnv1a(&v),
+        r.escalations.len(),
+        fnv1a(&e),
+    )
 }
 
 /// A thin curved STRIP section: a rectangle `[-s, s] × [0, delta]`

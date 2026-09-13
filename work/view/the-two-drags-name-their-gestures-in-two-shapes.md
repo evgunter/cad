@@ -24,7 +24,7 @@ Six operations now name the gesture they drive, in **three** spellings:
   (`crates/viewer/src/session/op.rs:216-227`)
 - `SessionOp::PreviewFreeMove { instance, frame }` /
   `SessionOp::CommitFreeMove { instance }`
-  (`crates/viewer/src/session/op.rs:321-335`)
+  (`crates/viewer/src/session/op.rs:331-345`)
 
 Each is right for its own door — the first two are the two doors
 `SessionOp::BeginParamGesture` argues for, and the third is a different

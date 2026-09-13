@@ -400,7 +400,7 @@ fn r1_the_door_moves_no_bit_on_r1s_document() {
 /// before certification — not which one bounds the document. M10-9's
 /// first cut read the refusal at 2× and reported `line_span` as the
 /// pad's bound; it is not, and neither is `carrier_line_circle`
-/// (`work/m10/fillet-tangency-is-not-the-constructors-node` measures
+/// (`work/blend/fillet-tangency-is-not-the-constructors-node` measures
 /// that one directly, by passing it).
 #[test]
 #[ignore = "evidence-only: the pad's over-band set at multiples of its ceiling"]

@@ -648,6 +648,12 @@ impl ViewerApp {
         // report of a theme applied too late.
         apply_polarity(&cc.egui_ctx, theme.polarity);
 
+        // And the numeric rule onto both of the context's styles, so a
+        // field that never reached `widgets::number_field` still says
+        // what it holds. See that function's neighbour for why this is
+        // a default rather than a check.
+        crate::widgets::install_number_formatter(&cc.egui_ctx);
+
         let render_state = cc
             .wgpu_render_state
             .as_ref()
@@ -730,10 +736,14 @@ impl ViewerApp {
         // why there is a budget at all.
         //
         // A fit that cannot run leaves δ alone: the document is one
-        // whose roots do not gather (no landed body) or whose probe
-        // will not tessellate, and the index build below is about to
-        // say so with its own typed refusal. Two opinions about that
-        // would be one too many.
+        // whose roots do not gather (no landed body), or one that
+        // tessellates at NEITHER of the two δ the fit can fall back
+        // between (`scene::fit_delta`'s scale probe and the rung that
+        // prices the request — a refusal at one of them is answered by
+        // the other, so only a body that refuses at both reaches
+        // here). The index build below is about to say so with its own
+        // typed refusal, and two opinions about that would be one too
+        // many.
         if self.fit_delta_on_scene
             && let Some((doc, evaluation)) = self.session.landed_pair()
         {

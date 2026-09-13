@@ -20,7 +20,8 @@ FILLET finished the bands (the material-adding closed rim, the annulus
 band with hostless crossings, the ruled band with its transverse
 cut-off) and left, filed one file each, what its reviews measured on
 the way: shapes the surgery refuses at a gate that is about the wrong
-property, an unmeasured orientation in the ladder phase, two
+property, a fresh-key retirement in the ladder phase (called
+unmeasured, found live — unit 8), two
 must-carry arms with one rule and two policies, recourse sentences
 that under-describe their doors, and a profile fillet door whose
 output its own validator refuses. The substrate — `crates/sweep/README.md`
@@ -75,7 +76,7 @@ H, in dependency order:
 8. `ladder-rim-phase-may-retire-a-new-split-key` — a fixture whose
    meridian runs pole-to-rim first, then the `split_rim` guard shape
    applied to the ladder path. Spec `docs/BLEND-8-SPEC.md`; block
-   BLEND-B2's first slot.
+   BLEND-B2 slot 0.
 9. `smooth-arm-siblings-disagree-on-the-in-band-case` — the in-band
    policy is the predicate's documented contract (in-band escalates
    typed; a behaviour change for revolve), one wrapper beside
@@ -83,14 +84,30 @@ H, in dependency order:
    `docs/BLEND-9-SPEC.md`; block BLEND-B1 slot 2.
 10. `path-fillet-door-validator-tangency-disagree` — which side is
     right across four decades of turn angle; the door's stored arc or
-    the validator's tangency test moves.
+    the validator's tangency test moves. Spec `docs/BLEND-10-SPEC.md`;
+    block BLEND-B2 slot 1 (S-BOOL seam announced at dispatch).
 11. `overrun-attribution-picks-the-first-candidate` — a stated rule
     for which corner-side candidate is reported, the FILLET-ATTR
-    shape one level down.
-12. `fillet-escalation-site-has-no-producer` — one of the three
-    dispositions in the item (a fillet arm on `PathError::Escalated`,
-    route through `ProfileError` at the `Fillet` site, or retire the
-    six constants); a door change, so it follows 10 and 11.
+    shape one level down: the nearest fit. Spec `docs/BLEND-11-SPEC.md`;
+    block BLEND-B2 slot 2 (S-BOOL seam announced at dispatch).
+12. `fillet-escalation-site-has-no-producer` — disposition (1): a
+    fillet arm on `PathError::Escalated` keyed on the predicate name
+    (BLEND-10's shape), one map for name → sentence, the producerless
+    `ProfileError` site arm retired; a door change, so it follows 10
+    and 11. Spec `docs/BLEND-12-SPEC.md`; block BLEND-B3 slot 0 (S-BOOL
+    seam announced at dispatch); 14 is slot 1, 15 is slot 2 and
+    dispatches after 12 merges.
+14. `blend-contact-edges-mint-the-intrinsic-description-without-the-rule`
+    — a blend's contact edge takes its description from the must-carry
+    rule (BLEND-9's residue: the fourth site minting the intrinsic
+    description outside the rule, measured Positive everywhere on the
+    corpus and not definite by construction). Spec `docs/BLEND-14-SPEC.md`;
+    block BLEND-B3.
+15. `escalation-recourse-dispatch-has-three-homes` — disposition (2):
+    one gap sentence at every unknown-name arm, a roster row per crate
+    over every decided name, the dispatch order pinned; follows 12
+    (which retires the third table). Spec `docs/BLEND-15-SPEC.md`;
+    block BLEND-B3 (S-BOOL seam announced at dispatch).
 13. `S90-impl` — stays blocked in fact on the lane-trait split `H5`
     names (PROPS' ground); this program owes the per-read
     classification of the nineteen bracket reads so the day `H5`
@@ -109,5 +126,7 @@ both routes, and the statement lives at `HostSide`'s doc).
 
 ## Exit shape
 
-The twelve land, the ruling is answered, Track T is empty; the walk
-convention applies.
+The twelve land (with 14 and 15, promoted from the slate's residues on
+2026-09-13, beside them; 13 stays blocked on PROPS' H5 and is walked as
+such), the ruling is answered, Track T is empty; the walk convention
+applies.

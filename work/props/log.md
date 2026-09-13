@@ -1067,3 +1067,47 @@ and a ρ-sweep, then to Ev. Ordinal 2405, byte 34 ⇒ R1 opus /
 R2 fable. Briefs for both duals stored on `props/b2-block`; four
 review lanes run at once on the box now that the two implementer
 build trees (27 GB) are freed.
+
+**Seam announced by BLEND (2026-09-13, at unit 9's dispatch):** BLEND
+unit 9 (`docs/BLEND-9-SPEC.md`, item
+`work/blend/smooth-arm-siblings-disagree-on-the-in-band-case.md`) adds
+ONE wrapper beside `geom_brep::tangent_second_order` in
+`crates/geom-brep/src/dihedral.rs` — the must-carry rule over an edge
+(lane gate, the certification schedule's interior stations, a typed
+three-way answer) — and restates `folded_lever_arm`'s doc count of
+issue 1439's remaining siblings. Nothing else in the file changes;
+`classify_dihedral`, `tangent_certificate_lane`'s admitted set and the
+predicate name are untouched. Branch `blend/9-must-carry-one-home`.
+
+## M10's analysis lane and four rows arrive (2026-09-13)
+
+M10 closed at its exit sweep (`docs/DOC-LEDGER.md` sweep 13; the walk
+#1700 ratified by Ev in chat that day). This program's `keep_out` had
+said since 2026-09-06 that M10's analysis lane files are inherited at
+that sweep, and they are: `analysis.rs`, `distribution.rs`, `drive.rs`,
+`measure.rs` and `mc.rs`, the `m10*` and `e4_dual*` suites beside them,
+and `docs/ERROR-DESIGN.md` and `docs/DUAL-DESIGN.md` join `paths` in
+the opening commit. Four rows came with them, by header edit and
+`git mv` only (ids unchanged), all from `work/m10/`:
+
+- `certified-hull-padding-is-the-leaf-width-not-the-lane` — the hull is
+  `stackup.rs`'s, which was this program's already; the tier is the
+  cause and not the site
+- `coincidence-zone-priced-budget-at-the-floor` — a `RefusalReason` arm
+  in `drive::classify_replay`; it already `refs` this program's
+  `k-stats-escalation-channel-and-redo`
+- `min-clearance-refusal-stringly-twin` — the twin is in `measure.rs`;
+  the layering question it waits on is the 1055 valve's seam and
+  `clearance.rs` is SHELL's
+- `mc-lanes-draws-are-not-reproducible-from-outside-the-crate` — the
+  advisory lane's draws; the `pncad` re-export half is LIB's
+
+**Not inherited: the symbolic tier.** Ev's call at the sweep was that
+the fourteen rows standing on `geom_core::sym` are a successor's
+opening slate, so `work/sym/` holds them and claims `sym.rs` and
+`sym/*` inside this program's `crates/geom-core/src/*` glob. The fence
+is written on both sides in the opening commit. `real.rs` — the
+registered-identity door's file — stays here, and SYM reaches it by
+announced seam; three of its rows say so in their bodies.
+`crates/bvh/src/*`, which this program's `keep_out` had parked on M10,
+is now in no program's paths.

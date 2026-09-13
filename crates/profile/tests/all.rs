@@ -65,6 +65,10 @@ mod fillet_refusal_envelope;
 mod review_fillet_attr_r1_probes;
 #[path = "review_fillet_attr_r2_probes.rs"]
 mod review_fillet_attr_r2_probes;
+#[path = "review_fillet_overrun_nearest_fit_r1_probes.rs"]
+mod review_fillet_overrun_nearest_fit_r1_probes;
+#[path = "review_fillet_overrun_nearest_fit_r2_probes.rs"]
+mod review_fillet_overrun_nearest_fit_r2_probes;
 
 #[path = "bool12_probes.rs"]
 mod bool12_probes;
@@ -90,8 +94,12 @@ mod cert4r2_e2e;
 mod declared_tangency;
 #[path = "enclose_refusal_r2_probes.rs"]
 mod enclose_refusal_r2_probes;
+#[path = "fillet_overrun_nearest_fit.rs"]
+mod fillet_overrun_nearest_fit;
 #[path = "fillet_recourse_followability.rs"]
 mod fillet_recourse_followability;
+#[path = "fillet_stored_tangency.rs"]
+mod fillet_stored_tangency;
 #[path = "generic_replay.rs"]
 mod generic_replay;
 #[path = "guided_replay.rs"]
@@ -116,8 +124,18 @@ mod r2_bool11_review_probes;
 mod r2_bool9_review_probes;
 #[path = "raw_door_census.rs"]
 mod raw_door_census;
+#[path = "review_fillet_recourse_arm_r2_probes.rs"]
+mod review_fillet_recourse_arm_r2_probes;
+
+#[path = "review_r2_differential.rs"]
+mod review_r2_differential;
+
 #[path = "rejections.rs"]
 mod rejections;
+#[path = "review_fillet_recourse_arm_r1_probes.rs"]
+mod review_fillet_recourse_arm_r1_probes;
+#[path = "review_fillet_stored_tangency_r1_probes.rs"]
+mod review_fillet_stored_tangency_r1_probes;
 #[path = "review_m2_pr2.rs"]
 mod review_m2_pr2;
 #[path = "review_m2_pr2_consumers.rs"]
@@ -159,3 +177,5 @@ fn every_suite_file_is_aggregated() {
 }
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
+#[path = "review_fillet_stored_tangency_r2_probes.rs"]
+mod review_fillet_stored_tangency_r2_probes;

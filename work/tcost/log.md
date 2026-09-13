@@ -1803,7 +1803,7 @@ And `CHAMBER_LEAVES` should NOT be re-cut: the budget was measured
 correctly, the rows assert what they assert, and the seconds belong to a
 kernel tier the real program pays too.
 
-Filed as `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive` —
+Filed as `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive` —
 M10's slate, because M10 designed the tier (M10-7), owns `drive.rs` where
 both budget constants live, and owns the rows that pay. Named in it:
 `geom-core/src/sym*` is PROPS's by glob, so a fix inside the normal form
@@ -1963,7 +1963,7 @@ by doing the latter.
 open. Its diagnosis is complete, its fix is a kernel change inside a tier
 M10 designed and owns, and it has had **no dispatchable work on this side
 since it was filed**. It was reporting as available work it is not.
-Parked on `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`,
+Parked on `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`,
 which is the thing that can actually fire.
 
 That is the same class this program has been auditing in other people's

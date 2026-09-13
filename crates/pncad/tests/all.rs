@@ -452,7 +452,7 @@ fn stale_declaration_and_ring_contact_are_matchable(
 /// The profile refusals' payloads — what `ProfileError`,
 /// `CornerReason` and `PathError` say beyond their arm names.
 ///
-/// `EscalationSite` is where the rung under it shows: two of its four
+/// `EscalationSite` is where the rung under it shows: two of its three
 /// arms hand back a `SegmentRef`, and reading the site's loop and
 /// segment indices is the whole point of binding one.
 fn profile_payloads_are_matchable(
@@ -488,7 +488,6 @@ fn profile_payloads_are_matchable(
             named::<usize>(loop_index);
             "loop"
         }
-        EscalationSite::Fillet => "fillet",
     };
     let leg = match leg {
         FilletLeg::Incoming => "incoming",
@@ -4482,8 +4481,9 @@ fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
 /// in a repository whose determinism argument opens with a pinned
 /// compiler, and stands guards whose claims are NEGATIVE on an
 /// explicitly unstable schema, where a format that moved reads green.
-/// Two blind spots stand, and both are text-reachable: closing them
-/// is scanner work in this file, not a toolchain.
+/// Two blind spots stand in the export set this scan reads, and both
+/// are text-reachable: closing them is scanner work in this file, not
+/// a toolchain.
 ///
 /// 1. A public name reachable only by module path
 ///    (`editor_core::persist::Foo`) and never lifted to that crate's
@@ -4516,6 +4516,15 @@ fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
 /// newly aliased root export is a new name here, uncarried, and fails
 /// (naming it with the `as` clause still attached, since the scanner
 /// takes the leaf of the statement).
+///
+/// A fourth is wider than this scan and is not its to close: **no
+/// instrument in the tree guards a public METHOD.** This scan's
+/// alphabet is root `pub use` leaf names; the Python side's member
+/// census reads a declaration's enum variants and bare-`pub` fields
+/// and never an `impl` block. So a method added to a carried type
+/// lands on the public surface with nothing made to decide about it —
+/// the same drift these guards exist to stop, one level in. Scheduled
+/// on `meta`'s slate as `no-instrument-guards-a-public-method`.
 #[test]
 fn every_document_layer_root_export_is_carried_or_listed() {
     let kernel_lib =

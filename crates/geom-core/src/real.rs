@@ -85,7 +85,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 /// impossible ones cannot be written down, and a call site reads one
 /// answer. The cost, stated: "was this refused?" is a two-arm match
 /// rather than a field read, and every registrant pays it by hand
-/// (`work/m10/sym-registration-flattens-two-axes`).
+/// (`work/sym/sym-registration-flattens-two-axes`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SymRegistration {
     /// Recorded: from here on the two nodes denote one function of the
@@ -157,7 +157,7 @@ pub enum SymRegistration {
 ///
 /// So the slack stays relative and ε-independent, and the limit is
 /// FILED rather than hidden
-/// (`work/m10/the-witness-slack-is-eps-independent`): at a tight ε row
+/// (`work/sym/the-witness-slack-is-eps-independent`): at a tight ε row
 /// this threshold is many band-widths loose, which weakens the witness
 /// exactly where the review said it does.
 pub const WITNESS_REL: f64 = 1e-9;
@@ -994,6 +994,26 @@ pub mod bounds_allowlist {
     //! falls under this entry rather than a new one: a certified box
     //! constructor beside its invariants plus a query driver over the C10
     //! tree, deciding no topology.
+    //!
+    //! `topo::census` — the at-rest census's BVH pre-filter — falls under
+    //! this entry on the same terms: `census::Trees` builds the C10 tree's
+    //! item boxes through the certified box constructors (`face_box`,
+    //! `edge_box`, a vertex point widened by the sweep pad) and
+    //! `census::Candidates` drives the tree's queries, deciding nothing —
+    //! the exact sweeps that follow decide. The weakest bound that works
+    //! is `Decide + Bounds`: the tree's boxes are `f64` brackets read
+    //! through `Bounds::lo`/`hi` (`bvh::Aabb::from_points`), and the
+    //! census is decision code on the same scalar. Sole `Bounds` fails —
+    //! the sweeps call the funnel — and sole `Decide` fails — no box can
+    //! be read without the bracket, so there is no tree to query. The
+    //! bound rides the three `validate` doors that reach the census
+    //! (`validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
+    //! and the `via` they share) as a REACHABILITY ride only: those
+    //! doors are validators, not driver code, and carry `T: Bounds`
+    //! because the census cannot be reached except through them — the
+    //! first time this amendment's bound rides onto a non-driver public
+    //! door, said plainly so the next ride is argued rather than
+    //! inherited.
     //!
     //! `Separation::of`, `Separation::certify` and `image` carry **no**
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
